@@ -12,6 +12,7 @@ members = [
   "radicle-remote-helper",
   "radicle-ssh",
   "radicle-tools",
+  "radicle-tui",
 ]
 default-members = [
   "radicle",

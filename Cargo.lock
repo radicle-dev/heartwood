@@ -30,6 +30,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ahash"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
+dependencies = [
+ "getrandom 0.2.8",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
+name = "aho-corasick"
+version = "0.7.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc936419f96fa211c1b9166887b38e5e40b19958e5b895be7c1f93adec7071ac"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "amplify"
 version = "4.0.0-beta.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -298,6 +318,12 @@ name = "bytes"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfb24e866b15a1af2a1b663f10c6b6b8f397a84aadb828f12e5b289ec23a3a3c"
+
+[[package]]
+name = "cassowary"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df8670b8c7b9dae1793364eafadf7239c40d669904660c5960d74cfd80b46a53"
 
 [[package]]
 name = "cc"
@@ -987,6 +1013,9 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+dependencies = [
+ "ahash",
+]
 
 [[package]]
 name = "headers"
@@ -1259,6 +1288,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3afef3b6eff9ce9d8ff9b3601125eec7f0c8cbac7abd14f355d053fa56c98768"
 dependencies = [
  "cpufeatures",
+]
+
+[[package]]
+name = "lazy-regex"
+version = "2.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a505da2f89befd87ab425d252795f0f285e100b43e7d22d29528df3d9a576793"
+dependencies = [
+ "lazy-regex-proc_macros",
+ "once_cell",
+ "regex",
+]
+
+[[package]]
+name = "lazy-regex-proc_macros"
+version = "2.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8edfc11b8f56ce85e207e62ea21557cfa09bb24a8f6b04ae181b086ff8611c22"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "regex",
+ "syn",
 ]
 
 [[package]]
@@ -2076,6 +2128,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-tui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "lexopt",
+ "radicle-term",
+ "tui-realm-stdlib",
+ "tuirealm",
+]
+
+[[package]]
 name = "rand"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2170,6 +2233,8 @@ version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48aaa5748ba571fb95cd2c85c09f629215d3a6ece942baa100950af03a34f733"
 dependencies = [
+ "aho-corasick",
+ "memchr",
  "regex-syntax",
 ]
 
@@ -2459,6 +2524,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
 
 [[package]]
+name = "smawk"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f67ad224767faa3c7d8b6d91985b78e70a1324408abcb1cfcc2be4c06bc06043"
+
+[[package]]
 name = "snapbox"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2666,6 +2737,17 @@ dependencies = [
  "numtoa",
  "redox_syscall",
  "redox_termios",
+]
+
+[[package]]
+name = "textwrap"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
+dependencies = [
+ "smawk",
+ "unicode-linebreak",
+ "unicode-width",
 ]
 
 [[package]]
@@ -2929,6 +3011,55 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3528ecfd12c466c6f163363caf2d02a71161dd5e1cc6ae7b34207ea2d42d81ed"
 
 [[package]]
+name = "tui"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccdd26cbd674007e649a272da4475fb666d3aa0ad0531da7136db6fab0e5bad1"
+dependencies = [
+ "bitflags",
+ "cassowary",
+ "termion 1.5.6",
+ "unicode-segmentation",
+ "unicode-width",
+]
+
+[[package]]
+name = "tui-realm-stdlib"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66f252bf8b07c6fd708ddd6349b5f044ae5b488b26929c745728d9c7e2cebfa6"
+dependencies = [
+ "textwrap",
+ "tuirealm",
+ "unicode-width",
+]
+
+[[package]]
+name = "tuirealm"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "265411b5606f400459af94fbc5aae6a7bc0e98094d08cb5868390c932be88e26"
+dependencies = [
+ "bitflags",
+ "lazy-regex",
+ "termion 1.5.6",
+ "thiserror",
+ "tui",
+ "tuirealm_derive",
+]
+
+[[package]]
+name = "tuirealm_derive"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0adcdaf59881626555558eae08f8a53003c8a1961723b4d7a10c51599abbc81"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "typenum"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2945,6 +3076,16 @@ name = "unicode-ident"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84a22b9f218b40614adcb3f4ff08b703773ad44fa9423e4e0d346d5db86e4ebc"
+
+[[package]]
+name = "unicode-linebreak"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5faade31a542b8b35855fff6e8def199853b2da8da256da52f52f1316ee3137"
+dependencies = [
+ "hashbrown",
+ "regex",
+]
 
 [[package]]
 name = "unicode-normalization"

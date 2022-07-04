@@ -1,0 +1,21 @@
+[package]
+name = "radicle-tui"
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+authors = ["Erik Kundt <erik@zirkular.io>"]
+edition = "2021"
+build = "../build.rs"
+
+[[bin]]
+name = "radicle-tui"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { version = "1" }
+lexopt = { version = "0.2" }
+tuirealm = { version = "1.8.0", default-features = false, features = [ "with-termion" ] }
+tui-realm-stdlib = { version = "1.2.0", default-features = false, features = [ "with-termion" ] }
+
+[dependencies.radicle-term]
+version = "0"
+path = "../radicle-term"
