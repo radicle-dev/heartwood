@@ -1,7 +1,20 @@
-[package]
-name = "radicle-node"
-version = "0.1.0"
-authors = ["Alexis Sellier <alexis@radicle.xyz>"]
-edition = "2021"
+[workspace]
+members = ["node"]
 
-[dependencies]
+[patch.crates-io.radicle-git-ext]
+git = "https://github.com/radicle-dev/radicle-link"
+tag = "cycle/2022-07-12"
+
+[patch.crates-io.git-ref-format]
+git = "https://github.com/radicle-dev/radicle-link"
+tag = "cycle/2022-07-12"
+
+[patch.crates-io.nakamoto-net]
+git = "https://github.com/cloudhead/nakamoto"
+branch = "master"
+version = "0.3.0"
+
+[patch.crates-io.nakamoto-net-poll]
+git = "https://github.com/cloudhead/nakamoto"
+branch = "master"
+version = "0.3.0"

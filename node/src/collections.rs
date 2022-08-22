@@ -1,0 +1,38 @@
+//! Useful collections for peer-to-peer networking.
+use siphasher::sip::SipHasher13;
+
+/// A `HashMap` which uses [`fastrand::Rng`] for its random state.
+pub type HashMap<K, V> = std::collections::HashMap<K, V, RandomState>;
+
+/// A `HashSet` which uses [`fastrand::Rng`] for its random state.
+pub type HashSet<K> = std::collections::HashSet<K, RandomState>;
+
+/// Random hasher state.
+#[derive(Default, Clone)]
+pub struct RandomState {
+    key1: u64,
+    key2: u64,
+}
+
+impl RandomState {
+    fn new(rng: fastrand::Rng) -> Self {
+        Self {
+            key1: rng.u64(..),
+            key2: rng.u64(..),
+        }
+    }
+}
+
+impl std::hash::BuildHasher for RandomState {
+    type Hasher = SipHasher13;
+
+    fn build_hasher(&self) -> Self::Hasher {
+        SipHasher13::new_with_keys(self.key1, self.key2)
+    }
+}
+
+impl From<fastrand::Rng> for RandomState {
+    fn from(rng: fastrand::Rng) -> Self {
+        Self::new(rng)
+    }
+}
