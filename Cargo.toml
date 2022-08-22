@@ -1,0 +1,7 @@
+[package]
+name = "radicle-node"
+version = "0.1.0"
+authors = ["Alexis Sellier <alexis@radicle.xyz>"]
+edition = "2021"
+
+[dependencies]
