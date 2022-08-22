@@ -20,7 +20,7 @@ pub static RAD_ID_GLOB: Lazy<refspec::PatternString> =
 pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new(".rad/identity.toml"));
 
 pub type BranchName = String;
-pub type Inventory = Vec<(ProjId, Refs)>;
+pub type Inventory = Vec<(ProjId, HashMap<String, Remote<Unverified>>)>;
 
 /// Storage error.
 #[derive(Error, Debug)]
@@ -39,28 +39,38 @@ pub enum Error {
     InvalidHead,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
-pub struct Refs {
-    heads: HashMap<BranchName, Oid>,
-}
-
-impl From<HashMap<BranchName, Oid>> for Refs {
-    fn from(heads: HashMap<BranchName, Oid>) -> Self {
-        Self { heads }
-    }
-}
-
+pub type Refs = HashMap<BranchName, Oid>;
 pub type RemoteId = UserId;
 pub type RefName = String;
 
 /// Verified (used as type witness).
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Verified;
 /// Unverified (used as type witness).
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Unverified;
 
 /// Project remotes. Tracks the git state of a project.
-#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Remotes<V>(HashMap<RemoteId, Remote<V>>);
+
+impl Remotes<Unverified> {
+    pub fn new(remotes: HashMap<RemoteId, Remote<Unverified>>) -> Self {
+        Self(remotes)
+    }
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<HashMap<String, Remote<Unverified>>> for Remotes<Unverified> {
+    fn into(self) -> HashMap<String, Remote<Unverified>> {
+        let mut remotes = HashMap::with_hasher(fastrand::Rng::new().into());
+
+        for (k, v) in self.0 {
+            remotes.insert(k.to_string(), v);
+        }
+        remotes
+    }
+}
 
 /// A project remote.
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
@@ -70,11 +80,22 @@ pub struct Remote<V> {
     /// Whether this remote is of a project delegate.
     delegate: bool,
     /// Whether the remote is verified or not, ie. whether its signed refs were checked.
+    #[serde(skip)]
     verified: PhantomData<V>,
 }
 
+impl Remote<Unverified> {
+    pub fn new(refs: HashMap<RefName, Oid>) -> Self {
+        Self {
+            refs,
+            delegate: false,
+            verified: PhantomData,
+        }
+    }
+}
+
 pub trait ReadStorage {
-    fn get(&self, proj: &ProjId) -> Result<Option<Refs>, Error>;
+    fn get(&self, proj: &ProjId) -> Result<Option<Remotes<Unverified>>, Error>;
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
@@ -92,7 +113,7 @@ where
         self.deref().inventory()
     }
 
-    fn get(&self, proj: &ProjId) -> Result<Option<Refs>, Error> {
+    fn get(&self, proj: &ProjId) -> Result<Option<Remotes<Unverified>>, Error> {
         self.deref().get(proj)
     }
 }
@@ -118,23 +139,22 @@ impl fmt::Debug for Storage {
 }
 
 impl ReadStorage for Storage {
-    fn get(&self, _id: &ProjId) -> Result<Option<Refs>, Error> {
+    fn get(&self, _id: &ProjId) -> Result<Option<Remotes<Unverified>>, Error> {
         todo!()
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
         let glob: String = RAD_ID_GLOB.clone().into();
         let refs = self.backend.references_glob(glob.as_str())?;
-        let mut projs = Vec::new();
 
         for r in refs {
             let r = r?;
             let name = r.name().ok_or(Error::InvalidRef)?;
-            let id = ProjId::from_ref(name)?;
+            let _id = ProjId::from_ref(name)?;
 
-            projs.push((id, Refs::default()));
+            todo!();
         }
-        Ok(projs)
+        Ok(vec![])
     }
 }
 

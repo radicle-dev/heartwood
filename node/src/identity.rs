@@ -65,11 +65,18 @@ impl fmt::Display for Did {
 }
 
 #[derive(Serialize, Deserialize, Eq, Debug, Clone)]
+#[serde(transparent)]
 pub struct UserId(pub VerificationKey);
 
 impl std::hash::Hash for UserId {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.as_bytes().hash(state)
+    }
+}
+
+impl fmt::Display for UserId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.encode())
     }
 }
 

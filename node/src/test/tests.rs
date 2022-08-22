@@ -5,11 +5,10 @@ use nakamoto_net as nakamoto;
 use nakamoto_net::simulator;
 use nakamoto_net::simulator::{Peer as _, Simulation};
 use nakamoto_net::Protocol as _;
-use quickcheck_macros::quickcheck;
 
 use crate::collections::{HashMap, HashSet};
 use crate::protocol::*;
-use crate::storage::{Inventory, ReadStorage};
+use crate::storage::ReadStorage;
 #[allow(unused)]
 use crate::test::logger;
 use crate::test::peer::Peer;
@@ -157,68 +156,73 @@ fn test_persistent_peer_reconnect() {
     assert_matches!(alice.outbox().next(), None);
 }
 
-#[quickcheck]
-fn prop_inventory_exchange_dense(alice_inv: Inventory, bob_inv: Inventory, eve_inv: Inventory) {
-    let rng = fastrand::Rng::new();
-    let alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::new(alice_inv.clone()));
-    let mut bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::new(bob_inv.clone()));
-    let mut eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::new(eve_inv.clone()));
-    let mut routing = Routing::with_hasher(rng.clone().into());
+#[test]
+fn prop_inventory_exchange_dense() {
+    fn property(alice_inv: MockStorage, bob_inv: MockStorage, eve_inv: MockStorage) {
+        let rng = fastrand::Rng::new();
+        let alice = Peer::new("alice", [7, 7, 7, 7], alice_inv.clone());
+        let mut bob = Peer::new("bob", [8, 8, 8, 8], bob_inv.clone());
+        let mut eve = Peer::new("eve", [9, 9, 9, 9], eve_inv.clone());
+        let mut routing = Routing::with_hasher(rng.clone().into());
 
-    for (inv, peer) in &[
-        (alice_inv, alice.addr().ip()),
-        (bob_inv, bob.addr().ip()),
-        (eve_inv, eve.addr().ip()),
-    ] {
-        for (proj, _) in inv {
-            routing
-                .entry(proj.clone())
-                .or_insert_with(|| HashSet::with_hasher(rng.clone().into()))
-                .insert(*peer);
+        for (inv, peer) in &[
+            (alice_inv.inventory, alice.addr().ip()),
+            (bob_inv.inventory, bob.addr().ip()),
+            (eve_inv.inventory, eve.addr().ip()),
+        ] {
+            for (proj, _) in inv {
+                routing
+                    .entry(proj.clone())
+                    .or_insert_with(|| HashSet::with_hasher(rng.clone().into()))
+                    .insert(*peer);
+            }
         }
-    }
 
-    // Fully-connected.
-    bob.command(Command::Connect(alice.addr()));
-    bob.command(Command::Connect(eve.addr()));
-    eve.command(Command::Connect(alice.addr()));
-    eve.command(Command::Connect(bob.addr()));
+        // Fully-connected.
+        bob.command(Command::Connect(alice.addr()));
+        bob.command(Command::Connect(eve.addr()));
+        eve.command(Command::Connect(alice.addr()));
+        eve.command(Command::Connect(bob.addr()));
 
-    let mut peers: HashMap<_, _> = [(alice.ip, alice), (bob.ip, bob), (eve.ip, eve)]
-        .into_iter()
-        .collect();
-    let mut simulator = Simulation::new(LocalTime::now(), rng, simulator::Options::default())
-        .initialize(peers.values_mut());
+        let mut peers: HashMap<_, _> = [(alice.ip, alice), (bob.ip, bob), (eve.ip, eve)]
+            .into_iter()
+            .collect();
+        let mut simulator = Simulation::new(LocalTime::now(), rng, simulator::Options::default())
+            .initialize(peers.values_mut());
 
-    simulator.run_while(peers.values_mut(), |s| !s.is_settled());
+        simulator.run_while(peers.values_mut(), |s| !s.is_settled());
 
-    for (proj_id, remotes) in &routing {
-        for peer in peers.values() {
-            let lookup = peer.lookup(proj_id);
+        for (proj_id, remotes) in &routing {
+            for peer in peers.values() {
+                let lookup = peer.lookup(proj_id);
 
-            if lookup.local.is_some() {
-                peer.storage()
-                    .get(proj_id)
-                    .expect("There are no errors querying storage")
-                    .expect("The project is available locally");
-            } else {
-                for remote in &lookup.remote {
-                    peers[remote]
-                        .storage()
+                if lookup.local.is_some() {
+                    peer.storage()
                         .get(proj_id)
                         .expect("There are no errors querying storage")
-                        .expect("The project is available remotely");
+                        .expect("The project is available locally");
+                } else {
+                    for remote in &lookup.remote {
+                        peers[remote]
+                            .storage()
+                            .get(proj_id)
+                            .expect("There are no errors querying storage")
+                            .expect("The project is available remotely");
+                    }
+                    assert!(
+                        !lookup.remote.is_empty(),
+                        "There are remote locations for the project"
+                    );
+                    assert_eq!(
+                        &lookup.remote.into_iter().collect::<HashSet<_>>(),
+                        remotes,
+                        "The remotes match the global routing table"
+                    );
                 }
-                assert!(
-                    !lookup.remote.is_empty(),
-                    "There are remote locations for the project"
-                );
-                assert_eq!(
-                    &lookup.remote.into_iter().collect::<HashSet<_>>(),
-                    remotes,
-                    "The remotes match the global routing table"
-                );
             }
         }
     }
+    quickcheck::QuickCheck::new()
+        .gen(quickcheck::Gen::new(8))
+        .quickcheck(property as fn(MockStorage, MockStorage, MockStorage));
 }

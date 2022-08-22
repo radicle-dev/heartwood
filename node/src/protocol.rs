@@ -17,7 +17,7 @@ use crate::collections::{HashMap, HashSet};
 use crate::decoder::Decoder;
 use crate::identity::{ProjId, UserId};
 use crate::storage;
-use crate::storage::{Inventory, ReadStorage, Refs, WriteStorage};
+use crate::storage::{Inventory, ReadStorage, Remotes, Unverified, WriteStorage};
 
 /// Network peer identifier.
 pub type PeerId = IpAddr;
@@ -586,7 +586,7 @@ impl<S, T> Iterator for Protocol<S, T> {
 #[derive(Debug)]
 pub struct Lookup {
     /// Whether the project was found locally or not.
-    pub local: Option<Refs>,
+    pub local: Option<Remotes<Unverified>>,
     /// A list of remote peers on which the project is known to exist.
     pub remote: Vec<PeerId>,
 }

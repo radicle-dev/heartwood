@@ -2,8 +2,25 @@ use crate::collections::HashMap;
 use crate::hash;
 use crate::identity::{ProjId, UserId};
 use crate::storage;
+use crate::test::storage::MockStorage;
 
-impl quickcheck::Arbitrary for storage::Refs {
+impl quickcheck::Arbitrary for storage::Remotes<storage::Unverified> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let remotes: HashMap<storage::RemoteId, storage::Remote<storage::Unverified>> =
+            quickcheck::Arbitrary::arbitrary(g);
+
+        storage::Remotes::new(remotes)
+    }
+}
+
+impl quickcheck::Arbitrary for MockStorage {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let inventory = quickcheck::Arbitrary::arbitrary(g);
+        MockStorage::new(inventory)
+    }
+}
+
+impl quickcheck::Arbitrary for storage::Remote<storage::Unverified> {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let mut refs: HashMap<storage::BranchName, storage::Oid> = HashMap::with_hasher(rng.into());
@@ -19,7 +36,7 @@ impl quickcheck::Arbitrary for storage::Refs {
                 refs.insert(name.to_string(), oid);
             }
         }
-        storage::Refs::from(refs)
+        storage::Remote::new(refs)
     }
 }
 
