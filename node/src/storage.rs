@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
-use std::{fmt, fs, io, net};
+use std::{fmt, fs, io};
 
 use git_ref_format::refspec;
 use once_cell::sync::Lazy;
@@ -100,8 +100,7 @@ pub trait ReadStorage {
 }
 
 pub trait WriteStorage {
-    /// Fetch a project from a remote peer.
-    fn fetch(&mut self, proj: &ProjId, remote: &net::SocketAddr) -> Result<(), Error>;
+    fn repository(&mut self) -> &mut git2::Repository;
 }
 
 impl<T, S> ReadStorage for T
@@ -121,10 +120,10 @@ where
 impl<T, S> WriteStorage for T
 where
     T: DerefMut<Target = S>,
-    S: WriteStorage,
+    S: WriteStorage + 'static,
 {
-    fn fetch(&mut self, proj: &ProjId, remote: &net::SocketAddr) -> Result<(), Error> {
-        self.deref_mut().fetch(proj, remote)
+    fn repository(&mut self) -> &mut git2::Repository {
+        self.deref_mut().repository()
     }
 }
 
@@ -159,8 +158,8 @@ impl ReadStorage for Storage {
 }
 
 impl WriteStorage for Storage {
-    fn fetch(&mut self, _id: &ProjId, _remote: &net::SocketAddr) -> Result<(), Error> {
-        todo!()
+    fn repository(&mut self) -> &mut git2::Repository {
+        &mut self.backend
     }
 }
 

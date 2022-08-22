@@ -1,5 +1,3 @@
-use std::net;
-
 use crate::identity::ProjId;
 use crate::storage::{Error, Inventory, ReadStorage, Remotes, Unverified, WriteStorage};
 
@@ -40,7 +38,7 @@ impl ReadStorage for MockStorage {
 }
 
 impl WriteStorage for MockStorage {
-    fn fetch(&mut self, _proj: &ProjId, _remote: &net::SocketAddr) -> Result<(), Error> {
+    fn repository(&mut self) -> &mut git2::Repository {
         todo!()
     }
 }

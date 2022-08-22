@@ -57,7 +57,7 @@ impl<S> DerefMut for Peer<S> {
 
 impl<S> Peer<S>
 where
-    S: ReadStorage + WriteStorage,
+    S: ReadStorage + WriteStorage + 'static,
 {
     pub fn new(name: &'static str, ip: impl Into<net::IpAddr>, storage: S) -> Self {
         Self::config(

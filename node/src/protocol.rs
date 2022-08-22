@@ -15,6 +15,7 @@ use crate::address_manager::AddressManager;
 use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
 use crate::decoder::Decoder;
+use crate::git;
 use crate::identity::{ProjId, UserId};
 use crate::storage;
 use crate::storage::{Inventory, ReadStorage, Remotes, Unverified, WriteStorage};
@@ -38,6 +39,7 @@ pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
 #[derive(Debug)]
 pub enum Command {
     Connect(net::SocketAddr),
+    Fetch(ProjId, net::SocketAddr),
 }
 
 /// Message envelope. All messages sent over the network are wrapped in this type.
@@ -351,7 +353,7 @@ impl<T: ReadStorage + WriteStorage, S: address_book::Store> Protocol<S, T> {
 
 impl<S, T> nakamoto::Protocol for Protocol<S, T>
 where
-    T: ReadStorage + WriteStorage,
+    T: ReadStorage + WriteStorage + 'static,
     S: address_book::Store,
 {
     type Event = ();
@@ -416,6 +418,9 @@ where
 
         match cmd {
             Command::Connect(addr) => self.context.connect(addr),
+            Command::Fetch(proj, remote) => {
+                git::fetch(&proj, &remote, &mut self.storage).unwrap();
+            }
         }
     }
 

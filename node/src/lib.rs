@@ -6,6 +6,7 @@ mod address_manager;
 mod clock;
 mod collections;
 mod decoder;
+mod git;
 mod hash;
 mod identity;
 mod logger;
