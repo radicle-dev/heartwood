@@ -103,17 +103,7 @@ fn test_wrong_peer_magic() {
 
 #[test]
 fn test_inventory_relay_bad_seq() {
-    let mut alice = Peer::config(
-        "alice",
-        Config {
-            relay: true,
-            ..Config::default()
-        },
-        [7, 7, 7, 7],
-        vec![],
-        MockStorage::empty(),
-        fastrand::Rng::new(),
-    );
+    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
 
     alice.connect_to(&bob.addr());
@@ -135,17 +125,7 @@ fn test_inventory_relay_bad_seq() {
 #[test]
 fn test_inventory_relay() {
     // Topology is eve <-> alice <-> bob
-    let mut alice = Peer::config(
-        "alice",
-        Config {
-            relay: true,
-            ..Config::default()
-        },
-        [7, 7, 7, 7],
-        vec![],
-        MockStorage::empty(),
-        fastrand::Rng::new(),
-    );
+    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
     let inv = vec![];

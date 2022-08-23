@@ -141,7 +141,7 @@ pub enum RemoteTracking {
 }
 
 /// Protocol configuration.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Config {
     /// Peers to connect to on startup.
     /// Connections to these peers will be maintained.
@@ -152,6 +152,17 @@ pub struct Config {
     pub remote_tracking: RemoteTracking,
     /// Whether or not our node should relay inventories.
     pub relay: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            connect: Vec::default(),
+            project_tracking: ProjectTracking::default(),
+            remote_tracking: RemoteTracking::default(),
+            relay: true,
+        }
+    }
 }
 
 impl Config {
