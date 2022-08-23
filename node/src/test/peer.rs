@@ -124,13 +124,6 @@ where
         self.initialize();
         self.protocol.connected(*remote, &local, Link::Inbound);
         self.receive(remote, Message::hello());
-        self.receive(
-            remote,
-            Message::Inventory {
-                seq: 0,
-                inv: vec![],
-            },
-        );
 
         let mut msgs = self.messages(remote);
         msgs.find(|m| matches!(m, Message::Hello { .. }))
@@ -154,19 +147,18 @@ where
         self.receive(remote, Message::hello());
     }
 
-    /// Get outgoing messages sent from this peer to the remote address.
+    /// Drain outgoing messages sent from this peer to the remote address.
     pub fn messages(&mut self, remote: &net::SocketAddr) -> impl Iterator<Item = Message> {
         let mut stream = Decoder::<Envelope>::new(2048);
         let mut msgs = Vec::new();
 
-        for o in self.protocol.outbox().iter() {
-            match o {
-                Io::Write(a, bytes) if a == remote => {
-                    stream.input(bytes);
-                }
-                _ => {}
+        self.protocol.outbox().retain(|o| match o {
+            Io::Write(a, bytes) if a == remote => {
+                stream.input(bytes);
+                false
             }
-        }
+            _ => true,
+        });
 
         while let Some(envelope) = stream.decode_next().unwrap() {
             msgs.push(envelope.msg);

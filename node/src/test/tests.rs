@@ -90,6 +90,134 @@ fn test_persistent_peer_connect() {
 }
 
 #[test]
+#[ignore]
+fn test_wrong_peer_version() {
+    // TODO
+}
+
+#[test]
+#[ignore]
+fn test_wrong_peer_magic() {
+    // TODO
+}
+
+#[test]
+fn test_inventory_relay_bad_seq() {
+    let mut alice = Peer::config(
+        "alice",
+        Config {
+            relay: true,
+            ..Config::default()
+        },
+        [7, 7, 7, 7],
+        vec![],
+        MockStorage::empty(),
+        fastrand::Rng::new(),
+    );
+    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+
+    alice.connect_to(&bob.addr());
+    alice.receive(
+        &bob.addr(),
+        Message::Inventory {
+            seq: 0,
+            inv: vec![],
+            origin: None,
+        },
+    );
+    assert_matches!(
+        alice.outbox().next(),
+        Some(Io::Disconnect(addr, DisconnectReason::Error(PeerError::InvalidSequenceNumber(seq))))
+        if addr == bob.addr() && seq == 0
+    );
+}
+
+#[test]
+fn test_inventory_relay() {
+    // Topology is eve <-> alice <-> bob
+    let mut alice = Peer::config(
+        "alice",
+        Config {
+            relay: true,
+            ..Config::default()
+        },
+        [7, 7, 7, 7],
+        vec![],
+        MockStorage::empty(),
+        fastrand::Rng::new(),
+    );
+    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+    let inv = vec![];
+
+    // Inventory from Bob relayed to Eve.
+    alice.connect_to(&bob.addr());
+    alice.connect_from(&eve.addr());
+    alice.receive(
+        &bob.addr(),
+        Message::Inventory {
+            seq: 1,
+            inv: inv.clone(),
+            origin: None,
+        },
+    );
+    assert_matches!(
+        alice.messages(&eve.addr()).next(),
+        Some(Message::Inventory { seq, origin, .. })
+        if origin == Some(bob.ip) && seq == 1
+    );
+    assert_matches!(
+        alice.messages(&bob.addr()).next(),
+        None,
+        "The inventory is not sent back to Bob"
+    );
+
+    alice.receive(
+        &bob.addr(),
+        Message::Inventory {
+            seq: 1,
+            inv: inv.clone(),
+            origin: None,
+        },
+    );
+    assert_matches!(
+        alice.messages(&eve.addr()).next(),
+        None,
+        "Sending the same inventory again doesn't trigger a relay"
+    );
+
+    alice.receive(
+        &bob.addr(),
+        Message::Inventory {
+            seq: 2,
+            inv: inv.clone(),
+            origin: None,
+        },
+    );
+    assert_matches!(
+        alice.messages(&eve.addr()).next(),
+        Some(Message::Inventory { seq, origin, .. })
+        if origin == Some(bob.ip) && seq == 2,
+        "Sending a new inventory does trigger the relay"
+    );
+
+    // Inventory from Eve relayed to Bob.
+    alice.receive(
+        &eve.addr(),
+        Message::Inventory {
+            seq: 4,
+            inv,
+            origin: None,
+        },
+    );
+    assert_matches!(
+        alice.messages(&bob.addr()).next(),
+        Some(Message::Inventory { seq, origin, .. })
+        if origin == Some(eve.ip) && seq == 4
+    );
+}
+
+#[test]
 fn test_persistent_peer_reconnect() {
     let mut bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let mut eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
