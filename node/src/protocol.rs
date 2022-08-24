@@ -441,7 +441,7 @@ where
         match cmd {
             Command::Connect(addr) => self.context.connect(addr),
             Command::Fetch(proj, remote) => {
-                git::fetch(&proj, &remote, &mut self.storage).unwrap();
+                git::fetch(&proj, &format!("git://{}", remote), &mut self.storage).unwrap();
             }
         }
     }

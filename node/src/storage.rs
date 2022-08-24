@@ -131,6 +131,12 @@ pub struct Storage {
     backend: git2::Repository,
 }
 
+impl From<git2::Repository> for Storage {
+    fn from(backend: git2::Repository) -> Self {
+        Self { backend }
+    }
+}
+
 impl fmt::Debug for Storage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Storage(..)")
