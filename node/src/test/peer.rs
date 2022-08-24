@@ -1,6 +1,7 @@
 use std::net;
 use std::ops::{Deref, DerefMut};
 
+use git_url::Url;
 use log::*;
 use nakamoto_net::simulator;
 use nakamoto_net::Protocol as _;
@@ -120,10 +121,12 @@ where
 
     pub fn connect_from(&mut self, remote: &net::SocketAddr) {
         let local = net::SocketAddr::new(self.ip, self.rng.u16(..));
+        let git = format!("file://{}.git", remote.ip());
+        let git = Url::from_bytes(git.as_bytes()).unwrap();
 
         self.initialize();
         self.protocol.connected(*remote, &local, Link::Inbound);
-        self.receive(remote, Message::hello());
+        self.receive(remote, Message::hello(git));
 
         let mut msgs = self.messages(remote);
         msgs.find(|m| matches!(m, Message::Hello { .. }))
@@ -144,7 +147,8 @@ where
         msgs.find(|m| matches!(m, Message::GetInventory { .. }))
             .expect("`get-inventory` is sent");
 
-        self.receive(remote, Message::hello());
+        let git = self.config().git_url.clone();
+        self.receive(remote, Message::hello(git));
     }
 
     /// Drain outgoing messages sent from this peer to the remote address.

@@ -3,6 +3,7 @@ use std::ops::{Deref, DerefMut};
 use std::{collections::VecDeque, fmt, io, net, net::IpAddr};
 
 use fastrand::Rng;
+use git_url::Url;
 use log::*;
 use nakamoto::{LocalDuration, LocalTime};
 use nakamoto_net as nakamoto;
@@ -56,7 +57,7 @@ pub struct Envelope {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Message {
     /// Say hello to a peer. This is the first message sent to a peer after connection.
-    Hello { version: u32 },
+    Hello { version: u32, git: Url },
     /// Get node addresses from a peer.
     GetAddrs,
     /// Send node addresses to a peer. Sent in response to [`Message::GetAddrs`].
@@ -84,9 +85,10 @@ impl From<Message> for Envelope {
 }
 
 impl Message {
-    pub fn hello() -> Self {
+    pub fn hello(git: Url) -> Self {
         Self::Hello {
             version: PROTOCOL_VERSION,
+            git,
         }
     }
 
@@ -152,6 +154,8 @@ pub struct Config {
     pub remote_tracking: RemoteTracking,
     /// Whether or not our node should relay inventories.
     pub relay: bool,
+    /// Our Git URL for fetching projects.
+    pub git_url: Url,
 }
 
 impl Default for Config {
@@ -161,6 +165,7 @@ impl Default for Config {
             project_tracking: ProjectTracking::default(),
             remote_tracking: RemoteTracking::default(),
             relay: true,
+            git_url: Url::default(),
         }
     }
 }
@@ -471,13 +476,12 @@ where
         // For inbound connections, we wait for the remote to say "Hello" first.
         // TODO: How should we deal with multiple peers connecting from the same IP address?
         if link.is_outbound() {
-            let since = self.local_time();
+            let git = self.config.git_url.clone();
 
             if let Some(peer) = self.peers.get_mut(&id) {
                 self.context
-                    .write_all(peer.addr, [Message::hello(), Message::get_inventory([])]);
+                    .write_all(peer.addr, [Message::hello(git), Message::get_inventory([])]);
 
-                peer.state = PeerState::Negotiated { since };
                 peer.attempts = 0;
             }
         } else {
@@ -780,7 +784,7 @@ enum PeerState {
     #[default]
     Initial,
     /// State after successful handshake.
-    Negotiated { since: LocalTime },
+    Negotiated { since: LocalTime, git: Url },
     /// When a peer is disconnected.
     Disconnected { since: LocalTime },
 }
@@ -848,7 +852,7 @@ impl Peer {
         debug!("Received {:?} from {}", &envelope.msg, self.id());
 
         match envelope.msg {
-            Message::Hello { version } => {
+            Message::Hello { version, git } => {
                 if version != PROTOCOL_VERSION {
                     return Err(PeerError::WrongVersion(version));
                 }
@@ -856,10 +860,12 @@ impl Peer {
                     // Nb. This is a very primitive handshake. Eventually we should have anyhow
                     // extra "acknowledgment" message sent when the `Hello` is well received.
                     if self.link.is_inbound() {
-                        ctx.write_all(self.addr, [Message::hello(), Message::get_inventory([])]);
+                        let git = ctx.config.git_url.clone();
+                        ctx.write_all(self.addr, [Message::hello(git), Message::get_inventory([])]);
                     }
                     self.state = PeerState::Negotiated {
                         since: ctx.clock.local_time(),
+                        git,
                     };
                 } else {
                     // TODO: Handle misbehavior.
