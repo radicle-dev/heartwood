@@ -13,7 +13,7 @@ pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
 use crate::identity;
-use crate::identity::{IdError, ProjId, UserId};
+use crate::identity::{ProjId, ProjIdError, UserId};
 
 pub static RAD_ID_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*/refs/rad/id"));
@@ -30,7 +30,7 @@ pub enum Error {
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("id: {0}")]
-    ProjId(#[from] IdError),
+    ProjId(#[from] ProjIdError),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
     #[error("doc: {0}")]
@@ -101,6 +101,11 @@ pub trait ReadStorage {
 
 pub trait WriteStorage {
     fn repository(&mut self) -> &mut git2::Repository;
+    fn namespace(
+        &mut self,
+        proj: &ProjId,
+        user: &UserId,
+    ) -> Result<&mut git2::Repository, git2::Error>;
 }
 
 impl<T, S> ReadStorage for T
@@ -124,6 +129,14 @@ where
 {
     fn repository(&mut self) -> &mut git2::Repository {
         self.deref_mut().repository()
+    }
+
+    fn namespace(
+        &mut self,
+        proj: &ProjId,
+        user: &UserId,
+    ) -> Result<&mut git2::Repository, git2::Error> {
+        self.deref_mut().namespace(proj, user)
     }
 }
 
@@ -166,6 +179,19 @@ impl ReadStorage for Storage {
 impl WriteStorage for Storage {
     fn repository(&mut self) -> &mut git2::Repository {
         &mut self.backend
+    }
+
+    fn namespace(
+        &mut self,
+        proj: &ProjId,
+        user: &UserId,
+    ) -> Result<&mut git2::Repository, git2::Error> {
+        let path = self.backend.path();
+
+        self.backend = git2::Repository::open_bare(path)?;
+        self.backend.set_namespace(&format!("{}/{}", proj, user))?;
+
+        Ok(&mut self.backend)
     }
 }
 

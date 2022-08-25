@@ -1,4 +1,5 @@
 use std::fmt;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use sha2::{
@@ -8,11 +9,11 @@ use sha2::{
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
-pub enum ParseError {
-    #[error("invalid string length")]
-    InvalidLength,
+pub enum DecodeError {
     #[error(transparent)]
-    ParseInt(#[from] std::num::ParseIntError),
+    Multibase(#[from] multibase::Error),
+    #[error("invalid digest length {0}")]
+    InvalidLength(usize),
 }
 
 /// A SHA-256 hash.
@@ -25,23 +26,24 @@ impl Digest {
     }
 
     pub fn encode(&self) -> String {
-        self.to_string()
+        multibase::encode(multibase::Base::Base58Btc, &self.0)
     }
 
-    pub fn decode(s: &str) -> Result<Self, ParseError> {
-        if s.len() != 64 {
-            Err(ParseError::InvalidLength)
-        } else {
-            let mut bytes: [u8; 32] = Default::default();
-            for (i, byte) in (0..s.len())
-                .step_by(2)
-                .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
-                .enumerate()
-            {
-                bytes[i] = byte?;
-            }
-            Ok(Self(bytes))
-        }
+    pub fn decode(s: &str) -> Result<Self, DecodeError> {
+        let (_, bytes) = multibase::decode(s)?;
+        let array = bytes
+            .try_into()
+            .map_err(|v: Vec<u8>| DecodeError::InvalidLength(v.len()))?;
+
+        Ok(Self(array))
+    }
+}
+
+impl FromStr for Digest {
+    type Err = DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::decode(s)
     }
 }
 
@@ -75,5 +77,19 @@ impl From<[u8; 32]> for Digest {
 impl From<GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize>> for Digest {
     fn from(array: GenericArray<u8, <Sha256 as OutputSizeUser>::OutputSize>) -> Self {
         Self(array.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quickcheck_macros::quickcheck;
+
+    #[quickcheck]
+    fn prop_encode_decode(input: Digest) {
+        let encoded = input.encode();
+        let decoded = Digest::decode(&encoded).unwrap();
+
+        assert_eq!(input, decoded);
     }
 }

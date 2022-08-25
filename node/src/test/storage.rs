@@ -41,4 +41,12 @@ impl WriteStorage for MockStorage {
     fn repository(&mut self) -> &mut git2::Repository {
         todo!()
     }
+
+    fn namespace(
+        &mut self,
+        _proj: &ProjId,
+        _user: &crate::identity::UserId,
+    ) -> Result<&mut git2::Repository, git2::Error> {
+        todo!()
+    }
 }

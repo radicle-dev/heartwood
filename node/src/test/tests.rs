@@ -102,6 +102,22 @@ fn test_wrong_peer_magic() {
 }
 
 #[test]
+fn test_inventory_fetch() {
+    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
+    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+
+    alice.connect_to(&bob.addr());
+    alice.receive(
+        &bob.addr(),
+        Message::Inventory {
+            seq: 1,
+            inv: vec![],
+            origin: None,
+        },
+    );
+}
+
+#[test]
 fn test_inventory_relay_bad_seq() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());

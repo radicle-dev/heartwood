@@ -8,6 +8,14 @@ use thiserror::Error;
 
 use crate::hash;
 
+#[derive(Error, Debug)]
+pub enum ProjIdError {
+    #[error("invalid ref '{0}'")]
+    InvalidRef(String),
+    #[error("invalid digest: {0}")]
+    InvalidDigest(#[from] hash::DecodeError),
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProjId(hash::Digest);
 
@@ -28,18 +36,20 @@ impl ProjId {
         multibase::encode(multibase::Base::Base58Btc, &self.0.as_ref())
     }
 
-    pub(crate) fn from_ref(s: &str) -> Result<ProjId, IdError> {
+    pub(crate) fn from_ref(s: &str) -> Result<ProjId, ProjIdError> {
         if let Some(s) = s.split('/').nth(2) {
-            let mut array: [u8; 32] = [0; 32];
-            let bytes = bs58::decode(s).into(&mut array)?;
-
-            // TODO: Multi-hash?
-
-            assert_eq!(bytes, array.len());
-
-            return Ok(Self(hash::Digest::from(array)));
+            let id = Self::from_str(s)?;
+            return Ok(id);
         }
-        Err(IdError::InvalidRef(s.to_owned()))
+        Err(ProjIdError::InvalidRef(s.to_owned()))
+    }
+}
+
+impl FromStr for ProjId {
+    type Err = hash::DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(hash::Digest::from_str(s)?))
     }
 }
 
@@ -93,14 +103,14 @@ impl UserId {
 }
 
 impl FromStr for UserId {
-    type Err = IdError;
+    type Err = UserIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut array: [u8; 32] = [0; 32];
-        let bytes = bs58::decode(s).into(&mut array)?;
+        let (_, bytes) = multibase::decode(s)?;
+        let array: [u8; 32] = bytes
+            .try_into()
+            .map_err(|v: Vec<u8>| UserIdError::InvalidLength(v.len()))?;
         let key = VerificationKey::try_from(VerificationKeyBytes::from(array))?;
-
-        assert_eq!(bytes, array.len());
 
         Ok(Self(key))
     }
@@ -115,11 +125,11 @@ impl Deref for UserId {
 }
 
 #[derive(Error, Debug)]
-pub enum IdError {
-    #[error("invalid ref '{0}'")]
-    InvalidRef(String),
-    #[error("invalid base58 string: {0}")]
-    Base58(#[from] bs58::decode::Error),
+pub enum UserIdError {
+    #[error("invalid length {0}")]
+    InvalidLength(usize),
+    #[error("invalid multibase string: {0}")]
+    Multibase(#[from] multibase::Error),
     #[error("invalid key: {0}")]
     InvalidKey(#[from] ed25519_consensus::Error),
 }
@@ -177,5 +187,13 @@ mod test {
         assert!(hm.insert(b.clone()));
         assert!(!hm.insert(a));
         assert!(!hm.insert(b));
+    }
+
+    #[quickcheck]
+    fn prop_encode_decode(input: UserId) {
+        let encoded = input.to_string();
+        let decoded = UserId::from_str(&encoded).unwrap();
+
+        assert_eq!(input, decoded);
     }
 }

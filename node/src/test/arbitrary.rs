@@ -49,12 +49,8 @@ impl quickcheck::Arbitrary for ProjId {
 
 impl quickcheck::Arbitrary for hash::Digest {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let mut bytes: [u8; 32] = [0; 32];
-
-        for byte in &mut bytes {
-            *byte = u8::arbitrary(g);
-        }
-        hash::Digest::from(bytes)
+        let bytes: Vec<u8> = quickcheck::Arbitrary::arbitrary(g);
+        hash::Digest::new(&bytes)
     }
 }
 
