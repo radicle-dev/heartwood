@@ -657,8 +657,6 @@ pub struct Context<S, T> {
     io: VecDeque<Io<(), DisconnectReason>>,
     /// Clock. Tells the time.
     clock: RefClock,
-    /// Timestamps of known peers.
-    timestamps: HashMap<PeerId, u64>,
     /// Project storage.
     storage: T,
     /// Peer address manager.
@@ -682,7 +680,6 @@ where
             config,
             clock,
             routing: HashMap::with_hasher(rng.clone().into()),
-            timestamps: HashMap::with_hasher(rng.clone().into()),
             io: VecDeque::new(),
             storage,
             addrmgr,
@@ -812,6 +809,8 @@ pub struct Peer {
     state: PeerState,
     /// Connection direction.
     link: Link,
+    /// Last known peer time.
+    timestamp: Timestamp,
     /// Whether we should attempt to re-connect
     /// to this peer upon disconnection.
     persistent: bool,
@@ -828,6 +827,7 @@ impl Peer {
             inbox: Decoder::new(256),
             state: PeerState::default(),
             link,
+            timestamp: Timestamp::default(),
             persistent,
             attempts: 0,
         }
@@ -885,10 +885,7 @@ impl Peer {
                 origin,
             } => {
                 let now = ctx.clock.local_time();
-                let last = ctx
-                    .timestamps
-                    .entry(self.id())
-                    .or_insert_with(Timestamp::default);
+                let last = self.timestamp;
 
                 // Don't allow messages from too far in the past or future.
                 if timestamp.abs_diff(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
@@ -896,8 +893,8 @@ impl Peer {
                 }
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
-                if timestamp > *last {
-                    *last = timestamp;
+                if timestamp > last {
+                    self.timestamp = timestamp;
                 } else {
                     return Ok(None);
                 }
