@@ -25,6 +25,8 @@ use crate::storage::{Inventory, ReadStorage, Remotes, Unverified, WriteStorage};
 pub type PeerId = IpAddr;
 /// Network routing table. Keeps track of where projects are hosted.
 pub type Routing = HashMap<ProjId, HashSet<PeerId>>;
+/// Seconds since epoch.
+pub type Timestamp = u64;
 
 pub const NETWORK_MAGIC: u32 = 0x819b43d9;
 pub const DEFAULT_PORT: u16 = 8776;
@@ -67,8 +69,8 @@ pub enum Message {
     /// Send our inventory to a peer. Sent in response to [`Message::GetInventory`].
     /// Nb. This should be the whole inventory, not a partial update.
     Inventory {
-        seq: u64,
         inv: Inventory,
+        timestamp: Timestamp,
         /// Original peer this inventory came from. We don't set this when we
         /// are the originator, only when relaying.
         origin: Option<PeerId>,
@@ -96,13 +98,11 @@ impl Message {
     where
         T: storage::ReadStorage,
     {
-        ctx.seq += 1;
-
-        let seq = ctx.seq;
+        let timestamp = ctx.timestamp();
         let inv = ctx.storage.inventory()?;
 
         Ok(Self::Inventory {
-            seq,
+            timestamp,
             inv,
             origin: None,
         })
@@ -656,10 +656,8 @@ pub struct Context<S, T> {
     io: VecDeque<Io<(), DisconnectReason>>,
     /// Clock. Tells the time.
     clock: RefClock,
-    /// Sequence number of known peers.
-    seqs: HashMap<PeerId, u64>,
-    /// Our own sequence number.
-    seq: u64,
+    /// Timestamps of known peers.
+    timestamps: HashMap<PeerId, u64>,
     /// Project storage.
     storage: T,
     /// Peer address manager.
@@ -683,9 +681,8 @@ where
             config,
             clock,
             routing: HashMap::with_hasher(rng.clone().into()),
-            seqs: HashMap::with_hasher(rng.clone().into()),
+            timestamps: HashMap::with_hasher(rng.clone().into()),
             io: VecDeque::new(),
-            seq: 0,
             storage,
             addrmgr,
             rng,
@@ -705,6 +702,11 @@ where
 
             inventory.insert(from);
         }
+    }
+
+    /// Get current local timestamp.
+    fn timestamp(&self) -> Timestamp {
+        self.clock.local_time().as_secs()
     }
 
     /// Disconnect a peer.
@@ -795,8 +797,8 @@ pub enum PeerError {
     WrongMagic(u32),
     #[error("wrong protocol version in message: {0}")]
     WrongVersion(u32),
-    #[error("invalid inventory sequence number: {0}")]
-    InvalidSequenceNumber(u64),
+    #[error("invalid inventory timestamp: {0}")]
+    InvalidTimestamp(u64),
 }
 
 #[derive(Debug)]
@@ -876,15 +878,22 @@ impl Peer {
                 let inventory = Message::inventory(ctx).unwrap();
                 ctx.write(self.addr, inventory);
             }
-            Message::Inventory { seq: 0, .. } => {
-                return Err(PeerError::InvalidSequenceNumber(0));
+            Message::Inventory { timestamp: 0, .. } => {
+                return Err(PeerError::InvalidTimestamp(0));
             }
-            Message::Inventory { seq, inv, origin } => {
-                let sequence = ctx.seqs.entry(self.id()).or_insert(0);
+            Message::Inventory {
+                timestamp,
+                inv,
+                origin,
+            } => {
+                let last = ctx
+                    .timestamps
+                    .entry(self.id())
+                    .or_insert_with(Timestamp::default);
 
-                // Discard inventory messages from sequence numbers we've already seen.
-                if seq > *sequence {
-                    *sequence = seq;
+                // Discard inventory messages from timestamps in the past.
+                if timestamp > *last {
+                    *last = timestamp;
                 } else {
                     return Ok(None);
                 }
@@ -892,7 +901,7 @@ impl Peer {
 
                 if ctx.config.relay {
                     return Ok(Some(Message::Inventory {
-                        seq,
+                        timestamp,
                         inv,
                         origin: origin.or_else(|| Some(self.id())),
                     }));

@@ -105,12 +105,13 @@ fn test_wrong_peer_magic() {
 fn test_inventory_fetch() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+    let now = LocalTime::now().as_secs();
 
     alice.connect_to(&bob.addr());
     alice.receive(
         &bob.addr(),
         Message::Inventory {
-            seq: 1,
+            timestamp: now,
             inv: vec![],
             origin: None,
         },
@@ -118,7 +119,7 @@ fn test_inventory_fetch() {
 }
 
 #[test]
-fn test_inventory_relay_bad_seq() {
+fn test_inventory_relay_bad_timestamp() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
 
@@ -126,15 +127,15 @@ fn test_inventory_relay_bad_seq() {
     alice.receive(
         &bob.addr(),
         Message::Inventory {
-            seq: 0,
+            timestamp: 0,
             inv: vec![],
             origin: None,
         },
     );
     assert_matches!(
         alice.outbox().next(),
-        Some(Io::Disconnect(addr, DisconnectReason::Error(PeerError::InvalidSequenceNumber(seq))))
-        if addr == bob.addr() && seq == 0
+        Some(Io::Disconnect(addr, DisconnectReason::Error(PeerError::InvalidTimestamp(t))))
+        if addr == bob.addr() && t == 0
     );
 }
 
@@ -145,6 +146,7 @@ fn test_inventory_relay() {
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
     let inv = vec![];
+    let now = LocalTime::now().as_secs();
 
     // Inventory from Bob relayed to Eve.
     alice.connect_to(&bob.addr());
@@ -152,15 +154,15 @@ fn test_inventory_relay() {
     alice.receive(
         &bob.addr(),
         Message::Inventory {
-            seq: 1,
+            timestamp: now,
             inv: inv.clone(),
             origin: None,
         },
     );
     assert_matches!(
         alice.messages(&eve.addr()).next(),
-        Some(Message::Inventory { seq, origin, .. })
-        if origin == Some(bob.ip) && seq == 1
+        Some(Message::Inventory { timestamp, origin, .. })
+        if origin == Some(bob.ip) && timestamp == now
     );
     assert_matches!(
         alice.messages(&bob.addr()).next(),
@@ -171,7 +173,7 @@ fn test_inventory_relay() {
     alice.receive(
         &bob.addr(),
         Message::Inventory {
-            seq: 1,
+            timestamp: now,
             inv: inv.clone(),
             origin: None,
         },
@@ -185,15 +187,15 @@ fn test_inventory_relay() {
     alice.receive(
         &bob.addr(),
         Message::Inventory {
-            seq: 2,
+            timestamp: now + 1,
             inv: inv.clone(),
             origin: None,
         },
     );
     assert_matches!(
         alice.messages(&eve.addr()).next(),
-        Some(Message::Inventory { seq, origin, .. })
-        if origin == Some(bob.ip) && seq == 2,
+        Some(Message::Inventory { timestamp, origin, .. })
+        if origin == Some(bob.ip) && timestamp == now + 1,
         "Sending a new inventory does trigger the relay"
     );
 
@@ -201,15 +203,15 @@ fn test_inventory_relay() {
     alice.receive(
         &eve.addr(),
         Message::Inventory {
-            seq: 4,
+            timestamp: now,
             inv,
             origin: None,
         },
     );
     assert_matches!(
         alice.messages(&bob.addr()).next(),
-        Some(Message::Inventory { seq, origin, .. })
-        if origin == Some(eve.ip) && seq == 4
+        Some(Message::Inventory { timestamp, origin, .. })
+        if origin == Some(eve.ip) && timestamp == now
     );
 }
 
