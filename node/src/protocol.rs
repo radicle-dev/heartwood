@@ -37,6 +37,7 @@ pub const ANNOUNCE_INTERVAL: LocalDuration = LocalDuration::from_secs(30);
 pub const SYNC_INTERVAL: LocalDuration = LocalDuration::from_secs(60);
 pub const PRUNE_INTERVAL: LocalDuration = LocalDuration::from_mins(30);
 pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
+pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 
 /// Commands sent to the protocol by the operator.
 #[derive(Debug)]
@@ -878,20 +879,23 @@ impl Peer {
                 let inventory = Message::inventory(ctx).unwrap();
                 ctx.write(self.addr, inventory);
             }
-            Message::Inventory { timestamp: 0, .. } => {
-                return Err(PeerError::InvalidTimestamp(0));
-            }
             Message::Inventory {
                 timestamp,
                 inv,
                 origin,
             } => {
+                let now = ctx.clock.local_time();
                 let last = ctx
                     .timestamps
                     .entry(self.id())
                     .or_insert_with(Timestamp::default);
 
-                // Discard inventory messages from timestamps in the past.
+                // Don't allow messages from too far in the past or future.
+                if timestamp.abs_diff(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
+                    return Err(PeerError::InvalidTimestamp(timestamp));
+                }
+                // Discard inventory messages we've already seen, otherwise update
+                // out last seen time.
                 if timestamp > *last {
                     *last = timestamp;
                 } else {

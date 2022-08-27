@@ -122,12 +122,14 @@ fn test_inventory_fetch() {
 fn test_inventory_relay_bad_timestamp() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+    let two_hours = 3600 * 2;
+    let timestamp = alice.local_time.as_secs() - two_hours;
 
     alice.connect_to(&bob.addr());
     alice.receive(
         &bob.addr(),
         Message::Inventory {
-            timestamp: 0,
+            timestamp,
             inv: vec![],
             origin: None,
         },
@@ -135,7 +137,7 @@ fn test_inventory_relay_bad_timestamp() {
     assert_matches!(
         alice.outbox().next(),
         Some(Io::Disconnect(addr, DisconnectReason::Error(PeerError::InvalidTimestamp(t))))
-        if addr == bob.addr() && t == 0
+        if addr == bob.addr() && t == timestamp
     );
 }
 
