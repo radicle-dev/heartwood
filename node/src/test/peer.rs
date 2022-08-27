@@ -109,6 +109,14 @@ where
         }
     }
 
+    pub fn timestamp(&self) -> Timestamp {
+        self.protocol.timestamp()
+    }
+
+    pub fn git_url(&self) -> Url {
+        self.config().git_url.clone()
+    }
+
     pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
         let bytes = serde_json::to_vec(&Envelope {
             magic: NETWORK_MAGIC,
@@ -126,7 +134,7 @@ where
 
         self.initialize();
         self.protocol.connected(*remote, &local, Link::Inbound);
-        self.receive(remote, Message::hello(git));
+        self.receive(remote, Message::hello(self.local_time().as_secs(), git));
 
         let mut msgs = self.messages(remote);
         msgs.find(|m| matches!(m, Message::Hello { .. }))
@@ -148,7 +156,7 @@ where
             .expect("`get-inventory` is sent");
 
         let git = self.config().git_url.clone();
-        self.receive(remote, Message::hello(git));
+        self.receive(remote, Message::hello(self.local_time().as_secs(), git));
     }
 
     /// Drain outgoing messages sent from this peer to the remote address.

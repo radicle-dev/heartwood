@@ -60,7 +60,11 @@ pub struct Envelope {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Message {
     /// Say hello to a peer. This is the first message sent to a peer after connection.
-    Hello { version: u32, git: Url },
+    Hello {
+        timestamp: Timestamp,
+        version: u32,
+        git: Url,
+    },
     /// Get node addresses from a peer.
     GetAddrs,
     /// Send node addresses to a peer. Sent in response to [`Message::GetAddrs`].
@@ -88,8 +92,9 @@ impl From<Message> for Envelope {
 }
 
 impl Message {
-    pub fn hello(git: Url) -> Self {
+    pub fn hello(timestamp: Timestamp, git: Url) -> Self {
         Self::Hello {
+            timestamp,
             version: PROTOCOL_VERSION,
             git,
         }
@@ -480,8 +485,13 @@ where
             let git = self.config.git_url.clone();
 
             if let Some(peer) = self.peers.get_mut(&id) {
-                self.context
-                    .write_all(peer.addr, [Message::hello(git), Message::get_inventory([])]);
+                self.context.write_all(
+                    peer.addr,
+                    [
+                        Message::hello(self.context.timestamp(), git),
+                        Message::get_inventory([]),
+                    ],
+                );
 
                 peer.attempts = 0;
             }
@@ -669,7 +679,7 @@ impl<S, T> Context<S, T>
 where
     T: storage::ReadStorage,
 {
-    fn new(
+    pub(crate) fn new(
         config: Config,
         clock: RefClock,
         storage: T,
@@ -687,6 +697,11 @@ where
         }
     }
 
+    /// Get current local timestamp.
+    pub(crate) fn timestamp(&self) -> Timestamp {
+        self.clock.local_time().as_secs()
+    }
+
     /// Process a peer inventory announcement by updating our routing table.
     fn process_inventory(&mut self, inventory: &Inventory, from: PeerId) {
         for (proj_id, _refs) in inventory {
@@ -700,11 +715,6 @@ where
 
             inventory.insert(from);
         }
-    }
-
-    /// Get current local timestamp.
-    fn timestamp(&self) -> Timestamp {
-        self.clock.local_time().as_secs()
     }
 
     /// Disconnect a peer.
@@ -855,7 +865,16 @@ impl Peer {
         debug!("Received {:?} from {}", &envelope.msg, self.id());
 
         match envelope.msg {
-            Message::Hello { version, git } => {
+            Message::Hello {
+                timestamp,
+                version,
+                git,
+            } => {
+                let now = ctx.timestamp();
+
+                if timestamp.abs_diff(now) > MAX_TIME_DELTA.as_secs() {
+                    return Err(PeerError::InvalidTimestamp(timestamp));
+                }
                 if version != PROTOCOL_VERSION {
                     return Err(PeerError::WrongVersion(version));
                 }
@@ -864,8 +883,14 @@ impl Peer {
                     // extra "acknowledgment" message sent when the `Hello` is well received.
                     if self.link.is_inbound() {
                         let git = ctx.config.git_url.clone();
-                        ctx.write_all(self.addr, [Message::hello(git), Message::get_inventory([])]);
+                        ctx.write_all(
+                            self.addr,
+                            [Message::hello(now, git), Message::get_inventory([])],
+                        );
                     }
+                    // Nb. we don't set the peer timestamp here, since it is going to be
+                    // set after the first message is received only. Setting it here would
+                    // mean that messages received right after the handshake could be ignored.
                     self.state = PeerState::Negotiated {
                         since: ctx.clock.local_time(),
                         git,
