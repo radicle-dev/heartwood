@@ -63,7 +63,10 @@ where
     pub fn new(name: &'static str, ip: impl Into<net::IpAddr>, storage: S) -> Self {
         Self::config(
             name,
-            Config::default(),
+            Config {
+                git_url: storage.url(),
+                ..Config::default()
+            },
             ip,
             vec![],
             storage,
@@ -143,20 +146,22 @@ where
             .expect("`get-inventory` is sent");
     }
 
-    pub fn connect_to(&mut self, remote: &net::SocketAddr) {
-        self.initialize();
-        self.protocol.attempted(remote);
-        self.protocol
-            .connected(*remote, &self.local_addr, Link::Outbound);
+    pub fn connect_to(&mut self, peer: &Self) {
+        let remote = simulator::Peer::<Protocol<S>>::addr(peer);
 
-        let mut msgs = self.messages(remote);
+        self.initialize();
+        self.protocol.attempted(&remote);
+        self.protocol
+            .connected(remote, &self.local_addr, Link::Outbound);
+
+        let mut msgs = self.messages(&remote);
         msgs.find(|m| matches!(m, Message::Hello { .. }))
             .expect("`hello` is sent");
         msgs.find(|m| matches!(m, Message::GetInventory { .. }))
             .expect("`get-inventory` is sent");
 
-        let git = self.config().git_url.clone();
-        self.receive(remote, Message::hello(self.local_time().as_secs(), git));
+        let git = peer.config().git_url.clone();
+        self.receive(&remote, Message::hello(self.local_time().as_secs(), git));
     }
 
     /// Drain outgoing messages sent from this peer to the remote address.

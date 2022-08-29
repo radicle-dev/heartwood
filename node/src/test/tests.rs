@@ -31,8 +31,8 @@ fn test_outbound_connection() {
     let bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
     let eve = Peer::new("eve", [7, 7, 7, 7], MockStorage::empty());
 
-    alice.connect_to(&bob.addr());
-    alice.connect_to(&eve.addr());
+    alice.connect_to(&bob);
+    alice.connect_to(&eve);
 
     let peers = alice
         .protocol
@@ -120,20 +120,42 @@ fn test_wrong_peer_magic() {
 }
 
 #[test]
-fn test_inventory_fetch() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
-    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+fn test_inventory_sync() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Peer::new(
+        "alice",
+        [7, 7, 7, 7],
+        Storage::open(tmp.path().join("alice")).unwrap(),
+    );
+    let bob_storage = fixtures::storage(tmp.path().join("bob"));
+    let bob = Peer::new("bob", [8, 8, 8, 8], bob_storage);
     let now = LocalTime::now().as_secs();
+    let projs = bob.storage().inventory().unwrap();
 
-    alice.connect_to(&bob.addr());
+    alice.connect_to(&bob);
     alice.receive(
         &bob.addr(),
         Message::Inventory {
             timestamp: now,
-            inv: vec![],
+            inv: projs.clone(),
             origin: None,
         },
     );
+
+    for proj in &projs {
+        let providers = alice.routing().get(proj).unwrap();
+        assert!(providers.contains(&bob.ip));
+    }
+
+    let a = alice
+        .storage()
+        .inventory()
+        .unwrap()
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let b = projs.into_iter().collect::<HashSet<_>>();
+
+    assert_eq!(a, b);
 }
 
 #[test]
@@ -143,7 +165,7 @@ fn test_inventory_relay_bad_timestamp() {
     let two_hours = 3600 * 2;
     let timestamp = alice.local_time.as_secs() - two_hours;
 
-    alice.connect_to(&bob.addr());
+    alice.connect_to(&bob);
     alice.receive(
         &bob.addr(),
         Message::Inventory {
@@ -169,7 +191,7 @@ fn test_inventory_relay() {
     let now = LocalTime::now().as_secs();
 
     // Inventory from Bob relayed to Eve.
-    alice.connect_to(&bob.addr());
+    alice.connect_to(&bob);
     alice.connect_from(&eve.addr());
     alice.receive(
         &bob.addr(),

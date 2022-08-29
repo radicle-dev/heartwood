@@ -180,6 +180,13 @@ impl Config {
         self.connect.contains(addr)
     }
 
+    pub fn is_tracking(&self, proj: &ProjId) -> bool {
+        match &self.project_tracking {
+            ProjectTracking::All { blocked } => !blocked.contains(proj),
+            ProjectTracking::Allowed(projs) => projs.contains(proj),
+        }
+    }
+
     /// Track a project. Returns whether the policy was updated.
     pub fn track(&mut self, proj: ProjId) -> bool {
         match &mut self.project_tracking {
@@ -686,7 +693,7 @@ pub struct Context<S, T> {
 
 impl<S, T> Context<S, T>
 where
-    T: storage::ReadStorage,
+    T: storage::ReadStorage + storage::WriteStorage,
 {
     pub(crate) fn new(
         config: Config,
@@ -706,22 +713,25 @@ where
         }
     }
 
-    /// Get current local timestamp.
-    pub(crate) fn timestamp(&self) -> Timestamp {
-        self.clock.local_time().as_secs()
-    }
-
     /// Process a peer inventory announcement by updating our routing table.
-    fn process_inventory(&mut self, inventory: &Inventory, from: PeerId) {
+    fn process_inventory(&mut self, inventory: &Inventory, from: PeerId, remote: &Url) {
         for proj_id in inventory {
             let inventory = self
                 .routing
                 .entry(proj_id.clone())
                 .or_insert_with(|| HashSet::with_hasher(self.rng.clone().into()));
 
-            // TODO: If we're tracking this project, check the refs to see if we need to
-            // fetch updates from this peer.
+            if self.config.is_tracking(proj_id) {
+                // TODO: Verify refs before adding them to storage.
+                let mut repo = self.storage.repository(proj_id).unwrap();
+                repo.fetch(&Url {
+                    path: format!("/{}", proj_id).into(),
+                    ..remote.clone()
+                })
+                .unwrap();
+            }
 
+            // TODO: Fire an event on routing update.
             inventory.insert(from);
         }
     }
@@ -733,6 +743,11 @@ where
 }
 
 impl<S, T> Context<S, T> {
+    /// Get current local timestamp.
+    pub(crate) fn timestamp(&self) -> Timestamp {
+        self.clock.local_time().as_secs()
+    }
+
     /// Connect to a peer.
     fn connect(&mut self, addr: net::SocketAddr) {
         // TODO: Make sure we don't try to connect more than once to the same address.
@@ -816,6 +831,8 @@ pub enum PeerError {
     WrongVersion(u32),
     #[error("invalid inventory timestamp: {0}")]
     InvalidTimestamp(u64),
+    #[error("peer misbehaved")]
+    Misbehavior,
 }
 
 #[derive(Debug)]
@@ -866,19 +883,22 @@ impl Peer {
         ctx: &mut Context<S, T>,
     ) -> Result<Option<Message>, PeerError>
     where
-        T: storage::ReadStorage,
+        T: storage::ReadStorage + storage::WriteStorage,
     {
         if envelope.magic != NETWORK_MAGIC {
             return Err(PeerError::WrongMagic(envelope.magic));
         }
         debug!("Received {:?} from {}", &envelope.msg, self.id());
 
-        match envelope.msg {
-            Message::Hello {
-                timestamp,
-                version,
-                git,
-            } => {
+        match (&self.state, envelope.msg) {
+            (
+                PeerState::Initial,
+                Message::Hello {
+                    timestamp,
+                    version,
+                    git,
+                },
+            ) => {
                 let now = ctx.timestamp();
 
                 if timestamp.abs_diff(now) > MAX_TIME_DELTA.as_secs() {
@@ -887,37 +907,43 @@ impl Peer {
                 if version != PROTOCOL_VERSION {
                     return Err(PeerError::WrongVersion(version));
                 }
-                if let PeerState::Initial = self.state {
-                    // Nb. This is a very primitive handshake. Eventually we should have anyhow
-                    // extra "acknowledgment" message sent when the `Hello` is well received.
-                    if self.link.is_inbound() {
-                        let git = ctx.config.git_url.clone();
-                        ctx.write_all(
-                            self.addr,
-                            [Message::hello(now, git), Message::get_inventory([])],
-                        );
-                    }
-                    // Nb. we don't set the peer timestamp here, since it is going to be
-                    // set after the first message is received only. Setting it here would
-                    // mean that messages received right after the handshake could be ignored.
-                    self.state = PeerState::Negotiated {
-                        since: ctx.clock.local_time(),
-                        git,
-                    };
-                } else {
-                    // TODO: Handle misbehavior.
+                // Nb. This is a very primitive handshake. Eventually we should have anyhow
+                // extra "acknowledgment" message sent when the `Hello` is well received.
+                if self.link.is_inbound() {
+                    let git = ctx.config.git_url.clone();
+                    ctx.write_all(
+                        self.addr,
+                        [Message::hello(now, git), Message::get_inventory([])],
+                    );
                 }
+                // Nb. we don't set the peer timestamp here, since it is going to be
+                // set after the first message is received only. Setting it here would
+                // mean that messages received right after the handshake could be ignored.
+                self.state = PeerState::Negotiated {
+                    since: ctx.clock.local_time(),
+                    git,
+                };
             }
-            Message::GetInventory { .. } => {
+            (PeerState::Initial, _) => {
+                debug!(
+                    "Disconnecting peer {} for sending us a message before handshake",
+                    self.id()
+                );
+                return Err(PeerError::Misbehavior);
+            }
+            (PeerState::Negotiated { .. }, Message::GetInventory { .. }) => {
                 // TODO: Handle partial inventory requests.
                 let inventory = Message::inventory(ctx).unwrap();
                 ctx.write(self.addr, inventory);
             }
-            Message::Inventory {
-                timestamp,
-                inv,
-                origin,
-            } => {
+            (
+                PeerState::Negotiated { git, .. },
+                Message::Inventory {
+                    timestamp,
+                    inv,
+                    origin,
+                },
+            ) => {
                 let now = ctx.clock.local_time();
                 let last = self.timestamp;
 
@@ -932,7 +958,7 @@ impl Peer {
                 } else {
                     return Ok(None);
                 }
-                ctx.process_inventory(&inv, origin.unwrap_or_else(|| self.id()));
+                ctx.process_inventory(&inv, origin.unwrap_or_else(|| self.id()), git);
 
                 if ctx.config.relay {
                     return Ok(Some(Message::Inventory {
@@ -942,13 +968,23 @@ impl Peer {
                     }));
                 }
             }
-            Message::GetAddrs => {
+            (PeerState::Negotiated { .. }, Message::GetAddrs) => {
                 // TODO: Send peer addresses.
                 todo!();
             }
-            Message::Addrs { .. } => {
+            (PeerState::Negotiated { .. }, Message::Addrs { .. }) => {
                 // TODO: Update address book.
                 todo!();
+            }
+            (PeerState::Negotiated { .. }, Message::Hello { .. }) => {
+                debug!(
+                    "Disconnecting peer {} for sending us a redundant handshake message",
+                    self.id()
+                );
+                return Err(PeerError::Misbehavior);
+            }
+            (PeerState::Disconnected { .. }, msg) => {
+                debug!("Ignoring {:?} from disconnected peer {}", msg, self.id());
             }
         }
         Ok(None)

@@ -23,6 +23,14 @@ impl MockStorage {
 }
 
 impl ReadStorage for MockStorage {
+    fn url(&self) -> Url {
+        Url {
+            scheme: git_url::Scheme::Radicle,
+            host: Some("mock".to_string()),
+            ..Url::default()
+        }
+    }
+
     fn get(&self, proj: &ProjId) -> Result<Option<Remotes<Unverified>>, Error> {
         if let Some((_, refs)) = self.inventory.iter().find(|(id, _)| id == proj) {
             return Ok(Some(refs.clone()));
@@ -45,7 +53,7 @@ impl WriteStorage for MockStorage {
     type Repository = MockRepository;
 
     fn repository(&self, _proj: &ProjId) -> Result<Self::Repository, Error> {
-        todo!()
+        Ok(MockRepository {})
     }
 }
 
@@ -53,7 +61,7 @@ pub struct MockRepository {}
 
 impl WriteRepository for MockRepository {
     fn fetch(&mut self, _url: &Url) -> Result<(), git2::Error> {
-        todo!()
+        Ok(())
     }
 
     fn namespace(

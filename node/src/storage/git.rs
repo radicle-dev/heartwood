@@ -41,6 +41,14 @@ impl fmt::Debug for Storage {
 }
 
 impl ReadStorage for Storage {
+    fn url(&self) -> Url {
+        Url {
+            scheme: git_url::Scheme::File,
+            host: Some(self.path.to_string_lossy().to_string()),
+            ..Url::default()
+        }
+    }
+
     fn get(&self, _id: &ProjId) -> Result<Option<Remotes<Unverified>>, Error> {
         todo!()
     }

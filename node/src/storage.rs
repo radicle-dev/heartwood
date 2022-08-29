@@ -116,6 +116,7 @@ impl Remote<Unverified> {
 }
 
 pub trait ReadStorage {
+    fn url(&self) -> Url;
     fn get(&self, proj: &ProjId) -> Result<Option<Remotes<Unverified>>, Error>;
     fn inventory(&self) -> Result<Inventory, Error>;
 }
@@ -140,6 +141,10 @@ where
     T: Deref<Target = S>,
     S: ReadStorage,
 {
+    fn url(&self) -> Url {
+        self.deref().url()
+    }
+
     fn inventory(&self) -> Result<Inventory, Error> {
         self.deref().inventory()
     }
