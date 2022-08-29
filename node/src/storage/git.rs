@@ -1,29 +1,26 @@
-use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::{fmt, fs, io};
+use std::{fmt, fs};
 
 use git_ref_format::refspec;
-use git_url::Url;
 use once_cell::sync::Lazy;
 use radicle_git_ext as git_ext;
-use serde::{Deserialize, Serialize};
 
 pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
 use crate::git;
 use crate::identity;
-use crate::identity::{ProjId, ProjIdError, UserId};
+use crate::identity::{ProjId, UserId};
 
 use super::{
-    Error, Inventory, ReadRepository, ReadStorage, Remote, Remotes, Unverified, Verified,
-    WriteRepository, WriteStorage,
+    Error, Inventory, ReadRepository, ReadStorage, Remote, Remotes, Unverified, WriteRepository,
+    WriteStorage,
 };
 
 pub static RAD_ROOT_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*/refs/rad/root"));
+pub static NAMESPACES_GLOB: Lazy<refspec::PatternString> =
+    Lazy::new(|| refspec::pattern!("refs/namespaces/*"));
 pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new(".rad/identity.toml"));
 
 pub struct Storage {
@@ -48,7 +45,6 @@ impl ReadStorage for Storage {
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
-        let glob: String = RAD_ROOT_GLOB.clone().into();
         let projs = self.projects()?;
         let mut inv = Vec::new();
 
@@ -57,7 +53,7 @@ impl ReadStorage for Storage {
             let remotes = repo
                 .remotes()?
                 .into_iter()
-                .map(|r| (r.id.to_string(), r))
+                .map(|(id, r)| (id.to_string(), r))
                 .collect();
 
             inv.push((proj, remotes));
@@ -157,8 +153,8 @@ impl Repository {
 }
 
 impl ReadRepository for Repository {
-    fn remotes(&self) -> Result<Vec<Remote<Unverified>>, Error> {
-        let refs = self.backend.references_glob(RAD_ROOT_GLOB.as_str())?;
+    fn remotes(&self) -> Result<Remotes<Unverified>, Error> {
+        let refs = self.backend.references_glob(NAMESPACES_GLOB.as_str())?;
         let mut remotes = HashMap::default();
 
         for r in refs {
@@ -172,7 +168,7 @@ impl ReadRepository for Repository {
 
             entry.refs.insert(refname.to_string(), oid.into());
         }
-        Ok(remotes.into_values().collect())
+        Ok(Remotes::new(remotes))
     }
 }
 
@@ -192,7 +188,7 @@ impl WriteRepository for Repository {
         //                    /tags
         //                    ...
         //
-        let refs: &[&str] = &[&format!("refs/namespaces/*:refs/namespaces/*")];
+        let refs: &[&str] = &["refs/namespaces/*:refs/namespaces/*"];
         let mut remote = self.backend.remote_anonymous(url)?;
         let mut opts = git2::FetchOptions::default();
 
@@ -221,38 +217,22 @@ impl From<git2::Repository> for Repository {
 mod tests {
     use super::*;
     use crate::git;
-    use crate::hash::Digest;
-    use crate::identity::ProjId;
     use crate::storage::{ReadStorage, WriteRepository};
     use crate::test::fixtures;
 
-    /// Create an initial empty commit.
-    fn initial_commit(repo: &git2::Repository) -> Result<git2::Oid, Error> {
-        // First use the config to initialize a commit signature for the user.
-        let sig = git2::Signature::now("cloudhead", "cloudhead@radicle.xyz")?;
-        // Now let's create an empty tree for this commit.
-        let tree_id = repo.index()?.write_tree()?;
-        let tree = repo.find_tree(tree_id)?;
-        let oid = repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])?;
-
-        Ok(oid)
-    }
-
     #[test]
-    fn test_ls_remote() {
-        crate::test::logger::init(log::Level::Debug);
-
+    fn test_list_remotes() {
         let dir = tempfile::tempdir().unwrap();
         let storage = fixtures::storage(dir.path());
         let inv = storage.inventory().unwrap();
         let (proj, _) = inv.first().unwrap();
-        let refs = git::list_refs(&format!(
+        let refs = git::list_remotes(&format!(
             "file://{}",
             dir.path().join(&proj.to_string()).display(),
         ))
         .unwrap();
 
-        let remotes = storage.repository(&proj).unwrap().remotes().unwrap();
+        let remotes = storage.repository(proj).unwrap().remotes().unwrap();
 
         assert_eq!(refs, remotes);
     }
@@ -267,7 +247,7 @@ mod tests {
         let refname = "refs/heads/master";
 
         // Have Bob fetch Alice's refs.
-        bob.repository(&proj)
+        bob.repository(proj)
             .unwrap()
             .fetch(&format!(
                 "file://{}",
@@ -275,14 +255,14 @@ mod tests {
             ))
             .unwrap();
 
-        for (_, remote) in remotes {
+        for remote in remotes.values() {
             let alice_oid = alice
-                .repository(&proj)
+                .repository(proj)
                 .unwrap()
                 .find_reference(&remote.id, refname)
                 .unwrap();
             let bob_oid = bob
-                .repository(&proj)
+                .repository(proj)
                 .unwrap()
                 .find_reference(&remote.id, refname)
                 .unwrap();

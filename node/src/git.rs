@@ -1,85 +1,62 @@
-use crate::identity::ProjId;
-use crate::storage::{Error, WriteStorage};
+use std::str::FromStr;
+
+use crate::collections::HashMap;
+use crate::identity::UserId;
+use crate::storage::{Remote, Remotes, Unverified};
+use git_ref_format as format;
 
 /// Default port of the `git` transport protocol.
 pub const PROTOCOL_PORT: u16 = 9418;
 
-/// Fetch all remotes of a project from the given URL.
-pub fn fetch<S: WriteStorage>(proj: &ProjId, url: &str, mut storage: S) -> Result<(), Error> {
-    // TODO: Use `Url` type?
-    // TODO: Have function to fetch specific remotes.
-    // TODO: Return meaningful info on success.
-    //
-    // Repository layout should look like this:
-    //
-    //      /refs/namespaces/<project>
-    //              /refs/namespaces/<remote>
-    //                    /heads
-    //                      /master
-    //                    /tags
-    //                    ...
-    //
-    let repo = storage.repository();
-    let refs: &[&str] = &[&format!(
-        "refs/namespaces/{}/refs/*:refs/namespaces/{}/refs/*",
-        proj, proj
-    )];
-    let mut remote = repo.remote_anonymous(url)?;
-    let mut opts = git2::FetchOptions::default();
-
-    remote.fetch(refs, Some(&mut opts), None)?;
-
-    Ok(())
+#[derive(thiserror::Error, Debug)]
+pub enum RefError {
+    #[error("invalid ref name '{0}'")]
+    InvalidName(format::RefString),
+    #[error("invalid ref format: {0}")]
+    Format(#[from] format::Error),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::hash::Digest;
-    use crate::identity::ProjId;
-    use crate::storage::Storage;
+#[derive(thiserror::Error, Debug)]
+pub enum ListRefsError {
+    #[error("git error: {0}")]
+    Git(#[from] git2::Error),
+    #[error("invalid ref: {0}")]
+    InvalidRef(#[from] RefError),
+}
 
-    /// Create an initial empty commit.
-    fn initial_commit(repo: &git2::Repository) -> Result<git2::Oid, Error> {
-        // First use the config to initialize a commit signature for the user.
-        let sig = git2::Signature::now("cloudhead", "cloudhead@radicle.xyz")?;
-        // Now let's create an empty tree for this commit.
-        let tree_id = repo.index()?.write_tree()?;
-        let tree = repo.find_tree(tree_id)?;
-        let oid = repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])?;
+/// List remote refs of a project, given the remote URL.
+pub fn list_remotes(url: &str) -> Result<Remotes<Unverified>, ListRefsError> {
+    let mut remotes = HashMap::default();
+    let mut remote = git2::Remote::create_detached(url)?;
 
-        Ok(oid)
+    remote.connect(git2::Direction::Fetch)?;
+
+    let refs = remote.list()?;
+    for r in refs {
+        let (id, refname) = parse_ref::<UserId>(r.name())?;
+        let entry = remotes
+            .entry(id.clone())
+            .or_insert_with(|| Remote::new(id, HashMap::default()));
+
+        entry.refs.insert(refname.to_string(), r.oid().into());
     }
 
-    #[test]
-    fn test_fetch() {
-        let path = tempfile::tempdir().unwrap().into_path();
-        let alice = git2::Repository::init_bare(path.join("alice")).unwrap();
-        let bob = git2::Repository::init_bare(path.join("bob")).unwrap();
-        let mut bob_storage = Storage::from(bob);
-        let proj = ProjId::from(Digest::new(&[42]));
-        let master = format!("refs/namespaces/{}/refs/heads/master", proj);
-        let alice_oid = initial_commit(&alice).unwrap();
+    Ok(Remotes::new(remotes))
+}
 
-        alice
-            .reference(&master, alice_oid, false, "Create master branch")
-            .unwrap();
+/// Parse a ref string.
+pub fn parse_ref<T: FromStr>(s: &str) -> Result<(T, format::RefString), RefError> {
+    let input = format::RefStr::try_from_str(s)?;
+    let suffix = input
+        .strip_prefix(format::refname!("refs/namespaces"))
+        .ok_or_else(|| RefError::InvalidName(input.to_owned()))?;
 
-        // Have Bob fetch Alice's refs.
-        fetch(
-            &proj,
-            &format!("file://{}/alice", path.display()),
-            &mut bob_storage,
-        )
-        .unwrap();
+    let mut components = suffix.components();
+    let id = components
+        .next()
+        .ok_or_else(|| RefError::InvalidName(input.to_owned()))?;
+    let id = T::from_str(&id.to_string()).map_err(|_| RefError::InvalidName(input.to_owned()))?;
+    let refstr = components.collect::<format::RefString>();
 
-        let bob_oid = bob_storage
-            .repository()
-            .find_reference(&master)
-            .unwrap()
-            .target()
-            .unwrap();
-
-        assert_eq!(alice_oid, bob_oid);
-    }
+    Ok((id, refstr))
 }

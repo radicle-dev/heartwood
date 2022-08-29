@@ -4,7 +4,8 @@ use std::str::FromStr;
 use once_cell::sync::Lazy;
 
 use crate::identity::{ProjId, UserId};
-use crate::storage::{Storage, WriteStorage};
+use crate::storage::git::Storage;
+use crate::storage::{WriteRepository, WriteStorage};
 
 pub static USER_IDS: Lazy<[UserId; 16]> = Lazy::new(|| {
     [
@@ -48,16 +49,23 @@ pub static PROJ_IDS: Lazy<[ProjId; 16]> = Lazy::new(|| {
     ]
 });
 
-pub fn storage(path: &Path) -> Storage {
-    let mut storage = Storage::open(path).unwrap();
+pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
+    let path = path.as_ref();
+    let storage = Storage::new(path);
 
     for proj in PROJ_IDS.iter().take(3) {
+        log::debug!("creating {}...", proj);
+        let mut repo = storage.repository(proj).unwrap();
+
         for user in USER_IDS.iter().take(3) {
-            let repo = storage.namespace(proj, user).unwrap();
+            let repo = repo.namespace(user).unwrap();
             let head_oid = initial_commit(repo).unwrap();
             let head = repo.find_commit(head_oid).unwrap();
 
-            log::debug!("creating {}...", repo.namespace().unwrap());
+            log::debug!("{}: creating {}...", proj, repo.namespace().unwrap());
+
+            repo.reference("refs/rad/root", head_oid, false, "test")
+                .unwrap();
 
             // TODO: Different commits.
             repo.branch("master", &head, false).unwrap();

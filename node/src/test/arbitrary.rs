@@ -26,6 +26,7 @@ impl quickcheck::Arbitrary for storage::Remote<storage::Unverified> {
         let mut refs: HashMap<storage::BranchName, storage::Oid> = HashMap::with_hasher(rng.into());
         let mut bytes: [u8; 20] = [0; 20];
         let names = &["master", "dev", "feature/1", "feature/2", "feature/3"];
+        let id = UserId::arbitrary(g);
 
         for _ in 0..g.size().min(2) {
             if let Some(name) = g.choose(names) {
@@ -36,7 +37,7 @@ impl quickcheck::Arbitrary for storage::Remote<storage::Unverified> {
                 refs.insert(name.to_string(), oid);
             }
         }
-        storage::Remote::new(refs)
+        storage::Remote::new(id, refs)
     }
 }
 

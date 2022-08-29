@@ -16,9 +16,8 @@ use crate::address_manager::AddressManager;
 use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
 use crate::decoder::Decoder;
-use crate::git;
 use crate::identity::{ProjId, UserId};
-use crate::storage;
+use crate::storage::{self, WriteRepository};
 use crate::storage::{Inventory, ReadStorage, Remotes, Unverified, WriteStorage};
 
 /// Network peer identifier.
@@ -452,7 +451,11 @@ where
         match cmd {
             Command::Connect(addr) => self.context.connect(addr),
             Command::Fetch(proj, remote) => {
-                git::fetch(&proj, &format!("git://{}", remote), &mut self.storage).unwrap();
+                self.storage
+                    .repository(&proj)
+                    .unwrap()
+                    .fetch(&format!("git://{}", remote))
+                    .unwrap();
             }
         }
     }

@@ -1,4 +1,4 @@
-use std::{fmt, io, ops::Deref, str::FromStr};
+use std::{ffi::OsString, fmt, io, ops::Deref, str::FromStr};
 
 use ed25519_consensus::{VerificationKey, VerificationKeyBytes};
 use nonempty::NonEmpty;
@@ -10,8 +10,6 @@ use crate::hash;
 
 #[derive(Error, Debug)]
 pub enum ProjIdError {
-    #[error("invalid ref '{0}'")]
-    InvalidRef(String),
     #[error("invalid digest: {0}")]
     InvalidDigest(#[from] hash::DecodeError),
 }
@@ -35,21 +33,22 @@ impl ProjId {
     pub fn encode(&self) -> String {
         multibase::encode(multibase::Base::Base58Btc, &self.0.as_ref())
     }
-
-    pub(crate) fn from_ref(s: &str) -> Result<ProjId, ProjIdError> {
-        if let Some(s) = s.split('/').nth(2) {
-            let id = Self::from_str(s)?;
-            return Ok(id);
-        }
-        Err(ProjIdError::InvalidRef(s.to_owned()))
-    }
 }
 
 impl FromStr for ProjId {
-    type Err = hash::DecodeError;
+    type Err = ProjIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(hash::Digest::from_str(s)?))
+    }
+}
+
+impl TryFrom<OsString> for ProjId {
+    type Error = ProjIdError;
+
+    fn try_from(value: OsString) -> Result<Self, Self::Error> {
+        let string = value.to_string_lossy();
+        Self::from_str(&string)
     }
 }
 
@@ -133,8 +132,6 @@ pub enum UserIdError {
     #[error("invalid key: {0}")]
     InvalidKey(#[from] ed25519_consensus::Error),
 }
-
-impl UserId {}
 
 #[derive(Error, Debug)]
 pub enum DocError {

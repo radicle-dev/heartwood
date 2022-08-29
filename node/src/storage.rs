@@ -1,22 +1,22 @@
+pub mod git;
+
+use std::collections::hash_map;
+use std::io;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
-use std::{fmt, fs, io};
 
-use git_ref_format::refspec;
 use once_cell::sync::Lazy;
-use radicle_git_ext as git_ext;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
+use crate::git::RefError;
 use crate::identity;
 use crate::identity::{ProjId, ProjIdError, UserId};
 
-pub static RAD_ID_GLOB: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("refs/namespaces/*/refs/rad/id"));
 pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new(".rad/identity.toml"));
 
 pub type BranchName = String;
@@ -27,6 +27,8 @@ pub type Inventory = Vec<(ProjId, HashMap<String, Remote<Unverified>>)>;
 pub enum Error {
     #[error("invalid git reference")]
     InvalidRef,
+    #[error("git reference error: {0}")]
+    Ref(#[from] RefError),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("id: {0}")]
@@ -51,12 +53,27 @@ pub struct Verified;
 pub struct Unverified;
 
 /// Project remotes. Tracks the git state of a project.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Remotes<V>(HashMap<RemoteId, Remote<V>>);
 
 impl Remotes<Unverified> {
     pub fn new(remotes: HashMap<RemoteId, Remote<Unverified>>) -> Self {
         Self(remotes)
+    }
+}
+
+impl Default for Remotes<Unverified> {
+    fn default() -> Self {
+        Self(HashMap::default())
+    }
+}
+
+impl<V> IntoIterator for Remotes<V> {
+    type Item = (RemoteId, Remote<V>);
+    type IntoIter = hash_map::IntoIter<RemoteId, Remote<V>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
@@ -73,20 +90,23 @@ impl Into<HashMap<String, Remote<Unverified>>> for Remotes<Unverified> {
 }
 
 /// A project remote.
-#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Remote<V> {
+    /// ID of remote.
+    pub id: UserId,
     /// Git references published under this remote, and their hashes.
-    refs: HashMap<RefName, Oid>,
+    pub refs: HashMap<RefName, Oid>,
     /// Whether this remote is of a project delegate.
-    delegate: bool,
+    pub delegate: bool,
     /// Whether the remote is verified or not, ie. whether its signed refs were checked.
     #[serde(skip)]
     verified: PhantomData<V>,
 }
 
 impl Remote<Unverified> {
-    pub fn new(refs: HashMap<RefName, Oid>) -> Self {
+    pub fn new(id: UserId, refs: HashMap<RefName, Oid>) -> Self {
         Self {
+            id,
             refs,
             delegate: false,
             verified: PhantomData,
@@ -100,12 +120,18 @@ pub trait ReadStorage {
 }
 
 pub trait WriteStorage {
-    fn repository(&mut self) -> &mut git2::Repository;
-    fn namespace(
-        &mut self,
-        proj: &ProjId,
-        user: &UserId,
-    ) -> Result<&mut git2::Repository, git2::Error>;
+    type Repository: WriteRepository;
+
+    fn repository(&self, proj: &ProjId) -> Result<Self::Repository, Error>;
+}
+
+pub trait ReadRepository {
+    fn remotes(&self) -> Result<Remotes<Unverified>, Error>;
+}
+
+pub trait WriteRepository {
+    fn fetch(&mut self, url: &str) -> Result<(), git2::Error>;
+    fn namespace(&mut self, user: &UserId) -> Result<&mut git2::Repository, git2::Error>;
 }
 
 impl<T, S> ReadStorage for T
@@ -127,114 +153,10 @@ where
     T: DerefMut<Target = S>,
     S: WriteStorage + 'static,
 {
-    fn repository(&mut self) -> &mut git2::Repository {
-        self.deref_mut().repository()
-    }
+    type Repository = S::Repository;
 
-    fn namespace(
-        &mut self,
-        proj: &ProjId,
-        user: &UserId,
-    ) -> Result<&mut git2::Repository, git2::Error> {
-        self.deref_mut().namespace(proj, user)
-    }
-}
-
-pub struct Storage {
-    backend: git2::Repository,
-}
-
-impl From<git2::Repository> for Storage {
-    fn from(backend: git2::Repository) -> Self {
-        Self { backend }
-    }
-}
-
-impl fmt::Debug for Storage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Storage(..)")
-    }
-}
-
-impl ReadStorage for Storage {
-    fn get(&self, _id: &ProjId) -> Result<Option<Remotes<Unverified>>, Error> {
-        todo!()
-    }
-
-    fn inventory(&self) -> Result<Inventory, Error> {
-        let glob: String = RAD_ID_GLOB.clone().into();
-        let refs = self.backend.references_glob(glob.as_str())?;
-
-        for r in refs {
-            let r = r?;
-            let name = r.name().ok_or(Error::InvalidRef)?;
-            let _id = ProjId::from_ref(name)?;
-
-            todo!();
-        }
-        Ok(vec![])
-    }
-}
-
-impl WriteStorage for Storage {
-    fn repository(&mut self) -> &mut git2::Repository {
-        &mut self.backend
-    }
-
-    fn namespace(
-        &mut self,
-        proj: &ProjId,
-        user: &UserId,
-    ) -> Result<&mut git2::Repository, git2::Error> {
-        let path = self.backend.path();
-
-        self.backend = git2::Repository::open_bare(path)?;
-        self.backend.set_namespace(&format!("{}/{}", proj, user))?;
-
-        Ok(&mut self.backend)
-    }
-}
-
-impl Storage {
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, git2::Error> {
-        let path = path.as_ref();
-        let backend = match git2::Repository::open_bare(path) {
-            Err(e) if git_ext::is_not_found_err(&e) => {
-                let backend = git2::Repository::init_opts(
-                    path,
-                    git2::RepositoryInitOptions::new()
-                        .bare(true)
-                        .no_reinit(true)
-                        .external_template(false),
-                )?;
-
-                Ok(backend)
-            }
-            Ok(repo) => Ok(repo),
-            Err(e) => Err(e),
-        }?;
-
-        Ok(Self { backend })
-    }
-
-    pub fn create(
-        &self,
-        repo: &git2::Repository,
-        identity: impl Into<identity::Doc>,
-    ) -> Result<(ProjId, git2::Reference), Error> {
-        let doc = identity.into();
-        let file = fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(*IDENTITY_PATH)?;
-        let id = doc.write(file)?;
-        let ref_name = RAD_ID_GLOB.replace('*', &id.encode());
-        let oid = repo.head()?.target().ok_or(Error::InvalidHead)?;
-        let reference = self.backend.reference(&ref_name, oid, false, "")?;
-
-        // TODO: Push project to monorepo.
-
-        Ok((id, reference))
+    fn repository(&self, proj: &ProjId) -> Result<Self::Repository, Error> {
+        self.deref().repository(proj)
     }
 }
 
