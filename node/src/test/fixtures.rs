@@ -8,8 +8,10 @@ use crate::test::arbitrary;
 pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
     let path = path.as_ref();
     let storage = Storage::new(path);
-    let proj_ids = arbitrary::gen::<Vec<ProjId>>(9);
-    let user_ids = arbitrary::gen::<Vec<UserId>>(9);
+    let proj_ids = arbitrary::set::<ProjId>(3..5);
+    let user_ids = arbitrary::set::<UserId>(1..3);
+
+    crate::test::logger::init(log::Level::Debug);
 
     for proj in proj_ids.iter() {
         log::debug!("creating {}...", proj);
@@ -70,8 +72,8 @@ mod tests {
 
     #[test]
     fn smoke() {
-        let path = tempfile::tempdir().unwrap().into_path();
+        let tmp = tempfile::tempdir().unwrap();
 
-        storage(&path);
+        storage(&tmp.path());
     }
 }

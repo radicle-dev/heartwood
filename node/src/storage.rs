@@ -21,7 +21,7 @@ use crate::identity::{ProjId, ProjIdError, UserId};
 pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new(".rad/identity.toml"));
 
 pub type BranchName = String;
-pub type Inventory = Vec<(ProjId, HashMap<String, Remote<Unverified>>)>;
+pub type Inventory = Vec<ProjId>;
 
 /// Storage error.
 #[derive(Error, Debug)]

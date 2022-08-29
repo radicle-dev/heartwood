@@ -1,8 +1,23 @@
+use std::collections::HashSet;
+use std::hash::Hash;
+use std::ops::RangeBounds;
+
 use crate::collections::HashMap;
 use crate::hash;
 use crate::identity::{ProjId, UserId};
 use crate::storage;
 use crate::test::storage::MockStorage;
+
+pub fn set<T: Eq + Hash + quickcheck::Arbitrary>(range: impl RangeBounds<usize>) -> HashSet<T> {
+    let size = fastrand::usize(range);
+    let mut set = HashSet::with_capacity(size);
+    let mut g = quickcheck::Gen::new(size);
+
+    while set.len() < size {
+        set.insert(T::arbitrary(&mut g));
+    }
+    set
+}
 
 pub fn gen<T: quickcheck::Arbitrary>(size: usize) -> T {
     let mut gen = quickcheck::Gen::new(size);

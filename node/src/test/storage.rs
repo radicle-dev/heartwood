@@ -34,7 +34,7 @@ impl ReadStorage for MockStorage {
         let inventory = self
             .inventory
             .iter()
-            .map(|(id, remotes)| (id.clone(), remotes.clone().into()))
+            .map(|(id, _)| id.clone())
             .collect::<Vec<_>>();
 
         Ok(inventory)

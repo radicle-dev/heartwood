@@ -46,20 +46,7 @@ impl ReadStorage for Storage {
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
-        let projs = self.projects()?;
-        let mut inv = Vec::new();
-
-        for proj in projs {
-            let repo = self.repository(&proj)?;
-            let remotes = repo
-                .remotes()?
-                .into_iter()
-                .map(|(id, r)| (id.to_string(), r))
-                .collect();
-
-            inv.push((proj, remotes));
-        }
-        Ok(inv)
+        self.projects()
     }
 }
 
@@ -226,7 +213,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let storage = fixtures::storage(dir.path());
         let inv = storage.inventory().unwrap();
-        let (proj, _) = inv.first().unwrap();
+        let proj = inv.first().unwrap();
         let refs = git::list_remotes(&Url {
             host: Some(dir.path().to_string_lossy().to_string()),
             scheme: git_url::Scheme::File,
@@ -242,11 +229,12 @@ mod tests {
 
     #[test]
     fn test_fetch() {
-        let path = tempfile::tempdir().unwrap().into_path();
-        let alice = fixtures::storage(path.join("alice"));
-        let bob = Storage::new(path.join("bob"));
+        let tmp = tempfile::tempdir().unwrap();
+        let alice = fixtures::storage(tmp.path().join("alice"));
+        let bob = Storage::new(tmp.path().join("bob"));
         let inventory = alice.inventory().unwrap();
-        let (proj, remotes) = inventory.first().unwrap();
+        let proj = inventory.first().unwrap();
+        let remotes = alice.repository(proj).unwrap().remotes().unwrap();
         let refname = "refs/heads/master";
 
         // Have Bob fetch Alice's refs.
@@ -260,16 +248,16 @@ mod tests {
             })
             .unwrap();
 
-        for remote in remotes.values() {
+        for (id, _) in remotes.into_iter() {
             let alice_oid = alice
                 .repository(proj)
                 .unwrap()
-                .find_reference(&remote.id, refname)
+                .find_reference(&id, refname)
                 .unwrap();
             let bob_oid = bob
                 .repository(proj)
                 .unwrap()
-                .find_reference(&remote.id, refname)
+                .find_reference(&id, refname)
                 .unwrap();
 
             assert_eq!(alice_oid, bob_oid);

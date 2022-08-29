@@ -73,7 +73,7 @@ pub enum Message {
     /// Send our inventory to a peer. Sent in response to [`Message::GetInventory`].
     /// Nb. This should be the whole inventory, not a partial update.
     Inventory {
-        inv: Inventory,
+        inv: Vec<ProjId>,
         timestamp: Timestamp,
         /// Original peer this inventory came from. We don't set this when we
         /// are the originator, only when relaying.
@@ -253,7 +253,6 @@ impl<T: ReadStorage + WriteStorage, S: address_book::Store> Protocol<S, T> {
                 .storage
                 .inventory()?
                 .into_iter()
-                .map(|(id, _)| id)
                 .filter(|id| !blocked.contains(id))
                 .collect(),
 
@@ -714,7 +713,7 @@ where
 
     /// Process a peer inventory announcement by updating our routing table.
     fn process_inventory(&mut self, inventory: &Inventory, from: PeerId) {
-        for (proj_id, _refs) in inventory {
+        for proj_id in inventory {
             let inventory = self
                 .routing
                 .entry(proj_id.clone())
