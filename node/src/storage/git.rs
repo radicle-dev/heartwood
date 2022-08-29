@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::{fmt, fs};
+use std::{fmt, fs, io};
 
 use git_ref_format::refspec;
 use git_url::Url;
@@ -59,10 +59,16 @@ impl WriteStorage for Storage {
 }
 
 impl Storage {
-    pub fn new<P: AsRef<Path>>(path: P) -> Self {
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
         let path = path.as_ref().to_path_buf();
 
-        Self { path }
+        match fs::create_dir_all(&path) {
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(err) => return Err(err),
+            Ok(()) => {}
+        }
+
+        Ok(Self { path })
     }
 
     pub fn path(&self) -> &Path {
@@ -231,7 +237,7 @@ mod tests {
     fn test_fetch() {
         let tmp = tempfile::tempdir().unwrap();
         let alice = fixtures::storage(tmp.path().join("alice"));
-        let bob = Storage::new(tmp.path().join("bob"));
+        let bob = Storage::open(tmp.path().join("bob")).unwrap();
         let inventory = alice.inventory().unwrap();
         let proj = inventory.first().unwrap();
         let remotes = alice.repository(proj).unwrap().remotes().unwrap();

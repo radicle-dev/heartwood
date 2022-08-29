@@ -8,7 +8,9 @@ use nakamoto_net::Protocol as _;
 
 use crate::collections::{HashMap, HashSet};
 use crate::protocol::*;
+use crate::storage::git::Storage;
 use crate::storage::ReadStorage;
+use crate::test::fixtures;
 #[allow(unused)]
 use crate::test::logger;
 use crate::test::peer::Peer;
