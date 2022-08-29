@@ -4,6 +4,12 @@ use crate::identity::{ProjId, UserId};
 use crate::storage;
 use crate::test::storage::MockStorage;
 
+pub fn gen<T: quickcheck::Arbitrary>(size: usize) -> T {
+    let mut gen = quickcheck::Gen::new(size);
+
+    T::arbitrary(&mut gen)
+}
+
 impl quickcheck::Arbitrary for storage::Remotes<storage::Unverified> {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let remotes: HashMap<storage::RemoteId, storage::Remote<storage::Unverified>> =
