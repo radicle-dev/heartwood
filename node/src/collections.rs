@@ -8,10 +8,16 @@ pub type HashMap<K, V> = std::collections::HashMap<K, V, RandomState>;
 pub type HashSet<K> = std::collections::HashSet<K, RandomState>;
 
 /// Random hasher state.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct RandomState {
     key1: u64,
     key2: u64,
+}
+
+impl Default for RandomState {
+    fn default() -> Self {
+        Self::new(fastrand::Rng::new())
+    }
 }
 
 impl RandomState {
