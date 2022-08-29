@@ -454,7 +454,14 @@ where
                 self.storage
                     .repository(&proj)
                     .unwrap()
-                    .fetch(&format!("git://{}", remote))
+                    .fetch(&Url {
+                        scheme: git_url::Scheme::Git,
+                        host: Some(remote.ip().to_string()),
+                        port: Some(remote.port()),
+                        // TODO: Fix upstream crate so that it adds a `/` when needed.
+                        path: format!("/{}", proj).into(),
+                        ..Url::default()
+                    })
                     .unwrap();
             }
         }

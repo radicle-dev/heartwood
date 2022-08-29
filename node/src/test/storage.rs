@@ -1,3 +1,5 @@
+use git_url::Url;
+
 use crate::identity::ProjId;
 use crate::storage::{
     Error, Inventory, ReadStorage, Remotes, Unverified, WriteRepository, WriteStorage,
@@ -50,7 +52,7 @@ impl WriteStorage for MockStorage {
 pub struct MockRepository {}
 
 impl WriteRepository for MockRepository {
-    fn fetch(&mut self, _url: &str) -> Result<(), git2::Error> {
+    fn fetch(&mut self, _url: &Url) -> Result<(), git2::Error> {
         todo!()
     }
 

@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
+use git_url::Url;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -130,7 +131,7 @@ pub trait ReadRepository {
 }
 
 pub trait WriteRepository {
-    fn fetch(&mut self, url: &str) -> Result<(), git2::Error>;
+    fn fetch(&mut self, url: &Url) -> Result<(), git2::Error>;
     fn namespace(&mut self, user: &UserId) -> Result<&mut git2::Repository, git2::Error>;
 }
 

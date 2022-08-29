@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 
 use git_ref_format::refspec;
+use git_url::Url;
 use once_cell::sync::Lazy;
 use radicle_git_ext as git_ext;
 
@@ -174,22 +175,21 @@ impl ReadRepository for Repository {
 
 impl WriteRepository for Repository {
     /// Fetch all remotes of a project from the given URL.
-    fn fetch(&mut self, url: &str) -> Result<(), git2::Error> {
-        // TODO: Use `Url` type?
+    fn fetch(&mut self, url: &Url) -> Result<(), git2::Error> {
         // TODO: Have function to fetch specific remotes.
         // TODO: Return meaningful info on success.
         //
         // Repository layout should look like this:
         //
-        //      /refs/namespaces/<project>
-        //              /refs/namespaces/<remote>
-        //                    /heads
-        //                      /master
-        //                    /tags
-        //                    ...
+        //   /refs/namespaces/<remote>
+        //         /heads
+        //           /master
+        //         /tags
+        //         ...
         //
+        let url = url.to_string();
         let refs: &[&str] = &["refs/namespaces/*:refs/namespaces/*"];
-        let mut remote = self.backend.remote_anonymous(url)?;
+        let mut remote = self.backend.remote_anonymous(&url)?;
         let mut opts = git2::FetchOptions::default();
 
         remote.fetch(refs, Some(&mut opts), None)?;
@@ -219,6 +219,7 @@ mod tests {
     use crate::git;
     use crate::storage::{ReadStorage, WriteRepository};
     use crate::test::fixtures;
+    use git_url::Url;
 
     #[test]
     fn test_list_remotes() {
@@ -226,10 +227,12 @@ mod tests {
         let storage = fixtures::storage(dir.path());
         let inv = storage.inventory().unwrap();
         let (proj, _) = inv.first().unwrap();
-        let refs = git::list_remotes(&format!(
-            "file://{}",
-            dir.path().join(&proj.to_string()).display(),
-        ))
+        let refs = git::list_remotes(&Url {
+            host: Some(dir.path().to_string_lossy().to_string()),
+            scheme: git_url::Scheme::File,
+            path: format!("/{}", proj).into(),
+            ..Url::default()
+        })
         .unwrap();
 
         let remotes = storage.repository(proj).unwrap().remotes().unwrap();
@@ -249,10 +252,12 @@ mod tests {
         // Have Bob fetch Alice's refs.
         bob.repository(proj)
             .unwrap()
-            .fetch(&format!(
-                "file://{}",
-                alice.path().join(&proj.to_string()).display()
-            ))
+            .fetch(&Url {
+                host: Some(alice.path().to_string_lossy().to_string()),
+                scheme: git_url::Scheme::File,
+                path: format!("/{}", proj).into(),
+                ..Url::default()
+            })
             .unwrap();
 
         for remote in remotes.values() {

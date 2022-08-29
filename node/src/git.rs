@@ -4,6 +4,7 @@ use crate::collections::HashMap;
 use crate::identity::UserId;
 use crate::storage::{Remote, Remotes, Unverified};
 use git_ref_format as format;
+use git_url::Url;
 
 /// Default port of the `git` transport protocol.
 pub const PROTOCOL_PORT: u16 = 9418;
@@ -25,9 +26,10 @@ pub enum ListRefsError {
 }
 
 /// List remote refs of a project, given the remote URL.
-pub fn list_remotes(url: &str) -> Result<Remotes<Unverified>, ListRefsError> {
+pub fn list_remotes(url: &Url) -> Result<Remotes<Unverified>, ListRefsError> {
+    let url = url.to_string();
     let mut remotes = HashMap::default();
-    let mut remote = git2::Remote::create_detached(url)?;
+    let mut remote = git2::Remote::create_detached(&url)?;
 
     remote.connect(git2::Direction::Fetch)?;
 
