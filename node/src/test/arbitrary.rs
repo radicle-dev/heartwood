@@ -3,6 +3,7 @@ use std::hash::Hash;
 use std::ops::RangeBounds;
 
 use crate::collections::HashMap;
+use crate::crypto::PublicKey;
 use crate::hash;
 use crate::identity::{ProjId, UserId};
 use crate::storage;
@@ -76,7 +77,7 @@ impl quickcheck::Arbitrary for hash::Digest {
     }
 }
 
-impl quickcheck::Arbitrary for UserId {
+impl quickcheck::Arbitrary for PublicKey {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         use ed25519_consensus::SigningKey;
 
@@ -88,6 +89,6 @@ impl quickcheck::Arbitrary for UserId {
         let sk = SigningKey::from(bytes);
         let vk = sk.verification_key();
 
-        UserId(vk)
+        PublicKey(vk)
     }
 }

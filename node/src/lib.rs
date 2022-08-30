@@ -5,6 +5,7 @@ mod address_book;
 mod address_manager;
 mod clock;
 mod collections;
+mod crypto;
 mod decoder;
 mod git;
 mod hash;

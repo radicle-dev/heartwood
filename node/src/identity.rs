@@ -1,12 +1,15 @@
-use std::{ffi::OsString, fmt, io, ops::Deref, str::FromStr};
+use std::{ffi::OsString, fmt, io, str::FromStr};
 
-use ed25519_consensus::{VerificationKey, VerificationKeyBytes};
 use nonempty::NonEmpty;
 use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::crypto;
 use crate::hash;
+
+/// A user's identifier is simply their public key.
+pub type UserId = crypto::PublicKey;
 
 #[derive(Error, Debug)]
 pub enum ProjIdError {
@@ -59,10 +62,10 @@ impl From<hash::Digest> for ProjId {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
-pub struct Did(UserId);
+pub struct Did(crypto::PublicKey);
 
 impl Did {
-    fn encode(&self) -> String {
+    pub fn encode(&self) -> String {
         format!("did:key:{}", self.0.encode())
     }
 }
@@ -71,66 +74,6 @@ impl fmt::Display for Did {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.encode())
     }
-}
-
-#[derive(Serialize, Deserialize, Eq, Debug, Clone)]
-#[serde(transparent)]
-pub struct UserId(pub VerificationKey);
-
-impl std::hash::Hash for UserId {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.as_bytes().hash(state)
-    }
-}
-
-impl fmt::Display for UserId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.encode())
-    }
-}
-
-impl PartialEq for UserId {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl UserId {
-    fn encode(&self) -> String {
-        multibase::encode(multibase::Base::Base58Btc, &self.0)
-    }
-}
-
-impl FromStr for UserId {
-    type Err = UserIdError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (_, bytes) = multibase::decode(s)?;
-        let array: [u8; 32] = bytes
-            .try_into()
-            .map_err(|v: Vec<u8>| UserIdError::InvalidLength(v.len()))?;
-        let key = VerificationKey::try_from(VerificationKeyBytes::from(array))?;
-
-        Ok(Self(key))
-    }
-}
-
-impl Deref for UserId {
-    type Target = VerificationKey;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum UserIdError {
-    #[error("invalid length {0}")]
-    InvalidLength(usize),
-    #[error("invalid multibase string: {0}")]
-    Multibase(#[from] multibase::Error),
-    #[error("invalid key: {0}")]
-    InvalidKey(#[from] ed25519_consensus::Error),
 }
 
 #[derive(Error, Debug)]
