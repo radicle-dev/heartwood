@@ -16,15 +16,16 @@ use crate::address_book::AddressBook;
 use crate::address_manager::AddressManager;
 use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
+use crate::crypto;
 use crate::decoder::Decoder;
 use crate::identity::{ProjId, UserId};
 use crate::storage::{self, WriteRepository};
 use crate::storage::{Inventory, ReadStorage, Remotes, Unverified, WriteStorage};
 
-/// Network peer identifier.
-pub type PeerId = IpAddr;
+/// Network node identifier.
+pub type NodeId = crypto::PublicKey;
 /// Network routing table. Keeps track of where projects are hosted.
-pub type Routing = HashMap<ProjId, HashSet<PeerId>>;
+pub type Routing = HashMap<ProjId, HashSet<NodeId>>;
 /// Seconds since epoch.
 pub type Timestamp = u64;
 
@@ -69,6 +70,8 @@ pub struct Envelope {
 pub enum Message {
     /// Say hello to a peer. This is the first message sent to a peer after connection.
     Hello {
+        // TODO: This is currently untrusted.
+        id: NodeId,
         timestamp: Timestamp,
         version: u32,
         addrs: Vec<Address>,
@@ -87,7 +90,7 @@ pub enum Message {
         timestamp: Timestamp,
         /// Original peer this inventory came from. We don't set this when we
         /// are the originator, only when relaying.
-        origin: Option<PeerId>,
+        origin: Option<NodeId>,
     },
 }
 
@@ -101,8 +104,9 @@ impl From<Message> for Envelope {
 }
 
 impl Message {
-    pub fn hello(timestamp: Timestamp, addrs: Vec<Address>, git: Url) -> Self {
+    pub fn hello(id: NodeId, timestamp: Timestamp, addrs: Vec<Address>, git: Url) -> Self {
         Self::Hello {
+            id,
             timestamp,
             version: PROTOCOL_VERSION,
             addrs,
@@ -110,7 +114,7 @@ impl Message {
         }
     }
 
-    pub fn inventory<S, T>(ctx: &mut Context<S, T>) -> Result<Self, storage::Error>
+    pub fn inventory<S, T, G>(ctx: &mut Context<S, T, G>) -> Result<Self, storage::Error>
     where
         T: storage::ReadStorage,
     {
@@ -219,11 +223,11 @@ impl Config {
 }
 
 #[derive(Debug)]
-pub struct Protocol<S, T> {
+pub struct Protocol<S, T, G> {
     /// Peers currently or recently connected.
     peers: Peers,
     /// Protocol state that isn't peer-specific.
-    context: Context<S, T>,
+    context: Context<S, T, G>,
     /// Whether our local inventory no long represents what we have announced to the network.
     out_of_sync: bool,
     /// Last time the protocol was idle.
@@ -238,12 +242,19 @@ pub struct Protocol<S, T> {
     start_time: LocalTime,
 }
 
-impl<T: ReadStorage + WriteStorage, S: address_book::Store> Protocol<S, T> {
-    pub fn new(config: Config, clock: RefClock, storage: T, addresses: S, rng: Rng) -> Self {
+impl<T: ReadStorage + WriteStorage, S: address_book::Store, G: crypto::Signer> Protocol<S, T, G> {
+    pub fn new(
+        config: Config,
+        clock: RefClock,
+        storage: T,
+        addresses: S,
+        signer: G,
+        rng: Rng,
+    ) -> Self {
         let addrmgr = AddressManager::new(addresses);
 
         Self {
-            context: Context::new(config, clock, storage, addrmgr, rng.clone()),
+            context: Context::new(config, clock, storage, addrmgr, signer, rng.clone()),
             peers: Peers::new(rng),
             out_of_sync: false,
             last_idle: LocalTime::default(),
@@ -254,15 +265,15 @@ impl<T: ReadStorage + WriteStorage, S: address_book::Store> Protocol<S, T> {
         }
     }
 
-    pub fn disconnect(&mut self, peer: &PeerId, reason: DisconnectReason) {
-        if let Some(addr) = self.peers.get(peer).map(|p| p.addr) {
+    pub fn disconnect(&mut self, remote: &IpAddr, reason: DisconnectReason) {
+        if let Some(addr) = self.peers.get(remote).map(|p| p.addr) {
             self.context.disconnect(addr, reason);
         }
     }
 
     pub fn providers(&self, proj: &ProjId) -> Box<dyn Iterator<Item = &Peer> + '_> {
         if let Some(peers) = self.routing.get(proj) {
-            Box::new(peers.iter().filter_map(|id| self.peers.get(id)))
+            Box::new(peers.iter().filter_map(|id| self.peers.by_id(id)))
         } else {
             Box::new(std::iter::empty())
         }
@@ -302,7 +313,7 @@ impl<T: ReadStorage + WriteStorage, S: address_book::Store> Protocol<S, T> {
     /// Returns a sorted list from the closest peer to the furthest.
     /// Peers with more trackings in common score score higher.
     #[allow(unused)]
-    pub fn closest_peers(&self, n: usize) -> Vec<PeerId> {
+    pub fn closest_peers(&self, n: usize) -> Vec<NodeId> {
         todo!()
     }
 
@@ -348,7 +359,7 @@ impl<T: ReadStorage + WriteStorage, S: address_book::Store> Protocol<S, T> {
                 .context
                 .routing
                 .get(proj)
-                .map_or(vec![], |r| r.iter().copied().collect()),
+                .map_or(vec![], |r| r.iter().cloned().collect()),
         }
     }
 
@@ -403,10 +414,11 @@ impl<T: ReadStorage + WriteStorage, S: address_book::Store> Protocol<S, T> {
     }
 }
 
-impl<S, T> nakamoto::Protocol for Protocol<S, T>
+impl<S, T, G> nakamoto::Protocol for Protocol<S, T, G>
 where
     T: ReadStorage + WriteStorage + 'static,
     S: address_book::Store,
+    G: crypto::Signer,
 {
     type Event = ();
     type Command = Command;
@@ -488,11 +500,11 @@ where
     }
 
     fn attempted(&mut self, addr: &std::net::SocketAddr) {
-        let id = addr.ip();
+        let ip = addr.ip();
         let persistent = self.context.config.is_persistent(addr);
         let mut peer = self
             .peers
-            .entry(id)
+            .entry(ip)
             .or_insert_with(|| Peer::new(*addr, Link::Outbound, persistent));
 
         peer.attempts += 1;
@@ -504,9 +516,9 @@ where
         _local_addr: &std::net::SocketAddr,
         link: Link,
     ) {
-        let id = addr.ip();
+        let ip = addr.ip();
 
-        debug!("Connected to {} ({:?})", id, link);
+        debug!("Connected to {} ({:?})", ip, link);
 
         // For outbound connections, we are the first to say "Hello".
         // For inbound connections, we wait for the remote to say "Hello" first.
@@ -514,11 +526,12 @@ where
         if link.is_outbound() {
             let git = self.config.git_url.clone();
 
-            if let Some(peer) = self.peers.get_mut(&id) {
+            if let Some(peer) = self.peers.get_mut(&ip) {
                 self.context.write_all(
                     peer.addr,
                     [
                         Message::hello(
+                            self.context.id(),
                             self.context.timestamp(),
                             self.context.config.listen.clone(),
                             git,
@@ -531,7 +544,7 @@ where
             }
         } else {
             self.peers.insert(
-                id,
+                ip,
                 Peer::new(
                     addr,
                     Link::Inbound,
@@ -547,11 +560,11 @@ where
         reason: nakamoto::DisconnectReason<Self::DisconnectReason>,
     ) {
         let since = self.local_time();
-        let id = addr.ip();
+        let ip = addr.ip();
 
-        debug!("Disconnected from {} ({})", id, reason);
+        debug!("Disconnected from {} ({})", ip, reason);
 
-        if let Some(peer) = self.peers.get_mut(&id) {
+        if let Some(peer) = self.peers.get_mut(&ip) {
             peer.state = PeerState::Disconnected { since };
 
             // Attempt to re-connect to persistent peers.
@@ -566,7 +579,7 @@ where
                 }
                 // TODO: Eventually we want a delay before attempting a reconnection,
                 // with exponential back-off.
-                debug!("Reconnecting to {} (attempts={})...", id, peer.attempts);
+                debug!("Reconnecting to {} (attempts={})...", ip, peer.attempts);
 
                 // TODO: Try to reconnect only if the peer was attempted. A disconnect without
                 // even a successful attempt means that we're unlikely to be able to reconnect.
@@ -614,7 +627,7 @@ where
                 Ok(Some(msg)) => {
                     let peers = negotiated
                         .iter()
-                        .filter(|(id, _)| *id != peer.id())
+                        .filter(|(ip, _)| *ip != peer.ip())
                         .map(|(_, addr)| *addr)
                         .collect::<Vec<_>>();
 
@@ -629,15 +642,15 @@ where
     }
 }
 
-impl<S, T> Deref for Protocol<S, T> {
-    type Target = Context<S, T>;
+impl<S, T, G> Deref for Protocol<S, T, G> {
+    type Target = Context<S, T, G>;
 
     fn deref(&self) -> &Self::Target {
         &self.context
     }
 }
 
-impl<S, T> DerefMut for Protocol<S, T> {
+impl<S, T, G> DerefMut for Protocol<S, T, G> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.context
     }
@@ -673,7 +686,7 @@ impl fmt::Display for DisconnectReason {
     }
 }
 
-impl<S, T> Iterator for Protocol<S, T> {
+impl<S, T, G> Iterator for Protocol<S, T, G> {
     type Item = Io<(), DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -687,14 +700,16 @@ pub struct Lookup {
     /// Whether the project was found locally or not.
     pub local: Option<Remotes<Unverified>>,
     /// A list of remote peers on which the project is known to exist.
-    pub remote: Vec<PeerId>,
+    pub remote: Vec<NodeId>,
 }
 
 /// Global protocol state used across peers.
 #[derive(Debug)]
-pub struct Context<S, T> {
+pub struct Context<S, T, G> {
     /// Protocol configuration.
     config: Config,
+    /// Our cryptographic signer and key.
+    signer: G,
     /// Tracks the location of projects.
     routing: Routing,
     /// Outgoing I/O queue.
@@ -709,19 +724,22 @@ pub struct Context<S, T> {
     rng: Rng,
 }
 
-impl<S, T> Context<S, T>
+impl<S, T, G> Context<S, T, G>
 where
     T: storage::ReadStorage + storage::WriteStorage,
+    G: crypto::Signer,
 {
     pub(crate) fn new(
         config: Config,
         clock: RefClock,
         storage: T,
         addrmgr: AddressManager<S>,
+        signer: G,
         rng: Rng,
     ) -> Self {
         Self {
             config,
+            signer,
             clock,
             routing: HashMap::with_hasher(rng.clone().into()),
             io: VecDeque::new(),
@@ -731,8 +749,12 @@ where
         }
     }
 
+    pub(crate) fn id(&self) -> NodeId {
+        *self.signer.public_key()
+    }
+
     /// Process a peer inventory announcement by updating our routing table.
-    fn process_inventory(&mut self, inventory: &Inventory, from: PeerId, remote: &Url) {
+    fn process_inventory(&mut self, inventory: &Inventory, from: NodeId, remote: &Url) {
         for proj_id in inventory {
             let inventory = self
                 .routing
@@ -760,7 +782,7 @@ where
     }
 }
 
-impl<S, T> Context<S, T> {
+impl<S, T, G> Context<S, T, G> {
     /// Get current local timestamp.
     pub(crate) fn timestamp(&self) -> Timestamp {
         self.clock.local_time().as_secs()
@@ -800,11 +822,22 @@ impl<S, T> Context<S, T> {
 }
 
 #[derive(Debug)]
-pub struct Peers(AddressBook<PeerId, Peer>);
+/// Holds currently (or recently) connected peers.
+pub struct Peers(AddressBook<IpAddr, Peer>);
 
 impl Peers {
     pub fn new(rng: Rng) -> Self {
         Self(AddressBook::new(rng))
+    }
+
+    pub fn by_id(&self, id: &NodeId) -> Option<&Peer> {
+        self.0.values().find(|p| {
+            if let PeerState::Negotiated { id: _id, .. } = &p.state {
+                _id == id
+            } else {
+                false
+            }
+        })
     }
 
     /// Iterator over fully negotiated peers.
@@ -814,7 +847,7 @@ impl Peers {
 }
 
 impl Deref for Peers {
-    type Target = AddressBook<PeerId, Peer>;
+    type Target = AddressBook<IpAddr, Peer>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -828,6 +861,7 @@ impl DerefMut for Peers {
 }
 
 #[derive(Debug, Default)]
+#[allow(clippy::large_enum_variant)]
 enum PeerState {
     /// Initial peer state. For outgoing peers this
     /// means we've attempted a connection. For incoming
@@ -837,6 +871,8 @@ enum PeerState {
     Initial,
     /// State after successful handshake.
     Negotiated {
+        /// The peer's unique identifier.
+        id: NodeId,
         since: LocalTime,
         /// Addresses this peer is reachable on.
         addrs: Vec<Address>,
@@ -892,7 +928,7 @@ impl Peer {
         }
     }
 
-    fn id(&self) -> PeerId {
+    fn ip(&self) -> IpAddr {
         self.addr.ip()
     }
 
@@ -900,23 +936,25 @@ impl Peer {
         matches!(self.state, PeerState::Negotiated { .. })
     }
 
-    fn received<S, T>(
+    fn received<S, T, G>(
         &mut self,
         envelope: Envelope,
-        ctx: &mut Context<S, T>,
+        ctx: &mut Context<S, T, G>,
     ) -> Result<Option<Message>, PeerError>
     where
         T: storage::ReadStorage + storage::WriteStorage,
+        G: crypto::Signer,
     {
         if envelope.magic != NETWORK_MAGIC {
             return Err(PeerError::WrongMagic(envelope.magic));
         }
-        debug!("Received {:?} from {}", &envelope.msg, self.id());
+        debug!("Received {:?} from {}", &envelope.msg, self.ip());
 
         match (&self.state, envelope.msg) {
             (
                 PeerState::Initial,
                 Message::Hello {
+                    id,
                     timestamp,
                     version,
                     addrs,
@@ -938,7 +976,7 @@ impl Peer {
                     ctx.write_all(
                         self.addr,
                         [
-                            Message::hello(now, ctx.config.listen.clone(), git),
+                            Message::hello(ctx.id(), now, ctx.config.listen.clone(), git),
                             Message::get_inventory([]),
                         ],
                     );
@@ -947,6 +985,7 @@ impl Peer {
                 // set after the first message is received only. Setting it here would
                 // mean that messages received right after the handshake could be ignored.
                 self.state = PeerState::Negotiated {
+                    id,
                     since: ctx.clock.local_time(),
                     addrs,
                     git,
@@ -955,7 +994,7 @@ impl Peer {
             (PeerState::Initial, _) => {
                 debug!(
                     "Disconnecting peer {} for sending us a message before handshake",
-                    self.id()
+                    self.ip()
                 );
                 return Err(PeerError::Misbehavior);
             }
@@ -965,7 +1004,7 @@ impl Peer {
                 ctx.write(self.addr, inventory);
             }
             (
-                PeerState::Negotiated { git, .. },
+                PeerState::Negotiated { id, git, .. },
                 Message::Inventory {
                     timestamp,
                     inv,
@@ -986,13 +1025,13 @@ impl Peer {
                 } else {
                     return Ok(None);
                 }
-                ctx.process_inventory(&inv, origin.unwrap_or_else(|| self.id()), git);
+                ctx.process_inventory(&inv, origin.unwrap_or(*id), git);
 
                 if ctx.config.relay {
                     return Ok(Some(Message::Inventory {
                         timestamp,
                         inv,
-                        origin: origin.or_else(|| Some(self.id())),
+                        origin: origin.or(Some(*id)),
                     }));
                 }
             }
@@ -1007,12 +1046,12 @@ impl Peer {
             (PeerState::Negotiated { .. }, Message::Hello { .. }) => {
                 debug!(
                     "Disconnecting peer {} for sending us a redundant handshake message",
-                    self.id()
+                    self.ip()
                 );
                 return Err(PeerError::Misbehavior);
             }
             (PeerState::Disconnected { .. }, msg) => {
-                debug!("Ignoring {:?} from disconnected peer {}", msg, self.id());
+                debug!("Ignoring {:?} from disconnected peer {}", msg, self.ip());
             }
         }
         Ok(None)

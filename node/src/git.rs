@@ -37,7 +37,7 @@ pub fn list_remotes(url: &Url) -> Result<Remotes<Unverified>, ListRefsError> {
     for r in refs {
         let (id, refname) = parse_ref::<UserId>(r.name())?;
         let entry = remotes
-            .entry(id.clone())
+            .entry(id)
             .or_insert_with(|| Remote::new(id, HashMap::default()));
 
         entry.refs.insert(refname.to_string(), r.oid().into());

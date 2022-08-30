@@ -123,8 +123,8 @@ mod test {
 
         let mut hm = HashSet::new();
 
-        assert!(hm.insert(a.clone()));
-        assert!(hm.insert(b.clone()));
+        assert!(hm.insert(a));
+        assert!(hm.insert(b));
         assert!(!hm.insert(a));
         assert!(!hm.insert(b));
     }

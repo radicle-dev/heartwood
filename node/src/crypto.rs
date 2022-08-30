@@ -4,9 +4,18 @@ use ed25519_consensus as ed25519;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Serialize, Deserialize, Eq, Debug, Clone)]
+pub trait Signer {
+    /// Return this signer's public/verification key.
+    fn public_key(&self) -> &PublicKey;
+}
+
+/// The public/verification key.
+#[derive(Serialize, Deserialize, Eq, Debug, Copy, Clone)]
 #[serde(transparent)]
 pub struct PublicKey(pub ed25519::VerificationKey);
+
+/// The private/signing key.
+pub type SecretKey = ed25519::SigningKey;
 
 #[derive(Error, Debug)]
 pub enum PublicKeyError {
@@ -33,6 +42,12 @@ impl fmt::Display for PublicKey {
 impl PartialEq for PublicKey {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
+    }
+}
+
+impl From<ed25519::VerificationKey> for PublicKey {
+    fn from(other: ed25519::VerificationKey) -> Self {
+        Self(other)
     }
 }
 

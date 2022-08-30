@@ -12,10 +12,11 @@ use crate::collections::HashMap;
 use crate::decoder::Decoder;
 use crate::protocol::*;
 use crate::storage::{ReadStorage, WriteStorage};
+use crate::test::crypto::MockSigner;
 use crate::*;
 
 /// Protocol instantiation used for testing.
-pub type Protocol<S> = crate::protocol::Protocol<HashMap<net::IpAddr, KnownAddress>, S>;
+pub type Protocol<S> = crate::protocol::Protocol<HashMap<net::IpAddr, KnownAddress>, S, MockSigner>;
 
 #[derive(Debug)]
 pub struct Peer<S> {
@@ -80,7 +81,7 @@ where
         ip: impl Into<net::IpAddr>,
         addrs: Vec<(net::SocketAddr, Source)>,
         storage: S,
-        rng: fastrand::Rng,
+        mut rng: fastrand::Rng,
     ) -> Self {
         let addrs = addrs
             .into_iter()
@@ -88,7 +89,8 @@ where
             .collect();
         let local_time = LocalTime::now();
         let clock = RefClock::from(local_time);
-        let protocol = Protocol::new(config, clock, storage, addrs, rng.clone());
+        let signer = MockSigner::new(&mut rng);
+        let protocol = Protocol::new(config, clock, storage, addrs, signer, rng.clone());
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, rng.u16(..));
 
@@ -120,6 +122,10 @@ where
         self.config().git_url.clone()
     }
 
+    pub fn id(&self) -> NodeId {
+        self.protocol.id()
+    }
+
     pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
         let bytes = serde_json::to_vec(&Envelope {
             magic: NETWORK_MAGIC,
@@ -130,23 +136,25 @@ where
         self.protocol.received_bytes(peer, &bytes);
     }
 
-    pub fn connect_from(&mut self, remote: &net::SocketAddr) {
+    pub fn connect_from(&mut self, peer: &Self) {
+        let remote = simulator::Peer::<Protocol<S>>::addr(peer);
         let local = net::SocketAddr::new(self.ip, self.rng.u16(..));
         let git = format!("file://{}.git", remote.ip());
         let git = Url::from_bytes(git.as_bytes()).unwrap();
 
         self.initialize();
-        self.protocol.connected(*remote, &local, Link::Inbound);
+        self.protocol.connected(remote, &local, Link::Inbound);
         self.receive(
-            remote,
+            &remote,
             Message::hello(
+                peer.id(),
                 self.local_time().as_secs(),
-                vec![Address::Tcp { addr: *remote }],
+                vec![Address::Tcp { addr: remote }],
                 git,
             ),
         );
 
-        let mut msgs = self.messages(remote);
+        let mut msgs = self.messages(&remote);
         msgs.find(|m| matches!(m, Message::Hello { .. }))
             .expect("`hello` is sent");
         msgs.find(|m| matches!(m, Message::GetInventory { .. }))
@@ -171,6 +179,7 @@ where
         self.receive(
             &remote,
             Message::hello(
+                peer.id(),
                 self.local_time().as_secs(),
                 peer.config().listen.clone(),
                 git,

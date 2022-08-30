@@ -51,8 +51,8 @@ fn test_inbound_connection() {
     let bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
     let eve = Peer::new("eve", [7, 7, 7, 7], MockStorage::empty());
 
-    alice.connect_from(&bob.addr());
-    alice.connect_from(&eve.addr());
+    alice.connect_from(&bob);
+    alice.connect_from(&eve);
 
     let peers = alice
         .protocol
@@ -108,7 +108,12 @@ fn test_handshake_invalid_timestamp() {
     alice.connected(bob.addr(), &local, Link::Inbound);
     alice.receive(
         &bob.addr(),
-        Message::hello(alice.timestamp() - time_delta, vec![], bob.git_url()),
+        Message::hello(
+            bob.id(),
+            alice.timestamp() - time_delta,
+            vec![],
+            bob.git_url(),
+        ),
     );
     assert_matches!(alice.outbox().next(), Some(Io::Disconnect(addr, _)) if addr == bob.addr());
 }
@@ -144,7 +149,7 @@ fn test_inventory_sync() {
 
     for proj in &projs {
         let providers = alice.routing().get(proj).unwrap();
-        assert!(providers.contains(&bob.ip));
+        assert!(providers.contains(&bob.id()));
     }
 
     let a = alice
@@ -192,7 +197,7 @@ fn test_inventory_relay() {
 
     // Inventory from Bob relayed to Eve.
     alice.connect_to(&bob);
-    alice.connect_from(&eve.addr());
+    alice.connect_from(&eve);
     alice.receive(
         &bob.addr(),
         Message::Inventory {
@@ -204,7 +209,7 @@ fn test_inventory_relay() {
     assert_matches!(
         alice.messages(&eve.addr()).next(),
         Some(Message::Inventory { timestamp, origin, .. })
-        if origin == Some(bob.ip) && timestamp == now
+        if origin == Some(bob.id()) && timestamp == now
     );
     assert_matches!(
         alice.messages(&bob.addr()).next(),
@@ -237,7 +242,7 @@ fn test_inventory_relay() {
     assert_matches!(
         alice.messages(&eve.addr()).next(),
         Some(Message::Inventory { timestamp, origin, .. })
-        if origin == Some(bob.ip) && timestamp == now + 1,
+        if origin == Some(bob.id()) && timestamp == now + 1,
         "Sending a new inventory does trigger the relay"
     );
 
@@ -253,7 +258,7 @@ fn test_inventory_relay() {
     assert_matches!(
         alice.messages(&bob.addr()).next(),
         Some(Message::Inventory { timestamp, origin, .. })
-        if origin == Some(eve.ip) && timestamp == now
+        if origin == Some(eve.id()) && timestamp == now
     );
 }
 
@@ -334,9 +339,9 @@ fn prop_inventory_exchange_dense() {
         let mut routing = Routing::with_hasher(rng.clone().into());
 
         for (inv, peer) in &[
-            (alice_inv.inventory, alice.addr().ip()),
-            (bob_inv.inventory, bob.addr().ip()),
-            (eve_inv.inventory, eve.addr().ip()),
+            (alice_inv.inventory, alice.id()),
+            (bob_inv.inventory, bob.id()),
+            (eve_inv.inventory, eve.id()),
         ] {
             for (proj, _) in inv {
                 routing
@@ -352,7 +357,7 @@ fn prop_inventory_exchange_dense() {
         eve.command(Command::Connect(alice.addr()));
         eve.command(Command::Connect(bob.addr()));
 
-        let mut peers: HashMap<_, _> = [(alice.ip, alice), (bob.ip, bob), (eve.ip, eve)]
+        let mut peers: HashMap<_, _> = [(alice.id(), alice), (bob.id(), bob), (eve.id(), eve)]
             .into_iter()
             .collect();
         let mut simulator = Simulation::new(LocalTime::now(), rng, simulator::Options::default())

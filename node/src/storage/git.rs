@@ -164,7 +164,7 @@ impl ReadRepository for Repository {
             let name = r.name().ok_or(Error::InvalidRef)?;
             let (id, refname) = git::parse_ref::<UserId>(name)?;
             let entry = remotes
-                .entry(id.clone())
+                .entry(id)
                 .or_insert_with(|| Remote::new(id, HashMap::default()));
             let oid = r.target().ok_or(Error::InvalidRef)?;
 
