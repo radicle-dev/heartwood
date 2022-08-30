@@ -2,6 +2,7 @@
 use std::ops::{Deref, DerefMut};
 use std::{collections::VecDeque, fmt, io, net, net::IpAddr};
 
+use ed25519_consensus::VerificationKey;
 use fastrand::Rng;
 use git_url::Url;
 use log::*;
@@ -26,6 +27,14 @@ pub type PeerId = IpAddr;
 pub type Routing = HashMap<ProjId, HashSet<PeerId>>;
 /// Seconds since epoch.
 pub type Timestamp = u64;
+
+/// Peer public protocol address.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum Address {
+    Tor { key: VerificationKey, port: u16 },
+    Tcp { addr: net::SocketAddr },
+    Dns { host: String, port: u16 },
+}
 
 pub const NETWORK_MAGIC: u32 = 0x819b43d9;
 pub const DEFAULT_PORT: u16 = 8776;
@@ -62,6 +71,7 @@ pub enum Message {
     Hello {
         timestamp: Timestamp,
         version: u32,
+        addrs: Vec<Address>,
         git: Url,
     },
     /// Get node addresses from a peer.
@@ -91,10 +101,11 @@ impl From<Message> for Envelope {
 }
 
 impl Message {
-    pub fn hello(timestamp: Timestamp, git: Url) -> Self {
+    pub fn hello(timestamp: Timestamp, addrs: Vec<Address>, git: Url) -> Self {
         Self::Hello {
             timestamp,
             version: PROTOCOL_VERSION,
+            addrs,
             git,
         }
     }
@@ -159,6 +170,8 @@ pub struct Config {
     pub remote_tracking: RemoteTracking,
     /// Whether or not our node should relay inventories.
     pub relay: bool,
+    /// List of addresses to listen on for protocol connections.
+    pub listen: Vec<Address>,
     /// Our Git URL for fetching projects.
     pub git_url: Url,
 }
@@ -170,6 +183,7 @@ impl Default for Config {
             project_tracking: ProjectTracking::default(),
             remote_tracking: RemoteTracking::default(),
             relay: true,
+            listen: vec![],
             git_url: Url::default(),
         }
     }
@@ -504,7 +518,11 @@ where
                 self.context.write_all(
                     peer.addr,
                     [
-                        Message::hello(self.context.timestamp(), git),
+                        Message::hello(
+                            self.context.timestamp(),
+                            self.context.config.listen.clone(),
+                            git,
+                        ),
                         Message::get_inventory([]),
                     ],
                 );
@@ -818,7 +836,12 @@ enum PeerState {
     #[default]
     Initial,
     /// State after successful handshake.
-    Negotiated { since: LocalTime, git: Url },
+    Negotiated {
+        since: LocalTime,
+        /// Addresses this peer is reachable on.
+        addrs: Vec<Address>,
+        git: Url,
+    },
     /// When a peer is disconnected.
     Disconnected { since: LocalTime },
 }
@@ -896,6 +919,7 @@ impl Peer {
                 Message::Hello {
                     timestamp,
                     version,
+                    addrs,
                     git,
                 },
             ) => {
@@ -913,7 +937,10 @@ impl Peer {
                     let git = ctx.config.git_url.clone();
                     ctx.write_all(
                         self.addr,
-                        [Message::hello(now, git), Message::get_inventory([])],
+                        [
+                            Message::hello(now, ctx.config.listen.clone(), git),
+                            Message::get_inventory([]),
+                        ],
                     );
                 }
                 // Nb. we don't set the peer timestamp here, since it is going to be
@@ -921,6 +948,7 @@ impl Peer {
                 // mean that messages received right after the handshake could be ignored.
                 self.state = PeerState::Negotiated {
                     since: ctx.clock.local_time(),
+                    addrs,
                     git,
                 };
             }

@@ -108,7 +108,7 @@ fn test_handshake_invalid_timestamp() {
     alice.connected(bob.addr(), &local, Link::Inbound);
     alice.receive(
         &bob.addr(),
-        Message::hello(alice.timestamp() - time_delta, bob.git_url()),
+        Message::hello(alice.timestamp() - time_delta, vec![], bob.git_url()),
     );
     assert_matches!(alice.outbox().next(), Some(Io::Disconnect(addr, _)) if addr == bob.addr());
 }

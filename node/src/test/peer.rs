@@ -137,7 +137,14 @@ where
 
         self.initialize();
         self.protocol.connected(*remote, &local, Link::Inbound);
-        self.receive(remote, Message::hello(self.local_time().as_secs(), git));
+        self.receive(
+            remote,
+            Message::hello(
+                self.local_time().as_secs(),
+                vec![Address::Tcp { addr: *remote }],
+                git,
+            ),
+        );
 
         let mut msgs = self.messages(remote);
         msgs.find(|m| matches!(m, Message::Hello { .. }))
@@ -161,7 +168,14 @@ where
             .expect("`get-inventory` is sent");
 
         let git = peer.config().git_url.clone();
-        self.receive(&remote, Message::hello(self.local_time().as_secs(), git));
+        self.receive(
+            &remote,
+            Message::hello(
+                self.local_time().as_secs(),
+                peer.config().listen.clone(),
+                git,
+            ),
+        );
     }
 
     /// Drain outgoing messages sent from this peer to the remote address.
