@@ -12,6 +12,7 @@ mod hash;
 mod identity;
 mod logger;
 mod protocol;
+mod rad;
 mod storage;
 #[cfg(test)]
 mod test;

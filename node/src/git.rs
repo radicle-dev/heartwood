@@ -62,3 +62,32 @@ pub fn parse_ref<T: FromStr>(s: &str) -> Result<(T, format::RefString), RefError
 
     Ok((id, refstr))
 }
+
+/// Create an initial empty commit.
+pub fn initial_commit<'a>(
+    repo: &'a git2::Repository,
+    sig: &git2::Signature,
+) -> Result<git2::Commit<'a>, git2::Error> {
+    let tree_id = repo.index()?.write_tree()?;
+    let tree = repo.find_tree(tree_id)?;
+    let oid = repo.commit(None, sig, sig, "Initial commit", &tree, &[])?;
+    let commit = repo.find_commit(oid).unwrap();
+
+    Ok(commit)
+}
+
+/// Create a commit.
+pub fn commit<'a>(
+    repo: &'a git2::Repository,
+    parent: &'a git2::Commit,
+    message: &str,
+    user: &str,
+) -> Result<git2::Commit<'a>, git2::Error> {
+    let sig = git2::Signature::now(user, "anonymous@radicle.xyz")?;
+    let tree_id = repo.index()?.write_tree()?;
+    let tree = repo.find_tree(tree_id)?;
+    let oid = repo.commit(None, &sig, &sig, message, &tree, &[parent])?;
+    let commit = repo.find_commit(oid).unwrap();
+
+    Ok(commit)
+}

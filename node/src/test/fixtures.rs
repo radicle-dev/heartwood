@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::git;
 use crate::identity::{ProjId, UserId};
 use crate::storage::git::Storage;
 use crate::storage::{WriteRepository, WriteStorage};
@@ -19,51 +20,22 @@ pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
 
         for user in user_ids.iter() {
             let repo = repo.namespace(user).unwrap();
-            let head = initial_commit(repo, &user.to_string()).unwrap();
+            let sig = git2::Signature::now(&user.to_string(), "anonymous@radicle.xyz").unwrap();
+            let head = git::initial_commit(repo, &sig).unwrap();
 
             log::debug!("{}: creating {}...", proj, repo.namespace().unwrap());
 
             repo.reference("refs/rad/root", head.id(), false, "test")
                 .unwrap();
 
-            let head = commit(repo, &head, "Second commit", &user.to_string()).unwrap();
+            let head = git::commit(repo, &head, "Second commit", &user.to_string()).unwrap();
             repo.branch("master", &head, false).unwrap();
 
-            let head = commit(repo, &head, "Third commit", &user.to_string()).unwrap();
+            let head = git::commit(repo, &head, "Third commit", &user.to_string()).unwrap();
             repo.branch("patch/3", &head, false).unwrap();
         }
     }
     storage
-}
-
-/// Create a commit.
-fn commit<'a>(
-    repo: &'a git2::Repository,
-    parent: &'a git2::Commit,
-    message: &str,
-    user: &str,
-) -> Result<git2::Commit<'a>, git2::Error> {
-    let sig = git2::Signature::now(user, "anonymous@radicle.xyz")?;
-    let tree_id = repo.index()?.write_tree()?;
-    let tree = repo.find_tree(tree_id)?;
-    let oid = repo.commit(None, &sig, &sig, message, &tree, &[parent])?;
-    let commit = repo.find_commit(oid).unwrap();
-
-    Ok(commit)
-}
-
-/// Create an initial empty commit.
-fn initial_commit<'a>(
-    repo: &'a git2::Repository,
-    user: &str,
-) -> Result<git2::Commit<'a>, git2::Error> {
-    let sig = git2::Signature::now(user, "anonymous@radicle.xyz")?;
-    let tree_id = repo.index()?.write_tree()?;
-    let tree = repo.find_tree(tree_id)?;
-    let oid = repo.commit(None, &sig, &sig, "Initial commit", &tree, &[])?;
-    let commit = repo.find_commit(oid).unwrap();
-
-    Ok(commit)
 }
 
 #[cfg(test)]

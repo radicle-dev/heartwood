@@ -70,6 +70,12 @@ impl Did {
     }
 }
 
+impl From<crypto::PublicKey> for Did {
+    fn from(key: crypto::PublicKey) -> Self {
+        Self(key)
+    }
+}
+
 impl fmt::Display for Did {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.encode())
@@ -94,8 +100,9 @@ pub struct Delegate {
 pub struct Doc {
     pub name: String,
     pub description: String,
+    pub default_branch: String,
     pub version: u32,
-    pub parent: Oid,
+    pub parent: Option<Oid>,
     pub delegate: NonEmpty<Delegate>,
 }
 
