@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::{fs, io};
 
 use nonempty::NonEmpty;
@@ -55,16 +56,16 @@ pub fn init(
         .or_else(|_| git2::Signature::now("anonymous", "anonymous@anonymous.xyz"))?;
 
     let base = repo.workdir().ok_or(InitError::BareRepo)?;
-    let path = base.join("Project.toml");
+    let filename = Path::new("Project.toml");
+    let path = base.join(filename);
     let file = fs::OpenOptions::new()
         .create_new(true)
         .write(true)
         .open(&path)?;
     let id = doc.write(file)?;
-    let relative = path.as_path().strip_prefix(base).unwrap();
 
     let mut index = repo.index()?;
-    index.add_path(relative)?;
+    index.add_path(filename)?;
 
     let tree_id = index.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
