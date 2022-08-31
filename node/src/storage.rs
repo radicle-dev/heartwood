@@ -116,22 +116,24 @@ impl Remote<Unverified> {
 }
 
 pub trait ReadStorage {
+    fn user_id(&self) -> &UserId;
     fn url(&self) -> Url;
     fn get(&self, proj: &ProjId) -> Result<Option<Remotes<Unverified>>, Error>;
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
-pub trait WriteStorage {
+pub trait WriteStorage: ReadStorage {
     type Repository: WriteRepository;
 
     fn repository(&self, proj: &ProjId) -> Result<Self::Repository, Error>;
 }
 
 pub trait ReadRepository {
+    fn path(&self) -> &Path;
     fn remotes(&self) -> Result<Remotes<Unverified>, Error>;
 }
 
-pub trait WriteRepository {
+pub trait WriteRepository: ReadRepository {
     fn fetch(&mut self, url: &Url) -> Result<(), git2::Error>;
     fn namespace(&mut self, user: &UserId) -> Result<&mut git2::Repository, git2::Error>;
 }
@@ -139,8 +141,12 @@ pub trait WriteRepository {
 impl<T, S> ReadStorage for T
 where
     T: Deref<Target = S>,
-    S: ReadStorage,
+    S: ReadStorage + 'static,
 {
+    fn user_id(&self) -> &UserId {
+        self.deref().user_id()
+    }
+
     fn url(&self) -> Url {
         self.deref().url()
     }

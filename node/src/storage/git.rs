@@ -9,6 +9,7 @@ use radicle_git_ext as git_ext;
 pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
+use crate::crypto::Signer;
 use crate::git;
 use crate::identity::{ProjId, UserId};
 
@@ -17,19 +18,14 @@ use super::{
     WriteStorage,
 };
 
-pub static RAD_ID_REF: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("refs/heads/rad/id"));
+pub static RADICLE_ID_REF: Lazy<refspec::PatternString> =
+    Lazy::new(|| refspec::pattern!("refs/heads/radicle/id"));
 pub static NAMESPACES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*"));
 
 pub struct Storage {
     path: PathBuf,
-}
-
-impl From<PathBuf> for Storage {
-    fn from(path: PathBuf) -> Self {
-        Self { path }
-    }
+    signer: Box<dyn Signer>,
 }
 
 impl fmt::Debug for Storage {
@@ -39,6 +35,10 @@ impl fmt::Debug for Storage {
 }
 
 impl ReadStorage for Storage {
+    fn user_id(&self) -> &UserId {
+        self.signer.public_key()
+    }
+
     fn url(&self) -> Url {
         Url {
             scheme: git_url::Scheme::File,
@@ -65,7 +65,7 @@ impl WriteStorage for Storage {
 }
 
 impl Storage {
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
+    pub fn open<P: AsRef<Path>>(path: P, signer: impl Signer) -> Result<Self, io::Error> {
         let path = path.as_ref().to_path_buf();
 
         match fs::create_dir_all(&path) {
@@ -74,7 +74,10 @@ impl Storage {
             Ok(()) => {}
         }
 
-        Ok(Self { path })
+        Ok(Self {
+            path,
+            signer: Box::new(signer),
+        })
     }
 
     pub fn path(&self) -> &Path {
@@ -132,6 +135,10 @@ impl Repository {
 }
 
 impl ReadRepository for Repository {
+    fn path(&self) -> &Path {
+        self.backend.path()
+    }
+
     fn remotes(&self) -> Result<Remotes<Unverified>, Error> {
         let refs = self.backend.references_glob(NAMESPACES_GLOB.as_str())?;
         let mut remotes = HashMap::default();
@@ -196,6 +203,7 @@ mod tests {
     use super::*;
     use crate::git;
     use crate::storage::{ReadStorage, WriteRepository};
+    use crate::test::crypto::MockSigner;
     use crate::test::fixtures;
     use git_url::Url;
 
@@ -222,7 +230,7 @@ mod tests {
     fn test_fetch() {
         let tmp = tempfile::tempdir().unwrap();
         let alice = fixtures::storage(tmp.path().join("alice"));
-        let bob = Storage::open(tmp.path().join("bob")).unwrap();
+        let bob = Storage::open(tmp.path().join("bob"), MockSigner::default()).unwrap();
         let inventory = alice.inventory().unwrap();
         let proj = inventory.first().unwrap();
         let remotes = alice.repository(proj).unwrap().remotes().unwrap();

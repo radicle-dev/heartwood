@@ -1,10 +1,16 @@
 use std::{fs, io};
 
+use git_url::Url;
 use nonempty::NonEmpty;
 use thiserror::Error;
 
+use crate::git;
 use crate::identity::{ProjId, UserId};
+use crate::storage::git::RADICLE_ID_REF;
+use crate::storage::ReadRepository as _;
 use crate::{identity, storage};
+
+pub const REMOTE_NAME: &str = "rad";
 
 #[derive(Error, Debug)]
 pub enum InitError {
@@ -14,6 +20,8 @@ pub enum InitError {
     Git(#[from] git2::Error),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
+    #[error("storage: {0}")]
+    Storage(#[from] storage::Error),
     #[error("cannot initialize project inside a bare repository")]
     BareRepo,
     #[error("cannot initialize project from detached head state")]
@@ -23,11 +31,12 @@ pub enum InitError {
 }
 
 /// Initialize a new radicle project from a git repository.
-pub fn init(
+pub fn init<S: storage::WriteStorage>(
     repo: &git2::Repository,
     name: &str,
     description: &str,
     delegate: UserId,
+    storage: S,
 ) -> Result<ProjId, InitError> {
     let delegate = identity::Delegate {
         // TODO: Use actual user name.
@@ -65,10 +74,11 @@ pub fn init(
     let mut index = repo.index()?;
     index.add_path(filename)?;
 
+    let rad_id_ref = RADICLE_ID_REF.as_str();
     let tree_id = index.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
     let _oid = repo.commit(
-        Some(storage::git::RAD_ID_REF.as_str()),
+        Some(rad_id_ref),
         &sig,
         &sig,
         "Initialize Radicle",
@@ -81,6 +91,38 @@ pub fn init(
     // called the same name. Ideally we are able to create the file in the id branch.
     fs::remove_file(path)?;
 
+    let project = storage.repository(&id)?;
+    let url = Url {
+        scheme: git_url::Scheme::File,
+        path: project.path().to_string_lossy().to_string().into(),
+
+        ..Url::default()
+    };
+
+    let user_id = storage.user_id();
+    let fetch = format!("+refs/remotes/{user_id}/heads/*:refs/remotes/rad/*");
+    let push = format!("refs/heads/*:refs/remotes/{user_id}/heads/*");
+    let mut remote = repo.remote_with_fetch(REMOTE_NAME, url.to_string().as_str(), &fetch)?;
+    repo.remote_add_push(REMOTE_NAME, &push)?;
+
+    git::set_upstream(
+        repo,
+        REMOTE_NAME,
+        "master",
+        &format!("refs/remotes/{user_id}/heads/master"),
+    )?;
+
+    // TODO: Note that you'll likely want to use `RemoteCallbacks` and set
+    // `push_update_reference` to test whether all the references were pushed
+    // successfully.
+    remote.push::<&str>(
+        &[
+            &format!("refs/heads/master:refs/remotes/{user_id}/heads/master"),
+            &format!("{rad_id_ref}:refs/remotes/{user_id}/heads/rad/id"),
+        ],
+        None,
+    )?;
+
     Ok(id)
 }
 
@@ -89,12 +131,15 @@ mod tests {
     use super::*;
     use crate::crypto::Signer;
     use crate::git;
+    use crate::storage::git::Storage;
     use crate::test::crypto;
 
     #[test]
     fn test_init() {
         let tempdir = tempfile::tempdir().unwrap();
-        let repo = git2::Repository::init(tempdir.path()).unwrap();
+        let signer = crypto::MockSigner::default();
+        let mut storage = Storage::open(tempdir.path().join("storage"), signer).unwrap();
+        let repo = git2::Repository::init(tempdir.path().join("working")).unwrap();
         let sig = git2::Signature::now("anonymous", "anonymous@radicle.xyz").unwrap();
         let head = git::initial_commit(&repo, &sig).unwrap();
         let head = git::commit(&repo, &head, "Second commit", "anonymous").unwrap();
@@ -104,6 +149,6 @@ mod tests {
         let signer = crypto::MockSigner::new(&mut fastrand::Rng::new());
         let delegate = *signer.public_key();
 
-        init(&repo, "acme", "Acme's repo", delegate).unwrap();
+        init(&repo, "acme", "Acme's repo", delegate, &mut storage).unwrap();
     }
 }

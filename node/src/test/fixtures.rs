@@ -5,10 +5,11 @@ use crate::identity::{ProjId, UserId};
 use crate::storage::git::Storage;
 use crate::storage::{WriteRepository, WriteStorage};
 use crate::test::arbitrary;
+use crate::test::crypto::MockSigner;
 
 pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
     let path = path.as_ref();
-    let storage = Storage::open(path).unwrap();
+    let storage = Storage::open(path, MockSigner::default()).unwrap();
     let proj_ids = arbitrary::set::<ProjId>(3..5);
     let user_ids = arbitrary::set::<UserId>(1..3);
 

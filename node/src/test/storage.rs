@@ -1,8 +1,9 @@
 use git_url::Url;
 
-use crate::identity::ProjId;
+use crate::identity::{ProjId, UserId};
 use crate::storage::{
-    Error, Inventory, ReadStorage, Remotes, Unverified, WriteRepository, WriteStorage,
+    Error, Inventory, ReadRepository, ReadStorage, Remotes, Unverified, WriteRepository,
+    WriteStorage,
 };
 
 #[derive(Clone, Debug)]
@@ -23,6 +24,10 @@ impl MockStorage {
 }
 
 impl ReadStorage for MockStorage {
+    fn user_id(&self) -> &UserId {
+        todo!()
+    }
+
     fn url(&self) -> Url {
         Url {
             scheme: git_url::Scheme::Radicle,
@@ -58,6 +63,16 @@ impl WriteStorage for MockStorage {
 }
 
 pub struct MockRepository {}
+
+impl ReadRepository for MockRepository {
+    fn path(&self) -> &std::path::Path {
+        todo!()
+    }
+
+    fn remotes(&self) -> Result<Remotes<Unverified>, Error> {
+        todo!()
+    }
+}
 
 impl WriteRepository for MockRepository {
     fn fetch(&mut self, _url: &Url) -> Result<(), git2::Error> {

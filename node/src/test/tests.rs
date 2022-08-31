@@ -13,6 +13,7 @@ use crate::protocol::peer::*;
 use crate::protocol::*;
 use crate::storage::git::Storage;
 use crate::storage::ReadStorage;
+use crate::test::crypto::MockSigner;
 use crate::test::fixtures;
 #[allow(unused)]
 use crate::test::logger;
@@ -133,7 +134,7 @@ fn test_inventory_sync() {
     let mut alice = Peer::new(
         "alice",
         [7, 7, 7, 7],
-        Storage::open(tmp.path().join("alice")).unwrap(),
+        Storage::open(tmp.path().join("alice"), MockSigner::default()).unwrap(),
     );
     let bob_storage = fixtures::storage(tmp.path().join("bob"));
     let bob = Peer::new("bob", [8, 8, 8, 8], bob_storage);

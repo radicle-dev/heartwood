@@ -1,10 +1,12 @@
 use std::str::FromStr;
 
+use git_ref_format as format;
+use git_url::Url;
+use radicle_git_ext as git_ext;
+
 use crate::collections::HashMap;
 use crate::identity::UserId;
 use crate::storage::{Remote, Remotes, Unverified};
-use git_ref_format as format;
-use git_url::Url;
 
 /// Default port of the `git` transport protocol.
 pub const PROTOCOL_PORT: u16 = 9418;
@@ -90,4 +92,44 @@ pub fn commit<'a>(
     let commit = repo.find_commit(oid).unwrap();
 
     Ok(commit)
+}
+
+/// Set the upstream of the given branch to the given remote.
+///
+/// This writes to the `config` directly. The entry will look like the
+/// following:
+///
+/// ```text
+/// [branch "main"]
+///     remote = rad
+///     merge = refs/heads/main
+/// ```
+pub fn set_upstream(
+    repo: &git2::Repository,
+    remote: &str,
+    branch: &str,
+    merge: &str,
+) -> Result<(), git2::Error> {
+    let mut config = repo.config()?;
+    let branch_remote = format!("branch.{}.remote", branch);
+    let branch_merge = format!("branch.{}.merge", branch);
+
+    config.remove_multivar(&branch_remote, ".*").or_else(|e| {
+        if git_ext::is_not_found_err(&e) {
+            Ok(())
+        } else {
+            Err(e)
+        }
+    })?;
+    config.remove_multivar(&branch_merge, ".*").or_else(|e| {
+        if git_ext::is_not_found_err(&e) {
+            Ok(())
+        } else {
+            Err(e)
+        }
+    })?;
+    config.set_multivar(&branch_remote, ".*", remote)?;
+    config.set_multivar(&branch_merge, ".*", merge)?;
+
+    Ok(())
 }

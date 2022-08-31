@@ -6,7 +6,7 @@ use thiserror::Error;
 
 pub use ed25519::Signature;
 
-pub trait Signer {
+pub trait Signer: 'static {
     /// Return this signer's public/verification key.
     fn public_key(&self) -> &PublicKey;
 }
