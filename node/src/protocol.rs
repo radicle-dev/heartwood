@@ -2,7 +2,6 @@
 use std::ops::{Deref, DerefMut};
 use std::{collections::VecDeque, fmt, io, net, net::IpAddr};
 
-use ed25519_consensus::VerificationKey;
 use fastrand::Rng;
 use git_url::Url;
 use log::*;
@@ -29,12 +28,28 @@ pub type Routing = HashMap<ProjId, HashSet<NodeId>>;
 /// Seconds since epoch.
 pub type Timestamp = u64;
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+// TODO: We should check the length and charset when deserializing.
+pub struct Hostname(String);
+
 /// Peer public protocol address.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Address {
-    Tor { key: VerificationKey, port: u16 },
-    Tcp { addr: net::SocketAddr },
-    Dns { host: String, port: u16 },
+    /// Tor V3 onion address.
+    Onion {
+        key: crypto::PublicKey,
+        port: u16,
+        checksum: u16,
+        version: u8,
+    },
+    Ip {
+        ip: net::IpAddr,
+        port: u16,
+    },
+    Hostname {
+        host: Hostname,
+        port: u16,
+    },
 }
 
 pub const NETWORK_MAGIC: u32 = 0x819b43d9;
@@ -64,6 +79,23 @@ pub struct Envelope {
     pub msg: Message,
 }
 
+/// Advertized node feature. Signals what services the node supports.
+pub type NodeFeatures = [u8; 32];
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct NodeAnnouncement {
+    /// Node identifier.
+    id: NodeId,
+    /// Advertized features.
+    features: NodeFeatures,
+    /// Monotonic timestamp.
+    timestamp: Timestamp,
+    /// Non-unique alias. Must be valid UTF-8.
+    alias: [u8; 32],
+    /// Announced addresses.
+    addresses: Vec<Address>,
+}
+
 /// Message payload.
 /// These are the messages peers send to each other.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -77,10 +109,12 @@ pub enum Message {
         addrs: Vec<Address>,
         git: Url,
     },
-    /// Get node addresses from a peer.
-    GetAddrs,
-    /// Send node addresses to a peer. Sent in response to [`Message::GetAddrs`].
-    Addrs { addrs: Vec<net::SocketAddr> },
+    Node {
+        /// Signature over the announcement, by the node being announced.
+        signature: crypto::Signature,
+        /// Unsigned node announcement.
+        announcement: NodeAnnouncement,
+    },
     /// Get a peer's inventory.
     GetInventory { ids: Vec<ProjId> },
     /// Send our inventory to a peer. Sent in response to [`Message::GetInventory`].
@@ -1035,12 +1069,7 @@ impl Peer {
                     }));
                 }
             }
-            (PeerState::Negotiated { .. }, Message::GetAddrs) => {
-                // TODO: Send peer addresses.
-                todo!();
-            }
-            (PeerState::Negotiated { .. }, Message::Addrs { .. }) => {
-                // TODO: Update address book.
+            (PeerState::Negotiated { .. }, Message::Node { .. }) => {
                 todo!();
             }
             (PeerState::Negotiated { .. }, Message::Hello { .. }) => {

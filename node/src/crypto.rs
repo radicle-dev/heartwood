@@ -4,6 +4,8 @@ use ed25519_consensus as ed25519;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub use ed25519::Signature;
+
 pub trait Signer {
     /// Return this signer's public/verification key.
     fn public_key(&self) -> &PublicKey;
