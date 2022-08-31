@@ -10,6 +10,8 @@ use crate::address_book::{KnownAddress, Source};
 use crate::clock::RefClock;
 use crate::collections::HashMap;
 use crate::decoder::Decoder;
+use crate::protocol::config::*;
+use crate::protocol::message::*;
 use crate::protocol::*;
 use crate::storage::{ReadStorage, WriteStorage};
 use crate::test::crypto::MockSigner;

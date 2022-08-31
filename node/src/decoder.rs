@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::protocol::Envelope;
+use crate::protocol::message::Envelope;
 use serde::Deserialize;
 
 /// Message stream decoder.

@@ -7,6 +7,9 @@ use nakamoto_net::simulator::{Peer as _, Simulation};
 use nakamoto_net::Protocol as _;
 
 use crate::collections::{HashMap, HashSet};
+use crate::protocol::config::*;
+use crate::protocol::message::*;
+use crate::protocol::peer::*;
 use crate::protocol::*;
 use crate::storage::git::Storage;
 use crate::storage::ReadStorage;
