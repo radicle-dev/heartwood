@@ -5,7 +5,7 @@ use nonempty::NonEmpty;
 use thiserror::Error;
 
 use crate::git;
-use crate::identity::{ProjId, UserId};
+use crate::identity::ProjId;
 use crate::storage::git::RADICLE_ID_REF;
 use crate::storage::ReadRepository as _;
 use crate::{identity, storage};
@@ -35,13 +35,13 @@ pub fn init<S: storage::WriteStorage>(
     repo: &git2::Repository,
     name: &str,
     description: &str,
-    delegate: UserId,
     storage: S,
 ) -> Result<ProjId, InitError> {
+    let user_id = storage.user_id();
     let delegate = identity::Delegate {
         // TODO: Use actual user name.
         name: String::from("anonymous"),
-        id: identity::Did::from(delegate),
+        id: identity::Did::from(*user_id),
     };
 
     let head = repo.head()?;
@@ -61,7 +61,7 @@ pub fn init<S: storage::WriteStorage>(
     };
     let sig = repo
         .signature()
-        .or_else(|_| git2::Signature::now("anonymous", "anonymous@anonymous.xyz"))?;
+        .or_else(|_| git2::Signature::now("anonymous", user_id.to_string().as_str()))?;
 
     let filename = *identity::IDENTITY_PATH;
     let path = repo.workdir().ok_or(InitError::BareRepo)?.join(filename);
@@ -99,7 +99,6 @@ pub fn init<S: storage::WriteStorage>(
         ..Url::default()
     };
 
-    let user_id = storage.user_id();
     let fetch = format!("+refs/remotes/{user_id}/heads/*:refs/remotes/rad/*");
     let push = format!("refs/heads/*:refs/remotes/{user_id}/heads/*");
     let mut remote = repo.remote_with_fetch(REMOTE_NAME, url.to_string().as_str(), &fetch)?;
@@ -129,7 +128,6 @@ pub fn init<S: storage::WriteStorage>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crypto::Signer;
     use crate::git;
     use crate::storage::git::Storage;
     use crate::test::crypto;
@@ -143,12 +141,8 @@ mod tests {
         let sig = git2::Signature::now("anonymous", "anonymous@radicle.xyz").unwrap();
         let head = git::initial_commit(&repo, &sig).unwrap();
         let head = git::commit(&repo, &head, "Second commit", "anonymous").unwrap();
+        let _branch = repo.branch("master", &head, false).unwrap();
 
-        repo.branch("master", &head, false).unwrap();
-
-        let signer = crypto::MockSigner::new(&mut fastrand::Rng::new());
-        let delegate = *signer.public_key();
-
-        init(&repo, "acme", "Acme's repo", delegate, &mut storage).unwrap();
+        init(&repo, "acme", "Acme's repo", &mut storage).unwrap();
     }
 }
