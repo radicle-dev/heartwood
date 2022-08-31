@@ -1,12 +1,16 @@
+use std::path::Path;
 use std::{ffi::OsString, fmt, io, str::FromStr};
 
 use nonempty::NonEmpty;
+use once_cell::sync::Lazy;
 use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::crypto;
 use crate::hash;
+
+pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new("Radicle.toml"));
 
 /// A user's identifier is simply their public key.
 pub type UserId = crypto::PublicKey;

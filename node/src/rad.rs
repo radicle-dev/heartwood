@@ -1,11 +1,10 @@
-use std::path::Path;
 use std::{fs, io};
 
 use nonempty::NonEmpty;
 use thiserror::Error;
 
-use crate::identity;
 use crate::identity::{ProjId, UserId};
+use crate::{identity, storage};
 
 #[derive(Error, Debug)]
 pub enum InitError {
@@ -55,9 +54,8 @@ pub fn init(
         .signature()
         .or_else(|_| git2::Signature::now("anonymous", "anonymous@anonymous.xyz"))?;
 
-    let base = repo.workdir().ok_or(InitError::BareRepo)?;
-    let filename = Path::new("Project.toml");
-    let path = base.join(filename);
+    let filename = *identity::IDENTITY_PATH;
+    let path = repo.workdir().ok_or(InitError::BareRepo)?.join(filename);
     let file = fs::OpenOptions::new()
         .create_new(true)
         .write(true)
@@ -70,7 +68,7 @@ pub fn init(
     let tree_id = index.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
     let _oid = repo.commit(
-        Some("refs/heads/rad/id"),
+        Some(storage::git::RAD_ID_REF.as_str()),
         &sig,
         &sig,
         "Initialize Radicle",

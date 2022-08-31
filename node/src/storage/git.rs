@@ -10,7 +10,6 @@ pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
 use crate::git;
-use crate::identity;
 use crate::identity::{ProjId, UserId};
 
 use super::{
@@ -18,11 +17,10 @@ use super::{
     WriteStorage,
 };
 
-pub static RAD_ROOT_GLOB: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("refs/namespaces/*/refs/rad/root"));
+pub static RAD_ID_REF: Lazy<refspec::PatternString> =
+    Lazy::new(|| refspec::pattern!("refs/heads/rad/id"));
 pub static NAMESPACES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*"));
-pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new(".rad/identity.toml"));
 
 pub struct Storage {
     path: PathBuf,
@@ -93,27 +91,6 @@ impl Storage {
             projects.push(id);
         }
         Ok(projects)
-    }
-
-    pub fn create(
-        &self,
-        repo: &git2::Repository,
-        identity: impl Into<identity::Doc>,
-    ) -> Result<(ProjId, Oid), Error> {
-        let doc = identity.into();
-        let file = fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(*IDENTITY_PATH)?;
-        let id = doc.write(file)?;
-        let ref_name = RAD_ROOT_GLOB.replace('*', &id.encode());
-        let oid = repo.head()?.target().ok_or(Error::InvalidHead)?;
-        let repository = self.repository(&id)?;
-        let _reference = repository.backend.reference(&ref_name, oid, false, "")?;
-
-        // TODO: Push project to monorepo.
-
-        Ok((id, oid.into()))
     }
 }
 
