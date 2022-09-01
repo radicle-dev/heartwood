@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::git;
 use crate::identity::ProjId;
 use crate::storage::git::RADICLE_ID_REF;
-use crate::storage::ReadRepository as _;
+use crate::storage::{BranchName, ReadRepository as _};
 use crate::{identity, storage};
 
 pub const REMOTE_NAME: &str = "rad";
@@ -35,6 +35,7 @@ pub fn init<S: storage::WriteStorage>(
     repo: &git2::Repository,
     name: &str,
     description: &str,
+    default_branch: BranchName,
     storage: S,
 ) -> Result<ProjId, InitError> {
     let user_id = storage.user_id();
@@ -43,18 +44,10 @@ pub fn init<S: storage::WriteStorage>(
         name: String::from("anonymous"),
         id: identity::Did::from(*user_id),
     };
-
-    let head = repo.head()?;
-    let default_branch = if head.is_branch() {
-        head.shorthand().ok_or(InitError::InvalidHead)?.to_owned()
-    } else {
-        return Err(InitError::DetachedHead);
-    };
-
     let doc = identity::Doc {
         name: name.to_owned(),
         description: description.to_owned(),
-        default_branch,
+        default_branch: default_branch.clone(),
         version: 1,
         parent: None,
         delegate: NonEmpty::new(delegate),
@@ -107,9 +100,8 @@ pub fn init<S: storage::WriteStorage>(
     git::set_upstream(
         repo,
         REMOTE_NAME,
-        // FIXME: Should use default branch here.
-        "master",
-        &format!("refs/remotes/{user_id}/heads/master"),
+        &default_branch,
+        &format!("refs/remotes/{user_id}/heads/{default_branch}"),
     )?;
 
     // TODO: Note that you'll likely want to use `RemoteCallbacks` and set
@@ -117,7 +109,7 @@ pub fn init<S: storage::WriteStorage>(
     // successfully.
     remote.push::<&str>(
         &[
-            &format!("refs/heads/master:refs/remotes/{user_id}/heads/master"),
+            &format!("refs/heads/{default_branch}:refs/remotes/{user_id}/heads/{default_branch}"),
             &format!("{rad_id_ref}:refs/remotes/{user_id}/heads/rad/id"),
         ],
         None,
@@ -144,6 +136,13 @@ mod tests {
         let head = git::commit(&repo, &head, "Second commit", "anonymous").unwrap();
         let _branch = repo.branch("master", &head, false).unwrap();
 
-        init(&repo, "acme", "Acme's repo", &mut storage).unwrap();
+        init(
+            &repo,
+            "acme",
+            "Acme's repo",
+            BranchName::from("master"),
+            &mut storage,
+        )
+        .unwrap();
     }
 }
