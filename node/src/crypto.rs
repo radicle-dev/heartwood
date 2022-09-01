@@ -9,6 +9,8 @@ pub use ed25519::Signature;
 pub trait Signer: 'static {
     /// Return this signer's public/verification key.
     fn public_key(&self) -> &PublicKey;
+    /// Sign a message and return the signature.
+    fn sign(&self, msg: &[u8]) -> Signature;
 }
 
 /// The public/verification key.

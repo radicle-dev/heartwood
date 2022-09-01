@@ -194,7 +194,16 @@ impl Peer {
                     }));
                 }
             }
-            (PeerState::Negotiated { .. }, Message::Node { .. }) => {
+            (
+                PeerState::Negotiated { .. },
+                Message::Node {
+                    announcement,
+                    signature,
+                },
+            ) => {
+                if !announcement.verify(&signature) {
+                    return Err(PeerError::Misbehavior);
+                }
                 todo!();
             }
             (PeerState::Negotiated { .. }, Message::Hello { .. }) => {

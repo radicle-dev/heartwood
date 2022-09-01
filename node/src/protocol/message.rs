@@ -58,6 +58,14 @@ pub struct NodeAnnouncement {
     addresses: Vec<Address>,
 }
 
+impl NodeAnnouncement {
+    /// Verify a signature on this message.
+    pub fn verify(&self, signature: &crypto::Signature) -> bool {
+        let msg = serde_json::to_vec(self).unwrap();
+        self.id.verify(signature, &msg).is_ok()
+    }
+}
+
 /// Message payload.
 /// These are the messages peers send to each other.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -107,6 +115,16 @@ impl Message {
             version: PROTOCOL_VERSION,
             addrs,
             git,
+        }
+    }
+
+    pub fn node<S: crypto::Signer>(announcement: NodeAnnouncement, signer: S) -> Self {
+        let msg = serde_json::to_vec(&announcement).unwrap();
+        let signature = signer.sign(&msg);
+
+        Self::Node {
+            signature,
+            announcement,
         }
     }
 
