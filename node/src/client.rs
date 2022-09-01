@@ -10,6 +10,9 @@ use crate::crypto::Signer;
 use crate::protocol;
 use crate::storage::git::Storage;
 
+pub mod handle;
+pub mod socket;
+
 /// Client configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -100,6 +103,16 @@ impl<R: Reactor> Client<R> {
         )?;
 
         Ok(())
+    }
+
+    /// Create a new handle to communicate with the client.
+    pub fn handle(&self) -> handle::Handle<R> {
+        handle::Handle {
+            waker: self.reactor.waker(),
+            commands: self.handle.clone(),
+            shutdown: self.shutdown.clone(),
+            listening: self.listening.clone(),
+        }
     }
 }
 

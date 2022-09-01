@@ -54,7 +54,12 @@ pub enum Event {}
 pub enum Command {
     Connect(net::SocketAddr),
     Fetch(ProjId, net::SocketAddr),
+    AnnounceInventory(ProjId),
 }
+
+/// Command-related errors.
+#[derive(thiserror::Error, Debug)]
+pub enum CommandError {}
 
 #[derive(Debug)]
 pub struct Protocol<S, T, G> {
@@ -329,6 +334,9 @@ where
                         ..Url::default()
                     })
                     .unwrap();
+            }
+            Command::AnnounceInventory(_proj) => {
+                todo!()
             }
         }
     }

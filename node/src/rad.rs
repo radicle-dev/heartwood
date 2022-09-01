@@ -107,6 +107,7 @@ pub fn init<S: storage::WriteStorage>(
     git::set_upstream(
         repo,
         REMOTE_NAME,
+        // FIXME: Should use default branch here.
         "master",
         &format!("refs/remotes/{user_id}/heads/master"),
     )?;
