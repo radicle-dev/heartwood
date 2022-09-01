@@ -2,7 +2,7 @@ use git_url::Url;
 
 use crate::identity::{ProjId, UserId};
 use crate::storage::{
-    Error, Inventory, ReadRepository, ReadStorage, Remotes, Unverified, WriteRepository,
+    Error, Inventory, ReadRepository, ReadStorage, Remote, Remotes, Unverified, WriteRepository,
     WriteStorage,
 };
 
@@ -66,6 +66,10 @@ pub struct MockRepository {}
 
 impl ReadRepository for MockRepository {
     fn path(&self) -> &std::path::Path {
+        todo!()
+    }
+
+    fn remote(&self, _user: &UserId) -> Result<Remote<Unverified>, Error> {
         todo!()
     }
 

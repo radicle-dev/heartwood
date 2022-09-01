@@ -194,9 +194,28 @@ impl Peer {
                     }));
                 }
             }
-            (PeerState::Negotiated { id, git, .. }, Message::InventoryUpdate { inv }) => {
-                // TODO: Buffer/throttle fetches.
-                ctx.process_inventory_update(&inv, *id, git);
+            (
+                PeerState::Negotiated { git, .. },
+                Message::RefsUpdate {
+                    proj,
+                    user,
+                    refs,
+                    signature,
+                },
+            ) => {
+                let bytes = serde_json::to_vec(&refs).unwrap();
+
+                if user.verify(&signature, &bytes).is_ok() {
+                    // TODO: Buffer/throttle fetches.
+                    // TODO: Also pass the updated refs so that we can check whether
+                    // we need to fetch or not.
+                    // TODO: Check that the refs are valid.
+                    if ctx.process_refs_update(&proj, &user, git) {
+                        // TODO: If refs were updated, propagate message to peers.
+                    }
+                } else {
+                    return Err(PeerError::Misbehavior);
+                }
             }
             (
                 PeerState::Negotiated { .. },

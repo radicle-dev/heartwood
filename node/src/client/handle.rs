@@ -56,7 +56,7 @@ pub struct Handle<R: Reactor> {
 impl<R: Reactor> traits::Handle for Handle<R> {
     /// Notify the client that a project has been updated.
     fn updated(&self, id: ProjId) -> Result<(), Error> {
-        self.command(protocol::Command::AnnounceInventory(id))
+        self.command(protocol::Command::AnnounceRefsUpdate(id))
     }
 
     /// Send a command to the command channel, and wake up the event loop.

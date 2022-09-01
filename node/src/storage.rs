@@ -42,7 +42,7 @@ pub enum Error {
     InvalidHead,
 }
 
-pub type Refs = HashMap<BranchName, Oid>;
+pub type Refs = HashMap<RefName, Oid>;
 pub type RemoteId = UserId;
 pub type RefName = String;
 
@@ -130,6 +130,7 @@ pub trait WriteStorage: ReadStorage {
 
 pub trait ReadRepository {
     fn path(&self) -> &Path;
+    fn remote(&self, user: &UserId) -> Result<Remote<Unverified>, Error>;
     fn remotes(&self) -> Result<Remotes<Unverified>, Error>;
 }
 

@@ -1,12 +1,14 @@
 use std::str::FromStr;
 
 use git_ref_format as format;
-use git_url::Url;
 use radicle_git_ext as git_ext;
 
 use crate::collections::HashMap;
 use crate::identity::UserId;
 use crate::storage::{Remote, Remotes, Unverified};
+
+pub use git_ext::Oid;
+pub use git_url::Url;
 
 /// Default port of the `git` transport protocol.
 pub const PROTOCOL_PORT: u16 = 9418;

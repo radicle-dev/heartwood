@@ -19,11 +19,11 @@ use crate::address_manager::AddressManager;
 use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto;
-use crate::identity::ProjId;
+use crate::identity::{ProjId, UserId};
 use crate::protocol::config::ProjectTracking;
 use crate::protocol::message::Message;
 use crate::protocol::peer::{Peer, PeerError, PeerState};
-use crate::storage::{self, WriteRepository};
+use crate::storage::{self, ReadRepository, WriteRepository};
 use crate::storage::{Inventory, ReadStorage, Remotes, Unverified, WriteStorage};
 
 pub use crate::protocol::config::{Config, Network};
@@ -54,7 +54,7 @@ pub enum Event {}
 pub enum Command {
     Connect(net::SocketAddr),
     Fetch(ProjId, net::SocketAddr),
-    AnnounceInventory(ProjId),
+    AnnounceRefsUpdate(ProjId),
 }
 
 /// Command-related errors.
@@ -335,11 +335,25 @@ where
                     })
                     .unwrap();
             }
-            Command::AnnounceInventory(proj) => {
+            Command::AnnounceRefsUpdate(proj) => {
+                let user = *self.storage.user_id();
+                let repo = self.storage.repository(&proj).unwrap();
+                let remote = repo.remote(&user).unwrap();
+                let refs = remote.refs;
+                let signature = self
+                    .signer
+                    .sign(serde_json::to_vec(&refs).unwrap().as_slice());
                 let peers = self.peers.negotiated().map(|(_, p)| p.addr);
 
-                self.context
-                    .broadcast(Message::InventoryUpdate { inv: vec![proj] }, peers);
+                self.context.broadcast(
+                    Message::RefsUpdate {
+                        proj,
+                        user,
+                        refs,
+                        signature,
+                    },
+                    peers,
+                );
             }
         }
     }
@@ -613,12 +627,13 @@ where
     }
 
     /// Process a peer inventory update announcement by (maybe) fetching.
-    fn process_inventory_update(&mut self, inventory: &Inventory, _from: NodeId, remote: &Url) {
-        for proj_id in inventory {
-            if self.config.is_tracking(proj_id) {
-                self.fetch(proj_id, remote);
-            }
+    fn process_refs_update(&mut self, proj: &ProjId, _user: &UserId, remote: &Url) -> bool {
+        // TODO: Check that we're tracking this user as well.
+        if self.config.is_tracking(proj) {
+            self.fetch(proj, remote);
         }
+        // TODO: If refs were updated, return `true`.
+        false
     }
 
     fn fetch(&mut self, proj_id: &ProjId, remote: &Url) {

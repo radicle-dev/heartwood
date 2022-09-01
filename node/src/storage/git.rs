@@ -144,6 +144,24 @@ impl ReadRepository for Repository {
         self.backend.path()
     }
 
+    fn remote(&self, user: &UserId) -> Result<Remote<Unverified>, Error> {
+        // TODO: Only fetch standard refs.
+        let entries = self
+            .backend
+            .references_glob(format!("refs/remotes/{}/*", user).as_str())?;
+        let mut refs = HashMap::default();
+
+        for e in entries {
+            let e = e?;
+            let name = e.name().ok_or(Error::InvalidRef)?;
+            let (_, refname) = git::parse_ref::<UserId>(name)?;
+            let oid = e.target().ok_or(Error::InvalidRef)?;
+
+            refs.insert(refname.to_string(), oid.into());
+        }
+        Ok(Remote::new(*user, refs))
+    }
+
     fn remotes(&self) -> Result<Remotes<Unverified>, Error> {
         let refs = self.backend.references_glob(NAMESPACES_GLOB.as_str())?;
         let mut remotes = HashMap::default();
