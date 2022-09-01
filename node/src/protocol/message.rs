@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::crypto;
 use crate::identity::ProjId;
-use crate::protocol::{Context, NodeId, Timestamp, NETWORK_MAGIC, PROTOCOL_VERSION};
+use crate::protocol::{Context, NodeId, Timestamp, PROTOCOL_VERSION};
 use crate::storage;
 
 /// Message envelope. All messages sent over the network are wrapped in this type.
@@ -96,15 +96,6 @@ pub enum Message {
         /// are the originator, only when relaying.
         origin: Option<NodeId>,
     },
-}
-
-impl From<Message> for Envelope {
-    fn from(msg: Message) -> Self {
-        Self {
-            magic: NETWORK_MAGIC,
-            msg,
-        }
-    }
 }
 
 impl Message {

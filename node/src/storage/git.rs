@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::{fmt, fs, io};
 
 use git_ref_format::refspec;
@@ -25,7 +26,7 @@ pub static NAMESPACES_GLOB: Lazy<refspec::PatternString> =
 
 pub struct Storage {
     path: PathBuf,
-    signer: Box<dyn Signer>,
+    signer: Rc<dyn Signer>,
 }
 
 impl fmt::Debug for Storage {
@@ -76,12 +77,16 @@ impl Storage {
 
         Ok(Self {
             path,
-            signer: Box::new(signer),
+            signer: Rc::new(signer),
         })
     }
 
     pub fn path(&self) -> &Path {
         self.path.as_path()
+    }
+
+    pub fn signer(&self) -> Rc<dyn Signer> {
+        self.signer.clone()
     }
 
     pub fn projects(&self) -> Result<Vec<ProjId>, Error> {

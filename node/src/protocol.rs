@@ -20,13 +20,14 @@ use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto;
 use crate::identity::ProjId;
-use crate::protocol::config::{Config, ProjectTracking};
-use crate::protocol::message::{Envelope, Message};
+use crate::protocol::config::ProjectTracking;
+use crate::protocol::message::Message;
 use crate::protocol::peer::{Peer, PeerError, PeerState};
 use crate::storage::{self, WriteRepository};
 use crate::storage::{Inventory, ReadStorage, Remotes, Unverified, WriteStorage};
 
-pub const NETWORK_MAGIC: u32 = 0x819b43d9;
+pub use crate::protocol::config::{Config, Network};
+
 pub const DEFAULT_PORT: u16 = 8776;
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const TARGET_OUTBOUND_PEERS: usize = 8;
@@ -43,6 +44,10 @@ pub type NodeId = crypto::PublicKey;
 pub type Routing = HashMap<ProjId, HashSet<NodeId>>;
 /// Seconds since epoch.
 pub type Timestamp = u64;
+
+/// A protocol event.
+#[derive(Debug, Clone)]
+pub enum Event {}
 
 /// Commands sent to the protocol by the operator.
 #[derive(Debug)]
@@ -177,7 +182,7 @@ impl<T: ReadStorage + WriteStorage, S: address_book::Store, G: crypto::Signer> P
     }
 
     /// Get I/O outbox.
-    pub fn outbox(&mut self) -> &mut VecDeque<Io<(), DisconnectReason>> {
+    pub fn outbox(&mut self) -> &mut VecDeque<Io<Event, DisconnectReason>> {
         &mut self.context.io
     }
 
@@ -249,7 +254,7 @@ where
     S: address_book::Store,
     G: crypto::Signer,
 {
-    type Event = ();
+    type Event = Event;
     type Command = Command;
     type DisconnectReason = DisconnectReason;
 
@@ -516,7 +521,7 @@ impl fmt::Display for DisconnectReason {
 }
 
 impl<S, T, G> Iterator for Protocol<S, T, G> {
-    type Item = Io<(), DisconnectReason>;
+    type Item = Io<Event, DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.context.io.pop_front()
@@ -542,7 +547,7 @@ pub struct Context<S, T, G> {
     /// Tracks the location of projects.
     routing: Routing,
     /// Outgoing I/O queue.
-    io: VecDeque<Io<(), DisconnectReason>>,
+    io: VecDeque<Io<Event, DisconnectReason>>,
     /// Clock. Tells the time.
     clock: RefClock,
     /// Project storage.
@@ -629,7 +634,8 @@ impl<S, T, G> Context<S, T, G> {
         for msg in msgs {
             debug!("Write {:?} to {}", &msg, remote.ip());
 
-            serde_json::to_writer(&mut buf, &Envelope::from(msg)).unwrap();
+            let envelope = self.config.network.envelope(msg);
+            serde_json::to_writer(&mut buf, &envelope).unwrap();
         }
         self.io.push_back(Io::Write(remote, buf.into_inner()));
     }
@@ -637,7 +643,8 @@ impl<S, T, G> Context<S, T, G> {
     fn write(&mut self, remote: net::SocketAddr, msg: Message) {
         debug!("Write {:?} to {}", &msg, remote.ip());
 
-        let bytes = serde_json::to_vec(&Envelope::from(msg)).unwrap();
+        let envelope = self.config.network.envelope(msg);
+        let bytes = serde_json::to_vec(&envelope).unwrap();
 
         self.io.push_back(Io::Write(remote, bytes));
     }

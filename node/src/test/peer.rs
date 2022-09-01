@@ -129,11 +129,7 @@ where
     }
 
     pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
-        let bytes = serde_json::to_vec(&Envelope {
-            magic: NETWORK_MAGIC,
-            msg,
-        })
-        .unwrap();
+        let bytes = serde_json::to_vec(&self.config().network.envelope(msg)).unwrap();
 
         self.protocol.received_bytes(peer, &bytes);
     }
@@ -212,7 +208,7 @@ where
     }
 
     /// Get a draining iterator over the peers's I/O outbox.
-    pub fn outbox(&mut self) -> impl Iterator<Item = Io<(), DisconnectReason>> + '_ {
+    pub fn outbox(&mut self) -> impl Iterator<Item = Io<Event, DisconnectReason>> + '_ {
         self.protocol.outbox().drain(..)
     }
 }

@@ -4,10 +4,34 @@ use git_url::Url;
 
 use crate::collections::HashSet;
 use crate::identity::{ProjId, UserId};
-use crate::protocol::message::Address;
+use crate::protocol::message::{Address, Envelope, Message};
+
+/// Peer-to-peer network.
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Network {
+    #[default]
+    Main,
+    Test,
+}
+
+impl Network {
+    pub fn magic(&self) -> u32 {
+        match self {
+            Self::Main => 0x819b43d9,
+            Self::Test => 0x717ebaf8,
+        }
+    }
+
+    pub fn envelope(&self, msg: Message) -> Envelope {
+        Envelope {
+            magic: self.magic(),
+            msg,
+        }
+    }
+}
 
 /// Project tracking policy.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ProjectTracking {
     /// Track all projects we come across.
     All { blocked: HashSet<ProjId> },
@@ -24,7 +48,7 @@ impl Default for ProjectTracking {
 }
 
 /// Project remote tracking policy.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub enum RemoteTracking {
     /// Only track remotes of project delegates.
     #[default]
@@ -36,11 +60,13 @@ pub enum RemoteTracking {
 }
 
 /// Protocol configuration.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     /// Peers to connect to on startup.
     /// Connections to these peers will be maintained.
     pub connect: Vec<net::SocketAddr>,
+    /// Peer-to-peer network.
+    pub network: Network,
     /// Project tracking policy.
     pub project_tracking: ProjectTracking,
     /// Project remote tracking policy.
@@ -57,6 +83,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             connect: Vec::default(),
+            network: Network::default(),
             project_tracking: ProjectTracking::default(),
             remote_tracking: RemoteTracking::default(),
             relay: true,

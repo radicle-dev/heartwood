@@ -104,7 +104,7 @@ impl Peer {
         T: storage::ReadStorage + storage::WriteStorage,
         G: crypto::Signer,
     {
-        if envelope.magic != NETWORK_MAGIC {
+        if envelope.magic != ctx.config.network.magic() {
             return Err(PeerError::WrongMagic(envelope.magic));
         }
         debug!("Received {:?} from {}", &envelope.msg, self.ip());
