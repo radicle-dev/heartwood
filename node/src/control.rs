@@ -7,10 +7,8 @@ use std::path::Path;
 use std::str::FromStr;
 use std::{fs, io, net};
 
-use nakamoto_net::Reactor;
-
 use crate::client;
-use crate::client::handle::Handle;
+use crate::client::handle::traits::Handle;
 use crate::identity::ProjId;
 
 /// Default name for control socket file.
@@ -23,7 +21,7 @@ pub enum Error {
 }
 
 /// Listen for commands on the control socket, and process them.
-pub fn listen<P: AsRef<Path>, R: Reactor>(path: P, handle: Handle<R>) -> Result<(), Error> {
+pub fn listen<P: AsRef<Path>, H: Handle>(path: P, handle: H) -> Result<(), Error> {
     // Remove the socket file on startup before rebinding.
     fs::remove_file(&path).ok();
 
@@ -34,10 +32,12 @@ pub fn listen<P: AsRef<Path>, R: Reactor>(path: P, handle: Handle<R>) -> Result<
                 if let Err(e) = drain(&stream, &handle) {
                     log::error!("Received {} on control socket", e);
 
-                    write!(stream, "error: {}", e).ok();
+                    writeln!(stream, "error: {}", e).ok();
 
                     stream.flush().ok();
                     stream.shutdown(net::Shutdown::Both).ok();
+                } else {
+                    writeln!(stream, "ok").ok();
                 }
             }
             Err(e) => log::error!("Failed to open control socket stream: {}", e),
@@ -59,7 +59,7 @@ enum DrainError {
     Client(#[from] client::handle::Error),
 }
 
-fn drain<R: Reactor>(stream: &UnixStream, handle: &Handle<R>) -> Result<(), DrainError> {
+fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
     let mut reader = BufReader::new(stream);
 
     for line in reader.by_ref().lines().flatten() {
@@ -78,4 +78,44 @@ fn drain<R: Reactor>(stream: &UnixStream, handle: &Handle<R>) -> Result<(), Drai
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::prelude::*;
+    use std::os::unix::net::UnixStream;
+    use std::{net, thread};
+
+    use super::*;
+    use crate::identity::ProjId;
+    use crate::test;
+
+    #[test]
+    fn test_control_socket() {
+        let tmp = tempfile::tempdir().unwrap();
+        let handle = test::handle::Handle::default();
+        let socket = tmp.path().join("alice.sock");
+        let proj = test::arbitrary::gen::<ProjId>(1);
+
+        thread::spawn({
+            let socket = socket.clone();
+            let handle = handle.clone();
+
+            move || listen(socket, handle)
+        });
+
+        let mut stream = loop {
+            if let Ok(stream) = UnixStream::connect(&socket) {
+                break stream;
+            }
+        };
+        writeln!(&stream, "update {}", proj).unwrap();
+
+        let mut buf = [0; 2];
+        stream.shutdown(net::Shutdown::Write).unwrap();
+        stream.read_exact(&mut buf).unwrap();
+
+        assert_eq!(&buf, &[b'o', b'k']);
+        assert!(handle.updates.lock().unwrap().contains(&proj));
+    }
 }

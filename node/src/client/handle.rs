@@ -53,14 +53,14 @@ pub struct Handle<R: Reactor> {
     pub(crate) listening: chan::Receiver<net::SocketAddr>,
 }
 
-impl<R: Reactor> Handle<R> {
+impl<R: Reactor> traits::Handle for Handle<R> {
     /// Notify the client that a project has been updated.
-    pub fn updated(&self, id: ProjId) -> Result<(), Error> {
+    fn updated(&self, id: ProjId) -> Result<(), Error> {
         self.command(protocol::Command::AnnounceInventory(id))
     }
 
     /// Send a command to the command channel, and wake up the event loop.
-    pub fn command(&self, cmd: protocol::Command) -> Result<(), Error> {
+    fn command(&self, cmd: protocol::Command) -> Result<(), Error> {
         self.commands.send(cmd)?;
         R::wake(&self.waker)?;
 
@@ -68,10 +68,23 @@ impl<R: Reactor> Handle<R> {
     }
 
     /// Ask the client to shutdown.
-    pub fn shutdown(self) -> Result<(), Error> {
+    fn shutdown(self) -> Result<(), Error> {
         self.shutdown.send(())?;
         R::wake(&self.waker)?;
 
         Ok(())
+    }
+}
+
+pub mod traits {
+    use super::*;
+
+    pub trait Handle {
+        /// Notify the client that a project has been updated.
+        fn updated(&self, id: ProjId) -> Result<(), Error>;
+        /// Send a command to the command channel, and wake up the event loop.
+        fn command(&self, cmd: protocol::Command) -> Result<(), Error>;
+        /// Ask the client to shutdown.
+        fn shutdown(self) -> Result<(), Error>;
     }
 }
