@@ -11,7 +11,6 @@ use crate::protocol;
 use crate::storage::git::Storage;
 
 pub mod handle;
-pub mod socket;
 
 /// Client configuration.
 #[derive(Debug, Clone)]

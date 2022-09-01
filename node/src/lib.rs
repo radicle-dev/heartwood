@@ -2,6 +2,7 @@
 pub use nakamoto_net::{Io, Link, LocalDuration, LocalTime};
 
 pub mod client;
+pub mod control;
 pub mod crypto;
 
 mod address_book;

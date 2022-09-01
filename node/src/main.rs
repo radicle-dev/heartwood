@@ -1,8 +1,9 @@
-use std::net;
 use std::path::Path;
+use std::thread;
+use std::{env, net};
 
-use radicle_node::client;
 use radicle_node::crypto::{PublicKey, Signature, Signer};
+use radicle_node::{client, control};
 
 type Reactor = nakamoto_net_poll::Reactor<net::TcpStream>;
 
@@ -21,8 +22,15 @@ impl Signer for FailingSigner {
 fn main() -> anyhow::Result<()> {
     let signer = FailingSigner {};
     let client = client::Client::<Reactor>::new(Path::new("."), signer)?;
+    let handle = client.handle();
+    let config = client::Config::default();
+    let socket = env::var("RAD_SOCKET").unwrap_or_else(|_| control::DEFAULT_SOCKET_NAME.to_owned());
 
-    client.run(client::Config::default())?;
+    let t1 = thread::spawn(move || control::listen(socket, handle));
+    let t2 = thread::spawn(move || client.run(config));
+
+    t1.join().unwrap()?;
+    t2.join().unwrap()?;
 
     Ok(())
 }

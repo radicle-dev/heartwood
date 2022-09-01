@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::sync::Arc;
 use std::{fmt, ops::Deref, str::FromStr};
 
@@ -8,24 +7,11 @@ use thiserror::Error;
 
 pub use ed25519::Signature;
 
-pub trait Signer: 'static {
+pub trait Signer: Send + Sync + 'static {
     /// Return this signer's public/verification key.
     fn public_key(&self) -> &PublicKey;
     /// Sign a message and return the signature.
     fn sign(&self, msg: &[u8]) -> Signature;
-}
-
-impl<T> Signer for Rc<T>
-where
-    T: Signer + ?Sized,
-{
-    fn sign(&self, msg: &[u8]) -> Signature {
-        self.deref().sign(msg)
-    }
-
-    fn public_key(&self) -> &PublicKey {
-        self.deref().public_key()
-    }
 }
 
 impl<T> Signer for Arc<T>

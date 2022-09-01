@@ -1,3 +1,4 @@
+//! Client control socket implementation.
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::os::unix::net::UnixListener;
@@ -13,7 +14,7 @@ use crate::client::handle::Handle;
 use crate::identity::ProjId;
 
 /// Default name for control socket file.
-pub const DEFAULT_NAME: &str = "radicle.sock";
+pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
