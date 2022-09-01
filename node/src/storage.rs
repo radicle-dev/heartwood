@@ -136,7 +136,6 @@ pub trait ReadRepository {
 
 pub trait WriteRepository: ReadRepository {
     fn fetch(&mut self, url: &Url) -> Result<(), git2::Error>;
-    fn namespace(&mut self, user: &UserId) -> Result<&mut git2::Repository, git2::Error>;
 }
 
 impl<T, S> ReadStorage for T

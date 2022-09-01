@@ -20,9 +20,9 @@ use super::{
 };
 
 pub static RADICLE_ID_REF: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("refs/heads/radicle/id"));
-pub static NAMESPACES_GLOB: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("refs/namespaces/*"));
+    Lazy::new(|| refspec::pattern!("heads/radicle/id"));
+pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
+    Lazy::new(|| refspec::pattern!("refs/remotes/*"));
 
 pub struct Storage {
     path: PathBuf,
@@ -103,7 +103,7 @@ impl Storage {
 }
 
 pub struct Repository {
-    backend: git2::Repository,
+    pub(crate) backend: git2::Repository,
 }
 
 impl Repository {
@@ -128,7 +128,7 @@ impl Repository {
     }
 
     pub fn find_reference(&self, remote: &UserId, name: &str) -> Result<Oid, Error> {
-        let name = format!("refs/namespaces/{}/{}", remote, name);
+        let name = format!("refs/remotes/{}/{}", remote, name);
         let target = self
             .backend
             .find_reference(&name)?
@@ -163,7 +163,7 @@ impl ReadRepository for Repository {
     }
 
     fn remotes(&self) -> Result<Remotes<Unverified>, Error> {
-        let refs = self.backend.references_glob(NAMESPACES_GLOB.as_str())?;
+        let refs = self.backend.references_glob(REMOTES_GLOB.as_str())?;
         let mut remotes = HashMap::default();
 
         for r in refs {
@@ -189,29 +189,23 @@ impl WriteRepository for Repository {
         //
         // Repository layout should look like this:
         //
-        //   /refs/namespaces/<remote>
+        //   /refs/remotes/<remote>
         //         /heads
         //           /master
         //         /tags
         //         ...
         //
         let url = url.to_string();
-        let refs: &[&str] = &["refs/namespaces/*:refs/namespaces/*"];
+        let refs: &[&str] = &["refs/remotes/*:refs/remotes/*"];
         let mut remote = self.backend.remote_anonymous(&url)?;
         let mut opts = git2::FetchOptions::default();
 
+        // TODO: Make sure we verify before pruning, as pruning may get us into
+        // a state we can't roll back.
+        opts.prune(git2::FetchPrune::On);
         remote.fetch(refs, Some(&mut opts), None)?;
 
         Ok(())
-    }
-
-    fn namespace(&mut self, user: &UserId) -> Result<&mut git2::Repository, git2::Error> {
-        let path = self.backend.path();
-
-        self.backend = git2::Repository::open_bare(path)?;
-        self.backend.set_namespace(&user.to_string())?;
-
-        Ok(&mut self.backend)
     }
 }
 
@@ -257,7 +251,7 @@ mod tests {
         let inventory = alice.inventory().unwrap();
         let proj = inventory.first().unwrap();
         let remotes = alice.repository(proj).unwrap().remotes().unwrap();
-        let refname = "refs/heads/master";
+        let refname = "heads/master";
 
         // Have Bob fetch Alice's refs.
         bob.repository(proj)

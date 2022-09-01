@@ -54,7 +54,7 @@ pub fn list_remotes(url: &Url) -> Result<Remotes<Unverified>, ListRefsError> {
 pub fn parse_ref<T: FromStr>(s: &str) -> Result<(T, format::RefString), RefError> {
     let input = format::RefStr::try_from_str(s)?;
     let suffix = input
-        .strip_prefix(format::refname!("refs/namespaces"))
+        .strip_prefix(format::refname!("refs/remotes"))
         .ok_or_else(|| RefError::InvalidName(input.to_owned()))?;
 
     let mut components = suffix.components();

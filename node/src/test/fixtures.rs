@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::git;
 use crate::identity::{ProjId, UserId};
 use crate::storage::git::Storage;
-use crate::storage::{WriteRepository, WriteStorage};
+use crate::storage::WriteStorage;
 use crate::test::arbitrary;
 use crate::test::crypto::MockSigner;
 
@@ -17,23 +17,40 @@ pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
 
     for proj in proj_ids.iter() {
         log::debug!("creating {}...", proj);
-        let mut repo = storage.repository(proj).unwrap();
+        let repo = storage.repository(proj).unwrap();
 
         for user in user_ids.iter() {
-            let repo = repo.namespace(user).unwrap();
+            let repo = &repo.backend;
             let sig = git2::Signature::now(&user.to_string(), "anonymous@radicle.xyz").unwrap();
             let head = git::initial_commit(repo, &sig).unwrap();
 
-            log::debug!("{}: creating {}...", proj, repo.namespace().unwrap());
+            log::debug!("{}: creating {}...", proj, user);
 
-            repo.reference("refs/rad/root", head.id(), false, "test")
-                .unwrap();
+            repo.reference(
+                &format!("refs/remotes/{user}/heads/radicle/id"),
+                head.id(),
+                false,
+                "test",
+            )
+            .unwrap();
 
             let head = git::commit(repo, &head, "Second commit", &user.to_string()).unwrap();
-            repo.branch("master", &head, false).unwrap();
+            repo.reference(
+                &format!("refs/remotes/{user}/heads/master"),
+                head.id(),
+                false,
+                "test",
+            )
+            .unwrap();
 
             let head = git::commit(repo, &head, "Third commit", &user.to_string()).unwrap();
-            repo.branch("patch/3", &head, false).unwrap();
+            repo.reference(
+                &format!("refs/remotes/{user}/heads/patch/3"),
+                head.id(),
+                false,
+                "test",
+            )
+            .unwrap();
         }
     }
     storage

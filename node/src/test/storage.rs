@@ -82,11 +82,4 @@ impl WriteRepository for MockRepository {
     fn fetch(&mut self, _url: &Url) -> Result<(), git2::Error> {
         Ok(())
     }
-
-    fn namespace(
-        &mut self,
-        _user: &crate::identity::UserId,
-    ) -> Result<&mut git2::Repository, git2::Error> {
-        todo!()
-    }
 }
