@@ -86,7 +86,9 @@ pub enum Message {
         announcement: NodeAnnouncement,
     },
     /// Get a peer's inventory.
-    GetInventory { ids: Vec<ProjId> },
+    GetInventory {
+        ids: Vec<ProjId>,
+    },
     /// Send our inventory to a peer. Sent in response to [`Message::GetInventory`].
     /// Nb. This should be the whole inventory, not a partial update.
     Inventory {
@@ -95,6 +97,9 @@ pub enum Message {
         /// Original peer this inventory came from. We don't set this when we
         /// are the originator, only when relaying.
         origin: Option<NodeId>,
+    },
+    InventoryUpdate {
+        inv: Vec<ProjId>,
     },
 }
 
@@ -119,7 +124,7 @@ impl Message {
         }
     }
 
-    pub fn inventory<S, T, G>(ctx: &mut Context<S, T, G>) -> Result<Self, storage::Error>
+    pub fn inventory<S, T, G>(ctx: &Context<S, T, G>) -> Result<Self, storage::Error>
     where
         T: storage::ReadStorage,
     {

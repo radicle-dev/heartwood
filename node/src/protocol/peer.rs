@@ -194,6 +194,10 @@ impl Peer {
                     }));
                 }
             }
+            (PeerState::Negotiated { id, git, .. }, Message::InventoryUpdate { inv }) => {
+                // TODO: Buffer/throttle fetches.
+                ctx.process_inventory_update(&inv, *id, git);
+            }
             (
                 PeerState::Negotiated { .. },
                 Message::Node {

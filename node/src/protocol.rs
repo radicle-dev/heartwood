@@ -208,7 +208,7 @@ impl<T: ReadStorage + WriteStorage, S: address_book::Store, G: crypto::Signer> P
 
     /// Announce our inventory to all connected peers.
     fn announce_inventory(&mut self) -> Result<(), storage::Error> {
-        let inv = Message::inventory(&mut self.context)?;
+        let inv = Message::inventory(&self.context)?;
 
         for addr in self.peers.negotiated().map(|(_, p)| p.addr) {
             self.context.write(addr, inv.clone());
@@ -335,8 +335,11 @@ where
                     })
                     .unwrap();
             }
-            Command::AnnounceInventory(_proj) => {
-                todo!()
+            Command::AnnounceInventory(proj) => {
+                let peers = self.peers.negotiated().map(|(_, p)| p.addr);
+
+                self.context
+                    .broadcast(Message::InventoryUpdate { inv: vec![proj] }, peers);
             }
         }
     }
@@ -470,10 +473,9 @@ where
                     let peers = negotiated
                         .iter()
                         .filter(|(ip, _)| *ip != peer.ip())
-                        .map(|(_, addr)| *addr)
-                        .collect::<Vec<_>>();
+                        .map(|(_, addr)| *addr);
 
-                    self.context.broadcast(msg, &peers);
+                    self.context.broadcast(msg, peers);
                 }
                 Err(err) => {
                     self.context
@@ -603,19 +605,30 @@ where
                 .entry(proj_id.clone())
                 .or_insert_with(|| HashSet::with_hasher(self.rng.clone().into()));
 
-            if self.config.is_tracking(proj_id) {
-                // TODO: Verify refs before adding them to storage.
-                let mut repo = self.storage.repository(proj_id).unwrap();
-                repo.fetch(&Url {
-                    path: format!("/{}", proj_id).into(),
-                    ..remote.clone()
-                })
-                .unwrap();
-            }
-
             // TODO: Fire an event on routing update.
-            inventory.insert(from);
+            if inventory.insert(from) && self.config.is_tracking(proj_id) {
+                self.fetch(proj_id, remote);
+            }
         }
+    }
+
+    /// Process a peer inventory update announcement by (maybe) fetching.
+    fn process_inventory_update(&mut self, inventory: &Inventory, _from: NodeId, remote: &Url) {
+        for proj_id in inventory {
+            if self.config.is_tracking(proj_id) {
+                self.fetch(proj_id, remote);
+            }
+        }
+    }
+
+    fn fetch(&mut self, proj_id: &ProjId, remote: &Url) {
+        // TODO: Verify refs before adding them to storage.
+        let mut repo = self.storage.repository(proj_id).unwrap();
+        repo.fetch(&Url {
+            path: format!("/{}", proj_id).into(),
+            ..remote.clone()
+        })
+        .unwrap();
     }
 
     /// Disconnect a peer.
@@ -658,9 +671,9 @@ impl<S, T, G> Context<S, T, G> {
     }
 
     /// Broadcast a message to a list of peers.
-    fn broadcast(&mut self, msg: Message, peers: &[net::SocketAddr]) {
+    fn broadcast(&mut self, msg: Message, peers: impl IntoIterator<Item = net::SocketAddr>) {
         for peer in peers {
-            self.write(*peer, msg.clone());
+            self.write(peer, msg.clone());
         }
     }
 }
