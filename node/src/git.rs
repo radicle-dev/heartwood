@@ -5,7 +5,8 @@ use radicle_git_ext as git_ext;
 
 use crate::collections::HashMap;
 use crate::identity::UserId;
-use crate::storage::{Remote, Remotes, Unverified};
+use crate::storage::refs::Refs;
+use crate::storage::RemoteId;
 
 pub use git_ext::Oid;
 pub use git_url::Url;
@@ -30,7 +31,7 @@ pub enum ListRefsError {
 }
 
 /// List remote refs of a project, given the remote URL.
-pub fn list_remotes(url: &Url) -> Result<Remotes<Unverified>, ListRefsError> {
+pub fn remote_refs(url: &Url) -> Result<HashMap<RemoteId, Refs>, ListRefsError> {
     let url = url.to_string();
     let mut remotes = HashMap::default();
     let mut remote = git2::Remote::create_detached(&url)?;
@@ -40,14 +41,12 @@ pub fn list_remotes(url: &Url) -> Result<Remotes<Unverified>, ListRefsError> {
     let refs = remote.list()?;
     for r in refs {
         let (id, refname) = parse_ref::<UserId>(r.name())?;
-        let entry = remotes
-            .entry(id)
-            .or_insert_with(|| Remote::new(id, HashMap::default()));
+        let entry = remotes.entry(id).or_insert_with(Refs::default);
 
-        entry.refs.insert(refname.to_string(), r.oid().into());
+        entry.insert(refname.to_string(), r.oid().into());
     }
 
-    Ok(Remotes::new(remotes))
+    Ok(remotes)
 }
 
 /// Parse a ref string.
@@ -90,6 +89,7 @@ pub fn commit<'a>(
     let sig = git2::Signature::now(user, "anonymous@radicle.xyz")?;
     let tree_id = repo.index()?.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
+    // TODO: Take the ref as parameter.
     let oid = repo.commit(None, &sig, &sig, message, &tree, &[parent])?;
     let commit = repo.find_commit(oid).unwrap();
 

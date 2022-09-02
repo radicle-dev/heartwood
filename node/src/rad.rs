@@ -4,9 +4,11 @@ use git_url::Url;
 use nonempty::NonEmpty;
 use thiserror::Error;
 
+use crate::crypto::Verified;
 use crate::git;
 use crate::identity::ProjId;
 use crate::storage::git::RADICLE_ID_REF;
+use crate::storage::refs::SignedRefs;
 use crate::storage::{BranchName, ReadRepository as _};
 use crate::{identity, storage};
 
@@ -37,7 +39,7 @@ pub fn init<S: storage::WriteStorage>(
     description: &str,
     default_branch: BranchName,
     storage: S,
-) -> Result<ProjId, InitError> {
+) -> Result<(ProjId, SignedRefs<Verified>), InitError> {
     let user_id = storage.user_id();
     let delegate = identity::Delegate {
         // TODO: Use actual user name.
@@ -114,8 +116,9 @@ pub fn init<S: storage::WriteStorage>(
         ],
         None,
     )?;
+    let signed = storage.sign_refs(&project)?;
 
-    Ok(id)
+    Ok((id, signed))
 }
 
 #[cfg(test)]
@@ -136,7 +139,7 @@ mod tests {
         let head = git::commit(&repo, &head, "Second commit", "anonymous").unwrap();
         let _branch = repo.branch("master", &head, false).unwrap();
 
-        init(
+        let (_id, _refs) = init(
             &repo,
             "acme",
             "Acme's repo",

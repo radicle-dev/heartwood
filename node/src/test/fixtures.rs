@@ -1,59 +1,66 @@
 use std::path::Path;
 
 use crate::git;
-use crate::identity::{ProjId, UserId};
+use crate::identity::ProjId;
 use crate::storage::git::Storage;
-use crate::storage::WriteStorage;
+use crate::storage::{ReadStorage, WriteStorage};
 use crate::test::arbitrary;
 use crate::test::crypto::MockSigner;
 
 pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
     let path = path.as_ref();
-    let storage = Storage::open(path, MockSigner::default()).unwrap();
     let proj_ids = arbitrary::set::<ProjId>(3..5);
-    let user_ids = arbitrary::set::<UserId>(1..3);
+    let signers = arbitrary::set::<MockSigner>(1..3);
+    let mut storages = signers
+        .into_iter()
+        .map(|s| Storage::open(path, s).unwrap())
+        .collect::<Vec<_>>();
 
     crate::test::logger::init(log::Level::Debug);
 
-    for proj in proj_ids.iter() {
-        log::debug!("creating {}...", proj);
-        let repo = storage.repository(proj).unwrap();
+    for storage in &storages {
+        let remote = storage.user_id();
 
-        for user in user_ids.iter() {
-            let repo = &repo.backend;
-            let sig = git2::Signature::now(&user.to_string(), "anonymous@radicle.xyz").unwrap();
-            let head = git::initial_commit(repo, &sig).unwrap();
+        log::debug!("signer {}...", remote);
 
-            log::debug!("{}: creating {}...", proj, user);
+        for proj in proj_ids.iter() {
+            let repo = storage.repository(proj).unwrap();
+            let raw = &repo.backend;
+            let sig = git2::Signature::now(&remote.to_string(), "anonymous@radicle.xyz").unwrap();
+            let head = git::initial_commit(raw, &sig).unwrap();
 
-            repo.reference(
-                &format!("refs/remotes/{user}/heads/radicle/id"),
+            log::debug!("{}: creating {}...", remote, proj);
+
+            raw.reference(
+                &format!("refs/remotes/{remote}/heads/radicle/id"),
                 head.id(),
                 false,
                 "test",
             )
             .unwrap();
 
-            let head = git::commit(repo, &head, "Second commit", &user.to_string()).unwrap();
-            repo.reference(
-                &format!("refs/remotes/{user}/heads/master"),
+            let head = git::commit(raw, &head, "Second commit", &remote.to_string()).unwrap();
+            raw.reference(
+                &format!("refs/remotes/{remote}/heads/master"),
                 head.id(),
                 false,
                 "test",
             )
             .unwrap();
 
-            let head = git::commit(repo, &head, "Third commit", &user.to_string()).unwrap();
-            repo.reference(
-                &format!("refs/remotes/{user}/heads/patch/3"),
+            let head = git::commit(raw, &head, "Third commit", &remote.to_string()).unwrap();
+            raw.reference(
+                &format!("refs/remotes/{remote}/heads/patch/3"),
                 head.id(),
                 false,
                 "test",
             )
             .unwrap();
+
+            storage.sign_refs(&repo).unwrap();
         }
     }
-    storage
+    storages.pop().unwrap()
 }
 
 #[cfg(test)]

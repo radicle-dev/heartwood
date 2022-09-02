@@ -2,7 +2,7 @@ use ed25519_consensus as ed25519;
 
 use crate::crypto::{PublicKey, SecretKey, Signer};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MockSigner {
     pk: PublicKey,
     sk: SecretKey,
@@ -15,12 +15,14 @@ impl MockSigner {
         for byte in &mut bytes {
             *byte = rng.u8(..);
         }
-        let sk = SecretKey::from(bytes);
+        Self::from(SecretKey::from(bytes))
+    }
+}
 
-        Self {
-            pk: sk.verification_key().into(),
-            sk,
-        }
+impl From<SecretKey> for MockSigner {
+    fn from(sk: SecretKey) -> Self {
+        let pk = sk.verification_key().into();
+        Self { sk, pk }
     }
 }
 
@@ -33,6 +35,20 @@ impl Default for MockSigner {
             pk: sk.verification_key().into(),
             sk,
         }
+    }
+}
+
+impl PartialEq for MockSigner {
+    fn eq(&self, other: &Self) -> bool {
+        self.pk == other.pk
+    }
+}
+
+impl Eq for MockSigner {}
+
+impl std::hash::Hash for MockSigner {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.pk.hash(state)
     }
 }
 

@@ -194,18 +194,8 @@ impl Peer {
                     }));
                 }
             }
-            (
-                PeerState::Negotiated { git, .. },
-                Message::RefsUpdate {
-                    proj,
-                    user,
-                    refs,
-                    signature,
-                },
-            ) => {
-                let bytes = serde_json::to_vec(&refs).unwrap();
-
-                if user.verify(&signature, &bytes).is_ok() {
+            (PeerState::Negotiated { git, .. }, Message::RefsUpdate { proj, user, refs }) => {
+                if refs.verified(&user).is_ok() {
                     // TODO: Buffer/throttle fetches.
                     // TODO: Also pass the updated refs so that we can check whether
                     // we need to fetch or not.

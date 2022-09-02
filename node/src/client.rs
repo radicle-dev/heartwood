@@ -55,7 +55,7 @@ pub struct Client<R: Reactor> {
 }
 
 impl<R: Reactor> Client<R> {
-    pub fn new<P: AsRef<Path>, S: Signer>(
+    pub fn new<P: AsRef<Path>, S: Signer + 'static>(
         path: P,
         signer: S,
     ) -> Result<Self, nakamoto_net::error::Error> {

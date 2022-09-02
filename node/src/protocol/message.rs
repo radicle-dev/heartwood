@@ -7,6 +7,7 @@ use crate::crypto;
 use crate::identity::{ProjId, UserId};
 use crate::protocol::{Context, NodeId, Timestamp, PROTOCOL_VERSION};
 use crate::storage;
+use crate::storage::refs::SignedRefs;
 
 /// Message envelope. All messages sent over the network are wrapped in this type.
 #[derive(Debug, Serialize, Deserialize)]
@@ -104,9 +105,7 @@ pub enum Message {
         /// User signing.
         user: UserId,
         /// Updated refs.
-        refs: storage::Refs,
-        /// Signature over the refs.
-        signature: crypto::Signature,
+        refs: SignedRefs<crypto::Unverified>,
     },
 }
 

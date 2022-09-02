@@ -5,9 +5,17 @@ use ed25519_consensus as ed25519;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub use ed25519::Error;
 pub use ed25519::Signature;
 
-pub trait Signer: Send + Sync + 'static {
+/// Verified (used as type witness).
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Verified;
+/// Unverified (used as type witness).
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Unverified;
+
+pub trait Signer: Send + Sync {
     /// Return this signer's public/verification key.
     fn public_key(&self) -> &PublicKey;
     /// Sign a message and return the signature.
@@ -15,6 +23,19 @@ pub trait Signer: Send + Sync + 'static {
 }
 
 impl<T> Signer for Arc<T>
+where
+    T: Signer + ?Sized,
+{
+    fn sign(&self, msg: &[u8]) -> Signature {
+        self.deref().sign(msg)
+    }
+
+    fn public_key(&self) -> &PublicKey {
+        self.deref().public_key()
+    }
+}
+
+impl<T> Signer for &T
 where
     T: Signer + ?Sized,
 {

@@ -24,7 +24,7 @@ use crate::protocol::config::ProjectTracking;
 use crate::protocol::message::Message;
 use crate::protocol::peer::{Peer, PeerError, PeerState};
 use crate::storage::{self, ReadRepository, WriteRepository};
-use crate::storage::{Inventory, ReadStorage, Remotes, Unverified, WriteStorage};
+use crate::storage::{Inventory, ReadStorage, Remotes, WriteStorage};
 
 pub use crate::protocol::config::{Config, Network};
 
@@ -339,21 +339,11 @@ where
                 let user = *self.storage.user_id();
                 let repo = self.storage.repository(&proj).unwrap();
                 let remote = repo.remote(&user).unwrap();
-                let refs = remote.refs;
-                let signature = self
-                    .signer
-                    .sign(serde_json::to_vec(&refs).unwrap().as_slice());
                 let peers = self.peers.negotiated().map(|(_, p)| p.addr);
+                let refs = remote.refs.unverified();
 
-                self.context.broadcast(
-                    Message::RefsUpdate {
-                        proj,
-                        user,
-                        refs,
-                        signature,
-                    },
-                    peers,
-                );
+                self.context
+                    .broadcast(Message::RefsUpdate { proj, user, refs }, peers);
             }
         }
     }
@@ -556,7 +546,7 @@ impl<S, T, G> Iterator for Protocol<S, T, G> {
 #[derive(Debug)]
 pub struct Lookup {
     /// Whether the project was found locally or not.
-    pub local: Option<Remotes<Unverified>>,
+    pub local: Option<Remotes<crypto::Verified>>,
     /// A list of remote peers on which the project is known to exist.
     pub remote: Vec<NodeId>,
 }
