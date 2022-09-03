@@ -95,7 +95,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let handle = test::handle::Handle::default();
         let socket = tmp.path().join("alice.sock");
-        let proj = test::arbitrary::gen::<ProjId>(1);
+        let projs = test::arbitrary::set::<ProjId>(1..3);
 
         thread::spawn({
             let socket = socket.clone();
@@ -109,13 +109,17 @@ mod tests {
                 break stream;
             }
         };
-        writeln!(&stream, "update {}", proj).unwrap();
+        for proj in &projs {
+            writeln!(&stream, "update {}", proj).unwrap();
+        }
 
         let mut buf = [0; 2];
         stream.shutdown(net::Shutdown::Write).unwrap();
         stream.read_exact(&mut buf).unwrap();
 
         assert_eq!(&buf, &[b'o', b'k']);
-        assert!(handle.updates.lock().unwrap().contains(&proj));
+        for proj in &projs {
+            assert!(handle.updates.lock().unwrap().contains(proj));
+        }
     }
 }

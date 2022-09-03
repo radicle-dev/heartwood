@@ -52,10 +52,18 @@ impl Arbitrary for Refs {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let mut refs: BTreeMap<storage::RefName, storage::Oid> = BTreeMap::new();
         let mut bytes: [u8; 20] = [0; 20];
-        // TODO: Use refs other than branch names.
-        let names = &["master", "dev", "feature/1", "feature/2", "feature/3"];
+        let names = &[
+            "heads/master",
+            "heads/feature/1",
+            "heads/feature/2",
+            "heads/feature/3",
+            "heads/radicle/id",
+            "tags/v1.0",
+            "tags/v2.0",
+            "notes/1",
+        ];
 
-        for _ in 0..g.size().min(2) {
+        for _ in 0..g.size().min(names.len()) {
             if let Some(name) = g.choose(names) {
                 for byte in &mut bytes {
                     *byte = u8::arbitrary(g);

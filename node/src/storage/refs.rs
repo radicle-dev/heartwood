@@ -315,4 +315,20 @@ pub mod canonical {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quickcheck_macros::quickcheck;
+
+    #[quickcheck]
+    fn prop_canonical_roundtrip(refs: Refs) {
+        let encoded = refs.canonical();
+        let decoded = Refs::from_canonical(&encoded).unwrap();
+
+        println!("{:?}", refs);
+
+        assert_eq!(refs, decoded);
+    }
+}
+
 // TODO: Test canonical/from_canonical
