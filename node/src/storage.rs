@@ -92,24 +92,11 @@ impl<V> IntoIterator for Remotes<V> {
     }
 }
 
-#[allow(clippy::from_over_into)]
-impl Into<HashMap<String, Remote<Unverified>>> for Remotes<Unverified> {
-    fn into(self) -> HashMap<String, Remote<Unverified>> {
+impl<V> From<Remotes<V>> for HashMap<RemoteId, Refs> {
+    fn from(other: Remotes<V>) -> Self {
         let mut remotes = HashMap::with_hasher(fastrand::Rng::new().into());
 
-        for (k, v) in self.0 {
-            remotes.insert(k.to_string(), v);
-        }
-        remotes
-    }
-}
-
-#[allow(clippy::from_over_into)]
-impl<V> Into<HashMap<RemoteId, Refs>> for Remotes<V> {
-    fn into(self) -> HashMap<RemoteId, Refs> {
-        let mut remotes = HashMap::with_hasher(fastrand::Rng::new().into());
-
-        for (k, v) in self.into_iter() {
+        for (k, v) in other.into_iter() {
             remotes.insert(k, v.refs.into());
         }
         remotes

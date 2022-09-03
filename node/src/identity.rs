@@ -9,6 +9,7 @@ use thiserror::Error;
 
 use crate::crypto::{self, Verified};
 use crate::hash;
+use crate::serde_ext;
 use crate::storage::Remotes;
 
 pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new("Radicle.toml"));
@@ -22,7 +23,7 @@ pub enum ProjIdError {
     InvalidDigest(#[from] hash::DecodeError),
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProjId(hash::Digest);
 
 impl fmt::Display for ProjId {
@@ -66,18 +67,69 @@ impl From<hash::Digest> for ProjId {
     }
 }
 
+impl serde::Serialize for ProjId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serde_ext::string::serialize(self, serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ProjId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        serde_ext::string::deserialize(deserializer)
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum DidError {
+    #[error("invalid did: {0}")]
+    Did(String),
+    #[error("invalid public key: {0}")]
+    PublicKey(#[from] crypto::PublicKeyError),
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
+#[serde(into = "String", try_from = "String")]
 pub struct Did(crypto::PublicKey);
 
 impl Did {
     pub fn encode(&self) -> String {
         format!("did:key:{}", self.0.encode())
     }
+
+    pub fn decode(input: &str) -> Result<Self, DidError> {
+        let key = input
+            .strip_prefix("did:key:")
+            .ok_or_else(|| DidError::Did(input.to_owned()))?;
+
+        crypto::PublicKey::from_str(key)
+            .map(Did)
+            .map_err(DidError::from)
+    }
 }
 
 impl From<crypto::PublicKey> for Did {
     fn from(key: crypto::PublicKey) -> Self {
         Self(key)
+    }
+}
+
+impl From<Did> for String {
+    fn from(other: Did) -> Self {
+        other.encode()
+    }
+}
+
+impl TryFrom<String> for Did {
+    type Error = DidError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::decode(&value)
     }
 }
 
@@ -162,5 +214,17 @@ mod test {
         let decoded = UserId::from_str(&encoded).unwrap();
 
         assert_eq!(input, decoded);
+    }
+
+    #[quickcheck]
+    fn prop_json_eq_str(user: UserId, proj: ProjId, did: Did) {
+        let json = serde_json::to_string(&user).unwrap();
+        assert_eq!(format!("\"{}\"", user), json);
+
+        let json = serde_json::to_string(&proj).unwrap();
+        assert_eq!(format!("\"{}\"", proj), json);
+
+        let json = serde_json::to_string(&did).unwrap();
+        assert_eq!(format!("\"{}\"", did), json);
     }
 }

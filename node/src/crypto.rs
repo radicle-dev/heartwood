@@ -50,7 +50,7 @@ where
 
 /// The public/verification key.
 #[derive(Serialize, Deserialize, Eq, Debug, Copy, Clone)]
-#[serde(transparent)]
+#[serde(into = "String", try_from = "String")]
 pub struct PublicKey(pub ed25519::VerificationKey);
 
 /// The private/signing key.
@@ -75,6 +75,12 @@ impl std::hash::Hash for PublicKey {
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.encode())
+    }
+}
+
+impl From<PublicKey> for String {
+    fn from(other: PublicKey) -> Self {
+        other.encode()
     }
 }
 
@@ -107,6 +113,14 @@ impl FromStr for PublicKey {
         let key = ed25519::VerificationKey::try_from(ed25519::VerificationKeyBytes::from(array))?;
 
         Ok(Self(key))
+    }
+}
+
+impl TryFrom<String> for PublicKey {
+    type Error = PublicKeyError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::from_str(&value)
     }
 }
 

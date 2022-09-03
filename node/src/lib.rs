@@ -16,6 +16,7 @@ mod identity;
 mod logger;
 mod protocol;
 mod rad;
+mod serde_ext;
 mod storage;
 #[cfg(test)]
 mod test;
