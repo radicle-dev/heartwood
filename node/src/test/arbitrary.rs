@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::hash::Hash;
 use std::ops::RangeBounds;
 
+use nonempty::NonEmpty;
 use quickcheck::Arbitrary;
 
 use crate::collections::HashMap;
@@ -9,7 +10,7 @@ use crate::crypto::{self, Signer};
 use crate::crypto::{PublicKey, SecretKey};
 use crate::git;
 use crate::hash;
-use crate::identity::ProjId;
+use crate::identity::{Delegate, Did, Doc, ProjId, Project};
 use crate::storage;
 use crate::storage::refs::Refs;
 use crate::test::storage::MockStorage;
@@ -46,6 +47,53 @@ impl Arbitrary for MockStorage {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let inventory = Arbitrary::arbitrary(g);
         MockStorage::new(inventory)
+    }
+}
+
+impl Arbitrary for Project {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let mut buf = Vec::new();
+        let doc = Doc::arbitrary(g);
+        let id = doc.write(&mut buf).unwrap();
+        let remotes = storage::Remotes::arbitrary(g);
+
+        Self { id, doc, remotes }
+    }
+}
+
+impl Arbitrary for Did {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self::from(PublicKey::arbitrary(g))
+    }
+}
+
+impl Arbitrary for Delegate {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self {
+            name: String::arbitrary(g),
+            id: Did::arbitrary(g),
+        }
+    }
+}
+
+impl Arbitrary for Doc {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let name = String::arbitrary(g);
+        let description = String::arbitrary(g);
+        let default_branch = String::arbitrary(g);
+        let version = u32::arbitrary(g);
+        let parent = None;
+        let delegate = Delegate::arbitrary(g);
+        let delegates = NonEmpty::new(delegate);
+
+        Self {
+            name,
+            description,
+            default_branch,
+            version,
+            parent,
+            delegates,
+        }
     }
 }
 

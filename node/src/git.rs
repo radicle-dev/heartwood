@@ -1,16 +1,16 @@
 use std::str::FromStr;
 
 use git_ref_format as format;
-use radicle_git_ext as git_ext;
 
 use crate::collections::HashMap;
 use crate::identity::UserId;
 use crate::storage::refs::Refs;
 use crate::storage::RemoteId;
 
-pub use git_ext::Oid;
+pub use ext::Oid;
 pub use git_ref_format::{refname, RefStr, RefString};
 pub use git_url::Url;
+pub use radicle_git_ext as ext;
 
 /// Default port of the `git` transport protocol.
 pub const PROTOCOL_PORT: u16 = 9418;
@@ -118,14 +118,14 @@ pub fn set_upstream(
     let branch_merge = format!("branch.{}.merge", branch);
 
     config.remove_multivar(&branch_remote, ".*").or_else(|e| {
-        if git_ext::is_not_found_err(&e) {
+        if ext::is_not_found_err(&e) {
             Ok(())
         } else {
             Err(e)
         }
     })?;
     config.remove_multivar(&branch_merge, ".*").or_else(|e| {
-        if git_ext::is_not_found_err(&e) {
+        if ext::is_not_found_err(&e) {
             Ok(())
         } else {
             Err(e)

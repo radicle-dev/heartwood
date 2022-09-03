@@ -19,12 +19,12 @@ use crate::address_manager::AddressManager;
 use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto;
-use crate::identity::{ProjId, UserId};
+use crate::identity::{ProjId, Project, UserId};
 use crate::protocol::config::ProjectTracking;
 use crate::protocol::message::Message;
 use crate::protocol::peer::{Peer, PeerError, PeerState};
 use crate::storage::{self, ReadRepository, WriteRepository};
-use crate::storage::{Inventory, ReadStorage, Remotes, WriteStorage};
+use crate::storage::{Inventory, ReadStorage, WriteStorage};
 
 pub use crate::protocol::config::{Config, Network};
 
@@ -546,7 +546,7 @@ impl<S, T, G> Iterator for Protocol<S, T, G> {
 #[derive(Debug)]
 pub struct Lookup {
     /// Whether the project was found locally or not.
-    pub local: Option<Remotes<crypto::Verified>>,
+    pub local: Option<Project>,
     /// A list of remote peers on which the project is known to exist.
     pub remote: Vec<NodeId>,
 }

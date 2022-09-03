@@ -2,7 +2,7 @@ use git_url::Url;
 
 use crate::crypto::Verified;
 use crate::git;
-use crate::identity::{ProjId, UserId};
+use crate::identity::{ProjId, Project, UserId};
 use crate::storage::refs;
 use crate::storage::{
     Error, Inventory, ReadRepository, ReadStorage, Remote, Remotes, WriteRepository, WriteStorage,
@@ -10,11 +10,11 @@ use crate::storage::{
 
 #[derive(Clone, Debug)]
 pub struct MockStorage {
-    pub inventory: Vec<(ProjId, Remotes<Verified>)>,
+    pub inventory: Vec<Project>,
 }
 
 impl MockStorage {
-    pub fn new(inventory: Vec<(ProjId, Remotes<Verified>)>) -> Self {
+    pub fn new(inventory: Vec<Project>) -> Self {
         Self { inventory }
     }
 
@@ -38,9 +38,9 @@ impl ReadStorage for MockStorage {
         }
     }
 
-    fn get(&self, proj: &ProjId) -> Result<Option<Remotes<Verified>>, Error> {
-        if let Some((_, refs)) = self.inventory.iter().find(|(id, _)| id == proj) {
-            return Ok(Some(refs.clone()));
+    fn get(&self, proj: &ProjId) -> Result<Option<Project>, Error> {
+        if let Some(proj) = self.inventory.iter().find(|p| p.id == *proj) {
+            return Ok(Some(proj.clone()));
         }
         Ok(None)
     }
@@ -49,7 +49,7 @@ impl ReadStorage for MockStorage {
         let inventory = self
             .inventory
             .iter()
-            .map(|(id, _)| id.clone())
+            .map(|proj| proj.id.clone())
             .collect::<Vec<_>>();
 
         Ok(inventory)

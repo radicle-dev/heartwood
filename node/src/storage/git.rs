@@ -5,14 +5,14 @@ use std::{fmt, fs, io};
 
 use git_ref_format::refspec;
 use once_cell::sync::Lazy;
-use radicle_git_ext as git_ext;
 
 pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
 use crate::crypto::{Signer, Verified};
 use crate::git;
-use crate::identity::{ProjId, UserId};
+use crate::identity::{self, IDENTITY_PATH};
+use crate::identity::{ProjId, Project, UserId};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
@@ -21,8 +21,7 @@ use crate::storage::{
 
 use super::RemoteId;
 
-pub static RADICLE_ID_REF: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("heads/radicle/id"));
+pub static RADICLE_ID_REF: Lazy<git::RefString> = Lazy::new(|| git::refname!("heads/radicle/id"));
 pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/remotes/*"));
 pub static SIGNATURES_GLOB: Lazy<refspec::PatternString> =
@@ -52,19 +51,26 @@ impl ReadStorage for Storage {
         }
     }
 
-    fn get(&self, id: &ProjId) -> Result<Option<Remotes<Verified>>, Error> {
+    fn get(&self, id: &ProjId) -> Result<Option<Project>, Error> {
         // TODO: Don't create a repo here if it doesn't exist?
-        //       Perhaps for checking we could have a `contains` method?
-        match self.repository(id) {
-            Ok(r) => {
-                let remotes = r.remotes()?;
-                if remotes.is_empty() {
-                    Ok(None)
-                } else {
-                    Ok(Some(remotes))
-                }
-            }
-            Err(e) => Err(e),
+        // Perhaps for checking we could have a `contains` method?
+        let local = self.user_id();
+        let repo = self.repository(id)?;
+
+        if let Some(doc) = repo.identity(local)? {
+            let remotes = repo.remotes()?;
+
+            // TODO: We should check that there is at least one remote, which is
+            // the one of the local user, otherwise it means the project is in
+            // an corrupted state.
+
+            Ok(Some(Project {
+                id: id.clone(),
+                doc,
+                remotes,
+            }))
+        } else {
+            Ok(None)
         }
     }
 
@@ -163,7 +169,7 @@ pub struct Repository {
 impl Repository {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let backend = match git2::Repository::open_bare(path.as_ref()) {
-            Err(e) if git_ext::is_not_found_err(&e) => {
+            Err(e) if git::ext::is_not_found_err(&e) => {
                 let backend = git2::Repository::init_opts(
                     path,
                     git2::RepositoryInitOptions::new()
@@ -196,6 +202,23 @@ impl Repository {
         }
         Ok(())
     }
+
+    pub fn identity(&self, remote: &RemoteId) -> Result<Option<identity::Doc>, refs::Error> {
+        let oid = if let Some(oid) = self.reference_oid(remote, &RADICLE_ID_REF)? {
+            oid
+        } else {
+            return Ok(None);
+        };
+
+        let doc = match self.blob_at(oid, Path::new(&*IDENTITY_PATH)) {
+            Err(git::ext::Error::NotFound(_)) => return Ok(None),
+            Err(e) => return Err(e.into()),
+            Ok(doc) => doc,
+        };
+        let doc = identity::Doc::from_toml(doc.content()).unwrap();
+
+        Ok(Some(doc))
+    }
 }
 
 impl ReadRepository for Repository {
@@ -203,8 +226,8 @@ impl ReadRepository for Repository {
         self.backend.path()
     }
 
-    fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git_ext::Error> {
-        git_ext::Blob::At {
+    fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git::ext::Error> {
+        git::ext::Blob::At {
             object: oid.into(),
             path,
         }
@@ -218,7 +241,7 @@ impl ReadRepository for Repository {
     ) -> Result<Option<git2::Reference>, git2::Error> {
         let name = format!("refs/remotes/{remote}/{name}");
         self.backend.find_reference(&name).map(Some).or_else(|e| {
-            if git_ext::is_not_found_err(&e) {
+            if git::ext::is_not_found_err(&e) {
                 Ok(None)
             } else {
                 Err(e)
@@ -228,10 +251,10 @@ impl ReadRepository for Repository {
 
     fn reference_oid(
         &self,
-        user: &RemoteId,
+        remote: &RemoteId,
         reference: &git::RefStr,
     ) -> Result<Option<Oid>, git2::Error> {
-        let reference = self.reference(user, reference)?;
+        let reference = self.reference(remote, reference)?;
         Ok(reference.and_then(|r| r.target().map(|o| o.into())))
     }
 

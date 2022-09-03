@@ -7,8 +7,9 @@ use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::crypto;
+use crate::crypto::{self, Verified};
 use crate::hash;
+use crate::storage::Remotes;
 
 pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new("Radicle.toml"));
 
@@ -86,6 +87,17 @@ impl fmt::Display for Did {
     }
 }
 
+/// A stored and verified project.
+#[derive(Debug, Clone)]
+pub struct Project {
+    /// The project identifier.
+    pub id: ProjId,
+    /// The latest project identity document.
+    pub doc: Doc,
+    /// The project remotes.
+    pub remotes: Remotes<Verified>,
+}
+
 #[derive(Error, Debug)]
 pub enum DocError {
     #[error("toml: {0}")]
@@ -94,20 +106,20 @@ pub enum DocError {
     Io(#[from] io::Error),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Delegate {
     pub name: String,
     pub id: Did,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Doc {
     pub name: String,
     pub description: String,
     pub default_branch: String,
     pub version: u32,
     pub parent: Option<Oid>,
-    pub delegate: NonEmpty<Delegate>,
+    pub delegates: NonEmpty<Delegate>,
 }
 
 impl Doc {
@@ -119,6 +131,10 @@ impl Doc {
         writer.write_all(buf.as_bytes())?;
 
         Ok(id)
+    }
+
+    pub fn from_toml(bytes: &[u8]) -> Result<Self, toml::de::Error> {
+        toml::from_slice(bytes)
     }
 }
 

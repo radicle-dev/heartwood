@@ -52,7 +52,7 @@ pub fn init<S: storage::WriteStorage>(
         default_branch: default_branch.clone(),
         version: 1,
         parent: None,
-        delegate: NonEmpty::new(delegate),
+        delegates: NonEmpty::new(delegate),
     };
 
     let filename = *identity::IDENTITY_PATH;
@@ -123,7 +123,9 @@ pub fn init<S: storage::WriteStorage>(
 mod tests {
     use super::*;
     use crate::git;
+    use crate::identity::{Delegate, Did};
     use crate::storage::git::Storage;
+    use crate::storage::ReadStorage;
     use crate::test::crypto;
 
     #[test]
@@ -137,7 +139,7 @@ mod tests {
         let head = git::commit(&repo, &head, "Second commit", "anonymous").unwrap();
         let _branch = repo.branch("master", &head, false).unwrap();
 
-        let (_id, _refs) = init(
+        let (id, refs) = init(
             &repo,
             "acme",
             "Acme's repo",
@@ -145,5 +147,20 @@ mod tests {
             &mut storage,
         )
         .unwrap();
+
+        let project = storage.get(&id).unwrap().unwrap();
+
+        assert_eq!(project.remotes[storage.user_id()].refs, refs);
+        assert_eq!(project.id, id);
+        assert_eq!(project.doc.name, "acme");
+        assert_eq!(project.doc.description, "Acme's repo");
+        assert_eq!(project.doc.default_branch, BranchName::from("master"));
+        assert_eq!(
+            project.doc.delegates.first(),
+            &Delegate {
+                name: String::from("anonymous"),
+                id: Did::from(*storage.user_id()),
+            }
+        );
     }
 }

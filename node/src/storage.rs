@@ -18,7 +18,7 @@ use crate::crypto::{self, Unverified, Verified};
 use crate::git::Url;
 use crate::git::{RefError, RefStr};
 use crate::identity;
-use crate::identity::{ProjId, ProjIdError, UserId};
+use crate::identity::{ProjId, ProjIdError, Project, UserId};
 use crate::storage::refs::Refs;
 
 use self::refs::SignedRefs;
@@ -168,7 +168,7 @@ impl Remote<Verified> {
 pub trait ReadStorage {
     fn user_id(&self) -> &UserId;
     fn url(&self) -> Url;
-    fn get(&self, proj: &ProjId) -> Result<Option<Remotes<Verified>>, Error>;
+    fn get(&self, proj: &ProjId) -> Result<Option<Project>, Error>;
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
@@ -215,7 +215,7 @@ where
         self.deref().inventory()
     }
 
-    fn get(&self, proj: &ProjId) -> Result<Option<Remotes<Verified>>, Error> {
+    fn get(&self, proj: &ProjId) -> Result<Option<Project>, Error> {
         self.deref().get(proj)
     }
 }
