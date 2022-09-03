@@ -214,7 +214,7 @@ impl ReadRepository for Repository {
     fn reference(
         &self,
         remote: &RemoteId,
-        name: &str,
+        name: &git::RefStr,
     ) -> Result<Option<git2::Reference>, git2::Error> {
         let name = format!("refs/remotes/{remote}/{name}");
         self.backend.find_reference(&name).map(Some).or_else(|e| {
@@ -226,7 +226,11 @@ impl ReadRepository for Repository {
         })
     }
 
-    fn reference_oid(&self, user: &RemoteId, reference: &str) -> Result<Option<Oid>, git2::Error> {
+    fn reference_oid(
+        &self,
+        user: &RemoteId,
+        reference: &git::RefStr,
+    ) -> Result<Option<Oid>, git2::Error> {
         let reference = self.reference(user, reference)?;
         Ok(reference.and_then(|r| r.target().map(|o| o.into())))
     }
@@ -249,7 +253,7 @@ impl ReadRepository for Repository {
             let (_, refname) = git::parse_ref::<RemoteId>(name)?;
             let oid = e.target().ok_or(Error::InvalidRef)?;
 
-            refs.insert(refname.to_string(), oid.into());
+            refs.insert(refname, oid.into());
         }
         Ok(refs.into())
     }
@@ -338,7 +342,7 @@ mod tests {
 
         // Strip the remote refs of sigrefs so we can compare them.
         for remote in refs.values_mut() {
-            remote.remove(SIGNATURE_REF).unwrap();
+            remote.remove(&*SIGNATURE_REF).unwrap();
         }
         assert_eq!(refs, remotes.into());
     }
@@ -351,7 +355,7 @@ mod tests {
         let inventory = alice.inventory().unwrap();
         let proj = inventory.first().unwrap();
         let remotes = alice.repository(proj).unwrap().remotes().unwrap();
-        let refname = "heads/master";
+        let refname = git::refname!("heads/master");
 
         // Have Bob fetch Alice's refs.
         bob.repository(proj)
@@ -366,10 +370,10 @@ mod tests {
 
         for (id, _) in remotes.into_iter() {
             let alice_repo = alice.repository(proj).unwrap();
-            let alice_oid = alice_repo.reference(&id, refname).unwrap().unwrap();
+            let alice_oid = alice_repo.reference(&id, &refname).unwrap().unwrap();
 
             let bob_repo = bob.repository(proj).unwrap();
-            let bob_oid = bob_repo.reference(&id, refname).unwrap().unwrap();
+            let bob_oid = bob_repo.reference(&id, &refname).unwrap().unwrap();
 
             assert_eq!(alice_oid.target(), bob_oid.target());
         }
@@ -403,7 +407,7 @@ mod tests {
         let mut unsigned = project.references(&alice).unwrap();
 
         // The signed refs doesn't contain the signature ref itself.
-        unsigned.remove(SIGNATURE_REF).unwrap();
+        unsigned.remove(&*SIGNATURE_REF).unwrap();
 
         assert_eq!(remote.refs, signed);
         assert_eq!(*remote.refs, unsigned);

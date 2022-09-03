@@ -7,6 +7,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::str::FromStr;
 
+use once_cell::sync::Lazy;
 use radicle_git_ext as git_ext;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -18,7 +19,7 @@ use crate::git::Oid;
 use crate::storage;
 use crate::storage::{ReadRepository, RemoteId, WriteRepository};
 
-pub const SIGNATURE_REF: &str = "radicle/signature";
+pub static SIGNATURE_REF: Lazy<git::RefString> = Lazy::new(|| git::refname!("radicle/signature"));
 pub const REFS_BLOB_PATH: &str = "refs";
 pub const SIGNATURE_BLOB_PATH: &str = "signature";
 
@@ -51,7 +52,7 @@ pub enum Error {
 
 /// The published state of a local repository.
 #[derive(Default, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Refs(BTreeMap<String, Oid>);
+pub struct Refs(BTreeMap<git::RefString, Oid>);
 
 impl Refs {
     /// Verify the given signature on these refs, and return [`SignedRefs`] on success.
@@ -100,7 +101,7 @@ impl Refs {
                 .split_once(' ')
                 .ok_or(canonical::Error::InvalidFormat)?;
 
-            let name = name.to_owned();
+            let name = git::RefString::try_from(name)?;
             let oid = Oid::from_str(oid)?;
 
             refs.insert(name, oid);
@@ -110,7 +111,7 @@ impl Refs {
 
     pub fn canonical(&self) -> Vec<u8> {
         let mut buf = String::new();
-        let refs = self.iter().filter(|(name, _)| *name != SIGNATURE_REF);
+        let refs = self.iter().filter(|(name, _)| *name != &*SIGNATURE_REF);
 
         for (name, oid) in refs {
             buf.push_str(&oid.to_string());
@@ -122,7 +123,7 @@ impl Refs {
     }
 }
 
-impl From<Refs> for BTreeMap<String, Oid> {
+impl From<Refs> for BTreeMap<git::RefString, Oid> {
     fn from(refs: Refs) -> Self {
         refs.0
     }
@@ -134,14 +135,14 @@ impl<V> From<SignedRefs<V>> for Refs {
     }
 }
 
-impl From<BTreeMap<String, Oid>> for Refs {
-    fn from(refs: BTreeMap<String, Oid>) -> Self {
+impl From<BTreeMap<git::RefString, Oid>> for Refs {
+    fn from(refs: BTreeMap<git::RefString, Oid>) -> Self {
         Self(refs)
     }
 }
 
 impl Deref for Refs {
-    type Target = BTreeMap<String, Oid>;
+    type Target = BTreeMap<git::RefString, Oid>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -196,7 +197,7 @@ impl SignedRefs<Verified> {
     where
         S: ReadRepository,
     {
-        if let Some(oid) = repo.reference_oid(remote, SIGNATURE_REF)? {
+        if let Some(oid) = repo.reference_oid(remote, &SIGNATURE_REF)? {
             Self::load_at(oid, remote, repo)
         } else {
             Err(Error::NotFound)
@@ -233,8 +234,9 @@ impl SignedRefs<Verified> {
         remote: &RemoteId,
         repo: &S,
     ) -> Result<Updated, Error> {
+        let sigref = &*SIGNATURE_REF;
         let parent: Option<git2::Commit> = repo
-            .reference(remote, SIGNATURE_REF)?
+            .reference(remote, sigref)?
             .map(|r| r.peel_to_commit())
             .transpose()?;
 
@@ -260,13 +262,13 @@ impl SignedRefs<Verified> {
             }
         }
 
-        let sigref = format!("refs/remotes/{remote}/{SIGNATURE_REF}");
+        let sigref = format!("refs/remotes/{remote}/{sigref}");
         let author = repo.raw().signature()?;
         let commit = repo.raw().commit(
             Some(&sigref),
             &author,
             &author,
-            &format!("Update {} for {}", SIGNATURE_REF, remote),
+            &format!("Update {} for {}", sigref, remote),
             &tree,
             &parent.iter().collect::<Vec<&git2::Commit>>(),
         );
@@ -306,6 +308,8 @@ pub mod canonical {
 
     #[derive(Debug, thiserror::Error)]
     pub enum Error {
+        #[error(transparent)]
+        InvalidRef(#[from] git_ref_format::Error),
         #[error("invalid canonical format")]
         InvalidFormat,
         #[error(transparent)]
@@ -325,10 +329,6 @@ mod tests {
         let encoded = refs.canonical();
         let decoded = Refs::from_canonical(&encoded).unwrap();
 
-        println!("{:?}", refs);
-
         assert_eq!(refs, decoded);
     }
 }
-
-// TODO: Test canonical/from_canonical

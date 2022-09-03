@@ -15,8 +15,8 @@ pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
 use crate::crypto::{self, Unverified, Verified};
-use crate::git::RefError;
 use crate::git::Url;
+use crate::git::{RefError, RefStr};
 use crate::identity;
 use crate::identity::{ProjId, ProjIdError, UserId};
 use crate::storage::refs::Refs;
@@ -48,7 +48,6 @@ pub enum Error {
 }
 
 pub type RemoteId = UserId;
-pub type RefName = String;
 
 /// Project remotes. Tracks the git state of a project.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -186,9 +185,9 @@ pub trait ReadRepository {
     fn reference(
         &self,
         user: &UserId,
-        reference: &str,
+        reference: &RefStr,
     ) -> Result<Option<git2::Reference>, git2::Error>;
-    fn reference_oid(&self, user: &UserId, reference: &str) -> Result<Option<Oid>, git2::Error>;
+    fn reference_oid(&self, user: &UserId, reference: &RefStr) -> Result<Option<Oid>, git2::Error>;
     fn references(&self, user: &UserId) -> Result<Refs, Error>;
     fn remote(&self, user: &UserId) -> Result<Remote<Verified>, refs::Error>;
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;

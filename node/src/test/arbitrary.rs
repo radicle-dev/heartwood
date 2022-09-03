@@ -7,6 +7,7 @@ use quickcheck::Arbitrary;
 use crate::collections::HashMap;
 use crate::crypto::{self, Signer};
 use crate::crypto::{PublicKey, SecretKey};
+use crate::git;
 use crate::hash;
 use crate::identity::ProjId;
 use crate::storage;
@@ -50,7 +51,7 @@ impl Arbitrary for MockStorage {
 
 impl Arbitrary for Refs {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let mut refs: BTreeMap<storage::RefName, storage::Oid> = BTreeMap::new();
+        let mut refs: BTreeMap<git::RefString, storage::Oid> = BTreeMap::new();
         let mut bytes: [u8; 20] = [0; 20];
         let names = &[
             "heads/master",
@@ -69,7 +70,9 @@ impl Arbitrary for Refs {
                     *byte = u8::arbitrary(g);
                 }
                 let oid = storage::Oid::try_from(&bytes[..]).unwrap();
-                refs.insert(name.to_string(), oid);
+                let name = git::RefString::try_from(*name).unwrap();
+
+                refs.insert(name, oid);
             }
         }
         Self::from(refs)

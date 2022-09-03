@@ -9,6 +9,7 @@ use crate::storage::refs::Refs;
 use crate::storage::RemoteId;
 
 pub use git_ext::Oid;
+pub use git_ref_format::{refname, RefStr, RefString};
 pub use git_url::Url;
 
 /// Default port of the `git` transport protocol.
@@ -43,7 +44,7 @@ pub fn remote_refs(url: &Url) -> Result<HashMap<RemoteId, Refs>, ListRefsError> 
         let (id, refname) = parse_ref::<UserId>(r.name())?;
         let entry = remotes.entry(id).or_insert_with(Refs::default);
 
-        entry.insert(refname.to_string(), r.oid().into());
+        entry.insert(refname, r.oid().into());
     }
 
     Ok(remotes)

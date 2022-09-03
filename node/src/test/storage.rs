@@ -1,6 +1,7 @@
 use git_url::Url;
 
 use crate::crypto::Verified;
+use crate::git;
 use crate::identity::{ProjId, UserId};
 use crate::storage::refs;
 use crate::storage::{
@@ -96,7 +97,7 @@ impl ReadRepository for MockRepository {
     fn reference(
         &self,
         _user: &UserId,
-        _reference: &str,
+        _reference: &git::RefStr,
     ) -> Result<Option<git2::Reference>, git2::Error> {
         todo!()
     }
@@ -104,7 +105,7 @@ impl ReadRepository for MockRepository {
     fn reference_oid(
         &self,
         _user: &UserId,
-        _reference: &str,
+        _reference: &git::RefStr,
     ) -> Result<Option<radicle_git_ext::Oid>, git2::Error> {
         todo!()
     }
