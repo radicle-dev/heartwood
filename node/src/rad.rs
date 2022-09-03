@@ -1,4 +1,4 @@
-use std::{fs, io};
+use std::io;
 
 use git_url::Url;
 use nonempty::NonEmpty;
@@ -9,7 +9,7 @@ use crate::git;
 use crate::identity::ProjId;
 use crate::storage::git::RADICLE_ID_REF;
 use crate::storage::refs::SignedRefs;
-use crate::storage::{BranchName, ReadRepository as _};
+use crate::storage::{BranchName, ReadRepository as _, WriteRepository as _};
 use crate::{identity, storage};
 
 pub const REMOTE_NAME: &str = "rad";
@@ -54,38 +54,10 @@ pub fn init<S: storage::WriteStorage>(
         parent: None,
         delegate: NonEmpty::new(delegate),
     };
-    let sig = repo
-        .signature()
-        .or_else(|_| git2::Signature::now("anonymous", user_id.to_string().as_str()))?;
 
     let filename = *identity::IDENTITY_PATH;
-    let path = repo.workdir().ok_or(InitError::BareRepo)?.join(filename);
-    let file = fs::OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&path)?;
-    let id = doc.write(file)?;
-
-    let mut index = repo.index()?;
-    index.add_path(filename)?;
-
-    let rad_id_ref = RADICLE_ID_REF.as_str();
-    let tree_id = index.write_tree()?;
-    let tree = repo.find_tree(tree_id)?;
-    let _oid = repo.commit(
-        Some(rad_id_ref),
-        &sig,
-        &sig,
-        "Initialize Radicle",
-        &tree,
-        &[],
-    )?;
-
-    // Remove identity document from current branch.
-    // FIXME: We shouldn't have to do this, as the user may have an unrelated file
-    // called the same name. Ideally we are able to create the file in the id branch.
-    fs::remove_file(path)?;
-
+    let mut doc_bytes = Vec::new();
+    let id = doc.write(&mut doc_bytes)?;
     let project = storage.repository(&id)?;
     let url = Url {
         scheme: git_url::Scheme::File,
@@ -93,6 +65,33 @@ pub fn init<S: storage::WriteStorage>(
 
         ..Url::default()
     };
+
+    {
+        // Within this scope, redefine `repo` to refer to the project storage,
+        // since we're going to create the identity file there, and not in there
+        // working copy.
+        //
+        // You can checkout this branch in your working copy with:
+        //
+        //      git fetch rad
+        //      git checkout -b radicle/id remotes/rad/radicle/id
+        //
+        let repo = project.raw();
+        let tree = {
+            let id_blob = repo.blob(&doc_bytes)?;
+            let mut builder = repo.treebuilder(None)?;
+            builder.insert(filename, id_blob, 0o100_644)?;
+
+            let tree_id = builder.write()?;
+            repo.find_tree(tree_id)
+        }?;
+        let sig = repo
+            .signature()
+            .or_else(|_| git2::Signature::now("radicle", user_id.to_string().as_str()))?;
+
+        let id_ref = format!("refs/remotes/{user_id}/{}", &*RADICLE_ID_REF);
+        let _oid = repo.commit(Some(&id_ref), &sig, &sig, "Initialize Radicle", &tree, &[])?;
+    }
 
     let fetch = format!("+refs/remotes/{user_id}/heads/*:refs/remotes/rad/*");
     let push = format!("refs/heads/*:refs/remotes/{user_id}/heads/*");
@@ -110,10 +109,9 @@ pub fn init<S: storage::WriteStorage>(
     // `push_update_reference` to test whether all the references were pushed
     // successfully.
     remote.push::<&str>(
-        &[
-            &format!("refs/heads/{default_branch}:refs/remotes/{user_id}/heads/{default_branch}"),
-            &format!("{rad_id_ref}:refs/remotes/{user_id}/heads/rad/id"),
-        ],
+        &[&format!(
+            "refs/heads/{default_branch}:refs/remotes/{user_id}/heads/{default_branch}"
+        )],
         None,
     )?;
     let signed = storage.sign_refs(&project)?;
