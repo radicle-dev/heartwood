@@ -24,7 +24,7 @@ use crate::protocol::config::ProjectTracking;
 use crate::protocol::message::Message;
 use crate::protocol::peer::{Peer, PeerError, PeerState};
 use crate::storage::{self, ReadRepository, WriteRepository};
-use crate::storage::{Inventory, ReadStorage, WriteStorage};
+use crate::storage::{Inventory, WriteStorage};
 
 pub use crate::protocol::config::{Config, Network};
 
@@ -81,7 +81,7 @@ pub struct Protocol<S, T, G> {
     start_time: LocalTime,
 }
 
-impl<T: ReadStorage + WriteStorage, S: address_book::Store, G: crypto::Signer> Protocol<S, T, G> {
+impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protocol<S, T, G> {
     pub fn new(
         config: Config,
         clock: RefClock,
@@ -253,9 +253,9 @@ impl<T: ReadStorage + WriteStorage, S: address_book::Store, G: crypto::Signer> P
     }
 }
 
-impl<S, T, G> nakamoto::Protocol for Protocol<S, T, G>
+impl<'r, S, T, G> nakamoto::Protocol for Protocol<S, T, G>
 where
-    T: ReadStorage + WriteStorage + 'static,
+    T: WriteStorage<'r> + 'static,
     S: address_book::Store,
     G: crypto::Signer,
 {
@@ -572,9 +572,9 @@ pub struct Context<S, T, G> {
     rng: Rng,
 }
 
-impl<S, T, G> Context<S, T, G>
+impl<'r, S, T, G> Context<S, T, G>
 where
-    T: storage::ReadStorage + storage::WriteStorage,
+    T: storage::WriteStorage<'r>,
     G: crypto::Signer,
 {
     pub(crate) fn new(

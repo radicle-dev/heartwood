@@ -5,7 +5,7 @@ use crate::git;
 use crate::identity::{ProjId, Project, UserId};
 use crate::storage::refs;
 use crate::storage::{
-    Error, Inventory, ReadRepository, ReadStorage, Remote, Remotes, WriteRepository, WriteStorage,
+    Error, Inventory, ReadRepository, ReadStorage, Remote, RemoteId, WriteRepository, WriteStorage,
 };
 
 #[derive(Clone, Debug)]
@@ -56,7 +56,7 @@ impl ReadStorage for MockStorage {
     }
 }
 
-impl WriteStorage for MockStorage {
+impl WriteStorage<'_> for MockStorage {
     type Repository = MockRepository;
 
     fn repository(&self, _proj: &ProjId) -> Result<Self::Repository, Error> {
@@ -73,7 +73,13 @@ impl WriteStorage for MockStorage {
 
 pub struct MockRepository {}
 
-impl ReadRepository for MockRepository {
+impl ReadRepository<'_> for MockRepository {
+    type Remotes = std::iter::Empty<Result<(RemoteId, Remote<Verified>), refs::Error>>;
+
+    fn is_empty(&self) -> Result<bool, git2::Error> {
+        Ok(true)
+    }
+
     fn path(&self) -> &std::path::Path {
         todo!()
     }
@@ -82,7 +88,7 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
+    fn remotes(&self) -> Result<Self::Remotes, git2::Error> {
         todo!()
     }
 
@@ -115,7 +121,7 @@ impl ReadRepository for MockRepository {
     }
 }
 
-impl WriteRepository for MockRepository {
+impl WriteRepository<'_> for MockRepository {
     fn fetch(&mut self, _url: &Url) -> Result<(), git2::Error> {
         Ok(())
     }

@@ -8,7 +8,6 @@ use once_cell::sync::Lazy;
 
 pub use radicle_git_ext::Oid;
 
-use crate::collections::HashMap;
 use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::{self, IDENTITY_PATH};
@@ -16,7 +15,7 @@ use crate::identity::{ProjId, Project, UserId};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
-    Error, Inventory, ReadRepository, ReadStorage, Remote, Remotes, WriteRepository, WriteStorage,
+    Error, Inventory, ReadRepository, ReadStorage, Remote, WriteRepository, WriteStorage,
 };
 
 use super::RemoteId;
@@ -58,7 +57,7 @@ impl ReadStorage for Storage {
         let repo = self.repository(id)?;
 
         if let Some(doc) = repo.identity(local)? {
-            let remotes = repo.remotes()?;
+            let remotes = repo.remotes()?.collect::<Result<_, _>>()?;
 
             // TODO: We should check that there is at least one remote, which is
             // the one of the local user, otherwise it means the project is in
@@ -79,7 +78,7 @@ impl ReadStorage for Storage {
     }
 }
 
-impl WriteStorage for Storage {
+impl<'r> WriteStorage<'r> for Storage {
     type Repository = Repository;
 
     fn repository(&self, proj: &ProjId) -> Result<Self::Repository, Error> {
@@ -221,7 +220,14 @@ impl Repository {
     }
 }
 
-impl ReadRepository for Repository {
+impl<'r> ReadRepository<'r> for Repository {
+    type Remotes = Box<dyn Iterator<Item = Result<(RemoteId, Remote<Verified>), refs::Error>> + 'r>;
+
+    fn is_empty(&self) -> Result<bool, git2::Error> {
+        let some = self.remotes()?.next().is_some();
+        Ok(!some)
+    }
+
     fn path(&self) -> &Path {
         self.backend.path()
     }
@@ -281,24 +287,23 @@ impl ReadRepository for Repository {
         Ok(refs.into())
     }
 
-    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
-        // TODO: Should use the id glob here instead of signature.
-        let refs = self.backend.references_glob(SIGNATURES_GLOB.as_str())?;
-        let mut remotes = HashMap::default();
+    fn remotes(&'r self) -> Result<Self::Remotes, git2::Error> {
+        let iter = self.backend.references_glob(SIGNATURES_GLOB.as_str())?.map(
+            |reference| -> Result<(RemoteId, Remote<Verified>), refs::Error> {
+                let r = reference?;
+                let name = r.name().ok_or(refs::Error::InvalidRef)?;
+                let (id, _) = git::parse_ref::<RemoteId>(name)?;
+                let remote = self.remote(&id)?;
 
-        for r in refs {
-            let r = r?;
-            let name = r.name().ok_or(refs::Error::InvalidRef)?;
-            let (id, _) = git::parse_ref::<RemoteId>(name)?;
-            let remote = self.remote(&id)?;
+                Ok((id, remote))
+            },
+        );
 
-            remotes.insert(id, remote);
-        }
-        Ok(Remotes::new(remotes))
+        Ok(Box::new(iter))
     }
 }
 
-impl WriteRepository for Repository {
+impl<'r> WriteRepository<'r> for Repository {
     /// Fetch all remotes of a project from the given URL.
     fn fetch(&mut self, url: &git::Url) -> Result<(), git2::Error> {
         // TODO: Have function to fetch specific remotes.
@@ -367,7 +372,13 @@ mod tests {
         for remote in refs.values_mut() {
             remote.remove(&*SIGNATURE_REF).unwrap();
         }
-        assert_eq!(refs, remotes.into());
+
+        let remotes = remotes
+            .map(|remote| remote.map(|(id, r): (RemoteId, Remote<Verified>)| (id, r.refs.into())))
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        assert_eq!(refs, remotes);
     }
 
     #[test]
@@ -377,7 +388,8 @@ mod tests {
         let bob = Storage::open(tmp.path().join("bob"), MockSigner::default()).unwrap();
         let inventory = alice.inventory().unwrap();
         let proj = inventory.first().unwrap();
-        let remotes = alice.repository(proj).unwrap().remotes().unwrap();
+        let repo = alice.repository(proj).unwrap();
+        let remotes = repo.remotes().unwrap();
         let refname = git::refname!("heads/master");
 
         // Have Bob fetch Alice's refs.
@@ -391,7 +403,8 @@ mod tests {
             })
             .unwrap();
 
-        for (id, _) in remotes.into_iter() {
+        for remote in remotes {
+            let (id, _) = remote.unwrap();
             let alice_repo = alice.repository(proj).unwrap();
             let alice_oid = alice_repo.reference(&id, &refname).unwrap().unwrap();
 

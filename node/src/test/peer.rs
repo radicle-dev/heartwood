@@ -13,7 +13,7 @@ use crate::decoder::Decoder;
 use crate::protocol::config::*;
 use crate::protocol::message::*;
 use crate::protocol::*;
-use crate::storage::{ReadStorage, WriteStorage};
+use crate::storage::WriteStorage;
 use crate::test::crypto::MockSigner;
 use crate::*;
 
@@ -32,9 +32,9 @@ pub struct Peer<S> {
     initialized: bool,
 }
 
-impl<S> simulator::Peer<Protocol<S>> for Peer<S>
+impl<'r, S> simulator::Peer<Protocol<S>> for Peer<S>
 where
-    S: ReadStorage + WriteStorage + 'static,
+    S: WriteStorage<'r> + 'static,
 {
     fn init(&mut self) {
         self.initialize()
@@ -59,9 +59,9 @@ impl<S> DerefMut for Peer<S> {
     }
 }
 
-impl<S> Peer<S>
+impl<'r, S> Peer<S>
 where
-    S: ReadStorage + WriteStorage + 'static,
+    S: WriteStorage<'r> + 'static,
 {
     pub fn new(name: &'static str, ip: impl Into<net::IpAddr>, storage: S) -> Self {
         Self::config(

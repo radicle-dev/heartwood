@@ -95,13 +95,13 @@ impl Peer {
         self.attempts = 0;
     }
 
-    pub fn received<S, T, G>(
+    pub fn received<'r, S, T, G>(
         &mut self,
         envelope: Envelope,
         ctx: &mut Context<S, T, G>,
     ) -> Result<Option<Message>, PeerError>
     where
-        T: storage::ReadStorage + storage::WriteStorage,
+        T: storage::WriteStorage<'r>,
         G: crypto::Signer,
     {
         if envelope.magic != ctx.config.network.magic() {

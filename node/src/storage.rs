@@ -53,6 +53,12 @@ pub type RemoteId = UserId;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Remotes<V>(HashMap<RemoteId, Remote<V>>);
 
+impl<V> FromIterator<(RemoteId, Remote<V>)> for Remotes<V> {
+    fn from_iter<T: IntoIterator<Item = (RemoteId, Remote<V>)>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
 impl<V> Deref for Remotes<V> {
     type Target = HashMap<RemoteId, Remote<V>>;
 
@@ -159,14 +165,17 @@ pub trait ReadStorage {
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
-pub trait WriteStorage: ReadStorage {
-    type Repository: WriteRepository;
+pub trait WriteStorage<'r>: ReadStorage {
+    type Repository: WriteRepository<'r>;
 
     fn repository(&self, proj: &ProjId) -> Result<Self::Repository, Error>;
     fn sign_refs(&self, repository: &Self::Repository) -> Result<SignedRefs<Verified>, Error>;
 }
 
-pub trait ReadRepository {
+pub trait ReadRepository<'r> {
+    type Remotes: Iterator<Item = Result<(RemoteId, Remote<Verified>), refs::Error>> + 'r;
+
+    fn is_empty(&self) -> Result<bool, git2::Error>;
     fn path(&self) -> &Path;
     fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git_ext::Error>;
     fn reference(
@@ -177,10 +186,10 @@ pub trait ReadRepository {
     fn reference_oid(&self, user: &UserId, reference: &RefStr) -> Result<Option<Oid>, git2::Error>;
     fn references(&self, user: &UserId) -> Result<Refs, Error>;
     fn remote(&self, user: &UserId) -> Result<Remote<Verified>, refs::Error>;
-    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;
+    fn remotes(&'r self) -> Result<Self::Remotes, git2::Error>;
 }
 
-pub trait WriteRepository: ReadRepository {
+pub trait WriteRepository<'r>: ReadRepository<'r> {
     fn fetch(&mut self, url: &Url) -> Result<(), git2::Error>;
     fn raw(&self) -> &git2::Repository;
 }
@@ -207,10 +216,10 @@ where
     }
 }
 
-impl<T, S> WriteStorage for T
+impl<'r, T, S> WriteStorage<'r> for T
 where
     T: DerefMut<Target = S>,
-    S: WriteStorage + 'static,
+    S: WriteStorage<'r> + 'static,
 {
     type Repository = S::Repository;
 

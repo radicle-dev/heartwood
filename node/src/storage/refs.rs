@@ -193,9 +193,9 @@ impl SignedRefs<Unverified> {
 }
 
 impl SignedRefs<Verified> {
-    pub fn load<S>(remote: &RemoteId, repo: &S) -> Result<Self, Error>
+    pub fn load<'r, S>(remote: &RemoteId, repo: &S) -> Result<Self, Error>
     where
-        S: ReadRepository,
+        S: ReadRepository<'r>,
     {
         if let Some(oid) = repo.reference_oid(remote, &SIGNATURE_REF)? {
             Self::load_at(oid, remote, repo)
@@ -204,9 +204,9 @@ impl SignedRefs<Verified> {
         }
     }
 
-    pub fn load_at<S>(oid: Oid, remote: &RemoteId, repo: &S) -> Result<Self, Error>
+    pub fn load_at<'r, S>(oid: Oid, remote: &RemoteId, repo: &S) -> Result<Self, Error>
     where
-        S: storage::ReadRepository,
+        S: storage::ReadRepository<'r>,
     {
         let refs = repo.blob_at(oid, Path::new(REFS_BLOB_PATH))?;
         let signature = repo.blob_at(oid, Path::new(SIGNATURE_BLOB_PATH))?;
@@ -228,7 +228,7 @@ impl SignedRefs<Verified> {
 
     /// Save the signed refs to disk.
     /// This creates a new commit on the signed refs branch, and updates the branch pointer.
-    pub fn save<S: WriteRepository>(
+    pub fn save<'r, S: WriteRepository<'r>>(
         &self,
         // TODO: This should be part of the signed refs.
         remote: &RemoteId,

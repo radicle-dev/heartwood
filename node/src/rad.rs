@@ -33,7 +33,7 @@ pub enum InitError {
 }
 
 /// Initialize a new radicle project from a git repository.
-pub fn init<S: storage::WriteStorage>(
+pub fn init<'r, S: storage::WriteStorage<'r>>(
     repo: &git2::Repository,
     name: &str,
     description: &str,
