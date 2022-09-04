@@ -56,6 +56,8 @@ pub enum Event {}
 pub enum FetchError {
     #[error(transparent)]
     Git(#[from] git2::Error),
+    #[error(transparent)]
+    Storage(#[from] storage::Error),
 }
 
 /// Result of looking up providers in our routing table.
@@ -66,6 +68,7 @@ pub enum FetchLookup {
         results: chan::Receiver<FetchResult>,
     },
     NotFound,
+    Error(FetchError),
 }
 
 /// Result of a fetch request from a specific provider.
@@ -358,53 +361,55 @@ where
             Command::Connect(addr) => self.context.connect(addr),
             Command::Fetch(proj, resp) => {
                 let providers = self.providers(&proj).collect::<Vec<_>>();
-
-                if let Some(providers) = NonEmpty::from_vec(providers) {
-                    log::debug!("Found {} providers for {}", providers.len(), proj);
-
-                    let (results_, results) = chan::bounded(providers.len());
-                    {
-                        let (_, head) = &providers.head;
-                        let tail = providers
-                            .tail()
-                            .iter()
-                            .map(|(_, peer)| peer.addr)
-                            .collect::<Vec<_>>();
-
-                        resp.send(FetchLookup::Found {
-                            providers: NonEmpty::from((head.addr, tail)),
-                            results,
-                        })
-                        .ok();
-                    }
-
-                    let mut repo = self.storage.repository(&proj).unwrap();
-                    // TODO: Limit the number of providers we fetch from? Randomize?
-                    for (_, peer) in providers {
-                        match repo.fetch(&Url {
-                            scheme: git_url::Scheme::Git,
-                            host: Some(peer.addr.ip().to_string()),
-                            port: Some(peer.addr.port()),
-                            // TODO: Fix upstream crate so that it adds a `/` when needed.
-                            path: format!("/{}", proj).into(),
-                            ..Url::default()
-                        }) {
-                            Ok(()) => {
-                                results_.send(FetchResult::Fetched { from: peer.addr }).ok();
-                            }
-                            Err(err) => {
-                                results_
-                                    .send(FetchResult::Error {
-                                        from: peer.addr,
-                                        error: err.into(),
-                                    })
-                                    .ok();
-                            }
-                        }
-                    }
+                let providers = if let Some(providers) = NonEmpty::from_vec(providers) {
+                    providers
                 } else {
                     log::error!("No providers found for {}", proj);
                     resp.send(FetchLookup::NotFound).ok();
+
+                    return;
+                };
+                log::debug!("Found {} providers for {}", providers.len(), proj);
+
+                let mut repo = match self.storage.repository(&proj) {
+                    Ok(repo) => repo,
+                    Err(err) => {
+                        log::error!("Error opening repo for {}: {}", proj, err);
+                        resp.send(FetchLookup::Error(err.into())).ok();
+
+                        return;
+                    }
+                };
+
+                let (results_, results) = chan::bounded(providers.len());
+                resp.send(FetchLookup::Found {
+                    providers: providers.clone().map(|(_, peer)| peer.addr),
+                    results,
+                })
+                .ok();
+
+                // TODO: Limit the number of providers we fetch from? Randomize?
+                for (_, peer) in providers {
+                    match repo.fetch(&Url {
+                        scheme: git_url::Scheme::Git,
+                        host: Some(peer.addr.ip().to_string()),
+                        port: Some(peer.addr.port()),
+                        // TODO: Fix upstream crate so that it adds a `/` when needed.
+                        path: format!("/{}", proj).into(),
+                        ..Url::default()
+                    }) {
+                        Ok(()) => {
+                            results_.send(FetchResult::Fetched { from: peer.addr }).ok();
+                        }
+                        Err(err) => {
+                            results_
+                                .send(FetchResult::Error {
+                                    from: peer.addr,
+                                    error: err.into(),
+                                })
+                                .ok();
+                        }
+                    }
                 }
             }
             Command::AnnounceRefsUpdate(proj) => {
