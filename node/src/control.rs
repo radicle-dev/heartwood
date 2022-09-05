@@ -4,12 +4,10 @@ use std::io::BufReader;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::str::FromStr;
 use std::{fs, io, net};
 
 use crate::client;
 use crate::client::handle::traits::Handle;
-use crate::identity::ProjId;
 
 /// Default name for control socket file.
 pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
@@ -65,7 +63,7 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
     for line in reader.by_ref().lines().flatten() {
         match line.split_once(' ') {
             Some(("update", arg)) => {
-                if let Ok(id) = ProjId::from_str(arg) {
+                if let Ok(id) = arg.parse() {
                     if let Err(e) = handle.updated(id) {
                         return Err(DrainError::Client(e));
                     }
