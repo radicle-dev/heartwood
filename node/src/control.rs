@@ -60,8 +60,36 @@ enum DrainError {
 fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
     let mut reader = BufReader::new(stream);
 
+    // TODO: refactor to include helper
     for line in reader.by_ref().lines().flatten() {
         match line.split_once(' ') {
+            Some(("fetch", arg)) => {
+                if let Ok(id) = arg.parse() {
+                    if let Err(e) = handle.fetch(id) {
+                        return Err(DrainError::Client(e));
+                    }
+                } else {
+                    return Err(DrainError::InvalidCommandArg(arg.to_owned()));
+                }
+            }
+            Some(("track", arg)) => {
+                if let Ok(id) = arg.parse() {
+                    if let Err(e) = handle.track(id) {
+                        return Err(DrainError::Client(e));
+                    }
+                } else {
+                    return Err(DrainError::InvalidCommandArg(arg.to_owned()));
+                }
+            }
+            Some(("untrack", arg)) => {
+                if let Ok(id) = arg.parse() {
+                    if let Err(e) = handle.untrack(id) {
+                        return Err(DrainError::Client(e));
+                    }
+                } else {
+                    return Err(DrainError::InvalidCommandArg(arg.to_owned()));
+                }
+            }
             Some(("update", arg)) => {
                 if let Ok(id) = arg.parse() {
                     if let Err(e) = handle.updated(id) {

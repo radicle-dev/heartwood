@@ -86,9 +86,11 @@ pub enum FetchResult {
 /// Commands sent to the protocol by the operator.
 #[derive(Debug)]
 pub enum Command {
+    AnnounceRefsUpdate(ProjId),
     Connect(net::SocketAddr),
     Fetch(ProjId, chan::Sender<FetchLookup>),
-    AnnounceRefsUpdate(ProjId),
+    Track(ProjId, chan::Sender<bool>),
+    Untrack(ProjId, chan::Sender<bool>),
 }
 
 /// Command-related errors.
@@ -411,6 +413,12 @@ where
                         }
                     }
                 }
+            }
+            Command::Track(proj, resp) => {
+                resp.send(self.track(proj)).ok();
+            }
+            Command::Untrack(proj, resp) => {
+                resp.send(self.untrack(proj)).ok();
             }
             Command::AnnounceRefsUpdate(proj) => {
                 let user = *self.storage.user_id();

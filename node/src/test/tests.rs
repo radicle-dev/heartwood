@@ -1,6 +1,7 @@
 use std::io;
 use std::sync::Arc;
 
+use crossbeam_channel as chan;
 use nakamoto_net as nakamoto;
 use nakamoto_net::simulator;
 use nakamoto_net::simulator::{Peer as _, Simulation};
@@ -165,6 +166,40 @@ fn test_inventory_sync() {
     let b = projs.into_iter().collect::<HashSet<_>>();
 
     assert_eq!(a, b);
+}
+
+#[test]
+fn test_tracking() {
+    let mut alice = Peer::config(
+        "alice",
+        Config {
+            project_tracking: ProjectTracking::Allowed(HashSet::default()),
+            ..Config::default()
+        },
+        [7, 7, 7, 7],
+        vec![],
+        MockStorage::empty(),
+        fastrand::Rng::new(),
+    );
+    let proj_id: identity::ProjId = test::arbitrary::gen(1);
+
+    let (sender, receiver) = chan::bounded(1);
+    alice.command(Command::Track(proj_id.clone(), sender));
+    let policy_change = receiver
+        .recv()
+        .map_err(client::handle::Error::from)
+        .unwrap();
+    assert!(policy_change);
+    assert!(alice.config().is_tracking(&proj_id));
+
+    let (sender, receiver) = chan::bounded(1);
+    alice.command(Command::Untrack(proj_id.clone(), sender));
+    let policy_change = receiver
+        .recv()
+        .map_err(client::handle::Error::from)
+        .unwrap();
+    assert!(policy_change);
+    assert!(!alice.config().is_tracking(&proj_id));
 }
 
 #[test]
