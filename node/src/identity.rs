@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{ffi::OsString, fmt, io, str::FromStr};
 
 use nonempty::NonEmpty;
@@ -148,6 +148,8 @@ pub struct Project {
     pub doc: Doc,
     /// The project remotes.
     pub remotes: Remotes<Verified>,
+    /// On-disk file path for this project's repository.
+    pub path: PathBuf,
 }
 
 #[derive(Error, Debug)]

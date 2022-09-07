@@ -63,6 +63,18 @@ pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
     storages.pop().unwrap()
 }
 
+/// Creates a regular repository at the given path with a couple of commits.
+pub fn repository<P: AsRef<Path>>(path: P) -> git2::Repository {
+    let repo = git2::Repository::init(path).unwrap();
+    {
+        let sig = git2::Signature::now("anonymous", "anonymous@radicle.xyz").unwrap();
+        let head = git::initial_commit(&repo, &sig).unwrap();
+        let head = git::commit(&repo, &head, "Second commit", "anonymous").unwrap();
+        let _branch = repo.branch("master", &head, false).unwrap();
+    }
+    repo
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

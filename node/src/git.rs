@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::str::FromStr;
 
 use git_ref_format as format;
@@ -9,6 +10,7 @@ use crate::storage::RemoteId;
 
 pub use ext::Oid;
 pub use git_ref_format::{refname, RefStr, RefString};
+pub use git_url as url;
 pub use git_url::Url;
 pub use radicle_git_ext as ext;
 
@@ -95,6 +97,30 @@ pub fn commit<'a>(
     let commit = repo.find_commit(oid).unwrap();
 
     Ok(commit)
+}
+
+/// Configure a repository's radicle remote.
+///
+/// Takes the repository in which to configure the remote, the name of the remote, the public
+/// key of the remote, and the path to the remote repository on the filesystem.
+pub fn configure_remote<'r>(
+    repo: &'r git2::Repository,
+    remote_name: &str,
+    remote_id: &RemoteId,
+    remote_path: &Path,
+) -> Result<git2::Remote<'r>, git2::Error> {
+    let url = Url {
+        scheme: git_url::Scheme::File,
+        path: remote_path.to_string_lossy().to_string().into(),
+
+        ..Url::default()
+    };
+    let fetch = format!("+refs/remotes/{remote_id}/heads/*:refs/remotes/rad/*");
+    let push = format!("refs/heads/*:refs/remotes/{remote_id}/heads/*");
+    let remote = repo.remote_with_fetch(remote_name, url.to_string().as_str(), &fetch)?;
+    repo.remote_add_push(remote_name, &push)?;
+
+    Ok(remote)
 }
 
 /// Set the upstream of the given branch to the given remote.

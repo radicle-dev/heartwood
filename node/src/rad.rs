@@ -1,6 +1,6 @@
 use std::io;
+use std::path::Path;
 
-use git_url::Url;
 use nonempty::NonEmpty;
 use thiserror::Error;
 
@@ -59,12 +59,6 @@ pub fn init<'r, S: storage::WriteStorage<'r>>(
     let mut doc_bytes = Vec::new();
     let id = doc.write(&mut doc_bytes)?;
     let project = storage.repository(&id)?;
-    let url = Url {
-        scheme: git_url::Scheme::File,
-        path: project.path().to_string_lossy().to_string().into(),
-
-        ..Url::default()
-    };
 
     {
         // Within this scope, redefine `repo` to refer to the project storage,
@@ -92,12 +86,6 @@ pub fn init<'r, S: storage::WriteStorage<'r>>(
         let id_ref = format!("refs/remotes/{user_id}/{}", &*RADICLE_ID_REF);
         let _oid = repo.commit(Some(&id_ref), &sig, &sig, "Initialize Radicle", &tree, &[])?;
     }
-
-    let fetch = format!("+refs/remotes/{user_id}/heads/*:refs/remotes/rad/*");
-    let push = format!("refs/heads/*:refs/remotes/{user_id}/heads/*");
-    let mut remote = repo.remote_with_fetch(REMOTE_NAME, url.to_string().as_str(), &fetch)?;
-    repo.remote_add_push(REMOTE_NAME, &push)?;
-
     git::set_upstream(
         repo,
         REMOTE_NAME,
@@ -108,7 +96,7 @@ pub fn init<'r, S: storage::WriteStorage<'r>>(
     // TODO: Note that you'll likely want to use `RemoteCallbacks` and set
     // `push_update_reference` to test whether all the references were pushed
     // successfully.
-    remote.push::<&str>(
+    git::configure_remote(repo, REMOTE_NAME, user_id, project.path())?.push::<&str>(
         &[&format!(
             "refs/heads/{default_branch}:refs/remotes/{user_id}/heads/{default_branch}"
         )],
@@ -119,25 +107,71 @@ pub fn init<'r, S: storage::WriteStorage<'r>>(
     Ok((id, signed))
 }
 
+#[derive(Error, Debug)]
+pub enum CheckoutError {
+    #[error("git: {0}")]
+    Git(#[from] git2::Error),
+    #[error("storage: {0}")]
+    Storage(#[from] storage::Error),
+    #[error("project `{0}` was not found in storage")]
+    NotFound(ProjId),
+}
+
+pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
+    proj: &ProjId,
+    path: P,
+    storage: S,
+) -> Result<git2::Repository, CheckoutError> {
+    // TODO: Decide on whether we can use `clone_local`
+    // TODO: Look into sharing object databases.
+    let project = storage
+        .get(proj)?
+        .ok_or_else(|| CheckoutError::NotFound(proj.clone()))?;
+
+    let mut opts = git2::RepositoryInitOptions::new();
+    opts.no_reinit(true).description(&project.doc.description);
+
+    let repo = git2::Repository::init_opts(path, &opts)?;
+    let remote_id = storage.user_id();
+    let default_branch = project.doc.default_branch.as_str();
+
+    // Configure and fetch all refs from remote.
+    git::configure_remote(&repo, REMOTE_NAME, remote_id, &project.path)?.fetch::<&str>(
+        &[],
+        None,
+        None,
+    )?;
+
+    {
+        let remote_head_ref = format!("refs/remotes/{REMOTE_NAME}/{default_branch}");
+        let remote_head_commit = repo.find_reference(&remote_head_ref)?.peel_to_commit()?;
+        let _ = repo.branch(default_branch, &remote_head_commit, true)?;
+    }
+
+    git::set_upstream(
+        &repo,
+        REMOTE_NAME,
+        default_branch,
+        &format!("refs/remotes/{remote_id}/heads/{default_branch}"),
+    )?;
+
+    Ok(repo)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::git;
     use crate::identity::{Delegate, Did};
     use crate::storage::git::Storage;
     use crate::storage::ReadStorage;
-    use crate::test::crypto;
+    use crate::test::{crypto, fixtures};
 
     #[test]
     fn test_init() {
         let tempdir = tempfile::tempdir().unwrap();
         let signer = crypto::MockSigner::default();
         let mut storage = Storage::open(tempdir.path().join("storage"), signer).unwrap();
-        let repo = git2::Repository::init(tempdir.path().join("working")).unwrap();
-        let sig = git2::Signature::now("anonymous", "anonymous@radicle.xyz").unwrap();
-        let head = git::initial_commit(&repo, &sig).unwrap();
-        let head = git::commit(&repo, &head, "Second commit", "anonymous").unwrap();
-        let _branch = repo.branch("master", &head, false).unwrap();
+        let repo = fixtures::repository(tempdir.path().join("working"));
 
         let (id, refs) = init(
             &repo,
@@ -161,6 +195,54 @@ mod tests {
                 name: String::from("anonymous"),
                 id: Did::from(*storage.user_id()),
             }
+        );
+    }
+
+    #[test]
+    fn test_checkout() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let signer = crypto::MockSigner::default();
+        let mut storage = Storage::open(tempdir.path().join("storage"), signer).unwrap();
+        let original = fixtures::repository(tempdir.path().join("original"));
+
+        let (id, _) = init(
+            &original,
+            "acme",
+            "Acme's repo",
+            BranchName::from("master"),
+            &mut storage,
+        )
+        .unwrap();
+
+        let copy = checkout(&id, tempdir.path().join("copy"), &mut storage).unwrap();
+
+        assert_eq!(
+            copy.head().unwrap().target(),
+            original.head().unwrap().target()
+        );
+        assert_eq!(
+            copy.branch_upstream_name("refs/heads/master")
+                .unwrap()
+                .to_vec(),
+            original
+                .branch_upstream_name("refs/heads/master")
+                .unwrap()
+                .to_vec()
+        );
+        assert_eq!(
+            copy.find_remote(REMOTE_NAME)
+                .unwrap()
+                .refspecs()
+                .into_iter()
+                .map(|r| r.bytes().to_vec())
+                .collect::<Vec<_>>(),
+            original
+                .find_remote(REMOTE_NAME)
+                .unwrap()
+                .refspecs()
+                .into_iter()
+                .map(|r| r.bytes().to_vec())
+                .collect::<Vec<_>>(),
         );
     }
 }

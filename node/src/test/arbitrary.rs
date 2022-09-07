@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::hash::Hash;
 use std::ops::RangeBounds;
+use std::path::PathBuf;
 
 use nonempty::NonEmpty;
 use quickcheck::Arbitrary;
@@ -56,8 +57,14 @@ impl Arbitrary for Project {
         let doc = Doc::arbitrary(g);
         let id = doc.write(&mut buf).unwrap();
         let remotes = storage::Remotes::arbitrary(g);
+        let path = PathBuf::arbitrary(g);
 
-        Self { id, doc, remotes }
+        Self {
+            id,
+            doc,
+            remotes,
+            path,
+        }
     }
 }
 

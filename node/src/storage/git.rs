@@ -58,6 +58,7 @@ impl ReadStorage for Storage {
 
         if let Some(doc) = repo.identity(local)? {
             let remotes = repo.remotes()?.collect::<Result<_, _>>()?;
+            let path = repo.path().to_path_buf();
 
             // TODO: We should check that there is at least one remote, which is
             // the one of the local user, otherwise it means the project is in
@@ -67,6 +68,7 @@ impl ReadStorage for Storage {
                 id: id.clone(),
                 doc,
                 remotes,
+                path,
             }))
         } else {
             Ok(None)
