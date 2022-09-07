@@ -1,12 +1,12 @@
 use std::net;
 
 use crossbeam_channel as chan;
-use nakamoto_net::Reactor;
+use nakamoto_net::Waker;
 use thiserror::Error;
 
 use crate::identity::ProjId;
 use crate::protocol;
-use crate::protocol::CommandError;
+use crate::protocol::{CommandError, FetchLookup};
 
 /// An error resulting from a handle method.
 #[derive(Error, Debug)]
@@ -46,17 +46,19 @@ impl<T> From<chan::SendError<T>> for Error {
     }
 }
 
-pub struct Handle<R: Reactor> {
+pub struct Handle<W: Waker> {
     pub(crate) commands: chan::Sender<protocol::Command>,
-    pub(crate) waker: R::Waker,
     pub(crate) shutdown: chan::Sender<()>,
     pub(crate) listening: chan::Receiver<net::SocketAddr>,
+    pub(crate) waker: W,
 }
 
-impl<R: Reactor> traits::Handle for Handle<R> {
-    /// Retrieve or update the project from network.
-    fn fetch(&self, _id: ProjId) -> Result<(), Error> {
-        todo!()
+impl<W: Waker> traits::Handle for Handle<W> {
+    /// Retrieve or update the given project from the network.
+    fn fetch(&self, id: ProjId) -> Result<FetchLookup, Error> {
+        let (sender, receiver) = chan::bounded(1);
+        self.commands.send(protocol::Command::Fetch(id, sender))?;
+        receiver.recv().map_err(Error::from)
     }
 
     /// Start tracking the given project. Doesn't do anything if the project is already tracked.
@@ -81,7 +83,7 @@ impl<R: Reactor> traits::Handle for Handle<R> {
     /// Send a command to the command channel, and wake up the event loop.
     fn command(&self, cmd: protocol::Command) -> Result<(), Error> {
         self.commands.send(cmd)?;
-        R::wake(&self.waker)?;
+        self.waker.wake()?;
 
         Ok(())
     }
@@ -89,7 +91,7 @@ impl<R: Reactor> traits::Handle for Handle<R> {
     /// Ask the client to shutdown.
     fn shutdown(self) -> Result<(), Error> {
         self.shutdown.send(())?;
-        R::wake(&self.waker)?;
+        self.waker.wake()?;
 
         Ok(())
     }
@@ -100,7 +102,7 @@ pub mod traits {
 
     pub trait Handle {
         /// Retrieve or update the project from network.
-        fn fetch(&self, id: ProjId) -> Result<(), Error>;
+        fn fetch(&self, id: ProjId) -> Result<FetchLookup, Error>;
         /// Start tracking the given project. Doesn't do anything if the project is already
         /// tracked.
         fn track(&self, id: ProjId) -> Result<bool, Error>;

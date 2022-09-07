@@ -4,6 +4,7 @@ use crate::client::handle::traits;
 use crate::client::handle::Error;
 use crate::identity::ProjId;
 use crate::protocol;
+use crate::protocol::FetchLookup;
 
 #[derive(Default, Clone)]
 pub struct Handle {
@@ -11,8 +12,8 @@ pub struct Handle {
 }
 
 impl traits::Handle for Handle {
-    fn fetch(&self, _id: ProjId) -> Result<(), Error> {
-        Ok(())
+    fn fetch(&self, _id: ProjId) -> Result<FetchLookup, Error> {
+        Ok(FetchLookup::NotFound)
     }
 
     fn track(&self, _id: ProjId) -> Result<bool, Error> {

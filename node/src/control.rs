@@ -1,6 +1,7 @@
 //! Client control socket implementation.
 use std::io::prelude::*;
 use std::io::BufReader;
+use std::io::LineWriter;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
@@ -8,6 +9,9 @@ use std::{fs, io, net};
 
 use crate::client;
 use crate::client::handle::traits::Handle;
+use crate::identity::ProjId;
+use crate::protocol::FetchLookup;
+use crate::protocol::FetchResult;
 
 /// Default name for control socket file.
 pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
@@ -55,6 +59,8 @@ enum DrainError {
     InvalidCommand,
     #[error("client error: {0}")]
     Client(#[from] client::handle::Error),
+    #[error("i/o error: {0}")]
+    Io(#[from] io::Error),
 }
 
 fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
@@ -65,9 +71,7 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
         match line.split_once(' ') {
             Some(("fetch", arg)) => {
                 if let Ok(id) = arg.parse() {
-                    if let Err(e) = handle.fetch(id) {
-                        return Err(DrainError::Client(e));
-                    }
+                    fetch(id, LineWriter::new(stream), handle)?;
                 } else {
                     return Err(DrainError::InvalidCommandArg(arg.to_owned()));
                 }
@@ -101,6 +105,47 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
             }
             Some((cmd, _)) => return Err(DrainError::UnknownCommand(cmd.to_owned())),
             None => return Err(DrainError::InvalidCommand),
+        }
+    }
+    Ok(())
+}
+
+fn fetch<W: Write, H: Handle>(id: ProjId, mut writer: W, handle: &H) -> Result<(), DrainError> {
+    match handle.fetch(id.clone()) {
+        Err(e) => {
+            return Err(DrainError::Client(e));
+        }
+        Ok(FetchLookup::Found { providers, results }) => {
+            let providers = Vec::from(providers);
+
+            writeln!(
+                writer,
+                "ok: found {} providers for {} ({:?})",
+                providers.len(),
+                &id,
+                &providers,
+            )?;
+
+            for result in results.iter() {
+                match result {
+                    FetchResult::Fetched { from } => {
+                        writeln!(writer, "ok: {} fetched from {}", &id, from)?;
+                    }
+                    FetchResult::Error { from, error } => {
+                        writeln!(
+                            writer,
+                            "error: {} failed to fetch from {}: {}",
+                            &id, from, error
+                        )?;
+                    }
+                }
+            }
+        }
+        Ok(FetchLookup::NotFound) => {
+            writeln!(writer, "error: {} was not found", &id)?;
+        }
+        Ok(FetchLookup::Error(err)) => {
+            writeln!(writer, "error: {}", err)?;
         }
     }
     Ok(())
