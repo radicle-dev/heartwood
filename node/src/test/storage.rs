@@ -1,8 +1,8 @@
 use git_url::Url;
 
-use crate::crypto::Verified;
+use crate::crypto::{PublicKey, Verified};
 use crate::git;
-use crate::identity::{ProjId, Project, UserId};
+use crate::identity::{ProjId, Project};
 use crate::storage::refs;
 use crate::storage::{
     Error, Inventory, ReadRepository, ReadStorage, Remote, RemoteId, WriteRepository, WriteStorage,
@@ -26,7 +26,7 @@ impl MockStorage {
 }
 
 impl ReadStorage for MockStorage {
-    fn user_id(&self) -> &UserId {
+    fn public_key(&self) -> &PublicKey {
         todo!()
     }
 
@@ -84,7 +84,7 @@ impl ReadRepository<'_> for MockRepository {
         todo!()
     }
 
-    fn remote(&self, _user: &UserId) -> Result<Remote<Verified>, refs::Error> {
+    fn remote(&self, _remote: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
         todo!()
     }
 
@@ -102,7 +102,7 @@ impl ReadRepository<'_> for MockRepository {
 
     fn reference(
         &self,
-        _user: &UserId,
+        _remote: &RemoteId,
         _reference: &git::RefStr,
     ) -> Result<Option<git2::Reference>, git2::Error> {
         todo!()
@@ -110,13 +110,13 @@ impl ReadRepository<'_> for MockRepository {
 
     fn reference_oid(
         &self,
-        _user: &UserId,
+        _remote: &RemoteId,
         _reference: &git::RefStr,
     ) -> Result<Option<radicle_git_ext::Oid>, git2::Error> {
         todo!()
     }
 
-    fn references(&self, _user: &UserId) -> Result<crate::storage::refs::Refs, Error> {
+    fn references(&self, _remote: &RemoteId) -> Result<crate::storage::refs::Refs, Error> {
         todo!()
     }
 }

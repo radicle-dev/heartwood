@@ -14,7 +14,7 @@ use thiserror::Error;
 pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
-use crate::crypto::{self, Unverified, Verified};
+use crate::crypto::{self, PublicKey, Unverified, Verified};
 use crate::git::Url;
 use crate::git::{RefError, RefStr};
 use crate::identity;
@@ -159,7 +159,7 @@ impl Remote<Verified> {
 }
 
 pub trait ReadStorage {
-    fn user_id(&self) -> &UserId;
+    fn public_key(&self) -> &PublicKey;
     fn url(&self) -> Url;
     fn get(&self, proj: &ProjId) -> Result<Option<Project>, Error>;
     fn inventory(&self) -> Result<Inventory, Error>;
@@ -180,12 +180,16 @@ pub trait ReadRepository<'r> {
     fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git_ext::Error>;
     fn reference(
         &self,
-        user: &UserId,
+        remote: &RemoteId,
         reference: &RefStr,
     ) -> Result<Option<git2::Reference>, git2::Error>;
-    fn reference_oid(&self, user: &UserId, reference: &RefStr) -> Result<Option<Oid>, git2::Error>;
-    fn references(&self, user: &UserId) -> Result<Refs, Error>;
-    fn remote(&self, user: &UserId) -> Result<Remote<Verified>, refs::Error>;
+    fn reference_oid(
+        &self,
+        remote: &RemoteId,
+        reference: &RefStr,
+    ) -> Result<Option<Oid>, git2::Error>;
+    fn references(&self, remote: &RemoteId) -> Result<Refs, Error>;
+    fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error>;
     fn remotes(&'r self) -> Result<Self::Remotes, git2::Error>;
 }
 
@@ -199,8 +203,8 @@ where
     T: Deref<Target = S>,
     S: ReadStorage + 'static,
 {
-    fn user_id(&self) -> &UserId {
-        self.deref().user_id()
+    fn public_key(&self) -> &UserId {
+        self.deref().public_key()
     }
 
     fn url(&self) -> Url {

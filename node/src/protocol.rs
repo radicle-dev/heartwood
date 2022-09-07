@@ -431,7 +431,7 @@ where
                 resp.send(self.untrack(proj)).ok();
             }
             Command::AnnounceRefsUpdate(proj) => {
-                let user = *self.storage.user_id();
+                let user = *self.storage.public_key();
                 let repo = self.storage.repository(&proj).unwrap();
                 let remote = repo.remote(&user).unwrap();
                 let peers = self.peers.negotiated().map(|(_, p)| p.addr);

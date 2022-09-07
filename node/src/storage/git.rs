@@ -38,7 +38,7 @@ impl fmt::Debug for Storage {
 }
 
 impl ReadStorage for Storage {
-    fn user_id(&self) -> &UserId {
+    fn public_key(&self) -> &UserId {
         self.signer.public_key()
     }
 
@@ -53,7 +53,7 @@ impl ReadStorage for Storage {
     fn get(&self, id: &ProjId) -> Result<Option<Project>, Error> {
         // TODO: Don't create a repo here if it doesn't exist?
         // Perhaps for checking we could have a `contains` method?
-        let local = self.user_id();
+        let local = self.public_key();
         let repo = self.repository(id)?;
 
         if let Some(doc) = repo.identity(local)? {
@@ -424,7 +424,7 @@ mod tests {
         let signer = MockSigner::new(&mut rng);
         let storage = Storage::open(tmp.path(), signer).unwrap();
         let proj_id = arbitrary::gen::<ProjId>(1);
-        let alice = *storage.user_id();
+        let alice = *storage.public_key();
         let project = storage.repository(&proj_id).unwrap();
         let backend = &project.backend;
         let sig = git2::Signature::now(&alice.to_string(), "anonymous@radicle.xyz").unwrap();

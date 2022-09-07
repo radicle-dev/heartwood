@@ -40,11 +40,11 @@ pub fn init<'r, S: storage::WriteStorage<'r>>(
     default_branch: BranchName,
     storage: S,
 ) -> Result<(ProjId, SignedRefs<Verified>), InitError> {
-    let user_id = storage.user_id();
+    let pk = storage.public_key();
     let delegate = identity::Delegate {
         // TODO: Use actual user name.
         name: String::from("anonymous"),
-        id: identity::Did::from(*user_id),
+        id: identity::Did::from(*pk),
     };
     let doc = identity::Doc {
         name: name.to_owned(),
@@ -81,24 +81,24 @@ pub fn init<'r, S: storage::WriteStorage<'r>>(
         }?;
         let sig = repo
             .signature()
-            .or_else(|_| git2::Signature::now("radicle", user_id.to_string().as_str()))?;
+            .or_else(|_| git2::Signature::now("radicle", pk.to_string().as_str()))?;
 
-        let id_ref = format!("refs/remotes/{user_id}/{}", &*RADICLE_ID_REF);
+        let id_ref = format!("refs/remotes/{pk}/{}", &*RADICLE_ID_REF);
         let _oid = repo.commit(Some(&id_ref), &sig, &sig, "Initialize Radicle", &tree, &[])?;
     }
     git::set_upstream(
         repo,
         REMOTE_NAME,
         &default_branch,
-        &format!("refs/remotes/{user_id}/heads/{default_branch}"),
+        &format!("refs/remotes/{pk}/heads/{default_branch}"),
     )?;
 
     // TODO: Note that you'll likely want to use `RemoteCallbacks` and set
     // `push_update_reference` to test whether all the references were pushed
     // successfully.
-    git::configure_remote(repo, REMOTE_NAME, user_id, project.path())?.push::<&str>(
+    git::configure_remote(repo, REMOTE_NAME, pk, project.path())?.push::<&str>(
         &[&format!(
-            "refs/heads/{default_branch}:refs/remotes/{user_id}/heads/{default_branch}"
+            "refs/heads/{default_branch}:refs/remotes/{pk}/heads/{default_branch}"
         )],
         None,
     )?;
@@ -132,7 +132,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     opts.no_reinit(true).description(&project.doc.description);
 
     let repo = git2::Repository::init_opts(path, &opts)?;
-    let remote_id = storage.user_id();
+    let remote_id = storage.public_key();
     let default_branch = project.doc.default_branch.as_str();
 
     // Configure and fetch all refs from remote.
@@ -184,7 +184,7 @@ mod tests {
 
         let project = storage.get(&id).unwrap().unwrap();
 
-        assert_eq!(project.remotes[storage.user_id()].refs, refs);
+        assert_eq!(project.remotes[storage.public_key()].refs, refs);
         assert_eq!(project.id, id);
         assert_eq!(project.doc.name, "acme");
         assert_eq!(project.doc.description, "Acme's repo");
@@ -193,7 +193,7 @@ mod tests {
             project.doc.delegates.first(),
             &Delegate {
                 name: String::from("anonymous"),
-                id: Did::from(*storage.user_id()),
+                id: Did::from(*storage.public_key()),
             }
         );
     }

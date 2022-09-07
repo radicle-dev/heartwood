@@ -19,7 +19,7 @@ pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
     crate::test::logger::init(log::Level::Debug);
 
     for storage in &storages {
-        let remote = storage.user_id();
+        let remote = storage.public_key();
 
         log::debug!("signer {}...", remote);
 
