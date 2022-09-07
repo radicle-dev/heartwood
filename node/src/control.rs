@@ -115,15 +115,15 @@ fn fetch<W: Write, H: Handle>(id: ProjId, mut writer: W, handle: &H) -> Result<(
         Err(e) => {
             return Err(DrainError::Client(e));
         }
-        Ok(FetchLookup::Found { providers, results }) => {
-            let providers = Vec::from(providers);
+        Ok(FetchLookup::Found { seeds, results }) => {
+            let seeds = Vec::from(seeds);
 
             writeln!(
                 writer,
-                "ok: found {} providers for {} ({:?})",
-                providers.len(),
+                "ok: found {} seeds for {} ({:?})",
+                seeds.len(),
                 &id,
-                &providers,
+                &seeds,
             )?;
 
             for result in results.iter() {
@@ -143,6 +143,9 @@ fn fetch<W: Write, H: Handle>(id: ProjId, mut writer: W, handle: &H) -> Result<(
         }
         Ok(FetchLookup::NotFound) => {
             writeln!(writer, "error: {} was not found", &id)?;
+        }
+        Ok(FetchLookup::NotTracking) => {
+            writeln!(writer, "error: {} is not tracked", &id)?;
         }
         Ok(FetchLookup::Error(err)) => {
             writeln!(writer, "error: {}", err)?;

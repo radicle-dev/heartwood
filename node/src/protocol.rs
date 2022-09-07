@@ -60,23 +60,28 @@ pub enum FetchError {
     Storage(#[from] storage::Error),
 }
 
-/// Result of looking up providers in our routing table.
+/// Result of looking up seeds in our routing table.
 #[derive(Debug)]
 pub enum FetchLookup {
+    /// Found seeds for the given project.
     Found {
-        providers: NonEmpty<net::SocketAddr>,
+        seeds: NonEmpty<net::SocketAddr>,
         results: chan::Receiver<FetchResult>,
     },
+    /// Can't fetch because no seeds were found for this project.
     NotFound,
+    /// Can't fetch because the project isn't tracked.
+    NotTracking,
+    /// Error trying to find seeds.
     Error(FetchError),
 }
 
-/// Result of a fetch request from a specific provider.
+/// Result of a fetch request from a specific seed.
 #[derive(Debug)]
 pub enum FetchResult {
-    /// Successful fetch from a provider.
+    /// Successful fetch from a seed.
     Fetched { from: net::SocketAddr },
-    /// Error fetching the resource from a provider.
+    /// Error fetching the resource from a seed.
     Error {
         from: net::SocketAddr,
         error: FetchError,
@@ -146,7 +151,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
         }
     }
 
-    pub fn providers(&self, proj: &ProjId) -> Box<dyn Iterator<Item = (&NodeId, &Peer)> + '_> {
+    pub fn seeds(&self, proj: &ProjId) -> Box<dyn Iterator<Item = (&NodeId, &Peer)> + '_> {
         if let Some(peers) = self.routing.get(proj) {
             Box::new(
                 peers
@@ -259,7 +264,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
     fn get_inventories(&mut self) -> Result<(), storage::Error> {
         let mut msgs = Vec::new();
         for proj in self.tracked()? {
-            for (_, peer) in self.providers(&proj) {
+            for (_, peer) in self.seeds(&proj) {
                 if peer.is_negotiated() {
                     msgs.push((
                         peer.addr,
@@ -282,7 +287,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
     }
 
     fn maintain_connections(&mut self) {
-        // TODO: Connect to all potential providers.
+        // TODO: Connect to all potential seeds.
         if self.peers.len() < TARGET_OUTBOUND_PEERS {
             let delta = TARGET_OUTBOUND_PEERS - self.peers.len();
 
@@ -362,16 +367,21 @@ where
         match cmd {
             Command::Connect(addr) => self.context.connect(addr),
             Command::Fetch(proj, resp) => {
-                let providers = self.providers(&proj).collect::<Vec<_>>();
-                let providers = if let Some(providers) = NonEmpty::from_vec(providers) {
-                    providers
+                if !self.config.is_tracking(&proj) {
+                    resp.send(FetchLookup::NotTracking).ok();
+                    return;
+                }
+
+                let seeds = self.seeds(&proj).collect::<Vec<_>>();
+                let seeds = if let Some(seeds) = NonEmpty::from_vec(seeds) {
+                    seeds
                 } else {
-                    log::error!("No providers found for {}", proj);
+                    log::error!("No seeds found for {}", proj);
                     resp.send(FetchLookup::NotFound).ok();
 
                     return;
                 };
-                log::debug!("Found {} providers for {}", providers.len(), proj);
+                log::debug!("Found {} seeds for {}", seeds.len(), proj);
 
                 let mut repo = match self.storage.repository(&proj) {
                     Ok(repo) => repo,
@@ -383,15 +393,15 @@ where
                     }
                 };
 
-                let (results_, results) = chan::bounded(providers.len());
+                let (results_, results) = chan::bounded(seeds.len());
                 resp.send(FetchLookup::Found {
-                    providers: providers.clone().map(|(_, peer)| peer.addr),
+                    seeds: seeds.clone().map(|(_, peer)| peer.addr),
                     results,
                 })
                 .ok();
 
-                // TODO: Limit the number of providers we fetch from? Randomize?
-                for (_, peer) in providers {
+                // TODO: Limit the number of seeds we fetch from? Randomize?
+                for (_, peer) in seeds {
                     match repo.fetch(&Url {
                         scheme: git_url::Scheme::Git,
                         host: Some(peer.addr.ip().to_string()),

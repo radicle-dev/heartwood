@@ -153,8 +153,8 @@ fn test_inventory_sync() {
     );
 
     for proj in &projs {
-        let providers = alice.routing().get(proj).unwrap();
-        assert!(providers.contains(&bob.id()));
+        let seeds = alice.routing().get(proj).unwrap();
+        assert!(seeds.contains(&bob.id()));
     }
 
     let a = alice
