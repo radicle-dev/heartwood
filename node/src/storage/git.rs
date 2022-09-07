@@ -11,7 +11,7 @@ pub use radicle_git_ext::Oid;
 use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::{self, IDENTITY_PATH};
-use crate::identity::{ProjId, Project, UserId};
+use crate::identity::{Id, Project, PublicKey};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
@@ -38,7 +38,7 @@ impl fmt::Debug for Storage {
 }
 
 impl ReadStorage for Storage {
-    fn public_key(&self) -> &UserId {
+    fn public_key(&self) -> &PublicKey {
         self.signer.public_key()
     }
 
@@ -50,7 +50,7 @@ impl ReadStorage for Storage {
         }
     }
 
-    fn get(&self, id: &ProjId) -> Result<Option<Project>, Error> {
+    fn get(&self, id: &Id) -> Result<Option<Project>, Error> {
         // TODO: Don't create a repo here if it doesn't exist?
         // Perhaps for checking we could have a `contains` method?
         let local = self.public_key();
@@ -83,7 +83,7 @@ impl ReadStorage for Storage {
 impl<'r> WriteStorage<'r> for Storage {
     type Repository = Repository;
 
-    fn repository(&self, proj: &ProjId) -> Result<Self::Repository, Error> {
+    fn repository(&self, proj: &Id) -> Result<Self::Repository, Error> {
         Repository::open(self.path.join(proj.to_string()))
     }
 
@@ -132,12 +132,12 @@ impl Storage {
         }
     }
 
-    pub fn projects(&self) -> Result<Vec<ProjId>, Error> {
+    pub fn projects(&self) -> Result<Vec<Id>, Error> {
         let mut projects = Vec::new();
 
         for result in fs::read_dir(&self.path)? {
             let path = result?;
-            let id = ProjId::try_from(path.file_name())?;
+            let id = Id::try_from(path.file_name())?;
 
             projects.push(id);
         }
@@ -423,7 +423,7 @@ mod tests {
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
         let storage = Storage::open(tmp.path(), signer).unwrap();
-        let proj_id = arbitrary::gen::<ProjId>(1);
+        let proj_id = arbitrary::gen::<Id>(1);
         let alice = *storage.public_key();
         let project = storage.repository(&proj_id).unwrap();
         let backend = &project.backend;

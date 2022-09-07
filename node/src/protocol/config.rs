@@ -3,7 +3,7 @@ use std::net;
 use git_url::Url;
 
 use crate::collections::HashSet;
-use crate::identity::{ProjId, UserId};
+use crate::identity::{Id, PublicKey};
 use crate::protocol::message::{Address, Envelope, Message};
 
 /// Peer-to-peer network.
@@ -34,9 +34,9 @@ impl Network {
 #[derive(Debug, Clone)]
 pub enum ProjectTracking {
     /// Track all projects we come across.
-    All { blocked: HashSet<ProjId> },
+    All { blocked: HashSet<Id> },
     /// Track a static list of projects.
-    Allowed(HashSet<ProjId>),
+    Allowed(HashSet<Id>),
 }
 
 impl Default for ProjectTracking {
@@ -54,9 +54,9 @@ pub enum RemoteTracking {
     #[default]
     DelegatesOnly,
     /// Track all remotes.
-    All { blocked: HashSet<UserId> },
+    All { blocked: HashSet<PublicKey> },
     /// Track a specific list of users as well as the project delegates.
-    Allowed(HashSet<UserId>),
+    Allowed(HashSet<PublicKey>),
 }
 
 /// Protocol configuration.
@@ -98,26 +98,26 @@ impl Config {
         self.connect.contains(addr)
     }
 
-    pub fn is_tracking(&self, proj: &ProjId) -> bool {
+    pub fn is_tracking(&self, id: &Id) -> bool {
         match &self.project_tracking {
-            ProjectTracking::All { blocked } => !blocked.contains(proj),
-            ProjectTracking::Allowed(projs) => projs.contains(proj),
+            ProjectTracking::All { blocked } => !blocked.contains(id),
+            ProjectTracking::Allowed(ids) => ids.contains(id),
         }
     }
 
     /// Track a project. Returns whether the policy was updated.
-    pub fn track(&mut self, proj: ProjId) -> bool {
+    pub fn track(&mut self, id: Id) -> bool {
         match &mut self.project_tracking {
             ProjectTracking::All { .. } => false,
-            ProjectTracking::Allowed(projs) => projs.insert(proj),
+            ProjectTracking::Allowed(ids) => ids.insert(id),
         }
     }
 
     /// Untrack a project. Returns whether the policy was updated.
-    pub fn untrack(&mut self, proj: ProjId) -> bool {
+    pub fn untrack(&mut self, id: Id) -> bool {
         match &mut self.project_tracking {
-            ProjectTracking::All { blocked } => blocked.insert(proj),
-            ProjectTracking::Allowed(projs) => projs.remove(&proj),
+            ProjectTracking::All { blocked } => blocked.insert(id),
+            ProjectTracking::Allowed(ids) => ids.remove(&id),
         }
     }
 }

@@ -11,7 +11,7 @@ use crate::crypto::{self, Signer};
 use crate::crypto::{PublicKey, SecretKey};
 use crate::git;
 use crate::hash;
-use crate::identity::{Delegate, Did, Doc, ProjId, Project};
+use crate::identity::{Delegate, Did, Doc, Id, Project};
 use crate::storage;
 use crate::storage::refs::Refs;
 use crate::test::storage::MockStorage;
@@ -155,10 +155,10 @@ impl Arbitrary for MockSigner {
     }
 }
 
-impl Arbitrary for ProjId {
+impl Arbitrary for Id {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let digest = hash::Digest::arbitrary(g);
-        ProjId::from(digest)
+        Id::from(digest)
     }
 }
 

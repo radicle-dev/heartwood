@@ -181,7 +181,7 @@ fn test_tracking() {
         MockStorage::empty(),
         fastrand::Rng::new(),
     );
-    let proj_id: identity::ProjId = test::arbitrary::gen(1);
+    let proj_id: identity::Id = test::arbitrary::gen(1);
 
     let (sender, receiver) = chan::bounded(1);
     alice.command(Command::Track(proj_id.clone(), sender));

@@ -9,7 +9,7 @@ use std::{fs, io, net};
 
 use crate::client;
 use crate::client::handle::traits::Handle;
-use crate::identity::ProjId;
+use crate::identity::Id;
 use crate::protocol::FetchLookup;
 use crate::protocol::FetchResult;
 
@@ -110,7 +110,7 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
     Ok(())
 }
 
-fn fetch<W: Write, H: Handle>(id: ProjId, mut writer: W, handle: &H) -> Result<(), DrainError> {
+fn fetch<W: Write, H: Handle>(id: Id, mut writer: W, handle: &H) -> Result<(), DrainError> {
     match handle.fetch(id.clone()) {
         Err(e) => {
             return Err(DrainError::Client(e));
@@ -161,7 +161,7 @@ mod tests {
     use std::{net, thread};
 
     use super::*;
-    use crate::identity::ProjId;
+    use crate::identity::Id;
     use crate::test;
 
     #[test]
@@ -169,7 +169,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let handle = test::handle::Handle::default();
         let socket = tmp.path().join("alice.sock");
-        let projs = test::arbitrary::set::<ProjId>(1..3);
+        let projs = test::arbitrary::set::<Id>(1..3);
 
         thread::spawn({
             let socket = socket.clone();

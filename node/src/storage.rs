@@ -18,13 +18,13 @@ use crate::crypto::{self, PublicKey, Unverified, Verified};
 use crate::git::Url;
 use crate::git::{RefError, RefStr};
 use crate::identity;
-use crate::identity::{ProjId, ProjIdError, Project, UserId};
+use crate::identity::{Id, IdError, Project};
 use crate::storage::refs::Refs;
 
 use self::refs::SignedRefs;
 
 pub type BranchName = String;
-pub type Inventory = Vec<ProjId>;
+pub type Inventory = Vec<Id>;
 
 /// Storage error.
 #[derive(Error, Debug)]
@@ -38,7 +38,7 @@ pub enum Error {
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("id: {0}")]
-    ProjId(#[from] ProjIdError),
+    Id(#[from] IdError),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
     #[error("doc: {0}")]
@@ -47,7 +47,7 @@ pub enum Error {
     InvalidHead,
 }
 
-pub type RemoteId = UserId;
+pub type RemoteId = PublicKey;
 
 /// Project remotes. Tracks the git state of a project.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,7 +113,7 @@ impl<V> From<Remotes<V>> for HashMap<RemoteId, Refs> {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Remote<V> {
     /// ID of remote.
-    pub id: UserId,
+    pub id: PublicKey,
     /// Git references published under this remote, and their hashes.
     pub refs: SignedRefs<V>,
     /// Whether this remote is of a project delegate.
@@ -124,7 +124,7 @@ pub struct Remote<V> {
 }
 
 impl<V> Remote<V> {
-    pub fn new(id: UserId, refs: impl Into<SignedRefs<V>>) -> Self {
+    pub fn new(id: PublicKey, refs: impl Into<SignedRefs<V>>) -> Self {
         Self {
             id,
             refs: refs.into(),
@@ -161,14 +161,14 @@ impl Remote<Verified> {
 pub trait ReadStorage {
     fn public_key(&self) -> &PublicKey;
     fn url(&self) -> Url;
-    fn get(&self, proj: &ProjId) -> Result<Option<Project>, Error>;
+    fn get(&self, proj: &Id) -> Result<Option<Project>, Error>;
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
 pub trait WriteStorage<'r>: ReadStorage {
     type Repository: WriteRepository<'r>;
 
-    fn repository(&self, proj: &ProjId) -> Result<Self::Repository, Error>;
+    fn repository(&self, proj: &Id) -> Result<Self::Repository, Error>;
     fn sign_refs(&self, repository: &Self::Repository) -> Result<SignedRefs<Verified>, Error>;
 }
 
@@ -203,7 +203,7 @@ where
     T: Deref<Target = S>,
     S: ReadStorage + 'static,
 {
-    fn public_key(&self) -> &UserId {
+    fn public_key(&self) -> &PublicKey {
         self.deref().public_key()
     }
 
@@ -215,7 +215,7 @@ where
         self.deref().inventory()
     }
 
-    fn get(&self, proj: &ProjId) -> Result<Option<Project>, Error> {
+    fn get(&self, proj: &Id) -> Result<Option<Project>, Error> {
         self.deref().get(proj)
     }
 }
@@ -227,7 +227,7 @@ where
 {
     type Repository = S::Repository;
 
-    fn repository(&self, proj: &ProjId) -> Result<Self::Repository, Error> {
+    fn repository(&self, proj: &Id) -> Result<Self::Repository, Error> {
         self.deref().repository(proj)
     }
 

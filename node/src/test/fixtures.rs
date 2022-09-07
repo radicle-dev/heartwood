@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::git;
-use crate::identity::ProjId;
+use crate::identity::Id;
 use crate::storage::git::Storage;
 use crate::storage::{ReadStorage, WriteStorage};
 use crate::test::arbitrary;
@@ -9,7 +9,7 @@ use crate::test::crypto::MockSigner;
 
 pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
     let path = path.as_ref();
-    let proj_ids = arbitrary::set::<ProjId>(3..5);
+    let proj_ids = arbitrary::set::<Id>(3..5);
     let signers = arbitrary::set::<MockSigner>(1..3);
     let mut storages = signers
         .into_iter()

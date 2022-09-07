@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::crypto::Verified;
 use crate::git;
-use crate::identity::ProjId;
+use crate::identity::Id;
 use crate::storage::git::RADICLE_ID_REF;
 use crate::storage::refs::SignedRefs;
 use crate::storage::{BranchName, ReadRepository as _, WriteRepository as _};
@@ -39,7 +39,7 @@ pub fn init<'r, S: storage::WriteStorage<'r>>(
     description: &str,
     default_branch: BranchName,
     storage: S,
-) -> Result<(ProjId, SignedRefs<Verified>), InitError> {
+) -> Result<(Id, SignedRefs<Verified>), InitError> {
     let pk = storage.public_key();
     let delegate = identity::Delegate {
         // TODO: Use actual user name.
@@ -114,11 +114,11 @@ pub enum CheckoutError {
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
     #[error("project `{0}` was not found in storage")]
-    NotFound(ProjId),
+    NotFound(Id),
 }
 
 pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
-    proj: &ProjId,
+    proj: &Id,
     path: P,
     storage: S,
 ) -> Result<git2::Repository, CheckoutError> {

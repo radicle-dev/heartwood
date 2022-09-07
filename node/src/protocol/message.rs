@@ -4,7 +4,7 @@ use git_url::Url;
 use serde::{Deserialize, Serialize};
 
 use crate::crypto;
-use crate::identity::{ProjId, UserId};
+use crate::identity::Id;
 use crate::protocol::{Context, NodeId, Timestamp, PROTOCOL_VERSION};
 use crate::storage;
 use crate::storage::refs::SignedRefs;
@@ -87,11 +87,11 @@ pub enum Message {
         announcement: NodeAnnouncement,
     },
     /// Get a peer's inventory.
-    GetInventory { ids: Vec<ProjId> },
+    GetInventory { ids: Vec<Id> },
     /// Send our inventory to a peer. Sent in response to [`Message::GetInventory`].
     /// Nb. This should be the whole inventory, not a partial update.
     Inventory {
-        inv: Vec<ProjId>,
+        inv: Vec<Id>,
         timestamp: Timestamp,
         /// Original peer this inventory came from. We don't set this when we
         /// are the originator, only when relaying.
@@ -101,9 +101,9 @@ pub enum Message {
     /// their view of the project.
     RefsUpdate {
         /// Project under which the refs were updated.
-        proj: ProjId,
-        /// User signing.
-        user: UserId,
+        id: Id,
+        /// Signing key.
+        signer: crypto::PublicKey,
         /// Updated refs.
         refs: SignedRefs<crypto::Unverified>,
     },
@@ -144,7 +144,7 @@ impl Message {
         })
     }
 
-    pub fn get_inventory(ids: impl Into<Vec<ProjId>>) -> Self {
+    pub fn get_inventory(ids: impl Into<Vec<Id>>) -> Self {
         Self::GetInventory { ids: ids.into() }
     }
 }

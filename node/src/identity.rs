@@ -12,48 +12,47 @@ use crate::hash;
 use crate::serde_ext;
 use crate::storage::Remotes;
 
+pub use crypto::PublicKey;
+
 pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new("radicle.json"));
 
-/// A user's identifier is simply their public key.
-pub type UserId = crypto::PublicKey;
-
 #[derive(Error, Debug)]
-pub enum ProjIdError {
+pub enum IdError {
     #[error("invalid digest: {0}")]
     InvalidDigest(#[from] hash::DecodeError),
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProjId(hash::Digest);
+pub struct Id(hash::Digest);
 
-impl fmt::Display for ProjId {
+impl fmt::Display for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.encode())
     }
 }
 
-impl fmt::Debug for ProjId {
+impl fmt::Debug for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ProjId({})", self.encode())
     }
 }
 
-impl ProjId {
+impl Id {
     pub fn encode(&self) -> String {
         multibase::encode(multibase::Base::Base58Btc, &self.0.as_ref())
     }
 }
 
-impl FromStr for ProjId {
-    type Err = ProjIdError;
+impl FromStr for Id {
+    type Err = IdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(hash::Digest::from_str(s)?))
     }
 }
 
-impl TryFrom<OsString> for ProjId {
-    type Error = ProjIdError;
+impl TryFrom<OsString> for Id {
+    type Error = IdError;
 
     fn try_from(value: OsString) -> Result<Self, Self::Error> {
         let string = value.to_string_lossy();
@@ -61,13 +60,13 @@ impl TryFrom<OsString> for ProjId {
     }
 }
 
-impl From<hash::Digest> for ProjId {
+impl From<hash::Digest> for Id {
     fn from(digest: hash::Digest) -> Self {
         Self(digest)
     }
 }
 
-impl serde::Serialize for ProjId {
+impl serde::Serialize for Id {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -76,7 +75,7 @@ impl serde::Serialize for ProjId {
     }
 }
 
-impl<'de> serde::Deserialize<'de> for ProjId {
+impl<'de> serde::Deserialize<'de> for Id {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -143,7 +142,7 @@ impl fmt::Display for Did {
 #[derive(Debug, Clone)]
 pub struct Project {
     /// The project identifier.
-    pub id: ProjId,
+    pub id: Id,
     /// The latest project identity document.
     pub doc: Doc,
     /// The project remotes.
@@ -177,7 +176,7 @@ pub struct Doc {
 }
 
 impl Doc {
-    pub fn write<W: io::Write>(&self, mut writer: W) -> Result<ProjId, DocError> {
+    pub fn write<W: io::Write>(&self, mut writer: W) -> Result<Id, DocError> {
         let mut buf = Vec::new();
         let mut ser =
             serde_json::Serializer::with_formatter(&mut buf, olpc_cjson::CanonicalFormatter::new());
@@ -185,7 +184,7 @@ impl Doc {
         self.serialize(&mut ser)?;
 
         let digest = hash::Digest::new(&buf);
-        let id = ProjId::from(digest);
+        let id = Id::from(digest);
 
         // TODO: Currently, we serialize the document in canonical JSON. This isn't strictly
         // necessary, as we could use CJSON just to get the hash, but then write a prettified
@@ -203,11 +202,12 @@ impl Doc {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::crypto::PublicKey;
     use quickcheck_macros::quickcheck;
     use std::collections::HashSet;
 
     #[quickcheck]
-    fn prop_user_id_equality(a: UserId, b: UserId) {
+    fn prop_key_equality(a: PublicKey, b: PublicKey) {
         assert_ne!(a, b);
 
         let mut hm = HashSet::new();
@@ -219,17 +219,17 @@ mod test {
     }
 
     #[quickcheck]
-    fn prop_encode_decode(input: UserId) {
+    fn prop_encode_decode(input: PublicKey) {
         let encoded = input.to_string();
-        let decoded = UserId::from_str(&encoded).unwrap();
+        let decoded = PublicKey::from_str(&encoded).unwrap();
 
         assert_eq!(input, decoded);
     }
 
     #[quickcheck]
-    fn prop_json_eq_str(user: UserId, proj: ProjId, did: Did) {
-        let json = serde_json::to_string(&user).unwrap();
-        assert_eq!(format!("\"{}\"", user), json);
+    fn prop_json_eq_str(pk: PublicKey, proj: Id, did: Did) {
+        let json = serde_json::to_string(&pk).unwrap();
+        assert_eq!(format!("\"{}\"", pk), json);
 
         let json = serde_json::to_string(&proj).unwrap();
         assert_eq!(format!("\"{}\"", proj), json);

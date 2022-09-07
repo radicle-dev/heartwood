@@ -4,7 +4,7 @@ use std::str::FromStr;
 use git_ref_format as format;
 
 use crate::collections::HashMap;
-use crate::identity::UserId;
+use crate::identity::PublicKey;
 use crate::storage::refs::Refs;
 use crate::storage::RemoteId;
 
@@ -43,7 +43,7 @@ pub fn remote_refs(url: &Url) -> Result<HashMap<RemoteId, Refs>, ListRefsError> 
 
     let refs = remote.list()?;
     for r in refs {
-        let (id, refname) = parse_ref::<UserId>(r.name())?;
+        let (id, refname) = parse_ref::<PublicKey>(r.name())?;
         let entry = remotes.entry(id).or_insert_with(Refs::default);
 
         entry.insert(refname, r.oid().into());

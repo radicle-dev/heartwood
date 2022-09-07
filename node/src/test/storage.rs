@@ -2,7 +2,7 @@ use git_url::Url;
 
 use crate::crypto::{PublicKey, Verified};
 use crate::git;
-use crate::identity::{ProjId, Project};
+use crate::identity::{Id, Project};
 use crate::storage::refs;
 use crate::storage::{
     Error, Inventory, ReadRepository, ReadStorage, Remote, RemoteId, WriteRepository, WriteStorage,
@@ -38,7 +38,7 @@ impl ReadStorage for MockStorage {
         }
     }
 
-    fn get(&self, proj: &ProjId) -> Result<Option<Project>, Error> {
+    fn get(&self, proj: &Id) -> Result<Option<Project>, Error> {
         if let Some(proj) = self.inventory.iter().find(|p| p.id == *proj) {
             return Ok(Some(proj.clone()));
         }
@@ -59,7 +59,7 @@ impl ReadStorage for MockStorage {
 impl WriteStorage<'_> for MockStorage {
     type Repository = MockRepository;
 
-    fn repository(&self, _proj: &ProjId) -> Result<Self::Repository, Error> {
+    fn repository(&self, _proj: &Id) -> Result<Self::Repository, Error> {
         Ok(MockRepository {})
     }
 

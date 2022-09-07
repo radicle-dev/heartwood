@@ -21,7 +21,7 @@ use crate::address_manager::AddressManager;
 use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto;
-use crate::identity::{ProjId, Project, UserId};
+use crate::identity::{Id, Project, PublicKey};
 use crate::protocol::config::ProjectTracking;
 use crate::protocol::message::Message;
 use crate::protocol::peer::{Peer, PeerError, PeerState};
@@ -43,7 +43,7 @@ pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Network node identifier.
 pub type NodeId = crypto::PublicKey;
 /// Network routing table. Keeps track of where projects are hosted.
-pub type Routing = HashMap<ProjId, HashSet<NodeId>>;
+pub type Routing = HashMap<Id, HashSet<NodeId>>;
 /// Seconds since epoch.
 pub type Timestamp = u64;
 
@@ -91,11 +91,11 @@ pub enum FetchResult {
 /// Commands sent to the protocol by the operator.
 #[derive(Debug)]
 pub enum Command {
-    AnnounceRefsUpdate(ProjId),
+    AnnounceRefsUpdate(Id),
     Connect(net::SocketAddr),
-    Fetch(ProjId, chan::Sender<FetchLookup>),
-    Track(ProjId, chan::Sender<bool>),
-    Untrack(ProjId, chan::Sender<bool>),
+    Fetch(Id, chan::Sender<FetchLookup>),
+    Track(Id, chan::Sender<bool>),
+    Untrack(Id, chan::Sender<bool>),
 }
 
 /// Command-related errors.
@@ -151,8 +151,8 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
         }
     }
 
-    pub fn seeds(&self, proj: &ProjId) -> Box<dyn Iterator<Item = (&NodeId, &Peer)> + '_> {
-        if let Some(peers) = self.routing.get(proj) {
+    pub fn seeds(&self, id: &Id) -> Box<dyn Iterator<Item = (&NodeId, &Peer)> + '_> {
+        if let Some(peers) = self.routing.get(id) {
             Box::new(
                 peers
                     .iter()
@@ -163,7 +163,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
         }
     }
 
-    pub fn tracked(&self) -> Result<Vec<ProjId>, storage::Error> {
+    pub fn tracked(&self) -> Result<Vec<Id>, storage::Error> {
         let tracked = match &self.config.project_tracking {
             ProjectTracking::All { blocked } => self
                 .storage
@@ -180,8 +180,8 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
 
     /// Track a project.
     /// Returns whether or not the tracking policy was updated.
-    pub fn track(&mut self, proj: ProjId) -> bool {
-        self.out_of_sync = self.config.track(proj);
+    pub fn track(&mut self, id: Id) -> bool {
+        self.out_of_sync = self.config.track(id);
         self.out_of_sync
     }
 
@@ -189,8 +189,8 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
     /// Returns whether or not the tracking policy was updated.
     /// Note that when untracking, we don't announce anything to the network. This is because by
     /// simply not announcing it anymore, it will eventually be pruned by nodes.
-    pub fn untrack(&mut self, proj: ProjId) -> bool {
-        self.config.untrack(proj)
+    pub fn untrack(&mut self, id: Id) -> bool {
+        self.config.untrack(id)
     }
 
     /// Find the closest `n` peers by proximity in tracking graphs.
@@ -236,13 +236,13 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
         &mut self.context.io
     }
 
-    pub fn lookup(&self, proj: &ProjId) -> Lookup {
+    pub fn lookup(&self, id: &Id) -> Lookup {
         Lookup {
-            local: self.context.storage.get(proj).unwrap(),
+            local: self.context.storage.get(id).unwrap(),
             remote: self
                 .context
                 .routing
-                .get(proj)
+                .get(id)
                 .map_or(vec![], |r| r.iter().cloned().collect()),
         }
     }
@@ -263,13 +263,13 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
 
     fn get_inventories(&mut self) -> Result<(), storage::Error> {
         let mut msgs = Vec::new();
-        for proj in self.tracked()? {
-            for (_, peer) in self.seeds(&proj) {
+        for id in self.tracked()? {
+            for (_, peer) in self.seeds(&id) {
                 if peer.is_negotiated() {
                     msgs.push((
                         peer.addr,
                         Message::GetInventory {
-                            ids: vec![proj.clone()],
+                            ids: vec![id.clone()],
                         },
                     ));
                 }
@@ -366,27 +366,27 @@ where
 
         match cmd {
             Command::Connect(addr) => self.context.connect(addr),
-            Command::Fetch(proj, resp) => {
-                if !self.config.is_tracking(&proj) {
+            Command::Fetch(id, resp) => {
+                if !self.config.is_tracking(&id) {
                     resp.send(FetchLookup::NotTracking).ok();
                     return;
                 }
 
-                let seeds = self.seeds(&proj).collect::<Vec<_>>();
+                let seeds = self.seeds(&id).collect::<Vec<_>>();
                 let seeds = if let Some(seeds) = NonEmpty::from_vec(seeds) {
                     seeds
                 } else {
-                    log::error!("No seeds found for {}", proj);
+                    log::error!("No seeds found for {}", id);
                     resp.send(FetchLookup::NotFound).ok();
 
                     return;
                 };
-                log::debug!("Found {} seeds for {}", seeds.len(), proj);
+                log::debug!("Found {} seeds for {}", seeds.len(), id);
 
-                let mut repo = match self.storage.repository(&proj) {
+                let mut repo = match self.storage.repository(&id) {
                     Ok(repo) => repo,
                     Err(err) => {
-                        log::error!("Error opening repo for {}: {}", proj, err);
+                        log::error!("Error opening repo for {}: {}", id, err);
                         resp.send(FetchLookup::Error(err.into())).ok();
 
                         return;
@@ -407,7 +407,7 @@ where
                         host: Some(peer.addr.ip().to_string()),
                         port: Some(peer.addr.port()),
                         // TODO: Fix upstream crate so that it adds a `/` when needed.
-                        path: format!("/{}", proj).into(),
+                        path: format!("/{}", id).into(),
                         ..Url::default()
                     }) {
                         Ok(()) => {
@@ -424,21 +424,21 @@ where
                     }
                 }
             }
-            Command::Track(proj, resp) => {
-                resp.send(self.track(proj)).ok();
+            Command::Track(id, resp) => {
+                resp.send(self.track(id)).ok();
             }
-            Command::Untrack(proj, resp) => {
-                resp.send(self.untrack(proj)).ok();
+            Command::Untrack(id, resp) => {
+                resp.send(self.untrack(id)).ok();
             }
-            Command::AnnounceRefsUpdate(proj) => {
-                let user = *self.storage.public_key();
-                let repo = self.storage.repository(&proj).unwrap();
-                let remote = repo.remote(&user).unwrap();
+            Command::AnnounceRefsUpdate(id) => {
+                let signer = *self.storage.public_key();
+                let repo = self.storage.repository(&id).unwrap();
+                let remote = repo.remote(&signer).unwrap();
                 let peers = self.peers.negotiated().map(|(_, p)| p.addr);
                 let refs = remote.refs.unverified();
 
                 self.context
-                    .broadcast(Message::RefsUpdate { proj, user, refs }, peers);
+                    .broadcast(Message::RefsUpdate { id, signer, refs }, peers);
             }
         }
     }
@@ -712,16 +712,16 @@ where
     }
 
     /// Process a peer inventory update announcement by (maybe) fetching.
-    fn process_refs_update(&mut self, proj: &ProjId, _user: &UserId, remote: &Url) -> bool {
+    fn process_refs_update(&mut self, id: &Id, _user: &PublicKey, remote: &Url) -> bool {
         // TODO: Check that we're tracking this user as well.
-        if self.config.is_tracking(proj) {
-            self.fetch(proj, remote);
+        if self.config.is_tracking(id) {
+            self.fetch(id, remote);
         }
         // TODO: If refs were updated, return `true`.
         false
     }
 
-    fn fetch(&mut self, proj_id: &ProjId, remote: &Url) {
+    fn fetch(&mut self, proj_id: &Id, remote: &Url) {
         // TODO: Verify refs before adding them to storage.
         let mut repo = self.storage.repository(proj_id).unwrap();
         repo.fetch(&Url {

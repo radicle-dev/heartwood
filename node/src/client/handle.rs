@@ -4,7 +4,7 @@ use crossbeam_channel as chan;
 use nakamoto_net::Waker;
 use thiserror::Error;
 
-use crate::identity::ProjId;
+use crate::identity::Id;
 use crate::protocol;
 use crate::protocol::{CommandError, FetchLookup};
 
@@ -55,28 +55,28 @@ pub struct Handle<W: Waker> {
 
 impl<W: Waker> traits::Handle for Handle<W> {
     /// Retrieve or update the given project from the network.
-    fn fetch(&self, id: ProjId) -> Result<FetchLookup, Error> {
+    fn fetch(&self, id: Id) -> Result<FetchLookup, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.commands.send(protocol::Command::Fetch(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     /// Start tracking the given project. Doesn't do anything if the project is already tracked.
-    fn track(&self, id: ProjId) -> Result<bool, Error> {
+    fn track(&self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.commands.send(protocol::Command::Track(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     /// Untrack the given project and delete it from storage.
-    fn untrack(&self, id: ProjId) -> Result<bool, Error> {
+    fn untrack(&self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.commands.send(protocol::Command::Untrack(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     /// Notify the client that a project has been updated.
-    fn updated(&self, id: ProjId) -> Result<(), Error> {
+    fn updated(&self, id: Id) -> Result<(), Error> {
         self.command(protocol::Command::AnnounceRefsUpdate(id))
     }
 
@@ -102,14 +102,14 @@ pub mod traits {
 
     pub trait Handle {
         /// Retrieve or update the project from network.
-        fn fetch(&self, id: ProjId) -> Result<FetchLookup, Error>;
+        fn fetch(&self, id: Id) -> Result<FetchLookup, Error>;
         /// Start tracking the given project. Doesn't do anything if the project is already
         /// tracked.
-        fn track(&self, id: ProjId) -> Result<bool, Error>;
+        fn track(&self, id: Id) -> Result<bool, Error>;
         /// Untrack the given project and delete it from storage.
-        fn untrack(&self, id: ProjId) -> Result<bool, Error>;
+        fn untrack(&self, id: Id) -> Result<bool, Error>;
         /// Notify the client that a project has been updated.
-        fn updated(&self, id: ProjId) -> Result<(), Error>;
+        fn updated(&self, id: Id) -> Result<(), Error>;
         /// Send a command to the command channel, and wake up the event loop.
         fn command(&self, cmd: protocol::Command) -> Result<(), Error>;
         /// Ask the client to shutdown.

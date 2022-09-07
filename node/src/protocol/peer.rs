@@ -194,13 +194,20 @@ impl Peer {
                     }));
                 }
             }
-            (PeerState::Negotiated { git, .. }, Message::RefsUpdate { proj, user, refs }) => {
-                if refs.verified(&user).is_ok() {
+            (
+                PeerState::Negotiated { git, .. },
+                Message::RefsUpdate {
+                    id: proj,
+                    signer,
+                    refs,
+                },
+            ) => {
+                if refs.verified(&signer).is_ok() {
                     // TODO: Buffer/throttle fetches.
                     // TODO: Also pass the updated refs so that we can check whether
                     // we need to fetch or not.
                     // TODO: Check that the refs are valid.
-                    if ctx.process_refs_update(&proj, &user, git) {
+                    if ctx.process_refs_update(&proj, &signer, git) {
                         // TODO: If refs were updated, propagate message to peers.
                     }
                 } else {
