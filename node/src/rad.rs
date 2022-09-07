@@ -117,6 +117,8 @@ pub enum CheckoutError {
     NotFound(Id),
 }
 
+/// Checkout a project from storage as a working copy.
+/// This effectively does a `git-clone` from storage.
 pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     proj: &Id,
     path: P,
@@ -143,17 +145,19 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     )?;
 
     {
+        // Setup default branch.
         let remote_head_ref = format!("refs/remotes/{REMOTE_NAME}/{default_branch}");
         let remote_head_commit = repo.find_reference(&remote_head_ref)?.peel_to_commit()?;
         let _ = repo.branch(default_branch, &remote_head_commit, true)?;
-    }
 
-    git::set_upstream(
-        &repo,
-        REMOTE_NAME,
-        default_branch,
-        &format!("refs/remotes/{remote_id}/heads/{default_branch}"),
-    )?;
+        // Setup remote tracking for default branch.
+        git::set_upstream(
+            &repo,
+            REMOTE_NAME,
+            default_branch,
+            &format!("refs/remotes/{remote_id}/heads/{default_branch}"),
+        )?;
+    }
 
     Ok(repo)
 }
