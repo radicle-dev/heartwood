@@ -12,7 +12,7 @@ use crate::hash;
 use crate::serde_ext;
 use crate::storage::Remotes;
 
-pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new("Radicle.toml"));
+pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new("radicle.json"));
 
 /// A user's identifier is simply their public key.
 pub type UserId = crypto::PublicKey;
@@ -154,8 +154,8 @@ pub struct Project {
 
 #[derive(Error, Debug)]
 pub enum DocError {
-    #[error("toml: {0}")]
-    Toml(#[from] toml::ser::Error),
+    #[error("json: {0}")]
+    Json(#[from] serde_json::Error),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
 }
@@ -178,17 +178,25 @@ pub struct Doc {
 
 impl Doc {
     pub fn write<W: io::Write>(&self, mut writer: W) -> Result<ProjId, DocError> {
-        let buf = toml::to_string_pretty(self)?;
-        let digest = hash::Digest::new(buf.as_bytes());
+        let mut buf = Vec::new();
+        let mut ser =
+            serde_json::Serializer::with_formatter(&mut buf, olpc_cjson::CanonicalFormatter::new());
+
+        self.serialize(&mut ser)?;
+
+        let digest = hash::Digest::new(&buf);
         let id = ProjId::from(digest);
 
-        writer.write_all(buf.as_bytes())?;
+        // TODO: Currently, we serialize the document in canonical JSON. This isn't strictly
+        // necessary, as we could use CJSON just to get the hash, but then write a prettified
+        // version to disk to make it easier for users to edit.
+        writer.write_all(&buf)?;
 
         Ok(id)
     }
 
-    pub fn from_toml(bytes: &[u8]) -> Result<Self, toml::de::Error> {
-        toml::from_slice(bytes)
+    pub fn from_json(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(bytes)
     }
 }
 

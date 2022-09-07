@@ -216,7 +216,7 @@ impl Repository {
             Err(e) => return Err(e.into()),
             Ok(doc) => doc,
         };
-        let doc = identity::Doc::from_toml(doc.content()).unwrap();
+        let doc = identity::Doc::from_json(doc.content()).unwrap();
 
         Ok(Some(doc))
     }
