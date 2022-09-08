@@ -9,10 +9,10 @@ pub use ed25519::Error;
 pub use ed25519::Signature;
 
 /// Verified (used as type witness).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Verified;
 /// Unverified (used as type witness).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Unverified;
 
 pub trait Signer: Send + Sync {

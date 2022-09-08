@@ -422,6 +422,14 @@ mod tests {
     }
 
     #[quickcheck]
+    fn prop_vec(input: Vec<String>) {
+        assert_eq!(
+            deserialize::<Vec<String>>(&serialize(&input.as_slice())).unwrap(),
+            input
+        );
+    }
+
+    #[quickcheck]
     fn prop_pubkey(input: PublicKey) {
         assert_eq!(deserialize::<PublicKey>(&serialize(&input)).unwrap(), input);
     }

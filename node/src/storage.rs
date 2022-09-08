@@ -8,7 +8,6 @@ use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
 use radicle_git_ext as git_ext;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub use radicle_git_ext::Oid;
@@ -110,7 +109,7 @@ impl<V> From<Remotes<V>> for HashMap<RemoteId, Refs> {
 }
 
 /// A project remote.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Remote<V> {
     /// ID of remote.
     pub id: PublicKey,
@@ -119,7 +118,6 @@ pub struct Remote<V> {
     /// Whether this remote is of a project delegate.
     pub delegate: bool,
     /// Whether the remote is verified or not, ie. whether its signed refs were checked.
-    #[serde(skip)]
     verified: PhantomData<V>,
 }
 

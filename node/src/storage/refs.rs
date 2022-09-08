@@ -9,7 +9,6 @@ use std::str::FromStr;
 
 use once_cell::sync::Lazy;
 use radicle_git_ext as git_ext;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::crypto;
@@ -52,7 +51,7 @@ pub enum Error {
 }
 
 /// The published state of a local repository.
-#[derive(Default, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct Refs(BTreeMap<git::RefString, Oid>);
 
 impl Refs {
@@ -162,11 +161,10 @@ impl DerefMut for Refs {
 ///
 /// The type parameter keeps track of whether the signature was [`Verified`] or
 /// [`Unverified`].
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignedRefs<V> {
     refs: Refs,
     signature: Signature,
-    #[serde(skip)]
     _verified: PhantomData<V>,
 }
 

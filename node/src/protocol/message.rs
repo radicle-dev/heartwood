@@ -1,7 +1,6 @@
-use std::net;
+use std::{io, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
-use serde::{Deserialize, Serialize};
 
 use crate::crypto;
 use crate::git;
@@ -12,7 +11,7 @@ use crate::storage;
 use crate::storage::refs::SignedRefs;
 
 /// Message envelope. All messages sent over the network are wrapped in this type.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Envelope {
     /// Network magic constant. Used to differentiate networks.
     pub magic: u32,
@@ -23,7 +22,7 @@ pub struct Envelope {
 /// Advertized node feature. Signals what services the node supports.
 pub type NodeFeatures = [u8; 32];
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: We should check the length and charset when deserializing.
 pub struct Hostname(String);
 
@@ -90,7 +89,7 @@ impl TryFrom<u8> for AddressType {
 }
 
 /// Peer public protocol address.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Address {
     Ipv4 {
         ip: net::Ipv4Addr,
@@ -196,32 +195,63 @@ impl wire::Decode for Address {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeAnnouncement {
     /// Node identifier.
-    id: NodeId,
+    pub id: NodeId,
     /// Advertized features.
-    features: NodeFeatures,
+    pub features: NodeFeatures,
     /// Monotonic timestamp.
-    timestamp: Timestamp,
+    pub timestamp: Timestamp,
     /// Non-unique alias. Must be valid UTF-8.
-    alias: [u8; 32],
+    pub alias: [u8; 32],
     /// Announced addresses.
-    addresses: Vec<Address>,
+    pub addresses: Vec<Address>,
 }
 
 impl NodeAnnouncement {
     /// Verify a signature on this message.
     pub fn verify(&self, signature: &crypto::Signature) -> bool {
-        // TODO: Use binary serialization.
-        let msg = serde_json::to_vec(self).unwrap();
+        let msg = wire::serialize(self);
         self.id.verify(signature, &msg).is_ok()
+    }
+}
+
+impl wire::Encode for NodeAnnouncement {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        let mut n = 0;
+
+        n += self.id.encode(writer)?;
+        n += self.features.encode(writer)?;
+        n += self.timestamp.encode(writer)?;
+        n += self.alias.encode(writer)?;
+        n += self.addresses.as_slice().encode(writer)?;
+
+        Ok(n)
+    }
+}
+
+impl wire::Decode for NodeAnnouncement {
+    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
+        let id = NodeId::decode(reader)?;
+        let features = NodeFeatures::decode(reader)?;
+        let timestamp = Timestamp::decode(reader)?;
+        let alias = wire::Decode::decode(reader)?;
+        let addresses = Vec::<Address>::decode(reader)?;
+
+        Ok(Self {
+            id,
+            features,
+            timestamp,
+            alias,
+            addresses,
+        })
     }
 }
 
 /// Message payload.
 /// These are the messages peers send to each other.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Message {
     /// Say hello to a peer. This is the first message sent to a peer after connection.
     Hello {
@@ -233,10 +263,10 @@ pub enum Message {
         git: git::Url,
     },
     Node {
-        /// Signature over the announcement, by the node being announced.
-        signature: crypto::Signature,
         /// Unsigned node announcement.
         announcement: NodeAnnouncement,
+        /// Signature over the announcement, by the node being announced.
+        signature: crypto::Signature,
     },
     /// Get a peer's inventory.
     GetInventory { ids: Vec<Id> },
@@ -271,7 +301,7 @@ impl Message {
     }
 
     pub fn node<S: crypto::Signer>(announcement: NodeAnnouncement, signer: S) -> Self {
-        let msg = serde_json::to_vec(&announcement).unwrap();
+        let msg = wire::serialize(&announcement);
         let signature = signer.sign(&msg);
 
         Self::Node {
@@ -346,8 +376,12 @@ impl wire::Encode for Message {
                 n += inv.as_slice().encode(writer)?;
                 n += timestamp.encode(writer)?;
             }
-            Self::Node { .. } => {
-                todo!();
+            Self::Node {
+                announcement,
+                signature,
+            } => {
+                n += announcement.encode(writer)?;
+                n += signature.encode(writer)?;
             }
         }
         Ok(n)
@@ -375,7 +409,13 @@ impl wire::Decode for Message {
                 })
             }
             Ok(MessageType::Node) => {
-                todo!();
+                let announcement = NodeAnnouncement::decode(reader)?;
+                let signature = crypto::Signature::decode(reader)?;
+
+                Ok(Self::Node {
+                    announcement,
+                    signature,
+                })
             }
             Ok(MessageType::GetInventory) => {
                 let ids = Vec::<Id>::decode(reader)?;

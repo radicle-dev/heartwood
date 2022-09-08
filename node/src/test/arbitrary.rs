@@ -13,7 +13,7 @@ use crate::crypto::{PublicKey, SecretKey};
 use crate::git;
 use crate::hash;
 use crate::identity::{Delegate, Did, Doc, Id, Project};
-use crate::protocol::message::{Address, Envelope, Message};
+use crate::protocol::message::{Address, Envelope, Message, MessageType, NodeAnnouncement};
 use crate::protocol::{NodeId, Timestamp};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
@@ -68,22 +68,45 @@ impl Arbitrary for Envelope {
 
 impl Arbitrary for Message {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let type_id = g.choose(&[4, 6, 8]).unwrap();
+        let type_id = g
+            .choose(&[
+                MessageType::GetInventory,
+                MessageType::Inventory,
+                MessageType::Node,
+                MessageType::RefsUpdate,
+            ])
+            .unwrap();
 
         match type_id {
-            4 => Self::GetInventory {
+            MessageType::GetInventory => Self::GetInventory {
                 ids: Vec::<Id>::arbitrary(g),
             },
-            6 => Self::Inventory {
+            MessageType::Inventory => Self::Inventory {
                 node: NodeId::arbitrary(g),
                 inv: Vec::<Id>::arbitrary(g),
                 timestamp: Timestamp::arbitrary(g),
             },
-            8 => Self::RefsUpdate {
+            MessageType::RefsUpdate => Self::RefsUpdate {
                 id: Id::arbitrary(g),
                 signer: PublicKey::arbitrary(g),
                 refs: SignedRefs::<Unverified>::arbitrary(g),
             },
+            MessageType::Node => {
+                let announcement = NodeAnnouncement {
+                    id: NodeId::arbitrary(g),
+                    features: ByteArray::<32>::arbitrary(g).into_inner(),
+                    timestamp: Timestamp::arbitrary(g),
+                    alias: ByteArray::<32>::arbitrary(g).into_inner(),
+                    addresses: Arbitrary::arbitrary(g),
+                };
+                let bytes: ByteArray<64> = Arbitrary::arbitrary(g);
+                let signature = crypto::Signature::from(bytes.into_inner());
+
+                Self::Node {
+                    signature,
+                    announcement,
+                }
+            }
             _ => unreachable!(),
         }
     }
