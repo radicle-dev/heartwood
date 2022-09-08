@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 use std::hash::Hash;
+use std::net;
 use std::ops::RangeBounds;
 use std::path::PathBuf;
 
@@ -7,13 +8,15 @@ use nonempty::NonEmpty;
 use quickcheck::Arbitrary;
 
 use crate::collections::HashMap;
-use crate::crypto::{self, Signer};
+use crate::crypto::{self, Signer, Unverified};
 use crate::crypto::{PublicKey, SecretKey};
 use crate::git;
 use crate::hash;
 use crate::identity::{Delegate, Did, Doc, Id, Project};
+use crate::protocol::message::{Address, Envelope, Message};
+use crate::protocol::{NodeId, Timestamp};
 use crate::storage;
-use crate::storage::refs::Refs;
+use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::storage::MockStorage;
 
 use super::crypto::MockSigner;
@@ -33,6 +36,75 @@ pub fn gen<T: Arbitrary>(size: usize) -> T {
     let mut gen = quickcheck::Gen::new(size);
 
     T::arbitrary(&mut gen)
+}
+
+#[derive(Clone, Debug)]
+pub struct ByteArray<const N: usize>([u8; N]);
+
+impl<const N: usize> ByteArray<N> {
+    pub fn into_inner(self) -> [u8; N] {
+        self.0
+    }
+}
+
+impl<const N: usize> Arbitrary for ByteArray<N> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let mut bytes: [u8; N] = [0; N];
+        for byte in &mut bytes {
+            *byte = u8::arbitrary(g);
+        }
+        Self(bytes)
+    }
+}
+
+impl Arbitrary for Envelope {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self {
+            magic: u32::arbitrary(g),
+            msg: Message::arbitrary(g),
+        }
+    }
+}
+
+impl Arbitrary for Message {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let type_id = g.choose(&[4, 6, 8]).unwrap();
+
+        match type_id {
+            4 => Self::GetInventory {
+                ids: Vec::<Id>::arbitrary(g),
+            },
+            6 => Self::Inventory {
+                node: NodeId::arbitrary(g),
+                inv: Vec::<Id>::arbitrary(g),
+                timestamp: Timestamp::arbitrary(g),
+            },
+            8 => Self::RefsUpdate {
+                id: Id::arbitrary(g),
+                signer: PublicKey::arbitrary(g),
+                refs: SignedRefs::<Unverified>::arbitrary(g),
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Arbitrary for Address {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        if bool::arbitrary(g) {
+            Address::Ip {
+                ip: net::IpAddr::V4(net::Ipv4Addr::from(u32::arbitrary(g))),
+                port: u16::arbitrary(g),
+            }
+        } else {
+            let octets: [u8; 16] = ByteArray::<16>::arbitrary(g).into_inner();
+
+            Address::Ip {
+                ip: net::IpAddr::V6(net::Ipv6Addr::from(octets)),
+                port: u16::arbitrary(g),
+            }
+        }
+    }
 }
 
 impl Arbitrary for storage::Remotes<crypto::Verified> {
@@ -104,6 +176,16 @@ impl Arbitrary for Doc {
     }
 }
 
+impl Arbitrary for SignedRefs<Unverified> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let bytes: ByteArray<64> = Arbitrary::arbitrary(g);
+        let signature = crypto::Signature::from(bytes.into_inner());
+        let refs = Refs::arbitrary(g);
+
+        Self::new(refs, signature)
+    }
+}
+
 impl Arbitrary for Refs {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let mut refs: BTreeMap<git::RefString, storage::Oid> = BTreeMap::new();
@@ -146,12 +228,8 @@ impl Arbitrary for storage::Remote<crypto::Verified> {
 
 impl Arbitrary for MockSigner {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let mut bytes: [u8; 32] = [0; 32];
-
-        for byte in &mut bytes {
-            *byte = u8::arbitrary(g);
-        }
-        MockSigner::from(SecretKey::from(bytes))
+        let bytes: ByteArray<32> = Arbitrary::arbitrary(g);
+        MockSigner::from(SecretKey::from(bytes.into_inner()))
     }
 }
 
@@ -173,12 +251,8 @@ impl Arbitrary for PublicKey {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         use ed25519_consensus::SigningKey;
 
-        let mut bytes: [u8; 32] = [0; 32];
-
-        for byte in &mut bytes {
-            *byte = u8::arbitrary(g);
-        }
-        let sk = SigningKey::from(bytes);
+        let bytes: ByteArray<32> = Arbitrary::arbitrary(g);
+        let sk = SigningKey::from(bytes.into_inner());
         let vk = sk.verification_key();
 
         PublicKey(vk)

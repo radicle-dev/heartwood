@@ -12,7 +12,7 @@ use crate::storage;
 use crate::storage::refs::SignedRefs;
 
 /// Message envelope. All messages sent over the network are wrapped in this type.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Envelope {
     /// Network magic constant. Used to differentiate networks.
     pub magic: u32,
@@ -45,6 +45,26 @@ pub enum Address {
         checksum: u16,
         version: u8,
     },
+}
+
+impl wire::Encode for Envelope {
+    fn encode<W: std::io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
+        let mut n = 0;
+
+        n += self.magic.encode(writer)?;
+        n += self.msg.encode(writer)?;
+
+        Ok(n)
+    }
+}
+
+impl wire::Decode for Envelope {
+    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
+        let magic = u32::decode(reader)?;
+        let msg = Message::decode(reader)?;
+
+        Ok(Self { magic, msg })
+    }
 }
 
 impl wire::Encode for Address {
@@ -84,6 +104,13 @@ impl wire::Decode for Address {
 
                 Ok(Self::Ip { ip, port })
             }
+            2 => {
+                let octets: [u8; 16] = wire::Decode::decode(reader)?;
+                let ip = net::IpAddr::from(net::Ipv6Addr::from(octets));
+                let port = u16::decode(reader)?;
+
+                Ok(Self::Ip { ip, port })
+            }
             _ => {
                 todo!();
             }
@@ -108,6 +135,7 @@ pub struct NodeAnnouncement {
 impl NodeAnnouncement {
     /// Verify a signature on this message.
     pub fn verify(&self, signature: &crypto::Signature) -> bool {
+        // TODO: Use binary serialization.
         let msg = serde_json::to_vec(self).unwrap();
         self.id.verify(signature, &msg).is_ok()
     }
@@ -115,7 +143,7 @@ impl NodeAnnouncement {
 
 /// Message payload.
 /// These are the messages peers send to each other.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Message {
     /// Say hello to a peer. This is the first message sent to a peer after connection.
     Hello {
@@ -295,9 +323,60 @@ impl wire::Decode for Message {
 
                 Ok(Self::RefsUpdate { id, signer, refs })
             }
-            _ => {
-                todo!();
+            n => {
+                todo!("Mesage type {} is not yet implemented", n);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quickcheck_macros::quickcheck;
+
+    use crate::decoder::Decoder;
+    use crate::protocol::wire::{self, Encode};
+
+    #[quickcheck]
+    fn prop_message_encode_decode(message: Message) {
+        assert_eq!(
+            wire::deserialize::<Message>(&wire::serialize(&message)).unwrap(),
+            message
+        );
+    }
+
+    #[quickcheck]
+    fn prop_envelope_encode_decode(envelope: Envelope) {
+        assert_eq!(
+            wire::deserialize::<Envelope>(&wire::serialize(&envelope)).unwrap(),
+            envelope
+        );
+    }
+
+    #[test]
+    fn prop_envelope_decoder() {
+        fn property(items: Vec<Envelope>) {
+            let mut decoder = Decoder::<Envelope>::new(8);
+
+            for item in &items {
+                item.encode(&mut decoder).unwrap();
+            }
+            for item in items {
+                assert_eq!(decoder.next().unwrap().unwrap(), item);
+            }
+        }
+
+        quickcheck::QuickCheck::new()
+            .gen(quickcheck::Gen::new(16))
+            .quickcheck(property as fn(items: Vec<Envelope>));
+    }
+
+    #[quickcheck]
+    fn prop_addr(addr: Address) {
+        assert_eq!(
+            wire::deserialize::<Address>(&wire::serialize(&addr)).unwrap(),
+            addr
+        );
     }
 }

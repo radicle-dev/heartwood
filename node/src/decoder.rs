@@ -1,7 +1,8 @@
+use std::io;
 use std::marker::PhantomData;
 
 use crate::protocol::message::Envelope;
-use serde::Deserialize;
+use crate::protocol::wire;
 
 /// Message stream decoder.
 ///
@@ -21,7 +22,7 @@ impl<D> From<Vec<u8>> for Decoder<D> {
     }
 }
 
-impl<'de, D: Deserialize<'de>> Decoder<D> {
+impl<D: wire::Decode> Decoder<D> {
     /// Create a new stream decoder.
     pub fn new(capacity: usize) -> Self {
         Self {
@@ -36,23 +37,36 @@ impl<'de, D: Deserialize<'de>> Decoder<D> {
     }
 
     /// Decode and return the next message. Returns [`None`] if nothing was decoded.
-    pub fn decode_next(&mut self) -> Result<Option<D>, serde_json::Error> {
-        let mut de = serde_json::Deserializer::from_reader(self.unparsed.as_slice()).into_iter();
+    pub fn decode_next(&mut self) -> Result<Option<D>, wire::Error> {
+        let mut reader = io::Cursor::new(self.unparsed.as_mut_slice());
 
-        match de.next() {
-            Some(Ok(msg)) => {
-                self.unparsed.drain(..de.byte_offset());
+        match D::decode(&mut reader) {
+            Ok(msg) => {
+                let pos = reader.position() as usize;
+                self.unparsed.drain(..pos);
+
                 Ok(Some(msg))
             }
-            Some(Err(err)) if err.is_eof() => Ok(None),
-
-            result => result.transpose(),
+            Err(err) if err.is_eof() => Ok(None),
+            Err(err) => Err(err),
         }
     }
 }
 
-impl<'de, D: Deserialize<'de>> Iterator for Decoder<D> {
-    type Item = Result<D, serde_json::Error>;
+impl<D: wire::Decode> io::Write for Decoder<D> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.input(buf);
+
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl<D: wire::Decode> Iterator for Decoder<D> {
+    type Item = Result<D, wire::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.decode_next().transpose()
@@ -64,14 +78,14 @@ mod test {
     use super::*;
     use quickcheck_macros::quickcheck;
 
-    const MSG_HELLO: &[u8] = b"{\"cmd\":\"hello\"}";
-    const MSG_BYE: &[u8] = b"{\"cmd\":\"goodbye\"}";
+    const MSG_HELLO: &[u8] = &[5, b'h', b'e', b'l', b'l', b'o'];
+    const MSG_BYE: &[u8] = &[3, b'b', b'y', b'e'];
 
     #[quickcheck]
     fn prop_decode_next(chunk_size: usize) {
         let mut bytes = vec![];
         let mut msgs = vec![];
-        let mut decoder = Decoder::<serde_json::Value>::new(64);
+        let mut decoder = Decoder::<String>::new(8);
 
         let chunk_size = 1 + chunk_size % MSG_HELLO.len() + MSG_BYE.len();
 
@@ -88,17 +102,7 @@ mod test {
 
         assert_eq!(decoder.unparsed.len(), 0);
         assert_eq!(msgs.len(), 2);
-        assert_eq!(
-            msgs[0],
-            serde_json::json!({
-                "cmd": "hello",
-            })
-        );
-        assert_eq!(
-            msgs[1],
-            serde_json::json!({
-                "cmd": "goodbye",
-            })
-        );
+        assert_eq!(msgs[0], String::from("hello"));
+        assert_eq!(msgs[1], String::from("bye"));
     }
 }

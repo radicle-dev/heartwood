@@ -5,7 +5,7 @@ pub mod peer;
 pub mod wire;
 
 use std::ops::{Deref, DerefMut};
-use std::{collections::VecDeque, fmt, io, net, net::IpAddr};
+use std::{collections::VecDeque, fmt, net, net::IpAddr};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
@@ -26,6 +26,7 @@ use crate::identity::{Id, Project, PublicKey};
 use crate::protocol::config::ProjectTracking;
 use crate::protocol::message::Message;
 use crate::protocol::peer::{Peer, PeerError, PeerState};
+use crate::protocol::wire::Encode;
 use crate::storage::{self, ReadRepository, WriteRepository};
 use crate::storage::{Inventory, WriteStorage};
 
@@ -546,7 +547,7 @@ where
             .collect::<Vec<_>>();
 
         let (peer, msgs) = if let Some(peer) = self.peers.get_mut(&peer) {
-            let decoder = &mut peer.inbox();
+            let decoder = peer.inbox();
             decoder.input(bytes);
 
             let mut msgs = Vec::with_capacity(1);
@@ -555,8 +556,10 @@ where
                     Ok(Some(msg)) => msgs.push(msg),
                     Ok(None) => break,
 
-                    Err(_err) => {
+                    Err(err) => {
                         // TODO: Disconnect peer.
+                        error!("Invalid message received from {}: {}", peer.addr, err);
+
                         return;
                     }
                 }
@@ -731,8 +734,13 @@ where
     fn fetch(&mut self, proj_id: &Id, remote: &Url) {
         // TODO: Verify refs before adding them to storage.
         let mut repo = self.storage.repository(proj_id).unwrap();
+        let mut path = remote.path.clone();
+
+        path.push(b'/');
+        path.extend(proj_id.to_string().into_bytes());
+
         repo.fetch(&Url {
-            path: format!("/{}", proj_id).into(),
+            path,
             ..remote.clone()
         })
         .unwrap();
@@ -757,22 +765,24 @@ impl<S, T, G> Context<S, T, G> {
     }
 
     fn write_all(&mut self, remote: net::SocketAddr, msgs: impl IntoIterator<Item = Message>) {
-        let mut buf = io::Cursor::new(Vec::new());
+        let mut buf = Vec::new();
 
         for msg in msgs {
             debug!("Write {:?} to {}", &msg, remote.ip());
 
             let envelope = self.config.network.envelope(msg);
-            serde_json::to_writer(&mut buf, &envelope).unwrap();
+            envelope
+                .encode(&mut buf)
+                .expect("writing to an in-memory buffer doesn't fail");
         }
-        self.io.push_back(Io::Write(remote, buf.into_inner()));
+        self.io.push_back(Io::Write(remote, buf));
     }
 
     fn write(&mut self, remote: net::SocketAddr, msg: Message) {
         debug!("Write {:?} to {}", &msg, remote.ip());
 
         let envelope = self.config.network.envelope(msg);
-        let bytes = serde_json::to_vec(&envelope).unwrap();
+        let bytes = wire::serialize(&envelope);
 
         self.io.push_back(Io::Write(remote, bytes));
     }

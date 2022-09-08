@@ -129,7 +129,7 @@ where
     }
 
     pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
-        let bytes = serde_json::to_vec(&self.config().network.envelope(msg)).unwrap();
+        let bytes = wire::serialize(&self.config().network.envelope(msg));
 
         self.protocol.received_bytes(peer, &bytes);
     }
@@ -137,7 +137,7 @@ where
     pub fn connect_from(&mut self, peer: &Self) {
         let remote = simulator::Peer::<Protocol<S>>::addr(peer);
         let local = net::SocketAddr::new(self.ip, self.rng.u16(..));
-        let git = format!("file://{}.git", remote.ip());
+        let git = format!("file:///{}.git", remote.ip());
         let git = Url::from_bytes(git.as_bytes()).unwrap();
 
         self.initialize();

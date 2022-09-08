@@ -45,7 +45,8 @@ impl ReadStorage for Storage {
     fn url(&self) -> git::Url {
         git::Url {
             scheme: git_url::Scheme::File,
-            host: Some(self.path.to_string_lossy().to_string()),
+            host: None,
+            path: self.path.to_string_lossy().to_string().into(),
             ..git::Url::default()
         }
     }

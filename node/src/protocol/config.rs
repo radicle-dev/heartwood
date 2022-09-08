@@ -3,6 +3,7 @@ use std::net;
 use git_url::Url;
 
 use crate::collections::HashSet;
+use crate::git;
 use crate::identity::{Id, PublicKey};
 use crate::protocol::message::{Address, Envelope, Message};
 
@@ -88,7 +89,11 @@ impl Default for Config {
             remote_tracking: RemoteTracking::default(),
             relay: true,
             listen: vec![],
-            git_url: Url::default(),
+            git_url: Url {
+                scheme: git::url::Scheme::File,
+                path: "/dev/null".to_owned().into(),
+                ..Url::default()
+            },
         }
     }
 }

@@ -23,6 +23,17 @@ pub enum Error {
     InvalidSize { expected: usize, actual: usize },
     #[error(transparent)]
     InvalidRefName(#[from] fmt::Error),
+    #[error("invalid git url `{url}`: {error}")]
+    InvalidGitUrl {
+        url: String,
+        error: git::url::parse::Error,
+    },
+}
+
+impl Error {
+    pub fn is_eof(&self) -> bool {
+        matches!(self, Self::Io(err) if err.kind() == io::ErrorKind::UnexpectedEof)
+    }
 }
 
 pub trait Encode {
@@ -43,6 +54,13 @@ pub fn serialize<T: Encode + ?Sized>(data: &T) -> Vec<u8> {
     debug_assert_eq!(len, buffer.len());
 
     buffer
+}
+
+/// Decode an object from a vector.
+pub fn deserialize<T: Decode>(data: &[u8]) -> Result<T, Error> {
+    let mut cursor = io::Cursor::new(data);
+
+    T::decode(&mut cursor)
 }
 
 impl Encode for u8 {
@@ -79,13 +97,14 @@ impl Encode for u64 {
 
 impl Encode for usize {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        let u = (*self)
-            .try_into()
-            .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+        assert!(
+            *self <= u32::MAX as usize,
+            "Cannot encode sizes larger than {}",
+            u32::MAX
+        );
+        writer.write_u32::<NetworkEndian>(*self as u32)?;
 
-        writer.write_u32::<NetworkEndian>(u)?;
-
-        Ok(mem::size_of_val(&u))
+        Ok(mem::size_of::<u32>())
     }
 }
 
@@ -134,14 +153,18 @@ impl Encode for net::IpAddr {
     }
 }
 
-impl Encode for str {
+impl Encode for &str {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        let mut n = 0;
+        assert!(self.len() <= u8::MAX as usize);
 
-        n += self.len().encode(writer)?;
-        n += self.as_bytes().encode(writer)?;
+        let n = (self.len() as u8).encode(writer)?;
+        let bytes = self.as_bytes();
 
-        Ok(n)
+        // Nb. Don't use the [`Encode`] instance here for &[u8], because we are prefixing the
+        // length ourselves.
+        writer.write_all(bytes)?;
+
+        Ok(n + bytes.len())
     }
 }
 
@@ -276,7 +299,7 @@ impl Decode for u64 {
 
 impl Decode for usize {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let size: usize = u64::decode(reader)?
+        let size: usize = u32::decode(reader)?
             .try_into()
             .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
 
@@ -311,8 +334,8 @@ where
 
 impl Decode for String {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let len = usize::decode(reader)?;
-        let mut bytes = vec![0; len];
+        let len = u8::decode(reader)?;
+        let mut bytes = vec![0; len as usize];
 
         reader.read_exact(&mut bytes)?;
 
@@ -324,10 +347,11 @@ impl Decode for String {
 
 impl Decode for git::Url {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let string = String::decode(reader)?;
+        let url = String::decode(reader)?;
+        let url = Self::from_bytes(url.as_bytes())
+            .map_err(|error| Error::InvalidGitUrl { url, error })?;
 
-        Self::from_bytes(string.as_bytes())
-            .map_err(|e| Error::Io(io::Error::new(io::ErrorKind::InvalidInput, e.to_string())))
+        Ok(url)
     }
 }
 
@@ -344,5 +368,120 @@ impl Decode for Digest {
         let bytes: [u8; 32] = Decode::decode(reader)?;
 
         Ok(Self::from(bytes))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quickcheck_macros::quickcheck;
+
+    use crate::crypto::Unverified;
+    use crate::storage::refs::SignedRefs;
+    use crate::test::arbitrary;
+
+    #[quickcheck]
+    fn prop_u8(input: u8) {
+        assert_eq!(deserialize::<u8>(&serialize(&input)).unwrap(), input);
+    }
+
+    #[quickcheck]
+    fn prop_u16(input: u16) {
+        assert_eq!(deserialize::<u16>(&serialize(&input)).unwrap(), input);
+    }
+
+    #[quickcheck]
+    fn prop_u32(input: u32) {
+        assert_eq!(deserialize::<u32>(&serialize(&input)).unwrap(), input);
+    }
+
+    #[quickcheck]
+    fn prop_u64(input: u64) {
+        assert_eq!(deserialize::<u64>(&serialize(&input)).unwrap(), input);
+    }
+
+    #[quickcheck]
+    fn prop_usize(input: usize) -> quickcheck::TestResult {
+        if input > u32::MAX as usize {
+            return quickcheck::TestResult::discard();
+        }
+        assert_eq!(deserialize::<usize>(&serialize(&input)).unwrap(), input);
+
+        quickcheck::TestResult::passed()
+    }
+
+    #[quickcheck]
+    fn prop_string(input: String) -> quickcheck::TestResult {
+        if input.len() > u8::MAX as usize {
+            return quickcheck::TestResult::discard();
+        }
+        assert_eq!(deserialize::<String>(&serialize(&input)).unwrap(), input);
+
+        quickcheck::TestResult::passed()
+    }
+
+    #[quickcheck]
+    fn prop_pubkey(input: PublicKey) {
+        assert_eq!(deserialize::<PublicKey>(&serialize(&input)).unwrap(), input);
+    }
+
+    #[quickcheck]
+    fn prop_id(input: Id) {
+        assert_eq!(deserialize::<Id>(&serialize(&input)).unwrap(), input);
+    }
+
+    #[quickcheck]
+    fn prop_digest(input: Digest) {
+        assert_eq!(deserialize::<Digest>(&serialize(&input)).unwrap(), input);
+    }
+
+    #[quickcheck]
+    fn prop_refs(input: Refs) {
+        assert_eq!(deserialize::<Refs>(&serialize(&input)).unwrap(), input);
+    }
+
+    #[quickcheck]
+    fn prop_signature(input: arbitrary::ByteArray<64>) {
+        let signature = Signature::from(input.into_inner());
+
+        assert_eq!(
+            deserialize::<Signature>(&serialize(&signature)).unwrap(),
+            signature
+        );
+    }
+
+    #[quickcheck]
+    fn prop_oid(input: arbitrary::ByteArray<20>) {
+        let oid = git::Oid::try_from(input.into_inner().as_slice()).unwrap();
+
+        assert_eq!(deserialize::<git::Oid>(&serialize(&oid)).unwrap(), oid);
+    }
+
+    #[quickcheck]
+    fn prop_signed_refs(input: SignedRefs<Unverified>) {
+        assert_eq!(
+            deserialize::<SignedRefs<Unverified>>(&serialize(&input)).unwrap(),
+            input
+        );
+    }
+
+    #[test]
+    fn test_string() {
+        assert_eq!(
+            serialize(&String::from("hello")),
+            vec![5, b'h', b'e', b'l', b'l', b'o']
+        );
+    }
+
+    #[test]
+    fn test_git_url() {
+        let url = git::Url {
+            scheme: git::url::Scheme::Https,
+            path: "/git".to_owned().into(),
+            host: Some("seed.radicle.xyz".to_owned()),
+            port: Some(8888),
+            ..git::Url::default()
+        };
+        assert_eq!(deserialize::<git::Url>(&serialize(&url)).unwrap(), url);
     }
 }
