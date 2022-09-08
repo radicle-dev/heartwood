@@ -92,15 +92,15 @@ impl Arbitrary for Message {
 impl Arbitrary for Address {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         if bool::arbitrary(g) {
-            Address::Ip {
-                ip: net::IpAddr::V4(net::Ipv4Addr::from(u32::arbitrary(g))),
+            Address::Ipv4 {
+                ip: net::Ipv4Addr::from(u32::arbitrary(g)),
                 port: u16::arbitrary(g),
             }
         } else {
             let octets: [u8; 16] = ByteArray::<16>::arbitrary(g).into_inner();
 
-            Address::Ip {
-                ip: net::IpAddr::V6(net::Ipv6Addr::from(octets)),
+            Address::Ipv6 {
+                ip: net::Ipv6Addr::from(octets),
                 port: u16::arbitrary(g),
             }
         }

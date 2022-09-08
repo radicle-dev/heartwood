@@ -147,10 +147,7 @@ where
             Message::hello(
                 peer.id(),
                 self.local_time().as_secs(),
-                vec![Address::Ip {
-                    ip: remote.ip(),
-                    port: remote.port(),
-                }],
+                vec![Address::from(remote)],
                 git,
             ),
         );

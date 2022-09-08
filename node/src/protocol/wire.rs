@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::ops::Deref;
 use std::string::FromUtf8Error;
-use std::{io, mem, net};
+use std::{io, mem};
 
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 
@@ -28,18 +28,26 @@ pub enum Error {
         url: String,
         error: git::url::parse::Error,
     },
+    #[error("unknown address type `{0}`")]
+    UnknownAddressType(u8),
+    #[error("unknown message type `{0}`")]
+    UnknownMessageType(u16),
 }
 
 impl Error {
+    /// Whether we've reached the end of file. This will be true when we fail to decode
+    /// a message because there's not enough data in the stream.
     pub fn is_eof(&self) -> bool {
         matches!(self, Self::Io(err) if err.kind() == io::ErrorKind::UnexpectedEof)
     }
 }
 
+/// Things that can be encoded as binary.
 pub trait Encode {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error>;
 }
 
+/// Things that can be decoded from binary.
 pub trait Decode: Sized {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error>;
 }
@@ -96,6 +104,8 @@ impl Encode for u64 {
 }
 
 impl Encode for usize {
+    /// We encode this type to a [`u32`], since there's no need to send larger messages
+    /// over the network.
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         assert!(
             *self <= u32::MAX as usize,
@@ -141,15 +151,6 @@ where
             n += item.encode(writer)?;
         }
         Ok(n)
-    }
-}
-
-impl Encode for net::IpAddr {
-    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        match self {
-            net::IpAddr::V4(addr) => addr.octets().encode(writer),
-            net::IpAddr::V6(addr) => addr.octets().encode(writer),
-        }
     }
 }
 
