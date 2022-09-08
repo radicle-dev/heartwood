@@ -9,6 +9,7 @@ use crate::storage::refs::Refs;
 use crate::storage::RemoteId;
 
 pub use ext::Oid;
+pub use git_ref_format as fmt;
 pub use git_ref_format::{refname, RefStr, RefString};
 pub use git_url as url;
 pub use git_url::Url;

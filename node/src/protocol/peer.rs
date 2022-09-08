@@ -163,11 +163,11 @@ impl Peer {
                 ctx.write(self.addr, inventory);
             }
             (
-                PeerState::Negotiated { id, git, .. },
+                PeerState::Negotiated { git, .. },
                 Message::Inventory {
+                    node,
                     timestamp,
                     inv,
-                    origin,
                 },
             ) => {
                 let now = ctx.clock.local_time();
@@ -184,13 +184,13 @@ impl Peer {
                 } else {
                     return Ok(None);
                 }
-                ctx.process_inventory(&inv, origin.unwrap_or(*id), git);
+                ctx.process_inventory(&inv, node, git);
 
                 if ctx.config.relay {
                     return Ok(Some(Message::Inventory {
-                        timestamp,
+                        node,
                         inv,
-                        origin: origin.or(Some(*id)),
+                        timestamp,
                     }));
                 }
             }

@@ -2,6 +2,7 @@
 pub mod config;
 pub mod message;
 pub mod peer;
+pub mod wire;
 
 use std::ops::{Deref, DerefMut};
 use std::{collections::VecDeque, fmt, io, net, net::IpAddr};
@@ -667,6 +668,16 @@ pub struct Context<S, T, G> {
     rng: Rng,
 }
 
+impl<S, T, G> Context<S, T, G>
+where
+    T: storage::ReadStorage,
+    G: crypto::Signer,
+{
+    pub(crate) fn id(&self) -> NodeId {
+        *self.signer.public_key()
+    }
+}
+
 impl<'r, S, T, G> Context<S, T, G>
 where
     T: storage::WriteStorage<'r>,
@@ -690,10 +701,6 @@ where
             addrmgr,
             rng,
         }
-    }
-
-    pub(crate) fn id(&self) -> NodeId {
-        *self.signer.public_key()
     }
 
     /// Process a peer inventory announcement by updating our routing table.

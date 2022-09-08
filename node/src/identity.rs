@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{ffi::OsString, fmt, io, str::FromStr};
 
@@ -20,6 +21,8 @@ pub static IDENTITY_PATH: Lazy<&Path> = Lazy::new(|| Path::new("radicle.json"));
 pub enum IdError {
     #[error("invalid digest: {0}")]
     InvalidDigest(#[from] hash::DecodeError),
+    #[error(transparent)]
+    Multibase(#[from] multibase::Error),
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -27,19 +30,26 @@ pub struct Id(hash::Digest);
 
 impl fmt::Display for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.encode())
+        f.write_str(&self.to_human())
     }
 }
 
 impl fmt::Debug for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ProjId({})", self.encode())
+        write!(f, "Id({})", self)
     }
 }
 
 impl Id {
-    pub fn encode(&self) -> String {
+    pub fn to_human(&self) -> String {
         multibase::encode(multibase::Base::Base58Btc, &self.0.as_ref())
+    }
+
+    pub fn from_human(s: &str) -> Result<Self, IdError> {
+        let (_, bytes) = multibase::decode(s)?;
+        let array: hash::Digest = bytes.as_slice().try_into()?;
+
+        Ok(Self(array))
     }
 }
 
@@ -47,7 +57,7 @@ impl FromStr for Id {
     type Err = IdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(hash::Digest::from_str(s)?))
+        Self::from_human(s)
     }
 }
 
@@ -63,6 +73,14 @@ impl TryFrom<OsString> for Id {
 impl From<hash::Digest> for Id {
     fn from(digest: hash::Digest) -> Self {
         Self(digest)
+    }
+}
+
+impl Deref for Id {
+    type Target = hash::Digest;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -98,7 +116,7 @@ pub struct Did(crypto::PublicKey);
 
 impl Did {
     pub fn encode(&self) -> String {
-        format!("did:key:{}", self.0.encode())
+        format!("did:key:{}", self.0.to_human())
     }
 
     pub fn decode(input: &str) -> Result<Self, DidError> {
@@ -219,9 +237,9 @@ mod test {
     }
 
     #[quickcheck]
-    fn prop_encode_decode(input: PublicKey) {
+    fn prop_from_str(input: Id) {
         let encoded = input.to_string();
-        let decoded = PublicKey::from_str(&encoded).unwrap();
+        let decoded = Id::from_str(&encoded).unwrap();
 
         assert_eq!(input, decoded);
     }

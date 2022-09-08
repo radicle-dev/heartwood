@@ -74,13 +74,13 @@ impl std::hash::Hash for PublicKey {
 
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.encode())
+        write!(f, "{}", self.to_human())
     }
 }
 
 impl From<PublicKey> for String {
     fn from(other: PublicKey) -> Self {
-        other.encode()
+        other.to_human()
     }
 }
 
@@ -96,8 +96,16 @@ impl From<ed25519::VerificationKey> for PublicKey {
     }
 }
 
+impl TryFrom<[u8; 32]> for PublicKey {
+    type Error = ed25519::Error;
+
+    fn try_from(other: [u8; 32]) -> Result<Self, Self::Error> {
+        Ok(Self(ed25519::VerificationKey::try_from(other)?))
+    }
+}
+
 impl PublicKey {
-    pub fn encode(&self) -> String {
+    pub fn to_human(&self) -> String {
         multibase::encode(multibase::Base::Base58Btc, &self.0)
     }
 }
@@ -129,5 +137,20 @@ impl Deref for PublicKey {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::crypto::PublicKey;
+    use quickcheck_macros::quickcheck;
+    use std::str::FromStr;
+
+    #[quickcheck]
+    fn prop_encode_decode(input: PublicKey) {
+        let encoded = input.to_string();
+        let decoded = PublicKey::from_str(&encoded).unwrap();
+
+        assert_eq!(input, decoded);
     }
 }

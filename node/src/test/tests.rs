@@ -146,9 +146,9 @@ fn test_inventory_sync() {
     alice.receive(
         &bob.addr(),
         Message::Inventory {
+            node: bob.id(),
             timestamp: now,
             inv: projs.clone(),
-            origin: None,
         },
     );
 
@@ -213,9 +213,9 @@ fn test_inventory_relay_bad_timestamp() {
     alice.receive(
         &bob.addr(),
         Message::Inventory {
+            node: bob.id(),
             timestamp,
             inv: vec![],
-            origin: None,
         },
     );
     assert_matches!(
@@ -240,15 +240,15 @@ fn test_inventory_relay() {
     alice.receive(
         &bob.addr(),
         Message::Inventory {
+            node: bob.id(),
             timestamp: now,
             inv: inv.clone(),
-            origin: None,
         },
     );
     assert_matches!(
         alice.messages(&eve.addr()).next(),
-        Some(Message::Inventory { timestamp, origin, .. })
-        if origin == Some(bob.id()) && timestamp == now
+        Some(Message::Inventory { node, timestamp, .. })
+        if node == bob.id() && timestamp == now
     );
     assert_matches!(
         alice.messages(&bob.addr()).next(),
@@ -259,9 +259,9 @@ fn test_inventory_relay() {
     alice.receive(
         &bob.addr(),
         Message::Inventory {
+            node: bob.id(),
             timestamp: now,
             inv: inv.clone(),
-            origin: None,
         },
     );
     assert_matches!(
@@ -273,15 +273,15 @@ fn test_inventory_relay() {
     alice.receive(
         &bob.addr(),
         Message::Inventory {
+            node: bob.id(),
             timestamp: now + 1,
             inv: inv.clone(),
-            origin: None,
         },
     );
     assert_matches!(
         alice.messages(&eve.addr()).next(),
-        Some(Message::Inventory { timestamp, origin, .. })
-        if origin == Some(bob.id()) && timestamp == now + 1,
+        Some(Message::Inventory { node, timestamp, .. })
+        if node == bob.id() && timestamp == now + 1,
         "Sending a new inventory does trigger the relay"
     );
 
@@ -289,15 +289,15 @@ fn test_inventory_relay() {
     alice.receive(
         &eve.addr(),
         Message::Inventory {
+            node: eve.id(),
             timestamp: now,
             inv,
-            origin: None,
         },
     );
     assert_matches!(
         alice.messages(&bob.addr()).next(),
-        Some(Message::Inventory { timestamp, origin, .. })
-        if origin == Some(eve.id()) && timestamp == now
+        Some(Message::Inventory { node, timestamp, .. })
+        if node == eve.id() && timestamp == now
     );
 }
 

@@ -1,10 +1,12 @@
 use std::net;
 
-use git_url::Url;
+use byteorder::NetworkEndian;
 use serde::{Deserialize, Serialize};
 
 use crate::crypto;
+use crate::git;
 use crate::identity::Id;
+use crate::protocol::wire;
 use crate::protocol::{Context, NodeId, Timestamp, PROTOCOL_VERSION};
 use crate::storage;
 use crate::storage::refs::SignedRefs;
@@ -28,13 +30,6 @@ pub struct Hostname(String);
 /// Peer public protocol address.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Address {
-    /// Tor V3 onion address.
-    Onion {
-        key: crypto::PublicKey,
-        port: u16,
-        checksum: u16,
-        version: u8,
-    },
     Ip {
         ip: net::IpAddr,
         port: u16,
@@ -43,6 +38,57 @@ pub enum Address {
         host: Hostname,
         port: u16,
     },
+    /// Tor V3 onion address.
+    Onion {
+        key: crypto::PublicKey,
+        port: u16,
+        checksum: u16,
+        version: u8,
+    },
+}
+
+impl wire::Encode for Address {
+    fn encode<W: std::io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
+        let mut n = 0;
+
+        match self {
+            Self::Ip { ip, port } => {
+                match ip {
+                    net::IpAddr::V4(addr) => {
+                        n += 1u8.encode(writer)?;
+                        n += addr.octets().encode(writer)?;
+                    }
+                    net::IpAddr::V6(addr) => {
+                        n += 2u8.encode(writer)?;
+                        n += addr.octets().encode(writer)?;
+                    }
+                }
+                n += port.encode(writer)?;
+            }
+            Self::Hostname { .. } => todo!(),
+            Self::Onion { .. } => todo!(),
+        }
+        Ok(n)
+    }
+}
+
+impl wire::Decode for Address {
+    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
+        use byteorder::ReadBytesExt;
+
+        match reader.read_u8()? {
+            1 => {
+                let octets: [u8; 4] = wire::Decode::decode(reader)?;
+                let ip = net::IpAddr::from(net::Ipv4Addr::from(octets));
+                let port = u16::decode(reader)?;
+
+                Ok(Self::Ip { ip, port })
+            }
+            _ => {
+                todo!();
+            }
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -78,7 +124,7 @@ pub enum Message {
         timestamp: Timestamp,
         version: u32,
         addrs: Vec<Address>,
-        git: Url,
+        git: git::Url,
     },
     Node {
         /// Signature over the announcement, by the node being announced.
@@ -91,11 +137,9 @@ pub enum Message {
     /// Send our inventory to a peer. Sent in response to [`Message::GetInventory`].
     /// Nb. This should be the whole inventory, not a partial update.
     Inventory {
+        node: NodeId,
         inv: Vec<Id>,
         timestamp: Timestamp,
-        /// Original peer this inventory came from. We don't set this when we
-        /// are the originator, only when relaying.
-        origin: Option<NodeId>,
     },
     /// Project refs were updated. Includes the signature of the user who updated
     /// their view of the project.
@@ -110,7 +154,7 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn hello(id: NodeId, timestamp: Timestamp, addrs: Vec<Address>, git: Url) -> Self {
+    pub fn hello(id: NodeId, timestamp: Timestamp, addrs: Vec<Address>, git: git::Url) -> Self {
         Self::Hello {
             id,
             timestamp,
@@ -133,18 +177,127 @@ impl Message {
     pub fn inventory<S, T, G>(ctx: &Context<S, T, G>) -> Result<Self, storage::Error>
     where
         T: storage::ReadStorage,
+        G: crypto::Signer,
     {
         let timestamp = ctx.timestamp();
         let inv = ctx.storage.inventory()?;
 
         Ok(Self::Inventory {
-            timestamp,
+            node: ctx.id(),
             inv,
-            origin: None,
+            timestamp,
         })
     }
 
     pub fn get_inventory(ids: impl Into<Vec<Id>>) -> Self {
         Self::GetInventory { ids: ids.into() }
+    }
+
+    pub fn type_id(&self) -> u16 {
+        match self {
+            Self::Hello { .. } => 0,
+            Self::Node { .. } => 2,
+            Self::GetInventory { .. } => 4,
+            Self::Inventory { .. } => 6,
+            Self::RefsUpdate { .. } => 8,
+        }
+    }
+}
+
+impl wire::Encode for Message {
+    fn encode<W: std::io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
+        let mut n = self.type_id().encode(writer)?;
+
+        match self {
+            Self::Hello {
+                id,
+                timestamp,
+                version,
+                addrs,
+                git,
+            } => {
+                n += id.encode(writer)?;
+                n += timestamp.encode(writer)?;
+                n += version.encode(writer)?;
+                n += addrs.as_slice().encode(writer)?;
+                n += git.encode(writer)?;
+            }
+            Self::RefsUpdate { id, signer, refs } => {
+                n += id.encode(writer)?;
+                n += signer.encode(writer)?;
+                n += refs.encode(writer)?;
+            }
+            Self::GetInventory { ids } => {
+                n += ids.as_slice().encode(writer)?;
+            }
+            Self::Inventory {
+                node,
+                inv,
+                timestamp,
+            } => {
+                n += node.encode(writer)?;
+                n += inv.as_slice().encode(writer)?;
+                n += timestamp.encode(writer)?;
+            }
+            Self::Node { .. } => {
+                todo!();
+            }
+        }
+        Ok(n)
+    }
+}
+
+impl wire::Decode for Message {
+    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
+        use byteorder::ReadBytesExt;
+
+        let type_id = reader.read_u16::<NetworkEndian>()?;
+
+        match type_id {
+            0 => {
+                let id = NodeId::decode(reader)?;
+                let timestamp = Timestamp::decode(reader)?;
+                let version = u32::decode(reader)?;
+                let addrs = Vec::<Address>::decode(reader)?;
+                let git = git::Url::decode(reader)?;
+
+                Ok(Self::Hello {
+                    id,
+                    timestamp,
+                    version,
+                    addrs,
+                    git,
+                })
+            }
+            2 => {
+                todo!();
+            }
+            4 => {
+                let ids = Vec::<Id>::decode(reader)?;
+
+                Ok(Self::GetInventory { ids })
+            }
+            6 => {
+                let node = NodeId::decode(reader)?;
+                let inv = Vec::<Id>::decode(reader)?;
+                let timestamp = Timestamp::decode(reader)?;
+
+                Ok(Self::Inventory {
+                    node,
+                    inv,
+                    timestamp,
+                })
+            }
+            8 => {
+                let id = Id::decode(reader)?;
+                let signer = crypto::PublicKey::decode(reader)?;
+                let refs = SignedRefs::decode(reader)?;
+
+                Ok(Self::RefsUpdate { id, signer, refs })
+            }
+            _ => {
+                todo!();
+            }
+        }
     }
 }
