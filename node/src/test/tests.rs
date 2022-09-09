@@ -369,6 +369,80 @@ fn test_persistent_peer_reconnect() {
 }
 
 #[test]
+fn test_push_and_pull() {
+    logger::init(log::Level::Debug);
+
+    let tempdir = tempfile::tempdir().unwrap();
+
+    let storage_alice = Storage::open(
+        tempdir.path().join("alice").join("storage"),
+        MockSigner::default(),
+    )
+    .unwrap();
+    let repo = fixtures::repository(tempdir.path().join("working"));
+    let mut alice = Peer::new("alice", [7, 7, 7, 7], storage_alice);
+
+    let storage_bob = Storage::open(
+        tempdir.path().join("bob").join("storage"),
+        MockSigner::default(),
+    )
+    .unwrap();
+    let mut bob = Peer::new("bob", [8, 8, 8, 8], storage_bob);
+
+    let storage_eve = Storage::open(
+        tempdir.path().join("eve").join("storage"),
+        MockSigner::default(),
+    )
+    .unwrap();
+    let mut eve = Peer::new("eve", [9, 9, 9, 9], storage_eve);
+
+    // Alice and Bob connect to Eve.
+    alice.command(protocol::Command::Connect(eve.addr()));
+    bob.command(protocol::Command::Connect(eve.addr()));
+
+    let mut sim = Simulation::new(
+        LocalTime::now(),
+        alice.rng.clone(),
+        simulator::Options::default(),
+    )
+    .initialize([&mut alice, &mut bob, &mut eve]);
+
+    // Here we expect Alice to connect to Eve.
+    sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
+
+    // Alice creates a new project.
+    let (proj_id, _) = rad::init(
+        &repo,
+        "alice",
+        "alice's repo",
+        storage::BranchName::from("master"),
+        alice.storage_mut(),
+    )
+    .unwrap();
+
+    // Bob tracks Alice's project.
+    let (sender, _) = chan::bounded(1);
+    bob.command(protocol::Command::Track(proj_id.clone(), sender));
+
+    // Eve tracks Alice's project.
+    let (sender, _) = chan::bounded(1);
+    eve.command(protocol::Command::Track(proj_id.clone(), sender));
+
+    // Neither of them have it in the beginning.
+    assert!(eve.storage().get(&proj_id).unwrap().is_none());
+    assert!(bob.storage().get(&proj_id).unwrap().is_none());
+
+    // Alice announces her refs.
+    // We now expect Eve to fetch Alice's project from Alice.
+    // Then we expect Bob to fetch Alice's project from Eve.
+    // TODO: Check that Bob is fetching from Eve and not Alice, via an event.
+    alice.command(protocol::Command::AnnounceRefsUpdate(proj_id.clone()));
+    sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
+    assert!(eve.storage().get(&proj_id).unwrap().is_some());
+    assert!(bob.storage().get(&proj_id).unwrap().is_some());
+}
+
+#[test]
 fn prop_inventory_exchange_dense() {
     fn property(alice_inv: MockStorage, bob_inv: MockStorage, eve_inv: MockStorage) {
         let rng = fastrand::Rng::new();

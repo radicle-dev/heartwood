@@ -201,8 +201,16 @@ impl Peer {
                     // TODO: Check that we're tracking this user as well.
                     if ctx.config.is_tracking(&id) {
                         // TODO: Check refs to see if we should try to fetch or not.
-                        let updated = ctx.fetch(&id, git);
-                        if !updated.is_empty() {
+                        let updated_refs = ctx.fetch(&id, git);
+                        let is_updated = !updated_refs.is_empty();
+
+                        ctx.io.push_back(Io::Event(Event::RefsFetched {
+                            from: git.clone(),
+                            project: id.clone(),
+                            updated: updated_refs,
+                        }));
+
+                        if is_updated {
                             return Ok(Some(Message::RefsUpdate {
                                 id,
                                 signer,

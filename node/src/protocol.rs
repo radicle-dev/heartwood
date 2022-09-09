@@ -51,7 +51,13 @@ pub type Timestamp = u64;
 
 /// A protocol event.
 #[derive(Debug, Clone)]
-pub enum Event {}
+pub enum Event {
+    RefsFetched {
+        from: Url,
+        project: Id,
+        updated: Vec<RefUpdate>,
+    },
+}
 
 /// Error returned by [`Command::Fetch`].
 #[derive(thiserror::Error, Debug)]
@@ -219,6 +225,11 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
     /// Get the storage instance.
     pub fn storage(&self) -> &T {
         &self.context.storage
+    }
+
+    /// Get the mutable storage instance.
+    pub fn storage_mut(&mut self) -> &mut T {
+        &mut self.context.storage
     }
 
     /// Get the local protocol time.

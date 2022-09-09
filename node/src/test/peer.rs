@@ -204,7 +204,13 @@ where
         msgs.into_iter()
     }
 
-    /// Get a draining iterator over the peers's I/O outbox.
+    /// Get a draining iterator over the peer's emitted events.
+    pub fn events(&mut self) -> impl Iterator<Item = Event> + '_ {
+        self.outbox()
+            .filter_map(|io| if let Io::Event(e) = io { Some(e) } else { None })
+    }
+
+    /// Get a draining iterator over the peer's I/O outbox.
     pub fn outbox(&mut self) -> impl Iterator<Item = Io<Event, DisconnectReason>> + '_ {
         self.protocol.outbox().drain(..)
     }
