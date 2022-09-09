@@ -435,11 +435,16 @@ fn test_push_and_pull() {
     // Alice announces her refs.
     // We now expect Eve to fetch Alice's project from Alice.
     // Then we expect Bob to fetch Alice's project from Eve.
-    // TODO: Check that Bob is fetching from Eve and not Alice, via an event.
     alice.command(protocol::Command::AnnounceRefsUpdate(proj_id.clone()));
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
     assert!(eve.storage().get(&proj_id).unwrap().is_some());
     assert!(bob.storage().get(&proj_id).unwrap().is_some());
+    assert_matches!(
+        sim.events(&bob.ip).next(),
+        Some(protocol::Event::RefsFetched { from, .. })
+        if from == eve.git_url(),
+        "Bob fetched from Eve"
+    );
 }
 
 #[test]
