@@ -18,7 +18,7 @@ use crate::storage::{
     Error, Inventory, ReadRepository, ReadStorage, Remote, WriteRepository, WriteStorage,
 };
 
-use super::RemoteId;
+use super::{RefUpdate, RemoteId};
 
 pub static RADICLE_ID_REF: Lazy<git::RefString> = Lazy::new(|| git::refname!("heads/radicle/id"));
 pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
@@ -308,9 +308,8 @@ impl<'r> ReadRepository<'r> for Repository {
 
 impl<'r> WriteRepository<'r> for Repository {
     /// Fetch all remotes of a project from the given URL.
-    fn fetch(&mut self, url: &git::Url) -> Result<(), git2::Error> {
+    fn fetch(&mut self, url: &git::Url) -> Result<Vec<RefUpdate>, git2::Error> {
         // TODO: Have function to fetch specific remotes.
-        // TODO: Return meaningful info on success.
         //
         // Repository layout should look like this:
         //
@@ -322,15 +321,32 @@ impl<'r> WriteRepository<'r> for Repository {
         //
         let url = url.to_string();
         let refs: &[&str] = &["refs/remotes/*:refs/remotes/*"];
-        let mut remote = self.backend.remote_anonymous(&url)?;
-        let mut opts = git2::FetchOptions::default();
+        let mut updates = Vec::new();
+        let mut callbacks = git2::RemoteCallbacks::new();
 
-        // TODO: Make sure we verify before pruning, as pruning may get us into
-        // a state we can't roll back.
-        opts.prune(git2::FetchPrune::On);
-        remote.fetch(refs, Some(&mut opts), None)?;
+        callbacks.update_tips(|name, old, new| {
+            if let Ok(name) = git::RefString::try_from(name) {
+                updates.push(RefUpdate::from(name, old, new));
+            } else {
+                log::warn!("Invalid ref `{}` detected; aborting fetch", name);
+                return false;
+            }
+            // Returning `true` ensures the process is not aborted.
+            true
+        });
 
-        Ok(())
+        {
+            let mut remote = self.backend.remote_anonymous(&url)?;
+            let mut opts = git2::FetchOptions::default();
+            opts.remote_callbacks(callbacks);
+
+            // TODO: Make sure we verify before pruning, as pruning may get us into
+            // a state we can't roll back.
+            opts.prune(git2::FetchPrune::On);
+            remote.fetch(refs, Some(&mut opts), None)?;
+        }
+
+        Ok(updates)
     }
 
     fn raw(&self) -> &git2::Repository {
@@ -392,19 +408,27 @@ mod tests {
         let inventory = alice.inventory().unwrap();
         let proj = inventory.first().unwrap();
         let repo = alice.repository(proj).unwrap();
-        let remotes = repo.remotes().unwrap();
+        let remotes = repo.remotes().unwrap().collect::<Vec<_>>();
         let refname = git::refname!("heads/master");
 
         // Have Bob fetch Alice's refs.
-        bob.repository(proj)
+        let updates = bob
+            .repository(proj)
             .unwrap()
             .fetch(&git::Url {
-                host: Some(alice.path().to_string_lossy().to_string()),
                 scheme: git_url::Scheme::File,
-                path: format!("/{}", proj).into(),
+                path: alice
+                    .path()
+                    .join(proj.to_string())
+                    .to_string_lossy()
+                    .into_owned()
+                    .into(),
                 ..git::Url::default()
             })
             .unwrap();
+
+        // Four refs are created for each remote.
+        assert_eq!(updates.len(), remotes.len() * 4);
 
         for remote in remotes {
             let (id, _) = remote.unwrap();

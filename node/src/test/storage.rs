@@ -3,7 +3,7 @@ use git_url::Url;
 use crate::crypto::{PublicKey, Verified};
 use crate::git;
 use crate::identity::{Id, Project};
-use crate::storage::refs;
+use crate::storage::{refs, RefUpdate};
 use crate::storage::{
     Error, Inventory, ReadRepository, ReadStorage, Remote, RemoteId, WriteRepository, WriteStorage,
 };
@@ -122,8 +122,8 @@ impl ReadRepository<'_> for MockRepository {
 }
 
 impl WriteRepository<'_> for MockRepository {
-    fn fetch(&mut self, _url: &Url) -> Result<(), git2::Error> {
-        Ok(())
+    fn fetch(&mut self, _url: &Url) -> Result<Vec<RefUpdate>, git2::Error> {
+        Ok(vec![])
     }
 
     fn raw(&self) -> &git2::Repository {

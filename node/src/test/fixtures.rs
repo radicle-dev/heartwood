@@ -9,8 +9,8 @@ use crate::test::crypto::MockSigner;
 
 pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
     let path = path.as_ref();
-    let proj_ids = arbitrary::set::<Id>(3..5);
-    let signers = arbitrary::set::<MockSigner>(1..3);
+    let proj_ids = arbitrary::set::<Id>(3..=3);
+    let signers = arbitrary::set::<MockSigner>(3..=3);
     let mut storages = signers
         .into_iter()
         .map(|s| Storage::open(path, s).unwrap())

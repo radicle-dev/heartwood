@@ -2,10 +2,10 @@ pub mod git;
 pub mod refs;
 
 use std::collections::hash_map;
-use std::io;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
+use std::{fmt, io};
 
 use radicle_git_ext as git_ext;
 use thiserror::Error;
@@ -15,7 +15,7 @@ pub use radicle_git_ext::Oid;
 use crate::collections::HashMap;
 use crate::crypto::{self, PublicKey, Unverified, Verified};
 use crate::git::Url;
-use crate::git::{RefError, RefStr};
+use crate::git::{RefError, RefStr, RefString};
 use crate::identity;
 use crate::identity::{Id, IdError, Project};
 use crate::storage::refs::Refs;
@@ -47,6 +47,51 @@ pub enum Error {
 }
 
 pub type RemoteId = PublicKey;
+
+/// An update to a reference.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RefUpdate {
+    Updated { name: RefString, old: Oid, new: Oid },
+    Created { name: RefString, oid: Oid },
+    Deleted { name: RefString, oid: Oid },
+    Skipped { name: RefString, oid: Oid },
+}
+
+impl RefUpdate {
+    pub fn from(name: RefString, old: impl Into<Oid>, new: impl Into<Oid>) -> Self {
+        let old = old.into();
+        let new = new.into();
+
+        if old.is_zero() {
+            Self::Created { name, oid: new }
+        } else if new.is_zero() {
+            Self::Deleted { name, oid: old }
+        } else if old != new {
+            Self::Updated { name, old, new }
+        } else {
+            Self::Skipped { name, oid: old }
+        }
+    }
+}
+
+impl fmt::Display for RefUpdate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Updated { name, old, new } => {
+                write!(f, "~ {:.7}..{:.7} {}", old, new, name)
+            }
+            Self::Created { name, oid } => {
+                write!(f, "* 0000000..{:.7} {}", oid, name)
+            }
+            Self::Deleted { name, oid } => {
+                write!(f, "- {:.7}..0000000 {}", oid, name)
+            }
+            Self::Skipped { name, oid } => {
+                write!(f, "= {:.7}..{:.7} {}", oid, oid, name)
+            }
+        }
+    }
+}
 
 /// Project remotes. Tracks the git state of a project.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,7 +237,7 @@ pub trait ReadRepository<'r> {
 }
 
 pub trait WriteRepository<'r>: ReadRepository<'r> {
-    fn fetch(&mut self, url: &Url) -> Result<(), git2::Error>;
+    fn fetch(&mut self, url: &Url) -> Result<Vec<RefUpdate>, git2::Error>;
     fn raw(&self) -> &git2::Repository;
 }
 

@@ -27,8 +27,8 @@ use crate::protocol::config::ProjectTracking;
 use crate::protocol::message::Message;
 use crate::protocol::peer::{Peer, PeerError, PeerState};
 use crate::protocol::wire::Encode;
-use crate::storage::{self, ReadRepository, WriteRepository};
-use crate::storage::{Inventory, WriteStorage};
+use crate::storage;
+use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 
 pub use crate::protocol::config::{Config, Network};
 
@@ -82,7 +82,10 @@ pub enum FetchLookup {
 #[derive(Debug)]
 pub enum FetchResult {
     /// Successful fetch from a seed.
-    Fetched { from: net::SocketAddr },
+    Fetched {
+        from: net::SocketAddr,
+        updated: Vec<RefUpdate>,
+    },
     /// Error fetching the resource from a seed.
     Error {
         from: net::SocketAddr,
@@ -412,8 +415,13 @@ where
                         path: format!("/{}", id).into(),
                         ..Url::default()
                     }) {
-                        Ok(()) => {
-                            results_.send(FetchResult::Fetched { from: peer.addr }).ok();
+                        Ok(updated) => {
+                            results_
+                                .send(FetchResult::Fetched {
+                                    from: peer.addr,
+                                    updated,
+                                })
+                                .ok();
                         }
                         Err(err) => {
                             results_

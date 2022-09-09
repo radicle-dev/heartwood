@@ -128,8 +128,12 @@ fn fetch<W: Write, H: Handle>(id: Id, mut writer: W, handle: &H) -> Result<(), D
 
             for result in results.iter() {
                 match result {
-                    FetchResult::Fetched { from } => {
+                    FetchResult::Fetched { from, updated } => {
                         writeln!(writer, "ok: {} fetched from {}", &id, from)?;
+
+                        for update in updated {
+                            writeln!(writer, "{}", update)?;
+                        }
                     }
                     FetchResult::Error { from, error } => {
                         writeln!(
