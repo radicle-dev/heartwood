@@ -22,7 +22,7 @@ use crate::address_manager::AddressManager;
 use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto;
-use crate::identity::{Id, Project, PublicKey};
+use crate::identity::{Id, Project};
 use crate::protocol::config::ProjectTracking;
 use crate::protocol::message::Message;
 use crate::protocol::peer::{Peer, PeerError, PeerState};
@@ -729,17 +729,7 @@ where
         }
     }
 
-    /// Process a peer inventory update announcement by (maybe) fetching.
-    fn process_refs_update(&mut self, id: &Id, _user: &PublicKey, remote: &Url) -> bool {
-        // TODO: Check that we're tracking this user as well.
-        if self.config.is_tracking(id) {
-            self.fetch(id, remote);
-        }
-        // TODO: If refs were updated, return `true`.
-        false
-    }
-
-    fn fetch(&mut self, proj_id: &Id, remote: &Url) {
+    fn fetch(&mut self, proj_id: &Id, remote: &Url) -> Vec<RefUpdate> {
         // TODO: Verify refs before adding them to storage.
         let mut repo = self.storage.repository(proj_id).unwrap();
         let mut path = remote.path.clone();
@@ -751,7 +741,7 @@ where
             path,
             ..remote.clone()
         })
-        .unwrap();
+        .unwrap()
     }
 
     /// Disconnect a peer.

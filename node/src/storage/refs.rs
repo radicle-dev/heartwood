@@ -178,14 +178,21 @@ impl SignedRefs<Unverified> {
     }
 
     pub fn verified(self, signer: &PublicKey) -> Result<SignedRefs<Verified>, crypto::Error> {
-        let canonical = self.refs.canonical();
-
-        match signer.verify(&self.signature, &canonical) {
+        match self.verify(signer) {
             Ok(()) => Ok(SignedRefs {
                 refs: self.refs,
                 signature: self.signature,
                 _verified: PhantomData,
             }),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn verify(&self, signer: &PublicKey) -> Result<(), crypto::Error> {
+        let canonical = self.refs.canonical();
+
+        match signer.verify(&self.signature, &canonical) {
+            Ok(()) => Ok(()),
             Err(e) => Err(e),
         }
     }

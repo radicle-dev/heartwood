@@ -194,21 +194,21 @@ impl Peer {
                     }));
                 }
             }
-            (
-                PeerState::Negotiated { git, .. },
-                Message::RefsUpdate {
-                    id: proj,
-                    signer,
-                    refs,
-                },
-            ) => {
-                if refs.verified(&signer).is_ok() {
+            // Process a peer inventory update announcement by (maybe) fetching.
+            (PeerState::Negotiated { git, .. }, Message::RefsUpdate { id, signer, refs }) => {
+                if let Ok(refs) = refs.verified(&signer) {
                     // TODO: Buffer/throttle fetches.
-                    // TODO: Also pass the updated refs so that we can check whether
-                    // we need to fetch or not.
-                    // TODO: Check that the refs are valid.
-                    if ctx.process_refs_update(&proj, &signer, git) {
-                        // TODO: If refs were updated, propagate message to peers.
+                    // TODO: Check that we're tracking this user as well.
+                    if ctx.config.is_tracking(&id) {
+                        // TODO: Check refs to see if we should try to fetch or not.
+                        let updated = ctx.fetch(&id, git);
+                        if !updated.is_empty() {
+                            return Ok(Some(Message::RefsUpdate {
+                                id,
+                                signer,
+                                refs: refs.unverified(),
+                            }));
+                        }
                     }
                 } else {
                     return Err(PeerError::Misbehavior);
