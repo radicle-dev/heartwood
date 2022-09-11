@@ -82,7 +82,7 @@ impl TryFrom<u8> for AddressType {
             1 => Ok(AddressType::Ipv4),
             2 => Ok(AddressType::Ipv6),
             3 => Ok(AddressType::Hostname),
-            4 => Ok(AddressType::Hostname),
+            4 => Ok(AddressType::Onion),
             _ => Err(other),
         }
     }
