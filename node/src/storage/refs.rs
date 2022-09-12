@@ -157,7 +157,7 @@ impl DerefMut for Refs {
 
 /// Combination of [`Refs`] and a [`Signature`]. The signature is a cryptographic
 /// signature over the refs. This allows us to easily verify if a set of refs
-/// came from a particular user.
+/// came from a particular key.
 ///
 /// The type parameter keeps track of whether the signature was [`Verified`] or
 /// [`Unverified`].

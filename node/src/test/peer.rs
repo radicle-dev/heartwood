@@ -124,8 +124,8 @@ where
         self.config().git_url.clone()
     }
 
-    pub fn id(&self) -> NodeId {
-        self.protocol.id()
+    pub fn node_id(&self) -> NodeId {
+        self.protocol.node_id()
     }
 
     pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
@@ -145,7 +145,7 @@ where
         self.receive(
             &remote,
             Message::hello(
-                peer.id(),
+                peer.node_id(),
                 self.local_time().as_secs(),
                 vec![Address::from(remote)],
                 git,
@@ -155,8 +155,8 @@ where
         let mut msgs = self.messages(&remote);
         msgs.find(|m| matches!(m, Message::Hello { .. }))
             .expect("`hello` is sent");
-        msgs.find(|m| matches!(m, Message::GetInventory { .. }))
-            .expect("`get-inventory` is sent");
+        msgs.find(|m| matches!(m, Message::InventoryAnnouncement { .. }))
+            .expect("`inventory-announcement` is sent");
     }
 
     pub fn connect_to(&mut self, peer: &Self) {
@@ -170,14 +170,14 @@ where
         let mut msgs = self.messages(&remote);
         msgs.find(|m| matches!(m, Message::Hello { .. }))
             .expect("`hello` is sent");
-        msgs.find(|m| matches!(m, Message::GetInventory { .. }))
-            .expect("`get-inventory` is sent");
+        msgs.find(|m| matches!(m, Message::InventoryAnnouncement { .. }))
+            .expect("`inventory-announcement` is sent");
 
         let git = peer.config().git_url.clone();
         self.receive(
             &remote,
             Message::hello(
-                peer.id(),
+                peer.node_id(),
                 self.local_time().as_secs(),
                 peer.config().listen.clone(),
                 git,

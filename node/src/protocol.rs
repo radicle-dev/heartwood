@@ -24,13 +24,15 @@ use crate::collections::{HashMap, HashSet};
 use crate::crypto;
 use crate::identity::{Id, Project};
 use crate::protocol::config::ProjectTracking;
-use crate::protocol::message::Message;
+use crate::protocol::message::{Message, NodeAnnouncement, RefsAnnouncement};
 use crate::protocol::peer::{Peer, PeerError, PeerState};
 use crate::protocol::wire::Encode;
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 
 pub use crate::protocol::config::{Config, Network};
+
+use self::message::{InventoryAnnouncement, NodeFeatures};
 
 pub const DEFAULT_PORT: u16 = 8776;
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -102,7 +104,7 @@ pub enum FetchResult {
 /// Commands sent to the protocol by the operator.
 #[derive(Debug)]
 pub enum Command {
-    AnnounceRefsUpdate(Id),
+    AnnounceRefs(Id),
     Connect(net::SocketAddr),
     Fetch(Id, chan::Sender<FetchLookup>),
     Track(Id, chan::Sender<bool>),
@@ -232,6 +234,16 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
         &mut self.context.storage
     }
 
+    /// Get a project from storage, using the local node's key.
+    pub fn get(&self, proj: &Id) -> Result<Option<Project>, storage::Error> {
+        self.storage.get(&self.node_id(), proj)
+    }
+
+    /// Get the local signer.
+    pub fn signer(&self) -> &G {
+        &self.context.signer
+    }
+
     /// Get the local protocol time.
     pub fn local_time(&self) -> LocalTime {
         self.context.clock.local_time()
@@ -254,7 +266,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
 
     pub fn lookup(&self, id: &Id) -> Lookup {
         Lookup {
-            local: self.context.storage.get(id).unwrap(),
+            local: self.context.storage.get(&self.node_id(), id).unwrap(),
             remote: self
                 .context
                 .routing
@@ -269,32 +281,11 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
 
     /// Announce our inventory to all connected peers.
     fn announce_inventory(&mut self) -> Result<(), storage::Error> {
-        let inv = Message::inventory(&self.context)?;
+        let inv = Message::inventory(self.context.inventory_announcement()?, &self.context.signer);
 
         for addr in self.peers.negotiated().map(|(_, p)| p.addr) {
             self.context.write(addr, inv.clone());
         }
-        Ok(())
-    }
-
-    fn get_inventories(&mut self) -> Result<(), storage::Error> {
-        let mut msgs = Vec::new();
-        for id in self.tracked()? {
-            for (_, peer) in self.seeds(&id) {
-                if peer.is_negotiated() {
-                    msgs.push((
-                        peer.addr,
-                        Message::GetInventory {
-                            ids: vec![id.clone()],
-                        },
-                    ));
-                }
-            }
-        }
-        for (remote, msg) in msgs {
-            self.write(remote, msg);
-        }
-
         Ok(())
     }
 
@@ -357,7 +348,7 @@ where
         if now - self.last_sync >= SYNC_INTERVAL {
             debug!("Running 'sync' task...");
 
-            self.get_inventories().unwrap();
+            // TODO: What do we do here?
             self.context.io.push_back(Io::Wakeup(SYNC_INTERVAL));
             self.last_sync = now;
         }
@@ -451,15 +442,23 @@ where
             Command::Untrack(id, resp) => {
                 resp.send(self.untrack(id)).ok();
             }
-            Command::AnnounceRefsUpdate(id) => {
-                let signer = *self.storage.public_key();
+            Command::AnnounceRefs(id) => {
+                let node = self.node_id();
                 let repo = self.storage.repository(&id).unwrap();
-                let remote = repo.remote(&signer).unwrap();
+                let remote = repo.remote(&node).unwrap();
                 let peers = self.peers.negotiated().map(|(_, p)| p.addr);
-                let refs = remote.refs.unverified();
+                let refs = remote.refs.into();
+                let message = RefsAnnouncement { id, refs };
+                let signature = message.sign(&self.signer);
 
-                self.context
-                    .broadcast(Message::RefsUpdate { id, signer, refs }, peers);
+                self.context.broadcast(
+                    Message::RefsAnnouncement {
+                        node,
+                        message,
+                        signature,
+                    },
+                    peers,
+                );
             }
         }
     }
@@ -489,21 +488,11 @@ where
         // For inbound connections, we wait for the remote to say "Hello" first.
         // TODO: How should we deal with multiple peers connecting from the same IP address?
         if link.is_outbound() {
-            let git = self.config.git_url.clone();
+            // TODO: Refactor this so that we don't create messages if the peer isn't found.
+            let messages = self.handshake_messages();
 
             if let Some(peer) = self.peers.get_mut(&ip) {
-                self.context.write_all(
-                    peer.addr,
-                    [
-                        Message::hello(
-                            self.context.id(),
-                            self.context.timestamp(),
-                            self.context.config.listen.clone(),
-                            git,
-                        ),
-                        Message::get_inventory([]),
-                    ],
-                );
+                self.context.write_all(peer.addr, messages);
                 peer.connected();
             }
         } else {
@@ -695,7 +684,7 @@ where
     T: storage::ReadStorage,
     G: crypto::Signer,
 {
-    pub(crate) fn id(&self) -> NodeId {
+    pub(crate) fn node_id(&self) -> NodeId {
         *self.signer.public_key()
     }
 }
@@ -723,6 +712,51 @@ where
             addrmgr,
             rng,
         }
+    }
+
+    fn node_announcement(&self) -> NodeAnnouncement {
+        let timestamp = self.timestamp();
+        let features = NodeFeatures::default();
+        let alias = self.alias();
+        let addresses = vec![]; // TODO
+
+        NodeAnnouncement {
+            features,
+            timestamp,
+            alias,
+            addresses,
+        }
+    }
+
+    fn inventory_announcement(&self) -> Result<InventoryAnnouncement, storage::Error> {
+        let timestamp = self.timestamp();
+        let inventory = self.storage.inventory()?;
+
+        Ok(InventoryAnnouncement {
+            inventory,
+            timestamp,
+        })
+    }
+
+    fn handshake_messages(&self) -> [Message; 3] {
+        let git = self.config.git_url.clone();
+        [
+            Message::hello(
+                self.node_id(),
+                self.timestamp(),
+                self.config.listen.clone(),
+                git,
+            ),
+            Message::node(self.node_announcement(), &self.signer),
+            Message::inventory(self.inventory_announcement().unwrap(), &self.signer),
+        ]
+    }
+
+    fn alias(&self) -> [u8; 32] {
+        let mut alias = [0u8; 32];
+
+        alias[..9].copy_from_slice("anonymous".as_bytes());
+        alias
     }
 
     /// Process a peer inventory announcement by updating our routing table.

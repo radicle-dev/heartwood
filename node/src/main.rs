@@ -21,7 +21,7 @@ impl Signer for FailingSigner {
 
 fn main() -> anyhow::Result<()> {
     let signer = FailingSigner {};
-    let client = client::Client::<Reactor>::new(Path::new("."), signer)?;
+    let client = client::Client::<Reactor, _>::new(Path::new("."), signer)?;
     let handle = client.handle();
     let config = client::Config::default();
     let socket = env::var("RAD_SOCKET").unwrap_or_else(|_| control::DEFAULT_SOCKET_NAME.to_owned());

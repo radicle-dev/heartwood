@@ -131,14 +131,7 @@ impl Peer {
                 // Nb. This is a very primitive handshake. Eventually we should have anyhow
                 // extra "acknowledgment" message sent when the `Hello` is well received.
                 if self.link.is_inbound() {
-                    let git = ctx.config.git_url.clone();
-                    ctx.write_all(
-                        self.addr,
-                        [
-                            Message::hello(ctx.id(), now, ctx.config.listen.clone(), git),
-                            Message::get_inventory([]),
-                        ],
-                    );
+                    ctx.write_all(self.addr, ctx.handshake_messages());
                 }
                 // Nb. we don't set the peer timestamp here, since it is going to be
                 // set after the first message is received only. Setting it here would
@@ -157,64 +150,66 @@ impl Peer {
                 );
                 return Err(PeerError::Misbehavior);
             }
-            (PeerState::Negotiated { .. }, Message::GetInventory { .. }) => {
-                // TODO: Handle partial inventory requests.
-                let inventory = Message::inventory(ctx).unwrap();
-                ctx.write(self.addr, inventory);
-            }
             (
                 PeerState::Negotiated { git, .. },
-                Message::Inventory {
+                Message::InventoryAnnouncement {
                     node,
-                    timestamp,
-                    inv,
+                    message,
+                    signature,
                 },
             ) => {
                 let now = ctx.clock.local_time();
                 let last = self.timestamp;
 
                 // Don't allow messages from too far in the past or future.
-                if timestamp.abs_diff(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
-                    return Err(PeerError::InvalidTimestamp(timestamp));
+                if message.timestamp.abs_diff(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
+                    return Err(PeerError::InvalidTimestamp(message.timestamp));
                 }
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
-                if timestamp > last {
-                    self.timestamp = timestamp;
+                if message.timestamp > last {
+                    self.timestamp = message.timestamp;
                 } else {
                     return Ok(None);
                 }
-                ctx.process_inventory(&inv, node, git);
+                ctx.process_inventory(&message.inventory, node, git);
 
                 if ctx.config.relay {
-                    return Ok(Some(Message::Inventory {
+                    return Ok(Some(Message::InventoryAnnouncement {
                         node,
-                        inv,
-                        timestamp,
+                        message,
+                        signature,
                     }));
                 }
             }
             // Process a peer inventory update announcement by (maybe) fetching.
-            (PeerState::Negotiated { git, .. }, Message::RefsUpdate { id, signer, refs }) => {
-                if let Ok(refs) = refs.verified(&signer) {
+            (
+                PeerState::Negotiated { git, .. },
+                Message::RefsAnnouncement {
+                    node,
+                    message,
+                    signature,
+                },
+            ) => {
+                if message.verify(&node, &signature) {
                     // TODO: Buffer/throttle fetches.
                     // TODO: Check that we're tracking this user as well.
-                    if ctx.config.is_tracking(&id) {
+                    if ctx.config.is_tracking(&message.id) {
                         // TODO: Check refs to see if we should try to fetch or not.
-                        let updated_refs = ctx.fetch(&id, git);
+                        let updated_refs = ctx.fetch(&message.id, git);
                         let is_updated = !updated_refs.is_empty();
 
                         ctx.io.push_back(Io::Event(Event::RefsFetched {
                             from: git.clone(),
-                            project: id.clone(),
+                            project: message.id.clone(),
                             updated: updated_refs,
                         }));
 
                         if is_updated {
-                            return Ok(Some(Message::RefsUpdate {
-                                id,
-                                signer,
-                                refs: refs.unverified(),
+                            return Ok(Some(Message::RefsAnnouncement {
+                                node,
+                                message,
+                                signature,
                             }));
                         }
                     }
@@ -224,15 +219,16 @@ impl Peer {
             }
             (
                 PeerState::Negotiated { .. },
-                Message::Node {
-                    announcement,
+                Message::NodeAnnouncement {
+                    node,
+                    message,
                     signature,
                 },
             ) => {
-                if !announcement.verify(&signature) {
+                if !message.verify(&node, &signature) {
                     return Err(PeerError::Misbehavior);
                 }
-                todo!();
+                log::warn!("Node announcement handling is not implemented");
             }
             (PeerState::Negotiated { .. }, Message::Hello { .. }) => {
                 debug!(

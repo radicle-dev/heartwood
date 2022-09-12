@@ -43,9 +43,10 @@ impl Default for Config {
     }
 }
 
-pub struct Client<R: Reactor> {
+pub struct Client<R: Reactor, G: Signer> {
     reactor: R,
     storage: Storage,
+    signer: G,
 
     handle: chan::Sender<protocol::Command>,
     commands: chan::Receiver<protocol::Command>,
@@ -54,20 +55,18 @@ pub struct Client<R: Reactor> {
     events: Events,
 }
 
-impl<R: Reactor> Client<R> {
-    pub fn new<P: AsRef<Path>, S: Signer + 'static>(
-        path: P,
-        signer: S,
-    ) -> Result<Self, nakamoto_net::error::Error> {
+impl<R: Reactor, G: Signer> Client<R, G> {
+    pub fn new<P: AsRef<Path>>(path: P, signer: G) -> Result<Self, nakamoto_net::error::Error> {
         let (handle, commands) = chan::unbounded::<protocol::Command>();
         let (shutdown, shutdown_recv) = chan::bounded(1);
         let (listening_send, listening) = chan::bounded(1);
         let reactor = R::new(shutdown_recv, listening_send)?;
-        let storage = Storage::open(path, signer)?;
+        let storage = Storage::open(path)?;
         let events = Events {};
 
         Ok(Self {
             storage,
+            signer,
             reactor,
             handle,
             commands,
@@ -82,7 +81,7 @@ impl<R: Reactor> Client<R> {
         let rng = fastrand::Rng::new();
         let time = LocalTime::now();
         let storage = self.storage;
-        let signer = storage.signer();
+        let signer = self.signer;
         let addresses = HashMap::with_hasher(rng.clone().into());
 
         log::info!("Initializing client ({:?})..", network);

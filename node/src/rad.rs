@@ -4,12 +4,12 @@ use std::path::Path;
 use nonempty::NonEmpty;
 use thiserror::Error;
 
-use crate::crypto::Verified;
+use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::Id;
 use crate::storage::git::RADICLE_ID_REF;
 use crate::storage::refs::SignedRefs;
-use crate::storage::{BranchName, ReadRepository as _, WriteRepository as _};
+use crate::storage::{BranchName, ReadRepository as _, RemoteId, WriteRepository as _};
 use crate::{identity, storage};
 
 pub const REMOTE_NAME: &str = "rad";
@@ -33,14 +33,15 @@ pub enum InitError {
 }
 
 /// Initialize a new radicle project from a git repository.
-pub fn init<'r, S: storage::WriteStorage<'r>>(
+pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
     repo: &git2::Repository,
     name: &str,
     description: &str,
     default_branch: BranchName,
+    signer: G,
     storage: S,
 ) -> Result<(Id, SignedRefs<Verified>), InitError> {
-    let pk = storage.public_key();
+    let pk = signer.public_key();
     let delegate = identity::Delegate {
         // TODO: Use actual user name.
         name: String::from("anonymous"),
@@ -102,7 +103,7 @@ pub fn init<'r, S: storage::WriteStorage<'r>>(
         )],
         None,
     )?;
-    let signed = storage.sign_refs(&project)?;
+    let signed = storage.sign_refs(&project, signer)?;
 
     Ok((id, signed))
 }
@@ -121,24 +122,24 @@ pub enum CheckoutError {
 /// This effectively does a `git-clone` from storage.
 pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     proj: &Id,
+    remote: &RemoteId,
     path: P,
     storage: S,
 ) -> Result<git2::Repository, CheckoutError> {
     // TODO: Decide on whether we can use `clone_local`
     // TODO: Look into sharing object databases.
     let project = storage
-        .get(proj)?
+        .get(remote, proj)?
         .ok_or_else(|| CheckoutError::NotFound(proj.clone()))?;
 
     let mut opts = git2::RepositoryInitOptions::new();
     opts.no_reinit(true).description(&project.doc.description);
 
     let repo = git2::Repository::init_opts(path, &opts)?;
-    let remote_id = storage.public_key();
     let default_branch = project.doc.default_branch.as_str();
 
     // Configure and fetch all refs from remote.
-    git::configure_remote(&repo, REMOTE_NAME, remote_id, &project.path)?.fetch::<&str>(
+    git::configure_remote(&repo, REMOTE_NAME, remote, &project.path)?.fetch::<&str>(
         &[],
         None,
         None,
@@ -155,7 +156,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
             &repo,
             REMOTE_NAME,
             default_branch,
-            &format!("refs/remotes/{remote_id}/heads/{default_branch}"),
+            &format!("refs/remotes/{remote}/heads/{default_branch}"),
         )?;
     }
 
@@ -174,22 +175,24 @@ mod tests {
     fn test_init() {
         let tempdir = tempfile::tempdir().unwrap();
         let signer = crypto::MockSigner::default();
-        let mut storage = Storage::open(tempdir.path().join("storage"), signer).unwrap();
+        let public_key = *signer.public_key();
+        let mut storage = Storage::open(tempdir.path().join("storage")).unwrap();
         let repo = fixtures::repository(tempdir.path().join("working"));
 
-        let (id, refs) = init(
+        let (proj, refs) = init(
             &repo,
             "acme",
             "Acme's repo",
             BranchName::from("master"),
+            &signer,
             &mut storage,
         )
         .unwrap();
 
-        let project = storage.get(&id).unwrap().unwrap();
+        let project = storage.get(&public_key, &proj).unwrap().unwrap();
 
-        assert_eq!(project.remotes[storage.public_key()].refs, refs);
-        assert_eq!(project.id, id);
+        assert_eq!(project.remotes[&public_key].refs, refs);
+        assert_eq!(project.id, proj);
         assert_eq!(project.doc.name, "acme");
         assert_eq!(project.doc.description, "Acme's repo");
         assert_eq!(project.doc.default_branch, BranchName::from("master"));
@@ -197,7 +200,7 @@ mod tests {
             project.doc.delegates.first(),
             &Delegate {
                 name: String::from("anonymous"),
-                id: Did::from(*storage.public_key()),
+                id: Did::from(public_key),
             }
         );
     }
@@ -206,7 +209,8 @@ mod tests {
     fn test_checkout() {
         let tempdir = tempfile::tempdir().unwrap();
         let signer = crypto::MockSigner::default();
-        let mut storage = Storage::open(tempdir.path().join("storage"), signer).unwrap();
+        let remote_id = signer.public_key();
+        let mut storage = Storage::open(tempdir.path().join("storage")).unwrap();
         let original = fixtures::repository(tempdir.path().join("original"));
 
         let (id, _) = init(
@@ -214,11 +218,12 @@ mod tests {
             "acme",
             "Acme's repo",
             BranchName::from("master"),
+            &signer,
             &mut storage,
         )
         .unwrap();
 
-        let copy = checkout(&id, tempdir.path().join("copy"), &mut storage).unwrap();
+        let copy = checkout(&id, remote_id, tempdir.path().join("copy"), &mut storage).unwrap();
 
         assert_eq!(
             copy.head().unwrap().target(),

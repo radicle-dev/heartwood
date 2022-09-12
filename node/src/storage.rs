@@ -3,7 +3,7 @@ pub mod refs;
 
 use std::collections::hash_map;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::path::Path;
 use std::{fmt, io};
 
@@ -13,7 +13,8 @@ use thiserror::Error;
 pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
-use crate::crypto::{self, PublicKey, Unverified, Verified};
+use crate::crypto;
+use crate::crypto::{PublicKey, Signer, Unverified, Verified};
 use crate::git::Url;
 use crate::git::{RefError, RefStr, RefString};
 use crate::identity;
@@ -202,9 +203,8 @@ impl Remote<Verified> {
 }
 
 pub trait ReadStorage {
-    fn public_key(&self) -> &PublicKey;
     fn url(&self) -> Url;
-    fn get(&self, proj: &Id) -> Result<Option<Project>, Error>;
+    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<Project>, Error>;
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
@@ -212,7 +212,11 @@ pub trait WriteStorage<'r>: ReadStorage {
     type Repository: WriteRepository<'r>;
 
     fn repository(&self, proj: &Id) -> Result<Self::Repository, Error>;
-    fn sign_refs(&self, repository: &Self::Repository) -> Result<SignedRefs<Verified>, Error>;
+    fn sign_refs<G: Signer>(
+        &self,
+        repository: &Self::Repository,
+        signer: G,
+    ) -> Result<SignedRefs<Verified>, Error>;
 }
 
 pub trait ReadRepository<'r> {
@@ -246,10 +250,6 @@ where
     T: Deref<Target = S>,
     S: ReadStorage + 'static,
 {
-    fn public_key(&self) -> &PublicKey {
-        self.deref().public_key()
-    }
-
     fn url(&self) -> Url {
         self.deref().url()
     }
@@ -258,14 +258,14 @@ where
         self.deref().inventory()
     }
 
-    fn get(&self, proj: &Id) -> Result<Option<Project>, Error> {
-        self.deref().get(proj)
+    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<Project>, Error> {
+        self.deref().get(remote, proj)
     }
 }
 
 impl<'r, T, S> WriteStorage<'r> for T
 where
-    T: DerefMut<Target = S>,
+    T: Deref<Target = S>,
     S: WriteStorage<'r> + 'static,
 {
     type Repository = S::Repository;
@@ -274,8 +274,12 @@ where
         self.deref().repository(proj)
     }
 
-    fn sign_refs(&self, repository: &S::Repository) -> Result<SignedRefs<Verified>, Error> {
-        self.deref().sign_refs(repository)
+    fn sign_refs<G: Signer>(
+        &self,
+        repository: &S::Repository,
+        signer: G,
+    ) -> Result<SignedRefs<Verified>, Error> {
+        self.deref().sign_refs(repository, signer)
     }
 }
 

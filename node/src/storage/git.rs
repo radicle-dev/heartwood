@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::{fmt, fs, io};
 
 use git_ref_format::refspec;
@@ -11,7 +10,7 @@ pub use radicle_git_ext::Oid;
 use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::{self, IDENTITY_PATH};
-use crate::identity::{Id, Project, PublicKey};
+use crate::identity::{Id, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
@@ -28,7 +27,6 @@ pub static SIGNATURES_GLOB: Lazy<refspec::PatternString> =
 
 pub struct Storage {
     path: PathBuf,
-    signer: Arc<dyn Signer>,
 }
 
 impl fmt::Debug for Storage {
@@ -38,10 +36,6 @@ impl fmt::Debug for Storage {
 }
 
 impl ReadStorage for Storage {
-    fn public_key(&self) -> &PublicKey {
-        self.signer.public_key()
-    }
-
     fn url(&self) -> git::Url {
         git::Url {
             scheme: git_url::Scheme::File,
@@ -51,13 +45,12 @@ impl ReadStorage for Storage {
         }
     }
 
-    fn get(&self, id: &Id) -> Result<Option<Project>, Error> {
+    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<Project>, Error> {
         // TODO: Don't create a repo here if it doesn't exist?
         // Perhaps for checking we could have a `contains` method?
-        let local = self.public_key();
-        let repo = self.repository(id)?;
+        let repo = self.repository(proj)?;
 
-        if let Some(doc) = repo.identity(local)? {
+        if let Some(doc) = repo.identity(remote)? {
             let remotes = repo.remotes()?.collect::<Result<_, _>>()?;
             let path = repo.path().to_path_buf();
 
@@ -66,7 +59,7 @@ impl ReadStorage for Storage {
             // an corrupted state.
 
             Ok(Some(Project {
-                id: id.clone(),
+                id: proj.clone(),
                 doc,
                 remotes,
                 path,
@@ -88,10 +81,14 @@ impl<'r> WriteStorage<'r> for Storage {
         Repository::open(self.path.join(proj.to_string()))
     }
 
-    fn sign_refs(&self, repository: &Repository) -> Result<SignedRefs<Verified>, Error> {
-        let remote = self.signer.public_key();
+    fn sign_refs<G: Signer>(
+        &self,
+        repository: &Repository,
+        signer: G,
+    ) -> Result<SignedRefs<Verified>, Error> {
+        let remote = signer.public_key();
         let refs = repository.references(remote)?;
-        let signed = refs.signed(self.signer.clone())?;
+        let signed = refs.signed(&signer)?;
 
         signed.save(remote, repository)?;
 
@@ -100,10 +97,7 @@ impl<'r> WriteStorage<'r> for Storage {
 }
 
 impl Storage {
-    pub fn open<P: AsRef<Path>, S: Signer + 'static>(
-        path: P,
-        signer: S,
-    ) -> Result<Self, io::Error> {
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
         let path = path.as_ref().to_path_buf();
 
         match fs::create_dir_all(&path) {
@@ -112,25 +106,11 @@ impl Storage {
             Ok(()) => {}
         }
 
-        Ok(Self {
-            path,
-            signer: Arc::new(signer),
-        })
+        Ok(Self { path })
     }
 
     pub fn path(&self) -> &Path {
         self.path.as_path()
-    }
-
-    pub fn signer(&self) -> Arc<dyn Signer> {
-        self.signer.clone()
-    }
-
-    pub fn with_signer(&self, signer: impl Signer + 'static) -> Self {
-        Self {
-            path: self.path.clone(),
-            signer: Arc::new(signer),
-        }
     }
 
     pub fn projects(&self) -> Result<Vec<Id>, Error> {
@@ -404,7 +384,7 @@ mod tests {
     fn test_fetch() {
         let tmp = tempfile::tempdir().unwrap();
         let alice = fixtures::storage(tmp.path().join("alice"));
-        let bob = Storage::open(tmp.path().join("bob"), MockSigner::default()).unwrap();
+        let bob = Storage::open(tmp.path().join("bob")).unwrap();
         let inventory = alice.inventory().unwrap();
         let proj = inventory.first().unwrap();
         let repo = alice.repository(proj).unwrap();
@@ -447,9 +427,9 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
-        let storage = Storage::open(tmp.path(), signer).unwrap();
+        let storage = Storage::open(tmp.path()).unwrap();
         let proj_id = arbitrary::gen::<Id>(1);
-        let alice = *storage.public_key();
+        let alice = *signer.public_key();
         let project = storage.repository(&proj_id).unwrap();
         let backend = &project.backend;
         let sig = git2::Signature::now(&alice.to_string(), "anonymous@radicle.xyz").unwrap();
@@ -465,7 +445,7 @@ mod tests {
             )
             .unwrap();
 
-        let signed = storage.sign_refs(&project).unwrap();
+        let signed = storage.sign_refs(&project, &signer).unwrap();
         let remote = project.remote(&alice).unwrap();
         let mut unsigned = project.references(&alice).unwrap();
 

@@ -13,7 +13,10 @@ use crate::crypto::{PublicKey, SecretKey};
 use crate::git;
 use crate::hash;
 use crate::identity::{Delegate, Did, Doc, Id, Project};
-use crate::protocol::message::{Address, Envelope, Message, MessageType, NodeAnnouncement};
+use crate::protocol::message::{
+    Address, Envelope, InventoryAnnouncement, Message, MessageType, NodeAnnouncement,
+    RefsAnnouncement,
+};
 use crate::protocol::{NodeId, Timestamp};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
@@ -70,30 +73,31 @@ impl Arbitrary for Message {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let type_id = g
             .choose(&[
-                MessageType::GetInventory,
-                MessageType::Inventory,
-                MessageType::Node,
-                MessageType::RefsUpdate,
+                MessageType::InventoryAnnouncement,
+                MessageType::NodeAnnouncement,
+                MessageType::RefsAnnouncement,
             ])
             .unwrap();
 
         match type_id {
-            MessageType::GetInventory => Self::GetInventory {
-                ids: Vec::<Id>::arbitrary(g),
-            },
-            MessageType::Inventory => Self::Inventory {
+            MessageType::InventoryAnnouncement => Self::InventoryAnnouncement {
                 node: NodeId::arbitrary(g),
-                inv: Vec::<Id>::arbitrary(g),
-                timestamp: Timestamp::arbitrary(g),
+                message: InventoryAnnouncement {
+                    inventory: Vec::<Id>::arbitrary(g),
+                    timestamp: Timestamp::arbitrary(g),
+                },
+                signature: crypto::Signature::from(ByteArray::<64>::arbitrary(g).into_inner()),
             },
-            MessageType::RefsUpdate => Self::RefsUpdate {
-                id: Id::arbitrary(g),
-                signer: PublicKey::arbitrary(g),
-                refs: SignedRefs::<Unverified>::arbitrary(g),
+            MessageType::RefsAnnouncement => Self::RefsAnnouncement {
+                node: NodeId::arbitrary(g),
+                message: RefsAnnouncement {
+                    id: Id::arbitrary(g),
+                    refs: Refs::arbitrary(g),
+                },
+                signature: crypto::Signature::from(ByteArray::<64>::arbitrary(g).into_inner()),
             },
-            MessageType::Node => {
-                let announcement = NodeAnnouncement {
-                    id: NodeId::arbitrary(g),
+            MessageType::NodeAnnouncement => {
+                let message = NodeAnnouncement {
                     features: ByteArray::<32>::arbitrary(g).into_inner(),
                     timestamp: Timestamp::arbitrary(g),
                     alias: ByteArray::<32>::arbitrary(g).into_inner(),
@@ -102,9 +106,10 @@ impl Arbitrary for Message {
                 let bytes: ByteArray<64> = Arbitrary::arbitrary(g);
                 let signature = crypto::Signature::from(bytes.into_inner());
 
-                Self::Node {
+                Self::NodeAnnouncement {
+                    node: NodeId::arbitrary(g),
                     signature,
-                    announcement,
+                    message,
                 }
             }
             _ => unreachable!(),

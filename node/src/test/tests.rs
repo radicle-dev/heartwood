@@ -14,7 +14,6 @@ use crate::protocol::peer::*;
 use crate::protocol::*;
 use crate::storage::git::Storage;
 use crate::storage::ReadStorage;
-use crate::test::crypto::MockSigner;
 use crate::test::fixtures;
 #[allow(unused)]
 use crate::test::logger;
@@ -114,7 +113,7 @@ fn test_handshake_invalid_timestamp() {
     alice.receive(
         &bob.addr(),
         Message::hello(
-            bob.id(),
+            bob.node_id(),
             alice.timestamp() - time_delta,
             vec![],
             bob.git_url(),
@@ -135,7 +134,7 @@ fn test_inventory_sync() {
     let mut alice = Peer::new(
         "alice",
         [7, 7, 7, 7],
-        Storage::open(tmp.path().join("alice"), MockSigner::default()).unwrap(),
+        Storage::open(tmp.path().join("alice")).unwrap(),
     );
     let bob_storage = fixtures::storage(tmp.path().join("bob"));
     let bob = Peer::new("bob", [8, 8, 8, 8], bob_storage);
@@ -145,16 +144,18 @@ fn test_inventory_sync() {
     alice.connect_to(&bob);
     alice.receive(
         &bob.addr(),
-        Message::Inventory {
-            node: bob.id(),
-            timestamp: now,
-            inv: projs.clone(),
-        },
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: projs.clone(),
+                timestamp: now,
+            },
+            bob.signer(),
+        ),
     );
 
     for proj in &projs {
         let seeds = alice.routing().get(proj).unwrap();
-        assert!(seeds.contains(&bob.id()));
+        assert!(seeds.contains(&bob.node_id()));
     }
 
     let a = alice
@@ -212,11 +213,13 @@ fn test_inventory_relay_bad_timestamp() {
     alice.connect_to(&bob);
     alice.receive(
         &bob.addr(),
-        Message::Inventory {
-            node: bob.id(),
-            timestamp,
-            inv: vec![],
-        },
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: vec![],
+                timestamp,
+            },
+            bob.signer(),
+        ),
     );
     assert_matches!(
         alice.outbox().next(),
@@ -239,16 +242,18 @@ fn test_inventory_relay() {
     alice.connect_from(&eve);
     alice.receive(
         &bob.addr(),
-        Message::Inventory {
-            node: bob.id(),
-            timestamp: now,
-            inv: inv.clone(),
-        },
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: inv.clone(),
+                timestamp: now,
+            },
+            bob.signer(),
+        ),
     );
     assert_matches!(
         alice.messages(&eve.addr()).next(),
-        Some(Message::Inventory { node, timestamp, .. })
-        if node == bob.id() && timestamp == now
+        Some(Message::InventoryAnnouncement { node, message: InventoryAnnouncement { timestamp, .. }, .. })
+        if node == bob.node_id() && timestamp == now
     );
     assert_matches!(
         alice.messages(&bob.addr()).next(),
@@ -258,11 +263,13 @@ fn test_inventory_relay() {
 
     alice.receive(
         &bob.addr(),
-        Message::Inventory {
-            node: bob.id(),
-            timestamp: now,
-            inv: inv.clone(),
-        },
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: inv.clone(),
+                timestamp: now,
+            },
+            bob.signer(),
+        ),
     );
     assert_matches!(
         alice.messages(&eve.addr()).next(),
@@ -272,32 +279,36 @@ fn test_inventory_relay() {
 
     alice.receive(
         &bob.addr(),
-        Message::Inventory {
-            node: bob.id(),
-            timestamp: now + 1,
-            inv: inv.clone(),
-        },
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: inv.clone(),
+                timestamp: now + 1,
+            },
+            bob.signer(),
+        ),
     );
     assert_matches!(
         alice.messages(&eve.addr()).next(),
-        Some(Message::Inventory { node, timestamp, .. })
-        if node == bob.id() && timestamp == now + 1,
+        Some(Message::InventoryAnnouncement { node, message: InventoryAnnouncement{ timestamp, .. }, .. })
+        if node == bob.node_id() && timestamp == now + 1,
         "Sending a new inventory does trigger the relay"
     );
 
     // Inventory from Eve relayed to Bob.
     alice.receive(
         &eve.addr(),
-        Message::Inventory {
-            node: eve.id(),
-            timestamp: now,
-            inv,
-        },
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: inv,
+                timestamp: now,
+            },
+            eve.signer(),
+        ),
     );
     assert_matches!(
         alice.messages(&bob.addr()).next(),
-        Some(Message::Inventory { node, timestamp, .. })
-        if node == eve.id() && timestamp == now
+        Some(Message::InventoryAnnouncement { node, message: InventoryAnnouncement { timestamp, .. }, .. })
+        if node == eve.node_id() && timestamp == now
     );
 }
 
@@ -374,26 +385,14 @@ fn test_push_and_pull() {
 
     let tempdir = tempfile::tempdir().unwrap();
 
-    let storage_alice = Storage::open(
-        tempdir.path().join("alice").join("storage"),
-        MockSigner::default(),
-    )
-    .unwrap();
+    let storage_alice = Storage::open(tempdir.path().join("alice").join("storage")).unwrap();
     let repo = fixtures::repository(tempdir.path().join("working"));
     let mut alice = Peer::new("alice", [7, 7, 7, 7], storage_alice);
 
-    let storage_bob = Storage::open(
-        tempdir.path().join("bob").join("storage"),
-        MockSigner::default(),
-    )
-    .unwrap();
+    let storage_bob = Storage::open(tempdir.path().join("bob").join("storage")).unwrap();
     let mut bob = Peer::new("bob", [8, 8, 8, 8], storage_bob);
 
-    let storage_eve = Storage::open(
-        tempdir.path().join("eve").join("storage"),
-        MockSigner::default(),
-    )
-    .unwrap();
+    let storage_eve = Storage::open(tempdir.path().join("eve").join("storage")).unwrap();
     let mut eve = Peer::new("eve", [9, 9, 9, 9], storage_eve);
 
     // Alice and Bob connect to Eve.
@@ -416,7 +415,8 @@ fn test_push_and_pull() {
         "alice",
         "alice's repo",
         storage::BranchName::from("master"),
-        alice.storage_mut(),
+        alice.signer(),
+        alice.storage(),
     )
     .unwrap();
 
@@ -429,16 +429,25 @@ fn test_push_and_pull() {
     eve.command(protocol::Command::Track(proj_id.clone(), sender));
 
     // Neither of them have it in the beginning.
-    assert!(eve.storage().get(&proj_id).unwrap().is_none());
-    assert!(bob.storage().get(&proj_id).unwrap().is_none());
+    assert!(eve.get(&proj_id).unwrap().is_none());
+    assert!(bob.get(&proj_id).unwrap().is_none());
 
     // Alice announces her refs.
     // We now expect Eve to fetch Alice's project from Alice.
     // Then we expect Bob to fetch Alice's project from Eve.
-    alice.command(protocol::Command::AnnounceRefsUpdate(proj_id.clone()));
+    alice.command(protocol::Command::AnnounceRefs(proj_id.clone()));
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
-    assert!(eve.storage().get(&proj_id).unwrap().is_some());
-    assert!(bob.storage().get(&proj_id).unwrap().is_some());
+
+    assert!(eve
+        .storage()
+        .get(&alice.node_id(), &proj_id)
+        .unwrap()
+        .is_some());
+    assert!(bob
+        .storage()
+        .get(&alice.node_id(), &proj_id)
+        .unwrap()
+        .is_some());
     assert_matches!(
         sim.events(&bob.ip).next(),
         Some(protocol::Event::RefsFetched { from, .. })
@@ -457,9 +466,9 @@ fn prop_inventory_exchange_dense() {
         let mut routing = Routing::with_hasher(rng.clone().into());
 
         for (inv, peer) in &[
-            (alice_inv.inventory, alice.id()),
-            (bob_inv.inventory, bob.id()),
-            (eve_inv.inventory, eve.id()),
+            (alice_inv.inventory, alice.node_id()),
+            (bob_inv.inventory, bob.node_id()),
+            (eve_inv.inventory, eve.node_id()),
         ] {
             for proj in inv {
                 routing
@@ -475,9 +484,13 @@ fn prop_inventory_exchange_dense() {
         eve.command(Command::Connect(alice.addr()));
         eve.command(Command::Connect(bob.addr()));
 
-        let mut peers: HashMap<_, _> = [(alice.id(), alice), (bob.id(), bob), (eve.id(), eve)]
-            .into_iter()
-            .collect();
+        let mut peers: HashMap<_, _> = [
+            (alice.node_id(), alice),
+            (bob.node_id(), bob),
+            (eve.node_id(), eve),
+        ]
+        .into_iter()
+        .collect();
         let mut simulator = Simulation::new(LocalTime::now(), rng, simulator::Options::default())
             .initialize(peers.values_mut());
 
@@ -488,14 +501,12 @@ fn prop_inventory_exchange_dense() {
                 let lookup = peer.lookup(proj_id);
 
                 if lookup.local.is_some() {
-                    peer.storage()
-                        .get(proj_id)
+                    peer.get(proj_id)
                         .expect("There are no errors querying storage")
                         .expect("The project is available locally");
                 } else {
                     for remote in &lookup.remote {
                         peers[remote]
-                            .storage()
                             .get(proj_id)
                             .expect("There are no errors querying storage")
                             .expect("The project is available remotely");

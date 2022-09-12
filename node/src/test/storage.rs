@@ -1,6 +1,6 @@
 use git_url::Url;
 
-use crate::crypto::{PublicKey, Verified};
+use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::{Id, Project};
 use crate::storage::{refs, RefUpdate};
@@ -26,10 +26,6 @@ impl MockStorage {
 }
 
 impl ReadStorage for MockStorage {
-    fn public_key(&self) -> &PublicKey {
-        todo!()
-    }
-
     fn url(&self) -> Url {
         Url {
             scheme: git_url::Scheme::Radicle,
@@ -38,7 +34,7 @@ impl ReadStorage for MockStorage {
         }
     }
 
-    fn get(&self, proj: &Id) -> Result<Option<Project>, Error> {
+    fn get(&self, _remote: &RemoteId, proj: &Id) -> Result<Option<Project>, Error> {
         if let Some(proj) = self.inventory.iter().find(|p| p.id == *proj) {
             return Ok(Some(proj.clone()));
         }
@@ -63,9 +59,10 @@ impl WriteStorage<'_> for MockStorage {
         Ok(MockRepository {})
     }
 
-    fn sign_refs(
+    fn sign_refs<G: Signer>(
         &self,
         _repository: &Self::Repository,
+        _signer: G,
     ) -> Result<crate::storage::refs::SignedRefs<Verified>, Error> {
         todo!()
     }

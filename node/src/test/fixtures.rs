@@ -1,9 +1,10 @@
 use std::path::Path;
 
+use crate::crypto::Signer as _;
 use crate::git;
 use crate::identity::Id;
 use crate::storage::git::Storage;
-use crate::storage::{ReadStorage, WriteStorage};
+use crate::storage::WriteStorage;
 use crate::test::arbitrary;
 use crate::test::crypto::MockSigner;
 
@@ -11,15 +12,12 @@ pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
     let path = path.as_ref();
     let proj_ids = arbitrary::set::<Id>(3..=3);
     let signers = arbitrary::set::<MockSigner>(3..=3);
-    let mut storages = signers
-        .into_iter()
-        .map(|s| Storage::open(path, s).unwrap())
-        .collect::<Vec<_>>();
+    let storage = Storage::open(path).unwrap();
 
     crate::test::logger::init(log::Level::Debug);
 
-    for storage in &storages {
-        let remote = storage.public_key();
+    for signer in signers {
+        let remote = signer.public_key();
 
         log::debug!("signer {}...", remote);
 
@@ -57,10 +55,10 @@ pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
             )
             .unwrap();
 
-            storage.sign_refs(&repo).unwrap();
+            storage.sign_refs(&repo, &signer).unwrap();
         }
     }
-    storages.pop().unwrap()
+    storage
 }
 
 /// Creates a regular repository at the given path with a couple of commits.

@@ -1,4 +1,4 @@
-use std::{io, net};
+use std::{fmt, io, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
 
@@ -6,9 +6,8 @@ use crate::crypto;
 use crate::git;
 use crate::identity::Id;
 use crate::protocol::wire;
-use crate::protocol::{Context, NodeId, Timestamp, PROTOCOL_VERSION};
-use crate::storage;
-use crate::storage::refs::SignedRefs;
+use crate::protocol::{NodeId, Timestamp, PROTOCOL_VERSION};
+use crate::storage::refs::Refs;
 
 /// Message envelope. All messages sent over the network are wrapped in this type.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,10 +30,9 @@ pub struct Hostname(String);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageType {
     Hello = 0,
-    Node = 2,
-    GetInventory = 4,
-    Inventory = 6,
-    RefsUpdate = 8,
+    NodeAnnouncement = 2,
+    InventoryAnnouncement = 4,
+    RefsAnnouncement = 6,
 }
 
 impl From<MessageType> for u16 {
@@ -49,10 +47,9 @@ impl TryFrom<u16> for MessageType {
     fn try_from(other: u16) -> Result<Self, Self::Error> {
         match other {
             0 => Ok(MessageType::Hello),
-            2 => Ok(MessageType::Node),
-            4 => Ok(MessageType::GetInventory),
-            6 => Ok(MessageType::Inventory),
-            8 => Ok(MessageType::RefsUpdate),
+            2 => Ok(MessageType::NodeAnnouncement),
+            4 => Ok(MessageType::InventoryAnnouncement),
+            6 => Ok(MessageType::RefsAnnouncement),
             _ => Err(other),
         }
     }
@@ -197,8 +194,6 @@ impl wire::Decode for Address {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeAnnouncement {
-    /// Node identifier.
-    pub id: NodeId,
     /// Advertized features.
     pub features: NodeFeatures,
     /// Monotonic timestamp.
@@ -211,9 +206,9 @@ pub struct NodeAnnouncement {
 
 impl NodeAnnouncement {
     /// Verify a signature on this message.
-    pub fn verify(&self, signature: &crypto::Signature) -> bool {
+    pub fn verify(&self, signer: &NodeId, signature: &crypto::Signature) -> bool {
         let msg = wire::serialize(self);
-        self.id.verify(signature, &msg).is_ok()
+        signer.verify(signature, &msg).is_ok()
     }
 }
 
@@ -221,7 +216,6 @@ impl wire::Encode for NodeAnnouncement {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         let mut n = 0;
 
-        n += self.id.encode(writer)?;
         n += self.features.encode(writer)?;
         n += self.timestamp.encode(writer)?;
         n += self.alias.encode(writer)?;
@@ -233,14 +227,12 @@ impl wire::Encode for NodeAnnouncement {
 
 impl wire::Decode for NodeAnnouncement {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
-        let id = NodeId::decode(reader)?;
         let features = NodeFeatures::decode(reader)?;
         let timestamp = Timestamp::decode(reader)?;
         let alias = wire::Decode::decode(reader)?;
         let addresses = Vec::<Address>::decode(reader)?;
 
         Ok(Self {
-            id,
             features,
             timestamp,
             alias,
@@ -249,9 +241,88 @@ impl wire::Decode for NodeAnnouncement {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RefsAnnouncement {
+    /// Repository identifier.
+    pub id: Id,
+    /// Updated refs.
+    pub refs: Refs,
+}
+
+impl RefsAnnouncement {
+    /// Verify a signature on this message.
+    pub fn verify(&self, signer: &NodeId, signature: &crypto::Signature) -> bool {
+        let msg = wire::serialize(self);
+        signer.verify(signature, &msg).is_ok()
+    }
+
+    /// Sign this announcement.
+    pub fn sign<S: crypto::Signer>(&self, signer: S) -> crypto::Signature {
+        let msg = wire::serialize(self);
+        signer.sign(&msg)
+    }
+}
+
+impl wire::Encode for RefsAnnouncement {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        let mut n = 0;
+
+        n += self.id.encode(writer)?;
+        n += self.refs.encode(writer)?;
+
+        Ok(n)
+    }
+}
+
+impl wire::Decode for RefsAnnouncement {
+    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
+        let id = Id::decode(reader)?;
+        let refs = Refs::decode(reader)?;
+
+        Ok(Self { id, refs })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InventoryAnnouncement {
+    pub inventory: Vec<Id>,
+    pub timestamp: Timestamp,
+}
+
+impl InventoryAnnouncement {
+    /// Verify a signature on this message.
+    pub fn verify(&self, signer: NodeId, signature: &crypto::Signature) -> bool {
+        let msg = wire::serialize(self);
+        signer.verify(signature, &msg).is_ok()
+    }
+}
+
+impl wire::Encode for InventoryAnnouncement {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        let mut n = 0;
+
+        n += self.inventory.as_slice().encode(writer)?;
+        n += self.timestamp.encode(writer)?;
+
+        Ok(n)
+    }
+}
+
+impl wire::Decode for InventoryAnnouncement {
+    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
+        let inventory = Vec::<Id>::decode(reader)?;
+        let timestamp = Timestamp::decode(reader)?;
+
+        Ok(Self {
+            inventory,
+            timestamp,
+        })
+    }
+}
+
 /// Message payload.
 /// These are the messages peers send to each other.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     /// Say hello to a peer. This is the first message sent to a peer after connection.
     Hello {
@@ -262,30 +333,36 @@ pub enum Message {
         addrs: Vec<Address>,
         git: git::Url,
     },
-    Node {
+
+    /// Node announcing its inventory to the network.
+    /// This should be the whole inventory every time.
+    InventoryAnnouncement {
+        /// Node identifier.
+        node: NodeId,
+        /// Unsigned node inventory.
+        message: InventoryAnnouncement,
+        /// Signature over the announcement.
+        signature: crypto::Signature,
+    },
+
+    /// Node announcing itself to the network.
+    NodeAnnouncement {
+        /// Node identifier.
+        node: NodeId,
         /// Unsigned node announcement.
-        announcement: NodeAnnouncement,
+        message: NodeAnnouncement,
         /// Signature over the announcement, by the node being announced.
         signature: crypto::Signature,
     },
-    /// Get a peer's inventory.
-    GetInventory { ids: Vec<Id> },
-    /// Send our inventory to a peer. Sent in response to [`Message::GetInventory`].
-    /// Nb. This should be the whole inventory, not a partial update.
-    Inventory {
+
+    /// Node announcing project refs being created or updated.
+    RefsAnnouncement {
+        /// Node identifier.
         node: NodeId,
-        inv: Vec<Id>,
-        timestamp: Timestamp,
-    },
-    /// Project refs were updated. Includes the signature of the user who updated
-    /// their view of the project.
-    RefsUpdate {
-        /// Project under which the refs were updated.
-        id: Id,
-        /// Signing key.
-        signer: crypto::PublicKey,
-        /// Updated refs.
-        refs: SignedRefs<crypto::Unverified>,
+        /// Unsigned refs announcement.
+        message: RefsAnnouncement,
+        /// Signature over the announcement, by the node that updated the refs.
+        signature: crypto::Signature,
     },
 }
 
@@ -300,44 +377,68 @@ impl Message {
         }
     }
 
-    pub fn node<S: crypto::Signer>(announcement: NodeAnnouncement, signer: S) -> Self {
-        let msg = wire::serialize(&announcement);
+    pub fn node<S: crypto::Signer>(message: NodeAnnouncement, signer: S) -> Self {
+        let msg = wire::serialize(&message);
         let signature = signer.sign(&msg);
+        let node = *signer.public_key();
 
-        Self::Node {
+        Self::NodeAnnouncement {
+            node,
             signature,
-            announcement,
+            message,
         }
     }
 
-    pub fn inventory<S, T, G>(ctx: &Context<S, T, G>) -> Result<Self, storage::Error>
-    where
-        T: storage::ReadStorage,
-        G: crypto::Signer,
-    {
-        let timestamp = ctx.timestamp();
-        let inv = ctx.storage.inventory()?;
+    pub fn inventory<S: crypto::Signer>(message: InventoryAnnouncement, signer: S) -> Self {
+        let msg = wire::serialize(&message);
+        let signature = signer.sign(&msg);
+        let node = *signer.public_key();
 
-        Ok(Self::Inventory {
-            node: ctx.id(),
-            inv,
-            timestamp,
-        })
-    }
-
-    pub fn get_inventory(ids: impl Into<Vec<Id>>) -> Self {
-        Self::GetInventory { ids: ids.into() }
+        Self::InventoryAnnouncement {
+            node,
+            signature,
+            message,
+        }
     }
 
     pub fn type_id(&self) -> u16 {
         match self {
             Self::Hello { .. } => MessageType::Hello,
-            Self::Node { .. } => MessageType::Node,
-            Self::GetInventory { .. } => MessageType::GetInventory,
-            Self::Inventory { .. } => MessageType::Inventory,
-            Self::RefsUpdate { .. } => MessageType::RefsUpdate,
+            Self::NodeAnnouncement { .. } => MessageType::NodeAnnouncement,
+            Self::InventoryAnnouncement { .. } => MessageType::InventoryAnnouncement,
+            Self::RefsAnnouncement { .. } => MessageType::RefsAnnouncement,
         }
         .into()
+    }
+}
+
+impl fmt::Debug for Message {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Hello { id, .. } => write!(f, "Hello({})", id),
+            Self::NodeAnnouncement { node, .. } => write!(f, "NodeAnnouncement({})", node),
+            Self::InventoryAnnouncement { node, message, .. } => {
+                write!(
+                    f,
+                    "InventoryAnnouncement({}, [{}], {})",
+                    node,
+                    message
+                        .inventory
+                        .iter()
+                        .map(|i| i.to_string())
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                    message.timestamp
+                )
+            }
+            Self::RefsAnnouncement { node, message, .. } => {
+                write!(
+                    f,
+                    "RefsAnnouncement({}, {}, {:?})",
+                    node, message.id, message.refs
+                )
+            }
+        }
     }
 }
 
@@ -359,28 +460,31 @@ impl wire::Encode for Message {
                 n += addrs.as_slice().encode(writer)?;
                 n += git.encode(writer)?;
             }
-            Self::RefsUpdate { id, signer, refs } => {
-                n += id.encode(writer)?;
-                n += signer.encode(writer)?;
-                n += refs.encode(writer)?;
-            }
-            Self::GetInventory { ids } => {
-                n += ids.as_slice().encode(writer)?;
-            }
-            Self::Inventory {
+            Self::RefsAnnouncement {
                 node,
-                inv,
-                timestamp,
-            } => {
-                n += node.encode(writer)?;
-                n += inv.as_slice().encode(writer)?;
-                n += timestamp.encode(writer)?;
-            }
-            Self::Node {
-                announcement,
+                message,
                 signature,
             } => {
-                n += announcement.encode(writer)?;
+                n += node.encode(writer)?;
+                n += message.encode(writer)?;
+                n += signature.encode(writer)?;
+            }
+            Self::InventoryAnnouncement {
+                node,
+                message,
+                signature,
+            } => {
+                n += node.encode(writer)?;
+                n += message.encode(writer)?;
+                n += signature.encode(writer)?;
+            }
+            Self::NodeAnnouncement {
+                node,
+                message,
+                signature,
+            } => {
+                n += node.encode(writer)?;
+                n += message.encode(writer)?;
                 n += signature.encode(writer)?;
             }
         }
@@ -408,37 +512,38 @@ impl wire::Decode for Message {
                     git,
                 })
             }
-            Ok(MessageType::Node) => {
-                let announcement = NodeAnnouncement::decode(reader)?;
+            Ok(MessageType::NodeAnnouncement) => {
+                let node = NodeId::decode(reader)?;
+                let message = NodeAnnouncement::decode(reader)?;
                 let signature = crypto::Signature::decode(reader)?;
 
-                Ok(Self::Node {
-                    announcement,
+                Ok(Self::NodeAnnouncement {
+                    node,
+                    message,
                     signature,
                 })
             }
-            Ok(MessageType::GetInventory) => {
-                let ids = Vec::<Id>::decode(reader)?;
-
-                Ok(Self::GetInventory { ids })
-            }
-            Ok(MessageType::Inventory) => {
+            Ok(MessageType::InventoryAnnouncement) => {
                 let node = NodeId::decode(reader)?;
-                let inv = Vec::<Id>::decode(reader)?;
-                let timestamp = Timestamp::decode(reader)?;
+                let message = InventoryAnnouncement::decode(reader)?;
+                let signature = crypto::Signature::decode(reader)?;
 
-                Ok(Self::Inventory {
+                Ok(Self::InventoryAnnouncement {
                     node,
-                    inv,
-                    timestamp,
+                    message,
+                    signature,
                 })
             }
-            Ok(MessageType::RefsUpdate) => {
-                let id = Id::decode(reader)?;
-                let signer = crypto::PublicKey::decode(reader)?;
-                let refs = SignedRefs::decode(reader)?;
+            Ok(MessageType::RefsAnnouncement) => {
+                let node = NodeId::decode(reader)?;
+                let message = RefsAnnouncement::decode(reader)?;
+                let signature = crypto::Signature::decode(reader)?;
 
-                Ok(Self::RefsUpdate { id, signer, refs })
+                Ok(Self::RefsAnnouncement {
+                    node,
+                    message,
+                    signature,
+                })
             }
             Err(other) => Err(wire::Error::UnknownMessageType(other)),
         }
@@ -450,8 +555,10 @@ mod tests {
     use super::*;
     use quickcheck_macros::quickcheck;
 
+    use crate::crypto::Signer;
     use crate::decoder::Decoder;
     use crate::protocol::wire::{self, Encode};
+    use crate::test::crypto::MockSigner;
 
     #[quickcheck]
     fn prop_message_encode_decode(message: Message) {
@@ -493,5 +600,14 @@ mod tests {
             wire::deserialize::<Address>(&wire::serialize(&addr)).unwrap(),
             addr
         );
+    }
+
+    #[quickcheck]
+    fn prop_refs_announcement_signing(id: Id, refs: Refs) {
+        let signer = MockSigner::new(&mut fastrand::Rng::new());
+        let message = RefsAnnouncement { id, refs };
+        let signature = message.sign(&signer);
+
+        assert!(message.verify(signer.public_key(), &signature));
     }
 }

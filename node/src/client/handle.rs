@@ -77,7 +77,7 @@ impl<W: Waker> traits::Handle for Handle<W> {
 
     /// Notify the client that a project has been updated.
     fn updated(&self, id: Id) -> Result<(), Error> {
-        self.command(protocol::Command::AnnounceRefsUpdate(id))
+        self.command(protocol::Command::AnnounceRefs(id))
     }
 
     /// Send a command to the command channel, and wake up the event loop.

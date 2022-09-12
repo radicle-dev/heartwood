@@ -14,11 +14,7 @@ impl Log for Logger {
 
         match record.target() {
             "test" => {
-                println!(
-                    "{} {}",
-                    "test:".yellow(),
-                    record.args().to_string().yellow()
-                )
+                println!("{} {}", "test:".cyan(), record.args().to_string().yellow())
             }
             "sim" => {
                 println!("{}  {}", "sim:".bold(), record.args().to_string().bold())
@@ -26,7 +22,17 @@ impl Log for Logger {
             target => {
                 if self.enabled(record.metadata()) {
                     let s = format!("{:<8} {}", format!("{}:", target), record.args());
-                    println!("{}", s.dimmed());
+                    match record.level() {
+                        log::Level::Warn => {
+                            println!("{}", s.yellow());
+                        }
+                        log::Level::Error => {
+                            println!("{}", s.red());
+                        }
+                        _ => {
+                            println!("{}", s.dimmed());
+                        }
+                    }
                 }
             }
         }
