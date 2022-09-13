@@ -109,6 +109,71 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
 }
 
 #[derive(Error, Debug)]
+pub enum ForkError {
+    #[error("git: {0}")]
+    Git(#[from] git2::Error),
+    #[error("storage: {0}")]
+    Storage(#[from] storage::Error),
+    #[error("project `{0}` was not found in storage")]
+    NotFound(Id),
+    #[error("git: invalid reference")]
+    InvalidReference,
+}
+
+/// Create a local tree for an existing project, from an existing remote.
+pub fn fork<'r, G: Signer, S: storage::WriteStorage<'r>>(
+    proj: &Id,
+    remote: &RemoteId,
+    signer: G,
+    storage: S,
+) -> Result<(), ForkError> {
+    // TODO: Copy tags over?
+
+    // Creates or copies the following references:
+    //
+    // refs/remotes/<pk>/heads/master
+    // refs/remotes/<pk>/heads/radicle/id
+    // refs/remotes/<pk>/tags/*
+    // refs/remotes/<pk>/rad/signature
+
+    let me = signer.public_key();
+    let project = storage
+        .get(remote, proj)?
+        .ok_or_else(|| ForkError::NotFound(proj.clone()))?;
+    let repository = storage.repository(proj)?;
+
+    let raw = repository.raw();
+    let remote_head = raw
+        .find_reference(&format!(
+            "refs/remotes/{remote}/heads/{}",
+            &project.doc.default_branch
+        ))?
+        .target()
+        .ok_or(ForkError::InvalidReference)?;
+    raw.reference(
+        &format!("refs/remotes/{me}/heads/{}", &project.doc.default_branch),
+        remote_head,
+        false,
+        &format!("creating default branch for {me}"),
+    )?;
+
+    let remote_id = raw
+        .find_reference(&format!("refs/remotes/{remote}/heads/radicle/id"))?
+        .target()
+        .ok_or(ForkError::InvalidReference)?;
+    raw.reference(
+        &format!("refs/remotes/{me}/heads/radicle/id"),
+        remote_id,
+        false,
+        &format!("creating identity branch for {me}"),
+    )?;
+
+    storage.sign_refs(&repository, &signer)?;
+
+    Ok(())
+}
+
+#[derive(Error, Debug)]
 pub enum CheckoutError {
     #[error("git: {0}")]
     Git(#[from] git2::Error),
@@ -166,9 +231,10 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::git::fmt::refname;
     use crate::identity::{Delegate, Did};
     use crate::storage::git::Storage;
-    use crate::storage::ReadStorage;
+    use crate::storage::{ReadStorage, WriteStorage};
     use crate::test::{crypto, fixtures};
 
     #[test]
@@ -206,6 +272,40 @@ mod tests {
     }
 
     #[test]
+    fn test_fork() {
+        let mut rng = fastrand::Rng::new();
+        let tempdir = tempfile::tempdir().unwrap();
+        let alice = crypto::MockSigner::new(&mut rng);
+        let alice_id = alice.public_key();
+        let bob = crypto::MockSigner::new(&mut rng);
+        let bob_id = bob.public_key();
+        let mut storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let original = fixtures::repository(tempdir.path().join("original"));
+
+        // Alice creates a project.
+        let (id, alice_refs) = init(
+            &original,
+            "acme",
+            "Acme's repo",
+            BranchName::from("master"),
+            &alice,
+            &mut storage,
+        )
+        .unwrap();
+
+        // Bob forks it and creates a checkout.
+        fork(&id, alice_id, &bob, &mut storage).unwrap();
+        checkout(&id, bob_id, tempdir.path().join("copy"), &storage).unwrap();
+
+        let bob_remote = storage.repository(&id).unwrap().remote(bob_id).unwrap();
+
+        assert_eq!(
+            bob_remote.refs.get(&refname!("master")),
+            alice_refs.get(&refname!("master"))
+        );
+    }
+
+    #[test]
     fn test_checkout() {
         let tempdir = tempfile::tempdir().unwrap();
         let signer = crypto::MockSigner::default();
@@ -223,7 +323,7 @@ mod tests {
         )
         .unwrap();
 
-        let copy = checkout(&id, remote_id, tempdir.path().join("copy"), &mut storage).unwrap();
+        let copy = checkout(&id, remote_id, tempdir.path().join("copy"), &storage).unwrap();
 
         assert_eq!(
             copy.head().unwrap().target(),
