@@ -337,9 +337,13 @@ pub enum Message {
         git: git::Url,
     },
 
-    /// Subscribe to gossip messages matching the filter, that are newer than the given
+    /// Subscribe to gossip messages matching the filter and time range.
     /// timestamp.
-    Subscribe { filter: Filter, since: Timestamp },
+    Subscribe {
+        filter: Filter,
+        since: Timestamp,
+        until: Timestamp,
+    },
 
     /// Node announcing its inventory to the network.
     /// This should be the whole inventory every time.
@@ -469,9 +473,14 @@ impl wire::Encode for Message {
                 n += addrs.as_slice().encode(writer)?;
                 n += git.encode(writer)?;
             }
-            Self::Subscribe { filter, since } => {
+            Self::Subscribe {
+                filter,
+                since,
+                until,
+            } => {
                 n += filter.encode(writer)?;
                 n += since.encode(writer)?;
+                n += until.encode(writer)?;
             }
             Self::RefsAnnouncement {
                 node,
@@ -528,8 +537,13 @@ impl wire::Decode for Message {
             Ok(MessageType::Subscribe) => {
                 let filter = Filter::decode(reader)?;
                 let since = Timestamp::decode(reader)?;
+                let until = Timestamp::decode(reader)?;
 
-                Ok(Self::Subscribe { filter, since })
+                Ok(Self::Subscribe {
+                    filter,
+                    since,
+                    until,
+                })
             }
             Ok(MessageType::NodeAnnouncement) => {
                 let node = NodeId::decode(reader)?;
