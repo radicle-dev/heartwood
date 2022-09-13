@@ -230,6 +230,9 @@ impl Peer {
                 }
                 log::warn!("Node announcement handling is not implemented");
             }
+            (PeerState::Negotiated { .. }, Message::Subscribe { .. }) => {
+                log::warn!("Subscribe message handling is not implemented");
+            }
             (PeerState::Negotiated { .. }, Message::Hello { .. }) => {
                 debug!(
                     "Disconnecting peer {} for sending us a redundant handshake message",

@@ -10,6 +10,7 @@ anyhow = { version = "1" }
 bs58 = { version = "0.4.0" }
 ed25519-consensus = { version = "2.0.1" }
 byteorder = { version = "1" }
+bloomy = { version = "1.2" }
 chrono = { version = "0.4.0" }
 colored = { version = "1.9.0" }
 crossbeam-channel = { version = "0.5.6" }

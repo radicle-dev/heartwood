@@ -5,6 +5,7 @@ use byteorder::{NetworkEndian, ReadBytesExt};
 use crate::crypto;
 use crate::git;
 use crate::identity::Id;
+use crate::protocol::filter::Filter;
 use crate::protocol::wire;
 use crate::protocol::{NodeId, Timestamp, PROTOCOL_VERSION};
 use crate::storage::refs::Refs;
@@ -33,6 +34,7 @@ pub enum MessageType {
     NodeAnnouncement = 2,
     InventoryAnnouncement = 4,
     RefsAnnouncement = 6,
+    Subscribe = 8,
 }
 
 impl From<MessageType> for u16 {
@@ -50,6 +52,7 @@ impl TryFrom<u16> for MessageType {
             2 => Ok(MessageType::NodeAnnouncement),
             4 => Ok(MessageType::InventoryAnnouncement),
             6 => Ok(MessageType::RefsAnnouncement),
+            8 => Ok(MessageType::Subscribe),
             _ => Err(other),
         }
     }
@@ -334,6 +337,10 @@ pub enum Message {
         git: git::Url,
     },
 
+    /// Subscribe to gossip messages matching the filter, that are newer than the given
+    /// timestamp.
+    Subscribe { filter: Filter, since: Timestamp },
+
     /// Node announcing its inventory to the network.
     /// This should be the whole inventory every time.
     InventoryAnnouncement {
@@ -404,6 +411,7 @@ impl Message {
     pub fn type_id(&self) -> u16 {
         match self {
             Self::Hello { .. } => MessageType::Hello,
+            Self::Subscribe { .. } => MessageType::Subscribe,
             Self::NodeAnnouncement { .. } => MessageType::NodeAnnouncement,
             Self::InventoryAnnouncement { .. } => MessageType::InventoryAnnouncement,
             Self::RefsAnnouncement { .. } => MessageType::RefsAnnouncement,
@@ -416,6 +424,7 @@ impl fmt::Debug for Message {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Hello { id, .. } => write!(f, "Hello({})", id),
+            Self::Subscribe { since, .. } => write!(f, "Subscribe({})", since),
             Self::NodeAnnouncement { node, .. } => write!(f, "NodeAnnouncement({})", node),
             Self::InventoryAnnouncement { node, message, .. } => {
                 write!(
@@ -459,6 +468,10 @@ impl wire::Encode for Message {
                 n += version.encode(writer)?;
                 n += addrs.as_slice().encode(writer)?;
                 n += git.encode(writer)?;
+            }
+            Self::Subscribe { filter, since } => {
+                n += filter.encode(writer)?;
+                n += since.encode(writer)?;
             }
             Self::RefsAnnouncement {
                 node,
@@ -511,6 +524,12 @@ impl wire::Decode for Message {
                     addrs,
                     git,
                 })
+            }
+            Ok(MessageType::Subscribe) => {
+                let filter = Filter::decode(reader)?;
+                let since = Timestamp::decode(reader)?;
+
+                Ok(Self::Subscribe { filter, since })
             }
             Ok(MessageType::NodeAnnouncement) => {
                 let node = NodeId::decode(reader)?;

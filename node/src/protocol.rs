@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 pub mod config;
+pub mod filter;
 pub mod message;
 pub mod peer;
 pub mod wire;
