@@ -1,10 +1,12 @@
 use std::path::Path;
 
-use crate::crypto::Signer as _;
+use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::Id;
+use crate::rad;
 use crate::storage::git::Storage;
-use crate::storage::WriteStorage;
+use crate::storage::refs::SignedRefs;
+use crate::storage::{BranchName, WriteStorage};
 use crate::test::arbitrary;
 use crate::test::crypto::MockSigner;
 
@@ -37,21 +39,21 @@ pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
             )
             .unwrap();
 
-            let head = git::commit(raw, &head, "Second commit", &remote.to_string()).unwrap();
-            raw.reference(
-                &format!("refs/remotes/{remote}/heads/master"),
-                head.id(),
-                false,
-                "test",
+            let head = git::commit(
+                raw,
+                &head,
+                &git::RefString::try_from(format!("refs/remotes/{remote}/heads/master")).unwrap(),
+                "Second commit",
+                &remote.to_string(),
             )
             .unwrap();
 
-            let head = git::commit(raw, &head, "Third commit", &remote.to_string()).unwrap();
-            raw.reference(
-                &format!("refs/remotes/{remote}/heads/patch/3"),
-                head.id(),
-                false,
-                "test",
+            git::commit(
+                raw,
+                &head,
+                &git::RefString::try_from(format!("refs/remotes/{remote}/heads/patch/3")).unwrap(),
+                "Third commit",
+                &remote.to_string(),
             )
             .unwrap();
 
@@ -61,16 +63,44 @@ pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
     storage
 }
 
+/// Create a new repository at the given path, and initialize it into a project.
+pub fn project<'r, P: AsRef<Path>, S: WriteStorage<'r>, G: Signer>(
+    path: P,
+    storage: S,
+    signer: G,
+) -> Result<(Id, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
+    let (repo, head) = repository(path);
+    let (id, refs) = rad::init(
+        &repo,
+        "acme",
+        "Acme's repository",
+        BranchName::from("master"),
+        signer,
+        storage,
+    )?;
+
+    Ok((id, refs, repo, head))
+}
+
 /// Creates a regular repository at the given path with a couple of commits.
-pub fn repository<P: AsRef<Path>>(path: P) -> git2::Repository {
+pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
     let repo = git2::Repository::init(path).unwrap();
-    {
-        let sig = git2::Signature::now("anonymous", "anonymous@radicle.xyz").unwrap();
-        let head = git::initial_commit(&repo, &sig).unwrap();
-        let head = git::commit(&repo, &head, "Second commit", "anonymous").unwrap();
-        let _branch = repo.branch("master", &head, false).unwrap();
-    }
-    repo
+    let sig = git2::Signature::now("anonymous", "anonymous@radicle.xyz").unwrap();
+    let head = git::initial_commit(&repo, &sig).unwrap();
+    let oid = git::commit(
+        &repo,
+        &head,
+        git::refname!("refs/heads/master").as_refstr(),
+        "Second commit",
+        "anonymous",
+    )
+    .unwrap()
+    .id();
+
+    // Look, I don't really understand why we have to do this, but we do.
+    drop(head);
+
+    (repo, oid)
 }
 
 #[cfg(test)]

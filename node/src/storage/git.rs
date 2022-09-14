@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::{fmt, fs, io};
 
@@ -14,7 +14,8 @@ use crate::identity::{Id, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
-    Error, Inventory, ReadRepository, ReadStorage, Remote, WriteRepository, WriteStorage,
+    Error, FetchError, Inventory, ReadRepository, ReadStorage, Remote, WriteRepository,
+    WriteStorage,
 };
 
 use super::{RefUpdate, RemoteId};
@@ -148,6 +149,24 @@ pub struct Repository {
     // git config for later.
 }
 
+#[derive(Debug, Error)]
+pub enum VerifyError {
+    #[error("invalid remote `{0}`")]
+    InvalidRemote(RemoteId),
+    #[error("invalid target `{2}` for reference `{1}` of remote `{0}`")]
+    InvalidRefTarget(RemoteId, git::RefString, git2::Oid),
+    #[error("invalid reference")]
+    InvalidRef,
+    #[error("ref error: {0}")]
+    Ref(#[from] git::RefError),
+    #[error("refs error: {0}")]
+    Refs(#[from] refs::Error),
+    #[error("unknown reference `{1}` in remote `{0}`")]
+    UnknownRef(RemoteId, git::RefString),
+    #[error("git: {0}")]
+    Git(#[from] git2::Error),
+}
+
 impl Repository {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let backend = match git2::Repository::open_bare(path.as_ref()) {
@@ -172,6 +191,39 @@ impl Repository {
         }?;
 
         Ok(Self { backend })
+    }
+
+    pub fn head(&self) -> Result<git2::Commit, git2::Error> {
+        // TODO: Find longest history, get document and get head.
+        // Perhaps we should even set a local `HEAD` or at least `refs/heads/master`
+        todo!();
+    }
+
+    pub fn verify(&self) -> Result<(), VerifyError> {
+        let remotes = self.remotes()?.collect::<Result<HashMap<_, _>, _>>()?;
+
+        for r in self.backend.references()? {
+            let r = r?;
+            let name = r.name().ok_or(VerifyError::InvalidRef)?;
+            let oid = r.target().ok_or(VerifyError::InvalidRef)?;
+            let (remote, refname) = git::parse_ref::<RemoteId>(name)?;
+
+            if refname == *refs::SIGNATURE_REF {
+                continue;
+            }
+            let remote = remotes
+                .get(&remote)
+                .ok_or(VerifyError::InvalidRemote(remote))?;
+            let signed_oid = remote
+                .refs
+                .get(&refname)
+                .ok_or_else(|| VerifyError::UnknownRef(remote.id, refname.clone()))?;
+
+            if git::Oid::from(oid) != *signed_oid {
+                return Err(VerifyError::InvalidRefTarget(remote.id, refname, oid));
+            }
+        }
+        Ok(())
     }
 
     pub fn inspect(&self) -> Result<(), Error> {
@@ -228,6 +280,7 @@ impl<'r> ReadRepository<'r> for Repository {
         remote: &RemoteId,
         name: &git::RefStr,
     ) -> Result<Option<git2::Reference>, git2::Error> {
+        let name = name.strip_prefix(git::refname!("refs")).unwrap_or(name);
         let name = format!("refs/remotes/{remote}/{name}");
         self.backend.find_reference(&name).map(Some).or_else(|e| {
             if git::ext::is_not_found_err(&e) {
@@ -288,7 +341,7 @@ impl<'r> ReadRepository<'r> for Repository {
 
 impl<'r> WriteRepository<'r> for Repository {
     /// Fetch all remotes of a project from the given URL.
-    fn fetch(&mut self, url: &git::Url) -> Result<Vec<RefUpdate>, git2::Error> {
+    fn fetch(&mut self, url: &git::Url) -> Result<Vec<RefUpdate>, FetchError> {
         // TODO: Have function to fetch specific remotes.
         //
         // Repository layout should look like this:
@@ -303,6 +356,33 @@ impl<'r> WriteRepository<'r> for Repository {
         let refs: &[&str] = &["refs/remotes/*:refs/remotes/*"];
         let mut updates = Vec::new();
         let mut callbacks = git2::RemoteCallbacks::new();
+        let tempdir = tempfile::tempdir()?;
+        // TODO: Comment
+        let staging = {
+            let mut builder = git2::build::RepoBuilder::new();
+            let path = tempdir.path().join("git");
+            let staging_repo = builder
+                .bare(true)
+                // TODO: Comment
+                .clone_local(git2::build::CloneLocal::Local)
+                .clone(
+                    &git::Url {
+                        scheme: git::url::Scheme::File,
+                        path: self.backend.path().to_string_lossy().to_string().into(),
+                        ..git::Url::default()
+                    }
+                    .to_string(),
+                    &path,
+                )?;
+
+            staging_repo
+                .remote_anonymous(&url)?
+                .fetch(refs, None, None)?;
+            // TODO: Comment
+            Repository::from(staging_repo).verify()?;
+
+            path
+        };
 
         callbacks.update_tips(|name, old, new| {
             if let Ok(name) = git::RefString::try_from(name) {
@@ -316,7 +396,14 @@ impl<'r> WriteRepository<'r> for Repository {
         });
 
         {
-            let mut remote = self.backend.remote_anonymous(&url)?;
+            let mut remote = self.backend.remote_anonymous(
+                &git::Url {
+                    scheme: git::url::Scheme::File,
+                    path: staging.to_string_lossy().to_string().into(),
+                    ..git::Url::default()
+                }
+                .to_string(),
+            )?;
             let mut opts = git2::FetchOptions::default();
             opts.remote_callbacks(callbacks);
 
@@ -343,9 +430,10 @@ impl From<git2::Repository> for Repository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assert_matches;
     use crate::git;
     use crate::storage::refs::SIGNATURE_REF;
-    use crate::storage::{ReadStorage, WriteRepository};
+    use crate::storage::{ReadStorage, RefUpdate, WriteRepository};
     use crate::test::arbitrary;
     use crate::test::crypto::MockSigner;
     use crate::test::fixtures;
@@ -410,6 +498,13 @@ mod tests {
         // Four refs are created for each remote.
         assert_eq!(updates.len(), remotes.len() * 4);
 
+        for update in updates {
+            assert_matches!(
+                update,
+                RefUpdate::Created { name, .. } if name.starts_with("refs/remotes")
+            );
+        }
+
         for remote in remotes {
             let (id, _) = remote.unwrap();
             let alice_repo = alice.repository(proj).unwrap();
@@ -420,6 +515,57 @@ mod tests {
 
             assert_eq!(alice_oid.target(), bob_oid.target());
         }
+    }
+
+    #[test]
+    fn test_fetch_update() {
+        let tmp = tempfile::tempdir().unwrap();
+        let alice = Storage::open(tmp.path().join("alice/storage")).unwrap();
+        let bob = Storage::open(tmp.path().join("bob/storage")).unwrap();
+
+        let alice_signer = MockSigner::new(&mut fastrand::Rng::new());
+        let alice_id = alice_signer.public_key();
+        let (proj_id, _, proj_repo, alice_head) =
+            fixtures::project(tmp.path().join("alice/project"), &alice, &alice_signer).unwrap();
+
+        let refname = git::refname!("refs/heads/master");
+        let alice_url = git::Url {
+            scheme: git_url::Scheme::File,
+            path: alice
+                .path()
+                .join(proj_id.to_string())
+                .to_string_lossy()
+                .into_owned()
+                .into(),
+            ..git::Url::default()
+        };
+
+        // Have Bob fetch Alice's refs.
+        let updates = bob.repository(&proj_id).unwrap().fetch(&alice_url).unwrap();
+        // Three refs are created: the branch, the signature and the id.
+        assert_eq!(updates.len(), 3);
+
+        let alice_proj_storage = alice.repository(&proj_id).unwrap();
+        let alice_head = proj_repo.find_commit(alice_head).unwrap();
+        let alice_head = git::commit(&proj_repo, &alice_head, &refname, "Making changes", "Alice")
+            .unwrap()
+            .id();
+        git::push(&proj_repo).unwrap();
+        alice.sign_refs(&alice_proj_storage, &alice_signer).unwrap();
+
+        // Have Bob fetch Alice's new commit.
+        let updates = bob.repository(&proj_id).unwrap().fetch(&alice_url).unwrap();
+        // The branch and signature refs are updated.
+        assert_matches!(
+            updates.as_slice(),
+            &[RefUpdate::Updated { .. }, RefUpdate::Updated { .. }]
+        );
+
+        // Bob's storage is updated.
+        let bob_repo = bob.repository(&proj_id).unwrap();
+        let bob_master = bob_repo.reference(alice_id, &refname).unwrap().unwrap();
+
+        assert_eq!(bob_master.target().unwrap(), alice_head);
     }
 
     #[test]
@@ -435,15 +581,14 @@ mod tests {
         let sig = git2::Signature::now(&alice.to_string(), "anonymous@radicle.xyz").unwrap();
         let head = git::initial_commit(backend, &sig).unwrap();
 
-        let head = git::commit(backend, &head, "Second commit", &alice.to_string()).unwrap();
-        backend
-            .reference(
-                &format!("refs/remotes/{alice}/heads/master"),
-                head.id(),
-                false,
-                "test",
-            )
-            .unwrap();
+        git::commit(
+            backend,
+            &head,
+            &git::RefString::try_from(format!("refs/remotes/{alice}/heads/master")).unwrap(),
+            "Second commit",
+            &alice.to_string(),
+        )
+        .unwrap();
 
         let signed = storage.sign_refs(&project, &signer).unwrap();
         let remote = project.remote(&alice).unwrap();

@@ -69,6 +69,8 @@ pub enum FetchError {
     Git(#[from] git2::Error),
     #[error(transparent)]
     Storage(#[from] storage::Error),
+    #[error(transparent)]
+    Fetch(#[from] storage::FetchError),
 }
 
 /// Result of looking up seeds in our routing table.
@@ -89,6 +91,7 @@ pub enum FetchLookup {
 
 /// Result of a fetch request from a specific seed.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum FetchResult {
     /// Successful fetch from a seed.
     Fetched {

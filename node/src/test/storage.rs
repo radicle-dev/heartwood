@@ -5,7 +5,8 @@ use crate::git;
 use crate::identity::{Id, Project};
 use crate::storage::{refs, RefUpdate};
 use crate::storage::{
-    Error, Inventory, ReadRepository, ReadStorage, Remote, RemoteId, WriteRepository, WriteStorage,
+    Error, FetchError, Inventory, ReadRepository, ReadStorage, Remote, RemoteId, WriteRepository,
+    WriteStorage,
 };
 
 #[derive(Clone, Debug)]
@@ -119,7 +120,7 @@ impl ReadRepository<'_> for MockRepository {
 }
 
 impl WriteRepository<'_> for MockRepository {
-    fn fetch(&mut self, _url: &Url) -> Result<Vec<RefUpdate>, git2::Error> {
+    fn fetch(&mut self, _url: &Url) -> Result<Vec<RefUpdate>, FetchError> {
         Ok(vec![])
     }
 

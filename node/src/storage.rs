@@ -47,6 +47,18 @@ pub enum Error {
     InvalidHead,
 }
 
+/// Fetch error.
+#[derive(Error, Debug)]
+#[allow(clippy::large_enum_variant)]
+pub enum FetchError {
+    #[error("git: {0}")]
+    Git(#[from] git2::Error),
+    #[error("i/o: {0}")]
+    Io(#[from] io::Error),
+    #[error("verify: {0}")]
+    Verify(#[from] git::VerifyError),
+}
+
 pub type RemoteId = PublicKey;
 
 /// An update to a reference.
@@ -241,7 +253,7 @@ pub trait ReadRepository<'r> {
 }
 
 pub trait WriteRepository<'r>: ReadRepository<'r> {
-    fn fetch(&mut self, url: &Url) -> Result<Vec<RefUpdate>, git2::Error>;
+    fn fetch(&mut self, url: &Url) -> Result<Vec<RefUpdate>, FetchError>;
     fn raw(&self) -> &git2::Repository;
 }
 

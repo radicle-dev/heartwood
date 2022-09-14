@@ -30,9 +30,9 @@ radicle-git-ext = { version = "0", features = ["serde"] }
 nonempty = { version = "0.8.0", features = ["serialize"] }
 nakamoto-net = { version = "0.3.0" }
 nakamoto-net-poll = { version = "0.3.0" }
+tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
 
 [dev-dependencies]
 quickcheck = { version = "1", default-features = false }
 quickcheck_macros = { version = "1", default-features = false }
-tempfile = { version = "3.3.0" }

@@ -386,7 +386,7 @@ fn test_push_and_pull() {
     let tempdir = tempfile::tempdir().unwrap();
 
     let storage_alice = Storage::open(tempdir.path().join("alice").join("storage")).unwrap();
-    let repo = fixtures::repository(tempdir.path().join("working"));
+    let (repo, _) = fixtures::repository(tempdir.path().join("working"));
     let mut alice = Peer::new("alice", [7, 7, 7, 7], storage_alice);
 
     let storage_bob = Storage::open(tempdir.path().join("bob").join("storage")).unwrap();

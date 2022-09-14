@@ -243,7 +243,7 @@ mod tests {
         let signer = crypto::MockSigner::default();
         let public_key = *signer.public_key();
         let mut storage = Storage::open(tempdir.path().join("storage")).unwrap();
-        let repo = fixtures::repository(tempdir.path().join("working"));
+        let (repo, _) = fixtures::repository(tempdir.path().join("working"));
 
         let (proj, refs) = init(
             &repo,
@@ -280,7 +280,7 @@ mod tests {
         let bob = crypto::MockSigner::new(&mut rng);
         let bob_id = bob.public_key();
         let mut storage = Storage::open(tempdir.path().join("storage")).unwrap();
-        let original = fixtures::repository(tempdir.path().join("original"));
+        let (original, _) = fixtures::repository(tempdir.path().join("original"));
 
         // Alice creates a project.
         let (id, alice_refs) = init(
@@ -311,7 +311,7 @@ mod tests {
         let signer = crypto::MockSigner::default();
         let remote_id = signer.public_key();
         let mut storage = Storage::open(tempdir.path().join("storage")).unwrap();
-        let original = fixtures::repository(tempdir.path().join("original"));
+        let (original, _) = fixtures::repository(tempdir.path().join("original"));
 
         let (id, _) = init(
             &original,

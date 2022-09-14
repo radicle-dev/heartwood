@@ -83,21 +83,43 @@ pub fn initial_commit<'a>(
     Ok(commit)
 }
 
-/// Create a commit.
+/// Create a commit and update the given ref to it.
 pub fn commit<'a>(
     repo: &'a git2::Repository,
     parent: &'a git2::Commit,
+    target: &RefStr,
     message: &str,
     user: &str,
 ) -> Result<git2::Commit<'a>, git2::Error> {
     let sig = git2::Signature::now(user, "anonymous@radicle.xyz")?;
     let tree_id = repo.index()?.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
-    // TODO: Take the ref as parameter.
-    let oid = repo.commit(None, &sig, &sig, message, &tree, &[parent])?;
+    let oid = repo.commit(Some(target.as_str()), &sig, &sig, message, &tree, &[parent])?;
     let commit = repo.find_commit(oid).unwrap();
 
     Ok(commit)
+}
+
+/// Push the refs to the radicle remote.
+pub fn push(repo: &git2::Repository) -> Result<(), git2::Error> {
+    let mut remote = repo.find_remote("rad")?;
+    let refspecs = remote.push_refspecs().unwrap();
+    let refspec = refspecs.into_iter().next().unwrap().unwrap();
+
+    // The `git2` crate doesn't seem to support push refspecs with '*' in them,
+    // so we manually replace it with the current branch.
+    let head = repo.head().unwrap();
+    let branch = head.shorthand().unwrap();
+    let refspec = refspec.replace('*', branch);
+
+    remote.push::<&str>(&[&refspec], None)
+}
+
+/// Get the repository head.
+pub fn head(repo: &git2::Repository) -> Result<git2::Commit, git2::Error> {
+    let head = repo.head()?.peel_to_commit()?;
+
+    Ok(head)
 }
 
 /// Configure a repository's radicle remote.
