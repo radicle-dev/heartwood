@@ -163,6 +163,8 @@ pub enum VerifyError {
     Refs(#[from] refs::Error),
     #[error("unknown reference `{1}` in remote `{0}`")]
     UnknownRef(RemoteId, git::RefString),
+    #[error("missing reference `{1}` in remote `{0}`")]
+    MissingRef(RemoteId, git::RefString),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
 }
@@ -200,29 +202,43 @@ impl Repository {
     }
 
     pub fn verify(&self) -> Result<(), VerifyError> {
-        let remotes = self.remotes()?.collect::<Result<HashMap<_, _>, _>>()?;
+        let mut remotes: HashMap<RemoteId, Refs> = self
+            .remotes()?
+            .map(|remote| {
+                let (id, remote) = remote?;
+                Ok((id, remote.refs.into()))
+            })
+            .collect::<Result<_, VerifyError>>()?;
 
         for r in self.backend.references()? {
             let r = r?;
             let name = r.name().ok_or(VerifyError::InvalidRef)?;
             let oid = r.target().ok_or(VerifyError::InvalidRef)?;
-            let (remote, refname) = git::parse_ref::<RemoteId>(name)?;
+            let (remote_id, refname) = git::parse_ref::<RemoteId>(name)?;
 
             if refname == *refs::SIGNATURE_REF {
                 continue;
             }
             let remote = remotes
-                .get(&remote)
-                .ok_or(VerifyError::InvalidRemote(remote))?;
+                .get_mut(&remote_id)
+                .ok_or(VerifyError::InvalidRemote(remote_id))?;
             let signed_oid = remote
-                .refs
-                .get(&refname)
-                .ok_or_else(|| VerifyError::UnknownRef(remote.id, refname.clone()))?;
+                .remove(&refname)
+                .ok_or_else(|| VerifyError::UnknownRef(remote_id, refname.clone()))?;
 
-            if git::Oid::from(oid) != *signed_oid {
-                return Err(VerifyError::InvalidRefTarget(remote.id, refname, oid));
+            if git::Oid::from(oid) != signed_oid {
+                return Err(VerifyError::InvalidRefTarget(remote_id, refname, oid));
             }
         }
+
+        // The refs that are left in the map, are ones that were signed, but are not
+        // in the repository.
+        for (id, refs) in remotes.into_iter() {
+            if let Some((name, _)) = refs.into_iter().next() {
+                return Err(VerifyError::MissingRef(id, name));
+            }
+        }
+
         Ok(())
     }
 

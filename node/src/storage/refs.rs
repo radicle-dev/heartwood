@@ -123,6 +123,15 @@ impl Refs {
     }
 }
 
+impl IntoIterator for Refs {
+    type Item = (git::RefString, Oid);
+    type IntoIter = std::collections::btree_map::IntoIter<git::RefString, Oid>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 impl From<Refs> for BTreeMap<git::RefString, Oid> {
     fn from(refs: Refs) -> Self {
         refs.0
