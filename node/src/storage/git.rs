@@ -380,6 +380,7 @@ impl<'r> WriteRepository<'r> for Repository {
             let staging_repo = builder
                 .bare(true)
                 // TODO: Comment
+                // TODO: Due to this, I think we'll have to run GC when there is a failure.
                 .clone_local(git2::build::CloneLocal::Local)
                 .clone(
                     &git::Url {
@@ -391,9 +392,13 @@ impl<'r> WriteRepository<'r> for Repository {
                     &path,
                 )?;
 
+            // In case we fetch an invalid update, we want to make sure nothing is deleted.
+            let mut opts = git2::FetchOptions::default();
+            opts.prune(git2::FetchPrune::Off);
+
             staging_repo
                 .remote_anonymous(&url)?
-                .fetch(refs, None, None)?;
+                .fetch(refs, Some(&mut opts), None)?;
             // TODO: Comment
             Repository::from(staging_repo).verify()?;
 
