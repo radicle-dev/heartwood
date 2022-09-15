@@ -1,4 +1,3 @@
-use crate::decoder::Decoder;
 use crate::protocol::message::*;
 use crate::protocol::*;
 
@@ -52,8 +51,6 @@ pub struct Peer {
     /// Peer subscription.
     pub subscribe: Option<Subscribe>,
 
-    /// Inbox for incoming messages from peer.
-    inbox: Decoder,
     /// Connection attempts. For persistent peers, Tracks
     /// how many times we've attempted to connect. We reset this to zero
     /// upon successful connection.
@@ -64,7 +61,6 @@ impl Peer {
     pub fn new(addr: net::SocketAddr, link: Link, persistent: bool) -> Self {
         Self {
             addr,
-            inbox: Decoder::new(256),
             state: PeerState::default(),
             link,
             timestamp: Timestamp::default(),
@@ -80,10 +76,6 @@ impl Peer {
 
     pub fn is_negotiated(&self) -> bool {
         matches!(self.state, PeerState::Negotiated { .. })
-    }
-
-    pub fn inbox(&mut self) -> &mut Decoder {
-        &mut self.inbox
     }
 
     pub fn attempts(&self) -> usize {

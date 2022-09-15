@@ -34,7 +34,7 @@ use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, Writ
 pub use crate::protocol::config::{Config, Network};
 
 use self::filter::Filter;
-use self::message::{InventoryAnnouncement, NodeFeatures};
+use self::message::{Envelope, InventoryAnnouncement, NodeFeatures};
 
 pub const DEFAULT_PORT: u16 = 8776;
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -511,54 +511,35 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
         }
     }
 
-    pub fn received_bytes(&mut self, addr: &std::net::SocketAddr, bytes: &[u8]) {
+    pub fn received_message(&mut self, addr: &std::net::SocketAddr, msg: Envelope) {
         let peer_ip = addr.ip();
-        let (peer, msgs) = if let Some(peer) = self.peers.get_mut(&peer_ip) {
-            let decoder = peer.inbox();
-            decoder.input(bytes);
-
-            let mut msgs = Vec::with_capacity(1);
-            loop {
-                match decoder.decode_next() {
-                    Ok(Some(msg)) => msgs.push(msg),
-                    Ok(None) => break,
-
-                    Err(err) => {
-                        // TODO: Disconnect peer.
-                        error!("Invalid message received from {}: {}", peer.addr, err);
-
-                        return;
-                    }
-                }
-            }
-            (peer, msgs)
+        let peer = if let Some(peer) = self.peers.get_mut(&peer_ip) {
+            peer
         } else {
             return;
         };
 
-        let mut relay = Vec::new();
-        for msg in msgs {
-            match peer.received(msg, &mut self.context) {
-                Ok(None) => {}
-                Ok(Some(msg)) => {
-                    relay.push(msg);
-                }
-                Err(err) => {
-                    self.context
-                        .disconnect(peer.addr, DisconnectReason::Error(err));
-                    // If there's an error, stop processing messages from this peer.
-                    // However, we still relay messages returned up to this point.
-                    break;
-                }
+        let relay = match peer.received(msg, &mut self.context) {
+            Ok(msg) => msg,
+            Err(err) => {
+                self.context
+                    .disconnect(peer.addr, DisconnectReason::Error(err));
+                // If there's an error, stop processing messages from this peer.
+                // However, we still relay messages returned up to this point.
+                //
+                // FIXME: The peer should be set in a state such that we don'that
+                // process further messages.
+                return;
             }
-        }
+        };
 
-        let negotiated = self
-            .peers
-            .negotiated()
-            .filter(|(ip, _)| **ip != peer_ip)
-            .map(|(_, p)| p);
-        for msg in relay {
+        if let Some(msg) = relay {
+            let negotiated = self
+                .peers
+                .negotiated()
+                .filter(|(ip, _)| **ip != peer_ip)
+                .map(|(_, p)| p);
+
             self.context.relay(msg, negotiated.clone());
         }
     }

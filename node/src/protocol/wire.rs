@@ -1,6 +1,6 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
-use std::net;
+use std::net::{self, IpAddr};
 use std::ops::{Deref, DerefMut};
 use std::string::FromUtf8Error;
 use std::{io, mem};
@@ -11,6 +11,7 @@ use nakamoto_net::{Link, LocalTime};
 
 use crate::address_book;
 use crate::crypto::{PublicKey, Signature, Signer};
+use crate::decoder::Decoder;
 use crate::git;
 use crate::git::fmt;
 use crate::hash::Digest;
@@ -387,12 +388,16 @@ impl Decode for Digest {
 
 #[derive(Debug)]
 pub struct Wire<S, T, G> {
+    inboxes: HashMap<IpAddr, Decoder>,
     inner: protocol::Protocol<S, T, G>,
 }
 
 impl<S, T, G> Wire<S, T, G> {
     pub fn new(inner: protocol::Protocol<S, T, G>) -> Self {
-        Self { inner }
+        Self {
+            inboxes: HashMap::new(),
+            inner,
+        }
     }
 }
 
@@ -402,45 +407,67 @@ where
     T: WriteStorage<'r> + 'static,
     G: Signer,
 {
-    fn initialize(&mut self, time: LocalTime) {
+    pub fn initialize(&mut self, time: LocalTime) {
         self.inner.initialize(time)
     }
 
-    fn tick(&mut self, now: LocalTime) {
+    pub fn tick(&mut self, now: LocalTime) {
         self.inner.tick(now)
     }
 
-    fn wake(&mut self) {
+    pub fn wake(&mut self) {
         self.inner.wake()
     }
 
-    fn command(&mut self, cmd: protocol::Command) {
+    pub fn command(&mut self, cmd: protocol::Command) {
         self.inner.command(cmd)
     }
 
-    fn attempted(&mut self, addr: &net::SocketAddr) {
+    pub fn attempted(&mut self, addr: &net::SocketAddr) {
         self.inner.attempted(addr)
     }
 
-    fn connected(
+    pub fn connected(
         &mut self,
         addr: std::net::SocketAddr,
         local_addr: &std::net::SocketAddr,
         link: Link,
     ) {
+        self.inboxes.insert(addr.ip(), Decoder::new(256));
         self.inner.connected(addr, local_addr, link)
     }
 
-    fn disconnected(
+    pub fn disconnected(
         &mut self,
         addr: &std::net::SocketAddr,
         reason: nakamoto::DisconnectReason<protocol::DisconnectReason>,
     ) {
+        self.inboxes.remove(&addr.ip());
         self.inner.disconnected(addr, reason)
     }
 
-    fn received_bytes(&mut self, addr: &std::net::SocketAddr, bytes: &[u8]) {
-        self.inner.received_bytes(addr, bytes)
+    pub fn received_bytes(&mut self, addr: &std::net::SocketAddr, bytes: &[u8]) {
+        let peer_ip = addr.ip();
+
+        if let Some(inbox) = self.inboxes.get_mut(&peer_ip) {
+            inbox.input(bytes);
+
+            loop {
+                match inbox.decode_next() {
+                    Ok(Some(msg)) => self.inner.received_message(addr, msg),
+                    Ok(None) => break,
+
+                    Err(err) => {
+                        // TODO: Disconnect peer.
+                        log::error!("Invalid message received from {}: {}", peer_ip, err);
+
+                        return;
+                    }
+                }
+            }
+        } else {
+            log::debug!("Received message from unknown peer {}", peer_ip);
+        }
     }
 }
 
