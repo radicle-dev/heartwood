@@ -12,6 +12,7 @@ use crate::collections::HashMap;
 use crate::decoder::Decoder;
 use crate::protocol::config::*;
 use crate::protocol::message::*;
+use crate::protocol::wire::Wire;
 use crate::protocol::*;
 use crate::storage::WriteStorage;
 use crate::test::crypto::MockSigner;
@@ -93,14 +94,14 @@ where
         let local_time = LocalTime::now();
         let clock = RefClock::from(local_time);
         let signer = MockSigner::new(&mut rng);
-        let protocol = Transport::new(Protocol::new(
+        let protocol = Transport::new(Wire::new(Protocol::new(
             config,
             clock,
             storage,
             addrs,
             signer,
             rng.clone(),
-        ));
+        )));
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, rng.u16(..));
 

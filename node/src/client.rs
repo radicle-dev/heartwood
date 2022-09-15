@@ -8,6 +8,7 @@ use crate::clock::RefClock;
 use crate::collections::HashMap;
 use crate::crypto::Signer;
 use crate::protocol;
+use crate::protocol::wire::Wire;
 use crate::storage::git::Storage;
 use crate::transport::Transport;
 
@@ -97,7 +98,7 @@ impl<R: Reactor, G: Signer> Client<R, G> {
         );
         self.reactor.run(
             &config.listen,
-            Transport::new(protocol),
+            Transport::new(Wire::new(protocol)),
             self.events,
             self.commands,
         )?;

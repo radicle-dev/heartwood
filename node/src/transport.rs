@@ -8,6 +8,7 @@ use nakamoto_net::{Io, Link};
 use crate::address_book;
 use crate::collections::HashMap;
 use crate::crypto;
+use crate::protocol::wire::Wire;
 use crate::protocol::{Command, DisconnectReason, Event, Protocol};
 use crate::storage::WriteStorage;
 
@@ -19,14 +20,14 @@ struct Peer {
 #[derive(Debug)]
 pub struct Transport<S, T, G> {
     peers: HashMap<net::IpAddr, Peer>,
-    protocol: Protocol<S, T, G>,
+    inner: Wire<S, T, G>,
 }
 
 impl<S, T, G> Transport<S, T, G> {
-    pub fn new(protocol: Protocol<S, T, G>) -> Self {
+    pub fn new(inner: Wire<S, T, G>) -> Self {
         Self {
             peers: HashMap::default(),
-            protocol,
+            inner,
         }
     }
 }
@@ -42,23 +43,23 @@ where
     type DisconnectReason = DisconnectReason;
 
     fn initialize(&mut self, time: LocalTime) {
-        self.protocol.initialize(time)
+        self.inner.initialize(time)
     }
 
     fn tick(&mut self, now: nakamoto::LocalTime) {
-        self.protocol.tick(now)
+        self.inner.tick(now)
     }
 
     fn wake(&mut self) {
-        self.protocol.wake()
+        self.inner.wake()
     }
 
     fn command(&mut self, cmd: Self::Command) {
-        self.protocol.command(cmd)
+        self.inner.command(cmd)
     }
 
     fn attempted(&mut self, addr: &std::net::SocketAddr) {
-        self.protocol.attempted(addr)
+        self.inner.attempted(addr)
     }
 
     fn connected(
@@ -67,7 +68,7 @@ where
         local_addr: &std::net::SocketAddr,
         link: Link,
     ) {
-        self.protocol.connected(addr, local_addr, link)
+        self.inner.connected(addr, local_addr, link)
     }
 
     fn disconnected(
@@ -75,11 +76,11 @@ where
         addr: &std::net::SocketAddr,
         reason: nakamoto::DisconnectReason<Self::DisconnectReason>,
     ) {
-        self.protocol.disconnected(addr, reason)
+        self.inner.disconnected(addr, reason)
     }
 
     fn received_bytes(&mut self, addr: &std::net::SocketAddr, bytes: &[u8]) {
-        self.protocol.received_bytes(addr, bytes)
+        self.inner.received_bytes(addr, bytes)
     }
 }
 
@@ -87,7 +88,7 @@ impl<S, T, G> Iterator for Transport<S, T, G> {
     type Item = Io<Event, DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.protocol.next()
+        self.inner.next()
     }
 }
 
@@ -95,12 +96,12 @@ impl<S, T, G> Deref for Transport<S, T, G> {
     type Target = Protocol<S, T, G>;
 
     fn deref(&self) -> &Self::Target {
-        &self.protocol
+        &self.inner
     }
 }
 
 impl<S, T, G> DerefMut for Transport<S, T, G> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.protocol
+        &mut self.inner
     }
 }

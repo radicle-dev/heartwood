@@ -1,17 +1,23 @@
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
-use std::ops::Deref;
+use std::net;
+use std::ops::{Deref, DerefMut};
 use std::string::FromUtf8Error;
 use std::{io, mem};
 
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
+use nakamoto_net as nakamoto;
+use nakamoto_net::{Link, LocalTime};
 
-use crate::crypto::{PublicKey, Signature};
+use crate::address_book;
+use crate::crypto::{PublicKey, Signature, Signer};
 use crate::git;
 use crate::git::fmt;
 use crate::hash::Digest;
 use crate::identity::Id;
+use crate::protocol;
 use crate::storage::refs::Refs;
+use crate::storage::WriteStorage;
 
 /// The default type we use to represent sizes.
 /// Four bytes is more than enough for anything sent over the wire.
@@ -376,6 +382,86 @@ impl Decode for Digest {
         let bytes: [u8; 32] = Decode::decode(reader)?;
 
         Ok(Self::from(bytes))
+    }
+}
+
+#[derive(Debug)]
+pub struct Wire<S, T, G> {
+    inner: protocol::Protocol<S, T, G>,
+}
+
+impl<S, T, G> Wire<S, T, G> {
+    pub fn new(inner: protocol::Protocol<S, T, G>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'r, S, T, G> Wire<S, T, G>
+where
+    S: address_book::Store,
+    T: WriteStorage<'r> + 'static,
+    G: Signer,
+{
+    fn initialize(&mut self, time: LocalTime) {
+        self.inner.initialize(time)
+    }
+
+    fn tick(&mut self, now: LocalTime) {
+        self.inner.tick(now)
+    }
+
+    fn wake(&mut self) {
+        self.inner.wake()
+    }
+
+    fn command(&mut self, cmd: protocol::Command) {
+        self.inner.command(cmd)
+    }
+
+    fn attempted(&mut self, addr: &net::SocketAddr) {
+        self.inner.attempted(addr)
+    }
+
+    fn connected(
+        &mut self,
+        addr: std::net::SocketAddr,
+        local_addr: &std::net::SocketAddr,
+        link: Link,
+    ) {
+        self.inner.connected(addr, local_addr, link)
+    }
+
+    fn disconnected(
+        &mut self,
+        addr: &std::net::SocketAddr,
+        reason: nakamoto::DisconnectReason<protocol::DisconnectReason>,
+    ) {
+        self.inner.disconnected(addr, reason)
+    }
+
+    fn received_bytes(&mut self, addr: &std::net::SocketAddr, bytes: &[u8]) {
+        self.inner.received_bytes(addr, bytes)
+    }
+}
+
+impl<S, T, G> Iterator for Wire<S, T, G> {
+    type Item = nakamoto::Io<protocol::Event, protocol::DisconnectReason>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+}
+
+impl<S, T, G> Deref for Wire<S, T, G> {
+    type Target = protocol::Protocol<S, T, G>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+impl<S, T, G> DerefMut for Wire<S, T, G> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
 
