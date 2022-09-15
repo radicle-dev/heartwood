@@ -280,47 +280,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
         }
     }
 
-    ////////////////////////////////////////////////////////////////////////////
-    // Periodic tasks
-    ////////////////////////////////////////////////////////////////////////////
-
-    /// Announce our inventory to all connected peers.
-    fn announce_inventory(&mut self) -> Result<(), storage::Error> {
-        let inv = Message::inventory(self.context.inventory_announcement()?, &self.context.signer);
-
-        for addr in self.peers.negotiated().map(|(_, p)| p.addr) {
-            self.context.write(addr, inv.clone());
-        }
-        Ok(())
-    }
-
-    fn prune_routing_entries(&mut self) {
-        // TODO
-    }
-
-    fn maintain_connections(&mut self) {
-        // TODO: Connect to all potential seeds.
-        if self.peers.len() < TARGET_OUTBOUND_PEERS {
-            let delta = TARGET_OUTBOUND_PEERS - self.peers.len();
-
-            for _ in 0..delta {
-                // TODO: Connect to random peer.
-            }
-        }
-    }
-}
-
-impl<'r, S, T, G> nakamoto::Protocol for Protocol<S, T, G>
-where
-    T: WriteStorage<'r> + 'static,
-    S: address_book::Store,
-    G: crypto::Signer,
-{
-    type Event = Event;
-    type Command = Command;
-    type DisconnectReason = DisconnectReason;
-
-    fn initialize(&mut self, time: LocalTime) {
+    pub fn initialize(&mut self, time: LocalTime) {
         trace!("Init {}", time.as_secs());
 
         self.start_time = time;
@@ -332,13 +292,13 @@ where
         }
     }
 
-    fn tick(&mut self, now: nakamoto::LocalTime) {
+    pub fn tick(&mut self, now: nakamoto::LocalTime) {
         trace!("Tick +{}", now - self.start_time);
 
         self.context.clock.set(now);
     }
 
-    fn wake(&mut self) {
+    pub fn wake(&mut self) {
         let now = self.context.clock.local_time();
 
         trace!("Wake +{}", now - self.start_time);
@@ -373,7 +333,7 @@ where
         }
     }
 
-    fn command(&mut self, cmd: Self::Command) {
+    pub fn command(&mut self, cmd: Command) {
         debug!("Command {:?}", cmd);
 
         match cmd {
@@ -468,7 +428,7 @@ where
         }
     }
 
-    fn attempted(&mut self, addr: &std::net::SocketAddr) {
+    pub fn attempted(&mut self, addr: &std::net::SocketAddr) {
         let ip = addr.ip();
         let persistent = self.context.config.is_persistent(addr);
         let peer = self
@@ -479,7 +439,7 @@ where
         peer.attempted();
     }
 
-    fn connected(
+    pub fn connected(
         &mut self,
         addr: std::net::SocketAddr,
         _local_addr: &std::net::SocketAddr,
@@ -512,10 +472,10 @@ where
         }
     }
 
-    fn disconnected(
+    pub fn disconnected(
         &mut self,
         addr: &std::net::SocketAddr,
-        reason: nakamoto::DisconnectReason<Self::DisconnectReason>,
+        reason: nakamoto::DisconnectReason<DisconnectReason>,
     ) {
         let since = self.local_time();
         let ip = addr.ip();
@@ -551,7 +511,7 @@ where
         }
     }
 
-    fn received_bytes(&mut self, addr: &std::net::SocketAddr, bytes: &[u8]) {
+    pub fn received_bytes(&mut self, addr: &std::net::SocketAddr, bytes: &[u8]) {
         let peer_ip = addr.ip();
         let (peer, msgs) = if let Some(peer) = self.peers.get_mut(&peer_ip) {
             let decoder = peer.inbox();
@@ -600,6 +560,35 @@ where
             .map(|(_, p)| p);
         for msg in relay {
             self.context.relay(msg, negotiated.clone());
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Periodic tasks
+    ////////////////////////////////////////////////////////////////////////////
+
+    /// Announce our inventory to all connected peers.
+    fn announce_inventory(&mut self) -> Result<(), storage::Error> {
+        let inv = Message::inventory(self.context.inventory_announcement()?, &self.context.signer);
+
+        for addr in self.peers.negotiated().map(|(_, p)| p.addr) {
+            self.context.write(addr, inv.clone());
+        }
+        Ok(())
+    }
+
+    fn prune_routing_entries(&mut self) {
+        // TODO
+    }
+
+    fn maintain_connections(&mut self) {
+        // TODO: Connect to all potential seeds.
+        if self.peers.len() < TARGET_OUTBOUND_PEERS {
+            let delta = TARGET_OUTBOUND_PEERS - self.peers.len();
+
+            for _ in 0..delta {
+                // TODO: Connect to random peer.
+            }
         }
     }
 }

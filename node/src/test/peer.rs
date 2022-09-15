@@ -15,15 +15,16 @@ use crate::protocol::message::*;
 use crate::protocol::*;
 use crate::storage::WriteStorage;
 use crate::test::crypto::MockSigner;
+use crate::transport;
 use crate::*;
 
-/// Protocol instantiation used for testing.
-pub type Protocol<S> = crate::protocol::Protocol<HashMap<net::IpAddr, KnownAddress>, S, MockSigner>;
+/// Transport instantiation used for testing.
+pub type Transport<S> = transport::Transport<HashMap<net::IpAddr, KnownAddress>, S, MockSigner>;
 
 #[derive(Debug)]
 pub struct Peer<S> {
     pub name: &'static str,
-    pub protocol: Protocol<S>,
+    pub protocol: Transport<S>,
     pub ip: net::IpAddr,
     pub rng: fastrand::Rng,
     pub local_time: LocalTime,
@@ -32,7 +33,7 @@ pub struct Peer<S> {
     initialized: bool,
 }
 
-impl<'r, S> simulator::Peer<Protocol<S>> for Peer<S>
+impl<'r, S> simulator::Peer<Transport<S>> for Peer<S>
 where
     S: WriteStorage<'r> + 'static,
 {
@@ -46,7 +47,7 @@ where
 }
 
 impl<S> Deref for Peer<S> {
-    type Target = Protocol<S>;
+    type Target = Transport<S>;
 
     fn deref(&self) -> &Self::Target {
         &self.protocol
@@ -92,7 +93,14 @@ where
         let local_time = LocalTime::now();
         let clock = RefClock::from(local_time);
         let signer = MockSigner::new(&mut rng);
-        let protocol = Protocol::new(config, clock, storage, addrs, signer, rng.clone());
+        let protocol = Transport::new(Protocol::new(
+            config,
+            clock,
+            storage,
+            addrs,
+            signer,
+            rng.clone(),
+        ));
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, rng.u16(..));
 
@@ -135,7 +143,7 @@ where
     }
 
     pub fn connect_from(&mut self, peer: &Self) {
-        let remote = simulator::Peer::<Protocol<S>>::addr(peer);
+        let remote = simulator::Peer::<Transport<S>>::addr(peer);
         let local = net::SocketAddr::new(self.ip, self.rng.u16(..));
         let git = format!("file:///{}.git", remote.ip());
         let git = Url::from_bytes(git.as_bytes()).unwrap();
@@ -160,7 +168,7 @@ where
     }
 
     pub fn connect_to(&mut self, peer: &Self) {
-        let remote = simulator::Peer::<Protocol<S>>::addr(peer);
+        let remote = simulator::Peer::<Transport<S>>::addr(peer);
 
         self.initialize();
         self.protocol.attempted(&remote);

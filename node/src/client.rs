@@ -9,6 +9,7 @@ use crate::collections::HashMap;
 use crate::crypto::Signer;
 use crate::protocol;
 use crate::storage::git::Storage;
+use crate::transport::Transport;
 
 pub mod handle;
 
@@ -86,16 +87,17 @@ impl<R: Reactor, G: Signer> Client<R, G> {
 
         log::info!("Initializing client ({:?})..", network);
 
+        let protocol = protocol::Protocol::new(
+            config.protocol,
+            RefClock::from(time),
+            storage,
+            addresses,
+            signer,
+            rng,
+        );
         self.reactor.run(
             &config.listen,
-            protocol::Protocol::new(
-                config.protocol,
-                RefClock::from(time),
-                storage,
-                addresses,
-                signer,
-                rng,
-            ),
+            Transport::new(protocol),
             self.events,
             self.commands,
         )?;
