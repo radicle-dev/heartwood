@@ -70,11 +70,10 @@ impl wire::Encode for Filter {
 
 impl wire::Decode for Filter {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
-        let size: usize = wire::Decode::decode(reader)?;
-        if size != FILTER_SIZE {
-            return Err(wire::Error::InvalidFilterSize(size));
+        let size: wire::Size = wire::Decode::decode(reader)?;
+        if size as usize != FILTER_SIZE {
+            return Err(wire::Error::InvalidFilterSize(size as usize));
         }
-
         let bytes: [u8; FILTER_SIZE] = wire::Decode::decode(reader)?;
         let bf = BloomFilter::from(Vec::from(bytes));
 

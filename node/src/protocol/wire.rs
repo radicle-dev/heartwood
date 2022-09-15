@@ -13,6 +13,11 @@ use crate::hash::Digest;
 use crate::identity::Id;
 use crate::storage::refs::Refs;
 
+/// The default type we use to represent sizes.
+/// Four bytes is more than enough for anything sent over the wire.
+/// Note that in certain cases, we may use only one or two byte types.
+pub type Size = u32;
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("i/o: {0}")]
@@ -147,7 +152,7 @@ where
     T: Encode,
 {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        let mut n = self.len().encode(writer)?;
+        let mut n = (self.len() as Size).encode(writer)?;
 
         for item in self.iter() {
             n += item.encode(writer)?;
@@ -324,8 +329,8 @@ where
     T: Decode,
 {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let len: usize = usize::decode(reader)?;
-        let mut vec = Vec::with_capacity(len);
+        let len: Size = Size::decode(reader)?;
+        let mut vec = Vec::with_capacity(len as usize);
 
         for _ in 0..len {
             let item = T::decode(reader)?;
