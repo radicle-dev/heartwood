@@ -30,7 +30,7 @@ pub struct Hostname(String);
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageType {
-    Hello = 0,
+    Initialize = 0,
     NodeAnnouncement = 2,
     InventoryAnnouncement = 4,
     RefsAnnouncement = 6,
@@ -48,7 +48,7 @@ impl TryFrom<u16> for MessageType {
 
     fn try_from(other: u16) -> Result<Self, Self::Error> {
         match other {
-            0 => Ok(MessageType::Hello),
+            0 => Ok(MessageType::Initialize),
             2 => Ok(MessageType::NodeAnnouncement),
             4 => Ok(MessageType::InventoryAnnouncement),
             6 => Ok(MessageType::RefsAnnouncement),
@@ -337,8 +337,8 @@ impl wire::Decode for InventoryAnnouncement {
 /// These are the messages peers send to each other.
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
-    /// Say hello to a peer. This is the first message sent to a peer after connection.
-    Hello {
+    /// The first message sent to a peer after connection.
+    Initialize {
         // TODO: This is currently untrusted.
         id: NodeId,
         timestamp: Timestamp,
@@ -384,8 +384,8 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn hello(id: NodeId, timestamp: Timestamp, addrs: Vec<Address>, git: git::Url) -> Self {
-        Self::Hello {
+    pub fn init(id: NodeId, timestamp: Timestamp, addrs: Vec<Address>, git: git::Url) -> Self {
+        Self::Initialize {
             id,
             timestamp,
             version: PROTOCOL_VERSION,
@@ -428,7 +428,7 @@ impl Message {
 
     pub fn type_id(&self) -> u16 {
         match self {
-            Self::Hello { .. } => MessageType::Hello,
+            Self::Initialize { .. } => MessageType::Initialize,
             Self::Subscribe { .. } => MessageType::Subscribe,
             Self::NodeAnnouncement { .. } => MessageType::NodeAnnouncement,
             Self::InventoryAnnouncement { .. } => MessageType::InventoryAnnouncement,
@@ -441,7 +441,7 @@ impl Message {
 impl fmt::Debug for Message {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Hello { id, .. } => write!(f, "Hello({})", id),
+            Self::Initialize { id, .. } => write!(f, "Initialize({})", id),
             Self::Subscribe(Subscribe { since, until, .. }) => {
                 write!(f, "Subscribe({}..{})", since, until)
             }
@@ -477,7 +477,7 @@ impl wire::Encode for Message {
         let mut n = self.type_id().encode(writer)?;
 
         match self {
-            Self::Hello {
+            Self::Initialize {
                 id,
                 timestamp,
                 version,
@@ -536,14 +536,14 @@ impl wire::Decode for Message {
         let type_id = reader.read_u16::<NetworkEndian>()?;
 
         match MessageType::try_from(type_id) {
-            Ok(MessageType::Hello) => {
+            Ok(MessageType::Initialize) => {
                 let id = NodeId::decode(reader)?;
                 let timestamp = Timestamp::decode(reader)?;
                 let version = u32::decode(reader)?;
                 let addrs = Vec::<Address>::decode(reader)?;
                 let git = git::Url::decode(reader)?;
 
-                Ok(Self::Hello {
+                Ok(Self::Initialize {
                     id,
                     timestamp,
                     version,

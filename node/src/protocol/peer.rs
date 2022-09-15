@@ -115,7 +115,7 @@ impl Peer {
         match (&self.state, envelope.msg) {
             (
                 PeerState::Initial,
-                Message::Hello {
+                Message::Initialize {
                     id,
                     timestamp,
                     version,
@@ -132,7 +132,7 @@ impl Peer {
                     return Err(PeerError::WrongVersion(version));
                 }
                 // Nb. This is a very primitive handshake. Eventually we should have anyhow
-                // extra "acknowledgment" message sent when the `Hello` is well received.
+                // extra "acknowledgment" message sent when the `Initialize` is well received.
                 if self.link.is_inbound() {
                     ctx.write_all(self.addr, ctx.handshake_messages());
                 }
@@ -236,7 +236,7 @@ impl Peer {
             (PeerState::Negotiated { .. }, Message::Subscribe(subscribe)) => {
                 self.subscribe = Some(subscribe);
             }
-            (PeerState::Negotiated { .. }, Message::Hello { .. }) => {
+            (PeerState::Negotiated { .. }, Message::Initialize { .. }) => {
                 debug!(
                     "Disconnecting peer {} for sending us a redundant handshake message",
                     self.ip()

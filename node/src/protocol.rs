@@ -755,7 +755,7 @@ where
     fn handshake_messages(&self) -> [Message; 4] {
         let git = self.config.git_url.clone();
         [
-            Message::hello(
+            Message::init(
                 self.node_id(),
                 self.timestamp(),
                 self.config.listen.clone(),
@@ -790,7 +790,6 @@ where
     }
 
     fn fetch(&mut self, proj_id: &Id, remote: &Url) -> Vec<RefUpdate> {
-        // TODO: Verify refs before adding them to storage.
         let mut repo = self.storage.repository(proj_id).unwrap();
         let mut path = remote.path.clone();
 

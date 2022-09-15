@@ -144,7 +144,7 @@ where
         self.protocol.connected(remote, &local, Link::Inbound);
         self.receive(
             &remote,
-            Message::hello(
+            Message::init(
                 peer.node_id(),
                 self.local_time().as_secs(),
                 vec![Address::from(remote)],
@@ -153,8 +153,8 @@ where
         );
 
         let mut msgs = self.messages(&remote);
-        msgs.find(|m| matches!(m, Message::Hello { .. }))
-            .expect("`hello` is sent");
+        msgs.find(|m| matches!(m, Message::Initialize { .. }))
+            .expect("`initialize` is sent");
         msgs.find(|m| matches!(m, Message::InventoryAnnouncement { .. }))
             .expect("`inventory-announcement` is sent");
     }
@@ -168,15 +168,15 @@ where
             .connected(remote, &self.local_addr, Link::Outbound);
 
         let mut msgs = self.messages(&remote);
-        msgs.find(|m| matches!(m, Message::Hello { .. }))
-            .expect("`hello` is sent");
+        msgs.find(|m| matches!(m, Message::Initialize { .. }))
+            .expect("`initialize` is sent");
         msgs.find(|m| matches!(m, Message::InventoryAnnouncement { .. }))
             .expect("`inventory-announcement` is sent");
 
         let git = peer.config().git_url.clone();
         self.receive(
             &remote,
-            Message::hello(
+            Message::init(
                 peer.node_id(),
                 self.local_time().as_secs(),
                 peer.config().listen.clone(),

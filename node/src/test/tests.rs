@@ -112,7 +112,7 @@ fn test_handshake_invalid_timestamp() {
     alice.connected(bob.addr(), &local, Link::Inbound);
     alice.receive(
         &bob.addr(),
-        Message::hello(
+        Message::init(
             bob.node_id(),
             alice.timestamp() - time_delta,
             vec![],
