@@ -33,6 +33,7 @@ use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, Writ
 
 pub use crate::protocol::config::{Config, Network};
 
+use self::filter::Filter;
 use self::message::{InventoryAnnouncement, NodeFeatures};
 
 pub const DEFAULT_PORT: u16 = 8776;
@@ -450,7 +451,7 @@ where
                 let node = self.node_id();
                 let repo = self.storage.repository(&id).unwrap();
                 let remote = repo.remote(&node).unwrap();
-                let peers = self.peers.negotiated().map(|(_, p)| p.addr);
+                let peers = self.peers.negotiated().map(|(_, p)| p);
                 let refs = remote.refs.into();
                 let message = RefsAnnouncement { id, refs };
                 let signature = message.sign(&self.signer);
@@ -551,14 +552,8 @@ where
     }
 
     fn received_bytes(&mut self, addr: &std::net::SocketAddr, bytes: &[u8]) {
-        let peer = addr.ip();
-        let negotiated = self
-            .peers
-            .negotiated()
-            .map(|(id, p)| (*id, p.addr))
-            .collect::<Vec<_>>();
-
-        let (peer, msgs) = if let Some(peer) = self.peers.get_mut(&peer) {
+        let peer_ip = addr.ip();
+        let (peer, msgs) = if let Some(peer) = self.peers.get_mut(&peer_ip) {
             let decoder = peer.inbox();
             decoder.input(bytes);
 
@@ -581,22 +576,30 @@ where
             return;
         };
 
+        let mut relay = Vec::new();
         for msg in msgs {
             match peer.received(msg, &mut self.context) {
                 Ok(None) => {}
                 Ok(Some(msg)) => {
-                    let peers = negotiated
-                        .iter()
-                        .filter(|(ip, _)| *ip != peer.ip())
-                        .map(|(_, addr)| *addr);
-
-                    self.context.broadcast(msg, peers);
+                    relay.push(msg);
                 }
                 Err(err) => {
                     self.context
                         .disconnect(peer.addr, DisconnectReason::Error(err));
+                    // If there's an error, stop processing messages from this peer.
+                    // However, we still relay messages returned up to this point.
+                    break;
                 }
             }
+        }
+
+        let negotiated = self
+            .peers
+            .negotiated()
+            .filter(|(ip, _)| **ip != peer_ip)
+            .map(|(_, p)| p);
+        for msg in relay {
+            self.context.relay(msg, negotiated.clone());
         }
     }
 }
@@ -742,7 +745,14 @@ where
         })
     }
 
-    fn handshake_messages(&self) -> [Message; 3] {
+    fn filter(&self) -> Filter {
+        match &self.config.project_tracking {
+            ProjectTracking::All { .. } => Filter::default(),
+            ProjectTracking::Allowed(ids) => Filter::new(ids.iter()),
+        }
+    }
+
+    fn handshake_messages(&self) -> [Message; 4] {
         let git = self.config.git_url.clone();
         [
             Message::hello(
@@ -753,6 +763,7 @@ where
             ),
             Message::node(self.node_announcement(), &self.signer),
             Message::inventory(self.inventory_announcement().unwrap(), &self.signer),
+            Message::subscribe(self.filter(), self.timestamp(), Timestamp::MAX),
         ]
     }
 
@@ -835,9 +846,28 @@ impl<S, T, G> Context<S, T, G> {
     }
 
     /// Broadcast a message to a list of peers.
-    fn broadcast(&mut self, msg: Message, peers: impl IntoIterator<Item = net::SocketAddr>) {
+    fn broadcast<'a>(&mut self, msg: Message, peers: impl IntoIterator<Item = &'a Peer>) {
         for peer in peers {
-            self.write(peer, msg.clone());
+            self.write(peer.addr, msg.clone());
+        }
+    }
+
+    /// Relay a message to interested peers.
+    fn relay<'a>(&mut self, msg: Message, peers: impl IntoIterator<Item = &'a Peer>) {
+        if let Message::RefsAnnouncement { message, .. } = &msg {
+            let id = message.id.clone();
+            let peers = peers.into_iter().filter(|p| {
+                if let Some(subscribe) = &p.subscribe {
+                    subscribe.filter.contains(&id)
+                } else {
+                    // If the peer did not send us a `subscribe` message, we don'the
+                    // relay any messages to them.
+                    false
+                }
+            });
+            self.broadcast(msg, peers);
+        } else {
+            self.broadcast(msg, peers);
         }
     }
 }

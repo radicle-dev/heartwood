@@ -21,6 +21,8 @@ pub enum Error {
     FromUtf8(#[from] FromUtf8Error),
     #[error("invalid size: expected {expected}, got {actual}")]
     InvalidSize { expected: usize, actual: usize },
+    #[error("invalid filter size: {0}")]
+    InvalidFilterSize(usize),
     #[error(transparent)]
     InvalidRefName(#[from] fmt::Error),
     #[error("invalid git url `{url}`: {error}")]

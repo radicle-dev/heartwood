@@ -196,6 +196,16 @@ impl wire::Decode for Address {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Subscribe {
+    /// Subscribe to events matching this filter.
+    pub filter: Filter,
+    /// Request messages since this time.
+    pub since: Timestamp,
+    /// Request messages until this time.
+    pub until: Timestamp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeAnnouncement {
     /// Advertized features.
     pub features: NodeFeatures,
@@ -339,11 +349,7 @@ pub enum Message {
 
     /// Subscribe to gossip messages matching the filter and time range.
     /// timestamp.
-    Subscribe {
-        filter: Filter,
-        since: Timestamp,
-        until: Timestamp,
-    },
+    Subscribe(Subscribe),
 
     /// Node announcing its inventory to the network.
     /// This should be the whole inventory every time.
@@ -412,6 +418,14 @@ impl Message {
         }
     }
 
+    pub fn subscribe(filter: Filter, since: Timestamp, until: Timestamp) -> Self {
+        Self::Subscribe(Subscribe {
+            filter,
+            since,
+            until,
+        })
+    }
+
     pub fn type_id(&self) -> u16 {
         match self {
             Self::Hello { .. } => MessageType::Hello,
@@ -428,7 +442,10 @@ impl fmt::Debug for Message {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Hello { id, .. } => write!(f, "Hello({})", id),
-            Self::Subscribe { since, .. } => write!(f, "Subscribe({})", since),
+            Self::Subscribe(Subscribe { since, until, .. }) => {
+                write!(f, "Subscribe({}..{})", since, until)
+            }
+
             Self::NodeAnnouncement { node, .. } => write!(f, "NodeAnnouncement({})", node),
             Self::InventoryAnnouncement { node, message, .. } => {
                 write!(
@@ -473,11 +490,11 @@ impl wire::Encode for Message {
                 n += addrs.as_slice().encode(writer)?;
                 n += git.encode(writer)?;
             }
-            Self::Subscribe {
+            Self::Subscribe(Subscribe {
                 filter,
                 since,
                 until,
-            } => {
+            }) => {
                 n += filter.encode(writer)?;
                 n += since.encode(writer)?;
                 n += until.encode(writer)?;
@@ -539,11 +556,11 @@ impl wire::Decode for Message {
                 let since = Timestamp::decode(reader)?;
                 let until = Timestamp::decode(reader)?;
 
-                Ok(Self::Subscribe {
+                Ok(Self::Subscribe(Subscribe {
                     filter,
                     since,
                     until,
-                })
+                }))
             }
             Ok(MessageType::NodeAnnouncement) => {
                 let node = NodeId::decode(reader)?;

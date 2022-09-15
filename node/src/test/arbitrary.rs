@@ -4,6 +4,7 @@ use std::net;
 use std::ops::RangeBounds;
 use std::path::PathBuf;
 
+use bloomy::BloomFilter;
 use nonempty::NonEmpty;
 use quickcheck::Arbitrary;
 
@@ -13,9 +14,10 @@ use crate::crypto::{PublicKey, SecretKey};
 use crate::git;
 use crate::hash;
 use crate::identity::{Delegate, Did, Doc, Id, Project};
+use crate::protocol::filter::{Filter, FILTER_SIZE};
 use crate::protocol::message::{
     Address, Envelope, InventoryAnnouncement, Message, MessageType, NodeAnnouncement,
-    RefsAnnouncement,
+    RefsAnnouncement, Subscribe,
 };
 use crate::protocol::{NodeId, Timestamp};
 use crate::storage;
@@ -60,6 +62,17 @@ impl<const N: usize> Arbitrary for ByteArray<N> {
     }
 }
 
+impl Arbitrary for Filter {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let mut bytes = vec![0; FILTER_SIZE];
+        for _ in 0..64 {
+            let index = usize::arbitrary(g) % bytes.len();
+            bytes[index] = u8::arbitrary(g);
+        }
+        Self::from(BloomFilter::from(bytes))
+    }
+}
+
 impl Arbitrary for Envelope {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         Self {
@@ -76,6 +89,7 @@ impl Arbitrary for Message {
                 MessageType::InventoryAnnouncement,
                 MessageType::NodeAnnouncement,
                 MessageType::RefsAnnouncement,
+                MessageType::Subscribe,
             ])
             .unwrap();
 
@@ -112,6 +126,11 @@ impl Arbitrary for Message {
                     message,
                 }
             }
+            MessageType::Subscribe => Self::Subscribe(Subscribe {
+                filter: Filter::arbitrary(g),
+                since: Timestamp::arbitrary(g),
+                until: Timestamp::arbitrary(g),
+            }),
             _ => unreachable!(),
         }
     }

@@ -49,6 +49,8 @@ pub struct Peer {
     pub state: PeerState,
     /// Last known peer time.
     pub timestamp: Timestamp,
+    /// Peer subscription.
+    pub subscribe: Option<Subscribe>,
 
     /// Inbox for incoming messages from peer.
     inbox: Decoder,
@@ -66,6 +68,7 @@ impl Peer {
             state: PeerState::default(),
             link,
             timestamp: Timestamp::default(),
+            subscribe: None,
             persistent,
             attempts: 0,
         }
@@ -230,8 +233,8 @@ impl Peer {
                 }
                 log::warn!("Node announcement handling is not implemented");
             }
-            (PeerState::Negotiated { .. }, Message::Subscribe { .. }) => {
-                log::warn!("Subscribe message handling is not implemented");
+            (PeerState::Negotiated { .. }, Message::Subscribe(subscribe)) => {
+                self.subscribe = Some(subscribe);
             }
             (PeerState::Negotiated { .. }, Message::Hello { .. }) => {
                 debug!(
