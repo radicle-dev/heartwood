@@ -15,9 +15,9 @@ use crate::crypto;
 use crate::crypto::{PublicKey, Signature, Signer, Unverified, Verified};
 use crate::git;
 use crate::git::Oid;
-use crate::service::wire;
 use crate::storage;
 use crate::storage::{ReadRepository, RemoteId, WriteRepository};
+use crate::wire;
 
 pub static SIGNATURE_REF: Lazy<git::RefString> = Lazy::new(|| git::refname!("radicle/signature"));
 pub const REFS_BLOB_PATH: &str = "refs";

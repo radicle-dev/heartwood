@@ -1,3 +1,5 @@
+pub mod message;
+
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::net::IpAddr;
@@ -17,6 +19,7 @@ use crate::git::fmt;
 use crate::hash::Digest;
 use crate::identity::Id;
 use crate::service;
+use crate::service::filter;
 use crate::storage::refs::Refs;
 use crate::storage::WriteStorage;
 
@@ -383,6 +386,31 @@ impl Decode for Digest {
         let bytes: [u8; 32] = Decode::decode(reader)?;
 
         Ok(Self::from(bytes))
+    }
+}
+
+impl Encode for filter::Filter {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        let mut n = 0;
+
+        n += self.deref().as_bytes().encode(writer)?;
+
+        Ok(n)
+    }
+}
+
+impl Decode for filter::Filter {
+    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        let size: Size = Decode::decode(reader)?;
+        if size as usize != filter::FILTER_SIZE {
+            return Err(Error::InvalidFilterSize(size as usize));
+        }
+        let bytes: [u8; filter::FILTER_SIZE] = Decode::decode(reader)?;
+        let bf = filter::BloomFilter::from(Vec::from(bytes));
+
+        debug_assert_eq!(bf.hashes(), filter::FILTER_HASHES);
+
+        Ok(Self::from(bf))
     }
 }
 

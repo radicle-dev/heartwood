@@ -8,9 +8,9 @@ use crate::clock::RefClock;
 use crate::collections::HashMap;
 use crate::crypto::Signer;
 use crate::service;
-use crate::service::wire::Wire;
 use crate::storage::git::Storage;
 use crate::transport::Transport;
+use crate::wire::Wire;
 
 pub mod handle;
 

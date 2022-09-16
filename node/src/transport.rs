@@ -8,9 +8,9 @@ use nakamoto_net::{Io, Link};
 use crate::address_book;
 use crate::collections::HashMap;
 use crate::crypto;
-use crate::service::wire::Wire;
 use crate::service::{Command, DisconnectReason, Event, Service};
 use crate::storage::WriteStorage;
+use crate::wire::Wire;
 
 #[derive(Debug)]
 struct Peer {

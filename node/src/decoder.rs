@@ -2,7 +2,7 @@ use std::io;
 use std::marker::PhantomData;
 
 use crate::service::message::Envelope;
-use crate::service::wire;
+use crate::wire;
 
 /// Message stream decoder.
 ///

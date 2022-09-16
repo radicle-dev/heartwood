@@ -3,7 +3,6 @@ pub mod config;
 pub mod filter;
 pub mod message;
 pub mod peer;
-pub mod wire;
 
 use std::ops::{Deref, DerefMut};
 use std::{collections::VecDeque, fmt, net, net::IpAddr};
