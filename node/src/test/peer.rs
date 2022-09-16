@@ -3,29 +3,26 @@ use std::ops::{Deref, DerefMut};
 
 use git_url::Url;
 use log::*;
-use nakamoto_net::simulator;
-use nakamoto_net::Protocol as _;
 
 use crate::address_book::{KnownAddress, Source};
 use crate::clock::RefClock;
 use crate::collections::HashMap;
-use crate::decoder::Decoder;
+use crate::protocol;
 use crate::protocol::config::*;
 use crate::protocol::message::*;
-use crate::protocol::wire::Wire;
 use crate::protocol::*;
 use crate::storage::WriteStorage;
 use crate::test::crypto::MockSigner;
-use crate::transport;
-use crate::*;
+use crate::test::simulator;
+use crate::{Link, LocalTime};
 
-/// Transport instantiation used for testing.
-pub type Transport<S> = transport::Transport<HashMap<net::IpAddr, KnownAddress>, S, MockSigner>;
+/// Protocol instantiation used for testing.
+pub type Protocol<S> = protocol::Protocol<HashMap<net::IpAddr, KnownAddress>, S, MockSigner>;
 
 #[derive(Debug)]
 pub struct Peer<S> {
     pub name: &'static str,
-    pub protocol: Transport<S>,
+    pub protocol: Protocol<S>,
     pub ip: net::IpAddr,
     pub rng: fastrand::Rng,
     pub local_time: LocalTime,
@@ -34,7 +31,7 @@ pub struct Peer<S> {
     initialized: bool,
 }
 
-impl<'r, S> simulator::Peer<Transport<S>> for Peer<S>
+impl<'r, S> simulator::Peer<S> for Peer<S>
 where
     S: WriteStorage<'r> + 'static,
 {
@@ -48,7 +45,7 @@ where
 }
 
 impl<S> Deref for Peer<S> {
-    type Target = Transport<S>;
+    type Target = Protocol<S>;
 
     fn deref(&self) -> &Self::Target {
         &self.protocol
@@ -94,14 +91,7 @@ where
         let local_time = LocalTime::now();
         let clock = RefClock::from(local_time);
         let signer = MockSigner::new(&mut rng);
-        let protocol = Transport::new(Wire::new(Protocol::new(
-            config,
-            clock,
-            storage,
-            addrs,
-            signer,
-            rng.clone(),
-        )));
+        let protocol = Protocol::new(config, clock, storage, addrs, signer, rng.clone());
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, rng.u16(..));
 
@@ -138,13 +128,12 @@ where
     }
 
     pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
-        let bytes = wire::serialize(&self.config().network.envelope(msg));
-
-        self.protocol.received_bytes(peer, &bytes);
+        self.protocol
+            .received_message(peer, self.config().network.envelope(msg));
     }
 
     pub fn connect_from(&mut self, peer: &Self) {
-        let remote = simulator::Peer::<Transport<S>>::addr(peer);
+        let remote = simulator::Peer::<S>::addr(peer);
         let local = net::SocketAddr::new(self.ip, self.rng.u16(..));
         let git = format!("file:///{}.git", remote.ip());
         let git = Url::from_bytes(git.as_bytes()).unwrap();
@@ -169,7 +158,7 @@ where
     }
 
     pub fn connect_to(&mut self, peer: &Self) {
-        let remote = simulator::Peer::<Transport<S>>::addr(peer);
+        let remote = simulator::Peer::<S>::addr(peer);
 
         self.initialize();
         self.protocol.attempted(&remote);
@@ -196,20 +185,16 @@ where
 
     /// Drain outgoing messages sent from this peer to the remote address.
     pub fn messages(&mut self, remote: &net::SocketAddr) -> impl Iterator<Item = Message> {
-        let mut stream = Decoder::<Envelope>::new(2048);
         let mut msgs = Vec::new();
 
         self.protocol.outbox().retain(|o| match o {
-            Io::Write(a, bytes) if a == remote => {
-                stream.input(bytes);
+            protocol::Io::Write(a, envelopes) if a == remote => {
+                msgs.extend(envelopes.iter().map(|e| e.msg.clone()));
                 false
             }
             _ => true,
         });
 
-        while let Some(envelope) = stream.decode_next().unwrap() {
-            msgs.push(envelope.msg);
-        }
         msgs.into_iter()
     }
 
@@ -220,7 +205,7 @@ where
     }
 
     /// Get a draining iterator over the peer's I/O outbox.
-    pub fn outbox(&mut self) -> impl Iterator<Item = Io<Event, DisconnectReason>> + '_ {
+    pub fn outbox(&mut self) -> impl Iterator<Item = Io> + '_ {
         self.protocol.outbox().drain(..)
     }
 }

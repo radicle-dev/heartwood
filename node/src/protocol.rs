@@ -14,7 +14,7 @@ use git_url::Url;
 use log::*;
 use nakamoto::{LocalDuration, LocalTime};
 use nakamoto_net as nakamoto;
-use nakamoto_net::{Io, Link};
+use nakamoto_net::Link;
 use nonempty::NonEmpty;
 
 use crate::address_book;
@@ -25,16 +25,16 @@ use crate::collections::{HashMap, HashSet};
 use crate::crypto;
 use crate::identity::{Id, Project};
 use crate::protocol::config::ProjectTracking;
-use crate::protocol::message::{Message, NodeAnnouncement, RefsAnnouncement};
+use crate::protocol::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::protocol::peer::{Peer, PeerError, PeerState};
-use crate::protocol::wire::Encode;
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 
 pub use crate::protocol::config::{Config, Network};
+pub use crate::protocol::message::{Envelope, Message};
 
 use self::filter::Filter;
-use self::message::{Envelope, InventoryAnnouncement, NodeFeatures};
+use self::message::{InventoryAnnouncement, NodeFeatures};
 
 pub const DEFAULT_PORT: u16 = 8776;
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -52,6 +52,21 @@ pub type NodeId = crypto::PublicKey;
 pub type Routing = HashMap<Id, HashSet<NodeId>>;
 /// Seconds since epoch.
 pub type Timestamp = u64;
+
+/// Output of a state transition.
+#[derive(Debug)]
+pub enum Io {
+    /// There are some messages ready to be sent to a peer.
+    Write(net::SocketAddr, Vec<Envelope>),
+    /// Connect to a peer.
+    Connect(net::SocketAddr),
+    /// Disconnect from a peer.
+    Disconnect(net::SocketAddr, DisconnectReason),
+    /// Ask for a wakeup in a specified amount of time.
+    Wakeup(LocalDuration),
+    /// Emit an event.
+    Event(Event),
+}
 
 /// A protocol event.
 #[derive(Debug, Clone)]
@@ -265,7 +280,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
     }
 
     /// Get I/O outbox.
-    pub fn outbox(&mut self) -> &mut VecDeque<Io<Event, DisconnectReason>> {
+    pub fn outbox(&mut self) -> &mut VecDeque<Io> {
         &mut self.context.io
     }
 
@@ -619,7 +634,7 @@ impl fmt::Display for DisconnectReason {
 }
 
 impl<S, T, G> Iterator for Protocol<S, T, G> {
-    type Item = Io<Event, DisconnectReason>;
+    type Item = Io;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.context.io.pop_front()
@@ -645,7 +660,7 @@ pub struct Context<S, T, G> {
     /// Tracks the location of projects.
     routing: Routing,
     /// Outgoing I/O queue.
-    io: VecDeque<Io<Event, DisconnectReason>>,
+    io: VecDeque<Io>,
     /// Clock. Tells the time.
     clock: RefClock,
     /// Project storage.
@@ -792,26 +807,18 @@ impl<S, T, G> Context<S, T, G> {
     }
 
     fn write_all(&mut self, remote: net::SocketAddr, msgs: impl IntoIterator<Item = Message>) {
-        let mut buf = Vec::new();
-
-        for msg in msgs {
-            debug!("Write {:?} to {}", &msg, remote.ip());
-
-            let envelope = self.config.network.envelope(msg);
-            envelope
-                .encode(&mut buf)
-                .expect("writing to an in-memory buffer doesn't fail");
-        }
-        self.io.push_back(Io::Write(remote, buf));
+        let envelopes = msgs
+            .into_iter()
+            .map(|msg| self.config.network.envelope(msg))
+            .collect();
+        self.io.push_back(Io::Write(remote, envelopes));
     }
 
     fn write(&mut self, remote: net::SocketAddr, msg: Message) {
         debug!("Write {:?} to {}", &msg, remote.ip());
 
         let envelope = self.config.network.envelope(msg);
-        let bytes = wire::serialize(&envelope);
-
-        self.io.push_back(Io::Write(remote, bytes));
+        self.io.push_back(Io::Write(remote, vec![envelope]));
     }
 
     /// Broadcast a message to a list of peers.

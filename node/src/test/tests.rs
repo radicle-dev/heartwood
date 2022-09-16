@@ -3,9 +3,6 @@ use std::sync::Arc;
 
 use crossbeam_channel as chan;
 use nakamoto_net as nakamoto;
-use nakamoto_net::simulator;
-use nakamoto_net::simulator::{Peer as _, Simulation};
-use nakamoto_net::Protocol as _;
 
 use crate::collections::{HashMap, HashSet};
 use crate::protocol::config::*;
@@ -18,8 +15,11 @@ use crate::test::fixtures;
 #[allow(unused)]
 use crate::test::logger;
 use crate::test::peer::Peer;
+use crate::test::simulator;
+use crate::test::simulator::{Peer as _, Simulation};
 use crate::test::storage::MockStorage;
-use crate::*;
+use crate::{assert_matches, Link, LocalTime};
+use crate::{client, identity, protocol, rad, storage, test};
 
 // NOTE
 //

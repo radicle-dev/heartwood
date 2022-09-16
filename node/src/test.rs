@@ -5,5 +5,6 @@ pub(crate) mod fixtures;
 pub(crate) mod handle;
 pub(crate) mod logger;
 pub(crate) mod peer;
+pub(crate) mod simulator;
 pub(crate) mod storage;
 pub(crate) mod tests;

@@ -475,7 +475,24 @@ impl<S, T, G> Iterator for Wire<S, T, G> {
     type Item = nakamoto::Io<protocol::Event, protocol::DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        match self.inner.next() {
+            Some(protocol::Io::Write(addr, msgs)) => {
+                let mut buf = Vec::new();
+                for msg in msgs {
+                    log::debug!("Write {:?} to {}", &msg, addr.ip());
+
+                    msg.encode(&mut buf)
+                        .expect("writing to an in-memory buffer doesn't fail");
+                }
+                Some(nakamoto::Io::Write(addr, buf))
+            }
+            Some(protocol::Io::Event(e)) => Some(nakamoto::Io::Event(e)),
+            Some(protocol::Io::Connect(a)) => Some(nakamoto::Io::Connect(a)),
+            Some(protocol::Io::Disconnect(a, r)) => Some(nakamoto::Io::Disconnect(a, r)),
+            Some(protocol::Io::Wakeup(d)) => Some(nakamoto::Io::Wakeup(d)),
+
+            None => None,
+        }
     }
 }
 
