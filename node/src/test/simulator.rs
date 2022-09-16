@@ -13,9 +13,9 @@ use log::*;
 use nakamoto_net as nakamoto;
 use nakamoto_net::{Link, LocalDuration, LocalTime};
 
-use crate::protocol::{DisconnectReason, Envelope, Event, Io};
+use crate::service::{DisconnectReason, Envelope, Event, Io};
 use crate::storage::WriteStorage;
-use crate::test::peer::Protocol;
+use crate::test::peer::Service;
 
 /// Minimum latency between peers.
 pub const MIN_LATENCY: LocalDuration = LocalDuration::from_millis(1);
@@ -26,16 +26,16 @@ pub const MAX_EVENTS: usize = 2048;
 /// The simulator requires each peer to have a distinct IP address.
 type NodeId = std::net::IpAddr;
 
-/// A simulated peer. Protocol instances have to be wrapped in this type to be simulated.
-pub trait Peer<S>: Deref<Target = Protocol<S>> + DerefMut<Target = Protocol<S>> + 'static {
-    /// Initialize the peer. This should at minimum initialize the protocol with the
+/// A simulated peer. Service instances have to be wrapped in this type to be simulated.
+pub trait Peer<S>: Deref<Target = Service<S>> + DerefMut<Target = Service<S>> + 'static {
+    /// Initialize the peer. This should at minimum initialize the service with the
     /// current time.
     fn init(&mut self);
     /// Get the peer address.
     fn addr(&self) -> net::SocketAddr;
 }
 
-/// Simulated protocol input.
+/// Simulated service input.
 #[derive(Debug, Clone)]
 pub enum Input {
     /// Connection attempt underway.
@@ -63,7 +63,7 @@ pub enum Input {
     Wake,
 }
 
-/// A scheduled protocol input.
+/// A scheduled service input.
 #[derive(Debug, Clone)]
 pub struct Scheduled {
     /// The node for which this input is scheduled.
@@ -349,8 +349,8 @@ impl<'r, S: WriteStorage<'r>> Simulation<S> {
                 trace!(target: "sim", "{:05} {}", elapsed, next);
             } else {
                 // TODO: This can be confusing, since this event may not actually be passed to
-                // the protocol. It would be best to only log the events that are being sent
-                // to the protocol, or to log when an input is being dropped.
+                // the service. It would be best to only log the events that are being sent
+                // to the service, or to log when an input is being dropped.
                 info!(target: "sim", "{:05} {} ({})", elapsed, next, self.inbox.messages.len());
             }
             assert!(time >= self.time, "Time only moves forwards!");
@@ -415,7 +415,7 @@ impl<'r, S: WriteStorage<'r>> Simulation<S> {
         !self.is_done()
     }
 
-    /// Process a protocol output event from a node.
+    /// Process a service output event from a node.
     pub fn schedule(&mut self, node: &NodeId, out: Io) {
         let node = *node;
 
@@ -491,7 +491,7 @@ impl<'r, S: WriteStorage<'r>> Simulation<S> {
                 if self.is_partitioned(node, remote.ip()) {
                     log::info!(target: "sim", "{} -/-> {} (partitioned)", node, remote.ip());
 
-                    // Sometimes, the protocol gets a failure input, other times it just hangs.
+                    // Sometimes, the service gets a failure input, other times it just hangs.
                     if self.rng.bool() {
                         self.inbox.insert(
                             self.time + MIN_LATENCY,

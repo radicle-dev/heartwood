@@ -14,12 +14,12 @@ use crate::crypto::{PublicKey, SecretKey};
 use crate::git;
 use crate::hash;
 use crate::identity::{Delegate, Did, Doc, Id, Project};
-use crate::protocol::filter::{Filter, FILTER_SIZE};
-use crate::protocol::message::{
+use crate::service::filter::{Filter, FILTER_SIZE};
+use crate::service::message::{
     Address, Envelope, InventoryAnnouncement, Message, MessageType, NodeAnnouncement,
     RefsAnnouncement, Subscribe,
 };
-use crate::protocol::{NodeId, Timestamp};
+use crate::service::{NodeId, Timestamp};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::storage::MockStorage;

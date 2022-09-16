@@ -5,7 +5,7 @@ use git_url::Url;
 use crate::collections::HashSet;
 use crate::git;
 use crate::identity::{Id, PublicKey};
-use crate::protocol::message::{Address, Envelope, Message};
+use crate::service::message::{Address, Envelope, Message};
 
 /// Peer-to-peer network.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
@@ -60,7 +60,7 @@ pub enum RemoteTracking {
     Allowed(HashSet<PublicKey>),
 }
 
-/// Protocol configuration.
+/// Service configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
     /// Peers to connect to on startup.

@@ -5,9 +5,9 @@ use byteorder::{NetworkEndian, ReadBytesExt};
 use crate::crypto;
 use crate::git;
 use crate::identity::Id;
-use crate::protocol::filter::Filter;
-use crate::protocol::wire;
-use crate::protocol::{NodeId, Timestamp, PROTOCOL_VERSION};
+use crate::service::filter::Filter;
+use crate::service::wire;
+use crate::service::{NodeId, Timestamp, PROTOCOL_VERSION};
 use crate::storage::refs::Refs;
 
 /// Message envelope. All messages sent over the network are wrapped in this type.
@@ -607,7 +607,7 @@ mod tests {
 
     use crate::crypto::Signer;
     use crate::decoder::Decoder;
-    use crate::protocol::wire::{self, Encode};
+    use crate::service::wire::{self, Encode};
     use crate::test::crypto::MockSigner;
 
     #[quickcheck]

@@ -15,7 +15,7 @@ use crate::crypto;
 use crate::crypto::{PublicKey, Signature, Signer, Unverified, Verified};
 use crate::git;
 use crate::git::Oid;
-use crate::protocol::wire;
+use crate::service::wire;
 use crate::storage;
 use crate::storage::{ReadRepository, RemoteId, WriteRepository};
 

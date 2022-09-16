@@ -5,8 +5,8 @@ use nakamoto_net::Waker;
 use thiserror::Error;
 
 use crate::identity::Id;
-use crate::protocol;
-use crate::protocol::{CommandError, FetchLookup};
+use crate::service;
+use crate::service::{CommandError, FetchLookup};
 
 /// An error resulting from a handle method.
 #[derive(Error, Debug)]
@@ -47,7 +47,7 @@ impl<T> From<chan::SendError<T>> for Error {
 }
 
 pub struct Handle<W: Waker> {
-    pub(crate) commands: chan::Sender<protocol::Command>,
+    pub(crate) commands: chan::Sender<service::Command>,
     pub(crate) shutdown: chan::Sender<()>,
     pub(crate) listening: chan::Receiver<net::SocketAddr>,
     pub(crate) waker: W,
@@ -57,31 +57,31 @@ impl<W: Waker> traits::Handle for Handle<W> {
     /// Retrieve or update the given project from the network.
     fn fetch(&self, id: Id) -> Result<FetchLookup, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.commands.send(protocol::Command::Fetch(id, sender))?;
+        self.commands.send(service::Command::Fetch(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     /// Start tracking the given project. Doesn't do anything if the project is already tracked.
     fn track(&self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.commands.send(protocol::Command::Track(id, sender))?;
+        self.commands.send(service::Command::Track(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     /// Untrack the given project and delete it from storage.
     fn untrack(&self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.commands.send(protocol::Command::Untrack(id, sender))?;
+        self.commands.send(service::Command::Untrack(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     /// Notify the client that a project has been updated.
     fn updated(&self, id: Id) -> Result<(), Error> {
-        self.command(protocol::Command::AnnounceRefs(id))
+        self.command(service::Command::AnnounceRefs(id))
     }
 
     /// Send a command to the command channel, and wake up the event loop.
-    fn command(&self, cmd: protocol::Command) -> Result<(), Error> {
+    fn command(&self, cmd: service::Command) -> Result<(), Error> {
         self.commands.send(cmd)?;
         self.waker.wake()?;
 
@@ -111,7 +111,7 @@ pub mod traits {
         /// Notify the client that a project has been updated.
         fn updated(&self, id: Id) -> Result<(), Error>;
         /// Send a command to the command channel, and wake up the event loop.
-        fn command(&self, cmd: protocol::Command) -> Result<(), Error>;
+        fn command(&self, cmd: service::Command) -> Result<(), Error>;
         /// Ask the client to shutdown.
         fn shutdown(self) -> Result<(), Error>;
     }

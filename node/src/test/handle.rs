@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 use crate::client::handle::traits;
 use crate::client::handle::Error;
 use crate::identity::Id;
-use crate::protocol;
-use crate::protocol::FetchLookup;
+use crate::service;
+use crate::service::FetchLookup;
 
 #[derive(Default, Clone)]
 pub struct Handle {
@@ -30,7 +30,7 @@ impl traits::Handle for Handle {
         Ok(())
     }
 
-    fn command(&self, _cmd: protocol::Command) -> Result<(), Error> {
+    fn command(&self, _cmd: service::Command) -> Result<(), Error> {
         Ok(())
     }
 

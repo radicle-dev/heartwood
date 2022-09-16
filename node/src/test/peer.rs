@@ -7,22 +7,22 @@ use log::*;
 use crate::address_book::{KnownAddress, Source};
 use crate::clock::RefClock;
 use crate::collections::HashMap;
-use crate::protocol;
-use crate::protocol::config::*;
-use crate::protocol::message::*;
-use crate::protocol::*;
+use crate::service;
+use crate::service::config::*;
+use crate::service::message::*;
+use crate::service::*;
 use crate::storage::WriteStorage;
 use crate::test::crypto::MockSigner;
 use crate::test::simulator;
 use crate::{Link, LocalTime};
 
-/// Protocol instantiation used for testing.
-pub type Protocol<S> = protocol::Protocol<HashMap<net::IpAddr, KnownAddress>, S, MockSigner>;
+/// Service instantiation used for testing.
+pub type Service<S> = service::Service<HashMap<net::IpAddr, KnownAddress>, S, MockSigner>;
 
 #[derive(Debug)]
 pub struct Peer<S> {
     pub name: &'static str,
-    pub protocol: Protocol<S>,
+    pub service: Service<S>,
     pub ip: net::IpAddr,
     pub rng: fastrand::Rng,
     pub local_time: LocalTime,
@@ -45,16 +45,16 @@ where
 }
 
 impl<S> Deref for Peer<S> {
-    type Target = Protocol<S>;
+    type Target = Service<S>;
 
     fn deref(&self) -> &Self::Target {
-        &self.protocol
+        &self.service
     }
 }
 
 impl<S> DerefMut for Peer<S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.protocol
+        &mut self.service
     }
 }
 
@@ -91,13 +91,13 @@ where
         let local_time = LocalTime::now();
         let clock = RefClock::from(local_time);
         let signer = MockSigner::new(&mut rng);
-        let protocol = Protocol::new(config, clock, storage, addrs, signer, rng.clone());
+        let service = Service::new(config, clock, storage, addrs, signer, rng.clone());
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, rng.u16(..));
 
         Self {
             name,
-            protocol,
+            service,
             ip,
             local_addr,
             rng,
@@ -111,12 +111,12 @@ where
             info!("{}: Initializing: address = {}", self.name, self.ip);
 
             self.initialized = true;
-            self.protocol.initialize(LocalTime::now());
+            self.service.initialize(LocalTime::now());
         }
     }
 
     pub fn timestamp(&self) -> Timestamp {
-        self.protocol.timestamp()
+        self.service.timestamp()
     }
 
     pub fn git_url(&self) -> Url {
@@ -124,11 +124,11 @@ where
     }
 
     pub fn node_id(&self) -> NodeId {
-        self.protocol.node_id()
+        self.service.node_id()
     }
 
     pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
-        self.protocol
+        self.service
             .received_message(peer, self.config().network.envelope(msg));
     }
 
@@ -139,7 +139,7 @@ where
         let git = Url::from_bytes(git.as_bytes()).unwrap();
 
         self.initialize();
-        self.protocol.connected(remote, &local, Link::Inbound);
+        self.service.connected(remote, &local, Link::Inbound);
         self.receive(
             &remote,
             Message::init(
@@ -161,8 +161,8 @@ where
         let remote = simulator::Peer::<S>::addr(peer);
 
         self.initialize();
-        self.protocol.attempted(&remote);
-        self.protocol
+        self.service.attempted(&remote);
+        self.service
             .connected(remote, &self.local_addr, Link::Outbound);
 
         let mut msgs = self.messages(&remote);
@@ -187,8 +187,8 @@ where
     pub fn messages(&mut self, remote: &net::SocketAddr) -> impl Iterator<Item = Message> {
         let mut msgs = Vec::new();
 
-        self.protocol.outbox().retain(|o| match o {
-            protocol::Io::Write(a, envelopes) if a == remote => {
+        self.service.outbox().retain(|o| match o {
+            service::Io::Write(a, envelopes) if a == remote => {
                 msgs.extend(envelopes.iter().map(|e| e.msg.clone()));
                 false
             }
@@ -206,6 +206,6 @@ where
 
     /// Get a draining iterator over the peer's I/O outbox.
     pub fn outbox(&mut self) -> impl Iterator<Item = Io> + '_ {
-        self.protocol.outbox().drain(..)
+        self.service.outbox().drain(..)
     }
 }

@@ -1,5 +1,5 @@
-use crate::protocol::message::*;
-use crate::protocol::*;
+use crate::service::message::*;
+use crate::service::*;
 
 #[derive(Debug, Default)]
 #[allow(clippy::large_enum_variant)]

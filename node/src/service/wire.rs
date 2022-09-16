@@ -16,7 +16,7 @@ use crate::git;
 use crate::git::fmt;
 use crate::hash::Digest;
 use crate::identity::Id;
-use crate::protocol;
+use crate::service;
 use crate::storage::refs::Refs;
 use crate::storage::WriteStorage;
 
@@ -389,11 +389,11 @@ impl Decode for Digest {
 #[derive(Debug)]
 pub struct Wire<S, T, G> {
     inboxes: HashMap<IpAddr, Decoder>,
-    inner: protocol::Protocol<S, T, G>,
+    inner: service::Service<S, T, G>,
 }
 
 impl<S, T, G> Wire<S, T, G> {
-    pub fn new(inner: protocol::Protocol<S, T, G>) -> Self {
+    pub fn new(inner: service::Service<S, T, G>) -> Self {
         Self {
             inboxes: HashMap::new(),
             inner,
@@ -419,7 +419,7 @@ where
         self.inner.wake()
     }
 
-    pub fn command(&mut self, cmd: protocol::Command) {
+    pub fn command(&mut self, cmd: service::Command) {
         self.inner.command(cmd)
     }
 
@@ -440,7 +440,7 @@ where
     pub fn disconnected(
         &mut self,
         addr: &std::net::SocketAddr,
-        reason: nakamoto::DisconnectReason<protocol::DisconnectReason>,
+        reason: nakamoto::DisconnectReason<service::DisconnectReason>,
     ) {
         self.inboxes.remove(&addr.ip());
         self.inner.disconnected(addr, reason)
@@ -472,11 +472,11 @@ where
 }
 
 impl<S, T, G> Iterator for Wire<S, T, G> {
-    type Item = nakamoto::Io<protocol::Event, protocol::DisconnectReason>;
+    type Item = nakamoto::Io<service::Event, service::DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.next() {
-            Some(protocol::Io::Write(addr, msgs)) => {
+            Some(service::Io::Write(addr, msgs)) => {
                 let mut buf = Vec::new();
                 for msg in msgs {
                     log::debug!("Write {:?} to {}", &msg, addr.ip());
@@ -486,10 +486,10 @@ impl<S, T, G> Iterator for Wire<S, T, G> {
                 }
                 Some(nakamoto::Io::Write(addr, buf))
             }
-            Some(protocol::Io::Event(e)) => Some(nakamoto::Io::Event(e)),
-            Some(protocol::Io::Connect(a)) => Some(nakamoto::Io::Connect(a)),
-            Some(protocol::Io::Disconnect(a, r)) => Some(nakamoto::Io::Disconnect(a, r)),
-            Some(protocol::Io::Wakeup(d)) => Some(nakamoto::Io::Wakeup(d)),
+            Some(service::Io::Event(e)) => Some(nakamoto::Io::Event(e)),
+            Some(service::Io::Connect(a)) => Some(nakamoto::Io::Connect(a)),
+            Some(service::Io::Disconnect(a, r)) => Some(nakamoto::Io::Disconnect(a, r)),
+            Some(service::Io::Wakeup(d)) => Some(nakamoto::Io::Wakeup(d)),
 
             None => None,
         }
@@ -497,7 +497,7 @@ impl<S, T, G> Iterator for Wire<S, T, G> {
 }
 
 impl<S, T, G> Deref for Wire<S, T, G> {
-    type Target = protocol::Protocol<S, T, G>;
+    type Target = service::Service<S, T, G>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner

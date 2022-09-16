@@ -10,8 +10,8 @@ use std::{fs, io, net};
 use crate::client;
 use crate::client::handle::traits::Handle;
 use crate::identity::Id;
-use crate::protocol::FetchLookup;
-use crate::protocol::FetchResult;
+use crate::service::FetchLookup;
+use crate::service::FetchResult;
 
 /// Default name for control socket file.
 pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";

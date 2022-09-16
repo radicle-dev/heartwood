@@ -24,14 +24,14 @@ use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto;
 use crate::identity::{Id, Project};
-use crate::protocol::config::ProjectTracking;
-use crate::protocol::message::{NodeAnnouncement, RefsAnnouncement};
-use crate::protocol::peer::{Peer, PeerError, PeerState};
+use crate::service::config::ProjectTracking;
+use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
+use crate::service::peer::{Peer, PeerError, PeerState};
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 
-pub use crate::protocol::config::{Config, Network};
-pub use crate::protocol::message::{Envelope, Message};
+pub use crate::service::config::{Config, Network};
+pub use crate::service::message::{Envelope, Message};
 
 use self::filter::Filter;
 use self::message::{InventoryAnnouncement, NodeFeatures};
@@ -68,7 +68,7 @@ pub enum Io {
     Event(Event),
 }
 
-/// A protocol event.
+/// A service event.
 #[derive(Debug, Clone)]
 pub enum Event {
     RefsFetched {
@@ -121,7 +121,7 @@ pub enum FetchResult {
     },
 }
 
-/// Commands sent to the protocol by the operator.
+/// Commands sent to the service by the operator.
 #[derive(Debug)]
 pub enum Command {
     AnnounceRefs(Id),
@@ -136,26 +136,26 @@ pub enum Command {
 pub enum CommandError {}
 
 #[derive(Debug)]
-pub struct Protocol<S, T, G> {
+pub struct Service<S, T, G> {
     /// Peers currently or recently connected.
     peers: Peers,
-    /// Protocol state that isn't peer-specific.
+    /// Service state that isn't peer-specific.
     context: Context<S, T, G>,
     /// Whether our local inventory no long represents what we have announced to the network.
     out_of_sync: bool,
-    /// Last time the protocol was idle.
+    /// Last time the service was idle.
     last_idle: LocalTime,
-    /// Last time the protocol synced.
+    /// Last time the service synced.
     last_sync: LocalTime,
-    /// Last time the protocol routing table was pruned.
+    /// Last time the service routing table was pruned.
     last_prune: LocalTime,
-    /// Last time the protocol announced its inventory.
+    /// Last time the service announced its inventory.
     last_announce: LocalTime,
-    /// Time when the protocol was initialized.
+    /// Time when the service was initialized.
     start_time: LocalTime,
 }
 
-impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protocol<S, T, G> {
+impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service<S, T, G> {
     pub fn new(
         config: Config,
         clock: RefClock,
@@ -264,12 +264,12 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
         &self.context.signer
     }
 
-    /// Get the local protocol time.
+    /// Get the local service time.
     pub fn local_time(&self) -> LocalTime {
         self.context.clock.local_time()
     }
 
-    /// Get protocol configuration.
+    /// Get service configuration.
     pub fn config(&self) -> &Config {
         &self.context.config
     }
@@ -589,7 +589,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Protoco
     }
 }
 
-impl<S, T, G> Deref for Protocol<S, T, G> {
+impl<S, T, G> Deref for Service<S, T, G> {
     type Target = Context<S, T, G>;
 
     fn deref(&self) -> &Self::Target {
@@ -597,7 +597,7 @@ impl<S, T, G> Deref for Protocol<S, T, G> {
     }
 }
 
-impl<S, T, G> DerefMut for Protocol<S, T, G> {
+impl<S, T, G> DerefMut for Service<S, T, G> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.context
     }
@@ -633,7 +633,7 @@ impl fmt::Display for DisconnectReason {
     }
 }
 
-impl<S, T, G> Iterator for Protocol<S, T, G> {
+impl<S, T, G> Iterator for Service<S, T, G> {
     type Item = Io;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -650,10 +650,10 @@ pub struct Lookup {
     pub remote: Vec<NodeId>,
 }
 
-/// Global protocol state used across peers.
+/// Global service state used across peers.
 #[derive(Debug)]
 pub struct Context<S, T, G> {
-    /// Protocol configuration.
+    /// Service configuration.
     config: Config,
     /// Our cryptographic signer and key.
     signer: G,

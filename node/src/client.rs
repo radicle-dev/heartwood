@@ -7,8 +7,8 @@ use nakamoto_net::{LocalTime, Reactor};
 use crate::clock::RefClock;
 use crate::collections::HashMap;
 use crate::crypto::Signer;
-use crate::protocol;
-use crate::protocol::wire::Wire;
+use crate::service;
+use crate::service::wire::Wire;
 use crate::storage::git::Storage;
 use crate::transport::Transport;
 
@@ -17,19 +17,19 @@ pub mod handle;
 /// Client configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// Client protocol configuration.
-    pub protocol: protocol::Config,
+    /// Client service configuration.
+    pub service: service::Config,
     /// Client listen addresses.
     pub listen: Vec<net::SocketAddr>,
 }
 
 impl Config {
     /// Create a new configuration for the given network.
-    pub fn new(network: protocol::Network) -> Self {
+    pub fn new(network: service::Network) -> Self {
         Self {
-            protocol: protocol::Config {
+            service: service::Config {
                 network,
-                ..protocol::Config::default()
+                ..service::Config::default()
             },
             ..Self::default()
         }
@@ -39,7 +39,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            protocol: protocol::Config::default(),
+            service: service::Config::default(),
             listen: vec![([0, 0, 0, 0], 0).into()],
         }
     }
@@ -50,8 +50,8 @@ pub struct Client<R: Reactor, G: Signer> {
     storage: Storage,
     signer: G,
 
-    handle: chan::Sender<protocol::Command>,
-    commands: chan::Receiver<protocol::Command>,
+    handle: chan::Sender<service::Command>,
+    commands: chan::Receiver<service::Command>,
     shutdown: chan::Sender<()>,
     listening: chan::Receiver<net::SocketAddr>,
     events: Events,
@@ -59,7 +59,7 @@ pub struct Client<R: Reactor, G: Signer> {
 
 impl<R: Reactor, G: Signer> Client<R, G> {
     pub fn new<P: AsRef<Path>>(path: P, signer: G) -> Result<Self, nakamoto_net::error::Error> {
-        let (handle, commands) = chan::unbounded::<protocol::Command>();
+        let (handle, commands) = chan::unbounded::<service::Command>();
         let (shutdown, shutdown_recv) = chan::bounded(1);
         let (listening_send, listening) = chan::bounded(1);
         let reactor = R::new(shutdown_recv, listening_send)?;
@@ -79,7 +79,7 @@ impl<R: Reactor, G: Signer> Client<R, G> {
     }
 
     pub fn run(mut self, config: Config) -> Result<(), nakamoto_net::error::Error> {
-        let network = config.protocol.network;
+        let network = config.service.network;
         let rng = fastrand::Rng::new();
         let time = LocalTime::now();
         let storage = self.storage;
@@ -88,8 +88,8 @@ impl<R: Reactor, G: Signer> Client<R, G> {
 
         log::info!("Initializing client ({:?})..", network);
 
-        let protocol = protocol::Protocol::new(
-            config.protocol,
+        let service = service::Service::new(
+            config.service,
             RefClock::from(time),
             storage,
             addresses,
@@ -98,7 +98,7 @@ impl<R: Reactor, G: Signer> Client<R, G> {
         );
         self.reactor.run(
             &config.listen,
-            Transport::new(Wire::new(protocol)),
+            Transport::new(Wire::new(service)),
             self.events,
             self.commands,
         )?;
@@ -119,8 +119,8 @@ impl<R: Reactor, G: Signer> Client<R, G> {
 
 pub struct Events {}
 
-impl nakamoto_net::Publisher<protocol::Event> for Events {
-    fn publish(&mut self, e: protocol::Event) {
+impl nakamoto_net::Publisher<service::Event> for Events {
+    fn publish(&mut self, e: service::Event) {
         log::info!("Received event {:?}", e);
     }
 }

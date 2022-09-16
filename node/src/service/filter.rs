@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use bloomy::BloomFilter;
 
 use crate::identity::Id;
-use crate::protocol::wire;
+use crate::service::wire;
 
 /// Size in bytes of subscription bloom filter.
 pub const FILTER_SIZE: usize = 1024 * 16;

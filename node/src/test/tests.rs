@@ -5,10 +5,10 @@ use crossbeam_channel as chan;
 use nakamoto_net as nakamoto;
 
 use crate::collections::{HashMap, HashSet};
-use crate::protocol::config::*;
-use crate::protocol::message::*;
-use crate::protocol::peer::*;
-use crate::protocol::*;
+use crate::service::config::*;
+use crate::service::message::*;
+use crate::service::peer::*;
+use crate::service::*;
 use crate::storage::git::Storage;
 use crate::storage::ReadStorage;
 use crate::test::fixtures;
@@ -19,7 +19,7 @@ use crate::test::simulator;
 use crate::test::simulator::{Peer as _, Simulation};
 use crate::test::storage::MockStorage;
 use crate::{assert_matches, Link, LocalTime};
-use crate::{client, identity, protocol, rad, storage, test};
+use crate::{client, identity, rad, service, storage, test};
 
 // NOTE
 //
@@ -39,7 +39,7 @@ fn test_outbound_connection() {
     alice.connect_to(&eve);
 
     let peers = alice
-        .protocol
+        .service
         .peers()
         .negotiated()
         .map(|(ip, _)| *ip)
@@ -59,7 +59,7 @@ fn test_inbound_connection() {
     alice.connect_from(&eve);
 
     let peers = alice
-        .protocol
+        .service
         .peers()
         .negotiated()
         .map(|(ip, _)| *ip)
@@ -396,8 +396,8 @@ fn test_push_and_pull() {
     let mut eve = Peer::new("eve", [9, 9, 9, 9], storage_eve);
 
     // Alice and Bob connect to Eve.
-    alice.command(protocol::Command::Connect(eve.addr()));
-    bob.command(protocol::Command::Connect(eve.addr()));
+    alice.command(service::Command::Connect(eve.addr()));
+    bob.command(service::Command::Connect(eve.addr()));
 
     let mut sim = Simulation::new(
         LocalTime::now(),
@@ -422,11 +422,11 @@ fn test_push_and_pull() {
 
     // Bob tracks Alice's project.
     let (sender, _) = chan::bounded(1);
-    bob.command(protocol::Command::Track(proj_id.clone(), sender));
+    bob.command(service::Command::Track(proj_id.clone(), sender));
 
     // Eve tracks Alice's project.
     let (sender, _) = chan::bounded(1);
-    eve.command(protocol::Command::Track(proj_id.clone(), sender));
+    eve.command(service::Command::Track(proj_id.clone(), sender));
 
     // Neither of them have it in the beginning.
     assert!(eve.get(&proj_id).unwrap().is_none());
@@ -435,7 +435,7 @@ fn test_push_and_pull() {
     // Alice announces her refs.
     // We now expect Eve to fetch Alice's project from Alice.
     // Then we expect Bob to fetch Alice's project from Eve.
-    alice.command(protocol::Command::AnnounceRefs(proj_id.clone()));
+    alice.command(service::Command::AnnounceRefs(proj_id.clone()));
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
     assert!(eve
@@ -450,7 +450,7 @@ fn test_push_and_pull() {
         .is_some());
     assert_matches!(
         sim.events(&bob.ip).next(),
-        Some(protocol::Event::RefsFetched { from, .. })
+        Some(service::Event::RefsFetched { from, .. })
         if from == eve.git_url(),
         "Bob fetched from Eve"
     );

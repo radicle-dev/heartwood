@@ -8,8 +8,8 @@ use nakamoto_net::{Io, Link};
 use crate::address_book;
 use crate::collections::HashMap;
 use crate::crypto;
-use crate::protocol::wire::Wire;
-use crate::protocol::{Command, DisconnectReason, Event, Protocol};
+use crate::service::wire::Wire;
+use crate::service::{Command, DisconnectReason, Event, Service};
 use crate::storage::WriteStorage;
 
 #[derive(Debug)]
@@ -93,7 +93,7 @@ impl<S, T, G> Iterator for Transport<S, T, G> {
 }
 
 impl<S, T, G> Deref for Transport<S, T, G> {
-    type Target = Protocol<S, T, G>;
+    type Target = Service<S, T, G>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
