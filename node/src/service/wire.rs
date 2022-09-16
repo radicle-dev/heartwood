@@ -1,13 +1,13 @@
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
-use std::net::{self, IpAddr};
+use std::net::IpAddr;
 use std::ops::{Deref, DerefMut};
 use std::string::FromUtf8Error;
 use std::{io, mem};
 
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 use nakamoto_net as nakamoto;
-use nakamoto_net::{Link, LocalTime};
+use nakamoto_net::Link;
 
 use crate::address_book;
 use crate::crypto::{PublicKey, Signature, Signer};
@@ -407,26 +407,6 @@ where
     T: WriteStorage<'r> + 'static,
     G: Signer,
 {
-    pub fn initialize(&mut self, time: LocalTime) {
-        self.inner.initialize(time)
-    }
-
-    pub fn tick(&mut self, now: LocalTime) {
-        self.inner.tick(now)
-    }
-
-    pub fn wake(&mut self) {
-        self.inner.wake()
-    }
-
-    pub fn command(&mut self, cmd: service::Command) {
-        self.inner.command(cmd)
-    }
-
-    pub fn attempted(&mut self, addr: &net::SocketAddr) {
-        self.inner.attempted(addr)
-    }
-
     pub fn connected(
         &mut self,
         addr: std::net::SocketAddr,
@@ -503,6 +483,7 @@ impl<S, T, G> Deref for Wire<S, T, G> {
         &self.inner
     }
 }
+
 impl<S, T, G> DerefMut for Wire<S, T, G> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
