@@ -104,6 +104,9 @@ impl Refs {
             let name = git::RefString::try_from(name)?;
             let oid = Oid::from_str(oid)?;
 
+            if oid.is_zero() {
+                continue;
+            }
             refs.insert(name, oid);
         }
         Ok(Self(refs))
@@ -111,7 +114,9 @@ impl Refs {
 
     pub fn canonical(&self) -> Vec<u8> {
         let mut buf = String::new();
-        let refs = self.iter().filter(|(name, _)| *name != &*SIGNATURE_REF);
+        let refs = self
+            .iter()
+            .filter(|(name, oid)| *name != &*SIGNATURE_REF && !oid.is_zero());
 
         for (name, oid) in refs {
             buf.push_str(&oid.to_string());
