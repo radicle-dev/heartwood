@@ -47,17 +47,15 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
         name: String::from("anonymous"),
         id: identity::Did::from(*pk),
     };
-    let doc = identity::Doc::initial(
+    let (id, doc) = identity::Doc::initial(
         name.to_owned(),
         description.to_owned(),
         default_branch.clone(),
         delegate,
     )
-    .verified()?;
+    .verified()?
+    .encode()?;
 
-    let filename = *identity::doc::PATH;
-    let mut doc_bytes = Vec::new();
-    let id = doc.write(&mut doc_bytes)?;
     let project = storage.repository(&id)?;
 
     {
@@ -70,11 +68,14 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
         //      git fetch rad
         //      git checkout -b radicle/id remotes/rad/radicle/id
         //
+        let filename = *identity::doc::PATH;
         let repo = project.raw();
         let tree = {
-            let id_blob = repo.blob(&doc_bytes)?;
+            let doc_blob = repo.blob(&doc)?;
             let mut builder = repo.treebuilder(None)?;
-            builder.insert(filename, id_blob, 0o100_644)?;
+            builder.insert(filename, doc_blob, 0o100_644)?;
+
+            assert_eq!(git::Oid::from(doc_blob), *id);
 
             let tree_id = builder.write()?;
             repo.find_tree(tree_id)

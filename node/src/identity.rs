@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::crypto::{self, Verified};
-use crate::hash;
+use crate::git;
 use crate::serde_ext;
 use crate::storage::Remotes;
 
@@ -17,14 +17,14 @@ pub use doc::{Delegate, Doc};
 
 #[derive(Error, Debug)]
 pub enum IdError {
-    #[error("invalid digest: {0}")]
-    InvalidDigest(#[from] hash::DecodeError),
+    #[error("invalid git object id: {0}")]
+    InvalidOid(#[from] git2::Error),
     #[error(transparent)]
     Multibase(#[from] multibase::Error),
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id(hash::Digest);
+pub struct Id(git::Oid);
 
 impl fmt::Display for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -40,12 +40,12 @@ impl fmt::Debug for Id {
 
 impl Id {
     pub fn to_human(&self) -> String {
-        multibase::encode(multibase::Base::Base58Btc, &self.0.as_ref())
+        multibase::encode(multibase::Base::Base58Btc, self.0.as_bytes())
     }
 
     pub fn from_human(s: &str) -> Result<Self, IdError> {
         let (_, bytes) = multibase::decode(s)?;
-        let array: hash::Digest = bytes.as_slice().try_into()?;
+        let array: git::Oid = bytes.as_slice().try_into()?;
 
         Ok(Self(array))
     }
@@ -68,14 +68,20 @@ impl TryFrom<OsString> for Id {
     }
 }
 
-impl From<hash::Digest> for Id {
-    fn from(digest: hash::Digest) -> Self {
-        Self(digest)
+impl From<git::Oid> for Id {
+    fn from(oid: git::Oid) -> Self {
+        Self(oid)
+    }
+}
+
+impl From<git2::Oid> for Id {
+    fn from(oid: git2::Oid) -> Self {
+        Self(oid.into())
     }
 }
 
 impl Deref for Id {
-    type Target = hash::Digest;
+    type Target = git::Oid;
 
     fn deref(&self) -> &Self::Target {
         &self.0

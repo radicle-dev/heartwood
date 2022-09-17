@@ -12,7 +12,6 @@ use thiserror::Error;
 use crate::crypto;
 use crate::crypto::{Signature, Unverified, Verified};
 use crate::git;
-use crate::hash;
 use crate::identity::{Did, Id};
 use crate::storage::git::trailers;
 use crate::storage::{BranchName, ReadRepository, RemoteId};
@@ -79,22 +78,17 @@ pub struct Doc<V> {
 }
 
 impl Doc<Verified> {
-    pub fn write<W: io::Write>(&self, mut writer: W) -> Result<Id, Error> {
+    pub fn encode(&self) -> Result<(Id, Vec<u8>), Error> {
         let mut buf = Vec::new();
-        let mut ser =
+        let mut serializer =
             serde_json::Serializer::with_formatter(&mut buf, olpc_cjson::CanonicalFormatter::new());
 
-        self.serialize(&mut ser)?;
+        self.serialize(&mut serializer)?;
 
-        let digest = hash::Digest::new(&buf);
-        let id = Id::from(digest);
+        let oid = git2::Oid::hash_object(git2::ObjectType::Blob, &buf)?;
+        let id = Id::from(oid);
 
-        // TODO: Currently, we serialize the document in canonical JSON. This isn't strictly
-        // necessary, as we could use CJSON just to get the hash, but then write a prettified
-        // version to disk to make it easier for users to edit.
-        writer.write_all(&buf)?;
-
-        Ok(id)
+        Ok((id, buf))
     }
 }
 
@@ -367,9 +361,7 @@ mod test {
 
     #[quickcheck]
     fn prop_encode_decode(doc: Doc<Verified>) {
-        let mut bytes = Vec::new();
-
-        doc.write(&mut bytes).unwrap();
+        let (_, bytes) = doc.encode().unwrap();
         assert_eq!(Doc::from_json(&bytes).unwrap().verified().unwrap(), doc);
     }
 }

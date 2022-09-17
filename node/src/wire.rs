@@ -375,9 +375,9 @@ impl Decode for git::Url {
 
 impl Decode for Id {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let digest: Digest = Decode::decode(reader)?;
+        let oid: git::Oid = Decode::decode(reader)?;
 
-        Ok(Self::from(digest))
+        Ok(Self::from(oid))
     }
 }
 

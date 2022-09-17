@@ -52,6 +52,10 @@ impl<const N: usize> ByteArray<N> {
     pub fn into_inner(self) -> [u8; N] {
         self.0
     }
+
+    pub fn as_slice(&self) -> &[u8] {
+        self.0.as_slice()
+    }
 }
 
 impl<const N: usize> Arbitrary for ByteArray<N> {
@@ -174,9 +178,8 @@ impl Arbitrary for MockStorage {
 
 impl Arbitrary for Project {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let mut buf = Vec::new();
         let doc = Doc::<Verified>::arbitrary(g);
-        let id = doc.write(&mut buf).unwrap();
+        let (id, _) = doc.encode().unwrap();
         let remotes = storage::Remotes::arbitrary(g);
         let path = PathBuf::arbitrary(g);
 
@@ -311,8 +314,10 @@ impl Arbitrary for MockSigner {
 
 impl Arbitrary for Id {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let digest = hash::Digest::arbitrary(g);
-        Id::from(digest)
+        let bytes = ByteArray::<20>::arbitrary(g);
+        let oid = git::Oid::try_from(bytes.as_slice()).unwrap();
+
+        Id::from(oid)
     }
 }
 
