@@ -230,7 +230,7 @@ impl SignedRefs<Verified> {
     {
         let refs = repo.blob_at(oid, Path::new(REFS_BLOB_PATH))?;
         let signature = repo.blob_at(oid, Path::new(SIGNATURE_BLOB_PATH))?;
-        let signature = crypto::Signature::try_from(signature.content())?;
+        let signature: crypto::Signature = signature.content().try_into()?;
 
         match remote.verify(&signature, refs.content()) {
             Ok(()) => {

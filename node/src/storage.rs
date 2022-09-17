@@ -7,7 +7,6 @@ use std::ops::Deref;
 use std::path::Path;
 use std::{fmt, io};
 
-use radicle_git_ext as git_ext;
 use thiserror::Error;
 
 pub use radicle_git_ext::Oid;
@@ -15,6 +14,7 @@ pub use radicle_git_ext::Oid;
 use crate::collections::HashMap;
 use crate::crypto;
 use crate::crypto::{PublicKey, Signer, Unverified, Verified};
+use crate::git::ext as git_ext;
 use crate::git::Url;
 use crate::git::{RefError, RefStr, RefString};
 use crate::identity;
@@ -242,6 +242,8 @@ pub trait ReadRepository<'r> {
         remote: &RemoteId,
         reference: &RefStr,
     ) -> Result<Option<git2::Reference>, git2::Error>;
+    fn commit(&self, oid: Oid) -> Result<Option<git2::Commit>, git2::Error>;
+    fn revwalk(&self, head: Oid) -> Result<git2::Revwalk, git2::Error>;
     fn reference_oid(
         &self,
         remote: &RemoteId,

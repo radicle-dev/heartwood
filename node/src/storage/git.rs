@@ -20,7 +20,6 @@ use crate::storage::{
 
 use super::{RefUpdate, RemoteId};
 
-pub static RADICLE_ID_REF: Lazy<git::RefString> = Lazy::new(|| git::refname!("heads/radicle/id"));
 pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/remotes/*"));
 pub static SIGNATURES_GLOB: Lazy<refspec::PatternString> =
@@ -257,21 +256,11 @@ impl Repository {
         &self,
         remote: &RemoteId,
     ) -> Result<Option<identity::Doc<Verified>>, refs::Error> {
-        let oid = if let Some(oid) = self.reference_oid(remote, &RADICLE_ID_REF)? {
-            oid
+        if let Some((doc, _)) = identity::Doc::load(remote, self)? {
+            Ok(Some(doc.verified().unwrap()))
         } else {
-            return Ok(None);
-        };
-
-        let doc = match self.blob_at(oid, Path::new(&*identity::doc::PATH)) {
-            Err(git::ext::Error::NotFound(_)) => return Ok(None),
-            Err(e) => return Err(e.into()),
-            Ok(doc) => doc,
-        };
-        let doc = identity::Doc::from_json(doc.content()).unwrap();
-        let doc = doc.verified().unwrap();
-
-        Ok(Some(doc))
+            Ok(None)
+        }
     }
 }
 
@@ -287,7 +276,7 @@ impl<'r> ReadRepository<'r> for Repository {
         self.backend.path()
     }
 
-    fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git::ext::Error> {
+    fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git::Error> {
         git::ext::Blob::At {
             object: oid.into(),
             path,
@@ -309,6 +298,23 @@ impl<'r> ReadRepository<'r> for Repository {
                 Err(e)
             }
         })
+    }
+
+    fn commit(&self, oid: Oid) -> Result<Option<git2::Commit>, git2::Error> {
+        self.backend.find_commit(oid.into()).map(Some).or_else(|e| {
+            if git::ext::is_not_found_err(&e) {
+                Ok(None)
+            } else {
+                Err(e)
+            }
+        })
+    }
+
+    fn revwalk(&self, head: Oid) -> Result<git2::Revwalk, git2::Error> {
+        let mut revwalk = self.backend.revwalk()?;
+        revwalk.push(head.into())?;
+
+        Ok(revwalk)
     }
 
     fn reference_oid(
@@ -449,6 +455,46 @@ impl<'r> WriteRepository<'r> for Repository {
 impl From<git2::Repository> for Repository {
     fn from(backend: git2::Repository) -> Self {
         Self { backend }
+    }
+}
+
+pub mod trailers {
+    use std::str::FromStr;
+
+    use super::*;
+    use crate::crypto::{PublicKey, PublicKeyError};
+    use crate::crypto::{Signature, SignatureError};
+
+    pub const SIGNATURE_TRAILER: &str = "Rad-Signature";
+
+    #[derive(Error, Debug)]
+    pub enum Error {
+        #[error("invalid format for signature trailer")]
+        SignatureTrailerFormat,
+        #[error("invalid public key in signature trailer")]
+        PublicKey(#[from] PublicKeyError),
+        #[error("invalid signature in trailer")]
+        Signature(#[from] SignatureError),
+    }
+
+    pub fn parse_signatures(msg: &str) -> Result<Vec<(PublicKey, Signature)>, Error> {
+        let trailers =
+            git2::message_trailers_strs(msg).map_err(|_| Error::SignatureTrailerFormat)?;
+        let mut signatures = Vec::with_capacity(trailers.len());
+
+        for (key, val) in trailers.iter() {
+            if key == SIGNATURE_TRAILER {
+                if let Some((pk, sig)) = val.split_once(' ') {
+                    let pk = PublicKey::from_str(pk)?;
+                    let sig = Signature::from_str(sig)?;
+
+                    signatures.push((pk, sig));
+                } else {
+                    return Err(Error::SignatureTrailerFormat);
+                }
+            }
+        }
+        Ok(signatures)
     }
 }
 

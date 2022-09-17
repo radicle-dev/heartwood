@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub use ed25519::Error;
-pub use ed25519::Signature;
 
 /// Verified (used as type witness).
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -45,6 +44,64 @@ where
 
     fn public_key(&self) -> &PublicKey {
         self.deref().public_key()
+    }
+}
+
+/// Cryptographic signature.
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub struct Signature(pub ed25519::Signature);
+
+impl fmt::Display for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let base = multibase::Base::Base58Btc;
+        write!(f, "{}", multibase::encode(base, &self.to_bytes()))
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum SignatureError {
+    #[error("invalid multibase string: {0}")]
+    Multibase(#[from] multibase::Error),
+    #[error("invalid signature: {0}")]
+    Invalid(#[from] ed25519::Error),
+}
+
+impl From<ed25519::Signature> for Signature {
+    fn from(other: ed25519::Signature) -> Self {
+        Self(other)
+    }
+}
+
+impl FromStr for Signature {
+    type Err = SignatureError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (_, bytes) = multibase::decode(s)?;
+        let sig = ed25519::Signature::try_from(bytes.as_slice())?;
+
+        Ok(Self(sig))
+    }
+}
+
+impl Deref for Signature {
+    type Target = ed25519::Signature;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<[u8; 64]> for Signature {
+    fn from(bytes: [u8; 64]) -> Self {
+        Self(ed25519::Signature::from(bytes))
+    }
+}
+
+impl TryFrom<&[u8]> for Signature {
+    type Error = ed25519::Error;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        ed25519::Signature::try_from(bytes).map(Self)
     }
 }
 

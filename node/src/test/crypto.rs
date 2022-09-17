@@ -1,6 +1,4 @@
-use ed25519_consensus as ed25519;
-
-use crate::crypto::{PublicKey, SecretKey, Signer};
+use crate::crypto::{PublicKey, SecretKey, Signature, Signer};
 
 #[derive(Debug, Clone)]
 pub struct MockSigner {
@@ -57,7 +55,7 @@ impl Signer for MockSigner {
         &self.pk
     }
 
-    fn sign(&self, msg: &[u8]) -> ed25519::Signature {
-        self.sk.sign(msg)
+    fn sign(&self, msg: &[u8]) -> Signature {
+        self.sk.sign(msg).into()
     }
 }

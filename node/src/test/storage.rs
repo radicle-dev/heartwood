@@ -90,6 +90,14 @@ impl ReadRepository<'_> for MockRepository {
         todo!()
     }
 
+    fn commit(&self, _oid: git::Oid) -> Result<Option<git2::Commit>, git2::Error> {
+        todo!()
+    }
+
+    fn revwalk(&self, _head: git::Oid) -> Result<git2::Revwalk, git2::Error> {
+        todo!()
+    }
+
     fn blob_at<'a>(
         &'a self,
         _oid: radicle_git_ext::Oid,

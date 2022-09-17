@@ -6,7 +6,6 @@ use thiserror::Error;
 use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::Id;
-use crate::storage::git::RADICLE_ID_REF;
 use crate::storage::refs::SignedRefs;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId, WriteRepository as _};
 use crate::{identity, storage};
@@ -84,7 +83,7 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
             .signature()
             .or_else(|_| git2::Signature::now("radicle", pk.to_string().as_str()))?;
 
-        let id_ref = format!("refs/remotes/{pk}/{}", &*RADICLE_ID_REF);
+        let id_ref = format!("refs/remotes/{pk}/{}", &*identity::doc::REFERENCE_NAME);
         let _oid = repo.commit(Some(&id_ref), &sig, &sig, "Initialize Radicle", &tree, &[])?;
     }
     git::set_upstream(

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -8,14 +9,26 @@ use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::crypto::{self, Unverified, Verified};
+use crate::crypto;
+use crate::crypto::{Signature, Unverified, Verified};
+use crate::git;
 use crate::hash;
 use crate::identity::{Did, Id};
-use crate::storage::BranchName;
+use crate::storage::git::trailers;
+use crate::storage::{BranchName, ReadRepository, RemoteId};
 
 pub use crypto::PublicKey;
 
+/// Untrusted, well-formed input.
+#[derive(Clone, Copy, Debug)]
+pub struct Untrusted;
+/// Signed by quorum of the previous delegation.
+#[derive(Clone, Copy, Debug)]
+pub struct Trusted;
+
+pub static REFERENCE_NAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("heads/radicle/id"));
 pub static PATH: Lazy<&Path> = Lazy::new(|| Path::new("radicle.json"));
+
 pub const MAX_STRING_LENGTH: usize = 255;
 pub const MAX_DELEGATES: usize = 255;
 
@@ -25,6 +38,12 @@ pub enum Error {
     Json(#[from] serde_json::Error),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
+    #[error("verification: {0}")]
+    Verification(#[from] VerificationError),
+    #[error("git: {0}")]
+    Git(#[from] git::Error),
+    #[error("git: {0}")]
+    RawGit(#[from] git2::Error),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -33,13 +52,25 @@ pub struct Delegate {
     pub id: Did,
 }
 
+impl Delegate {
+    fn matches(&self, key: &PublicKey) -> bool {
+        &self.id.0 == key
+    }
+}
+
+impl From<Delegate> for PublicKey {
+    fn from(delegate: Delegate) -> Self {
+        delegate.id.0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Doc<V> {
     pub name: String,
-    pub description: String,
-    pub default_branch: String,
-    pub version: u32,
+    pub description: String,    // TODO: Make optional.
+    pub default_branch: String, // TODO: Make optional.
+    pub version: u32,           // TODO: Remove this.
     pub parent: Option<Oid>,
     pub delegates: NonEmpty<Delegate>,
     pub threshold: usize,
@@ -200,6 +231,132 @@ impl Doc<Unverified> {
             threshold: self.threshold,
             verified: PhantomData,
         })
+    }
+
+    pub fn blob_at<'r, R: ReadRepository<'r>>(
+        commit: Oid,
+        repo: &R,
+    ) -> Result<Option<git2::Blob>, git::Error> {
+        match repo.blob_at(commit, Path::new(&*PATH)) {
+            Err(git::ext::Error::NotFound(_)) => Ok(None),
+            Err(e) => Err(e),
+            Ok(blob) => Ok(Some(blob)),
+        }
+    }
+
+    pub fn load_at<'r, R: ReadRepository<'r>>(
+        commit: Oid,
+        repo: &R,
+    ) -> Result<Option<(Self, Oid)>, git::Error> {
+        if let Some(blob) = Self::blob_at(commit, repo)? {
+            let doc = Doc::from_json(blob.content()).unwrap();
+            return Ok(Some((doc, blob.id().into())));
+        }
+        Ok(None)
+    }
+
+    pub fn load<'r, R: ReadRepository<'r>>(
+        remote: &RemoteId,
+        repo: &R,
+    ) -> Result<Option<(Self, Oid)>, git::Error> {
+        if let Some(oid) = Self::head(remote, repo)? {
+            Self::load_at(oid, repo)
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+impl<V> Doc<V> {
+    pub fn head<'r, R: ReadRepository<'r>>(
+        remote: &RemoteId,
+        repo: &R,
+    ) -> Result<Option<Oid>, git::Error> {
+        if let Some(oid) = repo.reference_oid(remote, &REFERENCE_NAME)? {
+            Ok(Some(oid))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Identity<V> {
+    /// The head of the identity branch. This points to a commit that
+    /// contains the current document blob.
+    pub head: Oid,
+    /// The object id of the initial document blob.
+    /// This is the canonical identifier for this identity.
+    pub root: Oid,
+    /// The object id of the current document blob.
+    pub current: Oid,
+    /// The current document.
+    pub doc: Doc<Verified>,
+    /// Signatures over this identity.
+    pub signatures: HashMap<PublicKey, Signature>,
+
+    verified: PhantomData<V>,
+}
+
+impl Identity<Untrusted> {
+    pub fn load<'r, R: ReadRepository<'r>>(
+        _id: &Id,
+        remote: &RemoteId,
+        repo: &R,
+    ) -> Result<Option<Self>, Error> {
+        if let Some(head) = Doc::<Untrusted>::head(remote, repo)? {
+            let mut history = repo.revwalk(head)?.collect::<Vec<_>>();
+
+            // Retrieve root document.
+            let root = history.pop().unwrap()?.into();
+            let root = Doc::blob_at(root, repo)?.unwrap();
+            let trusted = Doc::from_json(root.content()).unwrap();
+            // TODO: Check the root document matches ID.
+
+            let mut trusted = trusted.verified()?;
+            let mut current = root.id().into();
+            let mut signatures = Vec::new();
+
+            for oid in history.into_iter().rev() {
+                let oid = oid?;
+                let blob = Doc::blob_at(head, repo)?.unwrap();
+                let untrusted = Doc::from_json(blob.content()).unwrap();
+                let untrusted = untrusted.verified()?;
+                let commit = repo.commit(oid.into())?.unwrap();
+                let msg = commit.message_raw().unwrap();
+
+                // Keys that signed the *current* document version.
+                signatures = trailers::parse_signatures(msg).unwrap();
+                for (pk, sig) in &signatures {
+                    if pk.verify(sig, blob.content()).is_err() {
+                        todo!();
+                    }
+                }
+
+                // Check that enough delegates from the previous version signed this version.
+                let quorum = signatures
+                    .iter()
+                    .filter(|(key, _)| trusted.delegates.iter().any(|d| d.matches(key)))
+                    .count();
+                // TODO: Check that difference isn't greater than threshold?
+                if quorum < trusted.threshold {
+                    todo!();
+                }
+
+                trusted = untrusted;
+                current = blob.id().into();
+            }
+
+            return Ok(Some(Self {
+                root: root.id().into(),
+                head,
+                current,
+                doc: trusted,
+                signatures: signatures.into_iter().collect(),
+                verified: PhantomData,
+            }));
+        }
+        Ok(None)
     }
 }
 
