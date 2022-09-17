@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 use std::hash::Hash;
+use std::iter;
 use std::net;
 use std::ops::RangeBounds;
 use std::path::PathBuf;
@@ -9,8 +10,8 @@ use nonempty::NonEmpty;
 use quickcheck::Arbitrary;
 
 use crate::collections::HashMap;
-use crate::crypto::{self, Signer, Unverified};
-use crate::crypto::{PublicKey, SecretKey};
+use crate::crypto;
+use crate::crypto::{PublicKey, SecretKey, Signer, Unverified, Verified};
 use crate::git;
 use crate::hash;
 use crate::identity::{Delegate, Did, Doc, Id, Project};
@@ -174,7 +175,7 @@ impl Arbitrary for MockStorage {
 impl Arbitrary for Project {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let mut buf = Vec::new();
-        let doc = Doc::arbitrary(g);
+        let doc = Doc::<Verified>::arbitrary(g);
         let id = doc.write(&mut buf).unwrap();
         let remotes = storage::Remotes::arbitrary(g);
         let path = PathBuf::arbitrary(g);
@@ -203,24 +204,51 @@ impl Arbitrary for Delegate {
     }
 }
 
-impl Arbitrary for Doc {
+impl Arbitrary for Doc<Unverified> {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let name = String::arbitrary(g);
         let description = String::arbitrary(g);
         let default_branch = String::arbitrary(g);
-        let version = u32::arbitrary(g);
-        let parent = None;
         let delegate = Delegate::arbitrary(g);
-        let delegates = NonEmpty::new(delegate);
 
-        Self {
+        Self::initial(name, description, default_branch, delegate)
+    }
+}
+
+impl Arbitrary for Doc<Verified> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+        let name = iter::repeat_with(|| rng.alphanumeric())
+            .take(rng.usize(1..16))
+            .collect();
+        let description = iter::repeat_with(|| rng.alphanumeric())
+            .take(rng.usize(0..32))
+            .collect();
+        let default_branch = iter::repeat_with(|| rng.alphanumeric())
+            .take(rng.usize(1..16))
+            .collect();
+        let parent = None;
+        let delegates: NonEmpty<_> = iter::repeat_with(|| Delegate {
+            name: iter::repeat_with(|| rng.alphanumeric())
+                .take(rng.usize(1..16))
+                .collect(),
+            id: Did::arbitrary(g),
+        })
+        .take(rng.usize(1..6))
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+        let threshold = delegates.len() / 2 + 1;
+        let doc: Doc<Unverified> = Doc::new(
             name,
             description,
             default_branch,
-            version,
             parent,
             delegates,
-        }
+            threshold,
+        );
+
+        doc.verified().unwrap()
     }
 }
 

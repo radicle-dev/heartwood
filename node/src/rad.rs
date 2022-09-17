@@ -1,7 +1,6 @@
 use std::io;
 use std::path::Path;
 
-use nonempty::NonEmpty;
 use thiserror::Error;
 
 use crate::crypto::{Signer, Verified};
@@ -18,6 +17,8 @@ pub const REMOTE_NAME: &str = "rad";
 pub enum InitError {
     #[error("doc: {0}")]
     Doc(#[from] identity::DocError),
+    #[error("doc: {0}")]
+    DocVerification(#[from] identity::DocVerificationError),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("i/o: {0}")]
@@ -47,14 +48,13 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
         name: String::from("anonymous"),
         id: identity::Did::from(*pk),
     };
-    let doc = identity::Doc {
-        name: name.to_owned(),
-        description: description.to_owned(),
-        default_branch: default_branch.clone(),
-        version: 1,
-        parent: None,
-        delegates: NonEmpty::new(delegate),
-    };
+    let doc = identity::Doc::initial(
+        name.to_owned(),
+        description.to_owned(),
+        default_branch.clone(),
+        delegate,
+    )
+    .verified()?;
 
     let filename = *identity::IDENTITY_PATH;
     let mut doc_bytes = Vec::new();

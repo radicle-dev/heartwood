@@ -253,7 +253,10 @@ impl Repository {
         Ok(())
     }
 
-    pub fn identity(&self, remote: &RemoteId) -> Result<Option<identity::Doc>, refs::Error> {
+    pub fn identity(
+        &self,
+        remote: &RemoteId,
+    ) -> Result<Option<identity::Doc<Verified>>, refs::Error> {
         let oid = if let Some(oid) = self.reference_oid(remote, &RADICLE_ID_REF)? {
             oid
         } else {
@@ -266,6 +269,7 @@ impl Repository {
             Ok(doc) => doc,
         };
         let doc = identity::Doc::from_json(doc.content()).unwrap();
+        let doc = doc.verified().unwrap();
 
         Ok(Some(doc))
     }
