@@ -279,9 +279,9 @@ pub struct Identity<V> {
     /// The head of the identity branch. This points to a commit that
     /// contains the current document blob.
     pub head: Oid,
-    /// The object id of the initial document blob.
-    /// This is the canonical identifier for this identity.
-    pub root: Oid,
+    /// The canonical identifier for this identity.
+    /// This is the object id of the initial document blob.
+    pub root: Id,
     /// The object id of the current document blob.
     pub current: Oid,
     /// The current document.
@@ -294,7 +294,7 @@ pub struct Identity<V> {
 
 impl Identity<Untrusted> {
     pub fn load<'r, R: ReadRepository<'r>>(
-        _id: &Id,
+        id: &Id,
         remote: &RemoteId,
         repo: &R,
     ) -> Result<Option<Self>, Error> {
@@ -302,15 +302,21 @@ impl Identity<Untrusted> {
             let mut history = repo.revwalk(head)?.collect::<Vec<_>>();
 
             // Retrieve root document.
-            let root = history.pop().unwrap()?.into();
-            let root = Doc::blob_at(root, repo)?.unwrap();
-            let trusted = Doc::from_json(root.content()).unwrap();
-            // TODO: Check the root document matches ID.
+            let root_oid = history.pop().unwrap()?.into();
+            let root_blob = Doc::blob_at(root_oid, repo)?.unwrap();
+            let root = Id::from(root_blob.id());
+            let trusted = Doc::from_json(root_blob.content()).unwrap();
+
+            // The root hash must be equal to the id.
+            if root != *id {
+                todo!();
+            }
 
             let mut trusted = trusted.verified()?;
-            let mut current = root.id().into();
+            let mut current = *root;
             let mut signatures = Vec::new();
 
+            // Traverse the history chronologically.
             for oid in history.into_iter().rev() {
                 let oid = oid?;
                 let blob = Doc::blob_at(head, repo)?.unwrap();
@@ -327,7 +333,7 @@ impl Identity<Untrusted> {
                     }
                 }
 
-                // Check that enough delegates from the previous version signed this version.
+                // Check that enough delegates signed this next version.
                 let quorum = signatures
                     .iter()
                     .filter(|(key, _)| trusted.delegates.iter().any(|d| d.matches(key)))
@@ -342,7 +348,7 @@ impl Identity<Untrusted> {
             }
 
             return Ok(Some(Self {
-                root: root.id().into(),
+                root,
                 head,
                 current,
                 doc: trusted,
