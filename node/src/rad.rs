@@ -16,9 +16,9 @@ pub const REMOTE_NAME: &str = "rad";
 #[derive(Error, Debug)]
 pub enum InitError {
     #[error("doc: {0}")]
-    Doc(#[from] identity::DocError),
+    Doc(#[from] identity::doc::Error),
     #[error("doc: {0}")]
-    DocVerification(#[from] identity::DocVerificationError),
+    DocVerification(#[from] identity::doc::VerificationError),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("i/o: {0}")]
@@ -56,7 +56,7 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
     )
     .verified()?;
 
-    let filename = *identity::IDENTITY_PATH;
+    let filename = *identity::doc::PATH;
     let mut doc_bytes = Vec::new();
     let id = doc.write(&mut doc_bytes)?;
     let project = storage.repository(&id)?;

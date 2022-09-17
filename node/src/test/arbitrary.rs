@@ -14,7 +14,7 @@ use crate::crypto;
 use crate::crypto::{PublicKey, SecretKey, Signer, Unverified, Verified};
 use crate::git;
 use crate::hash;
-use crate::identity::{Delegate, Did, Doc, Id, Project};
+use crate::identity::{doc::Delegate, doc::Doc, Did, Id, Project};
 use crate::service::filter::{Filter, FILTER_SIZE};
 use crate::service::message::{
     Address, Envelope, InventoryAnnouncement, Message, NodeAnnouncement, RefsAnnouncement,

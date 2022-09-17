@@ -42,7 +42,7 @@ pub enum Error {
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
     #[error("doc: {0}")]
-    Doc(#[from] identity::DocError),
+    Doc(#[from] identity::doc::Error),
     #[error("invalid repository head")]
     InvalidHead,
 }

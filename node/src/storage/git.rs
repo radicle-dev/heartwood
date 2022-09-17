@@ -9,7 +9,7 @@ pub use radicle_git_ext::Oid;
 
 use crate::crypto::{Signer, Verified};
 use crate::git;
-use crate::identity::{self, IDENTITY_PATH};
+use crate::identity;
 use crate::identity::{Id, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
@@ -263,7 +263,7 @@ impl Repository {
             return Ok(None);
         };
 
-        let doc = match self.blob_at(oid, Path::new(&*IDENTITY_PATH)) {
+        let doc = match self.blob_at(oid, Path::new(&*identity::doc::PATH)) {
             Err(git::ext::Error::NotFound(_)) => return Ok(None),
             Err(e) => return Err(e.into()),
             Ok(doc) => doc,
