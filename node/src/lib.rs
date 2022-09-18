@@ -1,27 +1,26 @@
 #![allow(dead_code)]
 pub use nakamoto_net::{Io, Link, LocalDuration, LocalTime};
 
+pub mod address_book;
+pub mod address_manager;
 pub mod client;
+pub mod clock;
+pub mod collections;
 pub mod control;
 pub mod crypto;
+pub mod decoder;
+pub mod git;
+pub mod hash;
+pub mod identity;
+pub mod logger;
+pub mod rad;
+pub mod serde_ext;
+pub mod service;
 pub mod storage;
-
-mod address_book;
-mod address_manager;
-mod clock;
-mod collections;
-mod decoder;
-mod git;
-mod hash;
-mod identity;
-mod logger;
-mod rad;
-mod serde_ext;
-mod service;
 #[cfg(test)]
-mod test;
-mod transport;
-mod wire;
+pub mod test;
+pub mod transport;
+pub mod wire;
 
 pub mod prelude {
     pub use crate::crypto::{PublicKey, Signature, Signer};
