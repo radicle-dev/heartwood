@@ -39,7 +39,7 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
     description: &str,
     default_branch: BranchName,
     signer: G,
-    storage: S,
+    storage: &'r S,
 ) -> Result<(Id, SignedRefs<Verified>), InitError> {
     let pk = signer.public_key();
     let delegate = identity::Delegate {
@@ -47,46 +47,16 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
         name: String::from("anonymous"),
         id: identity::Did::from(*pk),
     };
-    let (id, doc) = identity::Doc::initial(
+    let doc = identity::Doc::initial(
         name.to_owned(),
         description.to_owned(),
         default_branch.clone(),
         delegate,
     )
-    .verified()?
-    .encode()?;
+    .verified()?;
 
-    let project = storage.repository(&id)?;
+    let (id, _, project) = doc.create(pk, "Initialize Radicle", storage)?;
 
-    {
-        // Within this scope, redefine `repo` to refer to the project storage,
-        // since we're going to create the identity file there, and not in there
-        // working copy.
-        //
-        // You can checkout this branch in your working copy with:
-        //
-        //      git fetch rad
-        //      git checkout -b radicle/id remotes/rad/radicle/id
-        //
-        let filename = *identity::doc::PATH;
-        let repo = project.raw();
-        let tree = {
-            let doc_blob = repo.blob(&doc)?;
-            let mut builder = repo.treebuilder(None)?;
-            builder.insert(filename, doc_blob, 0o100_644)?;
-
-            assert_eq!(git::Oid::from(doc_blob), *id);
-
-            let tree_id = builder.write()?;
-            repo.find_tree(tree_id)
-        }?;
-        let sig = repo
-            .signature()
-            .or_else(|_| git2::Signature::now("radicle", pk.to_string().as_str()))?;
-
-        let id_ref = format!("refs/remotes/{pk}/{}", &*identity::doc::REFERENCE_NAME);
-        let _oid = repo.commit(Some(&id_ref), &sig, &sig, "Initialize Radicle", &tree, &[])?;
-    }
     git::set_upstream(
         repo,
         REMOTE_NAME,
@@ -242,7 +212,7 @@ mod tests {
         let tempdir = tempfile::tempdir().unwrap();
         let signer = crypto::MockSigner::default();
         let public_key = *signer.public_key();
-        let mut storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
         let (repo, _) = fixtures::repository(tempdir.path().join("working"));
 
         let (proj, refs) = init(
@@ -251,7 +221,7 @@ mod tests {
             "Acme's repo",
             BranchName::from("master"),
             &signer,
-            &mut storage,
+            &storage,
         )
         .unwrap();
 
@@ -279,7 +249,7 @@ mod tests {
         let alice_id = alice.public_key();
         let bob = crypto::MockSigner::new(&mut rng);
         let bob_id = bob.public_key();
-        let mut storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
 
         // Alice creates a project.
@@ -289,12 +259,12 @@ mod tests {
             "Acme's repo",
             BranchName::from("master"),
             &alice,
-            &mut storage,
+            &storage,
         )
         .unwrap();
 
         // Bob forks it and creates a checkout.
-        fork(&id, alice_id, &bob, &mut storage).unwrap();
+        fork(&id, alice_id, &bob, &storage).unwrap();
         checkout(&id, bob_id, tempdir.path().join("copy"), &storage).unwrap();
 
         let bob_remote = storage.repository(&id).unwrap().remote(bob_id).unwrap();
@@ -310,7 +280,7 @@ mod tests {
         let tempdir = tempfile::tempdir().unwrap();
         let signer = crypto::MockSigner::default();
         let remote_id = signer.public_key();
-        let mut storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
 
         let (id, _) = init(
@@ -319,7 +289,7 @@ mod tests {
             "Acme's repo",
             BranchName::from("master"),
             &signer,
-            &mut storage,
+            &storage,
         )
         .unwrap();
 

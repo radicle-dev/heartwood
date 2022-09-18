@@ -363,6 +363,10 @@ impl<'r> ReadRepository<'r> for Repository {
 
         Ok(Box::new(iter))
     }
+
+    fn project(&self) -> Result<Project, Error> {
+        todo!()
+    }
 }
 
 impl<'r> WriteRepository<'r> for Repository {

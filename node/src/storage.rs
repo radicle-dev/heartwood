@@ -252,6 +252,8 @@ pub trait ReadRepository<'r> {
     fn references(&self, remote: &RemoteId) -> Result<Refs, Error>;
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error>;
     fn remotes(&'r self) -> Result<Self::Remotes, git2::Error>;
+    /// Return the project associated with this repository.
+    fn project(&self) -> Result<Project, Error>;
 }
 
 pub trait WriteRepository<'r>: ReadRepository<'r> {

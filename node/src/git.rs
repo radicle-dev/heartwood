@@ -4,7 +4,7 @@ use std::str::FromStr;
 use git_ref_format as format;
 
 use crate::collections::HashMap;
-use crate::identity::PublicKey;
+use crate::crypto::PublicKey;
 use crate::storage::refs::Refs;
 use crate::storage::RemoteId;
 
@@ -121,6 +121,22 @@ pub fn head(repo: &git2::Repository) -> Result<git2::Commit, git2::Error> {
     let head = repo.head()?.peel_to_commit()?;
 
     Ok(head)
+}
+
+/// Write a tree with the given blob at the given path.
+pub fn write_tree<'r>(
+    path: &Path,
+    bytes: &[u8],
+    repo: &'r git2::Repository,
+) -> Result<git2::Tree<'r>, Error> {
+    let blob_id = repo.blob(bytes)?;
+    let mut builder = repo.treebuilder(None)?;
+    builder.insert(path, blob_id, 0o100_644)?;
+
+    let tree_id = builder.write()?;
+    let tree = repo.find_tree(tree_id)?;
+
+    Ok(tree)
 }
 
 /// Configure a repository's radicle remote.

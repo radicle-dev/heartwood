@@ -179,7 +179,8 @@ impl Arbitrary for MockStorage {
 impl Arbitrary for Project {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let doc = Doc::<Verified>::arbitrary(g);
-        let (id, _) = doc.encode().unwrap();
+        let (oid, _) = doc.encode().unwrap();
+        let id = Id::from(oid);
         let remotes = storage::Remotes::arbitrary(g);
         let path = PathBuf::arbitrary(g);
 
@@ -230,7 +231,6 @@ impl Arbitrary for Doc<Verified> {
         let default_branch = iter::repeat_with(|| rng.alphanumeric())
             .take(rng.usize(1..16))
             .collect();
-        let parent = None;
         let delegates: NonEmpty<_> = iter::repeat_with(|| Delegate {
             name: iter::repeat_with(|| rng.alphanumeric())
                 .take(rng.usize(1..16))
@@ -242,14 +242,8 @@ impl Arbitrary for Doc<Verified> {
         .try_into()
         .unwrap();
         let threshold = delegates.len() / 2 + 1;
-        let doc: Doc<Unverified> = Doc::new(
-            name,
-            description,
-            default_branch,
-            parent,
-            delegates,
-            threshold,
-        );
+        let doc: Doc<Unverified> =
+            Doc::new(name, description, default_branch, delegates, threshold);
 
         doc.verified().unwrap()
     }

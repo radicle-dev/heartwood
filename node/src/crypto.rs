@@ -48,13 +48,19 @@ where
 }
 
 /// Cryptographic signature.
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub struct Signature(pub ed25519::Signature);
 
 impl fmt::Display for Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let base = multibase::Base::Base58Btc;
         write!(f, "{}", multibase::encode(base, &self.to_bytes()))
+    }
+}
+
+impl fmt::Debug for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Signature({})", self)
     }
 }
 
@@ -106,7 +112,7 @@ impl TryFrom<&[u8]> for Signature {
 }
 
 /// The public/verification key.
-#[derive(Serialize, Deserialize, Eq, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Eq, Copy, Clone)]
 #[serde(into = "String", try_from = "String")]
 pub struct PublicKey(pub ed25519::VerificationKey);
 
@@ -138,6 +144,12 @@ impl fmt::Display for PublicKey {
 impl From<PublicKey> for String {
     fn from(other: PublicKey) -> Self {
         other.to_human()
+    }
+}
+
+impl fmt::Debug for PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "PublicKey({})", self)
     }
 }
 

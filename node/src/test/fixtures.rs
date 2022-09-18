@@ -66,7 +66,7 @@ pub fn storage<P: AsRef<Path>>(path: P) -> Storage {
 /// Create a new repository at the given path, and initialize it into a project.
 pub fn project<'r, P: AsRef<Path>, S: WriteStorage<'r>, G: Signer>(
     path: P,
-    storage: S,
+    storage: &'r S,
     signer: G,
 ) -> Result<(Id, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
     let (repo, head) = repository(path);

@@ -125,6 +125,10 @@ impl ReadRepository<'_> for MockRepository {
     fn references(&self, _remote: &RemoteId) -> Result<crate::storage::refs::Refs, Error> {
         todo!()
     }
+
+    fn project(&self) -> Result<Project, Error> {
+        todo!()
+    }
 }
 
 impl WriteRepository<'_> for MockRepository {

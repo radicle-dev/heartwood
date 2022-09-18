@@ -7,7 +7,8 @@ use std::{ffi::OsString, fmt, str::FromStr};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::crypto::{self, Verified};
+use crate::crypto;
+use crate::crypto::Verified;
 use crate::git;
 use crate::serde_ext;
 use crate::storage::Remotes;
@@ -114,7 +115,7 @@ pub enum DidError {
     PublicKey(#[from] crypto::PublicKeyError),
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 #[serde(into = "String", try_from = "String")]
 pub struct Did(crypto::PublicKey);
 
@@ -160,6 +161,20 @@ impl fmt::Display for Did {
     }
 }
 
+impl fmt::Debug for Did {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Did({:?})", self.to_string())
+    }
+}
+
+impl Deref for Did {
+    type Target = PublicKey;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// A stored and verified project.
 #[derive(Debug, Clone)]
 pub struct Project {
@@ -171,6 +186,23 @@ pub struct Project {
     pub remotes: Remotes<Verified>,
     /// On-disk file path for this project's repository.
     pub path: PathBuf,
+}
+
+impl Project {
+    pub fn delegate(&mut self, name: String, key: crypto::PublicKey) -> bool {
+        self.doc.delegate(Delegate {
+            name,
+            id: Did::from(key),
+        })
+    }
+}
+
+impl Deref for Project {
+    type Target = Doc<Verified>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.doc
+    }
 }
 
 #[cfg(test)]
