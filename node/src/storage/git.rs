@@ -7,9 +7,9 @@ use once_cell::sync::Lazy;
 
 pub use radicle_git_ext::Oid;
 
-use crate::crypto::{Signer, Verified};
+use crate::crypto::{Signer, Unverified, Verified};
 use crate::git;
-use crate::identity;
+use crate::identity::{self, Doc};
 use crate::identity::{Id, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
@@ -50,7 +50,7 @@ impl ReadStorage for Storage {
         // Perhaps for checking we could have a `contains` method?
         let repo = self.repository(proj)?;
 
-        if let Some(doc) = repo.identity(remote)? {
+        if let Some(doc) = repo.identity_of(remote)? {
             let remotes = repo.remotes()?.collect::<Result<_, _>>()?;
             let path = repo.path().to_path_buf();
 
@@ -252,7 +252,7 @@ impl Repository {
         Ok(())
     }
 
-    pub fn identity(
+    pub fn identity_of(
         &self,
         remote: &RemoteId,
     ) -> Result<Option<identity::Doc<Verified>>, refs::Error> {
@@ -261,6 +261,35 @@ impl Repository {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn identity(&self) -> Result<identity::Doc<Unverified>, refs::Error> {
+        let mut heads = Vec::new();
+        for remote in self.remote_ids()? {
+            let remote = remote?;
+            let oid = Doc::<Unverified>::head(&remote, self)?.unwrap();
+
+            heads.push(*oid);
+        }
+        let oid = self.raw().merge_base_many(&heads)?;
+        let (doc, _) = Doc::load_at(oid.into(), self)?.ok_or(refs::Error::NotFound)?;
+
+        Ok(doc)
+    }
+
+    pub fn remote_ids(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<RemoteId, refs::Error>> + '_, git2::Error> {
+        let iter = self.backend.references_glob(SIGNATURES_GLOB.as_str())?.map(
+            |reference| -> Result<RemoteId, refs::Error> {
+                let r = reference?;
+                let name = r.name().ok_or(refs::Error::InvalidRef)?;
+                let (id, _) = git::parse_ref::<RemoteId>(name)?;
+
+                Ok(id)
+            },
+        );
+        Ok(iter)
     }
 }
 

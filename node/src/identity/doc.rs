@@ -368,8 +368,8 @@ pub enum IdentityError {
     Git(#[from] git::Error),
     #[error("verification: {0}")]
     Verification(#[from] VerificationError),
-    #[error("root hash `{0}` does not match repository")]
-    MismatchedRoot(Id),
+    #[error("root hash `{0}` does not match project")]
+    MismatchedRoot(Oid),
     #[error("commit signature for {0} is invalid: {1}")]
     InvalidSignature(PublicKey, crypto::Error),
     #[error("quorum not reached: {0} signatures for a threshold of {1}")]
@@ -377,13 +377,13 @@ pub enum IdentityError {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Identity<V> {
+pub struct Identity<I> {
     /// The head of the identity branch. This points to a commit that
     /// contains the current document blob.
     pub head: Oid,
     /// The canonical identifier for this identity.
     /// This is the object id of the initial document blob.
-    pub root: Id,
+    pub root: I,
     /// The object id of the current document blob.
     pub current: Oid,
     /// Revision number. The initial document has a revision of `0`.
@@ -392,33 +392,43 @@ pub struct Identity<V> {
     pub doc: Doc<Verified>,
     /// Signatures over this identity.
     pub signatures: HashMap<PublicKey, Signature>,
+}
 
-    verified: PhantomData<V>,
+impl Identity<Oid> {
+    pub fn verified(self, id: Id) -> Result<Identity<Id>, IdentityError> {
+        // The root hash must be equal to the id.
+        if self.root != *id {
+            return Err(IdentityError::MismatchedRoot(self.root));
+        }
+
+        Ok(Identity {
+            root: id,
+            head: self.head,
+            current: self.current,
+            revision: self.revision,
+            doc: self.doc,
+            signatures: self.signatures,
+        })
+    }
 }
 
 impl Identity<Untrusted> {
     pub fn load<'r, R: ReadRepository<'r>>(
-        id: &Id,
         remote: &RemoteId,
         repo: &R,
-    ) -> Result<Option<Identity<Trusted>>, IdentityError> {
+    ) -> Result<Option<Identity<Oid>>, IdentityError> {
         if let Some(head) = Doc::<Untrusted>::head(remote, repo)? {
             let mut history = repo.revwalk(head)?.collect::<Vec<_>>();
 
             // Retrieve root document.
             let root_oid = history.pop().unwrap()?.into();
             let root_blob = Doc::blob_at(root_oid, repo)?.unwrap();
-            let root = Id::from(root_blob.id());
+            let root: git::Oid = root_blob.id().into();
             let trusted = Doc::from_json(root_blob.content()).unwrap();
             let revision = history.len() as u32;
 
-            // The root hash must be equal to the id.
-            if root != *id {
-                return Err(IdentityError::MismatchedRoot(root));
-            }
-
             let mut trusted = trusted.verified()?;
-            let mut current = *root;
+            let mut current = root;
             let mut signatures = Vec::new();
 
             // Traverse the history chronologically.
@@ -458,7 +468,6 @@ impl Identity<Untrusted> {
                 revision,
                 doc: trusted,
                 signatures: signatures.into_iter().collect(),
-                verified: PhantomData,
             }));
         }
         Ok(None)
@@ -558,8 +567,10 @@ mod test {
             })
             .unwrap();
 
-        let identity = Identity::load(&id, alice.public_key(), &repo)
+        let identity: Identity<Id> = Identity::load(alice.public_key(), &repo)
             .unwrap()
+            .unwrap()
+            .verified(id.clone())
             .unwrap();
 
         assert_eq!(identity.signatures.len(), 2);
