@@ -25,6 +25,20 @@ pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
 pub static SIGNATURES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/remotes/*/radicle/signature"));
 
+#[derive(Error, Debug)]
+pub enum IdentityError {
+    #[error("identity branches diverge from each other")]
+    BranchesDiverge,
+    #[error("identity branches are in an invalid state")]
+    InvalidState,
+    #[error("git: {0}")]
+    Git(#[from] git2::Error),
+    #[error("git: {0}")]
+    GitExt(#[from] git::Error),
+    #[error("refs: {0}")]
+    Refs(#[from] refs::Error),
+}
+
 pub struct Storage {
     path: PathBuf,
 }
@@ -263,18 +277,56 @@ impl Repository {
         }
     }
 
-    pub fn identity(&self) -> Result<identity::Doc<Unverified>, refs::Error> {
+    /// Return the canonical identity [`git::Oid`] and document.
+    pub fn identity(&self) -> Result<(git::Oid, identity::Doc<Unverified>), IdentityError> {
         let mut heads = Vec::new();
         for remote in self.remote_ids()? {
             let remote = remote?;
             let oid = Doc::<Unverified>::head(&remote, self)?.unwrap();
 
-            heads.push(*oid);
+            heads.push(oid.into());
         }
-        let oid = self.raw().merge_base_many(&heads)?;
-        let (doc, _) = Doc::load_at(oid.into(), self)?.ok_or(refs::Error::NotFound)?;
+        // Keep track of the longest identity branch.
+        let mut longest = heads.pop().ok_or(IdentityError::InvalidState)?;
 
-        Ok(doc)
+        for head in &heads {
+            let base = self.raw().merge_base(*head, longest)?;
+
+            if base == longest {
+                // `head` is a successor of `longest`. Update `longest`.
+                //
+                //   o head
+                //   |
+                //   o longest (base)
+                //   |
+                //
+                longest = *head;
+            } else if base == *head || *head == longest {
+                // `head` is an ancestor of `longest`, or equal to it. Do nothing.
+                //
+                //   o longest             o longest, head (base)
+                //   |                     |
+                //   o head (base)   OR    o
+                //   |                     |
+                //
+            } else {
+                // The merge base between `head` and `longest` (`base`)
+                // is neither `head` nor `longest`. Therefore, the branches have
+                // diverged.
+                //
+                //    longest   head
+                //           \ /
+                //            o (base)
+                //            |
+                //
+                return Err(IdentityError::BranchesDiverge);
+            }
+        }
+
+        Doc::load_at(longest.into(), self)?
+            .ok_or(refs::Error::NotFound)
+            .map(|(doc, _)| (longest.into(), doc))
+            .map_err(IdentityError::from)
     }
 
     pub fn remote_ids(
