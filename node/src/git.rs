@@ -2,6 +2,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use git_ref_format as format;
+use once_cell::sync::Lazy;
 
 use crate::collections::HashMap;
 use crate::crypto::PublicKey;
@@ -33,6 +34,44 @@ pub enum ListRefsError {
     Git(#[from] git2::Error),
     #[error("invalid ref: {0}")]
     InvalidRef(#[from] RefError),
+}
+
+pub mod refs {
+    use super::*;
+
+    /// Where project information is kept.
+    pub static IDENTITY_BRANCH: Lazy<RefString> = Lazy::new(|| refname!("radicle/id"));
+
+    pub mod storage {
+        use super::*;
+
+        pub fn branch(remote: &RemoteId, branch: &str) -> String {
+            format!("refs/remotes/{remote}/heads/{branch}")
+        }
+
+        /// Get the branch used to track project information.
+        pub fn id(remote: &RemoteId) -> String {
+            branch(remote, &IDENTITY_BRANCH)
+        }
+    }
+
+    pub mod workdir {
+        pub fn branch(branch: &str) -> String {
+            format!("refs/heads/{branch}")
+        }
+
+        pub fn note(name: &str) -> String {
+            format!("refs/notes/{name}")
+        }
+
+        pub fn remote_branch(remote: &str, branch: &str) -> String {
+            format!("refs/remotes/{remote}/{branch}")
+        }
+
+        pub fn tag(name: &str) -> String {
+            format!("refs/tags/{name}")
+        }
+    }
 }
 
 /// List remote refs of a project, given the remote URL.

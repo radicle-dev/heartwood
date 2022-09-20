@@ -27,7 +27,6 @@ pub struct Untrusted;
 #[derive(Clone, Copy, Debug)]
 pub struct Trusted;
 
-pub static REFERENCE_NAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("heads/radicle/id"));
 pub static PATH: Lazy<&Path> = Lazy::new(|| Path::new("radicle.json"));
 
 pub const MAX_STRING_LENGTH: usize = 255;
@@ -155,7 +154,7 @@ impl Doc<Verified> {
 
         let (_, doc) = self.encode()?;
         let tree = git::write_tree(*PATH, doc.as_slice(), repo.raw())?;
-        let id_ref = format!("refs/remotes/{remote}/{}", &*REFERENCE_NAME);
+        let id_ref = git::refs::storage::id(remote);
         let head = repo.raw().find_reference(&id_ref)?.peel_to_commit()?;
         let oid = Doc::commit(remote, &tree, &msg, &[&head], repo.raw())?;
 
@@ -173,7 +172,7 @@ impl Doc<Verified> {
             .signature()
             .or_else(|_| git2::Signature::now("radicle", remote.to_string().as_str()))?;
 
-        let id_ref = format!("refs/remotes/{remote}/{}", &*REFERENCE_NAME);
+        let id_ref = git::refs::storage::id(remote);
         let oid = repo.commit(Some(&id_ref), &sig, &sig, msg, tree, parents)?;
 
         Ok(oid.into())
@@ -352,7 +351,8 @@ impl<V> Doc<V> {
         remote: &RemoteId,
         repo: &R,
     ) -> Result<Option<Oid>, git::Error> {
-        if let Some(oid) = repo.reference_oid(remote, &REFERENCE_NAME)? {
+        let head = &git::refname!("heads").join(&*git::refs::IDENTITY_BRANCH);
+        if let Some(oid) = repo.reference_oid(remote, head)? {
             Ok(Some(oid))
         } else {
             Ok(None)

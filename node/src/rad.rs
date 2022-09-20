@@ -61,7 +61,7 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
         repo,
         REMOTE_NAME,
         &default_branch,
-        &format!("refs/remotes/{pk}/heads/{default_branch}"),
+        &git::refs::storage::branch(pk, &default_branch),
     )?;
 
     // TODO: Note that you'll likely want to use `RemoteCallbacks` and set
@@ -69,7 +69,9 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
     // successfully.
     git::configure_remote(repo, REMOTE_NAME, pk, project.path())?.push::<&str>(
         &[&format!(
-            "refs/heads/{default_branch}:refs/remotes/{pk}/heads/{default_branch}"
+            "{}:{}",
+            &git::refs::workdir::branch(&default_branch),
+            &git::refs::storage::branch(pk, &default_branch),
         )],
         None,
     )?;
@@ -114,25 +116,25 @@ pub fn fork<'r, G: Signer, S: storage::WriteStorage<'r>>(
 
     let raw = repository.raw();
     let remote_head = raw
-        .find_reference(&format!(
-            "refs/remotes/{remote}/heads/{}",
-            &project.doc.default_branch
+        .find_reference(&git::refs::storage::branch(
+            remote,
+            &project.doc.default_branch,
         ))?
         .target()
         .ok_or(ForkError::InvalidReference)?;
     raw.reference(
-        &format!("refs/remotes/{me}/heads/{}", &project.doc.default_branch),
+        &git::refs::storage::branch(me, &project.doc.default_branch),
         remote_head,
         false,
         &format!("creating default branch for {me}"),
     )?;
 
     let remote_id = raw
-        .find_reference(&format!("refs/remotes/{remote}/heads/radicle/id"))?
+        .find_reference(&git::refs::storage::id(remote))?
         .target()
         .ok_or(ForkError::InvalidReference)?;
     raw.reference(
-        &format!("refs/remotes/{me}/heads/radicle/id"),
+        &git::refs::storage::id(me),
         remote_id,
         false,
         &format!("creating identity branch for {me}"),
@@ -182,7 +184,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
 
     {
         // Setup default branch.
-        let remote_head_ref = format!("refs/remotes/{REMOTE_NAME}/{default_branch}");
+        let remote_head_ref = git::refs::workdir::remote_branch(REMOTE_NAME, default_branch);
         let remote_head_commit = repo.find_reference(&remote_head_ref)?.peel_to_commit()?;
         let _ = repo.branch(default_branch, &remote_head_commit, true)?;
 
@@ -191,7 +193,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
             &repo,
             REMOTE_NAME,
             default_branch,
-            &format!("refs/remotes/{remote}/heads/{default_branch}"),
+            &git::refs::storage::branch(remote, default_branch),
         )?;
     }
 
