@@ -1,13 +1,9 @@
 use git_url::Url;
 
 use crate::crypto::{Signer, Verified};
-use crate::git;
 use crate::identity::{Id, Project};
-use crate::storage::{refs, RefUpdate};
-use crate::storage::{
-    Error, FetchError, Inventory, ReadRepository, ReadStorage, Remote, RemoteId, WriteRepository,
-    WriteStorage,
-};
+
+pub use crate::storage::*;
 
 #[derive(Clone, Debug)]
 pub struct MockStorage {
@@ -90,11 +86,11 @@ impl ReadRepository<'_> for MockRepository {
         todo!()
     }
 
-    fn commit(&self, _oid: git::Oid) -> Result<Option<git2::Commit>, git2::Error> {
+    fn commit(&self, _oid: Oid) -> Result<Option<git2::Commit>, git2::Error> {
         todo!()
     }
 
-    fn revwalk(&self, _head: git::Oid) -> Result<git2::Revwalk, git2::Error> {
+    fn revwalk(&self, _head: Oid) -> Result<git2::Revwalk, git2::Error> {
         todo!()
     }
 

@@ -9,7 +9,6 @@ use std::{collections::VecDeque, fmt, net, net::IpAddr};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
-use git_url::Url;
 use log::*;
 use nakamoto::{LocalDuration, LocalTime};
 use nakamoto_net as nakamoto;
@@ -22,6 +21,8 @@ use crate::address_manager::AddressManager;
 use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto;
+use crate::git;
+use crate::git::Url;
 use crate::identity::{Id, Project};
 use crate::service::config::ProjectTracking;
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
@@ -81,7 +82,7 @@ pub enum Event {
 #[derive(thiserror::Error, Debug)]
 pub enum FetchError {
     #[error(transparent)]
-    Git(#[from] git2::Error),
+    Git(#[from] git::raw::Error),
     #[error(transparent)]
     Storage(#[from] storage::Error),
     #[error(transparent)]
@@ -389,7 +390,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
                 // TODO: Limit the number of seeds we fetch from? Randomize?
                 for (_, peer) in seeds {
                     match repo.fetch(&Url {
-                        scheme: git_url::Scheme::Git,
+                        scheme: git::url::Scheme::Git,
                         host: Some(peer.addr.ip().to_string()),
                         port: Some(peer.addr.port()),
                         // TODO: Fix upstream crate so that it adds a `/` when needed.

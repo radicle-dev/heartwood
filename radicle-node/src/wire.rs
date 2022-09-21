@@ -12,7 +12,7 @@ use nakamoto_net as nakamoto;
 use nakamoto_net::Link;
 
 use crate::address_book;
-use crate::crypto::{PublicKey, Signature, Signer};
+use crate::crypto::{PublicKey, Signature, Signer, Unverified};
 use crate::decoder::Decoder;
 use crate::git;
 use crate::git::fmt;
@@ -21,6 +21,7 @@ use crate::identity::Id;
 use crate::service;
 use crate::service::filter;
 use crate::storage::refs::Refs;
+use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
 
 /// The default type we use to represent sizes.
@@ -266,7 +267,7 @@ impl Decode for git::Oid {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
         let len = usize::decode(reader)?;
         #[allow(non_upper_case_globals)]
-        const expected: usize = mem::size_of::<git2::Oid>();
+        const expected: usize = mem::size_of::<git::raw::Oid>();
 
         if len != expected {
             return Err(Error::InvalidSize {
@@ -276,7 +277,7 @@ impl Decode for git::Oid {
         }
 
         let buf: [u8; expected] = Decode::decode(reader)?;
-        let oid = git2::Oid::from_bytes(&buf).expect("the buffer is exactly the right size");
+        let oid = git::raw::Oid::from_bytes(&buf).expect("the buffer is exactly the right size");
         let oid = git::Oid::from(oid);
 
         Ok(oid)
@@ -411,6 +412,26 @@ impl Decode for filter::Filter {
         debug_assert_eq!(bf.hashes(), filter::FILTER_HASHES);
 
         Ok(Self::from(bf))
+    }
+}
+
+impl<V> Encode for SignedRefs<V> {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        let mut n = 0;
+
+        n += self.refs.encode(writer)?;
+        n += self.signature.encode(writer)?;
+
+        Ok(n)
+    }
+}
+
+impl Decode for SignedRefs<Unverified> {
+    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        let refs = Refs::decode(reader)?;
+        let signature = Signature::decode(reader)?;
+
+        Ok(Self::new(refs, signature))
     }
 }
 

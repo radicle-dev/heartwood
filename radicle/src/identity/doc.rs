@@ -476,11 +476,12 @@ impl Identity<Untrusted> {
 
 #[cfg(test)]
 mod test {
-    use crate::prelude::Signer;
+    use crate::crypto::Signer;
     use crate::rad;
     use crate::storage::git::Storage;
     use crate::storage::{ReadStorage, WriteStorage};
-    use crate::test::{crypto, fixtures};
+    use crate::test::fixtures;
+    use crate::test::signer::MockSigner;
 
     use super::*;
     use quickcheck_macros::quickcheck;
@@ -490,9 +491,9 @@ mod test {
         let tempdir = tempfile::tempdir().unwrap();
         let mut rng = fastrand::Rng::new();
 
-        let alice = crypto::MockSigner::new(&mut rng);
-        let bob = crypto::MockSigner::new(&mut rng);
-        let eve = crypto::MockSigner::new(&mut rng);
+        let alice = MockSigner::new(&mut rng);
+        let bob = MockSigner::new(&mut rng);
+        let eve = MockSigner::new(&mut rng);
 
         let storage = Storage::open(tempdir.path().join("storage")).unwrap();
         let (id, _, _, _) =

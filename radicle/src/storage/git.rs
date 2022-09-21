@@ -5,18 +5,18 @@ use std::{fmt, fs, io};
 use git_ref_format::refspec;
 use once_cell::sync::Lazy;
 
-pub use radicle_git_ext::Oid;
-
 use crate::crypto::{Signer, Unverified, Verified};
 use crate::git;
-use crate::identity::{self, Doc};
-use crate::identity::{Id, Project};
+use crate::identity;
+use crate::identity::{Doc, Id, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
     Error, FetchError, Inventory, ReadRepository, ReadStorage, Remote, WriteRepository,
     WriteStorage,
 };
+
+pub use crate::git::*;
 
 use super::{RefUpdate, RemoteId};
 
@@ -50,12 +50,12 @@ impl fmt::Debug for Storage {
 }
 
 impl ReadStorage for Storage {
-    fn url(&self) -> git::Url {
-        git::Url {
+    fn url(&self) -> Url {
+        Url {
             scheme: git_url::Scheme::File,
             host: None,
             path: self.path.to_string_lossy().to_string().into(),
-            ..git::Url::default()
+            ..Url::default()
         }
     }
 
@@ -167,7 +167,7 @@ pub enum VerifyError {
     #[error("invalid remote `{0}`")]
     InvalidRemote(RemoteId),
     #[error("invalid target `{2}` for reference `{1}` of remote `{0}`")]
-    InvalidRefTarget(RemoteId, git::RefString, git2::Oid),
+    InvalidRefTarget(RemoteId, RefString, git2::Oid),
     #[error("invalid reference")]
     InvalidRef,
     #[error("ref error: {0}")]
@@ -185,7 +185,7 @@ pub enum VerifyError {
 impl Repository {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let backend = match git2::Repository::open_bare(path.as_ref()) {
-            Err(e) if git::ext::is_not_found_err(&e) => {
+            Err(e) if ext::is_not_found_err(&e) => {
                 let backend = git2::Repository::init_opts(
                     path,
                     git2::RepositoryInitOptions::new()
@@ -239,7 +239,7 @@ impl Repository {
                 .remove(&refname)
                 .ok_or_else(|| VerifyError::UnknownRef(remote_id, refname.clone()))?;
 
-            if git::Oid::from(oid) != signed_oid {
+            if Oid::from(oid) != signed_oid {
                 return Err(VerifyError::InvalidRefTarget(remote_id, refname, oid));
             }
         }
@@ -278,7 +278,7 @@ impl Repository {
     }
 
     /// Return the canonical identity [`git::Oid`] and document.
-    pub fn identity(&self) -> Result<(git::Oid, identity::Doc<Unverified>), IdentityError> {
+    pub fn identity(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
         let mut heads = Vec::new();
         for remote in self.remote_ids()? {
             let remote = remote?;
@@ -589,19 +589,20 @@ mod tests {
     use crate::assert_matches;
     use crate::git;
     use crate::storage::refs::SIGNATURE_REF;
-    use crate::storage::{ReadStorage, RefUpdate, WriteRepository};
+    use crate::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
     use crate::test::arbitrary;
-    use crate::test::crypto::MockSigner;
     use crate::test::fixtures;
+    use crate::test::signer::MockSigner;
 
     #[test]
     fn test_remote_refs() {
         let dir = tempfile::tempdir().unwrap();
-        let storage = fixtures::storage(dir.path());
+        let signer = MockSigner::default();
+        let storage = fixtures::storage(dir.path(), &signer).unwrap();
         let inv = storage.inventory().unwrap();
         let proj = inv.first().unwrap();
         let mut refs = git::remote_refs(&git::Url {
-            host: Some(dir.path().to_string_lossy().to_string()),
+            host: Some(storage.path().to_string_lossy().to_string()),
             scheme: git_url::Scheme::File,
             path: format!("/{}", proj).into(),
             ..git::Url::default()
@@ -627,7 +628,8 @@ mod tests {
     #[test]
     fn test_fetch() {
         let tmp = tempfile::tempdir().unwrap();
-        let alice = fixtures::storage(tmp.path().join("alice"));
+        let alice_signer = MockSigner::default();
+        let alice = fixtures::storage(tmp.path().join("alice"), alice_signer).unwrap();
         let bob = Storage::open(tmp.path().join("bob")).unwrap();
         let inventory = alice.inventory().unwrap();
         let proj = inventory.first().unwrap();
@@ -652,7 +654,7 @@ mod tests {
             .unwrap();
 
         // Four refs are created for each remote.
-        assert_eq!(updates.len(), remotes.len() * 4);
+        assert_eq!(updates.len(), remotes.len() * 3);
 
         for update in updates {
             assert_matches!(

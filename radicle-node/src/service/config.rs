@@ -1,9 +1,8 @@
 use std::net;
 
-use git_url::Url;
-
 use crate::collections::HashSet;
 use crate::git;
+use crate::git::Url;
 use crate::identity::{Id, PublicKey};
 use crate::service::message::{Address, Envelope, Message};
 

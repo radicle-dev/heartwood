@@ -11,15 +11,17 @@ use crate::service::peer::*;
 use crate::service::*;
 use crate::storage::git::Storage;
 use crate::storage::ReadStorage;
+use crate::test::assert_matches;
 use crate::test::fixtures;
 #[allow(unused)]
 use crate::test::logger;
 use crate::test::peer::Peer;
+use crate::test::signer::MockSigner;
 use crate::test::simulator;
 use crate::test::simulator::{Peer as _, Simulation};
 use crate::test::storage::MockStorage;
-use crate::{assert_matches, Link, LocalTime};
 use crate::{client, identity, rad, service, storage, test};
+use crate::{Link, LocalTime};
 
 // NOTE
 //
@@ -136,7 +138,8 @@ fn test_inventory_sync() {
         [7, 7, 7, 7],
         Storage::open(tmp.path().join("alice")).unwrap(),
     );
-    let bob_storage = fixtures::storage(tmp.path().join("bob"));
+    let bob_signer = MockSigner::default();
+    let bob_storage = fixtures::storage(tmp.path().join("bob"), bob_signer).unwrap();
     let bob = Peer::new("bob", [8, 8, 8, 8], bob_storage);
     let now = LocalTime::now().as_secs();
     let projs = bob.storage().inventory().unwrap();

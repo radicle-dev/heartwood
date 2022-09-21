@@ -1,18 +1,18 @@
 use std::net;
 use std::ops::{Deref, DerefMut};
 
-use git_url::Url;
 use log::*;
 
 use crate::address_book::{KnownAddress, Source};
 use crate::clock::RefClock;
 use crate::collections::HashMap;
+use crate::git::Url;
 use crate::service;
 use crate::service::config::*;
 use crate::service::message::*;
 use crate::service::*;
 use crate::storage::WriteStorage;
-use crate::test::crypto::MockSigner;
+use crate::test::signer::MockSigner;
 use crate::test::simulator;
 use crate::{Link, LocalTime};
 

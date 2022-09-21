@@ -207,12 +207,12 @@ mod tests {
     use crate::identity::{Delegate, Did};
     use crate::storage::git::Storage;
     use crate::storage::{ReadStorage, WriteStorage};
-    use crate::test::{crypto, fixtures};
+    use crate::test::{fixtures, signer::MockSigner};
 
     #[test]
     fn test_init() {
         let tempdir = tempfile::tempdir().unwrap();
-        let signer = crypto::MockSigner::default();
+        let signer = MockSigner::default();
         let public_key = *signer.public_key();
         let storage = Storage::open(tempdir.path().join("storage")).unwrap();
         let (repo, _) = fixtures::repository(tempdir.path().join("working"));
@@ -247,9 +247,9 @@ mod tests {
     fn test_fork() {
         let mut rng = fastrand::Rng::new();
         let tempdir = tempfile::tempdir().unwrap();
-        let alice = crypto::MockSigner::new(&mut rng);
+        let alice = MockSigner::new(&mut rng);
         let alice_id = alice.public_key();
-        let bob = crypto::MockSigner::new(&mut rng);
+        let bob = MockSigner::new(&mut rng);
         let bob_id = bob.public_key();
         let storage = Storage::open(tempdir.path().join("storage")).unwrap();
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
@@ -280,7 +280,7 @@ mod tests {
     #[test]
     fn test_checkout() {
         let tempdir = tempfile::tempdir().unwrap();
-        let signer = crypto::MockSigner::default();
+        let signer = MockSigner::default();
         let remote_id = signer.public_key();
         let storage = Storage::open(tempdir.path().join("storage")).unwrap();
         let (original, _) = fixtures::repository(tempdir.path().join("original"));

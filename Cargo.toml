@@ -1,5 +1,5 @@
 [workspace]
-members = ["radicle-node"]
+members = ["radicle", "radicle-node"]
 
 [patch.crates-io.radicle-git-ext]
 git = "https://github.com/radicle-dev/radicle-link"

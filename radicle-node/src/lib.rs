@@ -5,22 +5,16 @@ pub mod address_book;
 pub mod address_manager;
 pub mod client;
 pub mod clock;
-pub mod collections;
 pub mod control;
-pub mod crypto;
 pub mod decoder;
-pub mod git;
-pub mod hash;
-pub mod identity;
 pub mod logger;
-pub mod rad;
-pub mod serde_ext;
 pub mod service;
-pub mod storage;
 #[cfg(test)]
 pub mod test;
 pub mod transport;
 pub mod wire;
+
+pub use radicle::{collections, crypto, git, hash, identity, rad, storage};
 
 pub mod prelude {
     pub use crate::crypto::{PublicKey, Signature, Signer};

@@ -11,6 +11,7 @@ use crate::storage::RemoteId;
 
 pub use ext::Error;
 pub use ext::Oid;
+pub use git2 as raw;
 pub use git_ref_format as fmt;
 pub use git_ref_format::{refname, RefStr, RefString};
 pub use git_url as url;

@@ -17,7 +17,6 @@ use crate::git;
 use crate::git::Oid;
 use crate::storage;
 use crate::storage::{ReadRepository, RemoteId, WriteRepository};
-use crate::wire;
 
 pub static SIGNATURE_REF: Lazy<git::RefString> = Lazy::new(|| git::refname!("radicle/signature"));
 pub const REFS_BLOB_PATH: &str = "refs";
@@ -177,8 +176,9 @@ impl DerefMut for Refs {
 /// [`Unverified`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignedRefs<V> {
-    refs: Refs,
-    signature: Signature,
+    pub refs: Refs,
+    pub signature: Signature,
+
     _verified: PhantomData<V>,
 }
 
@@ -312,30 +312,6 @@ impl SignedRefs<Verified> {
             signature: self.signature,
             _verified: PhantomData,
         }
-    }
-}
-
-impl<V> wire::Encode for SignedRefs<V> {
-    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        let mut n = 0;
-
-        n += self.refs.encode(writer)?;
-        n += self.signature.encode(writer)?;
-
-        Ok(n)
-    }
-}
-
-impl wire::Decode for SignedRefs<Unverified> {
-    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
-        let refs = Refs::decode(reader)?;
-        let signature = Signature::decode(reader)?;
-
-        Ok(Self {
-            refs,
-            signature,
-            _verified: PhantomData,
-        })
     }
 }
 
