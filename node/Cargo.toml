@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1" }
 bs58 = { version = "0.4.0" }
-ed25519-consensus = { version = "2.0.1" }
+ed25519-compact = { version = "1.0.12", features = ["pem"] }
 byteorder = { version = "1" }
 bloomy = { version = "1.2" }
 chrono = { version = "0.4.0" }

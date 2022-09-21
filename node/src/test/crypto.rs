@@ -1,4 +1,4 @@
-use crate::crypto::{PublicKey, SecretKey, Signature, Signer};
+use crate::crypto::{KeyPair, PublicKey, SecretKey, Seed, Signature, Signer};
 
 #[derive(Debug, Clone)]
 pub struct MockSigner {
@@ -13,24 +13,28 @@ impl MockSigner {
         for byte in &mut bytes {
             *byte = rng.u8(..);
         }
-        Self::from(SecretKey::from(bytes))
+        let seed = Seed::new(bytes);
+        let keypair = KeyPair::from_seed(seed);
+
+        Self::from(keypair.sk)
     }
 }
 
 impl From<SecretKey> for MockSigner {
     fn from(sk: SecretKey) -> Self {
-        let pk = sk.verification_key().into();
+        let pk = sk.public_key().into();
         Self { sk, pk }
     }
 }
 
 impl Default for MockSigner {
     fn default() -> Self {
-        let bytes: [u8; 32] = [0; 32];
-        let sk = SecretKey::from(bytes);
+        let seed = Seed::generate();
+        let keypair = KeyPair::from_seed(seed);
+        let sk = keypair.sk;
 
         Self {
-            pk: sk.verification_key().into(),
+            pk: sk.public_key().into(),
             sk,
         }
     }
@@ -56,6 +60,6 @@ impl Signer for MockSigner {
     }
 
     fn sign(&self, msg: &[u8]) -> Signature {
-        self.sk.sign(msg).into()
+        self.sk.sign(msg, None).into()
     }
 }

@@ -1,11 +1,11 @@
 use std::sync::Arc;
 use std::{fmt, ops::Deref, str::FromStr};
 
-use ed25519_consensus as ed25519;
+use ed25519_compact as ed25519;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub use ed25519::Error;
+pub use ed25519::{Error, KeyPair, Seed};
 
 /// Verified (used as type witness).
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -54,7 +54,7 @@ pub struct Signature(pub ed25519::Signature);
 impl fmt::Display for Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let base = multibase::Base::Base58Btc;
-        write!(f, "{}", multibase::encode(base, &self.to_bytes()))
+        write!(f, "{}", multibase::encode(base, self.deref()))
     }
 }
 
@@ -83,7 +83,7 @@ impl FromStr for Signature {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (_, bytes) = multibase::decode(s)?;
-        let sig = ed25519::Signature::try_from(bytes.as_slice())?;
+        let sig = ed25519::Signature::from_slice(bytes.as_slice())?;
 
         Ok(Self(sig))
     }
@@ -99,7 +99,7 @@ impl Deref for Signature {
 
 impl From<[u8; 64]> for Signature {
     fn from(bytes: [u8; 64]) -> Self {
-        Self(ed25519::Signature::from(bytes))
+        Self(ed25519::Signature::new(bytes))
     }
 }
 
@@ -107,17 +107,17 @@ impl TryFrom<&[u8]> for Signature {
     type Error = ed25519::Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        ed25519::Signature::try_from(bytes).map(Self)
+        ed25519::Signature::from_slice(bytes).map(Self)
     }
 }
 
 /// The public/verification key.
 #[derive(Serialize, Deserialize, Eq, Copy, Clone)]
 #[serde(into = "String", try_from = "String")]
-pub struct PublicKey(pub ed25519::VerificationKey);
+pub struct PublicKey(pub ed25519::PublicKey);
 
 /// The private/signing key.
-pub type SecretKey = ed25519::SigningKey;
+pub type SecretKey = ed25519::SecretKey;
 
 #[derive(Error, Debug)]
 pub enum PublicKeyError {
@@ -126,12 +126,12 @@ pub enum PublicKeyError {
     #[error("invalid multibase string: {0}")]
     Multibase(#[from] multibase::Error),
     #[error("invalid key: {0}")]
-    InvalidKey(#[from] ed25519_consensus::Error),
+    InvalidKey(#[from] ed25519::Error),
 }
 
 impl std::hash::Hash for PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.as_bytes().hash(state)
+        self.0.deref().hash(state)
     }
 }
 
@@ -159,8 +159,8 @@ impl PartialEq for PublicKey {
     }
 }
 
-impl From<ed25519::VerificationKey> for PublicKey {
-    fn from(other: ed25519::VerificationKey) -> Self {
+impl From<ed25519::PublicKey> for PublicKey {
+    fn from(other: ed25519::PublicKey) -> Self {
         Self(other)
     }
 }
@@ -169,13 +169,13 @@ impl TryFrom<[u8; 32]> for PublicKey {
     type Error = ed25519::Error;
 
     fn try_from(other: [u8; 32]) -> Result<Self, Self::Error> {
-        Ok(Self(ed25519::VerificationKey::try_from(other)?))
+        Ok(Self(ed25519::PublicKey::new(other)))
     }
 }
 
 impl PublicKey {
     pub fn to_human(&self) -> String {
-        multibase::encode(multibase::Base::Base58Btc, &self.0)
+        multibase::encode(multibase::Base::Base58Btc, self.0.deref())
     }
 }
 
@@ -187,7 +187,7 @@ impl FromStr for PublicKey {
         let array: [u8; 32] = bytes
             .try_into()
             .map_err(|v: Vec<u8>| PublicKeyError::InvalidLength(v.len()))?;
-        let key = ed25519::VerificationKey::try_from(ed25519::VerificationKeyBytes::from(array))?;
+        let key = ed25519::PublicKey::new(array);
 
         Ok(Self(key))
     }
@@ -202,7 +202,7 @@ impl TryFrom<String> for PublicKey {
 }
 
 impl Deref for PublicKey {
-    type Target = ed25519::VerificationKey;
+    type Target = ed25519::PublicKey;
 
     fn deref(&self) -> &Self::Target {
         &self.0

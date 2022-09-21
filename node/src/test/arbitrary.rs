@@ -11,7 +11,7 @@ use quickcheck::Arbitrary;
 
 use crate::collections::HashMap;
 use crate::crypto;
-use crate::crypto::{PublicKey, SecretKey, Signer, Unverified, Verified};
+use crate::crypto::{KeyPair, PublicKey, Seed, Signer, Unverified, Verified};
 use crate::git;
 use crate::hash;
 use crate::identity::{doc::Delegate, doc::Doc, Did, Id, Project};
@@ -302,7 +302,10 @@ impl Arbitrary for storage::Remote<crypto::Verified> {
 impl Arbitrary for MockSigner {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let bytes: ByteArray<32> = Arbitrary::arbitrary(g);
-        MockSigner::from(SecretKey::from(bytes.into_inner()))
+        let seed = Seed::new(bytes.into_inner());
+        let sk = KeyPair::from_seed(seed).sk;
+
+        MockSigner::from(sk)
     }
 }
 
@@ -324,12 +327,10 @@ impl Arbitrary for hash::Digest {
 
 impl Arbitrary for PublicKey {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        use ed25519_consensus::SigningKey;
-
         let bytes: ByteArray<32> = Arbitrary::arbitrary(g);
-        let sk = SigningKey::from(bytes.into_inner());
-        let vk = sk.verification_key();
+        let seed = Seed::new(bytes.into_inner());
+        let keypair = KeyPair::from_seed(seed);
 
-        PublicKey(vk)
+        PublicKey(keypair.pk)
     }
 }

@@ -64,7 +64,7 @@ impl Refs {
         let refs = self;
         let msg = refs.canonical();
 
-        match signer.verify(&signature, &msg) {
+        match signer.verify(&msg, &signature) {
             Ok(()) => Ok(SignedRefs {
                 refs,
                 signature,
@@ -205,7 +205,7 @@ impl SignedRefs<Unverified> {
     pub fn verify(&self, signer: &PublicKey) -> Result<(), crypto::Error> {
         let canonical = self.refs.canonical();
 
-        match signer.verify(&self.signature, &canonical) {
+        match signer.verify(&canonical, &self.signature) {
             Ok(()) => Ok(()),
             Err(e) => Err(e),
         }
@@ -232,7 +232,7 @@ impl SignedRefs<Verified> {
         let signature = repo.blob_at(oid, Path::new(SIGNATURE_BLOB_PATH))?;
         let signature: crypto::Signature = signature.content().try_into()?;
 
-        match remote.verify(&signature, refs.content()) {
+        match remote.verify(refs.content(), &signature) {
             Ok(()) => {
                 let refs = Refs::from_canonical(refs.content())?;
 
@@ -263,7 +263,7 @@ impl SignedRefs<Verified> {
         let tree = {
             let raw = repo.raw();
             let refs_blob_oid = raw.blob(&self.canonical())?;
-            let sig_blob_oid = raw.blob(&self.signature.to_bytes())?;
+            let sig_blob_oid = raw.blob(self.signature.as_ref())?;
 
             let mut builder = raw.treebuilder(None)?;
             builder.insert(REFS_BLOB_PATH, refs_blob_oid, 0o100_644)?;

@@ -137,7 +137,7 @@ impl Encode for usize {
 
 impl Encode for PublicKey {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        self.as_bytes().encode(writer)
+        self.deref().encode(writer)
     }
 }
 
@@ -224,7 +224,7 @@ impl Encode for Refs {
 
 impl Encode for Signature {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        self.to_bytes().encode(writer)
+        self.deref().encode(writer)
     }
 }
 

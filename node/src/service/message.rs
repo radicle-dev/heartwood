@@ -85,7 +85,7 @@ impl NodeAnnouncement {
     /// Verify a signature on this message.
     pub fn verify(&self, signer: &NodeId, signature: &crypto::Signature) -> bool {
         let msg = wire::serialize(self);
-        signer.verify(signature, &msg).is_ok()
+        signer.verify(&msg, signature).is_ok()
     }
 }
 
@@ -130,7 +130,7 @@ impl RefsAnnouncement {
     /// Verify a signature on this message.
     pub fn verify(&self, signer: &NodeId, signature: &crypto::Signature) -> bool {
         let msg = wire::serialize(self);
-        signer.verify(signature, &msg).is_ok()
+        signer.verify(&msg, signature).is_ok()
     }
 
     /// Sign this announcement.
@@ -150,7 +150,7 @@ impl InventoryAnnouncement {
     /// Verify a signature on this message.
     pub fn verify(&self, signer: NodeId, signature: &crypto::Signature) -> bool {
         let msg = wire::serialize(self);
-        signer.verify(signature, &msg).is_ok()
+        signer.verify(&msg, signature).is_ok()
     }
 }
 

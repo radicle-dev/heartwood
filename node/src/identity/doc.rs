@@ -443,7 +443,7 @@ impl Identity<Untrusted> {
                 // Keys that signed the *current* document version.
                 signatures = trailers::parse_signatures(msg).unwrap();
                 for (pk, sig) in &signatures {
-                    if let Err(err) = pk.verify(sig, blob.content()) {
+                    if let Err(err) = pk.verify(blob.content(), sig) {
                         return Err(IdentityError::InvalidSignature(*pk, err));
                     }
                 }
