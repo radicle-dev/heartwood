@@ -88,12 +88,14 @@ pub enum ForkError {
     Storage(#[from] storage::Error),
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
+    #[error("project identity error: {0}")]
+    InvalidIdentity(#[from] storage::git::IdentityError),
     #[error("git: invalid reference")]
     InvalidReference,
 }
 
 /// Create a local tree for an existing project, from an existing remote.
-pub fn fork<'r, G: Signer, S: storage::WriteStorage<'r>>(
+pub fn fork_remote<'r, G: Signer, S: storage::WriteStorage<'r>>(
     proj: &Id,
     remote: &RemoteId,
     signer: G,
@@ -140,6 +142,55 @@ pub fn fork<'r, G: Signer, S: storage::WriteStorage<'r>>(
         &format!("creating identity branch for {me}"),
     )?;
 
+    storage.sign_refs(&repository, &signer)?;
+
+    Ok(())
+}
+
+pub fn fork<'r, G: Signer, S: storage::WriteStorage<'r>>(
+    proj: &Id,
+    signer: G,
+    storage: S,
+) -> Result<(), ForkError> {
+    let me = signer.public_key();
+    let repository = storage.repository(proj)?;
+    let (canonical_id, project) = repository.project_identity()?;
+    let raw = repository.raw();
+    // TODO: Test the fork functions in isolation.
+    // TODO: Move to function on `Repository`.
+    let canonical_head = {
+        let mut heads = Vec::new();
+        for delegate in project.delegates.iter() {
+            let name = format!("heads/{}", &project.default_branch);
+            let refname = git::RefString::try_from(name.as_str()).unwrap();
+            let r = repository
+                .reference(&delegate.id, &refname)?
+                .unwrap()
+                .target()
+                .unwrap();
+
+            heads.push(r);
+        }
+
+        match heads.as_slice() {
+            [head] => Ok(*head),
+            // FIXME: This branch is not tested.
+            heads => raw.merge_base_many(heads),
+        }
+    }?;
+
+    raw.reference(
+        &git::refs::storage::branch(me, &project.default_branch),
+        canonical_head,
+        false,
+        &format!("creating default branch for {me}"),
+    )?;
+    raw.reference(
+        &git::refs::storage::id(me),
+        canonical_id.into(),
+        false,
+        &format!("creating identity branch for {me}"),
+    )?;
     storage.sign_refs(&repository, &signer)?;
 
     Ok(())
@@ -248,7 +299,6 @@ mod tests {
         let mut rng = fastrand::Rng::new();
         let tempdir = tempfile::tempdir().unwrap();
         let alice = MockSigner::new(&mut rng);
-        let alice_id = alice.public_key();
         let bob = MockSigner::new(&mut rng);
         let bob_id = bob.public_key();
         let storage = Storage::open(tempdir.path().join("storage")).unwrap();
@@ -266,7 +316,7 @@ mod tests {
         .unwrap();
 
         // Bob forks it and creates a checkout.
-        fork(&id, alice_id, &bob, &storage).unwrap();
+        fork(&id, &bob, &storage).unwrap();
         checkout(&id, bob_id, tempdir.path().join("copy"), &storage).unwrap();
 
         let bob_remote = storage.repository(&id).unwrap().remote(bob_id).unwrap();

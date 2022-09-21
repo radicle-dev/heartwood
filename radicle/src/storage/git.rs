@@ -448,6 +448,10 @@ impl<'r> ReadRepository<'r> for Repository {
     fn project(&self) -> Result<Project, Error> {
         todo!()
     }
+
+    fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
+        Repository::identity(self)
+    }
 }
 
 impl<'r> WriteRepository<'r> for Repository {

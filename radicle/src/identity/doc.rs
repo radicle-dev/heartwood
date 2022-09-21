@@ -500,8 +500,8 @@ mod test {
             fixtures::project(tempdir.path().join("copy"), &storage, &alice).unwrap();
 
         // Bob and Eve fork the project from Alice.
-        rad::fork(&id, alice.public_key(), &bob, &storage).unwrap();
-        rad::fork(&id, alice.public_key(), &eve, &storage).unwrap();
+        rad::fork_remote(&id, alice.public_key(), &bob, &storage).unwrap();
+        rad::fork_remote(&id, alice.public_key(), &eve, &storage).unwrap();
 
         // TODO: In some cases we want to get the repo and the project, but don't
         // want to have to create a repository object twice. Perhaps there should

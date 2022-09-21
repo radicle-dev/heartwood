@@ -125,6 +125,12 @@ impl ReadRepository<'_> for MockRepository {
     fn project(&self) -> Result<Project, Error> {
         todo!()
     }
+
+    fn project_identity(
+        &self,
+    ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), git::IdentityError> {
+        todo!()
+    }
 }
 
 impl WriteRepository<'_> for MockRepository {
