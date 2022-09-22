@@ -3,6 +3,7 @@ pub mod crypto;
 pub mod git;
 pub mod hash;
 pub mod identity;
+pub mod node;
 pub mod rad;
 pub mod serde_ext;
 pub mod storage;

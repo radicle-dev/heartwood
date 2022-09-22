@@ -94,9 +94,9 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
                     return Err(DrainError::InvalidCommandArg(arg.to_owned()));
                 }
             }
-            Some(("update", arg)) => {
+            Some(("announce-refs", arg)) => {
                 if let Ok(id) = arg.parse() {
-                    if let Err(e) = handle.updated(id) {
+                    if let Err(e) = handle.announce_refs(id) {
                         return Err(DrainError::Client(e));
                     }
                 } else {
@@ -188,7 +188,7 @@ mod tests {
             }
         };
         for proj in &projs {
-            writeln!(&stream, "update {}", proj).unwrap();
+            writeln!(&stream, "announce-refs {}", proj).unwrap();
         }
 
         let mut buf = [0; 2];

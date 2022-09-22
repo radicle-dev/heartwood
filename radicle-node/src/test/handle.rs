@@ -24,7 +24,7 @@ impl traits::Handle for Handle {
         Ok(true)
     }
 
-    fn updated(&self, id: Id) -> Result<(), Error> {
+    fn announce_refs(&self, id: Id) -> Result<(), Error> {
         self.updates.lock().unwrap().push(id);
 
         Ok(())

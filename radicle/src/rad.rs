@@ -1,3 +1,4 @@
+#![allow(clippy::let_unit_value)]
 use std::io;
 use std::path::Path;
 
@@ -6,6 +7,7 @@ use thiserror::Error;
 use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::Id;
+use crate::node;
 use crate::storage::refs::SignedRefs;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId, WriteRepository as _};
 use crate::{identity, storage};
@@ -149,8 +151,8 @@ pub fn fork_remote<'r, G: Signer, S: storage::WriteStorage<'r>>(
 
 pub fn fork<'r, G: Signer, S: storage::WriteStorage<'r>>(
     proj: &Id,
-    signer: G,
-    storage: S,
+    signer: &G,
+    storage: &S,
 ) -> Result<(), ForkError> {
     let me = signer.public_key();
     let repository = storage.repository(proj)?;
@@ -197,6 +199,57 @@ pub fn fork<'r, G: Signer, S: storage::WriteStorage<'r>>(
 }
 
 #[derive(Error, Debug)]
+pub enum CloneError {
+    #[error("node: {0}")]
+    Node(#[from] node::Error),
+    #[error("fork: {0}")]
+    Fork(#[from] ForkError),
+    #[error("checkout: {0}")]
+    Checkout(#[from] CheckoutError),
+}
+
+pub fn clone<'r, P: AsRef<Path>, G: Signer, S: storage::WriteStorage<'r>, H: node::Handle>(
+    proj: &Id,
+    path: P,
+    signer: &G,
+    storage: &S,
+    handle: &H,
+) -> Result<git2::Repository, CloneError> {
+    let _ = handle.fetch(proj)?;
+    let _ = fork(proj, signer, storage)?;
+    let working = checkout(proj, signer.public_key(), path, storage)?;
+
+    Ok(working)
+}
+
+#[derive(Error, Debug)]
+pub enum CloneUrlError {
+    #[error("storage: {0}")]
+    Storage(#[from] storage::Error),
+    #[error("fetch: {0}")]
+    Fetch(#[from] storage::FetchError),
+    #[error("fork: {0}")]
+    Fork(#[from] ForkError),
+    #[error("checkout: {0}")]
+    Checkout(#[from] CheckoutError),
+}
+
+pub fn clone_url<'r, P: AsRef<Path>, G: Signer, S: storage::WriteStorage<'r>>(
+    proj: &Id,
+    url: &git::Url,
+    path: P,
+    signer: &G,
+    storage: &S,
+) -> Result<git2::Repository, CloneUrlError> {
+    let mut project = storage.repository(proj)?;
+    let _updates = project.fetch(url)?;
+    let _ = fork(proj, signer, storage)?;
+    let working = checkout(proj, signer.public_key(), path, storage)?;
+
+    Ok(working)
+}
+
+#[derive(Error, Debug)]
 pub enum CheckoutError {
     #[error("git: {0}")]
     Git(#[from] git2::Error),
@@ -212,7 +265,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     proj: &Id,
     remote: &RemoteId,
     path: P,
-    storage: S,
+    storage: &S,
 ) -> Result<git2::Repository, CheckoutError> {
     // TODO: Decide on whether we can use `clone_local`
     // TODO: Look into sharing object databases.

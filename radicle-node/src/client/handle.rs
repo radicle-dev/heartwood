@@ -76,7 +76,7 @@ impl<W: Waker> traits::Handle for Handle<W> {
     }
 
     /// Notify the client that a project has been updated.
-    fn updated(&self, id: Id) -> Result<(), Error> {
+    fn announce_refs(&self, id: Id) -> Result<(), Error> {
         self.command(service::Command::AnnounceRefs(id))
     }
 
@@ -109,7 +109,7 @@ pub mod traits {
         /// Untrack the given project and delete it from storage.
         fn untrack(&self, id: Id) -> Result<bool, Error>;
         /// Notify the client that a project has been updated.
-        fn updated(&self, id: Id) -> Result<(), Error>;
+        fn announce_refs(&self, id: Id) -> Result<(), Error>;
         /// Send a command to the command channel, and wake up the event loop.
         fn command(&self, cmd: service::Command) -> Result<(), Error>;
         /// Ask the client to shutdown.
