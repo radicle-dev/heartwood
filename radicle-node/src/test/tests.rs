@@ -20,8 +20,8 @@ use crate::test::signer::MockSigner;
 use crate::test::simulator;
 use crate::test::simulator::{Peer as _, Simulation};
 use crate::test::storage::MockStorage;
+use crate::LocalTime;
 use crate::{client, identity, rad, service, storage, test};
-use crate::{Link, LocalTime};
 
 // NOTE
 //
@@ -42,7 +42,7 @@ fn test_outbound_connection() {
 
     let peers = alice
         .service
-        .peers()
+        .sessions()
         .negotiated()
         .map(|(ip, _)| *ip)
         .collect::<Vec<_>>();
@@ -62,7 +62,7 @@ fn test_inbound_connection() {
 
     let peers = alice
         .service
-        .peers()
+        .sessions()
         .negotiated()
         .map(|(ip, _)| *ip)
         .collect::<Vec<_>>();
@@ -101,27 +101,6 @@ fn test_persistent_peer_connect() {
 #[ignore]
 fn test_wrong_peer_version() {
     // TODO
-}
-
-#[test]
-fn test_handshake_invalid_timestamp() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
-    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
-    let time_delta = MAX_TIME_DELTA.as_secs() + 1;
-    let local = std::net::SocketAddr::new(bob.ip, bob.rng.u16(..));
-
-    alice.initialize();
-    alice.connected(bob.addr(), &local, Link::Inbound);
-    alice.receive(
-        &bob.addr(),
-        Message::init(
-            bob.node_id(),
-            alice.timestamp() - time_delta,
-            vec![],
-            bob.git_url(),
-        ),
-    );
-    assert_matches!(alice.outbox().next(), Some(Io::Disconnect(addr, _)) if addr == bob.addr());
 }
 
 #[test]
@@ -211,7 +190,7 @@ fn test_inventory_relay_bad_timestamp() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let two_hours = 3600 * 2;
-    let timestamp = alice.local_time.as_secs() - two_hours;
+    let timestamp = alice.local_time.as_secs() + two_hours;
 
     alice.connect_to(&bob);
     alice.receive(
@@ -341,7 +320,7 @@ fn test_persistent_peer_reconnect() {
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
     let ips = alice
-        .peers()
+        .sessions()
         .negotiated()
         .map(|(ip, _)| *ip)
         .collect::<Vec<_>>();

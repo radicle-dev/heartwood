@@ -156,13 +156,14 @@ impl InventoryAnnouncement {
 
 /// Message payload.
 /// These are the messages peers send to each other.
+///
+/// "Announcement" messages are messages that are relayed between peers.
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     /// The first message sent to a peer after connection.
     Initialize {
         // TODO: This is currently untrusted.
         id: NodeId,
-        timestamp: Timestamp,
         version: u32,
         addrs: Vec<Address>,
         git: git::Url,
@@ -205,13 +206,12 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn init(id: NodeId, timestamp: Timestamp, addrs: Vec<Address>, git: git::Url) -> Self {
+    pub fn init(id: NodeId, addrs: Vec<Address>, git: git::Url) -> Self {
         Self::Initialize {
             id,
-            timestamp,
             version: PROTOCOL_VERSION,
-            addrs,
             git,
+            addrs,
         }
     }
 

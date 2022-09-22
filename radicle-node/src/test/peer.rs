@@ -150,12 +150,7 @@ where
         self.service.connected(remote, &local, Link::Inbound);
         self.receive(
             &remote,
-            Message::init(
-                peer.node_id(),
-                self.local_time().as_secs(),
-                vec![Address::from(remote)],
-                git,
-            ),
+            Message::init(peer.node_id(), vec![Address::from(remote)], git),
         );
 
         let mut msgs = self.messages(&remote);
@@ -182,12 +177,7 @@ where
         let git = peer.config().git_url.clone();
         self.receive(
             &remote,
-            Message::init(
-                peer.node_id(),
-                self.local_time().as_secs(),
-                peer.config().listen.clone(),
-                git,
-            ),
+            Message::init(peer.node_id(), peer.config().listen.clone(), git),
         );
     }
 

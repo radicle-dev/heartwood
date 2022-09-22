@@ -29,7 +29,7 @@ pub enum SessionError {
     WrongMagic(u32),
     #[error("wrong protocol version in message: {0}")]
     WrongVersion(u32),
-    #[error("invalid inventory timestamp: {0}")]
+    #[error("invalid announcement timestamp: {0}")]
     InvalidTimestamp(u64),
     #[error("peer misbehaved")]
     Misbehavior,
@@ -47,8 +47,6 @@ pub struct Session {
     pub persistent: bool,
     /// Peer connection state.
     pub state: SessionState,
-    /// Last known peer time.
-    pub timestamp: Timestamp,
     /// Peer subscription.
     pub subscribe: Option<Subscribe>,
 
@@ -64,7 +62,6 @@ impl Session {
             addr,
             state: SessionState::default(),
             link,
-            timestamp: Timestamp::default(),
             subscribe: None,
             persistent,
             attempts: 0,
@@ -110,17 +107,11 @@ impl Session {
                 SessionState::Initial,
                 Message::Initialize {
                     id,
-                    timestamp,
                     version,
                     addrs,
                     git,
                 },
             ) => {
-                let now = ctx.timestamp();
-
-                if timestamp.abs_diff(now) > MAX_TIME_DELTA.as_secs() {
-                    return Err(SessionError::InvalidTimestamp(timestamp));
-                }
                 if version != PROTOCOL_VERSION {
                     return Err(SessionError::WrongVersion(version));
                 }
@@ -154,18 +145,17 @@ impl Session {
                     signature,
                 },
             ) => {
-                // FIXME: This is wrong, we are comparing timestamps of different peers.
                 let now = ctx.clock.local_time();
-                let last = self.timestamp;
+                let peer = ctx.peers.entry(node).or_insert_with(Peer::default);
 
-                // Don't allow messages from too far in the past or future.
-                if message.timestamp.abs_diff(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
+                // Don't allow messages from too far in the future.
+                if message.timestamp.saturating_sub(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
                     return Err(SessionError::InvalidTimestamp(message.timestamp));
                 }
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
-                if message.timestamp > last {
-                    self.timestamp = message.timestamp;
+                if message.timestamp > peer.last_message {
+                    peer.last_message = message.timestamp;
                 } else {
                     return Ok(None);
                 }
@@ -188,6 +178,8 @@ impl Session {
                     signature,
                 },
             ) => {
+                // FIXME: Check message timestamp.
+
                 if message.verify(&node, &signature) {
                     // TODO: Buffer/throttle fetches.
                     // TODO: Check that we're tracking this user as well.
@@ -222,6 +214,8 @@ impl Session {
                     signature,
                 },
             ) => {
+                // FIXME: Check message timestamp.
+
                 if !message.verify(&node, &signature) {
                     return Err(SessionError::Misbehavior);
                 }

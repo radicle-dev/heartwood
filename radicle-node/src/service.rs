@@ -4,8 +4,9 @@ pub mod filter;
 pub mod message;
 pub mod peer;
 
+use std::collections::{BTreeMap, VecDeque};
 use std::ops::{Deref, DerefMut};
-use std::{collections::VecDeque, fmt, net, net::IpAddr};
+use std::{fmt, net, net::IpAddr};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
@@ -236,7 +237,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
     }
 
     /// Get the connected peers.
-    pub fn peers(&self) -> &Sessions {
+    pub fn sessions(&self) -> &Sessions {
         &self.sessions
     }
 
@@ -651,6 +652,13 @@ pub struct Lookup {
     pub remote: Vec<NodeId>,
 }
 
+/// Information on a peer, that we may or may not be connected to.
+#[derive(Default, Debug)]
+pub struct Peer {
+    /// Timestamp of the last message received from peer.
+    pub last_message: Timestamp,
+}
+
 /// Global service state used across peers.
 #[derive(Debug)]
 pub struct Context<S, T, G> {
@@ -660,6 +668,8 @@ pub struct Context<S, T, G> {
     signer: G,
     /// Tracks the location of projects.
     routing: Routing,
+    /// Keeps track of peer states.
+    peers: BTreeMap<NodeId, Peer>,
     /// Outgoing I/O queue.
     io: VecDeque<Io>,
     /// Clock. Tells the time.
@@ -700,6 +710,7 @@ where
             signer,
             clock,
             routing: HashMap::with_hasher(rng.clone().into()),
+            peers: BTreeMap::new(),
             io: VecDeque::new(),
             storage,
             addrmgr,
@@ -741,12 +752,7 @@ where
     fn handshake_messages(&self) -> [Message; 4] {
         let git = self.config.git_url.clone();
         [
-            Message::init(
-                self.node_id(),
-                self.timestamp(),
-                self.config.listen.clone(),
-                git,
-            ),
+            Message::init(self.node_id(), self.config.listen.clone(), git),
             Message::node(self.node_announcement(), &self.signer),
             Message::inventory(self.inventory_announcement().unwrap(), &self.signer),
             Message::subscribe(self.filter(), self.timestamp(), Timestamp::MAX),

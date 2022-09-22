@@ -132,13 +132,11 @@ impl wire::Encode for Message {
         match self {
             Self::Initialize {
                 id,
-                timestamp,
                 version,
                 addrs,
                 git,
             } => {
                 n += id.encode(writer)?;
-                n += timestamp.encode(writer)?;
                 n += version.encode(writer)?;
                 n += addrs.as_slice().encode(writer)?;
                 n += git.encode(writer)?;
@@ -191,14 +189,12 @@ impl wire::Decode for Message {
         match MessageType::try_from(type_id) {
             Ok(MessageType::Initialize) => {
                 let id = NodeId::decode(reader)?;
-                let timestamp = Timestamp::decode(reader)?;
                 let version = u32::decode(reader)?;
                 let addrs = Vec::<Address>::decode(reader)?;
                 let git = git::Url::decode(reader)?;
 
                 Ok(Self::Initialize {
                     id,
-                    timestamp,
                     version,
                     addrs,
                     git,
