@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use git_url::Url;
 
 use crate::crypto::{Signer, Verified};
-use crate::identity::doc::Doc;
+use crate::identity::project::Doc;
 use crate::identity::Id;
 
 pub use crate::storage::*;

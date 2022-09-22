@@ -17,9 +17,9 @@ pub const REMOTE_NAME: &str = "rad";
 #[derive(Error, Debug)]
 pub enum InitError {
     #[error("doc: {0}")]
-    Doc(#[from] identity::doc::Error),
+    Doc(#[from] identity::project::Error),
     #[error("doc: {0}")]
-    DocVerification(#[from] identity::doc::VerificationError),
+    DocVerification(#[from] identity::project::VerificationError),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("i/o: {0}")]

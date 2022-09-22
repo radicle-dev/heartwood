@@ -1,4 +1,4 @@
-pub mod doc;
+pub mod project;
 
 use std::ops::Deref;
 use std::{ffi::OsString, fmt, str::FromStr};
@@ -11,7 +11,7 @@ use crate::git;
 use crate::serde_ext;
 
 pub use crypto::PublicKey;
-pub use doc::{Delegate, Doc};
+pub use project::{Delegate, Doc};
 
 #[derive(Error, Debug)]
 pub enum IdError {

@@ -11,7 +11,7 @@ use crate::crypto;
 use crate::crypto::{KeyPair, PublicKey, Seed, Signer, Unverified, Verified};
 use crate::git;
 use crate::hash;
-use crate::identity::{doc::Delegate, doc::Doc, Did, Id};
+use crate::identity::{project::Delegate, project::Doc, Did, Id};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::signer::MockSigner;
