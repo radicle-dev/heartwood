@@ -1,3 +1,5 @@
+mod id;
+
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 use std::io;
@@ -14,11 +16,12 @@ use thiserror::Error;
 use crate::crypto;
 use crate::crypto::{Signature, Unverified, Verified};
 use crate::git;
-use crate::identity::{Did, Id};
+use crate::identity::Did;
 use crate::storage::git::trailers;
 use crate::storage::{BranchName, ReadRepository, RemoteId, WriteRepository, WriteStorage};
 
 pub use crypto::PublicKey;
+pub use id::*;
 
 /// Untrusted, well-formed input.
 #[derive(Clone, Copy, Debug)]
