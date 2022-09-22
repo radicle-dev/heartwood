@@ -27,7 +27,7 @@ use crate::git::Url;
 use crate::identity::{Doc, Id};
 use crate::service::config::ProjectTracking;
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
-use crate::service::peer::{Peer, PeerError, PeerState};
+use crate::service::peer::{Session, SessionError, SessionState};
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 
@@ -138,8 +138,8 @@ pub enum CommandError {}
 
 #[derive(Debug)]
 pub struct Service<S, T, G> {
-    /// Peers currently or recently connected.
-    peers: Peers,
+    /// Peer sessions, currently or recently connected.
+    sessions: Sessions,
     /// Service state that isn't peer-specific.
     context: Context<S, T, G>,
     /// Whether our local inventory no long represents what we have announced to the network.
@@ -169,7 +169,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
 
         Self {
             context: Context::new(config, clock, storage, addrmgr, signer, rng.clone()),
-            peers: Peers::new(rng),
+            sessions: Sessions::new(rng),
             out_of_sync: false,
             last_idle: LocalTime::default(),
             last_sync: LocalTime::default(),
@@ -180,17 +180,17 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
     }
 
     pub fn disconnect(&mut self, remote: &IpAddr, reason: DisconnectReason) {
-        if let Some(addr) = self.peers.get(remote).map(|p| p.addr) {
+        if let Some(addr) = self.sessions.get(remote).map(|p| p.addr) {
             self.context.disconnect(addr, reason);
         }
     }
 
-    pub fn seeds(&self, id: &Id) -> Box<dyn Iterator<Item = (&NodeId, &Peer)> + '_> {
+    pub fn seeds(&self, id: &Id) -> Box<dyn Iterator<Item = (&NodeId, &Session)> + '_> {
         if let Some(peers) = self.routing.get(id) {
             Box::new(
                 peers
                     .iter()
-                    .filter_map(|id| self.peers.by_id(id).map(|p| (id, p))),
+                    .filter_map(|id| self.sessions.by_id(id).map(|p| (id, p))),
             )
         } else {
             Box::new(std::iter::empty())
@@ -236,8 +236,8 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
     }
 
     /// Get the connected peers.
-    pub fn peers(&self) -> &Peers {
-        &self.peers
+    pub fn peers(&self) -> &Sessions {
+        &self.sessions
     }
 
     /// Get the current inventory.
@@ -427,7 +427,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
                 let node = self.node_id();
                 let repo = self.storage.repository(&id).unwrap();
                 let remote = repo.remote(&node).unwrap();
-                let peers = self.peers.negotiated().map(|(_, p)| p);
+                let peers = self.sessions.negotiated().map(|(_, p)| p);
                 let refs = remote.refs.into();
                 let message = RefsAnnouncement { id, refs };
                 let signature = message.sign(&self.signer);
@@ -448,9 +448,9 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
         let ip = addr.ip();
         let persistent = self.context.config.is_persistent(addr);
         let peer = self
-            .peers
+            .sessions
             .entry(ip)
-            .or_insert_with(|| Peer::new(*addr, Link::Outbound, persistent));
+            .or_insert_with(|| Session::new(*addr, Link::Outbound, persistent));
 
         peer.attempted();
     }
@@ -472,14 +472,14 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
             // TODO: Refactor this so that we don't create messages if the peer isn't found.
             let messages = self.handshake_messages();
 
-            if let Some(peer) = self.peers.get_mut(&ip) {
+            if let Some(peer) = self.sessions.get_mut(&ip) {
                 self.context.write_all(peer.addr, messages);
                 peer.connected();
             }
         } else {
-            self.peers.insert(
+            self.sessions.insert(
                 ip,
-                Peer::new(
+                Session::new(
                     addr,
                     Link::Inbound,
                     self.context.config.is_persistent(&addr),
@@ -498,8 +498,8 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
 
         debug!("Disconnected from {} ({})", ip, reason);
 
-        if let Some(peer) = self.peers.get_mut(&ip) {
-            peer.state = PeerState::Disconnected { since };
+        if let Some(peer) = self.sessions.get_mut(&ip) {
+            peer.state = SessionState::Disconnected { since };
 
             // Attempt to re-connect to persistent peers.
             if self.context.config.is_persistent(addr) && peer.attempts() < MAX_CONNECTION_ATTEMPTS
@@ -529,7 +529,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
 
     pub fn received_message(&mut self, addr: &std::net::SocketAddr, msg: Envelope) {
         let peer_ip = addr.ip();
-        let peer = if let Some(peer) = self.peers.get_mut(&peer_ip) {
+        let peer = if let Some(peer) = self.sessions.get_mut(&peer_ip) {
             peer
         } else {
             return;
@@ -551,7 +551,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
 
         if let Some(msg) = relay {
             let negotiated = self
-                .peers
+                .sessions
                 .negotiated()
                 .filter(|(ip, _)| **ip != peer_ip)
                 .map(|(_, p)| p);
@@ -568,7 +568,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
     fn announce_inventory(&mut self) -> Result<(), storage::Error> {
         let inv = Message::inventory(self.context.inventory_announcement()?, &self.context.signer);
 
-        for addr in self.peers.negotiated().map(|(_, p)| p.addr) {
+        for addr in self.sessions.negotiated().map(|(_, p)| p.addr) {
             self.context.write(addr, inv.clone());
         }
         Ok(())
@@ -580,8 +580,8 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
 
     fn maintain_connections(&mut self) {
         // TODO: Connect to all potential seeds.
-        if self.peers.len() < TARGET_OUTBOUND_PEERS {
-            let delta = TARGET_OUTBOUND_PEERS - self.peers.len();
+        if self.sessions.len() < TARGET_OUTBOUND_PEERS {
+            let delta = TARGET_OUTBOUND_PEERS - self.sessions.len();
 
             for _ in 0..delta {
                 // TODO: Connect to random peer.
@@ -607,7 +607,7 @@ impl<S, T, G> DerefMut for Service<S, T, G> {
 #[derive(Debug, Clone)]
 pub enum DisconnectReason {
     User,
-    Error(PeerError),
+    Error(SessionError),
 }
 
 impl DisconnectReason {
@@ -823,14 +823,14 @@ impl<S, T, G> Context<S, T, G> {
     }
 
     /// Broadcast a message to a list of peers.
-    fn broadcast<'a>(&mut self, msg: Message, peers: impl IntoIterator<Item = &'a Peer>) {
+    fn broadcast<'a>(&mut self, msg: Message, peers: impl IntoIterator<Item = &'a Session>) {
         for peer in peers {
             self.write(peer.addr, msg.clone());
         }
     }
 
     /// Relay a message to interested peers.
-    fn relay<'a>(&mut self, msg: Message, peers: impl IntoIterator<Item = &'a Peer>) {
+    fn relay<'a>(&mut self, msg: Message, peers: impl IntoIterator<Item = &'a Session>) {
         if let Message::RefsAnnouncement { message, .. } = &msg {
             let id = message.id.clone();
             let peers = peers.into_iter().filter(|p| {
@@ -851,16 +851,16 @@ impl<S, T, G> Context<S, T, G> {
 
 #[derive(Debug)]
 /// Holds currently (or recently) connected peers.
-pub struct Peers(AddressBook<IpAddr, Peer>);
+pub struct Sessions(AddressBook<IpAddr, Session>);
 
-impl Peers {
+impl Sessions {
     pub fn new(rng: Rng) -> Self {
         Self(AddressBook::new(rng))
     }
 
-    pub fn by_id(&self, id: &NodeId) -> Option<&Peer> {
+    pub fn by_id(&self, id: &NodeId) -> Option<&Session> {
         self.0.values().find(|p| {
-            if let PeerState::Negotiated { id: _id, .. } = &p.state {
+            if let SessionState::Negotiated { id: _id, .. } = &p.state {
                 _id == id
             } else {
                 false
@@ -869,20 +869,20 @@ impl Peers {
     }
 
     /// Iterator over fully negotiated peers.
-    pub fn negotiated(&self) -> impl Iterator<Item = (&IpAddr, &Peer)> + Clone {
+    pub fn negotiated(&self) -> impl Iterator<Item = (&IpAddr, &Session)> + Clone {
         self.0.iter().filter(move |(_, p)| p.is_negotiated())
     }
 }
 
-impl Deref for Peers {
-    type Target = AddressBook<IpAddr, Peer>;
+impl Deref for Sessions {
+    type Target = AddressBook<IpAddr, Session>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl DerefMut for Peers {
+impl DerefMut for Sessions {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

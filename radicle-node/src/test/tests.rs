@@ -226,7 +226,7 @@ fn test_inventory_relay_bad_timestamp() {
     );
     assert_matches!(
         alice.outbox().next(),
-        Some(Io::Disconnect(addr, DisconnectReason::Error(PeerError::InvalidTimestamp(t))))
+        Some(Io::Disconnect(addr, DisconnectReason::Error(SessionError::InvalidTimestamp(t))))
         if addr == bob.addr() && t == timestamp
     );
 }
