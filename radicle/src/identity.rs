@@ -1,17 +1,14 @@
 pub mod doc;
 
 use std::ops::Deref;
-use std::path::PathBuf;
 use std::{ffi::OsString, fmt, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::crypto;
-use crate::crypto::Verified;
 use crate::git;
 use crate::serde_ext;
-use crate::storage::Remotes;
 
 pub use crypto::PublicKey;
 pub use doc::{Delegate, Doc};
@@ -172,36 +169,6 @@ impl Deref for Did {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-/// A stored and verified project.
-#[derive(Debug, Clone)]
-pub struct Project {
-    /// The project identifier.
-    pub id: Id,
-    /// The latest project identity document.
-    pub doc: Doc<Verified>,
-    /// The project remotes.
-    pub remotes: Remotes<Verified>,
-    /// On-disk file path for this project's repository.
-    pub path: PathBuf,
-}
-
-impl Project {
-    pub fn delegate(&mut self, name: String, key: crypto::PublicKey) -> bool {
-        self.doc.delegate(Delegate {
-            name,
-            id: Did::from(key),
-        })
-    }
-}
-
-impl Deref for Project {
-    type Target = Doc<Verified>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.doc
     }
 }
 

@@ -18,7 +18,7 @@ use crate::git::ext as git_ext;
 use crate::git::Url;
 use crate::git::{RefError, RefStr, RefString};
 use crate::identity;
-use crate::identity::{Id, IdError, Project};
+use crate::identity::{Id, IdError};
 use crate::storage::git::IdentityError;
 use crate::storage::refs::Refs;
 
@@ -216,8 +216,9 @@ impl Remote<Verified> {
 }
 
 pub trait ReadStorage {
-    fn url(&self) -> Url;
-    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<Project>, Error>;
+    fn path(&self) -> &Path;
+    fn url(&self, proj: &Id) -> Url;
+    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<identity::Doc<Verified>>, Error>;
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
@@ -254,7 +255,7 @@ pub trait ReadRepository<'r> {
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error>;
     fn remotes(&'r self) -> Result<Self::Remotes, git2::Error>;
     /// Return the project associated with this repository.
-    fn project(&self) -> Result<Project, Error>;
+    fn project(&self) -> Result<identity::Doc<Verified>, Error>;
     fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError>;
 }
 
@@ -268,15 +269,19 @@ where
     T: Deref<Target = S>,
     S: ReadStorage + 'static,
 {
-    fn url(&self) -> Url {
-        self.deref().url()
+    fn path(&self) -> &Path {
+        self.deref().path()
+    }
+
+    fn url(&self, proj: &Id) -> Url {
+        self.deref().url(proj)
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
         self.deref().inventory()
     }
 
-    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<Project>, Error> {
+    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<identity::Doc<Verified>>, Error> {
         self.deref().get(remote, proj)
     }
 }

@@ -21,9 +21,10 @@ use crate::address_manager::AddressManager;
 use crate::clock::RefClock;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto;
+use crate::crypto::Verified;
 use crate::git;
 use crate::git::Url;
-use crate::identity::{Id, Project};
+use crate::identity::{Doc, Id};
 use crate::service::config::ProjectTracking;
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::peer::{Peer, PeerError, PeerState};
@@ -255,7 +256,7 @@ impl<'r, T: WriteStorage<'r>, S: address_book::Store, G: crypto::Signer> Service
     }
 
     /// Get a project from storage, using the local node's key.
-    pub fn get(&self, proj: &Id) -> Result<Option<Project>, storage::Error> {
+    pub fn get(&self, proj: &Id) -> Result<Option<Doc<Verified>>, storage::Error> {
         self.storage.get(&self.node_id(), proj)
     }
 
@@ -645,7 +646,7 @@ impl<S, T, G> Iterator for Service<S, T, G> {
 #[derive(Debug)]
 pub struct Lookup {
     /// Whether the project was found locally or not.
-    pub local: Option<Project>,
+    pub local: Option<Doc<Verified>>,
     /// A list of remote peers on which the project is known to exist.
     pub remote: Vec<NodeId>,
 }

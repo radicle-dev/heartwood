@@ -6,6 +6,7 @@ use log::*;
 use crate::address_book::{KnownAddress, Source};
 use crate::clock::RefClock;
 use crate::collections::HashMap;
+use crate::git;
 use crate::git::Url;
 use crate::service;
 use crate::service::config::*;
@@ -63,10 +64,17 @@ where
     S: WriteStorage<'r> + 'static,
 {
     pub fn new(name: &'static str, ip: impl Into<net::IpAddr>, storage: S) -> Self {
+        let git_url = Url {
+            scheme: git::url::Scheme::File,
+            path: storage.path().to_string_lossy().to_string().into(),
+
+            ..git::Url::default()
+        };
+
         Self::config(
             name,
             Config {
-                git_url: storage.url(),
+                git_url,
                 ..Config::default()
             },
             ip,

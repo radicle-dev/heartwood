@@ -1,29 +1,42 @@
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
 use git_url::Url;
 
 use crate::crypto::{Signer, Verified};
-use crate::identity::{Id, Project};
+use crate::identity::doc::Doc;
+use crate::identity::Id;
 
 pub use crate::storage::*;
 
 #[derive(Clone, Debug)]
 pub struct MockStorage {
-    pub inventory: Vec<Project>,
+    pub path: PathBuf,
+    pub inventory: HashMap<Id, Doc<Verified>>,
 }
 
 impl MockStorage {
-    pub fn new(inventory: Vec<Project>) -> Self {
-        Self { inventory }
+    pub fn new(inventory: Vec<(Id, Doc<Verified>)>) -> Self {
+        Self {
+            path: PathBuf::default(),
+            inventory: inventory.into_iter().collect(),
+        }
     }
 
     pub fn empty() -> Self {
         Self {
-            inventory: Vec::new(),
+            path: PathBuf::default(),
+            inventory: HashMap::new(),
         }
     }
 }
 
 impl ReadStorage for MockStorage {
-    fn url(&self) -> Url {
+    fn path(&self) -> &Path {
+        self.path.as_path()
+    }
+
+    fn url(&self, _proj: &Id) -> Url {
         Url {
             scheme: git_url::Scheme::Radicle,
             host: Some("mock".to_string()),
@@ -31,21 +44,12 @@ impl ReadStorage for MockStorage {
         }
     }
 
-    fn get(&self, _remote: &RemoteId, proj: &Id) -> Result<Option<Project>, Error> {
-        if let Some(proj) = self.inventory.iter().find(|p| p.id == *proj) {
-            return Ok(Some(proj.clone()));
-        }
-        Ok(None)
+    fn get(&self, _remote: &RemoteId, proj: &Id) -> Result<Option<Doc<Verified>>, Error> {
+        Ok(self.inventory.get(proj).cloned())
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
-        let inventory = self
-            .inventory
-            .iter()
-            .map(|proj| proj.id.clone())
-            .collect::<Vec<_>>();
-
-        Ok(inventory)
+        Ok(self.inventory.keys().cloned().collect::<Vec<_>>())
     }
 }
 
@@ -122,7 +126,7 @@ impl ReadRepository<'_> for MockRepository {
         todo!()
     }
 
-    fn project(&self) -> Result<Project, Error> {
+    fn project(&self) -> Result<Doc<Verified>, Error> {
         todo!()
     }
 

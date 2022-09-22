@@ -102,7 +102,12 @@ impl Doc<Verified> {
     }
 
     /// Attempt to add a new delegate to the document. Returns `true` if it wasn't there before.
-    pub fn delegate(&mut self, delegate: Delegate) -> bool {
+    pub fn delegate(&mut self, name: String, key: crypto::PublicKey) -> bool {
+        let delegate = Delegate {
+            name,
+            id: Did::from(key),
+        };
+
         if self.delegates.iter().all(|d| d.id != delegate.id) {
             self.delegates.push(delegate);
             return true;
@@ -510,7 +515,7 @@ mod test {
         let repo = storage.repository(&id).unwrap();
 
         // Make a change to the description and sign it.
-        proj.doc.payload.description += "!";
+        proj.payload.description += "!";
         proj.sign(&alice)
             .and_then(|(_, sig)| {
                 proj.update(
@@ -524,7 +529,7 @@ mod test {
 
         // Add Bob as a delegate, and sign it.
         proj.delegate("bob".to_owned(), *bob.public_key());
-        proj.doc.threshold = 2;
+        proj.threshold = 2;
         proj.sign(&alice)
             .and_then(|(_, sig)| {
                 proj.update(
@@ -552,7 +557,7 @@ mod test {
             .unwrap();
 
         // Update description again with signatures by Eve and Bob.
-        proj.doc.payload.description += "?";
+        proj.payload.description += "?";
         let (current, head) = proj
             .sign(&bob)
             .and_then(|(_, bob_sig)| {
@@ -579,7 +584,7 @@ mod test {
         assert_eq!(identity.root, id);
         assert_eq!(identity.current, current);
         assert_eq!(identity.head, head);
-        assert_eq!(identity.doc, proj.doc);
+        assert_eq!(identity.doc, proj);
 
         let proj = storage.get(alice.public_key(), &id).unwrap().unwrap();
         assert_eq!(proj.description, "Acme's repository!?");

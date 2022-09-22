@@ -473,9 +473,9 @@ fn prop_inventory_exchange_dense() {
             (bob_inv.inventory, bob.node_id()),
             (eve_inv.inventory, eve.node_id()),
         ] {
-            for proj in inv {
+            for id in inv.keys() {
                 routing
-                    .entry(proj.id.clone())
+                    .entry(id.clone())
                     .or_insert_with(|| HashSet::with_hasher(rng.clone().into()))
                     .insert(*peer);
             }

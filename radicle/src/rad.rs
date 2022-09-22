@@ -58,6 +58,7 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
     .verified()?;
 
     let (id, _, project) = doc.create(pk, "Initialize Radicle", storage)?;
+    let url = storage.url(&id);
 
     git::set_upstream(
         repo,
@@ -69,7 +70,7 @@ pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
     // TODO: Note that you'll likely want to use `RemoteCallbacks` and set
     // `push_update_reference` to test whether all the references were pushed
     // successfully.
-    git::configure_remote(repo, REMOTE_NAME, pk, project.path())?.push::<&str>(
+    git::configure_remote(repo, REMOTE_NAME, pk, &url)?.push::<&str>(
         &[&format!(
             "{}:{}",
             &git::refs::workdir::branch(&default_branch),
@@ -120,14 +121,11 @@ pub fn fork_remote<'r, G: Signer, S: storage::WriteStorage<'r>>(
 
     let raw = repository.raw();
     let remote_head = raw
-        .find_reference(&git::refs::storage::branch(
-            remote,
-            &project.doc.default_branch,
-        ))?
+        .find_reference(&git::refs::storage::branch(remote, &project.default_branch))?
         .target()
         .ok_or(ForkError::InvalidReference)?;
     raw.reference(
-        &git::refs::storage::branch(me, &project.doc.default_branch),
+        &git::refs::storage::branch(me, &project.default_branch),
         remote_head,
         false,
         &format!("creating default branch for {me}"),
@@ -274,17 +272,14 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
         .ok_or_else(|| CheckoutError::NotFound(proj.clone()))?;
 
     let mut opts = git2::RepositoryInitOptions::new();
-    opts.no_reinit(true).description(&project.doc.description);
+    opts.no_reinit(true).description(&project.description);
 
     let repo = git2::Repository::init_opts(path, &opts)?;
-    let default_branch = project.doc.default_branch.as_str();
+    let default_branch = project.default_branch.as_str();
+    let url = storage.url(proj);
 
     // Configure and fetch all refs from remote.
-    git::configure_remote(&repo, REMOTE_NAME, remote, &project.path)?.fetch::<&str>(
-        &[],
-        None,
-        None,
-    )?;
+    git::configure_remote(&repo, REMOTE_NAME, remote, &url)?.fetch::<&str>(&[], None, None)?;
 
     {
         // Setup default branch.
@@ -306,6 +301,8 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::git::fmt::refname;
     use crate::identity::{Delegate, Did};
@@ -332,14 +329,20 @@ mod tests {
         .unwrap();
 
         let project = storage.get(&public_key, &proj).unwrap().unwrap();
+        let remotes: HashMap<_, _> = storage
+            .repository(&proj)
+            .unwrap()
+            .remotes()
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
 
-        assert_eq!(project.remotes[&public_key].refs, refs);
-        assert_eq!(project.id, proj);
-        assert_eq!(project.doc.name, "acme");
-        assert_eq!(project.doc.description, "Acme's repo");
-        assert_eq!(project.doc.default_branch, BranchName::from("master"));
+        assert_eq!(remotes[&public_key].refs, refs);
+        assert_eq!(project.name, "acme");
+        assert_eq!(project.description, "Acme's repo");
+        assert_eq!(project.default_branch, BranchName::from("master"));
         assert_eq!(
-            project.doc.delegates.first(),
+            project.delegates.first(),
             &Delegate {
                 name: String::from("anonymous"),
                 id: Did::from(public_key),

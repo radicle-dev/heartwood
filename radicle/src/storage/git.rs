@@ -8,7 +8,7 @@ use once_cell::sync::Lazy;
 use crate::crypto::{Signer, Unverified, Verified};
 use crate::git;
 use crate::identity;
-use crate::identity::{Doc, Id, Project};
+use crate::identity::{Doc, Id};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
@@ -50,37 +50,27 @@ impl fmt::Debug for Storage {
 }
 
 impl ReadStorage for Storage {
-    fn url(&self) -> Url {
+    fn path(&self) -> &Path {
+        self.path.as_path()
+    }
+
+    fn url(&self, proj: &Id) -> Url {
+        let path = self.path().join(proj.to_string());
+
         Url {
             scheme: git_url::Scheme::File,
-            host: None,
-            path: self.path.to_string_lossy().to_string().into(),
-            ..Url::default()
+            path: path.to_string_lossy().to_string().into(),
+
+            ..git::Url::default()
         }
     }
 
-    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<Project>, Error> {
+    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<Doc<Verified>>, Error> {
         // TODO: Don't create a repo here if it doesn't exist?
         // Perhaps for checking we could have a `contains` method?
-        let repo = self.repository(proj)?;
-
-        if let Some(doc) = repo.identity_of(remote)? {
-            let remotes = repo.remotes()?.collect::<Result<_, _>>()?;
-            let path = repo.path().to_path_buf();
-
-            // TODO: We should check that there is at least one remote, which is
-            // the one of the local user, otherwise it means the project is in
-            // an corrupted state.
-
-            Ok(Some(Project {
-                id: proj.clone(),
-                doc,
-                remotes,
-                path,
-            }))
-        } else {
-            Ok(None)
-        }
+        self.repository(proj)?
+            .identity_of(remote)
+            .map_err(Error::from)
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
@@ -445,7 +435,7 @@ impl<'r> ReadRepository<'r> for Repository {
         Ok(Box::new(iter))
     }
 
-    fn project(&self) -> Result<Project, Error> {
+    fn project(&self) -> Result<Doc<Verified>, Error> {
         todo!()
     }
 

@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, HashSet};
 use std::hash::Hash;
 use std::iter;
 use std::ops::RangeBounds;
-use std::path::PathBuf;
 
 use nonempty::NonEmpty;
 use quickcheck::Arbitrary;
@@ -12,7 +11,7 @@ use crate::crypto;
 use crate::crypto::{KeyPair, PublicKey, Seed, Signer, Unverified, Verified};
 use crate::git;
 use crate::hash;
-use crate::identity::{doc::Delegate, doc::Doc, Did, Id, Project};
+use crate::identity::{doc::Delegate, doc::Doc, Did, Id};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::signer::MockSigner;
@@ -64,23 +63,6 @@ impl Arbitrary for storage::Remotes<crypto::Verified> {
             Arbitrary::arbitrary(g);
 
         storage::Remotes::new(remotes)
-    }
-}
-
-impl Arbitrary for Project {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let doc = Doc::<Verified>::arbitrary(g);
-        let (oid, _) = doc.encode().unwrap();
-        let id = Id::from(oid);
-        let remotes = storage::Remotes::arbitrary(g);
-        let path = PathBuf::arbitrary(g);
-
-        Self {
-            id,
-            doc,
-            remotes,
-            path,
-        }
     }
 }
 

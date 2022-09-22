@@ -187,17 +187,11 @@ pub fn configure_remote<'r>(
     repo: &'r git2::Repository,
     remote_name: &str,
     remote_id: &RemoteId,
-    remote_path: &Path,
+    remote_url: &Url,
 ) -> Result<git2::Remote<'r>, git2::Error> {
-    let url = Url {
-        scheme: git_url::Scheme::File,
-        path: remote_path.to_string_lossy().to_string().into(),
-
-        ..Url::default()
-    };
     let fetch = format!("+refs/remotes/{remote_id}/heads/*:refs/remotes/rad/*");
     let push = format!("refs/heads/*:refs/remotes/{remote_id}/heads/*");
-    let remote = repo.remote_with_fetch(remote_name, url.to_string().as_str(), &fetch)?;
+    let remote = repo.remote_with_fetch(remote_name, remote_url.to_string().as_str(), &fetch)?;
     repo.remote_add_push(remote_name, &push)?;
 
     Ok(remote)
