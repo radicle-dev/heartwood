@@ -19,7 +19,7 @@ use crate::git::Url;
 use crate::git::{RefError, RefStr, RefString};
 use crate::identity;
 use crate::identity::{Id, IdError};
-use crate::storage::git::IdentityError;
+use crate::storage::git::ProjectError;
 use crate::storage::refs::Refs;
 
 use self::refs::SignedRefs;
@@ -256,7 +256,7 @@ pub trait ReadRepository<'r> {
     fn remotes(&'r self) -> Result<Self::Remotes, git2::Error>;
     /// Return the project associated with this repository.
     fn project(&self) -> Result<identity::Doc<Verified>, Error>;
-    fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError>;
+    fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError>;
 }
 
 pub trait WriteRepository<'r>: ReadRepository<'r> {

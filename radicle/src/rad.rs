@@ -92,7 +92,7 @@ pub enum ForkError {
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
     #[error("project identity error: {0}")]
-    InvalidIdentity(#[from] storage::git::IdentityError),
+    InvalidIdentity(#[from] storage::git::ProjectError),
     #[error("git: invalid reference")]
     InvalidReference,
 }

@@ -132,7 +132,7 @@ impl ReadRepository<'_> for MockRepository {
 
     fn project_identity(
         &self,
-    ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), git::IdentityError> {
+    ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), git::ProjectError> {
         todo!()
     }
 }

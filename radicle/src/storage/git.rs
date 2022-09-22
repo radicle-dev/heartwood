@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 use crate::crypto::{Signer, Unverified, Verified};
 use crate::git;
 use crate::identity;
+use crate::identity::project::{Identity, IdentityError};
 use crate::identity::{Doc, Id};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
@@ -26,7 +27,7 @@ pub static SIGNATURES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/remotes/*/radicle/signature"));
 
 #[derive(Error, Debug)]
-pub enum IdentityError {
+pub enum ProjectError {
     #[error("identity branches diverge from each other")]
     BranchesDiverge,
     #[error("identity branches are in an invalid state")]
@@ -69,7 +70,7 @@ impl ReadStorage for Storage {
         // TODO: Don't create a repo here if it doesn't exist?
         // Perhaps for checking we could have a `contains` method?
         self.repository(proj)?
-            .identity_of(remote)
+            .project_of(remote)
             .map_err(Error::from)
     }
 
@@ -256,7 +257,11 @@ impl Repository {
         Ok(())
     }
 
-    pub fn identity_of(
+    pub fn identity(&self, remote: &RemoteId) -> Result<Option<Identity<Oid>>, IdentityError> {
+        Identity::load(remote, self)
+    }
+
+    pub fn project_of(
         &self,
         remote: &RemoteId,
     ) -> Result<Option<identity::Doc<Verified>>, refs::Error> {
@@ -268,7 +273,7 @@ impl Repository {
     }
 
     /// Return the canonical identity [`git::Oid`] and document.
-    pub fn identity(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
+    pub fn project(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError> {
         let mut heads = Vec::new();
         for remote in self.remote_ids()? {
             let remote = remote?;
@@ -277,7 +282,7 @@ impl Repository {
             heads.push(oid.into());
         }
         // Keep track of the longest identity branch.
-        let mut longest = heads.pop().ok_or(IdentityError::InvalidState)?;
+        let mut longest = heads.pop().ok_or(ProjectError::InvalidState)?;
 
         for head in &heads {
             let base = self.raw().merge_base(*head, longest)?;
@@ -309,14 +314,14 @@ impl Repository {
                 //            o (base)
                 //            |
                 //
-                return Err(IdentityError::BranchesDiverge);
+                return Err(ProjectError::BranchesDiverge);
             }
         }
 
         Doc::load_at(longest.into(), self)?
             .ok_or(refs::Error::NotFound)
             .map(|(doc, _)| (longest.into(), doc))
-            .map_err(IdentityError::from)
+            .map_err(ProjectError::from)
     }
 
     pub fn remote_ids(
@@ -439,8 +444,8 @@ impl<'r> ReadRepository<'r> for Repository {
         todo!()
     }
 
-    fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
-        Repository::identity(self)
+    fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError> {
+        Repository::project(self)
     }
 }
 
