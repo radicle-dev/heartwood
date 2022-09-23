@@ -1,4 +1,6 @@
+use std::io;
 use std::path::Path;
+use std::process::Command;
 use std::str::FromStr;
 
 use git_ref_format as format;
@@ -237,4 +239,26 @@ pub fn set_upstream(
     config.set_multivar(&branch_merge, ".*", merge)?;
 
     Ok(())
+}
+
+/// Execute a git command by spawning a child process.
+pub fn run<P: AsRef<Path>, S: AsRef<std::ffi::OsStr>>(
+    repo: &P,
+    args: impl IntoIterator<Item = S>,
+) -> Result<String, io::Error> {
+    let output = Command::new("git").current_dir(repo).args(args).output()?;
+
+    if output.status.success() {
+        let out = if output.stdout.is_empty() {
+            &output.stderr
+        } else {
+            &output.stdout
+        };
+        return Ok(String::from_utf8_lossy(out).into());
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::Other,
+        String::from_utf8_lossy(&output.stderr),
+    ))
 }

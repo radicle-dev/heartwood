@@ -1,6 +1,7 @@
 #![allow(clippy::let_unit_value)]
 use std::io;
 use std::path::Path;
+use std::str::FromStr;
 
 use thiserror::Error;
 
@@ -57,7 +58,7 @@ pub fn init<G: Signer, S: storage::WriteStorage>(
     )
     .verified()?;
 
-    let (id, _, project) = doc.create(pk, "Initialize Radicle", storage)?;
+    let (id, _, project) = doc.create(pk, "Initialize Radicle\n", storage)?;
     let url = storage.url(&id);
 
     git::set_upstream(
@@ -297,6 +298,18 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     }
 
     Ok(repo)
+}
+
+/// Get the radicle ("rad") remote of a repository, and return the associated project id.
+pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, Id), git2::Error> {
+    let remote = repo.find_remote(REMOTE_NAME)?;
+    let url = remote.url_bytes();
+    let url = git::Url::from_bytes(url).unwrap();
+    let path = url.path.to_string();
+    let id = path.split('/').last().unwrap();
+    let id = Id::from_str(id).unwrap();
+
+    Ok((remote, id))
 }
 
 #[cfg(test)]

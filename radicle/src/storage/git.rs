@@ -91,13 +91,7 @@ impl WriteStorage for Storage {
         repository: &Repository,
         signer: G,
     ) -> Result<SignedRefs<Verified>, Error> {
-        let remote = signer.public_key();
-        let refs = repository.references(remote)?;
-        let signed = refs.signed(&signer)?;
-
-        signed.save(remote, repository)?;
-
-        Ok(signed)
+        repository.sign_refs(signer)
     }
 
     fn fetch(&self, proj_id: &Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
@@ -369,6 +363,16 @@ impl Repository {
             },
         );
         Ok(remotes)
+    }
+
+    pub fn sign_refs<G: Signer>(&self, signer: G) -> Result<SignedRefs<Verified>, Error> {
+        let remote = signer.public_key();
+        let refs = self.references(remote)?;
+        let signed = refs.signed(&signer)?;
+
+        signed.save(remote, self)?;
+
+        Ok(signed)
     }
 }
 
