@@ -6,6 +6,7 @@ use once_cell::sync::Lazy;
 
 use crate::collections::HashMap;
 use crate::crypto::PublicKey;
+use crate::storage;
 use crate::storage::refs::Refs;
 use crate::storage::RemoteId;
 
@@ -17,6 +18,7 @@ pub use git_ref_format::{refname, RefStr, RefString};
 pub use git_url as url;
 pub use git_url::Url;
 pub use radicle_git_ext as ext;
+pub use storage::BranchName;
 
 /// Default port of the `git` transport protocol.
 pub const PROTOCOL_PORT: u16 = 9418;

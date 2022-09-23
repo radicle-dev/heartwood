@@ -1,0 +1,25 @@
+[package]
+name = "radicle-tools"
+license = "MIT OR Apache-2.0"
+version = "0.2.0"
+authors = ["Alexis Sellier <alexis@radicle.xyz>"]
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1" }
+
+[dependencies.radicle]
+version = "0"
+path = "../radicle"
+
+[[bin]]
+name = "rad-init"
+path = "src/rad-init.rs"
+
+[[bin]]
+name = "rad-auth"
+path = "src/rad-auth.rs"
+
+[[bin]]
+name = "rad-self"
+path = "src/rad-self.rs"

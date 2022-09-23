@@ -116,6 +116,12 @@ impl TryFrom<&[u8]> for Signature {
 #[serde(into = "String", try_from = "String")]
 pub struct PublicKey(pub ed25519::PublicKey);
 
+impl PublicKey {
+    pub fn from_pem(pem: &str) -> Result<Self, ed25519::Error> {
+        ed25519::PublicKey::from_pem(pem).map(Self)
+    }
+}
+
 /// The private/signing key.
 pub type SecretKey = ed25519::SecretKey;
 

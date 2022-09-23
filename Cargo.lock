@@ -827,6 +827,14 @@ version = "0.1.0"
 source = "git+https://github.com/radicle-dev/radicle-link?tag=cycle/2022-07-12#541a8161cb24c3b7b10d44f958cc5c5ed05cf443"
 
 [[package]]
+name = "radicle-tools"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "radicle",
+]
+
+[[package]]
 name = "rand"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
