@@ -5,6 +5,7 @@ use crate::crypto::{KeyPair, PublicKey, SecretKey, Signature, Signer};
 use crate::keystore::UnsafeKeystore;
 use crate::storage::git::Storage;
 
+#[derive(Debug)]
 pub struct UnsafeSigner {
     public: PublicKey,
     secret: SecretKey,
@@ -20,6 +21,7 @@ impl Signer for UnsafeSigner {
     }
 }
 
+#[derive(Debug)]
 pub struct Profile {
     pub home: PathBuf,
     pub signer: UnsafeSigner,

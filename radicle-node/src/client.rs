@@ -1,14 +1,12 @@
 use std::net;
-use std::path::Path;
 
 use crossbeam_channel as chan;
 use nakamoto_net::{LocalTime, Reactor};
 
 use crate::clock::RefClock;
 use crate::collections::HashMap;
-use crate::crypto::Signer;
+use crate::profile::Profile;
 use crate::service;
-use crate::storage::git::Storage;
 use crate::transport::Transport;
 use crate::wire::Wire;
 
@@ -45,10 +43,9 @@ impl Default for Config {
     }
 }
 
-pub struct Client<R: Reactor, G: Signer> {
+pub struct Client<R: Reactor> {
     reactor: R,
-    storage: Storage,
-    signer: G,
+    profile: Profile,
 
     handle: chan::Sender<service::Command>,
     commands: chan::Receiver<service::Command>,
@@ -57,18 +54,16 @@ pub struct Client<R: Reactor, G: Signer> {
     events: Events,
 }
 
-impl<R: Reactor, G: Signer> Client<R, G> {
-    pub fn new<P: AsRef<Path>>(path: P, signer: G) -> Result<Self, nakamoto_net::error::Error> {
+impl<R: Reactor> Client<R> {
+    pub fn new(profile: Profile) -> Result<Self, nakamoto_net::error::Error> {
         let (handle, commands) = chan::unbounded::<service::Command>();
         let (shutdown, shutdown_recv) = chan::bounded(1);
         let (listening_send, listening) = chan::bounded(1);
         let reactor = R::new(shutdown_recv, listening_send)?;
-        let storage = Storage::open(path)?;
         let events = Events {};
 
         Ok(Self {
-            storage,
-            signer,
+            profile,
             reactor,
             handle,
             commands,
@@ -82,8 +77,8 @@ impl<R: Reactor, G: Signer> Client<R, G> {
         let network = config.service.network;
         let rng = fastrand::Rng::new();
         let time = LocalTime::now();
-        let storage = self.storage;
-        let signer = self.signer;
+        let storage = self.profile.storage;
+        let signer = self.profile.signer;
         let addresses = HashMap::with_hasher(rng.clone().into());
 
         log::info!("Initializing client ({:?})..", network);
