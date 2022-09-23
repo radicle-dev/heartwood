@@ -33,9 +33,9 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: G) -> Result<Storage,
 }
 
 /// Create a new repository at the given path, and initialize it into a project.
-pub fn project<'r, P: AsRef<Path>, S: WriteStorage<'r>, G: Signer>(
+pub fn project<P: AsRef<Path>, S: WriteStorage, G: Signer>(
     path: P,
-    storage: &'r S,
+    storage: &S,
     signer: G,
 ) -> Result<(Id, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
     let (repo, head) = repository(path);

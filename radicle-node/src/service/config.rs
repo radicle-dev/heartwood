@@ -4,6 +4,7 @@ use crate::collections::HashSet;
 use crate::git;
 use crate::git::Url;
 use crate::identity::{Id, PublicKey};
+use crate::service::filter::Filter;
 use crate::service::message::{Address, Envelope, Message};
 
 /// Peer-to-peer network.
@@ -123,5 +124,19 @@ impl Config {
             ProjectTracking::All { blocked } => blocked.insert(id),
             ProjectTracking::Allowed(ids) => ids.remove(&id),
         }
+    }
+
+    pub fn filter(&self) -> Filter {
+        match &self.project_tracking {
+            ProjectTracking::All { .. } => Filter::default(),
+            ProjectTracking::Allowed(ids) => Filter::new(ids.iter()),
+        }
+    }
+
+    pub fn alias(&self) -> [u8; 32] {
+        let mut alias = [0u8; 32];
+
+        alias[..9].copy_from_slice("anonymous".as_bytes());
+        alias
     }
 }

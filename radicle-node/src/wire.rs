@@ -20,6 +20,7 @@ use crate::hash::Digest;
 use crate::identity::Id;
 use crate::service;
 use crate::service::filter;
+use crate::service::reactor::Io;
 use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
@@ -450,10 +451,10 @@ impl<S, T, G> Wire<S, T, G> {
     }
 }
 
-impl<'r, S, T, G> Wire<S, T, G>
+impl<S, T, G> Wire<S, T, G>
 where
     S: address_book::Store,
-    T: WriteStorage<'r> + 'static,
+    T: WriteStorage + 'static,
     G: Signer,
 {
     pub fn connected(
@@ -505,7 +506,7 @@ impl<S, T, G> Iterator for Wire<S, T, G> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.next() {
-            Some(service::Io::Write(addr, msgs)) => {
+            Some(Io::Write(addr, msgs)) => {
                 let mut buf = Vec::new();
                 for msg in msgs {
                     log::debug!("Write {:?} to {}", &msg, addr.ip());
@@ -515,10 +516,10 @@ impl<S, T, G> Iterator for Wire<S, T, G> {
                 }
                 Some(nakamoto::Io::Write(addr, buf))
             }
-            Some(service::Io::Event(e)) => Some(nakamoto::Io::Event(e)),
-            Some(service::Io::Connect(a)) => Some(nakamoto::Io::Connect(a)),
-            Some(service::Io::Disconnect(a, r)) => Some(nakamoto::Io::Disconnect(a, r)),
-            Some(service::Io::Wakeup(d)) => Some(nakamoto::Io::Wakeup(d)),
+            Some(Io::Event(e)) => Some(nakamoto::Io::Event(e)),
+            Some(Io::Connect(a)) => Some(nakamoto::Io::Connect(a)),
+            Some(Io::Disconnect(a, r)) => Some(nakamoto::Io::Disconnect(a, r)),
+            Some(Io::Wakeup(d)) => Some(nakamoto::Io::Wakeup(d)),
 
             None => None,
         }

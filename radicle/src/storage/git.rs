@@ -13,7 +13,7 @@ use crate::identity::{Doc, Id};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
-    Error, FetchError, Inventory, ReadRepository, ReadStorage, Remote, WriteRepository,
+    Error, FetchError, Inventory, ReadRepository, ReadStorage, Remote, Remotes, WriteRepository,
     WriteStorage,
 };
 
@@ -79,7 +79,7 @@ impl ReadStorage for Storage {
     }
 }
 
-impl<'r> WriteStorage<'r> for Storage {
+impl WriteStorage for Storage {
     type Repository = Repository;
 
     fn repository(&self, proj: &Id) -> Result<Self::Repository, Error> {
@@ -98,6 +98,19 @@ impl<'r> WriteStorage<'r> for Storage {
         signed.save(remote, repository)?;
 
         Ok(signed)
+    }
+
+    fn fetch(&self, proj_id: &Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
+        let mut repo = self.repository(proj_id).unwrap();
+        let mut path = remote.path.clone();
+
+        path.push(b'/');
+        path.extend(proj_id.to_string().into_bytes());
+
+        repo.fetch(&Url {
+            path,
+            ..remote.clone()
+        })
     }
 }
 
@@ -338,11 +351,28 @@ impl Repository {
         );
         Ok(iter)
     }
+
+    pub fn remotes(
+        &self,
+    ) -> Result<
+        impl Iterator<Item = Result<(RemoteId, Remote<Verified>), refs::Error>> + '_,
+        git2::Error,
+    > {
+        let remotes = self.backend.references_glob(SIGNATURES_GLOB.as_str())?.map(
+            |reference| -> Result<_, _> {
+                let r = reference?;
+                let name = r.name().ok_or(refs::Error::InvalidRef)?;
+                let (id, _) = git::parse_ref::<RemoteId>(name)?;
+                let remote = self.remote(&id)?;
+
+                Ok((id, remote))
+            },
+        );
+        Ok(remotes)
+    }
 }
 
-impl<'r> ReadRepository<'r> for Repository {
-    type Remotes = Box<dyn Iterator<Item = Result<(RemoteId, Remote<Verified>), refs::Error>> + 'r>;
-
+impl ReadRepository for Repository {
     fn is_empty(&self) -> Result<bool, git2::Error> {
         let some = self.remotes()?.next().is_some();
         Ok(!some)
@@ -425,19 +455,12 @@ impl<'r> ReadRepository<'r> for Repository {
         Ok(refs.into())
     }
 
-    fn remotes(&'r self) -> Result<Self::Remotes, git2::Error> {
-        let iter = self.backend.references_glob(SIGNATURES_GLOB.as_str())?.map(
-            |reference| -> Result<(RemoteId, Remote<Verified>), refs::Error> {
-                let r = reference?;
-                let name = r.name().ok_or(refs::Error::InvalidRef)?;
-                let (id, _) = git::parse_ref::<RemoteId>(name)?;
-                let remote = self.remote(&id)?;
-
-                Ok((id, remote))
-            },
-        );
-
-        Ok(Box::new(iter))
+    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
+        let mut remotes = Vec::new();
+        for remote in Repository::remotes(self)? {
+            remotes.push(remote?);
+        }
+        Ok(Remotes::from_iter(remotes))
     }
 
     fn project(&self) -> Result<Doc<Verified>, Error> {
@@ -449,7 +472,7 @@ impl<'r> ReadRepository<'r> for Repository {
     }
 }
 
-impl<'r> WriteRepository<'r> for Repository {
+impl WriteRepository for Repository {
     /// Fetch all remotes of a project from the given URL.
     fn fetch(&mut self, url: &git::Url) -> Result<Vec<RefUpdate>, FetchError> {
         // TODO: Have function to fetch specific remotes.

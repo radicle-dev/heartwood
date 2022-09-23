@@ -13,7 +13,8 @@ use log::*;
 use nakamoto_net as nakamoto;
 use nakamoto_net::{Link, LocalDuration, LocalTime};
 
-use crate::service::{DisconnectReason, Envelope, Event, Io};
+use crate::service::reactor::Io;
+use crate::service::{DisconnectReason, Envelope, Event};
 use crate::storage::WriteStorage;
 use crate::test::peer::Service;
 
@@ -191,7 +192,7 @@ pub struct Simulation<S> {
     storage: PhantomData<S>,
 }
 
-impl<'r, S: WriteStorage<'r>> Simulation<S> {
+impl<S: WriteStorage + 'static> Simulation<S> {
     /// Create a new simulation.
     pub fn new(time: LocalTime, rng: fastrand::Rng, opts: Options) -> Self {
         Self {

@@ -35,13 +35,13 @@ pub enum InitError {
 }
 
 /// Initialize a new radicle project from a git repository.
-pub fn init<'r, G: Signer, S: storage::WriteStorage<'r>>(
+pub fn init<G: Signer, S: storage::WriteStorage>(
     repo: &git2::Repository,
     name: &str,
     description: &str,
     default_branch: BranchName,
     signer: G,
-    storage: &'r S,
+    storage: &S,
 ) -> Result<(Id, SignedRefs<Verified>), InitError> {
     let pk = signer.public_key();
     let delegate = identity::Delegate {
@@ -98,7 +98,7 @@ pub enum ForkError {
 }
 
 /// Create a local tree for an existing project, from an existing remote.
-pub fn fork_remote<'r, G: Signer, S: storage::WriteStorage<'r>>(
+pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     proj: &Id,
     remote: &RemoteId,
     signer: G,
@@ -147,7 +147,7 @@ pub fn fork_remote<'r, G: Signer, S: storage::WriteStorage<'r>>(
     Ok(())
 }
 
-pub fn fork<'r, G: Signer, S: storage::WriteStorage<'r>>(
+pub fn fork<G: Signer, S: storage::WriteStorage>(
     proj: &Id,
     signer: &G,
     storage: &S,
@@ -206,7 +206,7 @@ pub enum CloneError {
     Checkout(#[from] CheckoutError),
 }
 
-pub fn clone<'r, P: AsRef<Path>, G: Signer, S: storage::WriteStorage<'r>, H: node::Handle>(
+pub fn clone<P: AsRef<Path>, G: Signer, S: storage::WriteStorage, H: node::Handle>(
     proj: &Id,
     path: P,
     signer: &G,
@@ -232,7 +232,7 @@ pub enum CloneUrlError {
     Checkout(#[from] CheckoutError),
 }
 
-pub fn clone_url<'r, P: AsRef<Path>, G: Signer, S: storage::WriteStorage<'r>>(
+pub fn clone_url<P: AsRef<Path>, G: Signer, S: storage::WriteStorage>(
     proj: &Id,
     url: &git::Url,
     path: P,

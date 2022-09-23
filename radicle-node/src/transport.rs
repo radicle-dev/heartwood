@@ -32,9 +32,9 @@ impl<S, T, G> Transport<S, T, G> {
     }
 }
 
-impl<'r, S, T, G> nakamoto::Protocol for Transport<S, T, G>
+impl<S, T, G> nakamoto::Protocol for Transport<S, T, G>
 where
-    T: WriteStorage<'r> + 'static,
+    T: WriteStorage + 'static,
     S: address_book::Store,
     G: crypto::Signer,
 {

@@ -4,14 +4,12 @@ use bloomy::BloomFilter;
 use quickcheck::Arbitrary;
 
 use crate::crypto;
-use crate::identity::Id;
+use crate::prelude::{Id, NodeId, Refs, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE};
 use crate::service::message::{
     Address, Envelope, InventoryAnnouncement, Message, NodeAnnouncement, RefsAnnouncement,
     Subscribe,
 };
-use crate::service::{NodeId, Timestamp};
-use crate::storage::refs::Refs;
 use crate::wire::message::MessageType;
 
 pub use radicle::test::arbitrary::*;

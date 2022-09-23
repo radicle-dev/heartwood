@@ -222,8 +222,8 @@ pub trait ReadStorage {
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
-pub trait WriteStorage<'r>: ReadStorage {
-    type Repository: WriteRepository<'r>;
+pub trait WriteStorage: ReadStorage {
+    type Repository: WriteRepository;
 
     fn repository(&self, proj: &Id) -> Result<Self::Repository, Error>;
     fn sign_refs<G: Signer>(
@@ -231,11 +231,10 @@ pub trait WriteStorage<'r>: ReadStorage {
         repository: &Self::Repository,
         signer: G,
     ) -> Result<SignedRefs<Verified>, Error>;
+    fn fetch(&self, proj_id: &Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError>;
 }
 
-pub trait ReadRepository<'r> {
-    type Remotes: Iterator<Item = Result<(RemoteId, Remote<Verified>), refs::Error>> + 'r;
-
+pub trait ReadRepository {
     fn is_empty(&self) -> Result<bool, git2::Error>;
     fn path(&self) -> &Path;
     fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git_ext::Error>;
@@ -253,13 +252,13 @@ pub trait ReadRepository<'r> {
     ) -> Result<Option<Oid>, git2::Error>;
     fn references(&self, remote: &RemoteId) -> Result<Refs, Error>;
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error>;
-    fn remotes(&'r self) -> Result<Self::Remotes, git2::Error>;
+    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;
     /// Return the project associated with this repository.
     fn project(&self) -> Result<identity::Doc<Verified>, Error>;
     fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError>;
 }
 
-pub trait WriteRepository<'r>: ReadRepository<'r> {
+pub trait WriteRepository: ReadRepository {
     fn fetch(&mut self, url: &Url) -> Result<Vec<RefUpdate>, FetchError>;
     fn raw(&self) -> &git2::Repository;
 }
@@ -286,10 +285,10 @@ where
     }
 }
 
-impl<'r, T, S> WriteStorage<'r> for T
+impl<T, S> WriteStorage for T
 where
     T: Deref<Target = S>,
-    S: WriteStorage<'r> + 'static,
+    S: WriteStorage + 'static,
 {
     type Repository = S::Repository;
 
@@ -303,6 +302,10 @@ where
         signer: G,
     ) -> Result<SignedRefs<Verified>, Error> {
         self.deref().sign_refs(repository, signer)
+    }
+
+    fn fetch(&self, proj_id: &Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
+        self.deref().fetch(proj_id, remote)
     }
 }
 

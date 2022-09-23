@@ -125,11 +125,11 @@ impl Doc<Verified> {
         Ok((oid, sig))
     }
 
-    pub fn create<'r, S: WriteStorage<'r>>(
+    pub fn create<S: WriteStorage>(
         &self,
         remote: &RemoteId,
         msg: &str,
-        storage: &'r S,
+        storage: &S,
     ) -> Result<(Id, git::Oid, S::Repository), Error> {
         // You can checkout this branch in your working copy with:
         //
@@ -147,7 +147,7 @@ impl Doc<Verified> {
         Ok((id, oid, repo))
     }
 
-    pub fn update<'r, R: WriteRepository<'r>>(
+    pub fn update<R: WriteRepository>(
         &self,
         remote: &RemoteId,
         msg: &str,
@@ -320,7 +320,7 @@ impl Doc<Unverified> {
         })
     }
 
-    pub fn blob_at<'r, R: ReadRepository<'r>>(
+    pub fn blob_at<R: ReadRepository>(
         commit: Oid,
         repo: &R,
     ) -> Result<Option<git2::Blob>, git::Error> {
@@ -331,7 +331,7 @@ impl Doc<Unverified> {
         }
     }
 
-    pub fn load_at<'r, R: ReadRepository<'r>>(
+    pub fn load_at<R: ReadRepository>(
         commit: Oid,
         repo: &R,
     ) -> Result<Option<(Self, Oid)>, git::Error> {
@@ -342,7 +342,7 @@ impl Doc<Unverified> {
         Ok(None)
     }
 
-    pub fn load<'r, R: ReadRepository<'r>>(
+    pub fn load<R: ReadRepository>(
         remote: &RemoteId,
         repo: &R,
     ) -> Result<Option<(Self, Oid)>, git::Error> {
@@ -355,10 +355,7 @@ impl Doc<Unverified> {
 }
 
 impl<V> Doc<V> {
-    pub fn head<'r, R: ReadRepository<'r>>(
-        remote: &RemoteId,
-        repo: &R,
-    ) -> Result<Option<Oid>, git::Error> {
+    pub fn head<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<Option<Oid>, git::Error> {
         let head = &git::refname!("heads").join(&*git::refs::IDENTITY_BRANCH);
         if let Some(oid) = repo.reference_oid(remote, head)? {
             Ok(Some(oid))
@@ -421,7 +418,7 @@ impl Identity<Oid> {
 }
 
 impl Identity<Untrusted> {
-    pub fn load<'r, R: ReadRepository<'r>>(
+    pub fn load<R: ReadRepository>(
         remote: &RemoteId,
         repo: &R,
     ) -> Result<Option<Identity<Oid>>, IdentityError> {

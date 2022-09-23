@@ -53,7 +53,7 @@ impl ReadStorage for MockStorage {
     }
 }
 
-impl WriteStorage<'_> for MockStorage {
+impl WriteStorage for MockStorage {
     type Repository = MockRepository;
 
     fn repository(&self, _proj: &Id) -> Result<Self::Repository, Error> {
@@ -67,13 +67,15 @@ impl WriteStorage<'_> for MockStorage {
     ) -> Result<crate::storage::refs::SignedRefs<Verified>, Error> {
         todo!()
     }
+
+    fn fetch(&self, _proj_id: &Id, _remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
+        Ok(vec![])
+    }
 }
 
 pub struct MockRepository {}
 
-impl ReadRepository<'_> for MockRepository {
-    type Remotes = std::iter::Empty<Result<(RemoteId, Remote<Verified>), refs::Error>>;
-
+impl ReadRepository for MockRepository {
     fn is_empty(&self) -> Result<bool, git2::Error> {
         Ok(true)
     }
@@ -86,7 +88,7 @@ impl ReadRepository<'_> for MockRepository {
         todo!()
     }
 
-    fn remotes(&self) -> Result<Self::Remotes, git2::Error> {
+    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
         todo!()
     }
 
@@ -137,7 +139,7 @@ impl ReadRepository<'_> for MockRepository {
     }
 }
 
-impl WriteRepository<'_> for MockRepository {
+impl WriteRepository for MockRepository {
     fn fetch(&mut self, _url: &Url) -> Result<Vec<RefUpdate>, FetchError> {
         Ok(vec![])
     }

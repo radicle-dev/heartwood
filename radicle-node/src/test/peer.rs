@@ -1,16 +1,18 @@
+use std::iter;
 use std::net;
 use std::ops::{Deref, DerefMut};
 
 use log::*;
 
 use crate::address_book::{KnownAddress, Source};
-use crate::clock::RefClock;
+use crate::clock::{RefClock, Timestamp};
 use crate::collections::HashMap;
 use crate::git;
 use crate::git::Url;
 use crate::service;
 use crate::service::config::*;
 use crate::service::message::*;
+use crate::service::reactor::Io;
 use crate::service::*;
 use crate::storage::WriteStorage;
 use crate::test::signer::MockSigner;
@@ -32,9 +34,9 @@ pub struct Peer<S> {
     initialized: bool,
 }
 
-impl<'r, S> simulator::Peer<S> for Peer<S>
+impl<S> simulator::Peer<S> for Peer<S>
 where
-    S: WriteStorage<'r> + 'static,
+    S: WriteStorage + 'static,
 {
     fn init(&mut self) {
         self.initialize()
@@ -59,9 +61,9 @@ impl<S> DerefMut for Peer<S> {
     }
 }
 
-impl<'r, S> Peer<S>
+impl<S> Peer<S>
 where
-    S: WriteStorage<'r> + 'static,
+    S: WriteStorage + 'static,
 {
     pub fn new(name: &'static str, ip: impl Into<net::IpAddr>, storage: S) -> Self {
         let git_url = Url {
@@ -124,7 +126,7 @@ where
     }
 
     pub fn timestamp(&self) -> Timestamp {
-        self.service.timestamp()
+        self.service.clock().timestamp()
     }
 
     pub fn git_url(&self) -> Url {
@@ -185,8 +187,8 @@ where
     pub fn messages(&mut self, remote: &net::SocketAddr) -> impl Iterator<Item = Message> {
         let mut msgs = Vec::new();
 
-        self.service.outbox().retain(|o| match o {
-            service::Io::Write(a, envelopes) if a == remote => {
+        self.service.reactor().outbox().retain(|o| match o {
+            Io::Write(a, envelopes) if a == remote => {
                 msgs.extend(envelopes.iter().map(|e| e.msg.clone()));
                 false
             }
@@ -204,6 +206,6 @@ where
 
     /// Get a draining iterator over the peer's I/O outbox.
     pub fn outbox(&mut self) -> impl Iterator<Item = Io> + '_ {
-        self.service.outbox().drain(..)
+        iter::from_fn(|| self.service.reactor().next())
     }
 }
