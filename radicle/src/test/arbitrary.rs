@@ -85,7 +85,7 @@ impl Arbitrary for Doc<Unverified> {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let name = String::arbitrary(g);
         let description = String::arbitrary(g);
-        let default_branch = String::arbitrary(g);
+        let default_branch = git::RefString::try_from(String::arbitrary(g)).unwrap();
         let delegate = Delegate::arbitrary(g);
 
         Self::initial(name, description, default_branch, delegate)
@@ -101,9 +101,11 @@ impl Arbitrary for Doc<Verified> {
         let description = iter::repeat_with(|| rng.alphanumeric())
             .take(rng.usize(0..32))
             .collect();
-        let default_branch = iter::repeat_with(|| rng.alphanumeric())
+        let default_branch: git::RefString = iter::repeat_with(|| rng.alphanumeric())
             .take(rng.usize(1..16))
-            .collect();
+            .collect::<String>()
+            .try_into()
+            .unwrap();
         let delegates: NonEmpty<_> = iter::repeat_with(|| Delegate {
             name: iter::repeat_with(|| rng.alphanumeric())
                 .take(rng.usize(1..16))

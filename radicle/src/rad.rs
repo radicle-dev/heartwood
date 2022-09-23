@@ -3,6 +3,7 @@ use std::io;
 use std::path::Path;
 use std::str::FromStr;
 
+use once_cell::sync::Lazy;
 use thiserror::Error;
 
 use crate::crypto::{Signer, Verified};
@@ -13,7 +14,7 @@ use crate::storage::refs::SignedRefs;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId, WriteRepository as _};
 use crate::{identity, storage};
 
-pub const REMOTE_NAME: &str = "rad";
+pub static REMOTE_NAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("rad"));
 
 #[derive(Error, Debug)]
 pub enum InitError {
@@ -63,7 +64,7 @@ pub fn init<G: Signer, S: storage::WriteStorage>(
 
     git::set_upstream(
         repo,
-        REMOTE_NAME,
+        &REMOTE_NAME,
         &default_branch,
         &git::refs::storage::branch(pk, &default_branch),
     )?;
@@ -71,7 +72,7 @@ pub fn init<G: Signer, S: storage::WriteStorage>(
     // TODO: Note that you'll likely want to use `RemoteCallbacks` and set
     // `push_update_reference` to test whether all the references were pushed
     // successfully.
-    git::configure_remote(repo, REMOTE_NAME, pk, &url)?.push::<&str>(
+    git::configure_remote(repo, &REMOTE_NAME, pk, &url)?.push::<&str>(
         &[&format!(
             "{}:{}",
             &git::refs::workdir::branch(&default_branch),
@@ -276,24 +277,24 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     opts.no_reinit(true).description(&project.description);
 
     let repo = git2::Repository::init_opts(path, &opts)?;
-    let default_branch = project.default_branch.as_str();
     let url = storage.url(&proj);
 
     // Configure and fetch all refs from remote.
-    git::configure_remote(&repo, REMOTE_NAME, remote, &url)?.fetch::<&str>(&[], None, None)?;
+    git::configure_remote(&repo, &REMOTE_NAME, remote, &url)?.fetch::<&str>(&[], None, None)?;
 
     {
         // Setup default branch.
-        let remote_head_ref = git::refs::workdir::remote_branch(REMOTE_NAME, default_branch);
+        let remote_head_ref =
+            git::refs::workdir::remote_branch(&REMOTE_NAME, &project.default_branch);
         let remote_head_commit = repo.find_reference(&remote_head_ref)?.peel_to_commit()?;
-        let _ = repo.branch(default_branch, &remote_head_commit, true)?;
+        let _ = repo.branch(&project.default_branch, &remote_head_commit, true)?;
 
         // Setup remote tracking for default branch.
         git::set_upstream(
             &repo,
-            REMOTE_NAME,
-            default_branch,
-            &git::refs::storage::branch(remote, default_branch),
+            &REMOTE_NAME,
+            &project.default_branch,
+            &git::refs::storage::branch(remote, &project.default_branch),
         )?;
     }
 
@@ -302,7 +303,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
 
 /// Get the radicle ("rad") remote of a repository, and return the associated project id.
 pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, Id), git2::Error> {
-    let remote = repo.find_remote(REMOTE_NAME)?;
+    let remote = repo.find_remote(&REMOTE_NAME)?;
     let url = remote.url_bytes();
     let url = git::Url::from_bytes(url).unwrap();
     let path = url.path.to_string();
@@ -335,7 +336,7 @@ mod tests {
             &repo,
             "acme",
             "Acme's repo",
-            BranchName::from("master"),
+            git::refname!("master"),
             &signer,
             &storage,
         )
@@ -353,7 +354,7 @@ mod tests {
         assert_eq!(remotes[&public_key].refs, refs);
         assert_eq!(project.name, "acme");
         assert_eq!(project.description, "Acme's repo");
-        assert_eq!(project.default_branch, BranchName::from("master"));
+        assert_eq!(project.default_branch, git::refname!("master"));
         assert_eq!(
             project.delegates.first(),
             &Delegate {
@@ -378,7 +379,7 @@ mod tests {
             &original,
             "acme",
             "Acme's repo",
-            BranchName::from("master"),
+            git::refname!("master"),
             &alice,
             &storage,
         )
@@ -408,7 +409,7 @@ mod tests {
             &original,
             "acme",
             "Acme's repo",
-            BranchName::from("master"),
+            git::refname!("master"),
             &signer,
             &storage,
         )
@@ -430,14 +431,14 @@ mod tests {
                 .to_vec()
         );
         assert_eq!(
-            copy.find_remote(REMOTE_NAME)
+            copy.find_remote(&REMOTE_NAME)
                 .unwrap()
                 .refspecs()
                 .into_iter()
                 .map(|r| r.bytes().to_vec())
                 .collect::<Vec<_>>(),
             original
-                .find_remote(REMOTE_NAME)
+                .find_remote(&REMOTE_NAME)
                 .unwrap()
                 .refspecs()
                 .into_iter()

@@ -16,7 +16,7 @@ pub use ext::Error;
 pub use ext::Oid;
 pub use git2 as raw;
 pub use git_ref_format as fmt;
-pub use git_ref_format::{refname, RefStr, RefString};
+pub use git_ref_format::{refname, Component, Qualified, RefStr, RefString};
 pub use git_url as url;
 pub use git_url::Url;
 pub use radicle_git_ext as ext;
@@ -41,6 +41,13 @@ pub enum ListRefsError {
     InvalidRef(#[from] RefError),
 }
 
+impl From<&RemoteId> for RefString {
+    fn from(id: &RemoteId) -> Self {
+        // PublicKey strings contain only legal characters.
+        RefString::try_from(id.to_string()).unwrap()
+    }
+}
+
 pub mod refs {
     use super::*;
 
@@ -50,31 +57,36 @@ pub mod refs {
     pub mod storage {
         use super::*;
 
-        pub fn branch(remote: &RemoteId, branch: &str) -> String {
-            format!("refs/remotes/{remote}/heads/{branch}")
+        pub fn branch(remote: &RemoteId, branch: &RefStr) -> RefString {
+            refname!("refs/remotes")
+                .and::<RefString>(remote.into())
+                .and(refname!("heads"))
+                .and(branch)
         }
 
         /// Get the branch used to track project information.
-        pub fn id(remote: &RemoteId) -> String {
+        pub fn id(remote: &RemoteId) -> RefString {
             branch(remote, &IDENTITY_BRANCH)
         }
     }
 
     pub mod workdir {
-        pub fn branch(branch: &str) -> String {
-            format!("refs/heads/{branch}")
+        use super::*;
+
+        pub fn branch(branch: &RefStr) -> RefString {
+            refname!("refs/heads").join(branch)
         }
 
-        pub fn note(name: &str) -> String {
-            format!("refs/notes/{name}")
+        pub fn note(name: &RefStr) -> RefString {
+            refname!("refs/notes").join(name)
         }
 
-        pub fn remote_branch(remote: &str, branch: &str) -> String {
-            format!("refs/remotes/{remote}/{branch}")
+        pub fn remote_branch(remote: &RefStr, branch: &RefStr) -> RefString {
+            refname!("refs/remotes").and(remote).and(branch)
         }
 
-        pub fn tag(name: &str) -> String {
-            format!("refs/tags/{name}")
+        pub fn tag(name: &RefStr) -> RefString {
+            refname!("refs/tags").join(name)
         }
     }
 }

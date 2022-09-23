@@ -24,7 +24,7 @@ use crate::storage::refs::Refs;
 
 use self::refs::SignedRefs;
 
-pub type BranchName = String;
+pub type BranchName = git::RefString;
 pub type Inventory = Vec<Id>;
 
 /// Storage error.

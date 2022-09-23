@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1" }
+git-ref-format = { version = "0", features = ["serde", "macro"] }
 
 [dependencies.radicle]
 version = "0"

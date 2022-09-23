@@ -71,8 +71,8 @@ impl From<Delegate> for PublicKey {
 #[serde(rename_all = "kebab-case")]
 pub struct Payload {
     pub name: String,
-    pub description: String,    // TODO: Make optional.
-    pub default_branch: String, // TODO: Make optional.
+    pub description: String,            // TODO: Make optional.
+    pub default_branch: git::RefString, // TODO: Make optional.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

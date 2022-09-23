@@ -815,6 +815,7 @@ dependencies = [
  "colored",
  "crossbeam-channel",
  "fastrand",
+ "git-ref-format",
  "lexopt",
  "log",
  "nakamoto-net",
@@ -839,6 +840,7 @@ name = "radicle-tools"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "git-ref-format",
  "radicle",
 ]
 

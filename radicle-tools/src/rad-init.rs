@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use radicle::git;
+
 fn main() -> anyhow::Result<()> {
     let cwd = Path::new(".").canonicalize()?;
     let name = cwd.file_name().unwrap().to_string_lossy().to_string();
@@ -9,7 +11,7 @@ fn main() -> anyhow::Result<()> {
         &repo,
         &name,
         "",
-        radicle::git::BranchName::from("master"),
+        git::refname!("master"),
         &profile.signer,
         &profile.storage,
     )?;

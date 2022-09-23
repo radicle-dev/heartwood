@@ -6,7 +6,7 @@ use crate::identity::Id;
 use crate::rad;
 use crate::storage::git::Storage;
 use crate::storage::refs::SignedRefs;
-use crate::storage::{BranchName, WriteStorage};
+use crate::storage::WriteStorage;
 
 /// Create a new storage with a project.
 pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: G) -> Result<Storage, rad::InitError> {
@@ -23,7 +23,7 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: G) -> Result<Storage,
             &repo,
             name,
             desc,
-            BranchName::from("master"),
+            git::refname!("master"),
             &signer,
             &storage,
         )?;
@@ -43,7 +43,7 @@ pub fn project<P: AsRef<Path>, S: WriteStorage, G: Signer>(
         &repo,
         "acme",
         "Acme's repository",
-        BranchName::from("master"),
+        git::refname!("master"),
         signer,
         storage,
     )?;

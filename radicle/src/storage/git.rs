@@ -810,7 +810,7 @@ mod tests {
             &source,
             "radicle",
             "radicle",
-            BranchName::from("master"),
+            git::refname!("master"),
             signer,
             &storage,
         )

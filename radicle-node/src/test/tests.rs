@@ -22,7 +22,7 @@ use crate::test::simulator;
 use crate::test::simulator::{Peer as _, Simulation};
 use crate::test::storage::MockStorage;
 use crate::LocalTime;
-use crate::{client, identity, rad, service, storage, test};
+use crate::{client, git, identity, rad, service, test};
 
 // NOTE
 //
@@ -397,7 +397,7 @@ fn test_push_and_pull() {
         &repo,
         "alice",
         "alice's repo",
-        storage::BranchName::from("master"),
+        git::refname!("master"),
         alice.signer(),
         alice.storage(),
     )
