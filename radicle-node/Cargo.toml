@@ -13,6 +13,7 @@ chrono = { version = "0.4.0" }
 colored = { version = "1.9.0" }
 crossbeam-channel = { version = "0.5.6" }
 fastrand = { version = "1.8.0" }
+lexopt = { version = "0.2.1" }
 log = { version = "0.4.17", features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

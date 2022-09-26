@@ -125,6 +125,10 @@ where
         }
     }
 
+    pub fn address(&self) -> Address {
+        simulator::Peer::addr(self).into()
+    }
+
     pub fn timestamp(&self) -> Timestamp {
         self.service.clock().timestamp()
     }

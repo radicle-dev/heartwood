@@ -1,5 +1,3 @@
-use std::net;
-
 use crate::collections::HashSet;
 use crate::git;
 use crate::git::Url;
@@ -65,7 +63,7 @@ pub enum RemoteTracking {
 pub struct Config {
     /// Peers to connect to on startup.
     /// Connections to these peers will be maintained.
-    pub connect: Vec<net::SocketAddr>,
+    pub connect: Vec<Address>,
     /// Peer-to-peer network.
     pub network: Network,
     /// Project tracking policy.
@@ -99,7 +97,7 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn is_persistent(&self, addr: &net::SocketAddr) -> bool {
+    pub fn is_persistent(&self, addr: &Address) -> bool {
         self.connect.contains(addr)
     }
 

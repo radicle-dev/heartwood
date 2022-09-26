@@ -1,15 +1,69 @@
 use std::thread;
-use std::{env, net};
+use std::{env, net, process};
 
-use radicle_node::{client, control};
+use radicle_node::prelude::Address;
+use radicle_node::{client, control, git, service};
 
 type Reactor = nakamoto_net_poll::Reactor<net::TcpStream>;
 
+#[derive(Debug)]
+struct Options {
+    connect: Vec<Address>,
+    listen: Vec<net::SocketAddr>,
+    git_url: git::Url,
+}
+
+impl Options {
+    fn from_env() -> Result<Self, lexopt::Error> {
+        use lexopt::prelude::*;
+        let mut parser = lexopt::Parser::from_env();
+        let mut connect = Vec::new();
+        let mut listen = Vec::new();
+        let mut git_url = None;
+
+        while let Some(arg) = parser.next()? {
+            match arg {
+                Long("connect") => {
+                    let addr = parser.value()?.parse()?;
+                    connect.push(addr);
+                }
+                Long("listen") => {
+                    let addr = parser.value()?.parse()?;
+                    listen.push(addr);
+                }
+                Long("git-url") => {
+                    let url = git::Url::from_bytes(parser.value()?.into_string()?.as_bytes())
+                        .map_err(|e| format!("invalid URL: {}", e))?;
+                    git_url = Some(url);
+                }
+                Long("help") => {
+                    println!("usage: radicle-node [--connect <addr>]..");
+                    process::exit(0);
+                }
+                _ => return Err(arg.unexpected()),
+            }
+        }
+        Ok(Self {
+            connect,
+            listen,
+            git_url: git_url.ok_or("a Git URL must be specified with `--git-url`")?,
+        })
+    }
+}
+
 fn main() -> anyhow::Result<()> {
+    let options = Options::from_env()?;
     let profile = radicle::Profile::load()?;
     let client = client::Client::<Reactor>::new(profile)?;
     let handle = client.handle();
-    let config = client::Config::default();
+    let config = client::Config {
+        service: service::Config {
+            connect: options.connect,
+            git_url: options.git_url,
+            ..service::Config::default()
+        },
+        listen: options.listen,
+    };
     let socket = env::var("RAD_SOCKET").unwrap_or_else(|_| control::DEFAULT_SOCKET_NAME.to_owned());
 
     let t1 = thread::spawn(move || control::listen(socket, handle));

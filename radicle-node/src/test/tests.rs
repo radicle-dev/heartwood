@@ -78,7 +78,7 @@ fn test_persistent_peer_connect() {
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
     let config = Config {
-        connect: vec![bob.addr(), eve.addr()],
+        connect: vec![bob.address(), eve.address()],
         ..Config::default()
     };
     let mut alice = Peer::config(
@@ -302,7 +302,7 @@ fn test_persistent_peer_reconnect() {
     let mut alice = Peer::config(
         "alice",
         Config {
-            connect: vec![bob.addr(), eve.addr()],
+            connect: vec![bob.address(), eve.address()],
             ..Config::default()
         },
         [7, 7, 7, 7],

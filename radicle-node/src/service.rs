@@ -28,6 +28,7 @@ use crate::git;
 use crate::git::Url;
 use crate::identity::{Doc, Id};
 use crate::service::config::ProjectTracking;
+use crate::service::message::Address;
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::peer::{Session, SessionError, SessionState};
 use crate::storage;
@@ -464,8 +465,9 @@ where
     }
 
     pub fn attempted(&mut self, addr: &std::net::SocketAddr) {
+        let address = Address::from(*addr);
         let ip = addr.ip();
-        let persistent = self.config.is_persistent(addr);
+        let persistent = self.config.is_persistent(&address);
         let peer = self
             .sessions
             .entry(ip)
@@ -481,6 +483,7 @@ where
         link: Link,
     ) {
         let ip = addr.ip();
+        let address = addr.into();
 
         debug!("Connected to {} ({:?})", ip, link);
 
@@ -505,7 +508,7 @@ where
         } else {
             self.sessions.insert(
                 ip,
-                Session::new(addr, Link::Inbound, self.config.is_persistent(&addr)),
+                Session::new(addr, Link::Inbound, self.config.is_persistent(&address)),
             );
         }
     }
@@ -516,6 +519,7 @@ where
         reason: nakamoto::DisconnectReason<DisconnectReason>,
     ) {
         let since = self.local_time();
+        let address = Address::from(*addr);
         let ip = addr.ip();
 
         debug!("Disconnected from {} ({})", ip, reason);
@@ -524,7 +528,7 @@ where
             peer.state = SessionState::Disconnected { since };
 
             // Attempt to re-connect to persistent peers.
-            if self.config.is_persistent(addr) && peer.attempts() < MAX_CONNECTION_ATTEMPTS {
+            if self.config.is_persistent(&address) && peer.attempts() < MAX_CONNECTION_ATTEMPTS {
                 if reason.is_dial_err() {
                     return;
                 }

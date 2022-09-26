@@ -1,4 +1,7 @@
+use std::str::FromStr;
 use std::{fmt, io, net};
+
+use thiserror::Error;
 
 use crate::crypto;
 use crate::git;
@@ -23,6 +26,12 @@ pub type NodeFeatures = [u8; 32];
 #[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: We should check the length and charset when deserializing.
 pub struct Hostname(String);
+
+impl fmt::Display for Hostname {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 /// Peer public protocol address.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,6 +64,52 @@ impl From<net::SocketAddr> for Address {
         match other.ip() {
             net::IpAddr::V4(ip) => Self::Ipv4 { ip, port },
             net::IpAddr::V6(ip) => Self::Ipv6 { ip, port },
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum AddressParseError {
+    #[error("unsupported address type `{0}`")]
+    Unsupported(String),
+}
+
+impl FromStr for Address {
+    type Err = AddressParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(addr) = net::SocketAddr::from_str(s) {
+            match addr.ip() {
+                net::IpAddr::V4(ip) => Ok(Self::Ipv4 {
+                    ip,
+                    port: addr.port(),
+                }),
+                net::IpAddr::V6(ip) => Ok(Self::Ipv6 {
+                    ip,
+                    port: addr.port(),
+                }),
+            }
+        } else {
+            Err(Self::Err::Unsupported(s.to_owned()))
+        }
+    }
+}
+
+impl fmt::Display for Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ipv4 { ip, port } => {
+                write!(f, "{}:{}", ip, port)
+            }
+            Self::Ipv6 { ip, port } => {
+                write!(f, "{}:{}", ip, port)
+            }
+            Self::Hostname { host, port } => {
+                write!(f, "{}:{}", host, port)
+            }
+            Self::Onion { key, port, .. } => {
+                write!(f, "{}:{}", key, port)
+            }
         }
     }
 }
