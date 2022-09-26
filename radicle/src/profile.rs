@@ -2,8 +2,7 @@
 //!
 //!   $RAD_HOME/                                 # Radicle home
 //!     storage/                                 # Storage root
-//!       zEQNunJUqkNahQ8VvQYuWZZV7EJB/          # Project root
-//!         git/                                 # Project Git repository
+//!       zEQNunJUqkNahQ8VvQYuWZZV7EJB/          # Project git repository
 //!       ...                                    # More projects...
 //!     keys/
 //!       radicle                                # Secret key (PKCS 8)

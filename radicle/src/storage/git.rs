@@ -56,7 +56,7 @@ impl ReadStorage for Storage {
     }
 
     fn url(&self, proj: &Id) -> Url {
-        let path = self.path().join(proj.to_string());
+        let path = paths::repository(self, proj);
 
         Url {
             scheme: git_url::Scheme::File,
@@ -83,7 +83,7 @@ impl WriteStorage for Storage {
     type Repository = Repository;
 
     fn repository(&self, proj: &Id) -> Result<Self::Repository, Error> {
-        Repository::open(self.path.join(proj.to_string()))
+        Repository::open(paths::repository(self, proj))
     }
 
     fn sign_refs<G: Signer>(
@@ -609,6 +609,17 @@ pub mod trailers {
     }
 }
 
+pub mod paths {
+    use std::path::PathBuf;
+
+    use super::Id;
+    use super::ReadStorage;
+
+    pub fn repository<S: ReadStorage>(storage: &S, proj: &Id) -> PathBuf {
+        storage.path().join(proj.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -628,9 +639,11 @@ mod tests {
         let inv = storage.inventory().unwrap();
         let proj = inv.first().unwrap();
         let mut refs = git::remote_refs(&git::Url {
-            host: Some(storage.path().to_string_lossy().to_string()),
             scheme: git_url::Scheme::File,
-            path: format!("/{}", proj).into(),
+            path: paths::repository(&storage, proj)
+                .to_string_lossy()
+                .into_owned()
+                .into(),
             ..git::Url::default()
         })
         .unwrap();
@@ -669,9 +682,7 @@ mod tests {
             .unwrap()
             .fetch(&git::Url {
                 scheme: git_url::Scheme::File,
-                path: alice
-                    .path()
-                    .join(proj.to_string())
+                path: paths::repository(&alice, proj)
                     .to_string_lossy()
                     .into_owned()
                     .into(),
@@ -715,9 +726,7 @@ mod tests {
         let refname = git::refname!("refs/heads/master");
         let alice_url = git::Url {
             scheme: git_url::Scheme::File,
-            path: alice
-                .path()
-                .join(proj_id.to_string())
+            path: paths::repository(&alice, &proj_id)
                 .to_string_lossy()
                 .into_owned()
                 .into(),
