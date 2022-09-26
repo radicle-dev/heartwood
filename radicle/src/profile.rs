@@ -39,7 +39,6 @@ pub struct Profile {
     pub home: PathBuf,
     pub signer: UnsafeSigner,
     pub storage: Storage,
-    pub node: Option<node::Connection>,
 }
 
 impl Profile {
@@ -59,7 +58,6 @@ impl Profile {
             home,
             signer,
             storage,
-            node: None,
         })
     }
 
@@ -73,16 +71,12 @@ impl Profile {
             home,
             signer,
             storage,
-            node: None,
         })
     }
 
-    /// Connect to the local radicle node.
-    pub fn connect(&mut self) -> Result<(), io::Error> {
-        let conn = node::Connection::connect(self.socket())?;
-        self.node = Some(conn);
-
-        Ok(())
+    /// Return a connection to the locally running node.
+    pub fn node(&self) -> Result<node::Connection, io::Error> {
+        node::Connection::connect(self.socket())
     }
 
     pub fn id(&self) -> &PublicKey {
