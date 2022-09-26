@@ -13,9 +13,6 @@ use crate::identity::Id;
 use crate::service::FetchLookup;
 use crate::service::FetchResult;
 
-/// Default name for control socket file.
-pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
-
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("failed to bind control socket listener: {0}")]

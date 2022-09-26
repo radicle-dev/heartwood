@@ -1,6 +1,7 @@
 use std::thread;
 use std::{env, net, process};
 
+use radicle_node::node;
 use radicle_node::prelude::Address;
 use radicle_node::{client, control, git, service};
 
@@ -64,7 +65,7 @@ fn main() -> anyhow::Result<()> {
         },
         listen: options.listen,
     };
-    let socket = env::var("RAD_SOCKET").unwrap_or_else(|_| control::DEFAULT_SOCKET_NAME.to_owned());
+    let socket = env::var("RAD_SOCKET").unwrap_or_else(|_| node::DEFAULT_SOCKET_NAME.to_owned());
 
     let t1 = thread::spawn(move || control::listen(socket, handle));
     let t2 = thread::spawn(move || client.run(config));

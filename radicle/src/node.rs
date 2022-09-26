@@ -6,6 +6,9 @@ use std::path::Path;
 
 use crate::identity::Id;
 
+/// Default name for control socket file.
+pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("i/o error: {0}")]
@@ -27,11 +30,12 @@ pub trait Handle {
 }
 
 /// Node control socket.
-pub struct Socket {
+#[derive(Debug)]
+pub struct Connection {
     stream: UnixStream,
 }
 
-impl Socket {
+impl Connection {
     pub fn connect<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
         let stream = UnixStream::connect(path)?;
 
@@ -49,7 +53,7 @@ impl Socket {
     }
 }
 
-impl Handle for Socket {
+impl Handle for Connection {
     fn fetch(&self, id: &Id) -> Result<(), Error> {
         for line in self.call("fetch", id)? {
             let line = line?;

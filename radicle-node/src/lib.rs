@@ -13,7 +13,7 @@ pub mod transport;
 pub mod wire;
 
 pub use nakamoto_net::{Io, Link, LocalDuration, LocalTime};
-pub use radicle::{collections, crypto, git, hash, identity, profile, rad, storage};
+pub use radicle::{collections, crypto, git, hash, identity, node, profile, rad, storage};
 
 pub mod prelude {
     pub use crate::clock::Timestamp;

@@ -1,8 +1,22 @@
+//! Radicle node profile.
+//!
+//!   $RAD_HOME/                                 # Radicle home
+//!     storage/                                 # Storage root
+//!       zEQNunJUqkNahQ8VvQYuWZZV7EJB/          # Project root
+//!         git/                                 # Project Git repository
+//!       ...                                    # More projects...
+//!     keys/
+//!       radicle                                # Secret key (PKCS 8)
+//!       radicle.pub                            # Public key (PKCS 8)
+//!     node/
+//!       radicle.sock                           # Node control socket
+//!
 use std::path::PathBuf;
 use std::{env, io};
 
 use crate::crypto::{KeyPair, PublicKey, SecretKey, Signature, Signer};
 use crate::keystore::UnsafeKeystore;
+use crate::node;
 use crate::storage::git::Storage;
 
 #[derive(Debug)]
@@ -26,6 +40,7 @@ pub struct Profile {
     pub home: PathBuf,
     pub signer: UnsafeSigner,
     pub storage: Storage,
+    pub node: Option<node::Connection>,
 }
 
 impl Profile {
@@ -45,6 +60,7 @@ impl Profile {
             home,
             signer,
             storage,
+            node: None,
         })
     }
 
@@ -58,11 +74,27 @@ impl Profile {
             home,
             signer,
             storage,
+            node: None,
         })
+    }
+
+    /// Connect to the local radicle node.
+    pub fn connect(&mut self) -> Result<(), io::Error> {
+        let conn = node::Connection::connect(self.socket())?;
+        self.node = Some(conn);
+
+        Ok(())
     }
 
     pub fn id(&self) -> &PublicKey {
         self.signer.public_key()
+    }
+
+    /// Get the path to the radicle node socket.
+    fn socket(&self) -> PathBuf {
+        env::var_os("RAD_SOCKET")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| self.home.join("node").join(node::DEFAULT_SOCKET_NAME))
     }
 }
 
