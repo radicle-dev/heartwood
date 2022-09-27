@@ -7,6 +7,11 @@ use crate::prelude::*;
 use crate::service::message::*;
 use crate::wire;
 
+use std::mem::size_of;
+
+/// The maximum supported message size in bytes.
+pub const MAX_PAYLOAD_SIZE_BYTES: u16 = u16::MAX - (size_of::<MessageType>() as u16);
+
 /// Message type.
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,6 +21,8 @@ pub enum MessageType {
     InventoryAnnouncement = 4,
     RefsAnnouncement = 6,
     Subscribe = 8,
+    Ping = 10,
+    Pong = 12,
 }
 
 impl From<MessageType> for u16 {
@@ -34,6 +41,8 @@ impl TryFrom<u16> for MessageType {
             4 => Ok(MessageType::InventoryAnnouncement),
             6 => Ok(MessageType::RefsAnnouncement),
             8 => Ok(MessageType::Subscribe),
+            10 => Ok(MessageType::Ping),
+            12 => Ok(MessageType::Pong),
             _ => Err(other),
         }
     }
@@ -49,6 +58,8 @@ impl Message {
                 AnnouncementMessage::Inventory(_) => MessageType::InventoryAnnouncement,
                 AnnouncementMessage::Refs(_) => MessageType::RefsAnnouncement,
             },
+            Self::Ping { .. } => MessageType::Ping,
+            Self::Pong { .. } => MessageType::Pong,
         }
         .into()
     }
@@ -188,6 +199,13 @@ impl wire::Encode for Message {
                 n += message.encode(writer)?;
                 n += signature.encode(writer)?;
             }
+            Self::Ping { ponglen, zeroes } => {
+                n += ponglen.encode(writer)?;
+                n += zeroes.encode(writer)?;
+            }
+            Self::Pong { zeroes } => {
+                n += zeroes.encode(writer)?;
+            }
         }
         Ok(n)
     }
@@ -257,6 +275,15 @@ impl wire::Decode for Message {
                     signature,
                 }
                 .into())
+            }
+            Ok(MessageType::Ping) => {
+                let ponglen = u16::decode(reader)?;
+                let zeroes = ZeroBytes::decode(reader)?;
+                Ok(Self::Ping { ponglen, zeroes })
+            }
+            Ok(MessageType::Pong) => {
+                let zeroes = ZeroBytes::decode(reader)?;
+                Ok(Self::Pong { zeroes })
             }
             Err(other) => Err(wire::Error::UnknownMessageType(other)),
         }
@@ -335,6 +362,26 @@ impl wire::Decode for Address {
     }
 }
 
+impl wire::Encode for ZeroBytes {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        let mut n = (self.len() as u16).encode(writer)?;
+        for _ in 0..self.len() {
+            n += 0u8.encode(writer)?
+        }
+        Ok(n)
+    }
+}
+
+impl wire::Decode for ZeroBytes {
+    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
+        let zeroes = u16::decode(reader)?;
+        for _ in 0..zeroes {
+            _ = u8::decode(reader)?;
+        }
+        Ok(ZeroBytes::new(zeroes))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,6 +422,14 @@ mod tests {
         quickcheck::QuickCheck::new()
             .gen(quickcheck::Gen::new(16))
             .quickcheck(property as fn(items: Vec<Envelope>));
+    }
+
+    #[quickcheck]
+    fn prop_zero_bytes_encode_decode(zeroes: ZeroBytes) {
+        assert_eq!(
+            wire::deserialize::<ZeroBytes>(&wire::serialize(&zeroes)).unwrap(),
+            zeroes
+        );
     }
 
     #[quickcheck]

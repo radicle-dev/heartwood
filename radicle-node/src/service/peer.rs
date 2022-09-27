@@ -1,5 +1,19 @@
 use crate::service::message::*;
 use crate::service::*;
+use crate::wire;
+
+use std::mem::size_of;
+
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+pub enum PingState {
+    #[default]
+    /// The peer has not been sent a ping.
+    None,
+    /// A ping has been sent and is waiting on the peer's response.
+    AwaitingResponse(u16),
+    /// The peer was successfully pinged.
+    Ok,
+}
 
 #[derive(Debug, Default, Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -18,6 +32,7 @@ pub enum SessionState {
         /// Addresses this peer is reachable on.
         addrs: Vec<Address>,
         git: Url,
+        ping: PingState,
     },
     /// When a peer is disconnected.
     Disconnected { since: LocalTime },
@@ -37,6 +52,8 @@ pub enum SessionError {
     VerificationFailed(#[from] storage::VerifyError),
     #[error("peer misbehaved")]
     Misbehavior,
+    #[error("peer timed out")]
+    Timeout,
 }
 
 /// A peer session. Each connected peer will have one session.
@@ -53,22 +70,29 @@ pub struct Session {
     pub state: SessionState,
     /// Peer subscription.
     pub subscribe: Option<Subscribe>,
+    /// Last time a message was received from the peer.
+    pub last_active: LocalTime,
 
     /// Connection attempts. For persistent peers, Tracks
     /// how many times we've attempted to connect. We reset this to zero
     /// upon successful connection.
     attempts: usize,
+
+    /// Source of entropy.
+    rng: Rng,
 }
 
 impl Session {
-    pub fn new(addr: net::SocketAddr, link: Link, persistent: bool) -> Self {
+    pub fn new(addr: net::SocketAddr, link: Link, persistent: bool, rng: &Rng) -> Self {
         Self {
             addr,
             state: SessionState::default(),
             link,
             subscribe: None,
             persistent,
+            last_active: LocalTime::default(),
             attempts: 0,
+            rng: rng.clone(),
         }
     }
 
@@ -90,5 +114,21 @@ impl Session {
 
     pub fn connected(&mut self, _link: Link) {
         self.attempts = 0;
+    }
+
+    pub fn ping(&mut self, reactor: &mut Reactor, rng: &Rng) -> Result<(), SessionError> {
+        if let SessionState::Negotiated { ping, .. } = &mut self.state {
+            let ponglen = rng.u16(0..wire::message::MAX_PAYLOAD_SIZE_BYTES);
+            let msg = Message::Ping {
+                ponglen,
+                zeroes: message::ZeroBytes::new(
+                    rng.u16(0..(wire::message::MAX_PAYLOAD_SIZE_BYTES - (size_of::<u16>() as u16))),
+                ),
+            };
+            reactor.write(self.addr, msg);
+
+            *ping = PingState::AwaitingResponse(ponglen);
+        }
+        Ok(())
     }
 }

@@ -22,7 +22,7 @@ use crate::storage::WriteStorage;
 use crate::test::arbitrary;
 use crate::test::signer::MockSigner;
 use crate::test::simulator;
-use crate::{Link, LocalTime};
+use crate::{Link, LocalDuration, LocalTime};
 
 /// Service instantiation used for testing.
 pub type Service<S, G> = service::Service<routing::Table, address::Book, S, G>;
@@ -249,6 +249,11 @@ where
             &remote,
             Message::init(peer.node_id(), peer.config().listen.clone(), git),
         );
+    }
+
+    pub fn elapse(&mut self, duration: LocalDuration) {
+        self.clock().elapse(duration);
+        self.service.wake();
     }
 
     /// Drain outgoing messages sent from this peer to the remote address.

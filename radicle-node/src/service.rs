@@ -33,12 +33,12 @@ use crate::node;
 use crate::service::config::ProjectTracking;
 use crate::service::message::{Address, Announcement, AnnouncementMessage};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
-use crate::service::peer::{SessionError, SessionState};
+use crate::service::peer::{PingState, SessionError, SessionState};
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 
 pub use crate::service::config::{Config, Network};
-pub use crate::service::message::{Envelope, Message};
+pub use crate::service::message::{Envelope, Message, ZeroBytes};
 pub use crate::service::peer::Session;
 
 use self::gossip::Gossip;
@@ -53,6 +53,11 @@ pub const ANNOUNCE_INTERVAL: LocalDuration = LocalDuration::from_secs(30);
 pub const SYNC_INTERVAL: LocalDuration = LocalDuration::from_secs(60);
 pub const PRUNE_INTERVAL: LocalDuration = LocalDuration::from_mins(30);
 pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
+
+/// Duration to wait on an unresponsive peer before dropping its connection.
+pub const STALE_CONNECTION_TIMEOUT: LocalDuration = LocalDuration::from_secs(60);
+
+pub const KEEP_ALIVE_DELTA: LocalDuration = LocalDuration::from_secs(30);
 pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 
 /// Network node identifier.
@@ -362,6 +367,8 @@ where
         if now - self.last_idle >= IDLE_INTERVAL {
             debug!("Running 'idle' task...");
 
+            self.keep_alive(&now);
+            self.disconnect_unresponsive_peers(&now);
             self.maintain_connections();
             self.reactor.wakeup(IDLE_INTERVAL);
             self.last_idle = now;
@@ -485,7 +492,7 @@ where
         let peer = self
             .sessions
             .entry(ip)
-            .or_insert_with(|| Session::new(*addr, Link::Outbound, persistent));
+            .or_insert_with(|| Session::new(*addr, Link::Outbound, persistent, &self.rng));
 
         peer.attempted();
     }
@@ -522,7 +529,12 @@ where
         } else {
             self.sessions.insert(
                 ip,
-                Session::new(addr, Link::Inbound, self.config.is_persistent(&address)),
+                Session::new(
+                    addr,
+                    Link::Inbound,
+                    self.config.is_persistent(&address),
+                    &self.rng,
+                ),
             );
         }
     }
@@ -724,13 +736,14 @@ where
         } else {
             return Err(SessionError::NotFound(remote.ip()));
         };
+        peer.last_active = self.clock.local_time();
 
         if envelope.magic != self.config.network.magic() {
             return Err(SessionError::WrongMagic(envelope.magic));
         }
         debug!("Received {:?} from {}", &envelope.msg, peer.ip());
 
-        match (&peer.state, envelope.msg) {
+        match (&mut peer.state, envelope.msg) {
             (
                 SessionState::Initial,
                 Message::Initialize {
@@ -764,6 +777,7 @@ where
                     since: self.clock.local_time(),
                     addrs,
                     git,
+                    ping: Default::default(),
                 };
             }
             (SessionState::Initial, _) => {
@@ -811,6 +825,19 @@ where
                     peer.ip()
                 );
                 return Err(SessionError::Misbehavior);
+            }
+            (SessionState::Negotiated { .. }, Message::Ping { ponglen, .. }) => {
+                let resp = Message::Pong {
+                    zeroes: ZeroBytes::new(ponglen),
+                };
+                self.reactor.write(peer.addr, resp);
+            }
+            (SessionState::Negotiated { ping, .. }, Message::Pong { zeroes }) => {
+                if let PingState::AwaitingResponse(ponglen) = *ping {
+                    if (ponglen as usize) == zeroes.len() {
+                        *ping = PingState::Ok;
+                    }
+                }
             }
             (SessionState::Disconnected { .. }, msg) => {
                 debug!("Ignoring {:?} from disconnected peer {}", msg, peer.ip());
@@ -881,6 +908,29 @@ where
     fn prune_routing_entries(&mut self) -> Result<(), storage::Error> {
         // TODO
         Ok(())
+    }
+
+    fn disconnect_unresponsive_peers(&mut self, now: &LocalTime) {
+        let stale = self
+            .sessions
+            .negotiated()
+            .filter(|(_, _, session)| session.last_active < *now - STALE_CONNECTION_TIMEOUT);
+        for (_, _, session) in stale {
+            self.reactor
+                .disconnect(session.addr, DisconnectReason::Error(SessionError::Timeout));
+        }
+    }
+
+    /// Ensure connection health by pinging connected peers.
+    fn keep_alive(&mut self, now: &LocalTime) {
+        let inactive_sessions = self
+            .sessions
+            .negotiated_mut()
+            .filter(|(_, session)| session.last_active < *now - KEEP_ALIVE_DELTA)
+            .map(|(_, session)| session);
+        for session in inactive_sessions {
+            session.ping(&mut self.reactor, &self.rng).ok();
+        }
     }
 
     fn maintain_connections(&mut self) {
@@ -1079,6 +1129,11 @@ impl Sessions {
                 SessionState::Negotiated { id, .. } => Some((ip, id, sess)),
                 _ => None,
             })
+    }
+
+    /// Iterator over mutable fully negotiated peers.
+    pub fn negotiated_mut(&mut self) -> impl Iterator<Item = (&IpAddr, &mut Session)> {
+        self.0.iter_mut().filter(move |(_, p)| p.is_negotiated())
     }
 }
 

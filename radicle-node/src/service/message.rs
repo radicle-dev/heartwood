@@ -315,6 +315,23 @@ pub enum Message {
     /// Gossip announcement. These messages are relayed to peers, and filtered
     /// using [`Message::Subscribe`].
     Announcement(Announcement),
+
+    /// Ask a connected peer for a Pong.
+    ///
+    /// Use to check if the remote peer is responsive or a side-effect free way to keep a
+    /// connection alive.
+    Ping {
+        /// The desired response length
+        ponglen: u16,
+        /// The ping payload.
+        zeroes: ZeroBytes,
+    },
+
+    /// Response to `Ping` message.
+    Pong {
+        /// The pong payload.
+        zeroes: ZeroBytes,
+    },
 }
 
 impl Message {
@@ -373,7 +390,26 @@ impl fmt::Debug for Message {
             Self::Announcement(Announcement { node, message, .. }) => {
                 write!(f, "Announcement({}, {:?})", node, message)
             }
+            Self::Ping { ponglen, zeroes } => write!(f, "Ping({ponglen}, {:?})", zeroes),
+            Self::Pong { zeroes } => write!(f, "Pong({:?})", zeroes),
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ZeroBytes(u16);
+
+impl ZeroBytes {
+    pub fn new(arg: u16) -> Self {
+        ZeroBytes(arg)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0 == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.into()
     }
 }
 

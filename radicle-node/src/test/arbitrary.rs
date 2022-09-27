@@ -8,7 +8,7 @@ use crate::prelude::{Id, NodeId, Refs, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
 use crate::service::message::{
     Address, Announcement, Envelope, InventoryAnnouncement, Message, NodeAnnouncement,
-    RefsAnnouncement, Subscribe,
+    RefsAnnouncement, Subscribe, ZeroBytes,
 };
 use crate::wire::message::MessageType;
 
@@ -45,6 +45,8 @@ impl Arbitrary for Message {
                 MessageType::NodeAnnouncement,
                 MessageType::RefsAnnouncement,
                 MessageType::Subscribe,
+                MessageType::Ping,
+                MessageType::Pong,
             ])
             .unwrap();
 
@@ -93,6 +95,13 @@ impl Arbitrary for Message {
                 since: Timestamp::arbitrary(g),
                 until: Timestamp::arbitrary(g),
             }),
+            MessageType::Ping => Self::Ping {
+                ponglen: u16::arbitrary(g),
+                zeroes: ZeroBytes::arbitrary(g),
+            },
+            MessageType::Pong => Self::Pong {
+                zeroes: ZeroBytes::arbitrary(g),
+            },
             _ => unreachable!(),
         }
     }
@@ -113,5 +122,11 @@ impl Arbitrary for Address {
                 port: u16::arbitrary(g),
             }
         }
+    }
+}
+
+impl Arbitrary for ZeroBytes {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        ZeroBytes::new(u16::arbitrary(g))
     }
 }

@@ -37,6 +37,70 @@ use crate::{client, git, identity, rad, service, test};
 // You may then run the test with eg. `cargo test -- --nocapture` to always show output.
 
 #[test]
+fn test_ping_response() {
+    let mut alice = Peer::new("alice", [8, 8, 8, 8], MockStorage::empty());
+    let bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
+
+    alice.connect_to(&bob);
+    alice.receive(
+        &bob.addr(),
+        Message::Ping {
+            ponglen: 21,
+            zeroes: ZeroBytes::new(42),
+        },
+    );
+    assert_matches!(
+        alice.messages(&bob.addr()).next(),
+        Some(Message::Pong { zeroes }) if zeroes.len() == 21,
+        "respond with correctly formatted pong",
+    );
+}
+
+#[test]
+fn test_disconnecting_unresponsive_peer() {
+    let mut alice = Peer::new("alice", [8, 8, 8, 8], MockStorage::empty());
+    let bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
+
+    alice.connect_to(&bob);
+    assert_eq!(1, alice.sessions().negotiated().count(), "bob connects");
+    alice.elapse(STALE_CONNECTION_TIMEOUT + LocalDuration::from_secs(1));
+    alice
+        .outbox()
+        .find(|m| matches!(m, &Io::Disconnect(addr, _) if addr == bob.addr()))
+        .expect("disconnect an unresponsive bob");
+}
+
+#[test]
+fn test_connection_kept_alive() {
+    let mut alice = Peer::new("alice", [8, 8, 8, 8], MockStorage::empty());
+    let mut bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
+
+    let mut sim = Simulation::new(
+        LocalTime::now(),
+        alice.rng.clone(),
+        simulator::Options::default(),
+    )
+    .initialize([&mut alice, &mut bob]);
+
+    alice.command(service::Command::Connect(bob.addr()));
+    sim.run_while([&mut alice, &mut bob], |s| !s.is_settled());
+    assert_eq!(1, alice.sessions().negotiated().count(), "bob connects");
+
+    let mut elapsed: LocalDuration = LocalDuration::from_secs(0);
+    let step: LocalDuration = STALE_CONNECTION_TIMEOUT / 10;
+    while elapsed < STALE_CONNECTION_TIMEOUT + step {
+        alice.elapse(step);
+        bob.elapse(step);
+        sim.run_while([&mut alice, &mut bob], |s| !s.is_settled());
+
+        elapsed = elapsed + step;
+    }
+
+    assert_eq!(1, alice.sessions().len(), "alice remains connected to Bob");
+    assert_eq!(1, bob.sessions().len(), "bob remains connected to Alice");
+}
+
+#[test]
 fn test_outbound_connection() {
     let mut alice = Peer::new("alice", [8, 8, 8, 8], MockStorage::empty());
     let bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
@@ -596,8 +660,6 @@ fn test_persistent_peer_reconnect() {
 
 #[test]
 fn test_push_and_pull() {
-    logger::init(log::Level::Debug);
-
     let tempdir = tempfile::tempdir().unwrap();
 
     let storage_alice = Storage::open(tempdir.path().join("alice").join("storage")).unwrap();
