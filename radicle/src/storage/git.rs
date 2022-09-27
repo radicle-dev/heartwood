@@ -83,7 +83,7 @@ impl WriteStorage for Storage {
     type Repository = Repository;
 
     fn repository(&self, proj: Id) -> Result<Self::Repository, Error> {
-        Repository::open(paths::repository(self, &proj))
+        Repository::open(paths::repository(self, &proj), proj)
     }
 
     fn sign_refs<G: Signer>(
@@ -154,10 +154,8 @@ impl Storage {
 }
 
 pub struct Repository {
+    pub id: Id,
     pub(crate) backend: git2::Repository,
-    // TODO: Add project id here so we can refer to it
-    // in a bunch of places. We could write it to the
-    // git config for later.
 }
 
 #[derive(Debug, Error)]
@@ -168,6 +166,8 @@ pub enum VerifyError {
     InvalidRefTarget(RemoteId, RefString, git2::Oid),
     #[error("invalid reference")]
     InvalidRef,
+    #[error("invalid identity: {0}")]
+    InvalidIdentity(#[from] IdentityError),
     #[error("ref error: {0}")]
     Ref(#[from] git::RefError),
     #[error("refs error: {0}")]
@@ -181,7 +181,7 @@ pub enum VerifyError {
 }
 
 impl Repository {
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+    pub fn open<P: AsRef<Path>>(path: P, id: Id) -> Result<Self, Error> {
         let backend = match git2::Repository::open_bare(path.as_ref()) {
             Err(e) if ext::is_not_found_err(&e) => {
                 let backend = git2::Repository::init_opts(
@@ -203,7 +203,7 @@ impl Repository {
             Err(e) => Err(e),
         }?;
 
-        Ok(Self { backend })
+        Ok(Self { id, backend })
     }
 
     pub fn head(&self) -> Result<git2::Commit, git2::Error> {
@@ -242,12 +242,14 @@ impl Repository {
             }
         }
 
-        // The refs that are left in the map, are ones that were signed, but are not
-        // in the repository.
-        for (id, refs) in remotes.into_iter() {
+        for (remote, refs) in remotes.into_iter() {
+            // The refs that are left in the map, are ones that were signed, but are not
+            // in the repository.
             if let Some((name, _)) = refs.into_iter().next() {
-                return Err(VerifyError::MissingRef(id, name));
+                return Err(VerifyError::MissingRef(remote, name));
             }
+            // Verify identity history of remote.
+            self.identity(&remote)?.verified(self.id)?;
         }
 
         Ok(())
@@ -478,29 +480,54 @@ impl ReadRepository for Repository {
 
 impl WriteRepository for Repository {
     /// Fetch all remotes of a project from the given URL.
+    /// This is the primary way in which projects are updated on the network.
+    ///
+    /// Since we're operating in an untrusted network, we have to be take some precautions
+    /// when fetching from a remote. We don't want to fetch straight into a public facing
+    /// repository because if the updates were to be invalid, we'd be allowing others to
+    /// read this invalid state. We also don't want to lock our repositories during the fetch
+    /// or verification, as this will make the repositories unavailable. Therefore, we choose
+    /// to perform the fetch into a "staging" copy of the given repository we're fetching, and
+    /// then transfer the changes to the canonical, public copy of the repository.
+    ///
+    /// To do this, we first create a temporary directory, and clone the canonical repo into it.
+    /// This local clone takes advantage of the fact that both repositories live on the same
+    /// host (or even file-system). We now have a "staging" copy and the canonical copy.
+    ///
+    /// We then fetch the *remote* repo into the *staging* copy. We turn off pruning because we
+    /// don't want to accidentally delete any objects before verification is complete.
+    ///
+    /// We proceed to verify the staging copy through the usual verification process.
+    ///
+    /// If verification succeeds, we fetch from the staging copy into the canonical repo,
+    /// with pruning *on*, and discard the staging copy. If it fails, we just discard the
+    /// staging copy.
+    ///
     fn fetch(&mut self, url: &git::Url) -> Result<Vec<RefUpdate>, FetchError> {
         // TODO: Have function to fetch specific remotes.
         //
-        // Repository layout should look like this:
+        // The steps are summarized in the following diagram:
         //
-        //   /refs/remotes/<remote>
-        //         /heads
-        //           /master
-        //         /tags
-        //         ...
+        //     staging <- git-clone -- local (canonical) # create staging copy
+        //     staging <- git-fetch -- remote            # fetch from remote
+        //
+        //     ... verify ...
+        //
+        //     local <- git-fetch -- staging             # fetch from staging copy
         //
         let url = url.to_string();
         let refs: &[&str] = &["refs/remotes/*:refs/remotes/*"];
         let mut updates = Vec::new();
         let mut callbacks = git2::RemoteCallbacks::new();
         let tempdir = tempfile::tempdir()?;
-        // TODO: Comment
+
+        // Create staging copy.
         let staging = {
             let mut builder = git2::build::RepoBuilder::new();
             let path = tempdir.path().join("git");
             let staging_repo = builder
                 .bare(true)
-                // TODO: Comment
+                // Using `clone_local` will try to hard-link the ODBs for better performance.
                 // TODO: Due to this, I think we'll have to run GC when there is a failure.
                 .clone_local(git2::build::CloneLocal::Local)
                 .clone(
@@ -517,11 +544,17 @@ impl WriteRepository for Repository {
             let mut opts = git2::FetchOptions::default();
             opts.prune(git2::FetchPrune::Off);
 
+            // Fetch from the remote into the staging copy.
             staging_repo
                 .remote_anonymous(&url)?
                 .fetch(refs, Some(&mut opts), None)?;
-            // TODO: Comment
-            Repository::from(staging_repo).verify()?;
+
+            // Verify the staging copy as if it was the canonical copy.
+            Repository {
+                id: self.id,
+                backend: staging_repo,
+            }
+            .verify()?;
 
             path
         };
@@ -552,6 +585,7 @@ impl WriteRepository for Repository {
             // TODO: Make sure we verify before pruning, as pruning may get us into
             // a state we can't roll back.
             opts.prune(git2::FetchPrune::On);
+            // Fetch from the staging copy into the canonical repo.
             remote.fetch(refs, Some(&mut opts), None)?;
         }
 
@@ -560,12 +594,6 @@ impl WriteRepository for Repository {
 
     fn raw(&self) -> &git2::Repository {
         &self.backend
-    }
-}
-
-impl From<git2::Repository> for Repository {
-    fn from(backend: git2::Repository) -> Self {
-        Self { backend }
     }
 }
 
