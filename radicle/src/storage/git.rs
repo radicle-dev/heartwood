@@ -1,3 +1,5 @@
+pub mod transport;
+
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::{fmt, fs, io};
@@ -787,6 +789,83 @@ mod tests {
         let bob_master = bob_repo.reference(alice_id, &refname).unwrap().unwrap();
 
         assert_eq!(bob_master.target().unwrap(), alice_head);
+    }
+
+    #[test]
+    fn test_upload_pack() {
+        use std::io::{Read, Write};
+        use std::{io, net, process, thread};
+
+        let socket = net::TcpListener::bind(net::SocketAddr::from(([0, 0, 0, 0], 0))).unwrap();
+        let addr = socket.local_addr().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let source_path = tmp.path().join("source");
+        let target_path = tmp.path().join("target");
+        let (_source, _) = fixtures::repository(&source_path);
+
+        let t = thread::spawn(move || {
+            let (stream, _) = socket.accept().unwrap();
+            // NOTE: `--stateless-rpc` doesn't work, neither does `GIT_PROTOCOL=version=2`.
+            let mut child = process::Command::new("git")
+                .current_dir(source_path.join(".git"))
+                .arg("upload-pack")
+                .arg("--strict")
+                .arg(".")
+                .stdout(process::Stdio::piped())
+                .stdin(process::Stdio::piped())
+                .spawn()
+                .unwrap();
+
+            let mut stdin = child.stdin.take().unwrap();
+            let mut stdout = child.stdout.take().unwrap();
+
+            let mut stream_r = stream.try_clone().unwrap();
+            let mut stream_w = stream;
+
+            let t = thread::spawn(move || {
+                let mut buf = [0u8; 1024];
+
+                while let Ok(n) = stream_r.read(&mut buf) {
+                    if n == 0 {
+                        break;
+                    }
+                    if stdin.write_all(&buf[..n]).is_err() {
+                        break;
+                    }
+                }
+            });
+            io::copy(&mut stdout, &mut stream_w).unwrap();
+
+            t.join().unwrap();
+            child.wait().unwrap();
+        });
+
+        let mut updates = Vec::new();
+        {
+            let mut callbacks = git2::RemoteCallbacks::new();
+            let mut opts = git2::FetchOptions::default();
+
+            callbacks.update_tips(|name, _, _| {
+                updates.push(name.to_owned());
+                true
+            });
+            opts.remote_callbacks(callbacks);
+
+            let target = git2::Repository::init_bare(target_path).unwrap();
+            let refs: &[&str] = &["refs/*:refs/*"];
+
+            // Register the `rad://` transport.
+            transport::register("rad").unwrap();
+            // Fetch with the `rad://` transport.
+            target
+                .remote_anonymous(&format!("rad://{}", addr))
+                .unwrap()
+                .fetch(refs, Some(&mut opts), None)
+                .unwrap();
+
+            t.join().unwrap();
+        }
+        assert_eq!(updates, vec![String::from("refs/heads/master")]);
     }
 
     #[test]
