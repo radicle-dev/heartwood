@@ -100,7 +100,7 @@ pub enum ForkError {
 
 /// Create a local tree for an existing project, from an existing remote.
 pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
-    proj: &Id,
+    proj: Id,
     remote: &RemoteId,
     signer: G,
     storage: S,
@@ -117,7 +117,7 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     let me = signer.public_key();
     let project = storage
         .get(remote, proj)?
-        .ok_or_else(|| ForkError::NotFound(proj.clone()))?;
+        .ok_or(ForkError::NotFound(proj))?;
     let repository = storage.repository(proj)?;
 
     let raw = repository.raw();
@@ -149,7 +149,7 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
 }
 
 pub fn fork<G: Signer, S: storage::WriteStorage>(
-    proj: &Id,
+    proj: Id,
     signer: &G,
     storage: &S,
 ) -> Result<(), ForkError> {
@@ -208,13 +208,13 @@ pub enum CloneError {
 }
 
 pub fn clone<P: AsRef<Path>, G: Signer, S: storage::WriteStorage, H: node::Handle>(
-    proj: &Id,
+    proj: Id,
     path: P,
     signer: &G,
     storage: &S,
     handle: &H,
 ) -> Result<git2::Repository, CloneError> {
-    let _ = handle.fetch(proj)?;
+    let _ = handle.fetch(&proj)?;
     let _ = fork(proj, signer, storage)?;
     let working = checkout(proj, signer.public_key(), path, storage)?;
 
@@ -234,7 +234,7 @@ pub enum CloneUrlError {
 }
 
 pub fn clone_url<P: AsRef<Path>, G: Signer, S: storage::WriteStorage>(
-    proj: &Id,
+    proj: Id,
     url: &git::Url,
     path: P,
     signer: &G,
@@ -261,7 +261,7 @@ pub enum CheckoutError {
 /// Checkout a project from storage as a working copy.
 /// This effectively does a `git-clone` from storage.
 pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
-    proj: &Id,
+    proj: Id,
     remote: &RemoteId,
     path: P,
     storage: &S,
@@ -270,14 +270,14 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     // TODO: Look into sharing object databases.
     let project = storage
         .get(remote, proj)?
-        .ok_or_else(|| CheckoutError::NotFound(proj.clone()))?;
+        .ok_or(CheckoutError::NotFound(proj))?;
 
     let mut opts = git2::RepositoryInitOptions::new();
     opts.no_reinit(true).description(&project.description);
 
     let repo = git2::Repository::init_opts(path, &opts)?;
     let default_branch = project.default_branch.as_str();
-    let url = storage.url(proj);
+    let url = storage.url(&proj);
 
     // Configure and fetch all refs from remote.
     git::configure_remote(&repo, REMOTE_NAME, remote, &url)?.fetch::<&str>(&[], None, None)?;
@@ -341,9 +341,9 @@ mod tests {
         )
         .unwrap();
 
-        let project = storage.get(&public_key, &proj).unwrap().unwrap();
+        let project = storage.get(&public_key, proj).unwrap().unwrap();
         let remotes: HashMap<_, _> = storage
-            .repository(&proj)
+            .repository(proj)
             .unwrap()
             .remotes()
             .unwrap()
@@ -385,10 +385,10 @@ mod tests {
         .unwrap();
 
         // Bob forks it and creates a checkout.
-        fork(&id, &bob, &storage).unwrap();
-        checkout(&id, bob_id, tempdir.path().join("copy"), &storage).unwrap();
+        fork(id, &bob, &storage).unwrap();
+        checkout(id, bob_id, tempdir.path().join("copy"), &storage).unwrap();
 
-        let bob_remote = storage.repository(&id).unwrap().remote(bob_id).unwrap();
+        let bob_remote = storage.repository(id).unwrap().remote(bob_id).unwrap();
 
         assert_eq!(
             bob_remote.refs.get(&refname!("master")),
@@ -414,7 +414,7 @@ mod tests {
         )
         .unwrap();
 
-        let copy = checkout(&id, remote_id, tempdir.path().join("copy"), &storage).unwrap();
+        let copy = checkout(id, remote_id, tempdir.path().join("copy"), &storage).unwrap();
 
         assert_eq!(
             copy.head().unwrap().target(),

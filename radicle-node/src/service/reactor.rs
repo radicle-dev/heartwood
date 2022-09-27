@@ -95,7 +95,7 @@ impl Reactor {
     /// Relay a message to interested peers.
     pub fn relay<'a>(&mut self, msg: Message, peers: impl IntoIterator<Item = &'a Session>) {
         if let Message::RefsAnnouncement { message, .. } = &msg {
-            let id = message.id.clone();
+            let id = message.id;
             let peers = peers.into_iter().filter(|p| {
                 if let Some(subscribe) = &p.subscribe {
                     subscribe.filter.contains(&id)

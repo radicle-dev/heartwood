@@ -272,7 +272,7 @@ where
     }
 
     /// Get a project from storage, using the local node's key.
-    pub fn get(&self, proj: &Id) -> Result<Option<Doc<Verified>>, storage::Error> {
+    pub fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::Error> {
         self.storage.get(&self.node_id(), proj)
     }
 
@@ -306,12 +306,12 @@ where
         &mut self.reactor
     }
 
-    pub fn lookup(&self, id: &Id) -> Lookup {
+    pub fn lookup(&self, id: Id) -> Lookup {
         Lookup {
             local: self.storage.get(&self.node_id(), id).unwrap(),
             remote: self
                 .routing
-                .get(id)
+                .get(&id)
                 .map_or(vec![], |r| r.iter().cloned().collect()),
         }
     }
@@ -391,7 +391,7 @@ where
                 };
                 log::debug!("Found {} seeds for {}", seeds.len(), id);
 
-                let mut repo = match self.storage.repository(&id) {
+                let mut repo = match self.storage.repository(id) {
                     Ok(repo) => repo,
                     Err(err) => {
                         log::error!("Error opening repo for {}: {}", id, err);
@@ -445,7 +445,7 @@ where
             }
             Command::AnnounceRefs(id) => {
                 let node = self.node_id();
-                let repo = self.storage.repository(&id).unwrap();
+                let repo = self.storage.repository(id).unwrap();
                 let remote = repo.remote(&node).unwrap();
                 let peers = self.sessions.negotiated().map(|(_, p)| p);
                 let refs = remote.refs.into();
@@ -689,12 +689,12 @@ where
                     // TODO: Check that we're tracking this user as well.
                     if self.config.is_tracking(&message.id) {
                         // TODO: Check refs to see if we should try to fetch or not.
-                        let updated = self.storage.fetch(&message.id, git).unwrap();
+                        let updated = self.storage.fetch(message.id, git).unwrap();
                         let is_updated = !updated.is_empty();
 
                         self.reactor.event(Event::RefsFetched {
                             from: git.clone(),
-                            project: message.id.clone(),
+                            project: message.id,
                             updated,
                         });
 
@@ -747,12 +747,12 @@ where
         for proj_id in inventory {
             let inventory = self
                 .routing
-                .entry(proj_id.clone())
+                .entry(*proj_id)
                 .or_insert_with(|| HashSet::with_hasher(self.rng.clone().into()));
 
             // TODO: Fire an event on routing update.
             if inventory.insert(from) && self.config.is_tracking(proj_id) {
-                self.storage.fetch(proj_id, remote).unwrap();
+                self.storage.fetch(*proj_id, remote).unwrap();
             }
         }
     }

@@ -168,7 +168,7 @@ fn test_tracking() {
     let proj_id: identity::Id = test::arbitrary::gen(1);
 
     let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::Track(proj_id.clone(), sender));
+    alice.command(Command::Track(proj_id, sender));
     let policy_change = receiver
         .recv()
         .map_err(client::handle::Error::from)
@@ -177,7 +177,7 @@ fn test_tracking() {
     assert!(alice.config().is_tracking(&proj_id));
 
     let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::Untrack(proj_id.clone(), sender));
+    alice.command(Command::Untrack(proj_id, sender));
     let policy_change = receiver
         .recv()
         .map_err(client::handle::Error::from)
@@ -405,30 +405,30 @@ fn test_push_and_pull() {
 
     // Bob tracks Alice's project.
     let (sender, _) = chan::bounded(1);
-    bob.command(service::Command::Track(proj_id.clone(), sender));
+    bob.command(service::Command::Track(proj_id, sender));
 
     // Eve tracks Alice's project.
     let (sender, _) = chan::bounded(1);
-    eve.command(service::Command::Track(proj_id.clone(), sender));
+    eve.command(service::Command::Track(proj_id, sender));
 
     // Neither of them have it in the beginning.
-    assert!(eve.get(&proj_id).unwrap().is_none());
-    assert!(bob.get(&proj_id).unwrap().is_none());
+    assert!(eve.get(proj_id).unwrap().is_none());
+    assert!(bob.get(proj_id).unwrap().is_none());
 
     // Alice announces her refs.
     // We now expect Eve to fetch Alice's project from Alice.
     // Then we expect Bob to fetch Alice's project from Eve.
-    alice.command(service::Command::AnnounceRefs(proj_id.clone()));
+    alice.command(service::Command::AnnounceRefs(proj_id));
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
     assert!(eve
         .storage()
-        .get(&alice.node_id(), &proj_id)
+        .get(&alice.node_id(), proj_id)
         .unwrap()
         .is_some());
     assert!(bob
         .storage()
-        .get(&alice.node_id(), &proj_id)
+        .get(&alice.node_id(), proj_id)
         .unwrap()
         .is_some());
     assert_matches!(
@@ -455,7 +455,7 @@ fn prop_inventory_exchange_dense() {
         ] {
             for id in inv.keys() {
                 routing
-                    .entry(id.clone())
+                    .entry(*id)
                     .or_insert_with(|| HashSet::with_hasher(rng.clone().into()))
                     .insert(*peer);
             }
@@ -481,16 +481,16 @@ fn prop_inventory_exchange_dense() {
 
         for (proj_id, remotes) in &routing {
             for peer in peers.values() {
-                let lookup = peer.lookup(proj_id);
+                let lookup = peer.lookup(*proj_id);
 
                 if lookup.local.is_some() {
-                    peer.get(proj_id)
+                    peer.get(*proj_id)
                         .expect("There are no errors querying storage")
                         .expect("The project is available locally");
                 } else {
                     for remote in &lookup.remote {
                         peers[remote]
-                            .get(proj_id)
+                            .get(*proj_id)
                             .expect("There are no errors querying storage")
                             .expect("The project is available remotely");
                     }

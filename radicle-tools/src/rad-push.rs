@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
     let output = radicle::git::run(&cwd, &["push", "rad"])?;
     println!("{}", output);
 
-    let project = profile.storage.repository(&id)?;
+    let project = profile.storage.repository(id)?;
     let sigrefs = profile.storage.sign_refs(&project, &profile.signer)?;
     profile.node()?.announce_refs(&id)?;
 

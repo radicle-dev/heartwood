@@ -44,8 +44,8 @@ impl ReadStorage for MockStorage {
         }
     }
 
-    fn get(&self, _remote: &RemoteId, proj: &Id) -> Result<Option<Doc<Verified>>, Error> {
-        Ok(self.inventory.get(proj).cloned())
+    fn get(&self, _remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, Error> {
+        Ok(self.inventory.get(&proj).cloned())
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
@@ -56,7 +56,7 @@ impl ReadStorage for MockStorage {
 impl WriteStorage for MockStorage {
     type Repository = MockRepository;
 
-    fn repository(&self, _proj: &Id) -> Result<Self::Repository, Error> {
+    fn repository(&self, _proj: Id) -> Result<Self::Repository, Error> {
         Ok(MockRepository {})
     }
 
@@ -68,7 +68,7 @@ impl WriteStorage for MockStorage {
         todo!()
     }
 
-    fn fetch(&self, _proj_id: &Id, _remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
+    fn fetch(&self, _proj_id: Id, _remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
         Ok(vec![])
     }
 }

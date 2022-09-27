@@ -138,7 +138,7 @@ impl Doc<Verified> {
         //
         let (doc_oid, doc) = self.encode()?;
         let id = Id::from(doc_oid);
-        let repo = storage.repository(&id).unwrap();
+        let repo = storage.repository(id).unwrap();
         let tree = git::write_tree(*PATH, doc.as_slice(), repo.raw())?;
         let oid = Doc::commit(remote, &tree, msg, &[], repo.raw())?;
 
@@ -379,6 +379,8 @@ pub enum IdentityError {
     InvalidSignature(PublicKey, crypto::Error),
     #[error("quorum not reached: {0} signatures for a threshold of {1}")]
     QuorumNotReached(usize, usize),
+    #[error("the identity branch was not found")]
+    NotFound,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -421,7 +423,7 @@ impl Identity<Untrusted> {
     pub fn load<R: ReadRepository>(
         remote: &RemoteId,
         repo: &R,
-    ) -> Result<Option<Identity<Oid>>, IdentityError> {
+    ) -> Result<Identity<Oid>, IdentityError> {
         if let Some(head) = Doc::<Untrusted>::head(remote, repo)? {
             let mut history = repo.revwalk(head)?.collect::<Vec<_>>();
 
@@ -466,16 +468,16 @@ impl Identity<Untrusted> {
                 current = blob.id().into();
             }
 
-            return Ok(Some(Identity {
+            return Ok(Identity {
                 root,
                 head,
                 current,
                 revision,
                 doc: trusted,
                 signatures: signatures.into_iter().collect(),
-            }));
+            });
         }
-        Ok(None)
+        Err(IdentityError::NotFound)
     }
 }
 
@@ -505,14 +507,14 @@ mod test {
             fixtures::project(tempdir.path().join("copy"), &storage, &alice).unwrap();
 
         // Bob and Eve fork the project from Alice.
-        rad::fork_remote(&id, alice.public_key(), &bob, &storage).unwrap();
-        rad::fork_remote(&id, alice.public_key(), &eve, &storage).unwrap();
+        rad::fork_remote(id, alice.public_key(), &bob, &storage).unwrap();
+        rad::fork_remote(id, alice.public_key(), &eve, &storage).unwrap();
 
         // TODO: In some cases we want to get the repo and the project, but don't
         // want to have to create a repository object twice. Perhaps there should
         // be a way of getting a project from a repo.
-        let mut proj = storage.get(alice.public_key(), &id).unwrap().unwrap();
-        let repo = storage.repository(&id).unwrap();
+        let mut proj = storage.get(alice.public_key(), id).unwrap().unwrap();
+        let repo = storage.repository(id).unwrap();
 
         // Make a change to the description and sign it.
         proj.payload.description += "!";
@@ -575,8 +577,7 @@ mod test {
 
         let identity: Identity<Id> = Identity::load(alice.public_key(), &repo)
             .unwrap()
-            .unwrap()
-            .verified(id.clone())
+            .verified(id)
             .unwrap();
 
         assert_eq!(identity.signatures.len(), 2);
@@ -586,7 +587,7 @@ mod test {
         assert_eq!(identity.head, head);
         assert_eq!(identity.doc, proj);
 
-        let proj = storage.get(alice.public_key(), &id).unwrap().unwrap();
+        let proj = storage.get(alice.public_key(), id).unwrap().unwrap();
         assert_eq!(proj.description, "Acme's repository!?");
     }
 

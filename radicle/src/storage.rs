@@ -218,20 +218,20 @@ impl Remote<Verified> {
 pub trait ReadStorage {
     fn path(&self) -> &Path;
     fn url(&self, proj: &Id) -> Url;
-    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<identity::Doc<Verified>>, Error>;
+    fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<identity::Doc<Verified>>, Error>;
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
 pub trait WriteStorage: ReadStorage {
     type Repository: WriteRepository;
 
-    fn repository(&self, proj: &Id) -> Result<Self::Repository, Error>;
+    fn repository(&self, proj: Id) -> Result<Self::Repository, Error>;
     fn sign_refs<G: Signer>(
         &self,
         repository: &Self::Repository,
         signer: G,
     ) -> Result<SignedRefs<Verified>, Error>;
-    fn fetch(&self, proj_id: &Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError>;
+    fn fetch(&self, proj_id: Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError>;
 }
 
 pub trait ReadRepository {
@@ -280,7 +280,7 @@ where
         self.deref().inventory()
     }
 
-    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<identity::Doc<Verified>>, Error> {
+    fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<identity::Doc<Verified>>, Error> {
         self.deref().get(remote, proj)
     }
 }
@@ -292,7 +292,7 @@ where
 {
     type Repository = S::Repository;
 
-    fn repository(&self, proj: &Id) -> Result<Self::Repository, Error> {
+    fn repository(&self, proj: Id) -> Result<Self::Repository, Error> {
         self.deref().repository(proj)
     }
 
@@ -304,7 +304,7 @@ where
         self.deref().sign_refs(repository, signer)
     }
 
-    fn fetch(&self, proj_id: &Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
+    fn fetch(&self, proj_id: Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
         self.deref().fetch(proj_id, remote)
     }
 }

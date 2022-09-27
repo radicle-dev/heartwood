@@ -17,7 +17,7 @@ pub enum IdError {
     Multibase(#[from] multibase::Error),
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(git::Oid);
 
 impl fmt::Display for Id {

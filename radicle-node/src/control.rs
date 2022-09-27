@@ -108,7 +108,7 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
 }
 
 fn fetch<W: Write, H: Handle>(id: Id, mut writer: W, handle: &H) -> Result<(), DrainError> {
-    match handle.fetch(id.clone()) {
+    match handle.fetch(id) {
         Err(e) => {
             return Err(DrainError::Client(e));
         }

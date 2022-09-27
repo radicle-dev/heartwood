@@ -66,7 +66,7 @@ impl ReadStorage for Storage {
         }
     }
 
-    fn get(&self, remote: &RemoteId, proj: &Id) -> Result<Option<Doc<Verified>>, Error> {
+    fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, Error> {
         // TODO: Don't create a repo here if it doesn't exist?
         // Perhaps for checking we could have a `contains` method?
         self.repository(proj)?
@@ -82,8 +82,8 @@ impl ReadStorage for Storage {
 impl WriteStorage for Storage {
     type Repository = Repository;
 
-    fn repository(&self, proj: &Id) -> Result<Self::Repository, Error> {
-        Repository::open(paths::repository(self, proj))
+    fn repository(&self, proj: Id) -> Result<Self::Repository, Error> {
+        Repository::open(paths::repository(self, &proj))
     }
 
     fn sign_refs<G: Signer>(
@@ -94,7 +94,7 @@ impl WriteStorage for Storage {
         repository.sign_refs(signer)
     }
 
-    fn fetch(&self, proj_id: &Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
+    fn fetch(&self, proj_id: Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
         let mut repo = self.repository(proj_id).unwrap();
         let mut path = remote.path.clone();
 
@@ -139,7 +139,7 @@ impl Storage {
 
     pub fn inspect(&self) -> Result<(), Error> {
         for proj in self.projects()? {
-            let repo = self.repository(&proj)?;
+            let repo = self.repository(proj)?;
 
             for r in repo.raw().references()? {
                 let r = r?;
@@ -264,7 +264,7 @@ impl Repository {
         Ok(())
     }
 
-    pub fn identity(&self, remote: &RemoteId) -> Result<Option<Identity<Oid>>, IdentityError> {
+    pub fn identity(&self, remote: &RemoteId) -> Result<Identity<Oid>, IdentityError> {
         Identity::load(remote, self)
     }
 
@@ -648,7 +648,7 @@ mod tests {
         })
         .unwrap();
 
-        let project = storage.repository(proj).unwrap();
+        let project = storage.repository(*proj).unwrap();
         let remotes = project.remotes().unwrap();
 
         // Strip the remote refs of sigrefs so we can compare them.
@@ -671,7 +671,7 @@ mod tests {
         let alice = fixtures::storage(tmp.path().join("alice"), alice_signer).unwrap();
         let bob = Storage::open(tmp.path().join("bob")).unwrap();
         let inventory = alice.inventory().unwrap();
-        let proj = inventory.first().unwrap();
+        let proj = *inventory.first().unwrap();
         let repo = alice.repository(proj).unwrap();
         let remotes = repo.remotes().unwrap().collect::<Vec<_>>();
         let refname = git::refname!("heads/master");
@@ -682,7 +682,7 @@ mod tests {
             .unwrap()
             .fetch(&git::Url {
                 scheme: git_url::Scheme::File,
-                path: paths::repository(&alice, proj)
+                path: paths::repository(&alice, &proj)
                     .to_string_lossy()
                     .into_owned()
                     .into(),
@@ -734,11 +734,11 @@ mod tests {
         };
 
         // Have Bob fetch Alice's refs.
-        let updates = bob.repository(&proj_id).unwrap().fetch(&alice_url).unwrap();
+        let updates = bob.repository(proj_id).unwrap().fetch(&alice_url).unwrap();
         // Three refs are created: the branch, the signature and the id.
         assert_eq!(updates.len(), 3);
 
-        let alice_proj_storage = alice.repository(&proj_id).unwrap();
+        let alice_proj_storage = alice.repository(proj_id).unwrap();
         let alice_head = proj_repo.find_commit(alice_head).unwrap();
         let alice_head = git::commit(&proj_repo, &alice_head, &refname, "Making changes", "Alice")
             .unwrap()
@@ -747,7 +747,7 @@ mod tests {
         alice.sign_refs(&alice_proj_storage, &alice_signer).unwrap();
 
         // Have Bob fetch Alice's new commit.
-        let updates = bob.repository(&proj_id).unwrap().fetch(&alice_url).unwrap();
+        let updates = bob.repository(proj_id).unwrap().fetch(&alice_url).unwrap();
         // The branch and signature refs are updated.
         assert_matches!(
             updates.as_slice(),
@@ -755,7 +755,7 @@ mod tests {
         );
 
         // Bob's storage is updated.
-        let bob_repo = bob.repository(&proj_id).unwrap();
+        let bob_repo = bob.repository(proj_id).unwrap();
         let bob_master = bob_repo.reference(alice_id, &refname).unwrap().unwrap();
 
         assert_eq!(bob_master.target().unwrap(), alice_head);
@@ -769,7 +769,7 @@ mod tests {
         let storage = Storage::open(tmp.path()).unwrap();
         let proj_id = arbitrary::gen::<Id>(1);
         let alice = *signer.public_key();
-        let project = storage.repository(&proj_id).unwrap();
+        let project = storage.repository(proj_id).unwrap();
         let backend = &project.backend;
         let sig = git2::Signature::now(&alice.to_string(), "anonymous@radicle.xyz").unwrap();
         let head = git::initial_commit(backend, &sig).unwrap();
