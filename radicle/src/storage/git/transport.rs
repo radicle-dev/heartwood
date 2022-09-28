@@ -160,13 +160,14 @@ impl io::Read for Stream {
 ///
 /// Returns an error if called more than once.
 ///
-pub fn register(prefix: &str) -> Result<(), git2::Error> {
+pub fn register() -> Result<(), git2::Error> {
     static REGISTERED: atomic::AtomicBool = atomic::AtomicBool::new(false);
 
     // Registration is not thread-safe, so make sure we prevent re-entrancy.
     if !REGISTERED.swap(true, atomic::Ordering::SeqCst) {
         unsafe {
-            git2::transport::register(prefix, move |remote| {
+            let prefix = git::url::Scheme::Radicle.to_string();
+            git2::transport::register(&prefix, move |remote| {
                 git2::transport::Transport::smart(remote, false, self::smart())
             })
         }

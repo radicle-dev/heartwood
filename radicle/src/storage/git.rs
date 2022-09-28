@@ -894,7 +894,7 @@ mod tests {
             });
 
             // Register the `rad://` transport.
-            transport::register("rad").unwrap();
+            transport::register().unwrap();
             // Fetch with the `rad://` transport.
             target
                 .remote_anonymous(&format!("rad://{}", proj))
