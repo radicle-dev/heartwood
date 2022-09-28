@@ -124,6 +124,7 @@ pub struct Subscribe {
     pub until: Timestamp,
 }
 
+/// Node announcing itself to the network.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeAnnouncement {
     /// Advertized features.
@@ -134,14 +135,6 @@ pub struct NodeAnnouncement {
     pub alias: [u8; 32],
     /// Announced addresses.
     pub addresses: Vec<Address>,
-}
-
-impl NodeAnnouncement {
-    /// Verify a signature on this message.
-    pub fn verify(&self, signer: &NodeId, signature: &crypto::Signature) -> bool {
-        let msg = wire::serialize(self);
-        signer.verify(&msg, signature).is_ok()
-    }
 }
 
 impl wire::Encode for NodeAnnouncement {
@@ -173,46 +166,119 @@ impl wire::Decode for NodeAnnouncement {
     }
 }
 
+/// Node announcing project refs being created or updated.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RefsAnnouncement {
     /// Repository identifier.
     pub id: Id,
     /// Updated refs.
     pub refs: Refs,
+    // TODO: Add timestamp
 }
 
-impl RefsAnnouncement {
-    /// Verify a signature on this message.
-    pub fn verify(&self, signer: &NodeId, signature: &crypto::Signature) -> bool {
-        let msg = wire::serialize(self);
-        signer.verify(&msg, signature).is_ok()
-    }
-
-    /// Sign this announcement.
-    pub fn sign<S: crypto::Signer>(&self, signer: S) -> crypto::Signature {
-        let msg = wire::serialize(self);
-        signer.sign(&msg)
-    }
-}
-
+/// Node announcing its inventory to the network.
+/// This should be the whole inventory every time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InventoryAnnouncement {
     pub inventory: Vec<Id>,
     pub timestamp: Timestamp,
 }
 
-impl InventoryAnnouncement {
-    /// Verify a signature on this message.
-    pub fn verify(&self, signer: NodeId, signature: &crypto::Signature) -> bool {
-        let msg = wire::serialize(self);
-        signer.verify(&msg, signature).is_ok()
+/// Announcement messages are messages that are relayed between peers.
+#[derive(Clone, PartialEq, Eq)]
+pub enum AnnouncementMessage {
+    /// Inventory announcement.
+    Inventory(InventoryAnnouncement),
+    /// Node announcement.
+    Node(NodeAnnouncement),
+    /// Refs announcement.
+    Refs(RefsAnnouncement),
+}
+
+impl AnnouncementMessage {
+    /// Sign this announcement message.
+    pub fn signed<S: crypto::Signer>(self, signer: S) -> Announcement {
+        let msg = wire::serialize(&self);
+        let signature = signer.sign(&msg);
+
+        Announcement {
+            node: *signer.public_key(),
+            message: self,
+            signature,
+        }
+    }
+}
+
+impl From<NodeAnnouncement> for AnnouncementMessage {
+    fn from(ann: NodeAnnouncement) -> Self {
+        Self::Node(ann)
+    }
+}
+
+impl From<InventoryAnnouncement> for AnnouncementMessage {
+    fn from(ann: InventoryAnnouncement) -> Self {
+        Self::Inventory(ann)
+    }
+}
+
+impl From<RefsAnnouncement> for AnnouncementMessage {
+    fn from(ann: RefsAnnouncement) -> Self {
+        Self::Refs(ann)
+    }
+}
+
+impl fmt::Debug for AnnouncementMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Node { .. } => write!(f, "Node(..)"),
+            Self::Inventory(message) => {
+                write!(
+                    f,
+                    "Inventory([{}], {})",
+                    message
+                        .inventory
+                        .iter()
+                        .map(|i| i.to_string())
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                    message.timestamp
+                )
+            }
+            Self::Refs(message) => {
+                write!(f, "Refs({}, {:?})", message.id, message.refs)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Announcement {
+    /// Node identifier.
+    pub node: NodeId,
+    /// Unsigned node announcement.
+    pub message: AnnouncementMessage,
+    /// Signature over the announcement.
+    pub signature: crypto::Signature,
+}
+
+impl Announcement {
+    /// Verify this announcement's signature.
+    pub fn verify(&self) -> bool {
+        let msg = wire::serialize(&self.message);
+        self.node.verify(&msg, &self.signature).is_ok()
+    }
+
+    pub fn matches(&self, filter: &Filter) -> bool {
+        match &self.message {
+            AnnouncementMessage::Inventory(_) => true,
+            AnnouncementMessage::Node(_) => true,
+            AnnouncementMessage::Refs(RefsAnnouncement { id, .. }) => filter.contains(id),
+        }
     }
 }
 
 /// Message payload.
 /// These are the messages peers send to each other.
-///
-/// "Announcement" messages are messages that are relayed between peers.
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     /// The first message sent to a peer after connection.
@@ -225,39 +291,11 @@ pub enum Message {
     },
 
     /// Subscribe to gossip messages matching the filter and time range.
-    /// timestamp.
     Subscribe(Subscribe),
 
-    /// Node announcing its inventory to the network.
-    /// This should be the whole inventory every time.
-    InventoryAnnouncement {
-        /// Node identifier.
-        node: NodeId,
-        /// Unsigned node inventory.
-        message: InventoryAnnouncement,
-        /// Signature over the announcement.
-        signature: crypto::Signature,
-    },
-
-    /// Node announcing itself to the network.
-    NodeAnnouncement {
-        /// Node identifier.
-        node: NodeId,
-        /// Unsigned node announcement.
-        message: NodeAnnouncement,
-        /// Signature over the announcement, by the node being announced.
-        signature: crypto::Signature,
-    },
-
-    /// Node announcing project refs being created or updated.
-    RefsAnnouncement {
-        /// Node identifier.
-        node: NodeId,
-        /// Unsigned refs announcement.
-        message: RefsAnnouncement,
-        /// Signature over the announcement, by the node that updated the refs.
-        signature: crypto::Signature,
-    },
+    /// Gossip announcement. These messages are relayed to peers, and filtered
+    /// using [`Message::Subscribe`].
+    Announcement(Announcement),
 }
 
 impl Message {
@@ -270,28 +308,25 @@ impl Message {
         }
     }
 
-    pub fn node<S: crypto::Signer>(message: NodeAnnouncement, signer: S) -> Self {
-        let msg = wire::serialize(&message);
-        let signature = signer.sign(&msg);
-        let node = *signer.public_key();
-
-        Self::NodeAnnouncement {
+    pub fn announcement(
+        node: NodeId,
+        message: impl Into<AnnouncementMessage>,
+        signature: crypto::Signature,
+    ) -> Self {
+        Announcement {
             node,
             signature,
-            message,
+            message: message.into(),
         }
+        .into()
+    }
+
+    pub fn node<S: crypto::Signer>(message: NodeAnnouncement, signer: S) -> Self {
+        AnnouncementMessage::from(message).signed(signer).into()
     }
 
     pub fn inventory<S: crypto::Signer>(message: InventoryAnnouncement, signer: S) -> Self {
-        let msg = wire::serialize(&message);
-        let signature = signer.sign(&msg);
-        let node = *signer.public_key();
-
-        Self::InventoryAnnouncement {
-            node,
-            signature,
-            message,
-        }
+        AnnouncementMessage::from(message).signed(signer).into()
     }
 
     pub fn subscribe(filter: Filter, since: Timestamp, until: Timestamp) -> Self {
@@ -303,6 +338,12 @@ impl Message {
     }
 }
 
+impl From<Announcement> for Message {
+    fn from(ann: Announcement) -> Self {
+        Self::Announcement(ann)
+    }
+}
+
 impl fmt::Debug for Message {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -310,28 +351,8 @@ impl fmt::Debug for Message {
             Self::Subscribe(Subscribe { since, until, .. }) => {
                 write!(f, "Subscribe({}..{})", since, until)
             }
-
-            Self::NodeAnnouncement { node, .. } => write!(f, "NodeAnnouncement({})", node),
-            Self::InventoryAnnouncement { node, message, .. } => {
-                write!(
-                    f,
-                    "InventoryAnnouncement({}, [{}], {})",
-                    node,
-                    message
-                        .inventory
-                        .iter()
-                        .map(|i| i.to_string())
-                        .collect::<Vec<String>>()
-                        .join(", "),
-                    message.timestamp
-                )
-            }
-            Self::RefsAnnouncement { node, message, .. } => {
-                write!(
-                    f,
-                    "RefsAnnouncement({}, {}, {:?})",
-                    node, message.id, message.refs
-                )
+            Self::Announcement(Announcement { node, message, .. }) => {
+                write!(f, "Announcement({}, {:?})", node, message)
             }
         }
     }
@@ -342,15 +363,14 @@ mod tests {
     use super::*;
     use quickcheck_macros::quickcheck;
 
-    use crate::crypto::Signer;
     use crate::test::signer::MockSigner;
 
     #[quickcheck]
     fn prop_refs_announcement_signing(id: Id, refs: Refs) {
         let signer = MockSigner::new(&mut fastrand::Rng::new());
-        let message = RefsAnnouncement { id, refs };
-        let signature = message.sign(&signer);
+        let message = AnnouncementMessage::Refs(RefsAnnouncement { id, refs });
+        let ann = message.signed(&signer);
 
-        assert!(message.verify(signer.public_key(), &signature));
+        assert!(ann.verify());
     }
 }

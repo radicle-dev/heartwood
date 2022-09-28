@@ -44,9 +44,11 @@ impl Message {
         match self {
             Self::Initialize { .. } => MessageType::Initialize,
             Self::Subscribe { .. } => MessageType::Subscribe,
-            Self::NodeAnnouncement { .. } => MessageType::NodeAnnouncement,
-            Self::InventoryAnnouncement { .. } => MessageType::InventoryAnnouncement,
-            Self::RefsAnnouncement { .. } => MessageType::RefsAnnouncement,
+            Self::Announcement(Announcement { message, .. }) => match message {
+                AnnouncementMessage::Node(_) => MessageType::NodeAnnouncement,
+                AnnouncementMessage::Inventory(_) => MessageType::InventoryAnnouncement,
+                AnnouncementMessage::Refs(_) => MessageType::RefsAnnouncement,
+            },
         }
         .into()
     }
@@ -78,6 +80,16 @@ impl TryFrom<u8> for AddressType {
             3 => Ok(AddressType::Hostname),
             4 => Ok(AddressType::Onion),
             _ => Err(other),
+        }
+    }
+}
+
+impl wire::Encode for AnnouncementMessage {
+    fn encode<W: std::io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
+        match self {
+            Self::Node(ann) => ann.encode(writer),
+            Self::Inventory(ann) => ann.encode(writer),
+            Self::Refs(ann) => ann.encode(writer),
         }
     }
 }
@@ -150,29 +162,11 @@ impl wire::Encode for Message {
                 n += since.encode(writer)?;
                 n += until.encode(writer)?;
             }
-            Self::RefsAnnouncement {
+            Self::Announcement(Announcement {
                 node,
                 message,
                 signature,
-            } => {
-                n += node.encode(writer)?;
-                n += message.encode(writer)?;
-                n += signature.encode(writer)?;
-            }
-            Self::InventoryAnnouncement {
-                node,
-                message,
-                signature,
-            } => {
-                n += node.encode(writer)?;
-                n += message.encode(writer)?;
-                n += signature.encode(writer)?;
-            }
-            Self::NodeAnnouncement {
-                node,
-                message,
-                signature,
-            } => {
+            }) => {
                 n += node.encode(writer)?;
                 n += message.encode(writer)?;
                 n += signature.encode(writer)?;
@@ -213,36 +207,39 @@ impl wire::Decode for Message {
             }
             Ok(MessageType::NodeAnnouncement) => {
                 let node = NodeId::decode(reader)?;
-                let message = NodeAnnouncement::decode(reader)?;
+                let message = NodeAnnouncement::decode(reader)?.into();
                 let signature = Signature::decode(reader)?;
 
-                Ok(Self::NodeAnnouncement {
+                Ok(Announcement {
                     node,
                     message,
                     signature,
-                })
+                }
+                .into())
             }
             Ok(MessageType::InventoryAnnouncement) => {
                 let node = NodeId::decode(reader)?;
-                let message = InventoryAnnouncement::decode(reader)?;
+                let message = InventoryAnnouncement::decode(reader)?.into();
                 let signature = Signature::decode(reader)?;
 
-                Ok(Self::InventoryAnnouncement {
+                Ok(Announcement {
                     node,
                     message,
                     signature,
-                })
+                }
+                .into())
             }
             Ok(MessageType::RefsAnnouncement) => {
                 let node = NodeId::decode(reader)?;
-                let message = RefsAnnouncement::decode(reader)?;
+                let message = RefsAnnouncement::decode(reader)?.into();
                 let signature = Signature::decode(reader)?;
 
-                Ok(Self::RefsAnnouncement {
+                Ok(Announcement {
                     node,
                     message,
                     signature,
-                })
+                }
+                .into())
             }
             Err(other) => Err(wire::Error::UnknownMessageType(other)),
         }

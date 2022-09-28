@@ -6,6 +6,8 @@ use log::*;
 use crate::prelude::*;
 use crate::service::peer::Session;
 
+use super::message::{Announcement, AnnouncementMessage};
+
 /// Output of a state transition.
 #[derive(Debug)]
 pub enum Io {
@@ -86,16 +88,20 @@ impl Reactor {
     }
 
     /// Broadcast a message to a list of peers.
-    pub fn broadcast<'a>(&mut self, msg: Message, peers: impl IntoIterator<Item = &'a Session>) {
+    pub fn broadcast<'a>(
+        &mut self,
+        msg: Announcement,
+        peers: impl IntoIterator<Item = &'a Session>,
+    ) {
         for peer in peers {
-            self.write(peer.addr, msg.clone());
+            self.write(peer.addr, msg.clone().into());
         }
     }
 
     /// Relay a message to interested peers.
-    pub fn relay<'a>(&mut self, msg: Message, peers: impl IntoIterator<Item = &'a Session>) {
-        if let Message::RefsAnnouncement { message, .. } = &msg {
-            let id = message.id;
+    pub fn relay<'a>(&mut self, ann: Announcement, peers: impl IntoIterator<Item = &'a Session>) {
+        if let AnnouncementMessage::Refs(msg) = &ann.message {
+            let id = msg.id;
             let peers = peers.into_iter().filter(|p| {
                 if let Some(subscribe) = &p.subscribe {
                     subscribe.filter.contains(&id)
@@ -105,9 +111,9 @@ impl Reactor {
                     false
                 }
             });
-            self.broadcast(msg, peers);
+            self.broadcast(ann, peers);
         } else {
-            self.broadcast(msg, peers);
+            self.broadcast(ann, peers);
         }
     }
 

@@ -162,8 +162,16 @@ where
         let mut msgs = self.messages(&remote);
         msgs.find(|m| matches!(m, Message::Initialize { .. }))
             .expect("`initialize` is sent");
-        msgs.find(|m| matches!(m, Message::InventoryAnnouncement { .. }))
-            .expect("`inventory-announcement` is sent");
+        msgs.find(|m| {
+            matches!(
+                m,
+                Message::Announcement(Announcement {
+                    message: AnnouncementMessage::Inventory(_),
+                    ..
+                })
+            )
+        })
+        .expect("`inventory-announcement` is sent");
     }
 
     pub fn connect_to(&mut self, peer: &Self) {
@@ -177,8 +185,16 @@ where
         let mut msgs = self.messages(&remote);
         msgs.find(|m| matches!(m, Message::Initialize { .. }))
             .expect("`initialize` is sent");
-        msgs.find(|m| matches!(m, Message::InventoryAnnouncement { .. }))
-            .expect("`inventory-announcement` is sent");
+        msgs.find(|m| {
+            matches!(
+                m,
+                Message::Announcement(Announcement {
+                    message: AnnouncementMessage::Inventory(_),
+                    ..
+                })
+            )
+        })
+        .expect("`inventory-announcement` is sent");
 
         let git = peer.config().git_url.clone();
         self.receive(

@@ -28,7 +28,7 @@ use crate::git;
 use crate::git::Url;
 use crate::identity::{Doc, Id};
 use crate::service::config::ProjectTracking;
-use crate::service::message::Address;
+use crate::service::message::{Address, Announcement, AnnouncementMessage};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::peer::{Session, SessionError, SessionState};
 use crate::storage;
@@ -37,6 +37,7 @@ use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, Writ
 pub use crate::service::config::{Config, Network};
 pub use crate::service::message::{Envelope, Message};
 
+use self::gossip::Gossip;
 use self::message::{InventoryAnnouncement, NodeFeatures};
 use self::reactor::Reactor;
 
@@ -132,6 +133,8 @@ pub struct Service<A, S, G> {
     storage: S,
     /// Tracks the location of projects.
     routing: Routing,
+    /// State relating to gossip.
+    gossip: Gossip,
     /// Peer sessions, currently or recently connected.
     sessions: Sessions,
     /// Keeps track of peer states.
@@ -185,6 +188,7 @@ where
             rng,
             clock,
             routing,
+            gossip: Gossip::default(),
             peers: BTreeMap::new(),
             reactor: Reactor::new(network),
             sessions,
@@ -449,17 +453,10 @@ where
                 let remote = repo.remote(&node).unwrap();
                 let peers = self.sessions.negotiated().map(|(_, p)| p);
                 let refs = remote.refs.into();
-                let message = RefsAnnouncement { id, refs };
-                let signature = message.sign(&self.signer);
+                let msg = AnnouncementMessage::from(RefsAnnouncement { id, refs });
+                let ann = msg.signed(&self.signer);
 
-                self.reactor.broadcast(
-                    Message::RefsAnnouncement {
-                        node,
-                        message,
-                        signature,
-                    },
-                    peers,
-                );
+                self.reactor.broadcast(ann, peers);
             }
         }
     }
@@ -555,14 +552,14 @@ where
     pub fn received_message(&mut self, addr: &net::SocketAddr, envelope: Envelope) {
         match self.handle_message(addr, envelope) {
             Ok(relay) => {
-                if let Some(msg) = relay {
+                if let Some(ann) = relay {
                     let negotiated = self
                         .sessions
                         .negotiated()
                         .filter(|(ip, _)| **ip != addr.ip())
                         .map(|(_, p)| p);
 
-                    self.reactor.relay(msg, negotiated.clone());
+                    self.reactor.relay(ann, negotiated.clone());
                 }
             }
             Err(SessionError::NotFound(ip)) => {
@@ -579,11 +576,77 @@ where
         }
     }
 
+    /// Handle an announcement message.
+    ///
+    /// Returns `true` if this announcement should be stored and relayed to connected peers,
+    /// and `false` if it should not.
+    pub fn handle_announcement(
+        &mut self,
+        git: &git::Url,
+        announcement: &Announcement,
+    ) -> Result<bool, peer::SessionError> {
+        if !announcement.verify() {
+            return Err(SessionError::Misbehavior);
+        }
+        let Announcement { node, message, .. } = announcement;
+
+        match message {
+            AnnouncementMessage::Inventory(message) => {
+                let now = self.clock.local_time();
+                let peer = self.peers.entry(*node).or_insert_with(Peer::default);
+                let relay = self.config.relay;
+
+                // Don't allow messages from too far in the future.
+                if message.timestamp.saturating_sub(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
+                    return Err(SessionError::InvalidTimestamp(message.timestamp));
+                }
+                // Discard inventory messages we've already seen, otherwise update
+                // out last seen time.
+                if message.timestamp > peer.last_message {
+                    peer.last_message = message.timestamp;
+                } else {
+                    return Ok(false);
+                }
+                self.process_inventory(&message.inventory, *node, git);
+
+                if relay {
+                    return Ok(true);
+                }
+            }
+            // Process a peer inventory update announcement by (maybe) fetching.
+            AnnouncementMessage::Refs(message) => {
+                // FIXME: Check message timestamp.
+                // TODO: Buffer/throttle fetches.
+                // TODO: Check that we're tracking this user as well.
+                if self.config.is_tracking(&message.id) {
+                    // TODO: Check refs to see if we should try to fetch or not.
+                    let updated = self.storage.fetch(message.id, git).unwrap();
+                    let is_updated = !updated.is_empty();
+
+                    self.reactor.event(Event::RefsFetched {
+                        from: git.clone(),
+                        project: message.id,
+                        updated,
+                    });
+
+                    if is_updated {
+                        return Ok(true);
+                    }
+                }
+            }
+            AnnouncementMessage::Node(_message) => {
+                // FIXME: Check message timestamp.
+                log::warn!("Node announcement handling is not implemented");
+            }
+        }
+        Ok(false)
+    }
+
     pub fn handle_message(
         &mut self,
         remote: &net::SocketAddr,
         envelope: Envelope,
-    ) -> Result<Option<Message>, peer::SessionError> {
+    ) -> Result<Option<Announcement>, peer::SessionError> {
         let peer_ip = remote.ip();
         let peer = if let Some(peer) = self.sessions.get_mut(&peer_ip) {
             peer
@@ -639,93 +702,23 @@ where
                 );
                 return Err(SessionError::Misbehavior);
             }
-            (
-                SessionState::Negotiated { git, .. },
-                Message::InventoryAnnouncement {
-                    node,
-                    message,
-                    signature,
-                },
-            ) => {
-                let now = self.clock.local_time();
-                let peer = self.peers.entry(node).or_insert_with(Peer::default);
-                let relay = self.config.relay;
+            // Process a peer announcement.
+            (SessionState::Negotiated { git, .. }, Message::Announcement(ann)) => {
                 let git = git.clone();
 
-                // Don't allow messages from too far in the future.
-                if message.timestamp.saturating_sub(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
-                    return Err(SessionError::InvalidTimestamp(message.timestamp));
+                // Returning true here means that the message should be relayed.
+                if self.handle_announcement(&git, &ann)? {
+                    self.gossip.received(ann.clone(), self.clock.timestamp());
+                    return Ok(Some(ann));
                 }
-                // Discard inventory messages we've already seen, otherwise update
-                // out last seen time.
-                if message.timestamp > peer.last_message {
-                    peer.last_message = message.timestamp;
-                } else {
-                    return Ok(None);
-                }
-                self.process_inventory(&message.inventory, node, &git);
-
-                if relay {
-                    return Ok(Some(Message::InventoryAnnouncement {
-                        node,
-                        message,
-                        signature,
-                    }));
-                }
-            }
-            // Process a peer inventory update announcement by (maybe) fetching.
-            (
-                SessionState::Negotiated { git, .. },
-                Message::RefsAnnouncement {
-                    node,
-                    message,
-                    signature,
-                },
-            ) => {
-                // FIXME: Check message timestamp.
-
-                if message.verify(&node, &signature) {
-                    // TODO: Buffer/throttle fetches.
-                    // TODO: Check that we're tracking this user as well.
-                    if self.config.is_tracking(&message.id) {
-                        // TODO: Check refs to see if we should try to fetch or not.
-                        let updated = self.storage.fetch(message.id, git).unwrap();
-                        let is_updated = !updated.is_empty();
-
-                        self.reactor.event(Event::RefsFetched {
-                            from: git.clone(),
-                            project: message.id,
-                            updated,
-                        });
-
-                        if is_updated {
-                            return Ok(Some(Message::RefsAnnouncement {
-                                node,
-                                message,
-                                signature,
-                            }));
-                        }
-                    }
-                } else {
-                    return Err(SessionError::Misbehavior);
-                }
-            }
-            (
-                SessionState::Negotiated { .. },
-                Message::NodeAnnouncement {
-                    node,
-                    message,
-                    signature,
-                },
-            ) => {
-                // FIXME: Check message timestamp.
-
-                if !message.verify(&node, &signature) {
-                    return Err(SessionError::Misbehavior);
-                }
-                log::warn!("Node announcement handling is not implemented");
             }
             (SessionState::Negotiated { .. }, Message::Subscribe(subscribe)) => {
+                for msg in self
+                    .gossip
+                    .filtered(&subscribe.filter, subscribe.since, subscribe.until)
+                {
+                    self.reactor.write(peer.addr, msg);
+                }
                 peer.subscribe = Some(subscribe);
             }
             (SessionState::Negotiated { .. }, Message::Initialize { .. }) => {
@@ -886,6 +879,34 @@ impl DerefMut for Sessions {
 
 mod gossip {
     use super::*;
+    use crate::service::filter::Filter;
+
+    #[derive(Default, Debug)]
+    pub struct Gossip {
+        received: Vec<(Timestamp, Announcement)>,
+    }
+
+    impl Gossip {
+        // TODO: Overwrite old messages from the same node or project.
+        // TODO: Should "time" be this node's time, or the time inside the message?
+        pub fn received(&mut self, ann: Announcement, time: Timestamp) {
+            self.received.push((time, ann));
+        }
+
+        pub fn filtered<'a>(
+            &'a self,
+            filter: &'a Filter,
+            start: Timestamp,
+            end: Timestamp,
+        ) -> impl Iterator<Item = Message> + '_ {
+            self.received
+                .iter()
+                .filter(move |(t, _)| *t >= start && *t < end)
+                .filter(move |(_, a)| a.matches(filter))
+                .cloned()
+                .map(|(_, a)| a.into())
+        }
+    }
 
     pub fn handshake<G: Signer, S: ReadStorage>(
         timestamp: Timestamp,

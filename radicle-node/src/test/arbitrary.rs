@@ -7,8 +7,8 @@ use crate::crypto;
 use crate::prelude::{Id, NodeId, Refs, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE};
 use crate::service::message::{
-    Address, Envelope, InventoryAnnouncement, Message, NodeAnnouncement, RefsAnnouncement,
-    Subscribe,
+    Address, Announcement, Envelope, InventoryAnnouncement, Message, NodeAnnouncement,
+    RefsAnnouncement, Subscribe,
 };
 use crate::wire::message::MessageType;
 
@@ -46,37 +46,43 @@ impl Arbitrary for Message {
             .unwrap();
 
         match type_id {
-            MessageType::InventoryAnnouncement => Self::InventoryAnnouncement {
+            MessageType::InventoryAnnouncement => Announcement {
                 node: NodeId::arbitrary(g),
                 message: InventoryAnnouncement {
                     inventory: Vec::<Id>::arbitrary(g),
                     timestamp: Timestamp::arbitrary(g),
-                },
+                }
+                .into(),
                 signature: crypto::Signature::from(ByteArray::<64>::arbitrary(g).into_inner()),
-            },
-            MessageType::RefsAnnouncement => Self::RefsAnnouncement {
+            }
+            .into(),
+            MessageType::RefsAnnouncement => Announcement {
                 node: NodeId::arbitrary(g),
                 message: RefsAnnouncement {
                     id: Id::arbitrary(g),
                     refs: Refs::arbitrary(g),
-                },
+                }
+                .into(),
                 signature: crypto::Signature::from(ByteArray::<64>::arbitrary(g).into_inner()),
-            },
+            }
+            .into(),
             MessageType::NodeAnnouncement => {
                 let message = NodeAnnouncement {
                     features: ByteArray::<32>::arbitrary(g).into_inner(),
                     timestamp: Timestamp::arbitrary(g),
                     alias: ByteArray::<32>::arbitrary(g).into_inner(),
                     addresses: Arbitrary::arbitrary(g),
-                };
+                }
+                .into();
                 let bytes: ByteArray<64> = Arbitrary::arbitrary(g);
                 let signature = crypto::Signature::from(bytes.into_inner());
 
-                Self::NodeAnnouncement {
+                Announcement {
                     node: NodeId::arbitrary(g),
                     signature,
                     message,
                 }
+                .into()
             }
             MessageType::Subscribe => Self::Subscribe(Subscribe {
                 filter: Filter::arbitrary(g),

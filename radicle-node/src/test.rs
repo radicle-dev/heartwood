@@ -1,4 +1,5 @@
 pub(crate) mod arbitrary;
+pub(crate) mod gossip;
 pub(crate) mod handle;
 pub(crate) mod logger;
 pub(crate) mod peer;

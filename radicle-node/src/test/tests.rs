@@ -5,7 +5,9 @@ use crossbeam_channel as chan;
 use nakamoto_net as nakamoto;
 
 use crate::collections::{HashMap, HashSet};
+use crate::prelude::Timestamp;
 use crate::service::config::*;
+use crate::service::filter::Filter;
 use crate::service::message::*;
 use crate::service::peer::*;
 use crate::service::reactor::Io;
@@ -212,6 +214,34 @@ fn test_inventory_relay_bad_timestamp() {
 }
 
 #[test]
+fn test_gossip_rebroadcast() {
+    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
+    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+
+    alice.connect_to(&bob);
+
+    let received = test::gossip::messages(6, alice.local_time(), MAX_TIME_DELTA);
+    for msg in received.iter().cloned() {
+        // TODO: Test with elapsed time
+        alice.receive(&bob.addr(), msg);
+    }
+
+    alice.connect_from(&eve);
+    alice.receive(
+        &eve.addr(),
+        Message::Subscribe(Subscribe {
+            filter: Filter::default(),
+            since: Timestamp::MIN,
+            until: Timestamp::MAX,
+        }),
+    );
+
+    let relayed = alice.messages(&eve.addr()).collect::<Vec<_>>();
+    assert_eq!(relayed, received);
+}
+
+#[test]
 fn test_inventory_relay() {
     // Topology is eve <-> alice <-> bob
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
@@ -235,7 +265,11 @@ fn test_inventory_relay() {
     );
     assert_matches!(
         alice.messages(&eve.addr()).next(),
-        Some(Message::InventoryAnnouncement { node, message: InventoryAnnouncement { timestamp, .. }, .. })
+        Some(Message::Announcement(Announcement {
+            node,
+            message: AnnouncementMessage::Inventory(InventoryAnnouncement { timestamp, .. }),
+            ..
+        }))
         if node == bob.node_id() && timestamp == now
     );
     assert_matches!(
@@ -272,7 +306,11 @@ fn test_inventory_relay() {
     );
     assert_matches!(
         alice.messages(&eve.addr()).next(),
-        Some(Message::InventoryAnnouncement { node, message: InventoryAnnouncement{ timestamp, .. }, .. })
+        Some(Message::Announcement(Announcement {
+            node,
+            message: AnnouncementMessage::Inventory(InventoryAnnouncement { timestamp, .. }),
+            ..
+        }))
         if node == bob.node_id() && timestamp == now + 1,
         "Sending a new inventory does trigger the relay"
     );
@@ -290,7 +328,11 @@ fn test_inventory_relay() {
     );
     assert_matches!(
         alice.messages(&bob.addr()).next(),
-        Some(Message::InventoryAnnouncement { node, message: InventoryAnnouncement { timestamp, .. }, .. })
+        Some(Message::Announcement(Announcement {
+            node,
+            message: AnnouncementMessage::Inventory(InventoryAnnouncement { timestamp, .. }),
+            ..
+        }))
         if node == eve.node_id() && timestamp == now
     );
 }
