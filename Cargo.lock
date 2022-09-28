@@ -768,6 +768,7 @@ dependencies = [
 name = "radicle"
 version = "0.2.0"
 dependencies = [
+ "crossbeam-channel",
  "ed25519-compact",
  "fastrand",
  "git-ref-format",

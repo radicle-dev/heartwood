@@ -652,9 +652,13 @@ pub mod paths {
 
 #[cfg(test)]
 mod tests {
+    use std::io::{Read, Write};
+    use std::{io, net, process, thread};
+
     use super::*;
     use crate::assert_matches;
     use crate::git;
+    use crate::rad;
     use crate::storage::refs::SIGNATURE_REF;
     use crate::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
     use crate::test::arbitrary;
@@ -793,23 +797,33 @@ mod tests {
 
     #[test]
     fn test_upload_pack() {
-        use std::io::{Read, Write};
-        use std::{io, net, process, thread};
-
+        let tmp = tempfile::tempdir().unwrap();
+        let signer = MockSigner::default();
+        let remote = *signer.public_key();
+        let storage = Storage::open(tmp.path().join("storage")).unwrap();
         let socket = net::TcpListener::bind(net::SocketAddr::from(([0, 0, 0, 0], 0))).unwrap();
         let addr = socket.local_addr().unwrap();
-        let tmp = tempfile::tempdir().unwrap();
         let source_path = tmp.path().join("source");
         let target_path = tmp.path().join("target");
-        let (_source, _) = fixtures::repository(&source_path);
+        let (source, _) = fixtures::repository(&source_path);
+        let (proj, _) = rad::init(
+            &source,
+            "radicle",
+            "radicle",
+            BranchName::from("master"),
+            signer,
+            &storage,
+        )
+        .unwrap();
 
         let t = thread::spawn(move || {
             let (stream, _) = socket.accept().unwrap();
-            // NOTE: `--stateless-rpc` doesn't work, neither does `GIT_PROTOCOL=version=2`.
+            let repo = storage.repository(proj).unwrap();
+            // NOTE: `GIT_PROTOCOL=version=2` doesn't work.
             let mut child = process::Command::new("git")
-                .current_dir(source_path.join(".git"))
+                .current_dir(repo.path())
                 .arg("upload-pack")
-                .arg("--strict")
+                .arg("--strict") // The path to the git repo must be exact.
                 .arg(".")
                 .stdout(process::Stdio::piped())
                 .stdin(process::Stdio::piped())
@@ -854,18 +868,56 @@ mod tests {
             let target = git2::Repository::init_bare(target_path).unwrap();
             let refs: &[&str] = &["refs/*:refs/*"];
 
+            let stream = net::TcpStream::connect(addr).unwrap();
+            let mut stream_r = stream.try_clone().unwrap();
+            let mut stream_w = stream.try_clone().unwrap();
+            let (stream_r_send, stream_r_recv) = crossbeam_channel::unbounded::<Vec<u8>>();
+            let (stream_w_send, stream_w_recv) = crossbeam_channel::unbounded::<Vec<u8>>();
+
+            let smart = transport::smart();
+            smart.insert(proj, transport::Stream::new(stream_w_send, stream_r_recv));
+
+            let rt = thread::spawn(move || {
+                let mut buf = vec![0u8; 1024];
+
+                while let Ok(n) = stream_r.read(&mut buf) {
+                    if n == 0 {
+                        break;
+                    }
+                    stream_r_send.send(buf[..n].to_vec()).unwrap();
+                }
+            });
+            let wt = thread::spawn(move || {
+                for buf in stream_w_recv.iter() {
+                    stream_w.write_all(&buf).unwrap();
+                }
+            });
+
             // Register the `rad://` transport.
             transport::register("rad").unwrap();
             // Fetch with the `rad://` transport.
             target
-                .remote_anonymous(&format!("rad://{}", addr))
+                .remote_anonymous(&format!("rad://{}", proj))
                 .unwrap()
                 .fetch(refs, Some(&mut opts), None)
                 .unwrap();
 
+            smart.remove(&proj);
+            stream.shutdown(net::Shutdown::Both).unwrap();
+
+            wt.join().unwrap();
+            rt.join().unwrap();
             t.join().unwrap();
         }
-        assert_eq!(updates, vec![String::from("refs/heads/master")]);
+
+        assert_eq!(
+            updates,
+            vec![
+                format!("refs/remotes/{remote}/heads/master"),
+                format!("refs/remotes/{remote}/heads/radicle/id"),
+                format!("refs/remotes/{remote}/radicle/signature")
+            ]
+        );
     }
 
     #[test]
