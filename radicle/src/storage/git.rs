@@ -865,48 +865,24 @@ mod tests {
             });
             opts.remote_callbacks(callbacks);
 
-            let target = git2::Repository::init_bare(target_path).unwrap();
-            let refs: &[&str] = &["refs/*:refs/*"];
-
-            let stream = net::TcpStream::connect(addr).unwrap();
-            let mut stream_r = stream.try_clone().unwrap();
-            let mut stream_w = stream.try_clone().unwrap();
-            let (stream_r_send, stream_r_recv) = crossbeam_channel::unbounded::<Vec<u8>>();
-            let (stream_w_send, stream_w_recv) = crossbeam_channel::unbounded::<Vec<u8>>();
-
-            let smart = transport::smart();
-            smart.insert(proj, transport::Stream::new(stream_w_send, stream_r_recv));
-
-            let rt = thread::spawn(move || {
-                let mut buf = vec![0u8; 1024];
-
-                while let Ok(n) = stream_r.read(&mut buf) {
-                    if n == 0 {
-                        break;
-                    }
-                    stream_r_send.send(buf[..n].to_vec()).unwrap();
-                }
-            });
-            let wt = thread::spawn(move || {
-                for buf in stream_w_recv.iter() {
-                    stream_w.write_all(&buf).unwrap();
-                }
-            });
-
             // Register the `rad://` transport.
             transport::register().unwrap();
+
+            let target = git2::Repository::init_bare(target_path).unwrap();
+            let stream = net::TcpStream::connect(addr).unwrap();
+            let smart = transport::Smart::singleton();
+
+            smart.insert(proj, Box::new(stream.try_clone().unwrap()));
+
             // Fetch with the `rad://` transport.
             target
                 .remote_anonymous(&format!("rad://{}", proj))
                 .unwrap()
-                .fetch(refs, Some(&mut opts), None)
+                .fetch(&["refs/*:refs/*"], Some(&mut opts), None)
                 .unwrap();
 
-            smart.remove(&proj);
             stream.shutdown(net::Shutdown::Both).unwrap();
 
-            wt.join().unwrap();
-            rt.join().unwrap();
             t.join().unwrap();
         }
 

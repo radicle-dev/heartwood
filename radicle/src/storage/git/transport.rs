@@ -13,14 +13,13 @@
 //! out the git smart protocol.
 //!
 //! This module is meant to be used by first registering our transport with [`register`] and then
-//! adding or removing streams through [`Smart`], which can be obtained by calling [`smart`].
+//! adding or removing streams through [`Smart`], which can be obtained via [`Smart::singleton`].
 use std::collections::HashMap;
-use std::io;
 use std::str::FromStr;
 use std::sync::atomic;
 use std::sync::{Arc, Mutex};
 
-use crossbeam_channel as chan;
+use git2::transport::SmartSubtransportStream;
 use once_cell::sync::Lazy;
 
 use crate::git;
@@ -31,6 +30,9 @@ use crate::identity::Id;
 /// or its underlying streams.
 static STREAMS: Lazy<Arc<Mutex<HashMap<Id, Stream>>>> = Lazy::new(Default::default);
 
+/// The stream associated with a repository.
+type Stream = Box<dyn SmartSubtransportStream>;
+
 /// Git transport protocol over an I/O stream.
 #[derive(Clone)]
 pub struct Smart {
@@ -39,16 +41,22 @@ pub struct Smart {
 }
 
 impl Smart {
-    pub fn get(&self, id: &Id) -> Option<Stream> {
-        self.streams.lock().unwrap().get(id).cloned()
+    /// Get access to the radicle smart transport protocol.
+    /// The returned object has mutable access to the underlying stream map, and is safe to clone.
+    pub fn singleton() -> Self {
+        Self {
+            streams: STREAMS.clone(),
+        }
+    }
+
+    /// Take a stream from the map.
+    /// This makes the stream unavailable until it is re-inserted.
+    pub fn take(&self, id: &Id) -> Option<Stream> {
+        self.streams.lock().unwrap().remove(id)
     }
 
     pub fn insert(&self, id: Id, stream: Stream) {
         self.streams.lock().unwrap().insert(id, stream);
-    }
-
-    pub fn remove(&self, id: &Id) {
-        self.streams.lock().unwrap().remove(id);
     }
 }
 
@@ -74,7 +82,7 @@ impl git2::transport::SmartSubtransport for Smart {
             return Err(git2::Error::from_str("Git URL scheme must be `rad`"));
         }
 
-        if let Some(stream) = self.get(&id) {
+        if let Some(stream) = self.take(&id) {
             match action {
                 git2::transport::Service::UploadPackLs => {}
                 git2::transport::Service::UploadPack => {}
@@ -89,7 +97,7 @@ impl git2::transport::SmartSubtransport for Smart {
                     ));
                 }
             }
-            Ok(Box::new(stream))
+            Ok(stream)
         } else {
             Err(git2::Error::from_str(&format!(
                 "repository {id} does not have an associated stream"
@@ -99,60 +107,6 @@ impl git2::transport::SmartSubtransport for Smart {
 
     fn close(&self) -> Result<(), git2::Error> {
         Ok(())
-    }
-}
-
-/// A byte stream connected to some I/O source.
-/// One of these is created for every git operation, eg. `fetch`.
-#[derive(Clone)]
-pub struct Stream {
-    /// Send bytes to the network.
-    send: chan::Sender<Vec<u8>>,
-    /// Receive bytes from the network.
-    recv: chan::Receiver<Vec<u8>>,
-    /// Bytes read from the receive channel that didn't fit in the read buffer.
-    pending: Vec<u8>,
-}
-
-impl Stream {
-    /// Create a new stream from a sender and receiver.
-    pub fn new(send: chan::Sender<Vec<u8>>, recv: chan::Receiver<Vec<u8>>) -> Self {
-        Self {
-            send,
-            recv,
-            pending: Vec::new(),
-        }
-    }
-}
-
-impl io::Write for Stream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.send
-            .send(buf.to_owned())
-            .map_err(|e| io::Error::new(io::ErrorKind::BrokenPipe, e))?;
-
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-impl io::Read for Stream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let bytes = self
-            .recv
-            .recv()
-            .map_err(|e| io::Error::new(io::ErrorKind::BrokenPipe, e))?;
-        self.pending.extend(&bytes);
-
-        // There must be a nicer way to do this...
-        let count = buf.len().min(self.pending.len());
-        buf[..count].copy_from_slice(&self.pending[..count]);
-        self.pending.drain(..count);
-
-        Ok(count)
     }
 }
 
@@ -168,22 +122,12 @@ pub fn register() -> Result<(), git2::Error> {
         unsafe {
             let prefix = git::url::Scheme::Radicle.to_string();
             git2::transport::register(&prefix, move |remote| {
-                git2::transport::Transport::smart(remote, false, self::smart())
+                git2::transport::Transport::smart(remote, false, Smart::singleton())
             })
         }
     } else {
         Err(git2::Error::from_str(
             "custom git transport is already registered",
         ))
-    }
-}
-
-/// Get access to the radicle smart transport protocol.
-///
-/// The returned object has mutable access to the underlying stream map, and is safe to clone.
-///
-pub fn smart() -> Smart {
-    Smart {
-        streams: STREAMS.clone(),
     }
 }
