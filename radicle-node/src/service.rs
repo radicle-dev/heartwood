@@ -453,7 +453,12 @@ where
                 let remote = repo.remote(&node).unwrap();
                 let peers = self.sessions.negotiated().map(|(_, p)| p);
                 let refs = remote.refs.into();
-                let msg = AnnouncementMessage::from(RefsAnnouncement { id, refs });
+                let timestamp = self.clock.timestamp();
+                let msg = AnnouncementMessage::from(RefsAnnouncement {
+                    id,
+                    refs,
+                    timestamp,
+                });
                 let ann = msg.signed(&self.signer);
 
                 self.reactor.broadcast(ann, peers);
@@ -708,7 +713,7 @@ where
 
                 // Returning true here means that the message should be relayed.
                 if self.handle_announcement(&git, &ann)? {
-                    self.gossip.received(ann.clone(), self.clock.timestamp());
+                    self.gossip.received(ann.clone(), ann.message.timestamp());
                     return Ok(Some(ann));
                 }
             }

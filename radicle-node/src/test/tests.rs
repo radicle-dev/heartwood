@@ -5,7 +5,7 @@ use crossbeam_channel as chan;
 use nakamoto_net as nakamoto;
 
 use crate::collections::{HashMap, HashSet};
-use crate::prelude::Timestamp;
+use crate::prelude::{LocalDuration, Timestamp};
 use crate::service::config::*;
 use crate::service::filter::Filter;
 use crate::service::message::*;
@@ -223,7 +223,6 @@ fn test_gossip_rebroadcast() {
 
     let received = test::gossip::messages(6, alice.local_time(), MAX_TIME_DELTA);
     for msg in received.iter().cloned() {
-        // TODO: Test with elapsed time
         alice.receive(&bob.addr(), msg);
     }
 
@@ -239,6 +238,45 @@ fn test_gossip_rebroadcast() {
 
     let relayed = alice.messages(&eve.addr()).collect::<Vec<_>>();
     assert_eq!(relayed, received);
+}
+
+#[test]
+fn test_gossip_rebroadcast_timestamp_filtered() {
+    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
+    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+
+    alice.connect_to(&bob);
+
+    let delta = LocalDuration::from_mins(10);
+    let first = test::gossip::messages(3, alice.local_time() - delta, LocalDuration::from_secs(0));
+    let second = test::gossip::messages(3, alice.local_time(), LocalDuration::from_secs(0));
+    let third = test::gossip::messages(3, alice.local_time() + delta, LocalDuration::from_secs(0));
+
+    // Alice receives three batches of messages.
+    for msg in first
+        .iter()
+        .chain(second.iter())
+        .chain(third.iter())
+        .cloned()
+    {
+        alice.receive(&bob.addr(), msg);
+    }
+
+    // Eve subscribes to messages within the period of the second batch only.
+    alice.connect_from(&eve);
+    alice.receive(
+        &eve.addr(),
+        Message::Subscribe(Subscribe {
+            filter: Filter::default(),
+            since: alice.local_time().as_secs(),
+            until: (alice.local_time() + delta).as_secs(),
+        }),
+    );
+
+    let relayed = alice.messages(&eve.addr()).collect::<Vec<_>>();
+    assert_eq!(relayed.len(), second.len());
+    assert_eq!(relayed, second);
 }
 
 #[test]

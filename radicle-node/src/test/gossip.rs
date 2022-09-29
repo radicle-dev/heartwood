@@ -12,8 +12,17 @@ pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Messa
 
     for _ in 0..count {
         let signer = MockSigner::new(&mut rng);
-        let delta = LocalDuration::from_secs(rng.u64(0..delta.as_secs()));
-        let time = if rng.bool() { now + delta } else { now - delta };
+        let time = if delta == LocalDuration::from_secs(0) {
+            now
+        } else {
+            let delta = LocalDuration::from_secs(rng.u64(0..delta.as_secs()));
+
+            if rng.bool() {
+                now + delta
+            } else {
+                now - delta
+            }
+        };
 
         msgs.push(Message::inventory(
             InventoryAnnouncement {

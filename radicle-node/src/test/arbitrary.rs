@@ -61,6 +61,7 @@ impl Arbitrary for Message {
                 message: RefsAnnouncement {
                     id: Id::arbitrary(g),
                     refs: Refs::arbitrary(g),
+                    timestamp: Timestamp::arbitrary(g),
                 }
                 .into(),
                 signature: crypto::Signature::from(ByteArray::<64>::arbitrary(g).into_inner()),

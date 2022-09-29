@@ -173,14 +173,17 @@ pub struct RefsAnnouncement {
     pub id: Id,
     /// Updated refs.
     pub refs: Refs,
-    // TODO: Add timestamp
+    /// Time of announcement.
+    pub timestamp: Timestamp,
 }
 
 /// Node announcing its inventory to the network.
 /// This should be the whole inventory every time.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InventoryAnnouncement {
+    /// Node inventory.
     pub inventory: Vec<Id>,
+    /// Time of announcement.
     pub timestamp: Timestamp,
 }
 
@@ -205,6 +208,14 @@ impl AnnouncementMessage {
             node: *signer.public_key(),
             message: self,
             signature,
+        }
+    }
+
+    pub fn timestamp(&self) -> Timestamp {
+        match self {
+            Self::Inventory(InventoryAnnouncement { timestamp, .. }) => *timestamp,
+            Self::Refs(RefsAnnouncement { timestamp, .. }) => *timestamp,
+            Self::Node(NodeAnnouncement { timestamp, .. }) => *timestamp,
         }
     }
 }
@@ -368,7 +379,12 @@ mod tests {
     #[quickcheck]
     fn prop_refs_announcement_signing(id: Id, refs: Refs) {
         let signer = MockSigner::new(&mut fastrand::Rng::new());
-        let message = AnnouncementMessage::Refs(RefsAnnouncement { id, refs });
+        let timestamp = 0;
+        let message = AnnouncementMessage::Refs(RefsAnnouncement {
+            id,
+            refs,
+            timestamp,
+        });
         let ann = message.signed(&signer);
 
         assert!(ann.verify());

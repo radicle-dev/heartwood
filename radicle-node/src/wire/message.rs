@@ -100,6 +100,7 @@ impl wire::Encode for RefsAnnouncement {
 
         n += self.id.encode(writer)?;
         n += self.refs.encode(writer)?;
+        n += self.timestamp.encode(writer)?;
 
         Ok(n)
     }
@@ -109,8 +110,13 @@ impl wire::Decode for RefsAnnouncement {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
         let id = Id::decode(reader)?;
         let refs = Refs::decode(reader)?;
+        let timestamp = Timestamp::decode(reader)?;
 
-        Ok(Self { id, refs })
+        Ok(Self {
+            id,
+            refs,
+            timestamp,
+        })
     }
 }
 
