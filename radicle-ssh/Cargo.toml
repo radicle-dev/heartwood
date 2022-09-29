@@ -1,0 +1,16 @@
+[package]
+name = "radicle-ssh"
+license = "Apache-2.0"
+version = "0.2.0"
+authors = [
+  "Fintan Halpenny <fintan.halpenny@gmail.com>",
+  "Pierre-Étienne Meunier <pe@pijul.org>",
+  "Alexis Sellier <alexis@radicle.xyz>"
+]
+edition = "2021"
+
+[dependencies]
+byteorder = "1.4"
+log = "0.4"
+thiserror = "1.0"
+zeroize = "1.5.7"

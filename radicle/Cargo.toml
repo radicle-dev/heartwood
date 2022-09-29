@@ -10,6 +10,8 @@ default = []
 test = ["quickcheck"]
 
 [dependencies]
+base64 = { version= "0.13" }
+byteorder = { version = "1.4" }
 crossbeam-channel = { version = "0.5.6" }
 ed25519-compact = { version = "1.0.12", features = ["pem"] }
 fastrand = { version = "1.8.0" }
@@ -28,6 +30,12 @@ radicle-git-ext = { version = "0", features = ["serde"] }
 nonempty = { version = "0.8.0", features = ["serialize"] }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
+zeroize = { version = "1.5.7" }
+
+[dependencies.radicle-ssh]
+path = "../radicle-ssh"
+version = "0"
+default-features = false
 
 [dependencies.quickcheck]
 version = "1"

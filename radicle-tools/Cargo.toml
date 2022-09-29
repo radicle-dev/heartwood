@@ -28,3 +28,7 @@ path = "src/rad-self.rs"
 [[bin]]
 name = "rad-push"
 path = "src/rad-push.rs"
+
+[[bin]]
+name = "rad-agent"
+path = "src/rad-agent.rs"

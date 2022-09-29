@@ -183,11 +183,17 @@ impl From<ed25519::PublicKey> for PublicKey {
     }
 }
 
-impl TryFrom<[u8; 32]> for PublicKey {
+impl From<[u8; 32]> for PublicKey {
+    fn from(other: [u8; 32]) -> Self {
+        Self(ed25519::PublicKey::new(other))
+    }
+}
+
+impl TryFrom<&[u8]> for PublicKey {
     type Error = ed25519::Error;
 
-    fn try_from(other: [u8; 32]) -> Result<Self, Self::Error> {
-        Ok(Self(ed25519::PublicKey::new(other)))
+    fn try_from(other: &[u8]) -> Result<Self, Self::Error> {
+        ed25519::PublicKey::from_slice(other).map(Self)
     }
 }
 

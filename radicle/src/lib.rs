@@ -8,6 +8,7 @@ pub mod node;
 pub mod profile;
 pub mod rad;
 pub mod serde_ext;
+pub mod ssh;
 pub mod storage;
 #[cfg(feature = "test")]
 pub mod test;

@@ -20,8 +20,8 @@ use crate::storage::git::Storage;
 
 #[derive(Debug)]
 pub struct UnsafeSigner {
-    public: PublicKey,
-    secret: SecretKey,
+    pub public: PublicKey,
+    pub secret: SecretKey,
 }
 
 impl Signer for UnsafeSigner {
