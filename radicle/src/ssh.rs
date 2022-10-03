@@ -15,50 +15,63 @@ use crate::crypto;
 use crate::crypto::PublicKey;
 
 pub mod fmt {
+    use radicle_ssh::encoding::Encoding as _;
+
     use crate::crypto::PublicKey;
 
     /// Get the SSH long key from a public key.
     /// This is the output of `ssh-add -L`.
     pub fn key(key: &PublicKey) -> String {
-        use byteorder::{BigEndian, WriteBytesExt};
-
         let mut buf = Vec::new();
-        let key = key.as_ref();
-        let len = key.len();
 
-        buf.write_u32::<BigEndian>(len as u32)
-            .expect("Writing to vectors doesn't fail");
-        buf.extend_from_slice(key);
+        buf.extend_ssh_string(b"ssh-ed25519");
+        buf.extend_ssh_string(key.as_ref());
 
-        // Despite research, I have no idea what this string is, but it seems
-        // to be the same for all Ed25519 keys.
-        let mut encoded = String::from("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5");
-        encoded.push_str(&base64::encode_config(buf, base64::STANDARD_NO_PAD));
-
-        encoded
+        base64::encode_config(buf, base64::STANDARD_NO_PAD)
     }
 
     /// Get the SSH key fingerprint from a public key.
     /// This is the output of `ssh-add -l`.
     pub fn fingerprint(key: &PublicKey) -> String {
-        use byteorder::{BigEndian, WriteBytesExt};
         use sha2::Digest;
 
         let mut buf = Vec::new();
-        let name = b"ssh-ed25519";
-        let key = key.as_ref();
 
-        buf.write_u32::<BigEndian>(name.len() as u32)
-            .expect("Writing to vectors doesn't fail");
-        buf.extend_from_slice(name);
-        buf.write_u32::<BigEndian>(key.len() as u32)
-            .expect("Writing to vectors doesn't fail");
-        buf.extend_from_slice(key);
+        buf.extend_ssh_string(b"ssh-ed25519");
+        buf.extend_ssh_string(key.as_ref());
 
         let sha = sha2::Sha256::digest(&buf).to_vec();
         let encoded = base64::encode_config(sha, base64::STANDARD_NO_PAD);
 
         format!("SHA256:{}", encoded)
+    }
+
+    #[cfg(test)]
+    mod test {
+        use std::str::FromStr;
+
+        use super::*;
+        use crate::crypto::PublicKey;
+
+        #[test]
+        fn test_key() {
+            let pk = PublicKey::from_str("zF4VJZgNEeL1niWmKu1NtT1B4ZyGpjACyhs2VEZvtsws5").unwrap();
+
+            assert_eq!(
+                key(&pk),
+                "AAAAC3NzaC1lZDI1NTE5AAAAINDoXIrhcnRjnLGUXUFdxhkuy08lkTOwrj2IoGsEX6+Q"
+            );
+        }
+
+        #[test]
+        fn test_fingerprint() {
+            let pk = PublicKey::from_str("zF4VJZgNEeL1niWmKu1NtT1B4ZyGpjACyhs2VEZvtsws5").unwrap();
+
+            assert_eq!(
+                fingerprint(&pk),
+                "SHA256:gE/Ty4fuXzww49lcnNe9/GI0L7xSEQdFp/v9tOjFwB4"
+            );
+        }
     }
 }
 
