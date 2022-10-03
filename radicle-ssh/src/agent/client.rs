@@ -218,10 +218,12 @@ impl<S: ClientStream> AgentClient<S> {
         if self.buf[0] == msg::IDENTITIES_ANSWER {
             let mut r = self.buf.reader(1);
             let n = r.read_u32()?;
+
             for _ in 0..n {
                 let key = r.read_string()?;
                 let _ = r.read_string()?;
                 let mut r = key.reader(0);
+
                 if let Some(pk) = K::read(&mut r).map_err(|err| Error::Public(Box::new(err)))? {
                     keys.push(pk);
                 }
@@ -261,7 +263,7 @@ impl<S: ClientStream> AgentClient<S> {
         // uint32                  flags
 
         let mut pk = Vec::new().into();
-        let n = public.write_blob(&mut pk);
+        let n = public.write(&mut pk);
         let total = 1 + n + 4 + data.len() + 4;
 
         debug_assert_eq!(n, pk.len());
@@ -295,7 +297,7 @@ impl<S: ClientStream> AgentClient<S> {
         K: Public,
     {
         let mut pk = Vec::new().into();
-        let n = public.write_blob(&mut pk);
+        let n = public.write(&mut pk);
         let total = 1 + n;
 
         debug_assert_eq!(n, pk.len());

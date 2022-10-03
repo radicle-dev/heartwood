@@ -1,20 +1,26 @@
+use std::error::Error;
+
 use crate::encoding::{Buffer, Cursor};
 
+/// A public SSH key.
 pub trait Public: Sized {
-    type Error;
+    type Error: Error + Send + Sync + 'static;
 
-    fn write_blob(&self, buf: &mut Buffer) -> usize;
+    /// Write the public key to the given buffer, in SSH "blob" format.
+    fn write(&self, buf: &mut Buffer) -> usize;
+    /// Read the public key from the given reader.
     fn read(reader: &mut Cursor) -> Result<Option<Self>, Self::Error>;
 }
 
+/// A private SSH key.
 pub trait Private: Sized {
-    type Error;
+    type Error: Error + Send + Sync + 'static;
 
-    fn read(reader: &mut Cursor) -> Result<Option<(Vec<u8>, Self)>, Self::Error>;
+    /// Read a private key from the given reader.
+    fn read(reader: &mut Cursor) -> Result<Option<Self>, Self::Error>;
+    /// Write the key bytes to the supplied buffer.
     fn write(&self, buf: &mut Buffer) -> Result<(), Self::Error>;
-    fn write_signature<T: AsRef<[u8]>>(
-        &self,
-        buf: &mut Buffer,
-        to_sign: T,
-    ) -> Result<(), Self::Error>;
+    /// Sign the data and write the signature to the given buffer.
+    fn write_signature<T: AsRef<[u8]>>(&self, data: T, buf: &mut Buffer)
+        -> Result<(), Self::Error>;
 }

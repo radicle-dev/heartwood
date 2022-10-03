@@ -86,7 +86,7 @@ pub enum PublicKeyError {
 impl radicle_ssh::key::Public for PublicKey {
     type Error = PublicKeyError;
 
-    fn write_blob(&self, buf: &mut Zeroizing<Vec<u8>>) -> usize {
+    fn write(&self, buf: &mut Zeroizing<Vec<u8>>) -> usize {
         let mut n = 0;
         let typ = b"ssh-ed25519";
         let size = typ.len() + self.len() + mem::size_of::<u32>() * 2;
@@ -124,19 +124,21 @@ impl From<crypto::SecretKey> for SecretKey {
 }
 
 #[derive(Debug, Error)]
-pub enum SigningKeyError {
+pub enum SecretKeyError {
     #[error(transparent)]
     Encoding(#[from] encoding::Error),
     #[error(transparent)]
     Crypto(#[from] crypto::Error),
     #[error(transparent)]
     Io(#[from] io::Error),
+    #[error("public key does not match secret key")]
+    Mismatch,
 }
 
 impl radicle_ssh::key::Private for SecretKey {
-    type Error = SigningKeyError;
+    type Error = SecretKeyError;
 
-    fn read(r: &mut encoding::Cursor) -> Result<Option<(Vec<u8>, Self)>, Self::Error> {
+    fn read(r: &mut encoding::Cursor) -> Result<Option<Self>, Self::Error> {
         match r.read_string()? {
             b"ssh-ed25519" => {
                 let public = r.read_string()?;
@@ -144,7 +146,10 @@ impl radicle_ssh::key::Private for SecretKey {
                 let _comment = r.read_string()?;
                 let key = crypto::SecretKey::from_slice(pair).unwrap();
 
-                Ok(Some((public.to_vec(), SecretKey(key))))
+                if public != key.public_key().as_ref() {
+                    return Err(SecretKeyError::Mismatch);
+                }
+                Ok(Some(SecretKey(key)))
             }
             _ => Ok(None),
         }
@@ -164,11 +169,11 @@ impl radicle_ssh::key::Private for SecretKey {
 
     fn write_signature<Bytes: AsRef<[u8]>>(
         &self,
+        data: Bytes,
         buf: &mut Zeroizing<Vec<u8>>,
-        to_sign: Bytes,
     ) -> Result<(), Self::Error> {
         let name = "ssh-ed25519";
-        let signature: [u8; 64] = *self.0.sign(to_sign.as_ref(), None);
+        let signature: [u8; 64] = *self.0.sign(data.as_ref(), None);
 
         buf.deref_mut()
             .write_u32::<BigEndian>((name.len() + signature.len() + 8) as u32)?;
@@ -221,7 +226,7 @@ mod test {
         SecretKey(sk).write(&mut buf).unwrap();
 
         let mut cursor = buf.reader(0);
-        let (_, output) = SecretKey::read(&mut cursor).unwrap().unwrap();
+        let output = SecretKey::read(&mut cursor).unwrap().unwrap();
 
         assert_eq!(sk, output.0);
     }
