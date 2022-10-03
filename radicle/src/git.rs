@@ -323,6 +323,14 @@ pub mod commit {
         InvalidFormat,
     }
 
+    impl TryFrom<git2::Buf> for CommitObject {
+        type Error = ParseError;
+
+        fn try_from(value: git2::Buf) -> Result<Self, Self::Error> {
+            value.as_str().ok_or(ParseError::InvalidFormat)?.parse()
+        }
+    }
+
     impl FromStr for CommitObject {
         type Err = ParseError;
 
