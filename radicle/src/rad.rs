@@ -215,6 +215,7 @@ pub fn clone<P: AsRef<Path>, G: Signer, S: storage::WriteStorage, H: node::Handl
     storage: &S,
     handle: &H,
 ) -> Result<git2::Repository, CloneError> {
+    let _ = handle.track(&proj)?;
     let _ = handle.fetch(&proj)?;
     let _ = fork(proj, signer, storage)?;
     let working = checkout(proj, signer.public_key(), path, storage)?;
@@ -276,7 +277,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     let mut opts = git2::RepositoryInitOptions::new();
     opts.no_reinit(true).description(&project.description);
 
-    let repo = git2::Repository::init_opts(path, &opts)?;
+    let repo = git2::Repository::init_opts(path.as_ref().join(&project.name), &opts)?;
     let url = storage.url(&proj);
 
     // Configure and fetch all refs from remote.
