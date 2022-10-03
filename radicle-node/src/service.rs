@@ -6,6 +6,7 @@ pub mod reactor;
 
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 use std::{fmt, net, net::IpAddr};
 
 use crossbeam_channel as chan;
@@ -30,12 +31,13 @@ use crate::identity::{Doc, Id};
 use crate::service::config::ProjectTracking;
 use crate::service::message::{Address, Announcement, AnnouncementMessage};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
-use crate::service::peer::{Session, SessionError, SessionState};
+use crate::service::peer::{SessionError, SessionState};
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 
 pub use crate::service::config::{Config, Network};
 pub use crate::service::message::{Envelope, Message};
+pub use crate::service::peer::Session;
 
 use self::gossip::Gossip;
 use self::message::{InventoryAnnouncement, NodeFeatures};
@@ -109,19 +111,44 @@ pub enum FetchResult {
     },
 }
 
+/// Function used to query internal service state.
+pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Send + Sync;
+
 /// Commands sent to the service by the operator.
-#[derive(Debug)]
 pub enum Command {
+    /// Announce repository references for given project id to peers.
     AnnounceRefs(Id),
+    /// Connect to node with the given address.
     Connect(net::SocketAddr),
+    /// Fetch the given project from the network.
     Fetch(Id, chan::Sender<FetchLookup>),
+    /// Track the given project.
     Track(Id, chan::Sender<bool>),
+    /// Untrack the given project.
     Untrack(Id, chan::Sender<bool>),
+    /// Query the internal service state.
+    QueryState(Arc<QueryState>, chan::Sender<Result<(), CommandError>>),
+}
+
+impl fmt::Debug for Command {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({})", id),
+            Self::Connect(addr) => write!(f, "Connect({})", addr),
+            Self::Fetch(id, _) => write!(f, "Fetch({})", id),
+            Self::Track(id, _) => write!(f, "Track({})", id),
+            Self::Untrack(id, _) => write!(f, "Untrack({})", id),
+            Self::QueryState { .. } => write!(f, "QueryState(..)"),
+        }
+    }
 }
 
 /// Command-related errors.
 #[derive(thiserror::Error, Debug)]
-pub enum CommandError {}
+pub enum CommandError {
+    #[error(transparent)]
+    Storage(#[from] storage::Error),
+}
 
 #[derive(Debug)]
 pub struct Service<A, S, G> {
@@ -163,6 +190,21 @@ pub struct Service<A, S, G> {
 
 impl<A, S, G> Service<A, S, G>
 where
+    G: crypto::Signer,
+{
+    /// Get the local node id.
+    pub fn node_id(&self) -> NodeId {
+        *self.signer.public_key()
+    }
+
+    /// Get the local service time.
+    pub fn local_time(&self) -> LocalTime {
+        self.clock.local_time()
+    }
+}
+
+impl<A, S, G> Service<A, S, G>
+where
     A: address_book::Store,
     S: WriteStorage + 'static,
     G: crypto::Signer,
@@ -199,10 +241,6 @@ where
             last_announce: LocalTime::default(),
             start_time: LocalTime::default(),
         }
-    }
-
-    pub fn node_id(&self) -> NodeId {
-        *self.signer.public_key()
     }
 
     pub fn seeds(&self, id: &Id) -> Box<dyn Iterator<Item = (&NodeId, &Session)> + '_> {
@@ -255,16 +293,6 @@ where
         todo!()
     }
 
-    /// Get the connected peers.
-    pub fn sessions(&self) -> &Sessions {
-        &self.sessions
-    }
-
-    /// Get the current inventory.
-    pub fn inventory(&self) -> Result<Inventory, storage::Error> {
-        self.storage.inventory()
-    }
-
     /// Get the storage instance.
     pub fn storage(&self) -> &S {
         &self.storage
@@ -275,34 +303,9 @@ where
         &mut self.storage
     }
 
-    /// Get a project from storage, using the local node's key.
-    pub fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::Error> {
-        self.storage.get(&self.node_id(), proj)
-    }
-
     /// Get the local signer.
     pub fn signer(&self) -> &G {
         &self.signer
-    }
-
-    /// Get the clock.
-    pub fn clock(&self) -> &RefClock {
-        &self.clock
-    }
-
-    /// Get the local service time.
-    pub fn local_time(&self) -> LocalTime {
-        self.clock.local_time()
-    }
-
-    /// Get service configuration.
-    pub fn config(&self) -> &Config {
-        &self.config
-    }
-
-    /// Get reference to routing table.
-    pub fn routing(&self) -> &Routing {
-        &self.routing
     }
 
     /// Get I/O reactor.
@@ -462,6 +465,9 @@ where
                 let ann = msg.signed(&self.signer);
 
                 self.reactor.broadcast(ann, peers);
+            }
+            Command::QueryState(query, sender) => {
+                sender.send(query(self)).ok();
             }
         }
     }
@@ -786,6 +792,52 @@ where
                 // TODO: Connect to random peer.
             }
         }
+    }
+}
+
+/// Gives read access to the service state.
+pub trait ServiceState {
+    /// Get the connected peers.
+    fn sessions(&self) -> &Sessions;
+    /// Get the current inventory.
+    fn inventory(&self) -> Result<Inventory, storage::Error>;
+    /// Get a project from storage, using the local node's key.
+    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::Error>;
+    /// Get the clock.
+    fn clock(&self) -> &RefClock;
+    /// Get service configuration.
+    fn config(&self) -> &Config;
+    /// Get reference to routing table.
+    fn routing(&self) -> &Routing;
+}
+
+impl<A, S, G> ServiceState for Service<A, S, G>
+where
+    G: Signer,
+    S: ReadStorage,
+{
+    fn sessions(&self) -> &Sessions {
+        &self.sessions
+    }
+
+    fn inventory(&self) -> Result<Inventory, storage::Error> {
+        self.storage.inventory()
+    }
+
+    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::Error> {
+        self.storage.get(&self.node_id(), proj)
+    }
+
+    fn clock(&self) -> &RefClock {
+        &self.clock
+    }
+
+    fn config(&self) -> &Config {
+        &self.config
+    }
+
+    fn routing(&self) -> &Routing {
+        &self.routing
     }
 }
 

@@ -11,6 +11,7 @@ use crate::service::filter::Filter;
 use crate::service::message::*;
 use crate::service::peer::*;
 use crate::service::reactor::Io;
+use crate::service::ServiceState as _;
 use crate::service::*;
 use crate::storage::git::Storage;
 use crate::storage::ReadStorage;

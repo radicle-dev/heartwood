@@ -52,8 +52,6 @@ enum DrainError {
     InvalidCommandArg(String),
     #[error("unknown command `{0}`")]
     UnknownCommand(String),
-    #[error("invalid command")]
-    InvalidCommand,
     #[error("client error: {0}")]
     Client(#[from] client::handle::Error),
     #[error("i/o error: {0}")]
@@ -101,7 +99,38 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
                 }
             }
             Some((cmd, _)) => return Err(DrainError::UnknownCommand(cmd.to_owned())),
-            None => return Err(DrainError::InvalidCommand),
+
+            // Commands with no arguments.
+            None => match line.as_str() {
+                "routing" => match handle.routing() {
+                    Ok(c) => {
+                        let mut writer = LineWriter::new(stream);
+
+                        for (id, seeds) in c.iter() {
+                            let seeds = seeds
+                                .into_iter()
+                                .map(String::from)
+                                .collect::<Vec<_>>()
+                                .join(" ");
+                            writeln!(writer, "{id} {seeds}",)?;
+                        }
+                    }
+                    Err(e) => return Err(DrainError::Client(e)),
+                },
+                "inventory" => match handle.inventory() {
+                    Ok(c) => {
+                        let mut writer = LineWriter::new(stream);
+
+                        for id in c.iter() {
+                            writeln!(writer, "{id}")?;
+                        }
+                    }
+                    Err(e) => return Err(DrainError::Client(e)),
+                },
+                _ => {
+                    return Err(DrainError::UnknownCommand(line));
+                }
+            },
         }
     }
     Ok(())

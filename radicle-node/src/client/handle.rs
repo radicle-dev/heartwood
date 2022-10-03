@@ -1,4 +1,5 @@
 use std::net;
+use std::sync::Arc;
 
 use crossbeam_channel as chan;
 use nakamoto_net::Waker;
@@ -6,7 +7,8 @@ use thiserror::Error;
 
 use crate::identity::Id;
 use crate::service;
-use crate::service::{CommandError, FetchLookup};
+use crate::service::{CommandError, FetchLookup, QueryState};
+use crate::service::{NodeId, Session};
 
 /// An error resulting from a handle method.
 #[derive(Error, Debug)]
@@ -88,6 +90,45 @@ impl<W: Waker> traits::Handle for Handle<W> {
         Ok(())
     }
 
+    fn routing(&self) -> Result<chan::Receiver<(Id, Vec<NodeId>)>, Error> {
+        let (sender, receiver) = chan::unbounded();
+        let query: Arc<QueryState> = Arc::new(move |state| {
+            for (id, nodes) in state.routing().iter() {
+                if sender.send((*id, nodes.iter().cloned().collect())).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        });
+        let (err_sender, err_receiver) = chan::bounded(1);
+        self.command(service::Command::QueryState(query, err_sender))?;
+        err_receiver.recv()??;
+
+        Ok(receiver)
+    }
+
+    fn sessions(&self) -> Result<chan::Receiver<(NodeId, Session)>, Error> {
+        // TODO: This can be implemented once we have real peer sessions.
+        todo!()
+    }
+
+    fn inventory(&self) -> Result<chan::Receiver<Id>, Error> {
+        let (sender, receiver) = chan::unbounded();
+        let query: Arc<QueryState> = Arc::new(move |state| {
+            for id in state.inventory()?.iter() {
+                if sender.send(*id).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        });
+        let (err_sender, err_receiver) = chan::bounded(1);
+        self.command(service::Command::QueryState(query, err_sender))?;
+        err_receiver.recv()??;
+
+        Ok(receiver)
+    }
+
     /// Ask the client to shutdown.
     fn shutdown(self) -> Result<(), Error> {
         self.shutdown.send(())?;
@@ -114,5 +155,11 @@ pub mod traits {
         fn command(&self, cmd: service::Command) -> Result<(), Error>;
         /// Ask the client to shutdown.
         fn shutdown(self) -> Result<(), Error>;
+        /// Query the routing table.
+        fn routing(&self) -> Result<chan::Receiver<(Id, Vec<NodeId>)>, Error>;
+        /// Query the peer session state.
+        fn sessions(&self) -> Result<chan::Receiver<(NodeId, Session)>, Error>;
+        /// Query the inventory.
+        fn inventory(&self) -> Result<chan::Receiver<Id>, Error>;
     }
 }

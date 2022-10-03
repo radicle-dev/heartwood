@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
 
+use crossbeam_channel as chan;
+
 use crate::client::handle::traits;
 use crate::client::handle::Error;
 use crate::identity::Id;
@@ -32,6 +34,18 @@ impl traits::Handle for Handle {
 
     fn command(&self, _cmd: service::Command) -> Result<(), Error> {
         Ok(())
+    }
+
+    fn routing(&self) -> Result<chan::Receiver<(Id, Vec<service::NodeId>)>, Error> {
+        unimplemented!();
+    }
+
+    fn sessions(&self) -> Result<chan::Receiver<(service::NodeId, service::Session)>, Error> {
+        unimplemented!();
+    }
+
+    fn inventory(&self) -> Result<chan::Receiver<Id>, Error> {
+        unimplemented!();
     }
 
     fn shutdown(self) -> Result<(), Error> {

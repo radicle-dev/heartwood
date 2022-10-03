@@ -1,7 +1,7 @@
 use crate::service::message::*;
 use crate::service::*;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum SessionState {
     /// Initial peer state. For outgoing peers this
@@ -38,7 +38,7 @@ pub enum SessionError {
 }
 
 /// A peer session. Each connected peer will have one session.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Session {
     /// Peer address.
     pub addr: net::SocketAddr,
