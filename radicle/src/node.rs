@@ -1,3 +1,5 @@
+mod features;
+
 use std::fmt;
 use std::io;
 use std::io::{BufRead, BufReader, Write};
@@ -5,6 +7,8 @@ use std::os::unix::net::UnixStream;
 use std::path::Path;
 
 use crate::identity::Id;
+
+pub use features::Features;
 
 /// Default name for control socket file.
 pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";

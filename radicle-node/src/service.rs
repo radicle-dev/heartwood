@@ -28,6 +28,7 @@ use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::git::Url;
 use crate::identity::{Doc, Id};
+use crate::node;
 use crate::service::config::ProjectTracking;
 use crate::service::message::{Address, Announcement, AnnouncementMessage};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
@@ -40,7 +41,7 @@ pub use crate::service::message::{Envelope, Message};
 pub use crate::service::peer::Session;
 
 use self::gossip::Gossip;
-use self::message::{InventoryAnnouncement, NodeFeatures};
+use self::message::InventoryAnnouncement;
 use self::reactor::Reactor;
 
 pub const DEFAULT_PORT: u16 = 8776;
@@ -985,7 +986,7 @@ mod gossip {
     }
 
     pub fn node(timestamp: Timestamp, config: &Config) -> NodeAnnouncement {
-        let features = NodeFeatures::default();
+        let features = node::Features::SEED;
         let alias = config.alias();
         let addresses = vec![]; // TODO
 

@@ -18,6 +18,7 @@ use crate::git;
 use crate::git::fmt;
 use crate::hash::Digest;
 use crate::identity::Id;
+use crate::node;
 use crate::service;
 use crate::service::reactor::Io;
 use crate::service::{filter, routing};
@@ -435,6 +436,20 @@ impl Decode for SignedRefs<Unverified> {
         let signature = Signature::decode(reader)?;
 
         Ok(Self::new(refs, signature))
+    }
+}
+
+impl Encode for node::Features {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        self.deref().encode(writer)
+    }
+}
+
+impl Decode for node::Features {
+    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        let features = u64::decode(reader)?;
+
+        Ok(Self::from(features))
     }
 }
 

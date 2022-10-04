@@ -72,7 +72,7 @@ impl Arbitrary for Message {
             .into(),
             MessageType::NodeAnnouncement => {
                 let message = NodeAnnouncement {
-                    features: ByteArray::<32>::arbitrary(g).into_inner(),
+                    features: u64::arbitrary(g).into(),
                     timestamp: Timestamp::arbitrary(g),
                     alias: ByteArray::<32>::arbitrary(g).into_inner(),
                     addresses: Arbitrary::arbitrary(g),

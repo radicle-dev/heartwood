@@ -6,6 +6,7 @@ use thiserror::Error;
 use crate::crypto;
 use crate::git;
 use crate::identity::Id;
+use crate::node;
 use crate::service::filter::Filter;
 use crate::service::{NodeId, Timestamp, PROTOCOL_VERSION};
 use crate::storage::refs::Refs;
@@ -19,9 +20,6 @@ pub struct Envelope {
     /// The message payload.
     pub msg: Message,
 }
-
-/// Advertized node feature. Signals what services the node supports.
-pub type NodeFeatures = [u8; 32];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: We should check the length and charset when deserializing.
@@ -128,7 +126,7 @@ pub struct Subscribe {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeAnnouncement {
     /// Advertized features.
-    pub features: NodeFeatures,
+    pub features: node::Features,
     /// Monotonic timestamp.
     pub timestamp: Timestamp,
     /// Non-unique alias. Must be valid UTF-8.
@@ -152,7 +150,7 @@ impl wire::Encode for NodeAnnouncement {
 
 impl wire::Decode for NodeAnnouncement {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
-        let features = NodeFeatures::decode(reader)?;
+        let features = node::Features::decode(reader)?;
         let timestamp = Timestamp::decode(reader)?;
         let alias = wire::Decode::decode(reader)?;
         let addresses = Vec::<Address>::decode(reader)?;
