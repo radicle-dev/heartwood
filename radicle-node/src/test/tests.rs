@@ -527,7 +527,7 @@ fn prop_inventory_exchange_dense() {
         let alice = Peer::new("alice", [7, 7, 7, 7], alice_inv.clone());
         let mut bob = Peer::new("bob", [8, 8, 8, 8], bob_inv.clone());
         let mut eve = Peer::new("eve", [9, 9, 9, 9], eve_inv.clone());
-        let mut routing = Routing::with_hasher(rng.clone().into());
+        let mut routing = HashMap::with_hasher(rng.clone().into());
 
         for (inv, peer) in &[
             (alice_inv.inventory, alice.node_id()),
@@ -562,7 +562,7 @@ fn prop_inventory_exchange_dense() {
 
         for (proj_id, remotes) in &routing {
             for peer in peers.values() {
-                let lookup = peer.lookup(*proj_id);
+                let lookup = peer.lookup(*proj_id).unwrap();
 
                 if lookup.local.is_some() {
                     peer.get(*proj_id)

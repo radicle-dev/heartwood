@@ -1,16 +1,37 @@
-use std::net;
+use std::{io, net};
 
 use crossbeam_channel as chan;
 use nakamoto_net::{LocalTime, Reactor};
+use thiserror::Error;
 
 use crate::clock::RefClock;
 use crate::collections::HashMap;
 use crate::profile::Profile;
 use crate::service;
+use crate::service::routing;
 use crate::transport::Transport;
 use crate::wire::Wire;
 
 pub mod handle;
+
+/// Directory in `$RAD_HOME` under which node-specific files are stored.
+pub const NODE_DIR: &str = "node";
+/// Filename of routing table database under [`NODE_DIR`].
+pub const ROUTING_DB_FILE: &str = "routing.db";
+
+/// A client error.
+#[derive(Error, Debug)]
+pub enum Error {
+    /// A routing database error.
+    #[error("routing database error: {0}")]
+    Routing(#[from] routing::Error),
+    /// An I/O error.
+    #[error("i/o error: {0}")]
+    Io(#[from] io::Error),
+    /// A networking error.
+    #[error("network error: {0}")]
+    Net(#[from] nakamoto_net::error::Error),
+}
 
 /// Client configuration.
 #[derive(Debug, Clone)]
@@ -55,7 +76,7 @@ pub struct Client<R: Reactor> {
 }
 
 impl<R: Reactor> Client<R> {
-    pub fn new(profile: Profile) -> Result<Self, nakamoto_net::error::Error> {
+    pub fn new(profile: Profile) -> Result<Self, Error> {
         let (handle, commands) = chan::unbounded::<service::Command>();
         let (shutdown, shutdown_recv) = chan::bounded(1);
         let (listening_send, listening) = chan::bounded(1);
@@ -73,24 +94,27 @@ impl<R: Reactor> Client<R> {
         })
     }
 
-    pub fn run(mut self, config: Config) -> Result<(), nakamoto_net::error::Error> {
+    pub fn run(mut self, config: Config) -> Result<(), Error> {
         let network = config.service.network;
         let rng = fastrand::Rng::new();
         let time = LocalTime::now();
         let storage = self.profile.storage;
         let signer = self.profile.signer;
         let addresses = HashMap::with_hasher(rng.clone().into());
+        let routing = routing::Table::open(self.profile.home.join(NODE_DIR).join(ROUTING_DB_FILE))?;
 
         log::info!("Initializing client ({:?})..", network);
 
         let service = service::Service::new(
             config.service,
             RefClock::from(time),
+            routing,
             storage,
             addresses,
             signer,
             rng,
         );
+
         self.reactor.run(
             &config.listen,
             Transport::new(Wire::new(service)),

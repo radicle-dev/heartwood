@@ -19,8 +19,8 @@ use crate::git::fmt;
 use crate::hash::Digest;
 use crate::identity::Id;
 use crate::service;
-use crate::service::filter;
 use crate::service::reactor::Io;
+use crate::service::{filter, routing};
 use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
@@ -437,13 +437,13 @@ impl Decode for SignedRefs<Unverified> {
 }
 
 #[derive(Debug)]
-pub struct Wire<S, T, G> {
+pub struct Wire<R, S, T, G> {
     inboxes: HashMap<IpAddr, Decoder>,
-    inner: service::Service<S, T, G>,
+    inner: service::Service<R, S, T, G>,
 }
 
-impl<S, T, G> Wire<S, T, G> {
-    pub fn new(inner: service::Service<S, T, G>) -> Self {
+impl<R, S, T, G> Wire<R, S, T, G> {
+    pub fn new(inner: service::Service<R, S, T, G>) -> Self {
         Self {
             inboxes: HashMap::new(),
             inner,
@@ -451,8 +451,9 @@ impl<S, T, G> Wire<S, T, G> {
     }
 }
 
-impl<S, T, G> Wire<S, T, G>
+impl<R, S, T, G> Wire<R, S, T, G>
 where
+    R: routing::Store,
     S: address_book::Store,
     T: WriteStorage + 'static,
     G: Signer,
@@ -501,7 +502,7 @@ where
     }
 }
 
-impl<S, T, G> Iterator for Wire<S, T, G> {
+impl<R, S, T, G> Iterator for Wire<R, S, T, G> {
     type Item = nakamoto::Io<service::Event, service::DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -526,15 +527,15 @@ impl<S, T, G> Iterator for Wire<S, T, G> {
     }
 }
 
-impl<S, T, G> Deref for Wire<S, T, G> {
-    type Target = service::Service<S, T, G>;
+impl<R, S, T, G> Deref for Wire<R, S, T, G> {
+    type Target = service::Service<R, S, T, G>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<S, T, G> DerefMut for Wire<S, T, G> {
+impl<R, S, T, G> DerefMut for Wire<R, S, T, G> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }

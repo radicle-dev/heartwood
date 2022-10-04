@@ -8,6 +8,7 @@ edition = "2021"
 [features]
 default = []
 test = ["quickcheck"]
+sql = ["rusqlite"]
 
 [dependencies]
 base64 = { version= "0.13" }
@@ -27,6 +28,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 siphasher = { version = "0.3.10" }
 radicle-git-ext = { version = "0", features = ["serde"] }
+rusqlite = { version = "0.28.0", features = ["bundled"], optional = true }
 nonempty = { version = "0.8.0", features = ["serialize"] }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }

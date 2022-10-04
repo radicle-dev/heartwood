@@ -90,11 +90,11 @@ impl<W: Waker> traits::Handle for Handle<W> {
         Ok(())
     }
 
-    fn routing(&self) -> Result<chan::Receiver<(Id, Vec<NodeId>)>, Error> {
+    fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Error> {
         let (sender, receiver) = chan::unbounded();
         let query: Arc<QueryState> = Arc::new(move |state| {
-            for (id, nodes) in state.routing().iter() {
-                if sender.send((*id, nodes.iter().cloned().collect())).is_err() {
+            for (id, node) in state.routing().entries()? {
+                if sender.send((id, node)).is_err() {
                     break;
                 }
             }
@@ -155,8 +155,8 @@ pub mod traits {
         fn command(&self, cmd: service::Command) -> Result<(), Error>;
         /// Ask the client to shutdown.
         fn shutdown(self) -> Result<(), Error>;
-        /// Query the routing table.
-        fn routing(&self) -> Result<chan::Receiver<(Id, Vec<NodeId>)>, Error>;
+        /// Query the routing table entries.
+        fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Error>;
         /// Query the peer session state.
         fn sessions(&self) -> Result<chan::Receiver<(NodeId, Session)>, Error>;
         /// Query the inventory.

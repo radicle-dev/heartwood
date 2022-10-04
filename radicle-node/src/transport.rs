@@ -8,6 +8,7 @@ use nakamoto_net::{Io, Link};
 use crate::address_book;
 use crate::collections::HashMap;
 use crate::crypto;
+use crate::service::routing;
 use crate::service::{Command, DisconnectReason, Event, Service};
 use crate::storage::WriteStorage;
 use crate::wire::Wire;
@@ -18,13 +19,13 @@ struct Peer {
 }
 
 #[derive(Debug)]
-pub struct Transport<S, T, G> {
+pub struct Transport<R, S, T, G> {
     peers: HashMap<net::IpAddr, Peer>,
-    inner: Wire<S, T, G>,
+    inner: Wire<R, S, T, G>,
 }
 
-impl<S, T, G> Transport<S, T, G> {
-    pub fn new(inner: Wire<S, T, G>) -> Self {
+impl<R, S, T, G> Transport<R, S, T, G> {
+    pub fn new(inner: Wire<R, S, T, G>) -> Self {
         Self {
             peers: HashMap::default(),
             inner,
@@ -32,8 +33,9 @@ impl<S, T, G> Transport<S, T, G> {
     }
 }
 
-impl<S, T, G> nakamoto::Protocol for Transport<S, T, G>
+impl<R, S, T, G> nakamoto::Protocol for Transport<R, S, T, G>
 where
+    R: routing::Store,
     T: WriteStorage + 'static,
     S: address_book::Store,
     G: crypto::Signer,
@@ -84,7 +86,7 @@ where
     }
 }
 
-impl<S, T, G> Iterator for Transport<S, T, G> {
+impl<R, S, T, G> Iterator for Transport<R, S, T, G> {
     type Item = Io<Event, DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -92,15 +94,15 @@ impl<S, T, G> Iterator for Transport<S, T, G> {
     }
 }
 
-impl<S, T, G> Deref for Transport<S, T, G> {
-    type Target = Service<S, T, G>;
+impl<R, S, T, G> Deref for Transport<R, S, T, G> {
+    type Target = Service<R, S, T, G>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<S, T, G> DerefMut for Transport<S, T, G> {
+impl<R, S, T, G> DerefMut for Transport<R, S, T, G> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }

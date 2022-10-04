@@ -9,6 +9,7 @@ use crate::clock::{RefClock, Timestamp};
 use crate::collections::HashMap;
 use crate::git;
 use crate::git::Url;
+use crate::prelude::NodeId;
 use crate::service;
 use crate::service::config::*;
 use crate::service::message::*;
@@ -20,7 +21,8 @@ use crate::test::simulator;
 use crate::{Link, LocalTime};
 
 /// Service instantiation used for testing.
-pub type Service<S> = service::Service<HashMap<net::IpAddr, KnownAddress>, S, MockSigner>;
+pub type Service<S> =
+    service::Service<routing::Table, HashMap<net::IpAddr, KnownAddress>, S, MockSigner>;
 
 #[derive(Debug)]
 pub struct Peer<S> {
@@ -101,7 +103,8 @@ where
         let local_time = LocalTime::now();
         let clock = RefClock::from(local_time);
         let signer = MockSigner::new(&mut rng);
-        let service = Service::new(config, clock, storage, addrs, signer, rng.clone());
+        let routing = routing::Table::memory().unwrap();
+        let service = Service::new(config, clock, routing, storage, addrs, signer, rng.clone());
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, rng.u16(..));
 

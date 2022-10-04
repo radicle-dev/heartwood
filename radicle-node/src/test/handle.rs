@@ -36,7 +36,7 @@ impl traits::Handle for Handle {
         Ok(())
     }
 
-    fn routing(&self) -> Result<chan::Receiver<(Id, Vec<service::NodeId>)>, Error> {
+    fn routing(&self) -> Result<chan::Receiver<(Id, service::NodeId)>, Error> {
         unimplemented!();
     }
 

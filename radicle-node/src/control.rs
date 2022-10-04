@@ -106,13 +106,8 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
                     Ok(c) => {
                         let mut writer = LineWriter::new(stream);
 
-                        for (id, seeds) in c.iter() {
-                            let seeds = seeds
-                                .into_iter()
-                                .map(String::from)
-                                .collect::<Vec<_>>()
-                                .join(" ");
-                            writeln!(writer, "{id} {seeds}",)?;
+                        for (id, seed) in c.iter() {
+                            writeln!(writer, "{id} {seed}",)?;
                         }
                     }
                     Err(e) => return Err(DrainError::Client(e)),

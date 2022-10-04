@@ -3,6 +3,7 @@ pub mod filter;
 pub mod message;
 pub mod peer;
 pub mod reactor;
+pub mod routing;
 
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
@@ -22,7 +23,6 @@ use crate::address_book;
 use crate::address_book::AddressBook;
 use crate::address_manager::AddressManager;
 use crate::clock::{RefClock, Timestamp};
-use crate::collections::{HashMap, HashSet};
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::git;
@@ -55,8 +55,6 @@ pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 
 /// Network node identifier.
 pub type NodeId = crypto::PublicKey;
-/// Network routing table. Keeps track of where projects are hosted.
-pub type Routing = HashMap<Id, HashSet<NodeId>>;
 
 /// A service event.
 #[derive(Debug, Clone)]
@@ -148,18 +146,20 @@ impl fmt::Debug for Command {
 pub enum CommandError {
     #[error(transparent)]
     Storage(#[from] storage::Error),
+    #[error(transparent)]
+    Routing(#[from] routing::Error),
 }
 
 #[derive(Debug)]
-pub struct Service<A, S, G> {
+pub struct Service<R, A, S, G> {
     /// Service configuration.
     config: Config,
     /// Our cryptographic signer and key.
     signer: G,
     /// Project storage.
     storage: S,
-    /// Tracks the location of projects.
-    routing: Routing,
+    /// Network routing table. Keeps track of where projects are located.
+    routing: R,
     /// State relating to gossip.
     gossip: Gossip,
     /// Peer sessions, currently or recently connected.
@@ -188,7 +188,7 @@ pub struct Service<A, S, G> {
     start_time: LocalTime,
 }
 
-impl<A, S, G> Service<A, S, G>
+impl<R, A, S, G> Service<R, A, S, G>
 where
     G: crypto::Signer,
 {
@@ -203,8 +203,9 @@ where
     }
 }
 
-impl<A, S, G> Service<A, S, G>
+impl<R, A, S, G> Service<R, A, S, G>
 where
+    R: routing::Store,
     A: address_book::Store,
     S: WriteStorage + 'static,
     G: crypto::Signer,
@@ -212,13 +213,13 @@ where
     pub fn new(
         config: Config,
         clock: RefClock,
+        routing: R,
         storage: S,
         addresses: A,
         signer: G,
         rng: Rng,
     ) -> Self {
         let addrmgr = AddressManager::new(addresses);
-        let routing = HashMap::with_hasher(rng.clone().into());
         let sessions = Sessions::new(rng.clone());
         let network = config.network;
 
@@ -243,15 +244,14 @@ where
         }
     }
 
-    pub fn seeds(&self, id: &Id) -> Box<dyn Iterator<Item = (&NodeId, &Session)> + '_> {
-        if let Some(peers) = self.routing.get(id) {
-            Box::new(
-                peers
-                    .iter()
-                    .filter_map(|id| self.sessions.by_id(id).map(|p| (id, p))),
-            )
+    pub fn seeds(&self, id: &Id) -> Vec<(NodeId, &Session)> {
+        if let Ok(seeds) = self.routing.get(id) {
+            seeds
+                .into_iter()
+                .filter_map(|id| self.sessions.by_id(&id).map(|p| (id, p)))
+                .collect()
         } else {
-            Box::new(std::iter::empty())
+            vec![]
         }
     }
 
@@ -313,14 +313,13 @@ where
         &mut self.reactor
     }
 
-    pub fn lookup(&self, id: Id) -> Lookup {
-        Lookup {
+    pub fn lookup(&self, id: Id) -> Result<Lookup, routing::Error> {
+        let remote = self.routing.get(&id)?.iter().cloned().collect();
+
+        Ok(Lookup {
             local: self.storage.get(&self.node_id(), id).unwrap(),
-            remote: self
-                .routing
-                .get(&id)
-                .map_or(vec![], |r| r.iter().cloned().collect()),
-        }
+            remote,
+        })
     }
 
     pub fn initialize(&mut self, time: LocalTime) {
@@ -387,7 +386,7 @@ where
                     return;
                 }
 
-                let seeds = self.seeds(&id).collect::<Vec<_>>();
+                let seeds = self.seeds(&id);
                 let seeds = if let Some(seeds) = NonEmpty::from_vec(seeds) {
                     seeds
                 } else {
@@ -618,7 +617,8 @@ where
                 } else {
                     return Ok(false);
                 }
-                self.process_inventory(&message.inventory, *node, git);
+                self.process_inventory(&message.inventory, *node, git)
+                    .unwrap();
 
                 if relay {
                     return Ok(true);
@@ -747,18 +747,19 @@ where
     }
 
     /// Process a peer inventory announcement by updating our routing table.
-    fn process_inventory(&mut self, inventory: &Inventory, from: NodeId, remote: &Url) {
+    fn process_inventory(
+        &mut self,
+        inventory: &Inventory,
+        from: NodeId,
+        remote: &Url,
+    ) -> Result<(), routing::Error> {
         for proj_id in inventory {
-            let inventory = self
-                .routing
-                .entry(*proj_id)
-                .or_insert_with(|| HashSet::with_hasher(self.rng.clone().into()));
-
             // TODO: Fire an event on routing update.
-            if inventory.insert(from) && self.config.is_tracking(proj_id) {
+            if self.routing.insert(*proj_id, from)? && self.config.is_tracking(proj_id) {
                 self.storage.fetch(*proj_id, remote).unwrap();
             }
         }
+        Ok(())
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -808,11 +809,12 @@ pub trait ServiceState {
     /// Get service configuration.
     fn config(&self) -> &Config;
     /// Get reference to routing table.
-    fn routing(&self) -> &Routing;
+    fn routing(&self) -> &dyn routing::Store;
 }
 
-impl<A, S, G> ServiceState for Service<A, S, G>
+impl<R, A, S, G> ServiceState for Service<R, A, S, G>
 where
+    R: routing::Store,
     G: Signer,
     S: ReadStorage,
 {
@@ -836,7 +838,7 @@ where
         &self.config
     }
 
-    fn routing(&self) -> &Routing {
+    fn routing(&self) -> &dyn routing::Store {
         &self.routing
     }
 }
@@ -871,7 +873,7 @@ impl fmt::Display for DisconnectReason {
     }
 }
 
-impl<A, S, G> Iterator for Service<A, S, G> {
+impl<R, A, S, G> Iterator for Service<R, A, S, G> {
     type Item = reactor::Io;
 
     fn next(&mut self) -> Option<Self::Item> {
