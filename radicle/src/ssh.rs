@@ -1,7 +1,6 @@
 pub mod agent;
 
 use std::io;
-use std::mem;
 use std::ops::DerefMut;
 
 use byteorder::{BigEndian, WriteBytesExt};
@@ -9,7 +8,10 @@ use thiserror::Error;
 use zeroize::Zeroizing;
 
 use radicle_ssh::encoding;
-use radicle_ssh::encoding::Encoding as _;
+use radicle_ssh::encoding::Encodable;
+use radicle_ssh::encoding::Encoding;
+use radicle_ssh::encoding::Reader;
+use radicle_ssh::key::Public;
 
 use crate::crypto;
 use crate::crypto::PublicKey;
@@ -76,29 +78,77 @@ pub mod fmt {
 }
 
 #[derive(Debug, Error)]
+pub enum SignatureError {
+    #[error(transparent)]
+    Invalid(#[from] crypto::Error),
+    #[error(transparent)]
+    Encoding(#[from] encoding::Error),
+    #[error("unknown algorithm '{0}'")]
+    UnknownAlgorithm(String),
+}
+
+impl Encodable for crypto::Signature {
+    type Error = SignatureError;
+
+    fn read_ssh(r: &mut encoding::Cursor) -> Result<Self, Self::Error> {
+        let buf = r.read_string()?;
+        let mut inner_strs = buf.reader(0);
+
+        let sig_type = inner_strs.read_string()?;
+        if sig_type != b"ssh-ed25519" {
+            return Err(SignatureError::UnknownAlgorithm(
+                String::from_utf8_lossy(sig_type).to_string(),
+            ));
+        }
+        let sig = crypto::Signature::try_from(inner_strs.read_string()?)?;
+
+        Ok(sig)
+    }
+
+    fn write_ssh<E: Encoding>(&self, buf: &mut E) {
+        let mut inner_strs = Vec::new();
+        inner_strs.extend_ssh_string(b"ssh-ed25519");
+        inner_strs.extend_ssh_string(self.as_ref());
+        buf.extend_ssh_string(&inner_strs);
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum PublicKeyError {
     #[error(transparent)]
     Invalid(#[from] crypto::Error),
     #[error(transparent)]
     Encoding(#[from] encoding::Error),
+    #[error("unknown algorithm '{0}'")]
+    UnknownAlgorithm(String),
 }
 
-impl radicle_ssh::key::Public for PublicKey {
+impl Encodable for PublicKey {
     type Error = PublicKeyError;
 
-    fn write(&self, buf: &mut Zeroizing<Vec<u8>>) -> usize {
-        let mut n = 0;
-        let typ = b"ssh-ed25519";
-        let size = typ.len() + self.len() + mem::size_of::<u32>() * 2;
+    fn read_ssh(r: &mut encoding::Cursor) -> Result<Self, Self::Error> {
+        let buf = r.read_string()?;
+        let mut str_r = buf.reader(0);
+        match str_r.read_string()? {
+            b"ssh-ed25519" => {
+                let s = str_r.read_string()?;
+                let p = PublicKey::try_from(s)?;
 
-        buf.write_u32::<BigEndian>(size as u32)
-            .expect("writing to a vector never fails");
-
-        n += mem::size_of::<u32>(); // The blob size.
-        n += buf.extend_ssh_string(typ);
-        n += buf.extend_ssh_string(&self[..]);
-        n
+                Ok(p)
+            }
+            v => Err(PublicKeyError::UnknownAlgorithm(
+                String::from_utf8_lossy(v).to_string(),
+            )),
+        }
     }
+
+    fn write_ssh<E: Encoding>(&self, w: &mut E) {
+        _ = self.write(w);
+    }
+}
+
+impl Public for PublicKey {
+    type Error = PublicKeyError;
 
     fn read(r: &mut encoding::Cursor) -> Result<Option<Self>, Self::Error> {
         match r.read_string()? {
@@ -110,6 +160,13 @@ impl radicle_ssh::key::Public for PublicKey {
             }
             _ => Ok(None),
         }
+    }
+
+    fn write<E: Encoding>(&self, buf: &mut E) -> usize {
+        let mut str_w: Vec<u8> = Vec::<u8>::new();
+        str_w.extend_ssh_string(b"ssh-ed25519");
+        str_w.extend_ssh_string(&self[..]);
+        buf.extend_ssh_string(&str_w)
     }
 }
 
@@ -184,6 +241,124 @@ impl radicle_ssh::key::Private for SecretKey {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum ExtendedSignatureError {
+    #[error(transparent)]
+    Base64Encoding(#[from] base64::DecodeError),
+    #[error("wrong preamble")]
+    MagicPreamble([u8; 6]),
+    #[error("missing armored footer")]
+    MissingFooter,
+    #[error("missing armored header")]
+    MissingHeader,
+    #[error(transparent)]
+    Encoding(#[from] encoding::Error),
+    #[error("public key encoding")]
+    PublicKeyEncoding,
+    #[error(transparent)]
+    PublicKeyError(#[from] PublicKeyError),
+    #[error("signature encoding")]
+    SignatureEncoding,
+    #[error(transparent)]
+    SignatureError(#[from] SignatureError),
+    #[error("unsupported version '{0}'")]
+    UnsupportedVersion(u32),
+}
+
+/// An SSH signature's decoded format.
+///
+/// See <https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.sshsig>
+#[derive(Clone, Debug)]
+pub struct ExtendedSignature {
+    sig_version: u32,
+    publickey: crypto::PublicKey,
+    /// Unambigious interpretation domain to prevent cross-protocol attacks.
+    namespace: Vec<u8>,
+    reserved: Vec<u8>,
+    /// Hash used for signature. For example 'sha256'.
+    hash_algorithm: Vec<u8>,
+    signature: crypto::Signature,
+}
+
+impl Encodable for ExtendedSignature {
+    type Error = ExtendedSignatureError;
+
+    fn read_ssh(r: &mut encoding::Cursor) -> Result<Self, Self::Error> {
+        let sig_version = r.read_u32()?;
+        if sig_version > 1 {
+            return Err(ExtendedSignatureError::UnsupportedVersion(sig_version));
+        }
+
+        Ok(ExtendedSignature {
+            sig_version,
+            publickey: PublicKey::read_ssh(r)
+                .map_err(|_| ExtendedSignatureError::PublicKeyEncoding)?,
+            namespace: r.read_string()?.into(),
+            reserved: r.read_string()?.into(),
+            hash_algorithm: r.read_string()?.into(),
+            signature: crypto::Signature::read_ssh(r)
+                .map_err(|_| ExtendedSignatureError::PublicKeyEncoding)?,
+        })
+    }
+
+    fn write_ssh<E: Encoding>(&self, buf: &mut E) {
+        buf.extend_u32(self.sig_version);
+        let _ = &self.publickey.write_ssh(buf);
+        buf.extend_ssh_string(&self.namespace);
+        buf.extend_ssh_string(&self.reserved);
+        buf.extend_ssh_string(&self.hash_algorithm);
+        let _ = &self.signature.write_ssh(buf);
+    }
+}
+
+impl ExtendedSignature {
+    const ARMORED_HEADER: &[u8] = b"-----BEGIN SSH SIGNATURE-----";
+    const ARMORED_FOOTER: &[u8] = b"-----END SSH SIGNATURE-----";
+    const ARMORED_WIDTH: usize = 70;
+    const MAGIC_PREAMBLE: &[u8] = b"SSHSIG";
+
+    pub fn from_armored(s: &[u8]) -> Result<Self, ExtendedSignatureError> {
+        let s = s
+            .strip_prefix(Self::ARMORED_HEADER)
+            .ok_or(ExtendedSignatureError::MissingHeader)?;
+        let s = s
+            .strip_suffix(Self::ARMORED_FOOTER)
+            .ok_or(ExtendedSignatureError::MissingFooter)?;
+        let s: Vec<u8> = s.iter().filter(|b| *b != &b'\n').copied().collect();
+
+        let buf = base64::decode(s)?;
+        let mut reader = buf.reader(0);
+
+        let preamble: [u8; 6] = reader.read_bytes()?;
+        if preamble != Self::MAGIC_PREAMBLE {
+            return Err(ExtendedSignatureError::MagicPreamble(preamble));
+        }
+
+        let sig = ExtendedSignature::read_ssh(&mut reader)?;
+        Ok(sig)
+    }
+
+    pub fn to_armored(&self) -> Vec<u8> {
+        let mut v = encoding::Buffer::default();
+
+        v.extend(Self::MAGIC_PREAMBLE);
+        self.write_ssh(&mut v);
+
+        let mut armored = Self::ARMORED_HEADER.to_vec();
+        armored.push(b'\n');
+
+        let body: Vec<u8> = base64::encode(v).into();
+        for line in body.chunks(Self::ARMORED_WIDTH) {
+            armored.extend(line.to_vec());
+            armored.push(b'\n');
+        }
+
+        armored.extend(Self::ARMORED_FOOTER);
+
+        armored
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::sync::{Arc, Mutex};
@@ -191,7 +366,7 @@ mod test {
     use quickcheck_macros::quickcheck;
     use zeroize::Zeroizing;
 
-    use super::SecretKey;
+    use super::{ExtendedSignature, SecretKey};
     use crate::crypto;
     use crate::crypto::PublicKey;
     use crate::test::arbitrary::ByteArray;
@@ -286,6 +461,24 @@ mod test {
         assert_eq!(
             stream.incoming.lock().unwrap().as_slice(),
             expected.as_slice()
+        );
+    }
+
+    #[test]
+    fn test_signature_encode_decode() {
+        let armored: &[u8] = b"-----BEGIN SSH SIGNATURE-----
+U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgvjrQogRxxLjzzWns8+mKJAGzEX
+4fm2ALoN7pyvD2ttQAAAADZ2l0AAAAAAAAAAZzaGE1MTIAAABTAAAAC3NzaC1lZDI1NTE5
+AAAAQJ759x+pFz0z2yM13S/sqeOOSgTE3fhoJG54dotNTk17dQEPKnH4S4N5jjA+pxM1mb
+oejZ0WJ0cQtBjWZ7JEBQM=
+-----END SSH SIGNATURE-----";
+
+        let signature = ExtendedSignature::from_armored(armored).unwrap();
+        assert_eq!(1, signature.sig_version);
+        assert_eq!(
+            String::from_utf8(armored.to_vec()),
+            String::from_utf8(signature.to_armored()),
+            "signature should remain unaltered after decoding"
         );
     }
 }

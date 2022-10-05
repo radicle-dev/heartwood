@@ -1,13 +1,13 @@
 use std::error::Error;
 
-use crate::encoding::{Buffer, Cursor};
+use crate::encoding::{Buffer, Cursor, Encoding};
 
 /// A public SSH key.
 pub trait Public: Sized {
     type Error: Error + Send + Sync + 'static;
 
     /// Write the public key to the given buffer, in SSH "blob" format.
-    fn write(&self, buf: &mut Buffer) -> usize;
+    fn write<E: Encoding>(&self, buf: &mut E) -> usize;
     /// Read the public key from the given reader.
     fn read(reader: &mut Cursor) -> Result<Option<Self>, Self::Error>;
 }

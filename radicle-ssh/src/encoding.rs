@@ -29,6 +29,16 @@ pub enum Error {
     IndexOutOfBounds,
 }
 
+pub trait Encodable: Sized {
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Read from the SSH format.
+    fn read_ssh(reader: &mut Cursor) -> Result<Self, Self::Error>;
+
+    /// Write to the SSH format.
+    fn write_ssh<E: Encoding>(&self, buf: &mut E);
+}
+
 /// Encode in the SSH format.
 pub trait Encoding {
     /// Push an SSH-encoded string to `self`.
@@ -39,6 +49,8 @@ pub trait Encoding {
     fn extend_ssh_mpint(&mut self, s: &[u8]);
     /// Push an SSH-encoded list.
     fn extend_list<'a, I: Iterator<Item = &'a [u8]>>(&mut self, list: I);
+    /// Push an SSH-encoded unsigned 32-bit integer.
+    fn extend_u32(&mut self, u: u32);
     /// Push an SSH-encoded empty list.
     fn write_empty_list(&mut self);
     /// Write the buffer length at the beginning of the buffer.
@@ -85,6 +97,12 @@ impl Encoding for Vec<u8> {
             self.write_u32::<BigEndian>((s.len() - i) as u32).unwrap();
         }
         self.extend(&s[i..]);
+    }
+
+    fn extend_u32(&mut self, s: u32) {
+        let mut buf = [0x0; 4];
+        BigEndian::write_u32(&mut buf, s);
+        self.extend(buf);
     }
 
     fn extend_list<'a, I: Iterator<Item = &'a [u8]>>(&mut self, list: I) {
@@ -134,6 +152,10 @@ impl Encoding for Buffer {
 
     fn write_empty_list(&mut self) {
         self.deref_mut().write_empty_list()
+    }
+
+    fn extend_u32(&mut self, s: u32) {
+        self.deref_mut().extend_u32(s);
     }
 
     fn write_len(&mut self) {
@@ -206,6 +228,14 @@ impl<'a> Cursor<'a> {
         } else {
             Err(Error::IndexOutOfBounds)
         }
+    }
+
+    pub fn read_bytes<const S: usize>(&mut self) -> Result<[u8; S], Error> {
+        let mut buf = [0; S];
+        for b in buf.iter_mut() {
+            *b = self.read_byte()?;
+        }
+        Ok(buf)
     }
 
     /// Read one byte from this reader.

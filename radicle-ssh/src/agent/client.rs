@@ -262,7 +262,7 @@ impl<S: ClientStream> AgentClient<S> {
         // string                  data
         // uint32                  flags
 
-        let mut pk = Vec::new().into();
+        let mut pk = Buffer::default();
         let n = public.write(&mut pk);
         let total = 1 + n + 4 + data.len() + 4;
 
@@ -296,7 +296,7 @@ impl<S: ClientStream> AgentClient<S> {
     where
         K: Public,
     {
-        let mut pk = Vec::new().into();
+        let mut pk: Buffer = Vec::new().into();
         let n = public.write(&mut pk);
         let total = 1 + n;
 
