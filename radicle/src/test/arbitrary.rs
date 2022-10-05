@@ -28,6 +28,16 @@ pub fn set<T: Eq + Hash + Arbitrary>(range: impl RangeBounds<usize>) -> HashSet<
     set
 }
 
+pub fn vec<T: Eq + Arbitrary>(size: usize) -> Vec<T> {
+    let mut vec = Vec::with_capacity(size);
+    let mut g = quickcheck::Gen::new(size);
+
+    for _ in 0..vec.capacity() {
+        vec.push(T::arbitrary(&mut g));
+    }
+    vec
+}
+
 pub fn gen<T: Arbitrary>(size: usize) -> T {
     let mut gen = quickcheck::Gen::new(size);
 

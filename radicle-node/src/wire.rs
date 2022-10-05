@@ -403,16 +403,18 @@ impl Encode for filter::Filter {
 
 impl Decode for filter::Filter {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let size: Size = Decode::decode(reader)?;
-        if size as usize != filter::FILTER_SIZE {
-            return Err(Error::InvalidFilterSize(size as usize));
+        let size: usize = Size::decode(reader)? as usize;
+        if !filter::FILTER_SIZES.contains(&size) {
+            return Err(Error::InvalidFilterSize(size));
         }
-        let bytes: [u8; filter::FILTER_SIZE] = Decode::decode(reader)?;
-        let bf = filter::BloomFilter::from(Vec::from(bytes));
 
-        debug_assert_eq!(bf.hashes(), filter::FILTER_HASHES);
+        let mut bytes = vec![0; size];
+        reader.read_exact(&mut bytes[..])?;
 
-        Ok(Self::from(bf))
+        let f = filter::BloomFilter::from(bytes);
+        debug_assert_eq!(f.hashes(), filter::FILTER_HASHES);
+
+        Ok(Self::from(f))
     }
 }
 
@@ -548,7 +550,7 @@ mod tests {
 
     use crate::crypto::Unverified;
     use crate::storage::refs::SignedRefs;
-    use crate::test::arbitrary;
+    use crate::test::{arbitrary, assert_matches};
 
     #[quickcheck]
     fn prop_u8(input: u8) {
@@ -601,6 +603,14 @@ mod tests {
     #[quickcheck]
     fn prop_pubkey(input: PublicKey) {
         assert_eq!(deserialize::<PublicKey>(&serialize(&input)).unwrap(), input);
+    }
+
+    #[quickcheck]
+    fn prop_filter(input: filter::Filter) {
+        assert_eq!(
+            deserialize::<filter::Filter>(&serialize(&input)).unwrap(),
+            input
+        );
     }
 
     #[quickcheck]
@@ -661,5 +671,17 @@ mod tests {
             ..git::Url::default()
         };
         assert_eq!(deserialize::<git::Url>(&serialize(&url)).unwrap(), url);
+    }
+
+    #[test]
+    fn test_filter_invalid() {
+        let b = bloomy::BloomFilter::with_size(filter::FILTER_SIZE_M / 3);
+        let f = filter::Filter::from(b);
+        let bytes = serialize(&f);
+
+        assert_matches!(
+            deserialize::<filter::Filter>(&bytes).unwrap_err(),
+            Error::InvalidFilterSize(_)
+        );
     }
 }

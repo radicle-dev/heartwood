@@ -5,7 +5,7 @@ use quickcheck::Arbitrary;
 
 use crate::crypto;
 use crate::prelude::{Id, NodeId, Refs, Timestamp};
-use crate::service::filter::{Filter, FILTER_SIZE};
+use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
 use crate::service::message::{
     Address, Announcement, Envelope, InventoryAnnouncement, Message, NodeAnnouncement,
     RefsAnnouncement, Subscribe,
@@ -16,7 +16,10 @@ pub use radicle::test::arbitrary::*;
 
 impl Arbitrary for Filter {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let mut bytes = vec![0; FILTER_SIZE];
+        let size = *g
+            .choose(&[FILTER_SIZE_S, FILTER_SIZE_M, FILTER_SIZE_L])
+            .unwrap();
+        let mut bytes = vec![0; size];
         for _ in 0..64 {
             let index = usize::arbitrary(g) % bytes.len();
             bytes[index] = u8::arbitrary(g);
