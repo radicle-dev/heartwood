@@ -46,3 +46,4 @@ optional = true
 
 [dev-dependencies]
 quickcheck_macros = { version = "1", default-features = false }
+quickcheck = { version = "1", default-features = false }

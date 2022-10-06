@@ -12,7 +12,7 @@ pub mod serde_ext;
 pub mod sql;
 pub mod ssh;
 pub mod storage;
-#[cfg(feature = "test")]
+#[cfg(any(test, feature = "test"))]
 pub mod test;
 
 pub use keystore::UnsafeKeystore;
