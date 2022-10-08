@@ -19,7 +19,7 @@ log = { version = "0.4.17", features = ["std"] }
 nakamoto-net = { version = "0.3.0" }
 nakamoto-net-poll = { version = "0.3.0" }
 nonempty = { version = "0.8.0", features = ["serialize"] }
-rusqlite = { version = "0.28.0", features = ["bundled"] }
+sqlite = { version = "0.27.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tempfile = { version = "3.3.0" }

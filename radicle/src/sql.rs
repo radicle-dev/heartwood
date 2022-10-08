@@ -1,48 +1,37 @@
-use std::str;
 use std::str::FromStr;
 
-use rusqlite as sql;
-use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
+use sqlite as sql;
+use sqlite::Value;
 
 use crate::crypto::PublicKey;
 use crate::identity::Id;
 
-impl FromSql for Id {
-    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+impl sql::ValueInto for Id {
+    fn into(value: &Value) -> Option<Self> {
         match value {
-            ValueRef::Text(id) => {
-                let id = str::from_utf8(id).map_err(|e| FromSqlError::Other(Box::new(e)))?;
-                let id = Id::from_str(id).map_err(|e| FromSqlError::Other(Box::new(e)))?;
-
-                Ok(id)
-            }
-            _ => Err(FromSqlError::InvalidType),
+            Value::String(id) => Id::from_str(id).ok(),
+            _ => None,
         }
     }
 }
 
-impl ToSql for Id {
-    fn to_sql(&self) -> sql::Result<ToSqlOutput<'_>> {
-        Ok(ToSqlOutput::from(self.to_string()))
+impl sqlite::Bindable for &Id {
+    fn bind(self, stmt: &mut sql::Statement<'_>, i: usize) -> sql::Result<()> {
+        self.to_human().as_str().bind(stmt, i)
     }
 }
 
-impl FromSql for PublicKey {
-    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+impl sql::ValueInto for PublicKey {
+    fn into(value: &Value) -> Option<Self> {
         match value {
-            ValueRef::Text(pk) => {
-                let pk = str::from_utf8(pk).map_err(|e| FromSqlError::Other(Box::new(e)))?;
-                let pk = PublicKey::from_str(pk).map_err(|e| FromSqlError::Other(Box::new(e)))?;
-
-                Ok(pk)
-            }
-            _ => Err(FromSqlError::InvalidType),
+            Value::String(id) => PublicKey::from_str(id).ok(),
+            _ => None,
         }
     }
 }
 
-impl ToSql for PublicKey {
-    fn to_sql(&self) -> sql::Result<ToSqlOutput<'_>> {
-        Ok(ToSqlOutput::from(self.to_string()))
+impl sqlite::Bindable for &PublicKey {
+    fn bind(self, stmt: &mut sql::Statement<'_>, i: usize) -> sql::Result<()> {
+        self.to_human().as_str().bind(stmt, i)
     }
 }

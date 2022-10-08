@@ -1,7 +1,8 @@
 use std::collections::HashSet;
+use std::fmt;
 use std::path::Path;
 
-use rusqlite as sql;
+use sqlite as sql;
 use thiserror::Error;
 
 use crate::prelude::{Id, NodeId};
@@ -15,9 +16,14 @@ pub enum Error {
 }
 
 /// Persistent file storage for a routing table.
-#[derive(Debug)]
 pub struct Table {
     db: sql::Connection,
+}
+
+impl fmt::Debug for Table {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Table(..)")
+    }
 }
 
 impl Table {
@@ -27,15 +33,15 @@ impl Table {
     /// if an existing store isn't found.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let db = sql::Connection::open(path)?;
-        db.execute(Self::SCHEMA, [])?;
+        db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })
     }
 
     /// Create a new in-memory routing table.
     pub fn memory() -> Result<Self, Error> {
-        let db = sql::Connection::open_in_memory()?;
-        db.execute(Self::SCHEMA, [])?;
+        let db = sql::Connection::open(":memory:")?;
+        db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })
     }
@@ -57,36 +63,42 @@ impl Store for Table {
     fn get(&self, id: &Id) -> Result<HashSet<NodeId>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT (node) FROM routing WHERE resource = ?")?;
-        let mut rows = stmt.query([id])?;
+            .prepare("SELECT (node) FROM routing WHERE resource = ?")?
+            .bind(1, id)?
+            .into_cursor();
         let mut nodes = HashSet::new();
 
-        while let Ok(Some(row)) = rows.next() {
-            let field = row.get(0)?;
-            nodes.insert(field);
+        while let Some(Ok(row)) = stmt.next() {
+            nodes.insert(row.get::<NodeId, _>(0));
         }
         Ok(nodes)
     }
 
     fn insert(&mut self, id: Id, node: NodeId) -> Result<bool, Error> {
-        let updated = self.db.execute(
-            "INSERT INTO routing (resource, node, time) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
-            (id, node, 0),
-        )?;
+        self.db
+            .prepare(
+                "INSERT INTO routing (resource, node, time)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT DO NOTHING",
+            )?
+            .bind(1, &id)?
+            .bind(2, &node)?
+            .bind(3, 0)?
+            .next()?;
 
-        Ok(updated > 0)
+        Ok(self.db.change_count() > 0)
     }
 
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (Id, NodeId)>>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT resource, node FROM routing ORDER BY resource")?;
-        let mut rows = stmt.query([])?;
+            .prepare("SELECT resource, node FROM routing ORDER BY resource")?
+            .into_cursor();
         let mut entries = Vec::new();
 
-        while let Ok(Some(row)) = rows.next() {
-            let id = row.get(0)?;
-            let node = row.get(1)?;
+        while let Some(Ok(row)) = stmt.next() {
+            let id = row.get(0);
+            let node = row.get(1);
 
             entries.push((id, node));
         }
@@ -94,12 +106,13 @@ impl Store for Table {
     }
 
     fn remove(&mut self, id: &Id, node: &NodeId) -> Result<bool, Error> {
-        let deleted = self.db.execute(
-            "DELETE FROM routing WHERE resource = ? AND node = ?",
-            (id, node),
-        )?;
+        self.db
+            .prepare("DELETE FROM routing WHERE resource = ? AND node = ?")?
+            .bind(1, id)?
+            .bind(2, node)?
+            .next()?;
 
-        Ok(deleted > 0)
+        Ok(self.db.change_count() > 0)
     }
 }
 
@@ -129,7 +142,7 @@ mod test {
     }
 
     #[test]
-    fn test_iter() {
+    fn test_entries() {
         let ids = arbitrary::set::<Id>(6..9);
         let nodes = arbitrary::set::<NodeId>(6..9);
         let mut db = Table::open(":memory:").unwrap();
@@ -160,13 +173,11 @@ mod test {
                 db.insert(*id, *node).unwrap();
             }
         }
-
         for id in &ids {
             for node in &nodes {
                 assert!(db.remove(id, node).unwrap());
             }
         }
-
         for id in &ids {
             assert!(db.get(id).unwrap().is_empty());
         }
