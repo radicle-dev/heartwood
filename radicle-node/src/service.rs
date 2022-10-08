@@ -756,7 +756,11 @@ where
     ) -> Result<(), routing::Error> {
         for proj_id in inventory {
             // TODO: Fire an event on routing update.
-            if self.routing.insert(*proj_id, from)? && self.config.is_tracking(proj_id) {
+            if self
+                .routing
+                .insert(*proj_id, from, self.clock.timestamp())?
+                && self.config.is_tracking(proj_id)
+            {
                 self.storage.fetch(*proj_id, remote).unwrap();
             }
         }
