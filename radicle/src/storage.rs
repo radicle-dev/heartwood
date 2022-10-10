@@ -17,7 +17,7 @@ use crate::crypto;
 use crate::crypto::{PublicKey, Signer, Unverified, Verified};
 use crate::git::ext as git_ext;
 use crate::git::Url;
-use crate::git::{RefError, RefStr, RefString};
+use crate::git::{Qualified, RefError, RefString};
 use crate::identity;
 use crate::identity::{Id, IdError};
 use crate::storage::refs::Refs;
@@ -54,6 +54,8 @@ pub enum FetchError {
     Git(#[from] git2::Error),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
+    #[error(transparent)]
+    Refs(#[from] refs::Error),
     #[error("verify: {0}")]
     Verify(#[from] git::VerifyError),
     #[error(transparent)]
@@ -174,13 +176,16 @@ pub struct Remote<V> {
     pub id: PublicKey,
     /// Git references published under this remote, and their hashes.
     pub refs: SignedRefs<V>,
-    /// Whether this remote is of a project delegate.
+    /// Whether this remote is a delegate for the project.
     pub delegate: bool,
     /// Whether the remote is verified or not, ie. whether its signed refs were checked.
     verified: PhantomData<V>,
 }
 
 impl<V> Remote<V> {
+    // TODO(finto): This function seems out of place in the API for a couple of reasons:
+    // * The SignedRefs aren't guaranteed to be by the `id`
+    // * I could write `Remote::<Verified>::new(id, refs) and because of the above, it's a LIE
     pub fn new(id: PublicKey, refs: impl Into<SignedRefs<V>>) -> Self {
         Self {
             id,
@@ -239,17 +244,34 @@ pub trait WriteStorage: ReadStorage {
 }
 
 pub trait ReadRepository {
+    /// Returns `true` if there are no references in the repository.
     fn is_empty(&self) -> Result<bool, git2::Error>;
+
+    /// The [`Path`] to the git repository.
     fn path(&self) -> &Path;
+
     fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git_ext::Error>;
+
+    /// Get the `reference` for the given `remote`.
+    ///
+    /// Returns `None` is the reference did not exist.
     fn reference(
         &self,
         remote: &RemoteId,
-        reference: &RefStr,
+        reference: &Qualified,
     ) -> Result<git2::Reference, git_ext::Error>;
+
+    /// Get the [`git2::Commit`] found using its `oid`.
+    ///
+    /// Returns `None` if the commit did not exist.
     fn commit(&self, oid: Oid) -> Result<git2::Commit, git_ext::Error>;
+
     fn revwalk(&self, head: Oid) -> Result<git2::Revwalk, git2::Error>;
-    fn reference_oid(&self, remote: &RemoteId, reference: &RefStr) -> Result<Oid, git_ext::Error>;
+    fn reference_oid(
+        &self,
+        remote: &RemoteId,
+        reference: &Qualified,
+    ) -> Result<Oid, git_ext::Error>;
     fn references(&self, remote: &RemoteId) -> Result<Refs, Error>;
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error>;
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;

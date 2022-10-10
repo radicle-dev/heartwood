@@ -358,8 +358,8 @@ impl Doc<Unverified> {
 
 impl<V> Doc<V> {
     pub fn head<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<Oid, DocError> {
-        let head = &git::refname!("heads").join(&*git::refs::IDENTITY_BRANCH);
-        repo.reference_oid(remote, head).map_err(DocError::from)
+        let head = git::Qualified::from(git::lit::refs_heads(&*git::refs::IDENTITY_BRANCH));
+        repo.reference_oid(remote, &head).map_err(DocError::from)
     }
 }
 

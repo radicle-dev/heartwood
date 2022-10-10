@@ -116,7 +116,7 @@ impl ReadRepository for MockRepository {
     fn reference(
         &self,
         _remote: &RemoteId,
-        _reference: &git::RefStr,
+        _reference: &git::Qualified,
     ) -> Result<git2::Reference, git_ext::Error> {
         todo!()
     }
@@ -124,7 +124,7 @@ impl ReadRepository for MockRepository {
     fn reference_oid(
         &self,
         _remote: &RemoteId,
-        _reference: &git::RefStr,
+        _reference: &git::Qualified,
     ) -> Result<git_ext::Oid, git_ext::Error> {
         todo!()
     }

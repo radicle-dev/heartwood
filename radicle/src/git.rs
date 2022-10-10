@@ -18,7 +18,7 @@ pub use ext::NotFound;
 pub use ext::Oid;
 pub use git2 as raw;
 pub use git_ref_format as fmt;
-pub use git_ref_format::{refname, Component, Qualified, RefStr, RefString};
+pub use git_ref_format::{lit, name, refname, Component, Namespaced, Qualified, RefStr, RefString};
 pub use git_url as url;
 pub use git_url::Url;
 pub use radicle_git_ext as ext;
@@ -33,6 +33,14 @@ pub enum RefError {
     InvalidName(format::RefString),
     #[error("invalid ref format: {0}")]
     Format(#[from] format::Error),
+    #[error("expected ref to begin with 'refs/namespaces' but found '{0}'")]
+    MissingNamespace(format::RefString),
+    #[error("ref name contains invalid namespace identifier '{name}'")]
+    Id {
+        name: format::RefString,
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -43,9 +51,11 @@ pub enum ListRefsError {
     InvalidRef(#[from] RefError),
 }
 
-impl From<&RemoteId> for RefString {
+impl<'a> From<&RemoteId> for Component<'a> {
     fn from(id: &RemoteId) -> Self {
-        RefString::try_from(id.to_string()).expect("encoded public keys are valid ref strings")
+        let refstr =
+            RefString::try_from(id.to_string()).expect("encoded public keys are valid ref strings");
+        Component::from_refstring(refstr).expect("encoded public keys are valid refname components")
     }
 }
 
@@ -56,17 +66,19 @@ pub mod refs {
     pub static IDENTITY_BRANCH: Lazy<RefString> = Lazy::new(|| refname!("radicle/id"));
 
     pub mod storage {
+
         use super::*;
 
-        pub fn branch(remote: &RemoteId, branch: &RefStr) -> RefString {
-            refname!("refs/remotes")
-                .and::<RefString>(remote.into())
-                .and(refname!("heads"))
-                .and(branch)
+        /// Create the [`Namespaced`] `branch` under the `remote` namespace, i.e.
+        /// `refs/namespaces/<remote>/refs/heads/<branch>`
+        pub fn branch<'a>(remote: &RemoteId, branch: &RefStr) -> Namespaced<'a> {
+            Qualified::from(git_ref_format::lit::refs_heads(branch)).add_namespace(remote.into())
         }
 
         /// Get the branch used to track project information.
-        pub fn id(remote: &RemoteId) -> RefString {
+        ///
+        /// `refs/namespaces/<remote>/refs/heads/radicle/id`
+        pub fn id(remote: &RemoteId) -> Namespaced {
             branch(remote, &IDENTITY_BRANCH)
         }
     }
@@ -74,18 +86,22 @@ pub mod refs {
     pub mod workdir {
         use super::*;
 
+        /// Create a [`RefString`] that corresponds to `refs/heads/<branch>`.
         pub fn branch(branch: &RefStr) -> RefString {
             refname!("refs/heads").join(branch)
         }
 
+        /// Create a [`RefString`] that corresponds to `refs/notes/<name>`.
         pub fn note(name: &RefStr) -> RefString {
             refname!("refs/notes").join(name)
         }
 
+        /// Create a [`RefString`] that corresponds to `refs/remotes/<remote>/<branch>`.
         pub fn remote_branch(remote: &RefStr, branch: &RefStr) -> RefString {
             refname!("refs/remotes").and(remote).and(branch)
         }
 
+        /// Create a [`RefString`] that corresponds to `refs/tags/<branch>`.
         pub fn tag(name: &RefStr) -> RefString {
             refname!("refs/tags").join(name)
         }
@@ -105,27 +121,34 @@ pub fn remote_refs(url: &Url) -> Result<HashMap<RemoteId, Refs>, ListRefsError> 
         let (id, refname) = parse_ref::<PublicKey>(r.name())?;
         let entry = remotes.entry(id).or_insert_with(Refs::default);
 
-        entry.insert(refname, r.oid().into());
+        entry.insert(refname.into(), r.oid().into());
     }
 
     Ok(remotes)
 }
 
 /// Parse a ref string.
-pub fn parse_ref<T: FromStr>(s: &str) -> Result<(T, format::RefString), RefError> {
+pub fn parse_ref<T>(s: &str) -> Result<(T, format::Qualified), RefError>
+where
+    T: FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
     let input = format::RefStr::try_from_str(s)?;
-    let suffix = input
-        .strip_prefix(format::refname!("refs/remotes"))
-        .ok_or_else(|| RefError::InvalidName(input.to_owned()))?;
-
-    let mut components = suffix.components();
-    let id = components
-        .next()
-        .ok_or_else(|| RefError::InvalidName(input.to_owned()))?;
-    let id = T::from_str(&id.to_string()).map_err(|_| RefError::InvalidName(input.to_owned()))?;
-    let refstr = components.collect::<format::RefString>();
-
-    Ok((id, refstr))
+    match input.namespaced() {
+        None => Err(RefError::MissingNamespace(input.to_owned())),
+        Some(ns) => {
+            let id = ns
+                .namespace()
+                .as_str()
+                .parse()
+                .map_err(|err| RefError::Id {
+                    name: input.to_owned(),
+                    err: Box::new(err),
+                })?;
+            let rest = ns.strip_namespace();
+            Ok((id, rest))
+        }
+    }
 }
 
 /// Create an initial empty commit.
@@ -158,24 +181,6 @@ pub fn commit<'a>(
     Ok(commit)
 }
 
-/// Push the refs to the radicle remote.
-pub fn push(repo: &git2::Repository) -> Result<(), git2::Error> {
-    // NOTE: This function is going away soon.
-    #![allow(clippy::unwrap_used)]
-
-    let mut remote = repo.find_remote("rad")?;
-    let refspecs = remote.push_refspecs()?;
-    let refspec = refspecs.into_iter().next().unwrap().unwrap();
-
-    // The `git2` crate doesn't seem to support push refspecs with '*' in them,
-    // so we manually replace it with the current branch.
-    let head = repo.head()?;
-    let branch = head.shorthand().unwrap();
-    let refspec = refspec.replace('*', branch);
-
-    remote.push::<&str>(&[&refspec], None)
-}
-
 /// Get the repository head.
 pub fn head(repo: &git2::Repository) -> Result<git2::Commit, git2::Error> {
     let head = repo.head()?.peel_to_commit()?;
@@ -201,20 +206,60 @@ pub fn write_tree<'r>(
 
 /// Configure a repository's radicle remote.
 ///
-/// Takes the repository in which to configure the remote, the name of the remote, the public
-/// key of the remote, and the path to the remote repository on the filesystem.
+/// The entry for this remote will be:
+/// ```text
+/// [remote.<name>]
+///   url = <url>
+///   fetch +refs/heads/*:refs/remotes/<name>/*
+/// ```
 pub fn configure_remote<'r>(
     repo: &'r git2::Repository,
-    remote_name: &str,
-    remote_id: &RemoteId,
-    remote_url: &Url,
+    name: &str,
+    url: &Url,
 ) -> Result<git2::Remote<'r>, git2::Error> {
-    let fetch = format!("+refs/remotes/{remote_id}/heads/*:refs/remotes/rad/*");
-    let push = format!("refs/heads/*:refs/remotes/{remote_id}/heads/*");
-    let remote = repo.remote_with_fetch(remote_name, remote_url.to_string().as_str(), &fetch)?;
-    repo.remote_add_push(remote_name, &push)?;
+    let fetch = format!("+refs/heads/*:refs/remotes/{name}/*");
+    let remote = repo.remote_with_fetch(name, url.to_string().as_str(), &fetch)?;
 
     Ok(remote)
+}
+
+/// Fetch from the given `remote` using the provided `namespace`.
+///
+/// This uses [`Command`] under the hood and is the equivalent to:
+///
+///  `GIT_NAMESPACE=<namespace> git fetch <remote>`
+pub fn fetch(repo: &git2::Repository, remote: &str, namespace: &RemoteId) -> io::Result<String> {
+    run(
+        &repo.path(),
+        ["fetch", remote],
+        [("GIT_NAMESPACE", Component::from(namespace).as_str())],
+    )
+}
+
+/// Push `refspecs` to the given `remote` using the provided `namespace`.
+///
+/// This uses [`Command`] under the hood and is the equivalent to:
+///
+/// `GIT_NAMESPACE=<namespace> git push <remote> [<refspecs>]`
+pub fn push<Ref>(
+    repo: &git2::Repository,
+    remote: &str,
+    namespace: &RemoteId,
+    refspecs: impl IntoIterator<Item = (Ref, Ref)>,
+) -> io::Result<String>
+where
+    Ref: AsRef<RefStr>,
+{
+    let mut args = vec!["push".to_owned(), remote.to_owned()];
+    let refspecs = refspecs
+        .into_iter()
+        .map(|(src, dst)| format!("{}:{}", src.as_ref().as_str(), dst.as_ref().as_str()));
+    args.extend(refspecs);
+    run(
+        &repo.path(),
+        args,
+        [("GIT_NAMESPACE", Component::from(namespace).as_str())],
+    )
 }
 
 /// Set the upstream of the given branch to the given remote.
@@ -258,11 +303,22 @@ pub fn set_upstream(
 }
 
 /// Execute a git command by spawning a child process.
-pub fn run<P: AsRef<Path>, S: AsRef<std::ffi::OsStr>>(
+pub fn run<P, S, K, V>(
     repo: &P,
     args: impl IntoIterator<Item = S>,
-) -> Result<String, io::Error> {
-    let output = Command::new("git").current_dir(repo).args(args).output()?;
+    envs: impl IntoIterator<Item = (K, V)>,
+) -> Result<String, io::Error>
+where
+    P: AsRef<Path>,
+    S: AsRef<std::ffi::OsStr>,
+    K: AsRef<std::ffi::OsStr>,
+    V: AsRef<std::ffi::OsStr>,
+{
+    let output = Command::new("git")
+        .current_dir(repo)
+        .envs(envs)
+        .args(args)
+        .output()?;
 
     if output.status.success() {
         let out = if output.stdout.is_empty() {

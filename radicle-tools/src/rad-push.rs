@@ -8,7 +8,7 @@ fn main() -> anyhow::Result<()> {
     let profile = radicle::Profile::load()?;
     let (_, id) = radicle::rad::remote(&repo)?;
 
-    let output = radicle::git::run(&cwd, &["push", "rad"])?;
+    let output = radicle::git::run::<_, _, &str, &str>(&cwd, &["push", "rad"], None)?;
     println!("{}", output);
 
     let project = profile.storage.repository(id)?;

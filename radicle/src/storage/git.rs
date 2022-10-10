@@ -24,9 +24,9 @@ pub use crate::git::*;
 use super::{RefUpdate, RemoteId};
 
 pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("refs/remotes/*"));
+    Lazy::new(|| refspec::pattern!("refs/namespaces/*"));
 pub static SIGNATURES_GLOB: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("refs/remotes/*/radicle/signature"));
+    Lazy::new(|| refspec::pattern!("refs/namespaces/*/radicle/signature"));
 
 #[derive(Error, Debug)]
 pub enum ProjectError {
@@ -254,6 +254,7 @@ impl Repository {
             let remote = remotes
                 .get_mut(&remote_id)
                 .ok_or(VerifyError::InvalidRemote(remote_id))?;
+            let refname = RefString::from(refname);
             let signed_oid = remote
                 .remove(&refname)
                 .ok_or_else(|| VerifyError::UnknownRef(remote_id, refname.clone()))?;
@@ -396,8 +397,7 @@ impl Repository {
 
 impl ReadRepository for Repository {
     fn is_empty(&self) -> Result<bool, git2::Error> {
-        let some = self.remotes()?.next().is_some();
-        Ok(!some)
+        Ok(self.remotes()?.next().is_none())
     }
 
     fn path(&self) -> &Path {
@@ -415,11 +415,9 @@ impl ReadRepository for Repository {
     fn reference(
         &self,
         remote: &RemoteId,
-        name: &git::RefStr,
+        name: &git::Qualified,
     ) -> Result<git2::Reference, git::Error> {
-        let name = name.strip_prefix(git::refname!("refs")).unwrap_or(name);
-        let name = format!("refs/remotes/{remote}/{name}");
-
+        let name = name.add_namespace(remote.into());
         self.backend.find_reference(&name).map_err(git::Error::from)
     }
 
@@ -436,7 +434,11 @@ impl ReadRepository for Repository {
         Ok(revwalk)
     }
 
-    fn reference_oid(&self, remote: &RemoteId, reference: &git::RefStr) -> Result<Oid, git::Error> {
+    fn reference_oid(
+        &self,
+        remote: &RemoteId,
+        reference: &git::Qualified,
+    ) -> Result<Oid, git::Error> {
         let oid = self
             .reference(remote, reference)?
             .target()
@@ -454,7 +456,7 @@ impl ReadRepository for Repository {
         // TODO: Only return known refs, eg. heads/ rad/ tags/ etc..
         let entries = self
             .backend
-            .references_glob(format!("refs/remotes/{remote}/*").as_str())?;
+            .references_glob(format!("refs/namespaces/{remote}/*").as_str())?;
         let mut refs = BTreeMap::new();
 
         for e in entries {
@@ -463,7 +465,7 @@ impl ReadRepository for Repository {
             let (_, refname) = git::parse_ref::<RemoteId>(name)?;
             let oid = e.target().ok_or(Error::InvalidRef)?;
 
-            refs.insert(refname, oid.into());
+            refs.insert(refname.into(), oid.into());
         }
         Ok(refs.into())
     }
@@ -523,7 +525,7 @@ impl WriteRepository for Repository {
         //     local <- git-fetch -- staging             # fetch from staging copy
         //
         let url = url.to_string();
-        let refs: &[&str] = &["refs/remotes/*:refs/remotes/*"];
+        let refs: &[&str] = &["refs/namespaces/*:refs/namespaces/*"];
         let mut updates = Vec::new();
         let mut callbacks = git2::RemoteCallbacks::new();
         let tempdir = tempfile::tempdir()?;
@@ -692,7 +694,8 @@ mod tests {
 
         // Strip the remote refs of sigrefs so we can compare them.
         for remote in refs.values_mut() {
-            remote.remove(&*SIGNATURE_REF).unwrap();
+            let sigref = (*SIGNATURE_REF).to_ref_string();
+            remote.remove(&sigref).unwrap();
         }
 
         let remotes = remotes
@@ -713,7 +716,7 @@ mod tests {
         let proj = *inventory.first().unwrap();
         let repo = alice.repository(proj).unwrap();
         let remotes = repo.remotes().unwrap().collect::<Vec<_>>();
-        let refname = git::refname!("heads/master");
+        let refname = Qualified::from_refstr(git::refname!("refs/heads/master")).unwrap();
 
         // Have Bob fetch Alice's refs.
         let updates = bob
@@ -735,7 +738,7 @@ mod tests {
         for update in updates {
             assert_matches!(
                 update,
-                RefUpdate::Created { name, .. } if name.starts_with("refs/remotes")
+                RefUpdate::Created { name, .. } if name.starts_with("refs/namespaces")
             );
         }
 
@@ -762,7 +765,7 @@ mod tests {
         let (proj_id, _, proj_repo, alice_head) =
             fixtures::project(tmp.path().join("alice/project"), &alice, &alice_signer).unwrap();
 
-        let refname = git::refname!("refs/heads/master");
+        let refname = Qualified::from_refstr(git::refname!("refs/heads/master")).unwrap();
         let alice_url = git::Url {
             scheme: git_url::Scheme::File,
             path: paths::repository(&alice, &proj_id)
@@ -782,7 +785,7 @@ mod tests {
         let alice_head = git::commit(&proj_repo, &alice_head, &refname, "Making changes", "Alice")
             .unwrap()
             .id();
-        git::push(&proj_repo).unwrap();
+        git::push(&proj_repo, "rad", alice_id, [(&refname, &refname)]).unwrap();
         alice.sign_refs(&alice_proj_storage, &alice_signer).unwrap();
 
         // Have Bob fetch Alice's new commit.
@@ -894,9 +897,9 @@ mod tests {
         assert_eq!(
             updates,
             vec![
-                format!("refs/remotes/{remote}/heads/master"),
-                format!("refs/remotes/{remote}/heads/radicle/id"),
-                format!("refs/remotes/{remote}/radicle/signature")
+                format!("refs/namespaces/{remote}/refs/heads/master"),
+                format!("refs/namespaces/{remote}/refs/heads/radicle/id"),
+                format!("refs/namespaces/{remote}/refs/radicle/signature")
             ]
         );
     }
@@ -928,7 +931,8 @@ mod tests {
         let mut unsigned = project.references(&alice).unwrap();
 
         // The signed refs doesn't contain the signature ref itself.
-        unsigned.remove(&*SIGNATURE_REF).unwrap();
+        let sigref = (*SIGNATURE_REF).to_ref_string();
+        unsigned.remove(&sigref).unwrap();
 
         assert_eq!(remote.refs, signed);
         assert_eq!(*remote.refs, unsigned);

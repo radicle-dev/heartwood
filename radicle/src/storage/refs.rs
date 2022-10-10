@@ -18,7 +18,13 @@ use crate::git::Oid;
 use crate::storage;
 use crate::storage::{ReadRepository, RemoteId, WriteRepository};
 
-pub static SIGNATURE_REF: Lazy<git::RefString> = Lazy::new(|| git::refname!("radicle/signature"));
+pub static SIGNATURE_REF: Lazy<git::Qualified> = Lazy::new(|| {
+    git::Qualified::from_components(
+        git::name::component!("radicle"),
+        git::name::component!("signature"),
+        None,
+    )
+});
 pub const REFS_BLOB_PATH: &str = "refs";
 pub const SIGNATURE_BLOB_PATH: &str = "signature";
 
@@ -124,7 +130,7 @@ impl Refs {
         let mut buf = String::new();
         let refs = self
             .iter()
-            .filter(|(name, oid)| *name != &*SIGNATURE_REF && !oid.is_zero());
+            .filter(|(name, oid)| name.as_refstr() != (*SIGNATURE_REF).as_ref() && !oid.is_zero());
 
         for (name, oid) in refs {
             buf.push_str(&oid.to_string());
@@ -291,7 +297,7 @@ impl SignedRefs<Verified> {
             }
         }
 
-        let sigref = format!("refs/remotes/{remote}/{sigref}");
+        let sigref = sigref.add_namespace(remote.into());
         let author = repo.raw().signature()?;
         let commit = repo.raw().commit(
             Some(&sigref),

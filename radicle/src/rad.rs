@@ -3,6 +3,7 @@ use std::io;
 use std::path::Path;
 use std::str::FromStr;
 
+use git_ref_format::{lit, Qualified};
 use once_cell::sync::Lazy;
 use thiserror::Error;
 
@@ -68,20 +69,11 @@ pub fn init<G: Signer, S: storage::WriteStorage>(
         repo,
         &REMOTE_NAME,
         &default_branch,
-        &git::refs::storage::branch(pk, &default_branch),
+        &git::refs::workdir::branch(&default_branch),
     )?;
 
-    // TODO: Note that you'll likely want to use `RemoteCallbacks` and set
-    // `push_update_reference` to test whether all the references were pushed
-    // successfully.
-    git::configure_remote(repo, &REMOTE_NAME, pk, &url)?.push::<&str>(
-        &[&format!(
-            "{}:{}",
-            &git::refs::workdir::branch(&default_branch),
-            &git::refs::storage::branch(pk, &default_branch),
-        )],
-        None,
-    )?;
+    git::configure_remote(repo, &REMOTE_NAME, &url)?;
+    git::push(repo, &REMOTE_NAME, pk, [(&default_branch, &default_branch)])?;
     let signed = storage.sign_refs(&project, signer)?;
 
     Ok((id, signed))
@@ -171,10 +163,8 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
     let canonical_head = {
         let mut heads = Vec::new();
         for delegate in project.delegates.iter() {
-            let name = format!("heads/{}", &project.default_branch);
-            let refname = git::RefString::try_from(name.as_str())?;
+            let refname = Qualified::from(lit::refs_heads(&project.default_branch));
             let r = repository.reference_oid(&delegate.id, &refname)?.into();
-
             heads.push(r);
         }
 
@@ -258,6 +248,8 @@ pub fn clone_url<P: AsRef<Path>, G: Signer, S: storage::WriteStorage>(
 
 #[derive(Error, Debug)]
 pub enum CheckoutError {
+    #[error("failed to fetch to working copy")]
+    Fetch(#[source] io::Error),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("storage: {0}")]
@@ -289,12 +281,14 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     let url = storage.url(&proj);
 
     // Configure and fetch all refs from remote.
-    git::configure_remote(&repo, &REMOTE_NAME, remote, &url)?.fetch::<&str>(&[], None, None)?;
+    git::configure_remote(&repo, &REMOTE_NAME, &url)?;
+    git::fetch(&repo, &REMOTE_NAME, remote).map_err(CheckoutError::Fetch)?;
 
     {
         // Setup default branch.
         let remote_head_ref =
             git::refs::workdir::remote_branch(&REMOTE_NAME, &project.default_branch);
+
         let remote_head_commit = repo.find_reference(&remote_head_ref)?.peel_to_commit()?;
         let _ = repo.branch(&project.default_branch, &remote_head_commit, true)?;
 
@@ -303,7 +297,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
             &repo,
             &REMOTE_NAME,
             &project.default_branch,
-            &git::refs::storage::branch(remote, &project.default_branch),
+            &git::refs::workdir::branch(&project.default_branch),
         )?;
     }
 
