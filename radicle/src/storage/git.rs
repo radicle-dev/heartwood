@@ -28,18 +28,35 @@ pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
 pub static SIGNATURES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/remotes/*/radicle/signature"));
 
+// FIXME: Should this be here?
 #[derive(Error, Debug)]
 pub enum ProjectError {
     #[error("identity branches diverge from each other")]
     BranchesDiverge,
     #[error("identity branches are in an invalid state")]
     InvalidState,
+    #[error("storage error: {0}")]
+    Storage(#[from] Error),
+    #[error("identity document error: {0}")]
+    Doc(#[from] identity::project::DocError),
+    #[error("identity verification error: {0}")]
+    Verify(#[from] identity::project::VerificationError),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("git: {0}")]
     GitExt(#[from] git::Error),
     #[error("refs: {0}")]
     Refs(#[from] refs::Error),
+}
+
+impl ProjectError {
+    /// Whether this error is caused by the project not being found.
+    pub fn is_not_found(&self) -> bool {
+        match self {
+            Self::Doc(doc) => doc.is_not_found(),
+            _ => false,
+        }
+    }
 }
 
 pub struct Storage {
@@ -68,12 +85,15 @@ impl ReadStorage for Storage {
         }
     }
 
-    fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, Error> {
+    fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, ProjectError> {
         // TODO: Don't create a repo here if it doesn't exist?
         // Perhaps for checking we could have a `contains` method?
-        self.repository(proj)?
-            .project_of(remote)
-            .map_err(Error::from)
+        match self.repository(proj)?.project_of(remote) {
+            Ok(doc) => Ok(Some(doc)),
+
+            Err(err) if err.is_not_found() => Ok(None),
+            Err(err) => Err(err),
+        }
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
@@ -97,7 +117,7 @@ impl WriteStorage for Storage {
     }
 
     fn fetch(&self, proj_id: Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
-        let mut repo = self.repository(proj_id).unwrap();
+        let mut repo = self.repository(proj_id)?;
         let mut path = remote.path.clone();
 
         path.push(b'/');
@@ -272,15 +292,11 @@ impl Repository {
         Identity::load(remote, self)
     }
 
-    pub fn project_of(
-        &self,
-        remote: &RemoteId,
-    ) -> Result<Option<identity::Doc<Verified>>, refs::Error> {
-        if let Some((doc, _)) = identity::Doc::load(remote, self)? {
-            Ok(Some(doc.verified().unwrap()))
-        } else {
-            Ok(None)
-        }
+    pub fn project_of(&self, remote: &RemoteId) -> Result<identity::Doc<Verified>, ProjectError> {
+        let (doc, _) = identity::Doc::load(remote, self)?;
+        let verified = doc.verified()?;
+
+        Ok(verified)
     }
 
     /// Return the canonical identity [`git::Oid`] and document.
@@ -288,7 +304,7 @@ impl Repository {
         let mut heads = Vec::new();
         for remote in self.remote_ids()? {
             let remote = remote?;
-            let oid = Doc::<Unverified>::head(&remote, self)?.unwrap();
+            let oid = Doc::<Unverified>::head(&remote, self)?;
 
             heads.push(oid.into());
         }
@@ -329,8 +345,7 @@ impl Repository {
             }
         }
 
-        Doc::load_at(longest.into(), self)?
-            .ok_or(refs::Error::NotFound)
+        Doc::load_at(longest.into(), self)
             .map(|(doc, _)| (longest.into(), doc))
             .map_err(ProjectError::from)
     }

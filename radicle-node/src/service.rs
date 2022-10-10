@@ -851,7 +851,7 @@ pub trait ServiceState {
     /// Get the current inventory.
     fn inventory(&self) -> Result<Inventory, storage::Error>;
     /// Get a project from storage, using the local node's key.
-    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::Error>;
+    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::ProjectError>;
     /// Get the clock.
     fn clock(&self) -> &RefClock;
     /// Get service configuration.
@@ -874,7 +874,7 @@ where
         self.storage.inventory()
     }
 
-    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::Error> {
+    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::ProjectError> {
         self.storage.get(&self.node_id(), proj)
     }
 
@@ -944,6 +944,8 @@ pub enum LookupError {
     Storage(#[from] storage::Error),
     #[error(transparent)]
     Routing(#[from] routing::Error),
+    #[error(transparent)]
+    Project(#[from] storage::ProjectError),
 }
 
 /// Information on a peer, that we may or may not be connected to.

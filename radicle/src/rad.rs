@@ -8,8 +8,10 @@ use thiserror::Error;
 
 use crate::crypto::{Signer, Verified};
 use crate::git;
+use crate::identity::project::DocError;
 use crate::identity::Id;
 use crate::node;
+use crate::storage::git::ProjectError;
 use crate::storage::refs::SignedRefs;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId, WriteRepository as _};
 use crate::{identity, storage};
@@ -19,7 +21,7 @@ pub static REMOTE_NAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("rad")
 #[derive(Error, Debug)]
 pub enum InitError {
     #[error("doc: {0}")]
-    Doc(#[from] identity::project::Error),
+    Doc(#[from] identity::project::DocError),
     #[error("doc: {0}")]
     DocVerification(#[from] identity::project::VerificationError),
     #[error("git: {0}")]
@@ -95,6 +97,8 @@ pub enum ForkError {
     NotFound(Id),
     #[error("project identity error: {0}")]
     InvalidIdentity(#[from] storage::git::ProjectError),
+    #[error("project identity document error: {0}")]
+    Doc(#[from] DocError),
     #[error("git: invalid reference")]
     InvalidReference,
 }
@@ -206,6 +210,8 @@ pub enum CloneError {
     Fork(#[from] ForkError),
     #[error("checkout: {0}")]
     Checkout(#[from] CheckoutError),
+    #[error("identity document error: {0}")]
+    Doc(#[from] DocError),
 }
 
 pub fn clone<P: AsRef<Path>, G: Signer, S: storage::WriteStorage, H: node::Handle>(
@@ -258,6 +264,8 @@ pub enum CheckoutError {
     Storage(#[from] storage::Error),
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
+    #[error("project error: {0}")]
+    Project(#[from] ProjectError),
 }
 
 /// Checkout a project from storage as a working copy.

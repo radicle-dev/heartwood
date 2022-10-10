@@ -44,7 +44,11 @@ impl ReadStorage for MockStorage {
         }
     }
 
-    fn get(&self, _remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, Error> {
+    fn get(
+        &self,
+        _remote: &RemoteId,
+        proj: Id,
+    ) -> Result<Option<Doc<Verified>>, git::ProjectError> {
         Ok(self.inventory.get(&proj).cloned())
     }
 

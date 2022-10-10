@@ -1,3 +1,4 @@
+#![allow(clippy::match_like_matches_macro)]
 pub mod collections;
 pub mod crypto;
 pub mod git;

@@ -17,6 +17,7 @@ use crate::crypto;
 use crate::crypto::{Signature, Unverified, Verified};
 use crate::git;
 use crate::identity::Did;
+use crate::storage;
 use crate::storage::git::trailers;
 use crate::storage::{BranchName, ReadRepository, RemoteId, WriteRepository, WriteStorage};
 
@@ -36,7 +37,7 @@ pub const MAX_STRING_LENGTH: usize = 255;
 pub const MAX_DELEGATES: usize = 255;
 
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum DocError {
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
     #[error("i/o: {0}")]
@@ -47,6 +48,21 @@ pub enum Error {
     Git(#[from] git::Error),
     #[error("git: {0}")]
     RawGit(#[from] git2::Error),
+    #[error("storage: {0}")]
+    Storage(#[from] storage::Error),
+    #[error("git: reference `{0}` was not found")]
+    NotFound(git::RefString),
+}
+
+impl DocError {
+    /// Whether this error is caused by the document not being found.
+    pub fn is_not_found(&self) -> bool {
+        match self {
+            Self::NotFound(_) => true,
+            Self::Git(git::Error::NotFound(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -93,7 +109,7 @@ pub struct Doc<V> {
 }
 
 impl Doc<Verified> {
-    pub fn encode(&self) -> Result<(git::Oid, Vec<u8>), Error> {
+    pub fn encode(&self) -> Result<(git::Oid, Vec<u8>), DocError> {
         let mut buf = Vec::new();
         let mut serializer =
             serde_json::Serializer::with_formatter(&mut buf, olpc_cjson::CanonicalFormatter::new());
@@ -118,7 +134,7 @@ impl Doc<Verified> {
         false
     }
 
-    pub fn sign<G: crypto::Signer>(&self, signer: G) -> Result<(git::Oid, Signature), Error> {
+    pub fn sign<G: crypto::Signer>(&self, signer: G) -> Result<(git::Oid, Signature), DocError> {
         let (oid, bytes) = self.encode()?;
         let sig = signer.sign(&bytes);
 
@@ -130,7 +146,7 @@ impl Doc<Verified> {
         remote: &RemoteId,
         msg: &str,
         storage: &S,
-    ) -> Result<(Id, git::Oid, S::Repository), Error> {
+    ) -> Result<(Id, git::Oid, S::Repository), DocError> {
         // You can checkout this branch in your working copy with:
         //
         //      git fetch rad
@@ -138,7 +154,7 @@ impl Doc<Verified> {
         //
         let (doc_oid, doc) = self.encode()?;
         let id = Id::from(doc_oid);
-        let repo = storage.repository(id).unwrap();
+        let repo = storage.repository(id)?;
         let tree = git::write_tree(*PATH, doc.as_slice(), repo.raw())?;
         let oid = Doc::commit(remote, &tree, msg, &[], repo.raw())?;
 
@@ -153,7 +169,7 @@ impl Doc<Verified> {
         msg: &str,
         signatures: &[(&PublicKey, Signature)],
         repo: &R,
-    ) -> Result<git::Oid, Error> {
+    ) -> Result<git::Oid, DocError> {
         let mut msg = format!("{msg}\n\n");
         for (key, sig) in signatures {
             writeln!(&mut msg, "{}: {key} {sig}", trailers::SIGNATURE_TRAILER)
@@ -175,7 +191,7 @@ impl Doc<Verified> {
         msg: &str,
         parents: &[&git2::Commit],
         repo: &git2::Repository,
-    ) -> Result<git::Oid, Error> {
+    ) -> Result<git::Oid, DocError> {
         let sig = repo
             .signature()
             .or_else(|_| git2::Signature::now("radicle", remote.to_string().as_str()))?;
@@ -320,48 +336,30 @@ impl Doc<Unverified> {
         })
     }
 
-    pub fn blob_at<R: ReadRepository>(
-        commit: Oid,
-        repo: &R,
-    ) -> Result<Option<git2::Blob>, git::Error> {
-        match repo.blob_at(commit, Path::new(&*PATH)) {
-            Err(git::ext::Error::NotFound(_)) => Ok(None),
-            Err(e) => Err(e),
-            Ok(blob) => Ok(Some(blob)),
-        }
+    pub fn blob_at<R: ReadRepository>(commit: Oid, repo: &R) -> Result<git2::Blob, DocError> {
+        repo.blob_at(commit, Path::new(&*PATH))
+            .map_err(DocError::from)
     }
 
-    pub fn load_at<R: ReadRepository>(
-        commit: Oid,
-        repo: &R,
-    ) -> Result<Option<(Self, Oid)>, git::Error> {
-        if let Some(blob) = Self::blob_at(commit, repo)? {
-            let doc = Doc::from_json(blob.content()).unwrap();
-            return Ok(Some((doc, blob.id().into())));
-        }
-        Ok(None)
+    pub fn load_at<R: ReadRepository>(commit: Oid, repo: &R) -> Result<(Self, Oid), DocError> {
+        let blob = Self::blob_at(commit, repo)?;
+        let doc = Doc::from_json(blob.content())?;
+
+        Ok((doc, blob.id().into()))
     }
 
-    pub fn load<R: ReadRepository>(
-        remote: &RemoteId,
-        repo: &R,
-    ) -> Result<Option<(Self, Oid)>, git::Error> {
-        if let Some(oid) = Self::head(remote, repo)? {
-            Self::load_at(oid, repo)
-        } else {
-            Ok(None)
-        }
+    pub fn load<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<(Self, Oid), DocError> {
+        let oid = Self::head(remote, repo)?;
+
+        Self::load_at(oid, repo)
     }
 }
 
 impl<V> Doc<V> {
-    pub fn head<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<Option<Oid>, git::Error> {
+    pub fn head<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<Oid, DocError> {
         let head = &git::refname!("heads").join(&*git::refs::IDENTITY_BRANCH);
-        if let Some(oid) = repo.reference_oid(remote, head)? {
-            Ok(Some(oid))
-        } else {
-            Ok(None)
-        }
+        repo.reference_oid(remote, head)?
+            .ok_or_else(|| DocError::NotFound(head.to_owned()))
     }
 }
 
@@ -379,8 +377,8 @@ pub enum IdentityError {
     InvalidSignature(PublicKey, crypto::Error),
     #[error("quorum not reached: {0} signatures for a threshold of {1}")]
     QuorumNotReached(usize, usize),
-    #[error("the identity branch was not found")]
-    NotFound,
+    #[error("identity document error: {0}")]
+    Doc(#[from] DocError),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -424,60 +422,58 @@ impl Identity<Untrusted> {
         remote: &RemoteId,
         repo: &R,
     ) -> Result<Identity<Oid>, IdentityError> {
-        if let Some(head) = Doc::<Untrusted>::head(remote, repo)? {
-            let mut history = repo.revwalk(head)?.collect::<Vec<_>>();
+        let head = Doc::<Untrusted>::head(remote, repo)?;
+        let mut history = repo.revwalk(head)?.collect::<Vec<_>>();
 
-            // Retrieve root document.
-            let root_oid = history.pop().unwrap()?.into();
-            let root_blob = Doc::blob_at(root_oid, repo)?.unwrap();
-            let root: git::Oid = root_blob.id().into();
-            let trusted = Doc::from_json(root_blob.content()).unwrap();
-            let revision = history.len() as u32;
+        // Retrieve root document.
+        let root_oid = history.pop().unwrap()?.into();
+        let root_blob = Doc::blob_at(root_oid, repo)?;
+        let root: git::Oid = root_blob.id().into();
+        let trusted = Doc::from_json(root_blob.content()).unwrap();
+        let revision = history.len() as u32;
 
-            let mut trusted = trusted.verified()?;
-            let mut current = root;
-            let mut signatures = Vec::new();
+        let mut trusted = trusted.verified()?;
+        let mut current = root;
+        let mut signatures = Vec::new();
 
-            // Traverse the history chronologically.
-            for oid in history.into_iter().rev() {
-                let oid = oid?;
-                let blob = Doc::blob_at(oid.into(), repo)?.unwrap();
-                let untrusted = Doc::from_json(blob.content()).unwrap();
-                let untrusted = untrusted.verified()?;
-                let commit = repo.commit(oid.into())?.unwrap();
-                let msg = commit.message_raw().unwrap();
+        // Traverse the history chronologically.
+        for oid in history.into_iter().rev() {
+            let oid = oid?;
+            let blob = Doc::blob_at(oid.into(), repo)?;
+            let untrusted = Doc::from_json(blob.content()).map_err(DocError::from)?;
+            let untrusted = untrusted.verified()?;
+            let commit = repo.commit(oid.into())?.unwrap();
+            let msg = commit.message_raw().unwrap();
 
-                // Keys that signed the *current* document version.
-                signatures = trailers::parse_signatures(msg).unwrap();
-                for (pk, sig) in &signatures {
-                    if let Err(err) = pk.verify(blob.content(), sig) {
-                        return Err(IdentityError::InvalidSignature(*pk, err));
-                    }
+            // Keys that signed the *current* document version.
+            signatures = trailers::parse_signatures(msg).unwrap();
+            for (pk, sig) in &signatures {
+                if let Err(err) = pk.verify(blob.content(), sig) {
+                    return Err(IdentityError::InvalidSignature(*pk, err));
                 }
-
-                // Check that enough delegates signed this next version.
-                let quorum = signatures
-                    .iter()
-                    .filter(|(key, _)| trusted.delegates.iter().any(|d| d.matches(key)))
-                    .count();
-                if quorum < trusted.threshold {
-                    return Err(IdentityError::QuorumNotReached(quorum, trusted.threshold));
-                }
-
-                trusted = untrusted;
-                current = blob.id().into();
             }
 
-            return Ok(Identity {
-                root,
-                head,
-                current,
-                revision,
-                doc: trusted,
-                signatures: signatures.into_iter().collect(),
-            });
+            // Check that enough delegates signed this next version.
+            let quorum = signatures
+                .iter()
+                .filter(|(key, _)| trusted.delegates.iter().any(|d| d.matches(key)))
+                .count();
+            if quorum < trusted.threshold {
+                return Err(IdentityError::QuorumNotReached(quorum, trusted.threshold));
+            }
+
+            trusted = untrusted;
+            current = blob.id().into();
         }
-        Err(IdentityError::NotFound)
+
+        Ok(Identity {
+            root,
+            head,
+            current,
+            revision,
+            doc: trusted,
+            signatures: signatures.into_iter().collect(),
+        })
     }
 }
 

@@ -9,7 +9,7 @@ use std::{fmt, io};
 
 use thiserror::Error;
 
-pub use git::VerifyError;
+pub use git::{ProjectError, VerifyError};
 pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
@@ -20,7 +20,6 @@ use crate::git::Url;
 use crate::git::{RefError, RefStr, RefString};
 use crate::identity;
 use crate::identity::{Id, IdError};
-use crate::storage::git::ProjectError;
 use crate::storage::refs::Refs;
 
 use self::refs::SignedRefs;
@@ -43,8 +42,6 @@ pub enum Error {
     Id(#[from] IdError),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
-    #[error("doc: {0}")]
-    Doc(#[from] identity::project::Error),
     #[error("invalid repository head")]
     InvalidHead,
 }
@@ -59,6 +56,8 @@ pub enum FetchError {
     Io(#[from] io::Error),
     #[error("verify: {0}")]
     Verify(#[from] git::VerifyError),
+    #[error(transparent)]
+    Storage(#[from] Error),
 }
 
 pub type RemoteId = PublicKey;
@@ -219,7 +218,11 @@ impl Remote<Verified> {
 pub trait ReadStorage {
     fn path(&self) -> &Path;
     fn url(&self, proj: &Id) -> Url;
-    fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<identity::Doc<Verified>>, Error>;
+    fn get(
+        &self,
+        remote: &RemoteId,
+        proj: Id,
+    ) -> Result<Option<identity::Doc<Verified>>, ProjectError>;
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
@@ -281,7 +284,11 @@ where
         self.deref().inventory()
     }
 
-    fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<identity::Doc<Verified>>, Error> {
+    fn get(
+        &self,
+        remote: &RemoteId,
+        proj: Id,
+    ) -> Result<Option<identity::Doc<Verified>>, ProjectError> {
         self.deref().get(remote, proj)
     }
 }
