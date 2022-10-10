@@ -738,7 +738,7 @@ where
             // Process a peer announcement.
             (SessionState::Negotiated { id, git, .. }, Message::Announcement(ann)) => {
                 let git = git.clone();
-                let id = id.clone();
+                let id = *id;
 
                 // Returning true here means that the message should be relayed.
                 if self.handle_announcement(&id, &git, &ann)? {
@@ -1030,7 +1030,15 @@ mod gossip {
         config: &Config,
     ) -> [Message; 4] {
         let git = config.git_url.clone();
-        let inventory = storage.inventory().unwrap();
+        let inventory = match storage.inventory() {
+            Ok(i) => i,
+            Err(e) => {
+                error!("Error getting local inventory for handshake: {}", e);
+                // Other than crashing the node completely, there's nothing we can do
+                // here besides returning an empty inventory and logging an error.
+                vec![]
+            }
+        };
 
         [
             Message::init(*signer.public_key(), config.listen.clone(), git),
