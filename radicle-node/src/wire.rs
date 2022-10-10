@@ -491,7 +491,7 @@ where
         reason: nakamoto::DisconnectReason<service::DisconnectReason>,
     ) {
         self.inboxes.remove(&addr.ip());
-        self.inner.disconnected(addr, reason)
+        self.inner.disconnected(addr, &reason)
     }
 
     pub fn received_bytes(&mut self, addr: &std::net::SocketAddr, bytes: &[u8]) {

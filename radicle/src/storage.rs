@@ -9,6 +9,7 @@ use std::{fmt, io};
 
 use thiserror::Error;
 
+pub use git::VerifyError;
 pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;

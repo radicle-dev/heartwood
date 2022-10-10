@@ -23,7 +23,7 @@ pub enum SessionState {
     Disconnected { since: LocalTime },
 }
 
-#[derive(thiserror::Error, Debug, Clone)]
+#[derive(thiserror::Error, Debug)]
 pub enum SessionError {
     #[error("wrong network constant in message: {0}")]
     WrongMagic(u32),
@@ -33,6 +33,8 @@ pub enum SessionError {
     InvalidTimestamp(u64),
     #[error("session not found for address `{0}`")]
     NotFound(net::IpAddr),
+    #[error("verification failed on fetch: {0}")]
+    VerificationFailed(#[from] storage::VerifyError),
     #[error("peer misbehaved")]
     Misbehavior,
 }

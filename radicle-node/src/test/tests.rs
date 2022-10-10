@@ -420,14 +420,14 @@ fn test_persistent_peer_reconnect() {
     // a reconnection.
     alice.disconnected(
         &eve.addr(),
-        nakamoto::DisconnectReason::DialError(error.clone()),
+        &nakamoto::DisconnectReason::DialError(error.clone()),
     );
     assert_matches!(alice.outbox().next(), None);
 
     for _ in 0..MAX_CONNECTION_ATTEMPTS {
         alice.disconnected(
             &bob.addr(),
-            nakamoto::DisconnectReason::ConnectionError(error.clone()),
+            &nakamoto::DisconnectReason::ConnectionError(error.clone()),
         );
         assert_matches!(alice.outbox().next(), Some(Io::Connect(a)) if a == bob.addr());
         assert_matches!(alice.outbox().next(), None);
@@ -438,7 +438,7 @@ fn test_persistent_peer_reconnect() {
     // After the max connection attempts, a disconnect doesn't trigger a reconnect.
     alice.disconnected(
         &bob.addr(),
-        nakamoto::DisconnectReason::ConnectionError(error),
+        &nakamoto::DisconnectReason::ConnectionError(error),
     );
     assert_matches!(alice.outbox().next(), None);
 }

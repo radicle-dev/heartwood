@@ -67,6 +67,17 @@ pub enum Event {
     },
 }
 
+/// General service error.
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error(transparent)]
+    Storage(#[from] storage::Error),
+    #[error(transparent)]
+    Fetch(#[from] storage::FetchError),
+    #[error(transparent)]
+    Routing(#[from] routing::Error),
+}
+
 /// Error returned by [`Command::Fetch`].
 #[derive(thiserror::Error, Debug)]
 pub enum FetchError {
@@ -314,11 +325,12 @@ where
         &mut self.reactor
     }
 
-    pub fn lookup(&self, id: Id) -> Result<Lookup, routing::Error> {
+    /// Lookup a project, both locally and in the routing table.
+    pub fn lookup(&self, id: Id) -> Result<Lookup, LookupError> {
         let remote = self.routing.get(&id)?.iter().cloned().collect();
 
         Ok(Lookup {
-            local: self.storage.get(&self.node_id(), id).unwrap(),
+            local: self.storage.get(&self.node_id(), id)?,
             remote,
         })
     }
@@ -362,7 +374,9 @@ where
         }
         if now - self.last_announce >= ANNOUNCE_INTERVAL {
             if self.out_of_sync {
-                self.announce_inventory().unwrap();
+                if let Err(err) = self.announce_inventory() {
+                    error!("Error announcing inventory: {}", err);
+                }
             }
             self.reactor.wakeup(ANNOUNCE_INTERVAL);
             self.last_announce = now;
@@ -370,7 +384,9 @@ where
         if now - self.last_prune >= PRUNE_INTERVAL {
             debug!("Running 'prune' task...");
 
-            self.prune_routing_entries();
+            if let Err(err) = self.prune_routing_entries() {
+                error!("Error pruning routing entries: {}", err);
+            }
             self.reactor.wakeup(PRUNE_INTERVAL);
             self.last_prune = now;
         }
@@ -451,20 +467,9 @@ where
                 resp.send(self.untrack(id)).ok();
             }
             Command::AnnounceRefs(id) => {
-                let node = self.node_id();
-                let repo = self.storage.repository(id).unwrap();
-                let remote = repo.remote(&node).unwrap();
-                let peers = self.sessions.negotiated().map(|(_, p)| p);
-                let refs = remote.refs.into();
-                let timestamp = self.clock.timestamp();
-                let msg = AnnouncementMessage::from(RefsAnnouncement {
-                    id,
-                    refs,
-                    timestamp,
-                });
-                let ann = msg.signed(&self.signer);
-
-                self.reactor.broadcast(ann, peers);
+                if let Err(err) = self.announce_refs(id) {
+                    error!("Error announcing refs: {}", err);
+                }
             }
             Command::QueryState(query, sender) => {
                 sender.send(query(self)).ok();
@@ -524,7 +529,7 @@ where
     pub fn disconnected(
         &mut self,
         addr: &std::net::SocketAddr,
-        reason: nakamoto::DisconnectReason<DisconnectReason>,
+        reason: &nakamoto::DisconnectReason<DisconnectReason>,
     ) {
         let since = self.local_time();
         let address = Address::from(*addr);
@@ -593,6 +598,7 @@ where
     /// and `false` if it should not.
     pub fn handle_announcement(
         &mut self,
+        session: &NodeId,
         git: &git::Url,
         announcement: &Announcement,
     ) -> Result<bool, peer::SessionError> {
@@ -600,17 +606,18 @@ where
             return Err(SessionError::Misbehavior);
         }
         let Announcement { node, message, .. } = announcement;
+        let now = self.clock.local_time();
+
+        // Don't allow messages from too far in the future.
+        if message.timestamp().saturating_sub(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
+            return Err(SessionError::InvalidTimestamp(message.timestamp()));
+        }
 
         match message {
             AnnouncementMessage::Inventory(message) => {
-                let now = self.clock.local_time();
                 let peer = self.peers.entry(*node).or_insert_with(Peer::default);
                 let relay = self.config.relay;
 
-                // Don't allow messages from too far in the future.
-                if message.timestamp.saturating_sub(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
-                    return Err(SessionError::InvalidTimestamp(message.timestamp));
-                }
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
                 if message.timestamp > peer.last_message {
@@ -618,8 +625,20 @@ where
                 } else {
                     return Ok(false);
                 }
-                self.process_inventory(&message.inventory, *node, git)
-                    .unwrap();
+
+                if let Err(err) = self.process_inventory(&message.inventory, *node, git) {
+                    error!("Error processing inventory from {}: {}", node, err);
+
+                    if let Error::Fetch(storage::FetchError::Verify(err)) = err {
+                        // Disconnect the peer if it is the signer of this message.
+                        if node == session {
+                            return Err(peer::SessionError::VerificationFailed(err));
+                        }
+                    }
+                    // There's not much we can do if the peer sending us this message isn't the
+                    // origin of it.
+                    return Ok(false);
+                }
 
                 if relay {
                     return Ok(true);
@@ -632,6 +651,8 @@ where
                 // TODO: Check that we're tracking this user as well.
                 if self.config.is_tracking(&message.id) {
                     // TODO: Check refs to see if we should try to fetch or not.
+                    // FIXME: This code is wrong: we shouldn't be fetching from the connected peer,
+                    // we should fetch from the origin.
                     let updated = self.storage.fetch(message.id, git).unwrap();
                     let is_updated = !updated.is_empty();
 
@@ -715,11 +736,12 @@ where
                 return Err(SessionError::Misbehavior);
             }
             // Process a peer announcement.
-            (SessionState::Negotiated { git, .. }, Message::Announcement(ann)) => {
+            (SessionState::Negotiated { id, git, .. }, Message::Announcement(ann)) => {
                 let git = git.clone();
+                let id = id.clone();
 
                 // Returning true here means that the message should be relayed.
-                if self.handle_announcement(&git, &ann)? {
+                if self.handle_announcement(&id, &git, &ann)? {
                     self.gossip.received(ann.clone(), ann.message.timestamp());
                     return Ok(Some(ann));
                 }
@@ -753,7 +775,7 @@ where
         inventory: &Inventory,
         from: NodeId,
         remote: &Url,
-    ) -> Result<(), routing::Error> {
+    ) -> Result<(), Error> {
         for proj_id in inventory {
             // TODO: Fire an event on routing update.
             if self
@@ -761,9 +783,29 @@ where
                 .insert(*proj_id, from, self.clock.timestamp())?
                 && self.config.is_tracking(proj_id)
             {
-                self.storage.fetch(*proj_id, remote).unwrap();
+                self.storage.fetch(*proj_id, remote)?;
             }
         }
+        Ok(())
+    }
+
+    /// Announce local refs for given id.
+    fn announce_refs(&mut self, id: Id) -> Result<(), storage::Error> {
+        let node = self.node_id();
+        let repo = self.storage.repository(id)?;
+        let remote = repo.remote(&node)?;
+        let peers = self.sessions.negotiated().map(|(_, p)| p);
+        let refs = remote.refs.into();
+        let timestamp = self.clock.timestamp();
+        let msg = AnnouncementMessage::from(RefsAnnouncement {
+            id,
+            refs,
+            timestamp,
+        });
+        let ann = msg.signed(&self.signer);
+
+        self.reactor.broadcast(ann, peers);
+
         Ok(())
     }
 
@@ -785,8 +827,9 @@ where
         Ok(())
     }
 
-    fn prune_routing_entries(&mut self) {
+    fn prune_routing_entries(&mut self) -> Result<(), storage::Error> {
         // TODO
+        Ok(())
     }
 
     fn maintain_connections(&mut self) {
@@ -848,7 +891,7 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum DisconnectReason {
     User,
     Error(SessionError),
@@ -893,6 +936,14 @@ pub struct Lookup {
     pub local: Option<Doc<Verified>>,
     /// A list of remote peers on which the project is known to exist.
     pub remote: Vec<NodeId>,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum LookupError {
+    #[error(transparent)]
+    Storage(#[from] storage::Error),
+    #[error(transparent)]
+    Routing(#[from] routing::Error),
 }
 
 /// Information on a peer, that we may or may not be connected to.

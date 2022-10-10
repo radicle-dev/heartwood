@@ -7,6 +7,7 @@ pub mod arbitrary;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};
+use std::rc::Rc;
 use std::{fmt, io, net};
 
 use log::*;
@@ -56,7 +57,7 @@ pub enum Input {
     /// Disconnected from peer.
     Disconnected(
         net::SocketAddr,
-        nakamoto::DisconnectReason<DisconnectReason>,
+        Rc<nakamoto::DisconnectReason<DisconnectReason>>,
     ),
     /// Received a message from a remote peer.
     Received(net::SocketAddr, Vec<Envelope>),
@@ -393,7 +394,7 @@ impl<S: WriteStorage + 'static> Simulation<S> {
                         assert!(!(attempt && connection));
 
                         if attempt || connection {
-                            p.disconnected(&addr, reason);
+                            p.disconnected(&addr, &reason);
                         }
                     }
                     Input::Wake => p.wake(),
@@ -501,9 +502,9 @@ impl<S: WriteStorage + 'static> Simulation<S> {
                                 remote,
                                 input: Input::Disconnected(
                                     remote,
-                                    nakamoto::DisconnectReason::ConnectionError(
+                                    Rc::new(nakamoto::DisconnectReason::ConnectionError(
                                         io::Error::from(io::ErrorKind::UnexpectedEof).into(),
-                                    ),
+                                    )),
                                 ),
                             },
                         );
@@ -543,7 +544,7 @@ impl<S: WriteStorage + 'static> Simulation<S> {
                 self.priority.push_back(Scheduled {
                     remote,
                     node,
-                    input: Input::Disconnected(remote, reason.into()),
+                    input: Input::Disconnected(remote, Rc::new(reason.into())),
                 });
 
                 // Nb. It's possible for disconnects to happen simultaneously from both ends, hence
@@ -569,9 +570,9 @@ impl<S: WriteStorage + 'static> Simulation<S> {
                         remote: local_addr,
                         input: Input::Disconnected(
                             local_addr,
-                            nakamoto::DisconnectReason::ConnectionError(
+                            Rc::new(nakamoto::DisconnectReason::ConnectionError(
                                 io::Error::from(io::ErrorKind::ConnectionReset).into(),
-                            ),
+                            )),
                         ),
                     },
                 );
