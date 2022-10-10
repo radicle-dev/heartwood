@@ -310,14 +310,26 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     Ok(repo)
 }
 
+#[derive(Error, Debug)]
+pub enum RemoteError {
+    #[error("git: {0}")]
+    Git(#[from] git2::Error),
+    #[error("invalid remote url: {0}")]
+    Url(#[from] git::url::parse::Error),
+    #[error("remote url doesn't have an id: `{0}`")]
+    MissingId(git::Url),
+    #[error("identifier error: {0}")]
+    InvalidId(#[from] identity::IdError),
+}
+
 /// Get the radicle ("rad") remote of a repository, and return the associated project id.
-pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, Id), git2::Error> {
+pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, Id), RemoteError> {
     let remote = repo.find_remote(&REMOTE_NAME)?;
     let url = remote.url_bytes();
-    let url = git::Url::from_bytes(url).unwrap();
+    let url = git::Url::from_bytes(url)?;
     let path = url.path.to_string();
-    let id = path.split('/').last().unwrap();
-    let id = Id::from_str(id).unwrap();
+    let id = path.split('/').last().ok_or(RemoteError::MissingId(url))?;
+    let id = Id::from_str(id)?;
 
     Ok((remote, id))
 }
