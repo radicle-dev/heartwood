@@ -89,8 +89,12 @@ pub fn init<G: Signer, S: storage::WriteStorage>(
 
 #[derive(Error, Debug)]
 pub enum ForkError {
+    #[error("ref string: {0}")]
+    RefString(#[from] git::fmt::Error),
     #[error("git: {0}")]
-    Git(#[from] git2::Error),
+    GitRaw(#[from] git2::Error),
+    #[error("git: {0}")]
+    Git(#[from] git::Error),
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
     #[error("project `{0}` was not found in storage")]
@@ -168,12 +172,8 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
         let mut heads = Vec::new();
         for delegate in project.delegates.iter() {
             let name = format!("heads/{}", &project.default_branch);
-            let refname = git::RefString::try_from(name.as_str()).unwrap();
-            let r = repository
-                .reference(&delegate.id, &refname)?
-                .unwrap()
-                .target()
-                .unwrap();
+            let refname = git::RefString::try_from(name.as_str())?;
+            let r = repository.reference_oid(&delegate.id, &refname)?.into();
 
             heads.push(r);
         }

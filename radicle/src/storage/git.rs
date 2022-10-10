@@ -417,16 +417,11 @@ impl ReadRepository for Repository {
         &self,
         remote: &RemoteId,
         name: &git::RefStr,
-    ) -> Result<Option<git2::Reference>, git2::Error> {
+    ) -> Result<git2::Reference, git::Error> {
         let name = name.strip_prefix(git::refname!("refs")).unwrap_or(name);
         let name = format!("refs/remotes/{remote}/{name}");
-        self.backend.find_reference(&name).map(Some).or_else(|e| {
-            if git::ext::is_not_found_err(&e) {
-                Ok(None)
-            } else {
-                Err(e)
-            }
-        })
+
+        self.backend.find_reference(&name).map_err(git::Error::from)
     }
 
     fn commit(&self, oid: Oid) -> Result<Option<git2::Commit>, git2::Error> {
@@ -446,13 +441,13 @@ impl ReadRepository for Repository {
         Ok(revwalk)
     }
 
-    fn reference_oid(
-        &self,
-        remote: &RemoteId,
-        reference: &git::RefStr,
-    ) -> Result<Option<Oid>, git2::Error> {
-        let reference = self.reference(remote, reference)?;
-        Ok(reference.and_then(|r| r.target().map(|o| o.into())))
+    fn reference_oid(&self, remote: &RemoteId, reference: &git::RefStr) -> Result<Oid, git::Error> {
+        let oid = self
+            .reference(remote, reference)?
+            .target()
+            .ok_or(git::Error::NotFound(git::NotFound::NoRefTarget))?;
+
+        Ok(oid.into())
     }
 
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
@@ -752,10 +747,10 @@ mod tests {
         for remote in remotes {
             let (id, _) = remote.unwrap();
             let alice_repo = alice.repository(proj).unwrap();
-            let alice_oid = alice_repo.reference(&id, &refname).unwrap().unwrap();
+            let alice_oid = alice_repo.reference(&id, &refname).unwrap();
 
             let bob_repo = bob.repository(proj).unwrap();
-            let bob_oid = bob_repo.reference(&id, &refname).unwrap().unwrap();
+            let bob_oid = bob_repo.reference(&id, &refname).unwrap();
 
             assert_eq!(alice_oid.target(), bob_oid.target());
         }
@@ -805,7 +800,7 @@ mod tests {
 
         // Bob's storage is updated.
         let bob_repo = bob.repository(proj_id).unwrap();
-        let bob_master = bob_repo.reference(alice_id, &refname).unwrap().unwrap();
+        let bob_master = bob_repo.reference(alice_id, &refname).unwrap();
 
         assert_eq!(bob_master.target().unwrap(), alice_head);
     }

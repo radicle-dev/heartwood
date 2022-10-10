@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use git_url::Url;
+use radicle_git_ext as git_ext;
 
 use crate::crypto::{Signer, Verified};
 use crate::identity::project::Doc;
@@ -106,9 +107,9 @@ impl ReadRepository for MockRepository {
 
     fn blob_at<'a>(
         &'a self,
-        _oid: radicle_git_ext::Oid,
+        _oid: git_ext::Oid,
         _path: &'a std::path::Path,
-    ) -> Result<git2::Blob<'a>, radicle_git_ext::Error> {
+    ) -> Result<git2::Blob<'a>, git_ext::Error> {
         todo!()
     }
 
@@ -116,7 +117,7 @@ impl ReadRepository for MockRepository {
         &self,
         _remote: &RemoteId,
         _reference: &git::RefStr,
-    ) -> Result<Option<git2::Reference>, git2::Error> {
+    ) -> Result<git2::Reference, git_ext::Error> {
         todo!()
     }
 
@@ -124,7 +125,7 @@ impl ReadRepository for MockRepository {
         &self,
         _remote: &RemoteId,
         _reference: &git::RefStr,
-    ) -> Result<Option<radicle_git_ext::Oid>, git2::Error> {
+    ) -> Result<git_ext::Oid, git_ext::Error> {
         todo!()
     }
 

@@ -45,8 +45,17 @@ pub enum Error {
     Git(#[from] git2::Error),
     #[error(transparent)]
     GitExt(#[from] git_ext::Error),
-    #[error("refs were not found")]
-    NotFound,
+}
+
+impl Error {
+    /// Whether this error is caused by a reference not being found.
+    pub fn is_not_found(&self) -> bool {
+        match self {
+            Self::GitExt(git::Error::NotFound(_)) => true,
+            Self::GitExt(git::Error::Git(e)) if git::is_not_found_err(e) => true,
+            _ => false,
+        }
+    }
 }
 
 /// The published state of a local repository.
@@ -217,11 +226,9 @@ impl SignedRefs<Verified> {
     where
         S: ReadRepository,
     {
-        if let Some(oid) = repo.reference_oid(remote, &SIGNATURE_REF)? {
-            Self::load_at(oid, remote, repo)
-        } else {
-            Err(Error::NotFound)
-        }
+        let oid = repo.reference_oid(remote, &SIGNATURE_REF)?;
+
+        SignedRefs::load_at(oid, remote, repo)
     }
 
     pub fn load_at<S>(oid: Oid, remote: &RemoteId, repo: &S) -> Result<Self, Error>
@@ -255,10 +262,12 @@ impl SignedRefs<Verified> {
         repo: &S,
     ) -> Result<Updated, Error> {
         let sigref = &*SIGNATURE_REF;
-        let parent: Option<git2::Commit> = repo
-            .reference(remote, sigref)?
-            .map(|r| r.peel_to_commit())
-            .transpose()?;
+        let parent = match repo.reference(remote, sigref).map_err(|e| dbg!(e)) {
+            Ok(r) => Some(r.peel_to_commit()?),
+            Err(git_ext::Error::Git(e)) if git_ext::is_not_found_err(&e) => None,
+            Err(git_ext::Error::NotFound(_)) => None,
+            Err(e) => return Err(e.into()),
+        };
 
         let tree = {
             let raw = repo.raw();

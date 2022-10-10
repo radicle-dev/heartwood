@@ -12,7 +12,9 @@ use crate::storage;
 use crate::storage::refs::Refs;
 use crate::storage::RemoteId;
 
+pub use ext::is_not_found_err;
 pub use ext::Error;
+pub use ext::NotFound;
 pub use ext::Oid;
 pub use git2 as raw;
 pub use git_ref_format as fmt;

@@ -60,6 +60,7 @@ impl DocError {
         match self {
             Self::NotFound(_) => true,
             Self::Git(git::Error::NotFound(_)) => true,
+            Self::Git(git::Error::Git(e)) if git::is_not_found_err(e) => true,
             _ => false,
         }
     }
@@ -358,8 +359,7 @@ impl Doc<Unverified> {
 impl<V> Doc<V> {
     pub fn head<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<Oid, DocError> {
         let head = &git::refname!("heads").join(&*git::refs::IDENTITY_BRANCH);
-        repo.reference_oid(remote, head)?
-            .ok_or_else(|| DocError::NotFound(head.to_owned()))
+        repo.reference_oid(remote, head).map_err(DocError::from)
     }
 }
 
@@ -483,11 +483,28 @@ mod test {
     use crate::rad;
     use crate::storage::git::Storage;
     use crate::storage::{ReadStorage, WriteStorage};
+    use crate::test::arbitrary;
     use crate::test::fixtures;
     use crate::test::signer::MockSigner;
 
     use super::*;
     use quickcheck_macros::quickcheck;
+
+    #[test]
+    fn test_not_found() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let remote = arbitrary::gen::<RemoteId>(1);
+        let proj = arbitrary::gen::<Id>(1);
+        let repo = storage.repository(proj).unwrap();
+        let oid = git2::Oid::from_str("2d52a53ce5e4f141148a5f770cfd3ead2d6a45b8").unwrap();
+
+        let err = Doc::<Unverified>::head(&remote, &repo).unwrap_err();
+        assert!(dbg!(err).is_not_found());
+
+        let err = Doc::load_at(oid.into(), &repo).unwrap_err();
+        assert!(err.is_not_found());
+    }
 
     #[test]
     fn test_valid_identity() {
