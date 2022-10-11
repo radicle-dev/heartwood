@@ -28,7 +28,6 @@ pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
 pub static SIGNATURES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/remotes/*/radicle/signature"));
 
-// FIXME: Should this be here?
 #[derive(Error, Debug)]
 pub enum ProjectError {
     #[error("identity branches diverge from each other")]
@@ -424,14 +423,10 @@ impl ReadRepository for Repository {
         self.backend.find_reference(&name).map_err(git::Error::from)
     }
 
-    fn commit(&self, oid: Oid) -> Result<Option<git2::Commit>, git2::Error> {
-        self.backend.find_commit(oid.into()).map(Some).or_else(|e| {
-            if git::ext::is_not_found_err(&e) {
-                Ok(None)
-            } else {
-                Err(e)
-            }
-        })
+    fn commit(&self, oid: Oid) -> Result<git2::Commit, git::Error> {
+        self.backend
+            .find_commit(oid.into())
+            .map_err(git::Error::from)
     }
 
     fn revwalk(&self, head: Oid) -> Result<git2::Revwalk, git2::Error> {

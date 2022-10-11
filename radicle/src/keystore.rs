@@ -5,7 +5,20 @@ use std::os::unix::fs::DirBuilderExt;
 use std::os::unix::prelude::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
+use thiserror::Error;
+
+use crate::crypto;
 use crate::crypto::{PublicKey, SecretKey};
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    #[error("invalid key file format: {0}")]
+    FromUtf8Error(#[from] std::string::FromUtf8Error),
+    #[error("invalid key format: {0}")]
+    Crypto(#[from] crypto::Error),
+}
 
 pub struct UnsafeKeystore {
     path: PathBuf,
@@ -18,7 +31,7 @@ impl UnsafeKeystore {
         }
     }
 
-    pub fn put(&mut self, public: &PublicKey, secret: &SecretKey) -> Result<(), io::Error> {
+    pub fn put(&mut self, public: &PublicKey, secret: &SecretKey) -> Result<(), Error> {
         // TODO: Zeroize secret key.
         let public = public.to_pem();
         let secret = secret.to_pem();
@@ -45,14 +58,14 @@ impl UnsafeKeystore {
         Ok(())
     }
 
-    pub fn get(&self) -> Result<(PublicKey, SecretKey), io::Error> {
+    pub fn get(&self) -> Result<(PublicKey, SecretKey), Error> {
         let public = fs::read(self.path.join("radicle.pub"))?;
-        let public = String::from_utf8(public).unwrap();
-        let public = PublicKey::from_pem(&public).unwrap();
+        let public = String::from_utf8(public)?;
+        let public = PublicKey::from_pem(&public)?;
 
         let secret = fs::read(self.path.join("radicle"))?;
-        let secret = String::from_utf8(secret).unwrap();
-        let secret = SecretKey::from_pem(&secret).unwrap();
+        let secret = String::from_utf8(secret)?;
+        let secret = SecretKey::from_pem(&secret)?;
 
         Ok((public, secret))
     }

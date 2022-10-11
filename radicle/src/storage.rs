@@ -247,7 +247,7 @@ pub trait ReadRepository {
         remote: &RemoteId,
         reference: &RefStr,
     ) -> Result<git2::Reference, git_ext::Error>;
-    fn commit(&self, oid: Oid) -> Result<Option<git2::Commit>, git2::Error>;
+    fn commit(&self, oid: Oid) -> Result<git2::Commit, git_ext::Error>;
     fn revwalk(&self, head: Oid) -> Result<git2::Revwalk, git2::Error>;
     fn reference_oid(&self, remote: &RemoteId, reference: &RefStr) -> Result<Oid, git_ext::Error>;
     fn references(&self, remote: &RemoteId) -> Result<Refs, Error>;

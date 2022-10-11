@@ -52,10 +52,12 @@ impl Smart {
     /// Take a stream from the map.
     /// This makes the stream unavailable until it is re-inserted.
     pub fn take(&self, id: &Id) -> Option<Stream> {
+        #[allow(clippy::unwrap_used)]
         self.streams.lock().unwrap().remove(id)
     }
 
     pub fn insert(&self, id: Id, stream: Stream) {
+        #[allow(clippy::unwrap_used)]
         self.streams.lock().unwrap().insert(id, stream);
     }
 }

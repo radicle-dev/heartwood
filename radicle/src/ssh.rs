@@ -144,7 +144,7 @@ impl radicle_ssh::key::Private for SecretKey {
                 let public = r.read_string()?;
                 let pair = r.read_string()?;
                 let _comment = r.read_string()?;
-                let key = crypto::SecretKey::from_slice(pair).unwrap();
+                let key = crypto::SecretKey::from_slice(pair)?;
 
                 if public != key.public_key().as_ref() {
                     return Err(SecretKeyError::Mismatch);

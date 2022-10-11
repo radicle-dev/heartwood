@@ -270,8 +270,8 @@ impl Doc<Unverified> {
         }
     }
 
-    pub fn from_json(bytes: &[u8]) -> Result<Self, serde_json::Error> {
-        serde_json::from_slice(bytes)
+    pub fn from_json(bytes: &[u8]) -> Result<Self, DocError> {
+        serde_json::from_slice(bytes).map_err(DocError::from)
     }
 
     pub fn verified(self) -> Result<Doc<Verified>, VerificationError> {
@@ -375,10 +375,16 @@ pub enum IdentityError {
     MismatchedRoot(Oid),
     #[error("commit signature for {0} is invalid: {1}")]
     InvalidSignature(PublicKey, crypto::Error),
+    #[error("commit message for {0} is invalid")]
+    InvalidCommitMessage(Oid),
+    #[error("commit trailers for {0} are invalid: {1}")]
+    InvalidCommitTrailers(Oid, trailers::Error),
     #[error("quorum not reached: {0} signatures for a threshold of {1}")]
     QuorumNotReached(usize, usize),
     #[error("identity document error: {0}")]
     Doc(#[from] DocError),
+    #[error("the document root is missing")]
+    MissingRoot,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -426,10 +432,10 @@ impl Identity<Untrusted> {
         let mut history = repo.revwalk(head)?.collect::<Vec<_>>();
 
         // Retrieve root document.
-        let root_oid = history.pop().unwrap()?.into();
+        let root_oid = history.pop().ok_or(IdentityError::MissingRoot)??.into();
         let root_blob = Doc::blob_at(root_oid, repo)?;
         let root: git::Oid = root_blob.id().into();
-        let trusted = Doc::from_json(root_blob.content()).unwrap();
+        let trusted = Doc::from_json(root_blob.content())?;
         let revision = history.len() as u32;
 
         let mut trusted = trusted.verified()?;
@@ -442,11 +448,14 @@ impl Identity<Untrusted> {
             let blob = Doc::blob_at(oid.into(), repo)?;
             let untrusted = Doc::from_json(blob.content()).map_err(DocError::from)?;
             let untrusted = untrusted.verified()?;
-            let commit = repo.commit(oid.into())?.unwrap();
-            let msg = commit.message_raw().unwrap();
+            let commit = repo.commit(oid.into())?;
+            let msg = commit
+                .message_raw()
+                .ok_or_else(|| IdentityError::InvalidCommitMessage(oid.into()))?;
 
             // Keys that signed the *current* document version.
-            signatures = trailers::parse_signatures(msg).unwrap();
+            signatures = trailers::parse_signatures(msg)
+                .map_err(|e| IdentityError::InvalidCommitTrailers(oid.into(), e))?;
             for (pk, sig) in &signatures {
                 if let Err(err) = pk.verify(blob.content(), sig) {
                     return Err(IdentityError::InvalidSignature(*pk, err));

@@ -1,4 +1,5 @@
 #![allow(clippy::match_like_matches_macro)]
+#![cfg_attr(not(test), warn(clippy::unwrap_used))]
 pub mod collections;
 pub mod crypto;
 pub mod git;

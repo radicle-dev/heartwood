@@ -97,7 +97,7 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn commit(&self, _oid: Oid) -> Result<Option<git2::Commit>, git2::Error> {
+    fn commit(&self, _oid: Oid) -> Result<git2::Commit, git_ext::Error> {
         todo!()
     }
 

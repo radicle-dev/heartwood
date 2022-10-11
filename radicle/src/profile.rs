@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::{env, io};
 
 use crate::crypto::{KeyPair, PublicKey, SecretKey, Signature, Signer};
-use crate::keystore::UnsafeKeystore;
+use crate::keystore::{Error, UnsafeKeystore};
 use crate::node;
 use crate::storage::git::Storage;
 
@@ -42,7 +42,7 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn init(keypair: KeyPair) -> Result<Self, io::Error> {
+    pub fn init(keypair: KeyPair) -> Result<Self, Error> {
         let home = self::home()?;
         let mut keystore = UnsafeKeystore::new(&home.join("keys"));
         let public = keypair.pk.into();
@@ -61,7 +61,7 @@ impl Profile {
         })
     }
 
-    pub fn load() -> Result<Self, io::Error> {
+    pub fn load() -> Result<Self, Error> {
         let home = self::home()?;
         let (public, secret) = UnsafeKeystore::new(&home.join("keys")).get()?;
         let signer = UnsafeSigner { public, secret };

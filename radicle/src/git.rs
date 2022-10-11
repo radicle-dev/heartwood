@@ -45,8 +45,7 @@ pub enum ListRefsError {
 
 impl From<&RemoteId> for RefString {
     fn from(id: &RemoteId) -> Self {
-        // PublicKey strings contain only legal characters.
-        RefString::try_from(id.to_string()).unwrap()
+        RefString::try_from(id.to_string()).expect("encoded public keys are valid ref strings")
     }
 }
 
@@ -137,7 +136,7 @@ pub fn initial_commit<'a>(
     let tree_id = repo.index()?.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
     let oid = repo.commit(None, sig, sig, "Initial commit", &tree, &[])?;
-    let commit = repo.find_commit(oid).unwrap();
+    let commit = repo.find_commit(oid)?;
 
     Ok(commit)
 }
@@ -154,20 +153,23 @@ pub fn commit<'a>(
     let tree_id = repo.index()?.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
     let oid = repo.commit(Some(target.as_str()), &sig, &sig, message, &tree, &[parent])?;
-    let commit = repo.find_commit(oid).unwrap();
+    let commit = repo.find_commit(oid)?;
 
     Ok(commit)
 }
 
 /// Push the refs to the radicle remote.
 pub fn push(repo: &git2::Repository) -> Result<(), git2::Error> {
+    // NOTE: This function is going away soon.
+    #![allow(clippy::unwrap_used)]
+
     let mut remote = repo.find_remote("rad")?;
-    let refspecs = remote.push_refspecs().unwrap();
+    let refspecs = remote.push_refspecs()?;
     let refspec = refspecs.into_iter().next().unwrap().unwrap();
 
     // The `git2` crate doesn't seem to support push refspecs with '*' in them,
     // so we manually replace it with the current branch.
-    let head = repo.head().unwrap();
+    let head = repo.head()?;
     let branch = head.shorthand().unwrap();
     let refspec = refspec.replace('*', branch);
 
