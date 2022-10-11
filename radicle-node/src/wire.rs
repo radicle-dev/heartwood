@@ -11,7 +11,7 @@ use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 use nakamoto_net as nakamoto;
 use nakamoto_net::Link;
 
-use crate::address_book;
+use crate::address;
 use crate::crypto::{PublicKey, Signature, Signer, Unverified};
 use crate::decoder::Decoder;
 use crate::git;
@@ -471,7 +471,7 @@ impl<R, S, T, G> Wire<R, S, T, G> {
 impl<R, S, T, G> Wire<R, S, T, G>
 where
     R: routing::Store,
-    S: address_book::Store,
+    S: address::Store,
     T: WriteStorage + 'static,
     G: Signer,
 {

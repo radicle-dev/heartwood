@@ -8,7 +8,7 @@ pub mod routing;
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::{fmt, net, net::IpAddr};
+use std::{fmt, net, net::IpAddr, str};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
@@ -17,11 +17,11 @@ use nakamoto::{LocalDuration, LocalTime};
 use nakamoto_net as nakamoto;
 use nakamoto_net::Link;
 use nonempty::NonEmpty;
+use radicle::node::Features;
 use radicle::storage::ReadStorage;
 
-use crate::address_book;
-use crate::address_book::AddressBook;
-use crate::address_manager::AddressManager;
+use crate::address;
+use crate::address::AddressBook;
 use crate::clock::{RefClock, Timestamp};
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
@@ -172,6 +172,8 @@ pub struct Service<R, A, S, G> {
     storage: S,
     /// Network routing table. Keeps track of where projects are located.
     routing: R,
+    /// Node address manager.
+    addresses: A,
     /// State relating to gossip.
     gossip: Gossip,
     /// Peer sessions, currently or recently connected.
@@ -182,8 +184,6 @@ pub struct Service<R, A, S, G> {
     clock: RefClock,
     /// Interface to the I/O reactor.
     reactor: Reactor,
-    /// Peer address manager.
-    addrmgr: AddressManager<A>,
     /// Source of entropy.
     rng: Rng,
     /// Whether our local inventory no long represents what we have announced to the network.
@@ -218,7 +218,7 @@ where
 impl<R, A, S, G> Service<R, A, S, G>
 where
     R: routing::Store,
-    A: address_book::Store,
+    A: address::Store,
     S: WriteStorage + 'static,
     G: crypto::Signer,
 {
@@ -231,19 +231,19 @@ where
         signer: G,
         rng: Rng,
     ) -> Self {
-        let addrmgr = AddressManager::new(addresses);
         let sessions = Sessions::new(rng.clone());
         let network = config.network;
 
         Self {
             config,
             storage,
-            addrmgr,
+            addresses,
             signer,
             rng,
             clock,
             routing,
             gossip: Gossip::default(),
+            // FIXME: This should be loaded from the address store.
             peers: BTreeMap::new(),
             reactor: Reactor::new(network),
             sessions,
@@ -607,22 +607,23 @@ where
         }
         let Announcement { node, message, .. } = announcement;
         let now = self.clock.local_time();
+        let timestamp = message.timestamp();
+        let relay = self.config.relay;
 
         // Don't allow messages from too far in the future.
-        if message.timestamp().saturating_sub(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
-            return Err(SessionError::InvalidTimestamp(message.timestamp()));
+        if timestamp.saturating_sub(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
+            return Err(SessionError::InvalidTimestamp(timestamp));
         }
 
         match message {
             AnnouncementMessage::Inventory(message) => {
-                let peer = self.peers.entry(*node).or_insert_with(Peer::default);
-                let relay = self.config.relay;
-
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
-                if message.timestamp > peer.last_message {
-                    peer.last_message = message.timestamp;
+                let peer = self.peers.entry(*node).or_insert_with(Peer::default);
+                if timestamp > peer.last_message {
+                    peer.last_message = timestamp;
                 } else {
+                    debug!("Ignoring stale announcement from {node}");
                     return Ok(false);
                 }
 
@@ -639,16 +640,13 @@ where
                     // origin of it.
                     return Ok(false);
                 }
-
-                if relay {
-                    return Ok(true);
-                }
+                return Ok(relay);
             }
             // Process a peer inventory update announcement by (maybe) fetching.
             AnnouncementMessage::Refs(message) => {
-                // FIXME: Check message timestamp.
                 // TODO: Buffer/throttle fetches.
                 // TODO: Check that we're tracking this user as well.
+                // FIXME: Discard old messages.
                 if self.config.is_tracking(&message.id) {
                     // TODO: Check refs to see if we should try to fetch or not.
                     // FIXME: This code is wrong: we shouldn't be fetching from the connected peer,
@@ -663,13 +661,52 @@ where
                     });
 
                     if is_updated {
-                        return Ok(true);
+                        return Ok(relay);
                     }
                 }
             }
-            AnnouncementMessage::Node(_message) => {
-                // FIXME: Check message timestamp.
-                log::warn!("Node announcement handling is not implemented");
+            AnnouncementMessage::Node(NodeAnnouncement {
+                features,
+                alias,
+                addresses,
+                timestamp,
+            }) => {
+                // FIXME: Discard old messages.
+                // If this node isn't a seed, we're not interested in adding it
+                // to our address book, but other nodes may be, so we relay the message anyway.
+                if !features.has(Features::SEED) {
+                    return Ok(relay);
+                }
+
+                let alias = match str::from_utf8(alias) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        warn!("Dropping node announcement from {node}: invalid alias: {e}");
+                        return Ok(false);
+                    }
+                };
+
+                match self.addresses.insert(
+                    node,
+                    *features,
+                    alias,
+                    *timestamp,
+                    addresses
+                        .iter()
+                        .map(|a| address::KnownAddress::new(a.clone(), address::Source::Peer)),
+                ) {
+                    Ok(updated) => {
+                        // Only relay if we received new information.
+                        if updated {
+                            debug!("Address store entry for node {node} updated at {timestamp}");
+                            return Ok(relay);
+                        }
+                    }
+                    Err(err) => {
+                        // An error here is due to a fault in our address store.
+                        error!("Error processing node announcement from {node}: {err}");
+                    }
+                }
             }
         }
         Ok(false)
@@ -778,6 +815,7 @@ where
     ) -> Result<(), Error> {
         for proj_id in inventory {
             // TODO: Fire an event on routing update.
+            // FIXME: The timestamp we insert should be the announcement timestamp.
             if self
                 .routing
                 .insert(*proj_id, from, self.clock.timestamp())?

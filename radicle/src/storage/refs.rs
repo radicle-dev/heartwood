@@ -268,7 +268,7 @@ impl SignedRefs<Verified> {
         repo: &S,
     ) -> Result<Updated, Error> {
         let sigref = &*SIGNATURE_REF;
-        let parent = match repo.reference(remote, sigref).map_err(|e| dbg!(e)) {
+        let parent = match repo.reference(remote, sigref) {
             Ok(r) => Some(r.peel_to_commit()?),
             Err(git_ext::Error::Git(e)) if git_ext::is_not_found_err(&e) => None,
             Err(git_ext::Error::NotFound(_)) => None,

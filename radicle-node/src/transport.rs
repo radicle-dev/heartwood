@@ -5,7 +5,7 @@ use nakamoto::LocalTime;
 use nakamoto_net as nakamoto;
 use nakamoto_net::{Io, Link};
 
-use crate::address_book;
+use crate::address;
 use crate::collections::HashMap;
 use crate::crypto;
 use crate::service::routing;
@@ -37,7 +37,7 @@ impl<R, S, T, G> nakamoto::Protocol for Transport<R, S, T, G>
 where
     R: routing::Store,
     T: WriteStorage + 'static,
-    S: address_book::Store,
+    S: address::Store,
     G: crypto::Signer,
 {
     type Event = Event;

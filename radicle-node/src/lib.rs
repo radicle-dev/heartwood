@@ -1,6 +1,5 @@
 #![allow(dead_code)]
-pub mod address_book;
-pub mod address_manager;
+pub mod address;
 pub mod client;
 pub mod clock;
 pub mod control;

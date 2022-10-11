@@ -70,6 +70,17 @@ impl From<AddressType> for u8 {
     }
 }
 
+impl From<&Address> for AddressType {
+    fn from(a: &Address) -> Self {
+        match a {
+            Address::Ipv4 { .. } => AddressType::Ipv4,
+            Address::Ipv6 { .. } => AddressType::Ipv6,
+            Address::Hostname { .. } => AddressType::Hostname,
+            Address::Onion { .. } => AddressType::Onion,
+        }
+    }
+}
+
 impl TryFrom<u8> for AddressType {
     type Error = u8;
 

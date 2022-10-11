@@ -5,12 +5,11 @@ use nakamoto_net::{LocalTime, Reactor};
 use thiserror::Error;
 
 use crate::clock::RefClock;
-use crate::collections::HashMap;
 use crate::profile::Profile;
-use crate::service;
 use crate::service::routing;
 use crate::transport::Transport;
 use crate::wire::Wire;
+use crate::{address, service};
 
 pub mod handle;
 
@@ -18,6 +17,8 @@ pub mod handle;
 pub const NODE_DIR: &str = "node";
 /// Filename of routing table database under [`NODE_DIR`].
 pub const ROUTING_DB_FILE: &str = "routing.db";
+/// Filename of address database under [`NODE_DIR`].
+pub const ADDRESS_DB_FILE: &str = "addresses.db";
 
 /// A client error.
 #[derive(Error, Debug)]
@@ -25,6 +26,9 @@ pub enum Error {
     /// A routing database error.
     #[error("routing database error: {0}")]
     Routing(#[from] routing::Error),
+    /// An address database error.
+    #[error("address database error: {0}")]
+    Addresses(#[from] address::Error),
     /// An I/O error.
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
@@ -100,7 +104,8 @@ impl<R: Reactor> Client<R> {
         let time = LocalTime::now();
         let storage = self.profile.storage;
         let signer = self.profile.signer;
-        let addresses = HashMap::with_hasher(rng.clone().into());
+        let addresses =
+            address::Book::open(self.profile.home.join(NODE_DIR).join(ADDRESS_DB_FILE))?;
         let routing = routing::Table::open(self.profile.home.join(NODE_DIR).join(ROUTING_DB_FILE))?;
 
         log::info!("Initializing client ({:?})..", network);

@@ -1,4 +1,8 @@
-use crate::address_book::Store;
+mod store;
+mod types;
+
+pub use store::*;
+pub use types::*;
 
 #[derive(Debug)]
 pub struct AddressManager<S> {

@@ -84,14 +84,7 @@ fn test_persistent_peer_connect() {
         connect: vec![bob.address(), eve.address()],
         ..Config::default()
     };
-    let mut alice = Peer::config(
-        "alice",
-        config,
-        [7, 7, 7, 7],
-        vec![],
-        MockStorage::empty(),
-        rng,
-    );
+    let mut alice = Peer::config("alice", config, [7, 7, 7, 7], MockStorage::empty(), rng);
 
     alice.initialize();
 
@@ -164,7 +157,6 @@ fn test_tracking() {
             ..Config::default()
         },
         [7, 7, 7, 7],
-        vec![],
         MockStorage::empty(),
         fastrand::Rng::new(),
     );
@@ -387,7 +379,6 @@ fn test_persistent_peer_reconnect() {
             ..Config::default()
         },
         [7, 7, 7, 7],
-        vec![],
         MockStorage::empty(),
         fastrand::Rng::new(),
     );
@@ -499,6 +490,7 @@ fn test_push_and_pull() {
     // Alice announces her refs.
     // We now expect Eve to fetch Alice's project from Alice.
     // Then we expect Bob to fetch Alice's project from Eve.
+    alice.clock().elapse(LocalDuration::from_secs(1)); // Make sure our announcement is fresh.
     alice.command(service::Command::AnnounceRefs(proj_id));
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 

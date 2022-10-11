@@ -4,9 +4,8 @@ use std::ops::{Deref, DerefMut};
 
 use log::*;
 
-use crate::address_book::{KnownAddress, Source};
+use crate::address;
 use crate::clock::{RefClock, Timestamp};
-use crate::collections::HashMap;
 use crate::git;
 use crate::git::Url;
 use crate::prelude::NodeId;
@@ -21,8 +20,7 @@ use crate::test::simulator;
 use crate::{Link, LocalTime};
 
 /// Service instantiation used for testing.
-pub type Service<S> =
-    service::Service<routing::Table, HashMap<net::IpAddr, KnownAddress>, S, MockSigner>;
+pub type Service<S> = service::Service<routing::Table, address::Book, S, MockSigner>;
 
 #[derive(Debug)]
 pub struct Peer<S> {
@@ -82,7 +80,6 @@ where
                 ..Config::default()
             },
             ip,
-            vec![],
             storage,
             fastrand::Rng::new(),
         )
@@ -92,18 +89,14 @@ where
         name: &'static str,
         config: Config,
         ip: impl Into<net::IpAddr>,
-        addrs: Vec<(net::SocketAddr, Source)>,
         storage: S,
         mut rng: fastrand::Rng,
     ) -> Self {
-        let addrs = addrs
-            .into_iter()
-            .map(|(addr, src)| (addr.ip(), KnownAddress::new(addr, src, None)))
-            .collect();
         let local_time = LocalTime::now();
         let clock = RefClock::from(local_time);
         let signer = MockSigner::new(&mut rng);
         let routing = routing::Table::memory().unwrap();
+        let addrs = address::Book::memory().unwrap();
         let service = Service::new(config, clock, routing, storage, addrs, signer, rng.clone());
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, rng.u16(..));
