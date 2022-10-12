@@ -2,7 +2,6 @@ pub mod git;
 pub mod refs;
 
 use std::collections::hash_map;
-use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::Path;
 use std::{fmt, io};
@@ -178,8 +177,6 @@ pub struct Remote<V> {
     pub refs: SignedRefs<V>,
     /// Whether this remote is a delegate for the project.
     pub delegate: bool,
-    /// Whether the remote is verified or not, ie. whether its signed refs were checked.
-    verified: PhantomData<V>,
 }
 
 impl<V> Remote<V> {
@@ -191,7 +188,6 @@ impl<V> Remote<V> {
             id,
             refs: refs.into(),
             delegate: false,
-            verified: PhantomData,
         }
     }
 }
@@ -204,7 +200,6 @@ impl Remote<Unverified> {
             id: self.id,
             refs,
             delegate: self.delegate,
-            verified: PhantomData,
         })
     }
 }
@@ -215,7 +210,6 @@ impl Remote<Verified> {
             id: self.id,
             refs: self.refs.unverified(),
             delegate: self.delegate,
-            verified: PhantomData,
         }
     }
 }
