@@ -5,7 +5,8 @@ pub mod peer;
 pub mod reactor;
 pub mod routing;
 
-use std::collections::BTreeMap;
+use std::collections::hash_map::Entry;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::{fmt, net, net::IpAddr, str};
@@ -178,8 +179,8 @@ pub struct Service<R, A, S, G> {
     gossip: Gossip,
     /// Peer sessions, currently or recently connected.
     sessions: Sessions,
-    /// Keeps track of peer states.
-    peers: BTreeMap<NodeId, Peer>,
+    /// Keeps track of node states.
+    nodes: BTreeMap<NodeId, Node>,
     /// Clock. Tells the time.
     clock: RefClock,
     /// Interface to the I/O reactor.
@@ -244,7 +245,7 @@ where
             routing,
             gossip: Gossip::default(),
             // FIXME: This should be loaded from the address store.
-            peers: BTreeMap::new(),
+            nodes: BTreeMap::new(),
             reactor: Reactor::new(network),
             sessions,
             out_of_sync: false,
@@ -609,6 +610,7 @@ where
         let now = self.clock.local_time();
         let timestamp = message.timestamp();
         let relay = self.config.relay;
+        let peer = self.nodes.entry(*node).or_insert_with(Node::default);
 
         // Don't allow messages from too far in the future.
         if timestamp.saturating_sub(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
@@ -619,11 +621,10 @@ where
             AnnouncementMessage::Inventory(message) => {
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
-                let peer = self.peers.entry(*node).or_insert_with(Peer::default);
-                if timestamp > peer.last_message {
-                    peer.last_message = timestamp;
+                if timestamp > peer.last_inventory {
+                    peer.last_inventory = timestamp;
                 } else {
-                    debug!("Ignoring stale announcement from {node}");
+                    debug!("Ignoring stale inventory announcement from {node}");
                     return Ok(false);
                 }
 
@@ -648,6 +649,23 @@ where
                 // TODO: Check that we're tracking this user as well.
                 // FIXME: Discard old messages.
                 if self.config.is_tracking(&message.id) {
+                    // Discard inventory messages we've already seen, otherwise update
+                    // out last seen time.
+                    match peer.last_refs.entry(message.id) {
+                        Entry::Vacant(e) => {
+                            e.insert(timestamp);
+                        }
+                        Entry::Occupied(mut e) => {
+                            let last = e.get_mut();
+
+                            if timestamp > *last {
+                                *last = timestamp;
+                            } else {
+                                debug!("Ignoring stale refs announcement from {node}");
+                                return Ok(false);
+                            }
+                        }
+                    }
                     // TODO: Check refs to see if we should try to fetch or not.
                     // FIXME: This code is wrong: we shouldn't be fetching from the connected peer,
                     // we should fetch from the origin.
@@ -669,9 +687,17 @@ where
                 features,
                 alias,
                 addresses,
-                timestamp,
+                ..
             }) => {
-                // FIXME: Discard old messages.
+                // Discard node messages we've already seen, otherwise update
+                // out last seen time.
+                if timestamp > peer.last_node {
+                    peer.last_node = timestamp;
+                } else {
+                    debug!("Ignoring stale node announcement from {node}");
+                    return Ok(false);
+                }
+
                 // If this node isn't a seed, we're not interested in adding it
                 // to our address book, but other nodes may be, so we relay the message anyway.
                 if !features.has(Features::SEED) {
@@ -690,7 +716,7 @@ where
                     node,
                     *features,
                     alias,
-                    *timestamp,
+                    timestamp,
                     addresses
                         .iter()
                         .map(|a| address::KnownAddress::new(a.clone(), address::Source::Peer)),
@@ -988,9 +1014,13 @@ pub enum LookupError {
 
 /// Information on a peer, that we may or may not be connected to.
 #[derive(Default, Debug)]
-pub struct Peer {
-    /// Timestamp of the last message received from peer.
-    pub last_message: Timestamp,
+pub struct Node {
+    /// Last ref announcements (per project).
+    pub last_refs: HashMap<Id, Timestamp>,
+    /// Last inventory announcement.
+    pub last_inventory: Timestamp,
+    /// Last node announcement.
+    pub last_node: Timestamp,
 }
 
 #[derive(Debug)]
