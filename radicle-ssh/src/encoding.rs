@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-use std::mem::size_of;
 use std::ops::DerefMut;
 
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
@@ -33,16 +32,15 @@ pub trait Encodable: Sized {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Read from the SSH format.
-    fn read_ssh(reader: &mut Cursor) -> Result<Self, Self::Error>;
-
+    fn read(reader: &mut Cursor) -> Result<Self, Self::Error>;
     /// Write to the SSH format.
-    fn write_ssh<E: Encoding>(&self, buf: &mut E);
+    fn write<E: Encoding>(&self, buf: &mut E);
 }
 
 /// Encode in the SSH format.
 pub trait Encoding {
     /// Push an SSH-encoded string to `self`.
-    fn extend_ssh_string(&mut self, s: &[u8]) -> usize;
+    fn extend_ssh_string(&mut self, s: &[u8]);
     /// Push an SSH-encoded blank string of length `s` to `self`.
     fn extend_ssh_string_blank(&mut self, s: usize) -> &mut [u8];
     /// Push an SSH-encoded multiple-precision integer.
@@ -67,11 +65,9 @@ pub fn mpint_len(s: &[u8]) -> usize {
 }
 
 impl Encoding for Vec<u8> {
-    fn extend_ssh_string(&mut self, s: &[u8]) -> usize {
+    fn extend_ssh_string(&mut self, s: &[u8]) {
         self.write_u32::<BigEndian>(s.len() as u32).unwrap();
         self.extend(s);
-
-        size_of::<u32>() + s.len()
     }
 
     fn extend_ssh_string_blank(&mut self, len: usize) -> &mut [u8] {
@@ -134,7 +130,7 @@ impl Encoding for Vec<u8> {
 }
 
 impl Encoding for Buffer {
-    fn extend_ssh_string(&mut self, s: &[u8]) -> usize {
+    fn extend_ssh_string(&mut self, s: &[u8]) {
         self.deref_mut().extend_ssh_string(s)
     }
 

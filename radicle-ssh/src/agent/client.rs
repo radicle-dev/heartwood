@@ -11,9 +11,8 @@ use zeroize::Zeroize as _;
 
 use crate::agent::msg;
 use crate::agent::Constraint;
-use crate::encoding;
+use crate::encoding::{self, Encodable};
 use crate::encoding::{Buffer, Encoding, Reader};
-use crate::key::{Private, Public};
 
 /// An ed25519 Signature.
 pub type Signature = [u8; 64];
@@ -87,7 +86,7 @@ impl<S: ClientStream> AgentClient<S> {
     /// to apply when using the key to sign.
     pub fn add_identity<K>(&mut self, key: &K, constraints: &[Constraint]) -> Result<(), Error>
     where
-        K: Private,
+        K: Encodable,
         K::Error: std::error::Error + Send + Sync + 'static,
     {
         self.buf.zeroize();
@@ -98,8 +97,7 @@ impl<S: ClientStream> AgentClient<S> {
         } else {
             self.buf.push(msg::ADD_ID_CONSTRAINED)
         }
-        key.write(&mut self.buf)
-            .map_err(|err| Error::Private(Box::new(err)))?;
+        key.write(&mut self.buf);
 
         if !constraints.is_empty() {
             for cons in constraints {
@@ -203,7 +201,7 @@ impl<S: ClientStream> AgentClient<S> {
     /// keys.
     pub fn request_identities<K>(&mut self) -> Result<Vec<K>, Error>
     where
-        K: Public,
+        K: Encodable,
         K::Error: std::error::Error + Send + Sync + 'static,
     {
         self.buf.zeroize();
@@ -224,7 +222,7 @@ impl<S: ClientStream> AgentClient<S> {
                 let _ = r.read_string()?;
                 let mut r = key.reader(0);
 
-                if let Some(pk) = K::read(&mut r).map_err(|err| Error::Public(Box::new(err)))? {
+                if let Ok(pk) = K::read(&mut r) {
                     keys.push(pk);
                 }
             }
@@ -236,7 +234,7 @@ impl<S: ClientStream> AgentClient<S> {
     /// Ask the agent to sign the supplied piece of data.
     pub fn sign_request<K>(&mut self, public: &K, data: Buffer) -> Result<Signature, Error>
     where
-        K: Public + fmt::Debug,
+        K: Encodable + fmt::Debug,
     {
         self.prepare_sign_request(public, &data);
         self.stream.read_response(&mut self.buf)?;
@@ -255,7 +253,7 @@ impl<S: ClientStream> AgentClient<S> {
 
     fn prepare_sign_request<K>(&mut self, public: &K, data: &[u8])
     where
-        K: Public + fmt::Debug,
+        K: Encodable + fmt::Debug,
     {
         // byte                    SSH_AGENTC_SIGN_REQUEST
         // string                  key blob
@@ -263,10 +261,9 @@ impl<S: ClientStream> AgentClient<S> {
         // uint32                  flags
 
         let mut pk = Buffer::default();
-        let n = public.write(&mut pk);
-        let total = 1 + n + 4 + data.len() + 4;
+        public.write(&mut pk);
 
-        debug_assert_eq!(n, pk.len());
+        let total = 1 + pk.len() + 4 + data.len() + 4;
 
         self.buf.zeroize();
         self.buf
@@ -294,13 +291,12 @@ impl<S: ClientStream> AgentClient<S> {
     /// Ask the agent to remove a key from its memory.
     pub fn remove_identity<K>(&mut self, public: &K) -> Result<(), Error>
     where
-        K: Public,
+        K: Encodable,
     {
         let mut pk: Buffer = Vec::new().into();
-        let n = public.write(&mut pk);
-        let total = 1 + n;
+        public.write(&mut pk);
 
-        debug_assert_eq!(n, pk.len());
+        let total = 1 + pk.len();
 
         self.buf.zeroize();
         self.buf.write_u32::<BigEndian>(total as u32)?;
