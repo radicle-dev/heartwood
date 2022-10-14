@@ -216,7 +216,7 @@ fn test_inventory_relay_bad_timestamp() {
 }
 
 #[test]
-fn test_gossip_rebroadcast() {
+fn test_announcement_rebroadcast() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
@@ -243,7 +243,7 @@ fn test_gossip_rebroadcast() {
 }
 
 #[test]
-fn test_gossip_rebroadcast_timestamp_filtered() {
+fn test_announcement_rebroadcast_timestamp_filtered() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
@@ -417,7 +417,7 @@ fn test_refs_announcement_relay() {
 }
 
 #[test]
-fn test_refs_gossip_no_subscribe() {
+fn test_refs_announcement_no_subscribe() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
