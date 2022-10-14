@@ -1,14 +1,6 @@
 [workspace]
 members = ["radicle", "radicle-node", "radicle-tools", "radicle-ssh"]
 
-[patch.crates-io.radicle-git-ext]
-git = "https://github.com/radicle-dev/radicle-link"
-tag = "cycle/2022-07-12"
-
-[patch.crates-io.git-ref-format]
-git = "https://github.com/radicle-dev/radicle-link"
-tag = "cycle/2022-07-12"
-
 [patch.crates-io.nakamoto-net]
 git = "https://github.com/cloudhead/nakamoto"
 rev = "90cc3eac67aa5cfd5f42cf7cb1e2b155af3214fb"

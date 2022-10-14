@@ -417,7 +417,7 @@ impl ReadRepository for Repository {
         remote: &RemoteId,
         name: &git::Qualified,
     ) -> Result<git2::Reference, git::Error> {
-        let name = name.add_namespace(remote.into());
+        let name = name.with_namespace(remote.into());
         self.backend.find_reference(&name).map_err(git::Error::from)
     }
 

@@ -72,7 +72,7 @@ pub mod refs {
         /// Create the [`Namespaced`] `branch` under the `remote` namespace, i.e.
         /// `refs/namespaces/<remote>/refs/heads/<branch>`
         pub fn branch<'a>(remote: &RemoteId, branch: &RefStr) -> Namespaced<'a> {
-            Qualified::from(git_ref_format::lit::refs_heads(branch)).add_namespace(remote.into())
+            Qualified::from(git_ref_format::lit::refs_heads(branch)).with_namespace(remote.into())
         }
 
         /// Get the branch used to track project information.
@@ -112,7 +112,7 @@ pub mod refs {
 pub fn remote_refs(url: &Url) -> Result<HashMap<RemoteId, Refs>, ListRefsError> {
     let url = url.to_string();
     let mut remotes = HashMap::default();
-    let mut remote = git2::Remote::create_detached(&url)?;
+    let mut remote = git2::Remote::create_detached(url)?;
 
     remote.connect(git2::Direction::Fetch)?;
 
@@ -134,7 +134,7 @@ where
     T::Err: std::error::Error + Send + Sync + 'static,
 {
     let input = format::RefStr::try_from_str(s)?;
-    match input.namespaced() {
+    match input.to_namespaced() {
         None => Err(RefError::MissingNamespace(input.to_owned())),
         Some(ns) => {
             let id = ns

@@ -297,7 +297,7 @@ impl SignedRefs<Verified> {
             }
         }
 
-        let sigref = sigref.add_namespace(remote.into());
+        let sigref = sigref.with_namespace(remote.into());
         let author = repo.raw().signature()?;
         let commit = repo.raw().commit(
             Some(&sigref),
