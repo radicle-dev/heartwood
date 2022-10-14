@@ -568,19 +568,8 @@ where
 
     pub fn received_message(&mut self, addr: &net::SocketAddr, envelope: Envelope) {
         match self.handle_message(addr, envelope) {
-            Ok(relay) => {
-                if let Some(ann) = relay {
-                    let negotiated = self
-                        .sessions
-                        .negotiated()
-                        .filter(|(ip, _)| **ip != addr.ip())
-                        .map(|(_, p)| p);
-
-                    self.reactor.relay(ann, negotiated.clone());
-                }
-            }
             Err(SessionError::NotFound(ip)) => {
-                error!("Session not found for {}", ip);
+                error!("Session not found for {ip}");
             }
             Err(err) => {
                 // If there's an error, stop processing messages from this peer.
@@ -590,6 +579,7 @@ where
                 // FIXME: The peer should be set in a state such that we don'that
                 // process further messages.
             }
+            Ok(()) => {}
         }
     }
 
@@ -726,7 +716,7 @@ where
         &mut self,
         remote: &net::SocketAddr,
         envelope: Envelope,
-    ) -> Result<Option<Announcement>, peer::SessionError> {
+    ) -> Result<(), peer::SessionError> {
         let peer_ip = remote.ip();
         let peer = if let Some(peer) = self.sessions.get_mut(&peer_ip) {
             peer
@@ -790,7 +780,19 @@ where
                 // Returning true here means that the message should be relayed.
                 if self.handle_announcement(&id, &git, &ann)? {
                     self.gossip.received(ann.clone(), ann.message.timestamp());
-                    return Ok(Some(ann));
+
+                    // Choose peers we should relay this message to.
+                    // 1. Don't relay to the peer who sent us this message.
+                    // 2. Don't relay to the peer who signed this announcement.
+                    let relay_to = self
+                        .sessions
+                        .negotiated()
+                        .filter(|(ip, _, _)| **ip != remote.ip())
+                        .filter(|(_, id, _)| **id != ann.node);
+
+                    self.reactor.relay(ann.clone(), relay_to.map(|(_, _, p)| p));
+
+                    return Ok(());
                 }
             }
             (SessionState::Negotiated { .. }, Message::Subscribe(subscribe)) => {
@@ -813,7 +815,7 @@ where
                 debug!("Ignoring {:?} from disconnected peer {}", msg, peer.ip());
             }
         }
-        Ok(None)
+        Ok(())
     }
 
     /// Process a peer inventory announcement by updating our routing table.
@@ -842,7 +844,7 @@ where
         let node = self.node_id();
         let repo = self.storage.repository(id)?;
         let remote = repo.remote(&node)?;
-        let peers = self.sessions.negotiated().map(|(_, p)| p);
+        let peers = self.sessions.negotiated().map(|(_, _, p)| p);
         let refs = remote.refs.into();
         let timestamp = self.clock.timestamp();
         let msg = AnnouncementMessage::from(RefsAnnouncement {
@@ -869,7 +871,7 @@ where
             &self.signer,
         );
 
-        for addr in self.sessions.negotiated().map(|(_, p)| p.addr) {
+        for addr in self.sessions.negotiated().map(|(_, _, p)| p.addr) {
             self.reactor.write(addr, inv.clone());
         }
         Ok(())
@@ -1069,8 +1071,13 @@ impl Sessions {
     }
 
     /// Iterator over fully negotiated peers.
-    pub fn negotiated(&self) -> impl Iterator<Item = (&IpAddr, &Session)> + Clone {
-        self.0.iter().filter(move |(_, p)| p.is_negotiated())
+    pub fn negotiated(&self) -> impl Iterator<Item = (&IpAddr, &NodeId, &Session)> + Clone {
+        self.0
+            .iter()
+            .filter_map(move |(ip, sess)| match &sess.state {
+                SessionState::Negotiated { id, .. } => Some((ip, id, sess)),
+                _ => None,
+            })
     }
 }
 

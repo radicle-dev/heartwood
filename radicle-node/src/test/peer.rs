@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::iter;
 use std::net;
 use std::ops::{Deref, DerefMut};
@@ -8,6 +9,7 @@ use crate::address;
 use crate::clock::{RefClock, Timestamp};
 use crate::git;
 use crate::git::Url;
+use crate::node;
 use crate::prelude::NodeId;
 use crate::service;
 use crate::service::config::*;
@@ -15,6 +17,7 @@ use crate::service::message::*;
 use crate::service::reactor::Io;
 use crate::service::*;
 use crate::storage::WriteStorage;
+use crate::test::arbitrary;
 use crate::test::signer::MockSigner;
 use crate::test::simulator;
 use crate::{Link, LocalTime};
@@ -140,6 +143,45 @@ where
     pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
         self.service
             .received_message(peer, self.config().network.envelope(msg));
+    }
+
+    pub fn inventory_announcement(&self) -> Message {
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: arbitrary::gen(3),
+                timestamp: self.timestamp(),
+            },
+            self.signer(),
+        )
+    }
+
+    pub fn node_announcement(&self) -> Message {
+        let mut alias = [0u8; 32];
+        alias[..self.name.len()].copy_from_slice(self.name.as_bytes());
+
+        Message::node(
+            NodeAnnouncement {
+                features: node::Features::SEED,
+                timestamp: self.timestamp(),
+                alias,
+                addresses: vec![net::SocketAddr::from((self.ip, service::DEFAULT_PORT)).into()],
+            },
+            self.signer(),
+        )
+    }
+
+    pub fn refs_announcement(&self) -> Message {
+        let inv = self.inventory().unwrap();
+        let id = inv[self.rng.usize(..inv.len())];
+        let refs = BTreeMap::new().into();
+        let ann = AnnouncementMessage::from(RefsAnnouncement {
+            id,
+            refs,
+            timestamp: self.timestamp(),
+        });
+        let msg = ann.signed(self.signer());
+
+        msg.into()
     }
 
     pub fn connect_from(&mut self, peer: &Self) {

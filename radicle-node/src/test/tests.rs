@@ -48,7 +48,7 @@ fn test_outbound_connection() {
         .service
         .sessions()
         .negotiated()
-        .map(|(ip, _)| *ip)
+        .map(|(ip, _, _)| *ip)
         .collect::<Vec<_>>();
 
     assert!(peers.contains(&eve.ip));
@@ -68,7 +68,7 @@ fn test_inbound_connection() {
         .service
         .sessions()
         .negotiated()
-        .map(|(ip, _)| *ip)
+        .map(|(ip, _, _)| *ip)
         .collect::<Vec<_>>();
 
     assert!(peers.contains(&eve.ip));
@@ -273,6 +273,68 @@ fn test_gossip_rebroadcast_timestamp_filtered() {
 }
 
 #[test]
+fn test_announcement_relay() {
+    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
+    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+
+    alice.connect_to(&bob);
+    alice.connect_to(&eve);
+    alice.receive(&bob.addr(), bob.inventory_announcement());
+
+    assert_matches!(
+        alice.messages(&eve.addr()).next(),
+        Some(Message::Announcement(_))
+    );
+
+    alice.receive(&bob.addr(), bob.inventory_announcement());
+    assert!(
+        alice.messages(&eve.addr()).next().is_none(),
+        "Another inventory with the same timestamp is ignored"
+    );
+
+    bob.clock().elapse(LocalDuration::from_mins(1));
+    alice.receive(&bob.addr(), bob.inventory_announcement());
+    assert_matches!(
+        alice.messages(&eve.addr()).next(),
+        Some(Message::Announcement(_)),
+        "Another inventory with a fresher timestamp is relayed"
+    );
+
+    alice.receive(&bob.addr(), bob.node_announcement());
+    assert_matches!(
+        alice.messages(&eve.addr()).next(),
+        Some(Message::Announcement(_)),
+        "A node announcement with the same timestamp as the inventory is relayed"
+    );
+
+    alice.receive(&bob.addr(), bob.node_announcement());
+    assert!(alice.messages(&eve.addr()).next().is_none(), "Only once");
+
+    alice.receive(&eve.addr(), eve.node_announcement());
+    assert_matches!(
+        alice.messages(&bob.addr()).next(),
+        Some(Message::Announcement(_)),
+        "A node announcement from Eve is relayed to Bob"
+    );
+    assert!(
+        alice.messages(&eve.addr()).next().is_none(),
+        "But not back to Eve"
+    );
+
+    eve.clock().elapse(LocalDuration::from_mins(1));
+    alice.receive(&bob.addr(), eve.node_announcement());
+    assert!(
+        alice.messages(&bob.addr()).next().is_none(),
+        "Bob already know about this message, since he sent it"
+    );
+    assert!(
+        alice.messages(&eve.addr()).next().is_none(),
+        "Eve already know about this message, since she signed it"
+    );
+}
+
+#[test]
 fn test_inventory_relay() {
     // Topology is eve <-> alice <-> bob
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
@@ -395,7 +457,7 @@ fn test_persistent_peer_reconnect() {
     let ips = alice
         .sessions()
         .negotiated()
-        .map(|(ip, _)| *ip)
+        .map(|(ip, _, _)| *ip)
         .collect::<Vec<_>>();
     assert!(ips.contains(&bob.ip));
     assert!(ips.contains(&eve.ip));
