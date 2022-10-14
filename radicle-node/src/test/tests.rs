@@ -15,6 +15,7 @@ use crate::service::ServiceState as _;
 use crate::service::*;
 use crate::storage::git::Storage;
 use crate::storage::ReadStorage;
+use crate::test::arbitrary;
 use crate::test::assert_matches;
 use crate::test::fixtures;
 #[allow(unused)]
@@ -77,14 +78,21 @@ fn test_inbound_connection() {
 
 #[test]
 fn test_persistent_peer_connect() {
-    let rng = fastrand::Rng::new();
+    let mut rng = fastrand::Rng::new();
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
     let config = Config {
         connect: vec![bob.address(), eve.address()],
         ..Config::default()
     };
-    let mut alice = Peer::config("alice", config, [7, 7, 7, 7], MockStorage::empty(), rng);
+    let mut alice = Peer::config(
+        "alice",
+        config,
+        [7, 7, 7, 7],
+        MockStorage::empty(),
+        MockSigner::new(&mut rng),
+        rng,
+    );
 
     alice.initialize();
 
@@ -158,6 +166,7 @@ fn test_tracking() {
         },
         [7, 7, 7, 7],
         MockStorage::empty(),
+        MockSigner::default(),
         fastrand::Rng::new(),
     );
     let proj_id: identity::Id = test::arbitrary::gen(1);
@@ -335,6 +344,94 @@ fn test_announcement_relay() {
 }
 
 #[test]
+fn test_refs_announcement_relay() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Peer::new(
+        "alice",
+        [7, 7, 7, 7],
+        Storage::open(tmp.path().join("alice")).unwrap(),
+    );
+    let eve = Peer::new(
+        "eve",
+        [8, 8, 8, 8],
+        Storage::open(tmp.path().join("eve")).unwrap(),
+    );
+
+    let bob = {
+        let mut rng = fastrand::Rng::new();
+        let signer = MockSigner::new(&mut rng);
+        let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
+
+        Peer::config(
+            "bob",
+            Config {
+                git_url: git::Url {
+                    scheme: git::url::Scheme::File,
+                    path: storage.path().to_string_lossy().to_string().into(),
+
+                    ..git::Url::default()
+                },
+                ..Config::default()
+            },
+            [9, 9, 9, 9],
+            storage,
+            signer,
+            rng,
+        )
+    };
+    let bob_inv = bob.inventory().unwrap();
+
+    alice.track(bob_inv[0]);
+    alice.track(bob_inv[1]);
+    alice.track(bob_inv[2]);
+    alice.connect_to(&bob);
+    alice.connect_to(&eve);
+    alice.receive(&eve.addr(), Message::Subscribe(Subscribe::all()));
+
+    alice.receive(&bob.addr(), bob.refs_announcement(bob_inv[0]));
+    assert_matches!(
+        alice.messages(&eve.addr()).next(),
+        Some(Message::Announcement(_)),
+        "A refs announcement from Bob is relayed to Eve"
+    );
+
+    alice.receive(&bob.addr(), bob.refs_announcement(bob_inv[0]));
+    assert!(
+        alice.messages(&eve.addr()).next().is_none(),
+        "The same ref announement is not relayed"
+    );
+
+    alice.receive(&bob.addr(), bob.refs_announcement(bob_inv[1]));
+    assert_matches!(
+        alice.messages(&eve.addr()).next(),
+        Some(Message::Announcement(_)),
+        "But a different one is"
+    );
+
+    alice.receive(&bob.addr(), bob.refs_announcement(bob_inv[2]));
+    assert_matches!(
+        alice.messages(&eve.addr()).next(),
+        Some(Message::Announcement(_)),
+        "And a third one is as well"
+    );
+}
+
+#[test]
+fn test_refs_gossip_no_subscribe() {
+    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
+    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+    let id = arbitrary::gen(1);
+
+    alice.track(id);
+    alice.connect_to(&bob);
+    alice.connect_to(&eve);
+    alice.receive(&bob.addr(), bob.refs_announcement(id));
+
+    assert!(alice.messages(&eve.addr()).next().is_none());
+}
+
+#[test]
 fn test_inventory_relay() {
     // Topology is eve <-> alice <-> bob
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
@@ -442,6 +539,7 @@ fn test_persistent_peer_reconnect() {
         },
         [7, 7, 7, 7],
         MockStorage::empty(),
+        MockSigner::default(),
         fastrand::Rng::new(),
     );
 

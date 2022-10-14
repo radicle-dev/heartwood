@@ -7,8 +7,10 @@ use log::*;
 
 use crate::address;
 use crate::clock::{RefClock, Timestamp};
+use crate::crypto::Signer;
 use crate::git;
 use crate::git::Url;
+use crate::identity::Id;
 use crate::node;
 use crate::prelude::NodeId;
 use crate::service;
@@ -23,12 +25,12 @@ use crate::test::simulator;
 use crate::{Link, LocalTime};
 
 /// Service instantiation used for testing.
-pub type Service<S> = service::Service<routing::Table, address::Book, S, MockSigner>;
+pub type Service<S, G> = service::Service<routing::Table, address::Book, S, G>;
 
 #[derive(Debug)]
-pub struct Peer<S> {
+pub struct Peer<S, G> {
     pub name: &'static str,
-    pub service: Service<S>,
+    pub service: Service<S, G>,
     pub ip: net::IpAddr,
     pub rng: fastrand::Rng,
     pub local_time: LocalTime,
@@ -37,9 +39,10 @@ pub struct Peer<S> {
     initialized: bool,
 }
 
-impl<S> simulator::Peer<S> for Peer<S>
+impl<S, G> simulator::Peer<S, G> for Peer<S, G>
 where
     S: WriteStorage + 'static,
+    G: Signer + 'static,
 {
     fn init(&mut self) {
         self.initialize()
@@ -50,21 +53,21 @@ where
     }
 }
 
-impl<S> Deref for Peer<S> {
-    type Target = Service<S>;
+impl<S, G> Deref for Peer<S, G> {
+    type Target = Service<S, G>;
 
     fn deref(&self) -> &Self::Target {
         &self.service
     }
 }
 
-impl<S> DerefMut for Peer<S> {
+impl<S, G> DerefMut for Peer<S, G> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.service
     }
 }
 
-impl<S> Peer<S>
+impl<S> Peer<S, MockSigner>
 where
     S: WriteStorage + 'static,
 {
@@ -75,6 +78,8 @@ where
 
             ..git::Url::default()
         };
+        let mut rng = fastrand::Rng::new();
+        let signer = MockSigner::new(&mut rng);
 
         Self::config(
             name,
@@ -84,20 +89,27 @@ where
             },
             ip,
             storage,
-            fastrand::Rng::new(),
+            signer,
+            rng,
         )
     }
+}
 
+impl<S, G> Peer<S, G>
+where
+    S: WriteStorage + 'static,
+    G: Signer + 'static,
+{
     pub fn config(
         name: &'static str,
         config: Config,
         ip: impl Into<net::IpAddr>,
         storage: S,
-        mut rng: fastrand::Rng,
+        signer: G,
+        rng: fastrand::Rng,
     ) -> Self {
         let local_time = LocalTime::now();
         let clock = RefClock::from(local_time);
-        let signer = MockSigner::new(&mut rng);
         let routing = routing::Table::memory().unwrap();
         let addrs = address::Book::memory().unwrap();
         let service = Service::new(config, clock, routing, storage, addrs, signer, rng.clone());
@@ -170,9 +182,7 @@ where
         )
     }
 
-    pub fn refs_announcement(&self) -> Message {
-        let inv = self.inventory().unwrap();
-        let id = inv[self.rng.usize(..inv.len())];
+    pub fn refs_announcement(&self, id: Id) -> Message {
         let refs = BTreeMap::new().into();
         let ann = AnnouncementMessage::from(RefsAnnouncement {
             id,
@@ -185,7 +195,7 @@ where
     }
 
     pub fn connect_from(&mut self, peer: &Self) {
-        let remote = simulator::Peer::<S>::addr(peer);
+        let remote = simulator::Peer::<S, G>::addr(peer);
         let local = net::SocketAddr::new(self.ip, self.rng.u16(..));
         let git = format!("file:///{}.git", remote.ip());
         let git = Url::from_bytes(git.as_bytes()).unwrap();
@@ -213,7 +223,7 @@ where
     }
 
     pub fn connect_to(&mut self, peer: &Self) {
-        let remote = simulator::Peer::<S>::addr(peer);
+        let remote = simulator::Peer::<S, G>::addr(peer);
 
         self.initialize();
         self.service.attempted(&remote);

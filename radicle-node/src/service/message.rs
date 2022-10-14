@@ -122,6 +122,16 @@ pub struct Subscribe {
     pub until: Timestamp,
 }
 
+impl Subscribe {
+    pub fn all() -> Self {
+        Self {
+            filter: Filter::default(),
+            since: Timestamp::MIN,
+            until: Timestamp::MAX,
+        }
+    }
+}
+
 /// Node announcing itself to the network.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeAnnouncement {

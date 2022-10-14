@@ -643,8 +643,9 @@ where
                         return Ok(false);
                     }
                     // TODO: Check refs to see if we should try to fetch or not.
-                    // FIXME: This code is wrong: we shouldn't be fetching from the connected peer,
-                    // we should fetch from the origin.
+                    // Refs are only supposed to be relayed by peers who are tracking
+                    // the resource. Therefore, it's safe to fetch from the remote
+                    // peer, even though it isn't the announcer.
                     let updated = self.storage.fetch(message.id, git).unwrap();
                     let is_updated = !updated.is_empty();
 
