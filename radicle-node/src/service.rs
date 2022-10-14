@@ -621,9 +621,7 @@ where
             AnnouncementMessage::Inventory(message) => {
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
-                if timestamp > peer.last_inventory {
-                    peer.last_inventory = timestamp;
-                } else {
+                if !peer.inventory_announced(timestamp) {
                     debug!("Ignoring stale inventory announcement from {node}");
                     return Ok(false);
                 }
@@ -647,24 +645,12 @@ where
             AnnouncementMessage::Refs(message) => {
                 // TODO: Buffer/throttle fetches.
                 // TODO: Check that we're tracking this user as well.
-                // FIXME: Discard old messages.
                 if self.config.is_tracking(&message.id) {
                     // Discard inventory messages we've already seen, otherwise update
                     // out last seen time.
-                    match peer.last_refs.entry(message.id) {
-                        Entry::Vacant(e) => {
-                            e.insert(timestamp);
-                        }
-                        Entry::Occupied(mut e) => {
-                            let last = e.get_mut();
-
-                            if timestamp > *last {
-                                *last = timestamp;
-                            } else {
-                                debug!("Ignoring stale refs announcement from {node}");
-                                return Ok(false);
-                            }
-                        }
+                    if !peer.refs_announced(message.id, timestamp) {
+                        debug!("Ignoring stale refs announcement from {node}");
+                        return Ok(false);
                     }
                     // TODO: Check refs to see if we should try to fetch or not.
                     // FIXME: This code is wrong: we shouldn't be fetching from the connected peer,
@@ -691,9 +677,7 @@ where
             }) => {
                 // Discard node messages we've already seen, otherwise update
                 // out last seen time.
-                if timestamp > peer.last_node {
-                    peer.last_node = timestamp;
-                } else {
+                if !peer.node_announced(timestamp) {
                     debug!("Ignoring stale node announcement from {node}");
                     return Ok(false);
                 }
@@ -1021,6 +1005,48 @@ pub struct Node {
     pub last_inventory: Timestamp,
     /// Last node announcement.
     pub last_node: Timestamp,
+}
+
+impl Node {
+    /// Process a refs announcement for the given node.
+    /// Returns `true` if the timestamp was updated.
+    pub fn refs_announced(&mut self, id: Id, t: Timestamp) -> bool {
+        match self.last_refs.entry(id) {
+            Entry::Vacant(e) => {
+                e.insert(t);
+                return true;
+            }
+            Entry::Occupied(mut e) => {
+                let last = e.get_mut();
+
+                if t > *last {
+                    *last = t;
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Process an inventory announcement for the given node.
+    /// Returns `true` if the timestamp was updated.
+    pub fn inventory_announced(&mut self, t: Timestamp) -> bool {
+        if t > self.last_inventory {
+            self.last_inventory = t;
+            return true;
+        }
+        false
+    }
+
+    /// Process a node announcement for the given node.
+    /// Returns `true` if the timestamp was updated.
+    pub fn node_announced(&mut self, t: Timestamp) -> bool {
+        if t > self.last_node {
+            self.last_node = t;
+            return true;
+        }
+        false
+    }
 }
 
 #[derive(Debug)]
