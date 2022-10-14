@@ -10,7 +10,6 @@ use crate::prelude::{LocalDuration, Timestamp};
 use crate::service::config::*;
 use crate::service::filter::Filter;
 use crate::service::message::*;
-use crate::service::peer::*;
 use crate::service::reactor::Io;
 use crate::service::ServiceState as _;
 use crate::service::*;
@@ -280,7 +279,7 @@ fn test_inventory_relay_bad_timestamp() {
     );
     assert_matches!(
         alice.outbox().next(),
-        Some(Io::Disconnect(addr, DisconnectReason::Error(SessionError::InvalidTimestamp(t))))
+        Some(Io::Disconnect(addr, DisconnectReason::Error(session::Error::InvalidTimestamp(t))))
         if addr == bob.addr() && t == timestamp
     );
 }

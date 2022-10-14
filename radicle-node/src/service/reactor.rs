@@ -4,7 +4,7 @@ use std::net;
 use log::*;
 
 use crate::prelude::*;
-use crate::service::peer::Session;
+use crate::service::session::Session;
 
 use super::message::{Announcement, AnnouncementMessage};
 

@@ -1,5 +1,8 @@
-use crate::service::message::*;
-use crate::service::*;
+use crate::service::message;
+use crate::service::message::Message;
+use crate::service::net;
+use crate::service::storage;
+use crate::service::{Link, LocalTime, NodeId, Reactor, Rng};
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub enum PingState {
@@ -14,7 +17,7 @@ pub enum PingState {
 
 #[derive(Debug, Default, Clone)]
 #[allow(clippy::large_enum_variant)]
-pub enum SessionState {
+pub enum State {
     /// Initial peer state. For outgoing peers this
     /// means we've attempted a connection. For incoming
     /// peers, this means they've successfully connected
@@ -27,7 +30,7 @@ pub enum SessionState {
         id: NodeId,
         since: LocalTime,
         /// Addresses this peer is reachable on.
-        addrs: Vec<Address>,
+        addrs: Vec<message::Address>,
         ping: PingState,
     },
     /// When a peer is disconnected.
@@ -35,7 +38,7 @@ pub enum SessionState {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum SessionError {
+pub enum Error {
     #[error("wrong protocol version in message: {0}")]
     WrongVersion(u32),
     #[error("invalid announcement timestamp: {0}")]
@@ -61,9 +64,9 @@ pub struct Session {
     /// to this peer upon disconnection.
     pub persistent: bool,
     /// Peer connection state.
-    pub state: SessionState,
+    pub state: State,
     /// Peer subscription.
-    pub subscribe: Option<Subscribe>,
+    pub subscribe: Option<message::Subscribe>,
     /// Last time a message was received from the peer.
     pub last_active: LocalTime,
 
@@ -80,7 +83,7 @@ impl Session {
     pub fn new(addr: net::SocketAddr, link: Link, persistent: bool, rng: Rng) -> Self {
         Self {
             addr,
-            state: SessionState::default(),
+            state: State::default(),
             link,
             subscribe: None,
             persistent,
@@ -90,12 +93,12 @@ impl Session {
         }
     }
 
-    pub fn ip(&self) -> IpAddr {
+    pub fn ip(&self) -> net::IpAddr {
         self.addr.ip()
     }
 
     pub fn is_negotiated(&self) -> bool {
-        matches!(self.state, SessionState::Negotiated { .. })
+        matches!(self.state, State::Negotiated { .. })
     }
 
     pub fn attempts(&self) -> usize {
@@ -110,8 +113,8 @@ impl Session {
         self.attempts = 0;
     }
 
-    pub fn ping(&mut self, reactor: &mut Reactor) -> Result<(), SessionError> {
-        if let SessionState::Negotiated { ping, .. } = &mut self.state {
+    pub fn ping(&mut self, reactor: &mut Reactor) -> Result<(), Error> {
+        if let State::Negotiated { ping, .. } = &mut self.state {
             let msg = message::Ping::new(&mut self.rng);
             *ping = PingState::AwaitingResponse(msg.ponglen);
 
