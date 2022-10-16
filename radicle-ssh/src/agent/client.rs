@@ -210,7 +210,6 @@ impl<S: ClientStream> AgentClient<S> {
         self.buf.write_len();
 
         self.stream.read_response(&mut self.buf)?;
-        debug!("identities: {:?}", &self.buf[..]);
 
         let mut keys = Vec::new();
         if self.buf[0] == msg::IDENTITIES_ANSWER {

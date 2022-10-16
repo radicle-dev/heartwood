@@ -130,6 +130,7 @@ impl WriteStorage for Storage {
 }
 
 impl Storage {
+    // TODO: Return a better error when not found.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
         let path = path.as_ref().to_path_buf();
 

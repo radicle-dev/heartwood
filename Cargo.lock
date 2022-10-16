@@ -809,6 +809,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-remote-helper"
+version = "0.2.0"
+dependencies = [
+ "radicle",
+ "thiserror",
+]
+
+[[package]]
 name = "radicle-ssh"
 version = "0.2.0"
 dependencies = [

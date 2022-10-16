@@ -75,7 +75,7 @@ impl Profile {
     }
 
     /// Return a connection to the locally running node.
-    pub fn node(&self) -> Result<node::Connection, io::Error> {
+    pub fn node(&self) -> Result<node::Connection, node::Error> {
         node::Connection::connect(self.socket())
     }
 

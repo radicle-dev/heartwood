@@ -15,8 +15,8 @@ pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("i/o error: {0}")]
-    Io(#[from] io::Error),
+    #[error("failed to connecto to node: {0}")]
+    Connect(#[from] io::Error),
 }
 
 pub trait Handle {
@@ -40,8 +40,8 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn connect<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
-        let stream = UnixStream::connect(path)?;
+    pub fn connect<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        let stream = UnixStream::connect(path).map_err(Error::Connect)?;
 
         Ok(Self { stream })
     }

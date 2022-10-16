@@ -48,6 +48,7 @@ pub fn init<G: Signer, S: storage::WriteStorage>(
     signer: G,
     storage: &S,
 ) -> Result<(Id, SignedRefs<Verified>), InitError> {
+    // TODO: Better error when project id already exists in storage, but remote doesn't.
     let pk = signer.public_key();
     let delegate = identity::Delegate {
         // TODO: Use actual user name.
