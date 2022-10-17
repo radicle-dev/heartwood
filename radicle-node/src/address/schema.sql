@@ -9,11 +9,7 @@ create table if not exists "nodes" (
   -- Node alias.
   "alias"              text      default null,
   -- Node announcement timestamp.
-  "timestamp"          integer   not null,
-  -- Local time at which we last attempted to connect to this node.
-  "last_attempt"       integer   default null,
-  -- Local time at which we successfully connected to this node.
-  "last_success"       integer   default null
+  "timestamp"          integer   not null
   --
 ) strict;
 
@@ -28,6 +24,10 @@ create table if not exists "addresses" (
   "source"             text      not null,
   -- When this address was announced.
   "timestamp"          integer   not null,
+  -- Local time at which we last attempted to connect to this node.
+  "last_attempt"       integer   default null,
+  -- Local time at which we successfully connected to this node.
+  "last_success"       integer   default null,
   -- Nb. This constraint allows more than one node to share the same address.
   -- This is useful in circumstances when a node wants to rotate its key, but
   -- remain reachable at the same address. The old entry will eventually be
