@@ -117,4 +117,19 @@ mod test {
         let json = serde_json::to_string(&did).unwrap();
         assert_eq!(format!("\"{}\"", did), json);
     }
+
+    #[test]
+    fn test_did_encode_decode() {
+        let input = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
+        let Did(key) = Did::decode(input).unwrap();
+
+        assert_eq!(Did::from(key).encode(), input);
+    }
+
+    #[test]
+    fn test_did_vectors() {
+        Did::decode("did:key:z6MkiTBz1ymuepAQ4HEHYSF1H8quG5GLVVQR3djdX3mDooWp").unwrap();
+        Did::decode("did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG").unwrap();
+        Did::decode("did:key:z6MknGc3ocHs3zdPiJbnaaqDi58NGb4pk1Sp9WxWufuXSdxf").unwrap();
+    }
 }

@@ -131,6 +131,8 @@ pub enum PublicKeyError {
     InvalidLength(usize),
     #[error("invalid multibase string: {0}")]
     Multibase(#[from] multibase::Error),
+    #[error("invalid multicodec prefix, expected {0:?}")]
+    Multicodec([u8; 2]),
     #[error("invalid key: {0}")]
     InvalidKey(#[from] ed25519::Error),
 }
@@ -198,8 +200,21 @@ impl TryFrom<&[u8]> for PublicKey {
 }
 
 impl PublicKey {
+    /// Multicodec key type for Ed25519 keys.
+    pub const MULTICODEC_TYPE: [u8; 2] = [0xED, 0x1];
+
+    /// Encode public key in human-readable format.
+    ///
+    /// We use the format specified by the DID `key` method, which is described as:
+    ///
+    /// `did:key:MULTIBASE(base58-btc, MULTICODEC(public-key-type, raw-public-key-bytes))`
+    ///
     pub fn to_human(&self) -> String {
-        multibase::encode(multibase::Base::Base58Btc, self.0.deref())
+        let mut buf = [0; 2 + ed25519::PublicKey::BYTES];
+        buf[..2].copy_from_slice(&Self::MULTICODEC_TYPE);
+        buf[2..].copy_from_slice(self.0.deref());
+
+        multibase::encode(multibase::Base::Base58Btc, &buf)
     }
 }
 
@@ -208,12 +223,14 @@ impl FromStr for PublicKey {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (_, bytes) = multibase::decode(s)?;
-        let array: [u8; 32] = bytes
-            .try_into()
-            .map_err(|v: Vec<u8>| PublicKeyError::InvalidLength(v.len()))?;
-        let key = ed25519::PublicKey::new(array);
 
-        Ok(Self(key))
+        if let Some(bytes) = bytes.strip_prefix(&Self::MULTICODEC_TYPE) {
+            let key = ed25519::PublicKey::from_slice(bytes)?;
+
+            Ok(Self(key))
+        } else {
+            Err(PublicKeyError::Multicodec(Self::MULTICODEC_TYPE))
+        }
     }
 }
 
@@ -245,5 +262,13 @@ mod test {
         let decoded = PublicKey::from_str(&encoded).unwrap();
 
         assert_eq!(input, decoded);
+    }
+
+    #[test]
+    fn test_encode_decode() {
+        let input = "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
+        let key = PublicKey::from_str(input).unwrap();
+
+        assert_eq!(key.to_string(), input);
     }
 }

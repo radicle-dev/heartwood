@@ -53,7 +53,8 @@ pub mod fmt {
 
         #[test]
         fn test_key() {
-            let pk = PublicKey::from_str("zF4VJZgNEeL1niWmKu1NtT1B4ZyGpjACyhs2VEZvtsws5").unwrap();
+            let pk =
+                PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
 
             assert_eq!(
                 key(&pk),
@@ -63,8 +64,8 @@ pub mod fmt {
 
         #[test]
         fn test_fingerprint() {
-            let pk = PublicKey::from_str("zF4VJZgNEeL1niWmKu1NtT1B4ZyGpjACyhs2VEZvtsws5").unwrap();
-
+            let pk =
+                PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
             assert_eq!(
                 fingerprint(&pk),
                 "SHA256:gE/Ty4fuXzww49lcnNe9/GI0L7xSEQdFp/v9tOjFwB4"
@@ -360,7 +361,7 @@ mod test {
     fn test_agent_encoding_remove() {
         use std::str::FromStr;
 
-        let pk = PublicKey::from_str("zF4VJZgNEeL1niWmKu1NtT1B4ZyGpjACyhs2VEZvtsws5").unwrap();
+        let pk = PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
         let expected = [
             0, 0, 0, 56, // Message length
             18, // Message type (remove identity)
@@ -387,7 +388,7 @@ mod test {
     fn test_agent_encoding_sign() {
         use std::str::FromStr;
 
-        let pk = PublicKey::from_str("zF4VJZgNEeL1niWmKu1NtT1B4ZyGpjACyhs2VEZvtsws5").unwrap();
+        let pk = PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
         let expected = [
             0, 0, 0, 73, // Message length
             13, // Message type (sign request)
