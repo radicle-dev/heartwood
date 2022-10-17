@@ -1,12 +1,13 @@
 [workspace]
 members = [
   "radicle",
+  "radicle-cob",
   "radicle-crypto",
+  "radicle-httpd",
   "radicle-node",
-  "radicle-tools",
-  "radicle-ssh",
   "radicle-remote-helper",
-  "radicle-httpd"
+  "radicle-ssh",
+  "radicle-tools",
 ]
 default-members = [
   "radicle",

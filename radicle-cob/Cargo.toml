@@ -1,0 +1,47 @@
+[package]
+name = "radicle-cob"
+version = "0.1.0"
+authors = [
+  "Alex Good <alex@memoryandthought.me>",
+  "Fintan Halpenny <fintan.halpenny@gmail.com>",
+]
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Library for implementing Radicle Collaborative Objects"
+keywords = ["radicle", "collaborative objects", "cob", "cobs"]
+
+[lib]
+
+[dependencies]
+git-commit = { version = "0.2" }
+git-ref-format = { version = "0.1" }
+git-trailers = { version = "0.1" }
+log = { version = "0.4.17" }
+petgraph = { version = "0.5" }
+radicle-git-ext = { version = "0.2" }
+serde_json = { version = "1.0" }
+thiserror = { version = "1.0" }
+
+[dependencies.git2]
+version = "0.15.0"
+default-features = false
+features = ["vendored-libgit2"]
+
+[dependencies.radicle-crypto]
+path = "../radicle-crypto"
+version = "0.1"
+features = ["ssh"]
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[dev-dependencies]
+ed25519-compact = { version = "1.0.12", features = ["pem"] }
+tempfile = { version = "3" }
+quickcheck = { version = "1", default-features = false }
+
+[dev-dependencies.radicle-crypto]
+path = "../radicle-crypto"
+version = "0.1"
+features = ["test"]
