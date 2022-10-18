@@ -83,7 +83,7 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(addr: net::SocketAddr, link: Link, persistent: bool, rng: &Rng) -> Self {
+    pub fn new(addr: net::SocketAddr, link: Link, persistent: bool, rng: Rng) -> Self {
         Self {
             addr,
             state: SessionState::default(),
@@ -92,7 +92,7 @@ impl Session {
             persistent,
             last_active: LocalTime::default(),
             attempts: 0,
-            rng: rng.clone(),
+            rng,
         }
     }
 
@@ -116,15 +116,16 @@ impl Session {
         self.attempts = 0;
     }
 
-    pub fn ping(&mut self, reactor: &mut Reactor, rng: &Rng) -> Result<(), SessionError> {
+    pub fn ping(&mut self, reactor: &mut Reactor) -> Result<(), SessionError> {
         if let SessionState::Negotiated { ping, .. } = &mut self.state {
-            let ponglen = rng.u16(0..wire::message::MAX_PAYLOAD_SIZE_BYTES);
-            let msg = Message::Ping {
-                ponglen,
-                zeroes: message::ZeroBytes::new(
-                    rng.u16(0..(wire::message::MAX_PAYLOAD_SIZE_BYTES - (size_of::<u16>() as u16))),
-                ),
-            };
+            let ponglen = self.rng.u16(0..wire::message::MAX_PAYLOAD_SIZE_BYTES);
+            let msg =
+                Message::Ping {
+                    ponglen,
+                    zeroes: message::ZeroBytes::new(self.rng.u16(
+                        0..(wire::message::MAX_PAYLOAD_SIZE_BYTES - (size_of::<u16>() as u16)),
+                    )),
+                };
             reactor.write(self.addr, msg);
 
             *ping = PingState::AwaitingResponse(ponglen);

@@ -492,7 +492,7 @@ where
         let peer = self
             .sessions
             .entry(ip)
-            .or_insert_with(|| Session::new(*addr, Link::Outbound, persistent, &self.rng));
+            .or_insert_with(|| Session::new(*addr, Link::Outbound, persistent, self.rng.clone()));
 
         peer.attempted();
     }
@@ -533,7 +533,7 @@ where
                     addr,
                     Link::Inbound,
                     self.config.is_persistent(&address),
-                    &self.rng,
+                    self.rng.clone(),
                 ),
             );
         }
@@ -929,7 +929,7 @@ where
             .filter(|(_, session)| session.last_active < *now - KEEP_ALIVE_DELTA)
             .map(|(_, session)| session);
         for session in inactive_sessions {
-            session.ping(&mut self.reactor, &self.rng).ok();
+            session.ping(&mut self.reactor).ok();
         }
     }
 
