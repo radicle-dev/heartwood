@@ -7,7 +7,7 @@ use crate::crypto;
 use crate::prelude::{Id, NodeId, Refs, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
 use crate::service::message::{
-    Address, Announcement, Envelope, InventoryAnnouncement, Message, NodeAnnouncement,
+    Address, Announcement, Envelope, InventoryAnnouncement, Message, NodeAnnouncement, Ping,
     RefsAnnouncement, Subscribe, ZeroBytes,
 };
 use crate::wire::message::MessageType;
@@ -95,12 +95,13 @@ impl Arbitrary for Message {
                 since: Timestamp::arbitrary(g),
                 until: Timestamp::arbitrary(g),
             }),
-            MessageType::Ping => Self::Ping {
-                ponglen: u16::arbitrary(g),
-                zeroes: ZeroBytes::arbitrary(g),
-            },
+            MessageType::Ping => {
+                let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+
+                Self::Ping(Ping::new(&mut rng))
+            }
             MessageType::Pong => Self::Pong {
-                zeroes: ZeroBytes::arbitrary(g),
+                zeroes: ZeroBytes::new(u16::arbitrary(g).min(Ping::MAX_PONG_ZEROES)),
             },
             _ => unreachable!(),
         }

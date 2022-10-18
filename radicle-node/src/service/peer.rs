@@ -1,5 +1,3 @@
-use std::mem::size_of;
-
 use crate::service::message::*;
 use crate::service::*;
 
@@ -117,17 +115,10 @@ impl Session {
 
     pub fn ping(&mut self, reactor: &mut Reactor) -> Result<(), SessionError> {
         if let SessionState::Negotiated { ping, .. } = &mut self.state {
-            let ponglen = self.rng.u16(0..Message::MAX_SIZE);
-            let msg = Message::Ping {
-                ponglen,
-                zeroes: message::ZeroBytes::new(
-                    self.rng
-                        .u16(0..(Message::MAX_SIZE - size_of::<u16>() as u16)),
-                ),
-            };
-            reactor.write(self.addr, msg);
+            let msg = message::Ping::new(&mut self.rng);
+            *ping = PingState::AwaitingResponse(msg.ponglen);
 
-            *ping = PingState::AwaitingResponse(ponglen);
+            reactor.write(self.addr, Message::Ping(msg));
         }
         Ok(())
     }

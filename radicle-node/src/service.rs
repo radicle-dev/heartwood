@@ -31,7 +31,7 @@ use crate::git::Url;
 use crate::identity::{Doc, Id};
 use crate::node;
 use crate::service::config::ProjectTracking;
-use crate::service::message::{Address, Announcement, AnnouncementMessage};
+use crate::service::message::{Address, Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::peer::{PingState, SessionError, SessionState};
 use crate::storage;
@@ -834,11 +834,17 @@ where
                 );
                 return Err(SessionError::Misbehavior);
             }
-            (SessionState::Negotiated { .. }, Message::Ping { ponglen, .. }) => {
-                let resp = Message::Pong {
-                    zeroes: ZeroBytes::new(ponglen),
-                };
-                self.reactor.write(peer.addr, resp);
+            (SessionState::Negotiated { .. }, Message::Ping(Ping { ponglen, .. })) => {
+                // Ignore pings which ask for too much data.
+                if ponglen > Ping::MAX_PONG_ZEROES {
+                    return Ok(());
+                }
+                self.reactor.write(
+                    peer.addr,
+                    Message::Pong {
+                        zeroes: ZeroBytes::new(ponglen),
+                    },
+                );
             }
             (SessionState::Negotiated { ping, .. }, Message::Pong { zeroes }) => {
                 if let PingState::AwaitingResponse(ponglen) = *ping {

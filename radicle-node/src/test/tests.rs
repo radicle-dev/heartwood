@@ -44,10 +44,10 @@ fn test_ping_response() {
     alice.connect_to(&bob);
     alice.receive(
         &bob.addr(),
-        Message::Ping {
+        Message::Ping(Ping {
             ponglen: 21,
             zeroes: ZeroBytes::new(42),
-        },
+        }),
     );
     assert_matches!(
         alice.messages(&bob.addr()).next(),

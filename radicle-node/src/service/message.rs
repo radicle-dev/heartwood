@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use std::{fmt, io, net};
+use std::{fmt, io, mem, net};
 
 use thiserror::Error;
 
@@ -318,14 +318,9 @@ pub enum Message {
 
     /// Ask a connected peer for a Pong.
     ///
-    /// Use to check if the remote peer is responsive or a side-effect free way to keep a
+    /// Used to check if the remote peer is responsive, or a side-effect free way to keep a
     /// connection alive.
-    Ping {
-        /// The desired response length
-        ponglen: u16,
-        /// The ping payload.
-        zeroes: ZeroBytes,
-    },
+    Ping(Ping),
 
     /// Response to `Ping` message.
     Pong {
@@ -374,6 +369,36 @@ impl Message {
     }
 }
 
+/// A ping message.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Ping {
+    /// The requested length of the pong message.
+    pub ponglen: wire::Size,
+    /// Zero bytes (ignored).
+    pub zeroes: ZeroBytes,
+}
+
+impl Ping {
+    /// Maximum number of zero bytes in a ping message.
+    pub const MAX_PING_ZEROES: wire::Size = Message::MAX_SIZE // Message size without the type.
+        - mem::size_of::<wire::Size>() as wire::Size // Account for pong length.
+        - mem::size_of::<wire::Size>() as wire::Size; // Account for zeroes length prefix.
+
+    /// Maximum number of zero bytes in a pong message.
+    pub const MAX_PONG_ZEROES: wire::Size =
+        Message::MAX_SIZE - mem::size_of::<wire::Size>() as wire::Size; // Account for zeroes length
+                                                                        // prefix.
+
+    pub fn new(rng: &mut fastrand::Rng) -> Self {
+        let ponglen = rng.u16(0..Self::MAX_PONG_ZEROES);
+
+        Ping {
+            ponglen,
+            zeroes: ZeroBytes::new(rng.u16(0..Self::MAX_PING_ZEROES)),
+        }
+    }
+}
+
 impl From<Announcement> for Message {
     fn from(ann: Announcement) -> Self {
         Self::Announcement(ann)
@@ -390,18 +415,19 @@ impl fmt::Debug for Message {
             Self::Announcement(Announcement { node, message, .. }) => {
                 write!(f, "Announcement({}, {:?})", node, message)
             }
-            Self::Ping { ponglen, zeroes } => write!(f, "Ping({ponglen}, {:?})", zeroes),
+            Self::Ping(Ping { ponglen, zeroes }) => write!(f, "Ping({ponglen}, {:?})", zeroes),
             Self::Pong { zeroes } => write!(f, "Pong({:?})", zeroes),
         }
     }
 }
 
+/// Represents a vector of zeroes of a certain length.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ZeroBytes(u16);
+pub struct ZeroBytes(wire::Size);
 
 impl ZeroBytes {
-    pub fn new(arg: u16) -> Self {
-        ZeroBytes(arg)
+    pub fn new(size: wire::Size) -> Self {
+        ZeroBytes(size)
     }
 
     pub fn is_empty(&self) -> bool {

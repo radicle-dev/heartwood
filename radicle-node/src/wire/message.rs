@@ -198,13 +198,20 @@ impl wire::Encode for Message {
                 n += message.encode(writer)?;
                 n += signature.encode(writer)?;
             }
-            Self::Ping { ponglen, zeroes } => {
+            Self::Ping(Ping { ponglen, zeroes }) => {
                 n += ponglen.encode(writer)?;
                 n += zeroes.encode(writer)?;
             }
             Self::Pong { zeroes } => {
                 n += zeroes.encode(writer)?;
             }
+        }
+
+        if n > wire::Size::MAX as usize {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Message exceeds maximum size",
+            ));
         }
         Ok(n)
     }
@@ -278,7 +285,7 @@ impl wire::Decode for Message {
             Ok(MessageType::Ping) => {
                 let ponglen = u16::decode(reader)?;
                 let zeroes = ZeroBytes::decode(reader)?;
-                Ok(Self::Ping { ponglen, zeroes })
+                Ok(Self::Ping(Ping { ponglen, zeroes }))
             }
             Ok(MessageType::Pong) => {
                 let zeroes = ZeroBytes::decode(reader)?;
