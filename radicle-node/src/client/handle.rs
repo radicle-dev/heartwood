@@ -56,6 +56,10 @@ pub struct Handle<W: Waker> {
 }
 
 impl<W: Waker> traits::Handle for Handle<W> {
+    fn listening(&self) -> Result<net::SocketAddr, Error> {
+        self.listening.recv().map_err(Error::from)
+    }
+
     /// Retrieve or update the given project from the network.
     fn fetch(&self, id: Id) -> Result<FetchLookup, Error> {
         let (sender, receiver) = chan::bounded(1);
@@ -142,6 +146,8 @@ pub mod traits {
     use super::*;
 
     pub trait Handle {
+        /// Wait for the node's listening socket to be bound.
+        fn listening(&self) -> Result<net::SocketAddr, Error>;
         /// Retrieve or update the project from network.
         fn fetch(&self, id: Id) -> Result<FetchLookup, Error>;
         /// Start tracking the given project. Doesn't do anything if the project is already

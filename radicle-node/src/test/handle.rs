@@ -14,6 +14,10 @@ pub struct Handle {
 }
 
 impl traits::Handle for Handle {
+    fn listening(&self) -> Result<std::net::SocketAddr, Error> {
+        unimplemented!()
+    }
+
     fn fetch(&self, _id: Id) -> Result<FetchLookup, Error> {
         Ok(FetchLookup::NotFound)
     }
