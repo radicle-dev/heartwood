@@ -45,20 +45,28 @@ use self::gossip::Gossip;
 use self::message::InventoryAnnouncement;
 use self::reactor::Reactor;
 
+/// Default radicle protocol port.
 pub const DEFAULT_PORT: u16 = 8776;
+/// Protocol version. Only updated for wire protocol changes.
 pub const PROTOCOL_VERSION: u32 = 1;
+/// Target number of peers to maintain connections to.
 pub const TARGET_OUTBOUND_PEERS: usize = 8;
+/// How often to run the "idle" task.
 pub const IDLE_INTERVAL: LocalDuration = LocalDuration::from_secs(30);
+/// How often to run the "announce" task.
 pub const ANNOUNCE_INTERVAL: LocalDuration = LocalDuration::from_secs(30);
+/// How often to run the "sync" task.
 pub const SYNC_INTERVAL: LocalDuration = LocalDuration::from_secs(60);
+/// How often to run the "prune" task.
 pub const PRUNE_INTERVAL: LocalDuration = LocalDuration::from_mins(30);
-pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
-
 /// Duration to wait on an unresponsive peer before dropping its connection.
 pub const STALE_CONNECTION_TIMEOUT: LocalDuration = LocalDuration::from_secs(60);
-
+/// How much time should pass after a peer was last active for a *ping* to be sent.
 pub const KEEP_ALIVE_DELTA: LocalDuration = LocalDuration::from_secs(30);
+/// Maximum time difference between the local time, and an announcement timestamp.
 pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
+/// Maximum attempts to connect to a peer before we give up.
+pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
 
 /// Network node identifier.
 pub type NodeId = crypto::PublicKey;
