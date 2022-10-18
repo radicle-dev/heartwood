@@ -60,33 +60,28 @@ impl<W: Waker> traits::Handle for Handle<W> {
         self.listening.recv().map_err(Error::from)
     }
 
-    /// Retrieve or update the given project from the network.
     fn fetch(&self, id: Id) -> Result<FetchLookup, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.commands.send(service::Command::Fetch(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
-    /// Start tracking the given project. Doesn't do anything if the project is already tracked.
     fn track(&self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.commands.send(service::Command::Track(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
-    /// Untrack the given project and delete it from storage.
     fn untrack(&self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.commands.send(service::Command::Untrack(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
-    /// Notify the client that a project has been updated.
     fn announce_refs(&self, id: Id) -> Result<(), Error> {
         self.command(service::Command::AnnounceRefs(id))
     }
 
-    /// Send a command to the command channel, and wake up the event loop.
     fn command(&self, cmd: service::Command) -> Result<(), Error> {
         self.commands.send(cmd)?;
         self.waker.wake()?;
@@ -133,7 +128,6 @@ impl<W: Waker> traits::Handle for Handle<W> {
         Ok(receiver)
     }
 
-    /// Ask the client to shutdown.
     fn shutdown(self) -> Result<(), Error> {
         self.shutdown.send(())?;
         self.waker.wake()?;
