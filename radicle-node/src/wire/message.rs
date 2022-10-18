@@ -1,4 +1,4 @@
-use std::{io, net};
+use std::{io, mem, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
 
@@ -7,10 +7,9 @@ use crate::prelude::*;
 use crate::service::message::*;
 use crate::wire;
 
-use std::mem::size_of;
-
 /// The maximum supported message size in bytes.
-pub const MAX_PAYLOAD_SIZE_BYTES: u16 = u16::MAX - (size_of::<MessageType>() as u16);
+pub const MAX_PAYLOAD_SIZE_BYTES: wire::Size =
+    wire::Size::MAX - (mem::size_of::<MessageType>() as wire::Size);
 
 /// Message type.
 #[repr(u16)]

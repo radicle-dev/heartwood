@@ -26,10 +26,13 @@ use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
 
-/// The default type we use to represent sizes.
-/// Four bytes is more than enough for anything sent over the wire.
-/// Note that in certain cases, we may use only one or two byte types.
-pub type Size = u32;
+/// The default type we use to represent sizes on the wire.
+///
+/// Since wire messages are limited to 64KB by the transport layer,
+/// two bytes is enough to represent any message.
+///
+/// Note that in certain cases, we may use a smaller type.
+pub type Size = u16;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -123,21 +126,6 @@ impl Encode for u64 {
     }
 }
 
-impl Encode for usize {
-    /// We encode this type to a [`u32`], since there's no need to send larger messages
-    /// over the network.
-    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        assert!(
-            *self <= u32::MAX as usize,
-            "Cannot encode sizes larger than {}",
-            u32::MAX
-        );
-        writer.write_u32::<NetworkEndian>(*self as u32)?;
-
-        Ok(mem::size_of::<u32>())
-    }
-}
-
 impl Encode for PublicKey {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         self.deref().encode(writer)
@@ -215,7 +203,11 @@ impl Encode for Id {
 
 impl Encode for Refs {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        let mut n = self.len().encode(writer)?;
+        let len: Size = self
+            .len()
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let mut n = len.encode(writer)?;
 
         for (name, oid) in self.iter() {
             n += name.as_str().encode(writer)?;
@@ -251,7 +243,7 @@ impl Decode for PublicKey {
 
 impl Decode for Refs {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let len = usize::decode(reader)?;
+        let len = Size::decode(reader)?;
         let mut refs = BTreeMap::new();
 
         for _ in 0..len {
@@ -267,7 +259,7 @@ impl Decode for Refs {
 
 impl Decode for git::Oid {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let len = usize::decode(reader)?;
+        let len = Size::decode(reader)? as usize;
         #[allow(non_upper_case_globals)]
         const expected: usize = mem::size_of::<git::raw::Oid>();
 
@@ -315,16 +307,6 @@ impl Decode for u32 {
 impl Decode for u64 {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
         reader.read_u64::<NetworkEndian>().map_err(Error::from)
-    }
-}
-
-impl Decode for usize {
-    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let size: usize = u32::decode(reader)?
-            .try_into()
-            .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
-
-        Ok(size)
     }
 }
 
@@ -585,16 +567,6 @@ mod tests {
     #[quickcheck]
     fn prop_u64(input: u64) {
         assert_eq!(deserialize::<u64>(&serialize(&input)).unwrap(), input);
-    }
-
-    #[quickcheck]
-    fn prop_usize(input: usize) -> quickcheck::TestResult {
-        if input > u32::MAX as usize {
-            return quickcheck::TestResult::discard();
-        }
-        assert_eq!(deserialize::<usize>(&serialize(&input)).unwrap(), input);
-
-        quickcheck::TestResult::passed()
     }
 
     #[quickcheck]
