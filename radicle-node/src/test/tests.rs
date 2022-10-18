@@ -40,19 +40,34 @@ use crate::{client, git, identity, rad, service, test};
 fn test_ping_response() {
     let mut alice = Peer::new("alice", [8, 8, 8, 8], MockStorage::empty());
     let bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
+    let eve = Peer::new("eve", [7, 7, 7, 7], MockStorage::empty());
 
     alice.connect_to(&bob);
     alice.receive(
         &bob.addr(),
         Message::Ping(Ping {
-            ponglen: 21,
+            ponglen: Ping::MAX_PONG_ZEROES,
             zeroes: ZeroBytes::new(42),
         }),
     );
     assert_matches!(
         alice.messages(&bob.addr()).next(),
-        Some(Message::Pong { zeroes }) if zeroes.len() == 21,
+        Some(Message::Pong { zeroes }) if zeroes.len() == Ping::MAX_PONG_ZEROES as usize,
         "respond with correctly formatted pong",
+    );
+
+    alice.connect_to(&eve);
+    alice.receive(
+        &eve.addr(),
+        Message::Ping(Ping {
+            ponglen: Ping::MAX_PONG_ZEROES + 1,
+            zeroes: ZeroBytes::new(42),
+        }),
+    );
+    assert_matches!(
+        alice.messages(&eve.addr()).next(),
+        None,
+        "ignore unsupported ping message",
     );
 }
 

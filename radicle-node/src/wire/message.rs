@@ -376,6 +376,44 @@ mod tests {
     use crate::decoder::Decoder;
     use crate::wire::{self, Encode};
 
+    #[test]
+    fn test_pingpong_encode_max_size() {
+        let mut buf = Vec::new();
+
+        let ping = Message::Ping(Ping {
+            ponglen: 0,
+            zeroes: ZeroBytes::new(Ping::MAX_PING_ZEROES),
+        });
+        ping.encode(&mut buf)
+            .expect("ping should be within max message size");
+
+        let pong = Message::Pong {
+            zeroes: ZeroBytes::new(Ping::MAX_PONG_ZEROES),
+        };
+        pong.encode(&mut buf)
+            .expect("pong should be within max message size");
+    }
+
+    #[test]
+    fn test_pingpong_encode_size_overflow() {
+        let ping = Message::Ping(Ping {
+            ponglen: 0,
+            zeroes: ZeroBytes::new(Ping::MAX_PING_ZEROES + 1),
+        });
+
+        let mut buf = Vec::new();
+        ping.encode(&mut buf)
+            .expect_err("ping should exceed max message size");
+
+        let pong = Message::Pong {
+            zeroes: ZeroBytes::new(Ping::MAX_PONG_ZEROES + 1),
+        };
+
+        let mut buf = Vec::new();
+        pong.encode(&mut buf)
+            .expect_err("pong should exceed max message size");
+    }
+
     #[quickcheck]
     fn prop_message_encode_decode(message: Message) {
         assert_eq!(
