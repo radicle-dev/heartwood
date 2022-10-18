@@ -296,26 +296,6 @@ impl wire::Decode for Message {
     }
 }
 
-impl wire::Encode for Envelope {
-    fn encode<W: std::io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
-        let mut n = 0;
-
-        n += self.magic.encode(writer)?;
-        n += self.msg.encode(writer)?;
-
-        Ok(n)
-    }
-}
-
-impl wire::Decode for Envelope {
-    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
-        let magic = u32::decode(reader)?;
-        let msg = Message::decode(reader)?;
-
-        Ok(Self { magic, msg })
-    }
-}
-
 impl wire::Encode for Address {
     fn encode<W: std::io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
         let mut n = 0;
@@ -404,18 +384,10 @@ mod tests {
         );
     }
 
-    #[quickcheck]
-    fn prop_envelope_encode_decode(envelope: Envelope) {
-        assert_eq!(
-            wire::deserialize::<Envelope>(&wire::serialize(&envelope)).unwrap(),
-            envelope
-        );
-    }
-
     #[test]
-    fn prop_envelope_decoder() {
-        fn property(items: Vec<Envelope>) {
-            let mut decoder = Decoder::<Envelope>::new(8);
+    fn prop_message_decoder() {
+        fn property(items: Vec<Message>) {
+            let mut decoder = Decoder::<Message>::new(8);
 
             for item in &items {
                 item.encode(&mut decoder).unwrap();
@@ -427,7 +399,7 @@ mod tests {
 
         quickcheck::QuickCheck::new()
             .gen(quickcheck::Gen::new(16))
-            .quickcheck(property as fn(items: Vec<Envelope>));
+            .quickcheck(property as fn(items: Vec<Message>));
     }
 
     #[quickcheck]

@@ -17,7 +17,7 @@ use nakamoto_net::{Link, LocalDuration, LocalTime};
 
 use crate::crypto::Signer;
 use crate::service::reactor::Io;
-use crate::service::{DisconnectReason, Envelope, Event};
+use crate::service::{DisconnectReason, Event, Message};
 use crate::storage::WriteStorage;
 use crate::test::peer::Service;
 
@@ -64,7 +64,7 @@ pub enum Input {
         Rc<nakamoto::DisconnectReason<DisconnectReason>>,
     ),
     /// Received a message from a remote peer.
-    Received(net::SocketAddr, Vec<Envelope>),
+    Received(net::SocketAddr, Vec<Message>),
     /// Used to advance the state machine after some wall time has passed.
     Wake,
 }

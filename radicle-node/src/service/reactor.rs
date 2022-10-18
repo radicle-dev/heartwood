@@ -12,7 +12,7 @@ use super::message::{Announcement, AnnouncementMessage};
 #[derive(Debug)]
 pub enum Io {
     /// There are some messages ready to be sent to a peer.
-    Write(net::SocketAddr, Vec<Envelope>),
+    Write(net::SocketAddr, Vec<Message>),
     /// Connect to a peer.
     Connect(net::SocketAddr),
     /// Disconnect from a peer.
@@ -24,22 +24,13 @@ pub enum Io {
 }
 
 /// Interface to the network reactor.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Reactor {
-    /// The network we're on.
-    network: Network,
     /// Outgoing I/O queue.
     io: VecDeque<Io>,
 }
 
 impl Reactor {
-    pub fn new(network: Network) -> Self {
-        Self {
-            network,
-            io: VecDeque::new(),
-        }
-    }
-
     /// Emit an event.
     pub fn event(&mut self, event: Event) {
         self.io.push_back(Io::Event(event));
@@ -71,16 +62,12 @@ impl Reactor {
     pub fn write(&mut self, remote: net::SocketAddr, msg: Message) {
         debug!("Write {:?} to {}", &msg, remote.ip());
 
-        let envelope = self.network.envelope(msg);
-        self.io.push_back(Io::Write(remote, vec![envelope]));
+        self.io.push_back(Io::Write(remote, vec![msg]));
     }
 
     pub fn write_all(&mut self, remote: net::SocketAddr, msgs: impl IntoIterator<Item = Message>) {
-        let envelopes = msgs
-            .into_iter()
-            .map(|msg| self.network.envelope(msg))
-            .collect();
-        self.io.push_back(Io::Write(remote, envelopes));
+        self.io
+            .push_back(Io::Write(remote, msgs.into_iter().collect()));
     }
 
     pub fn wakeup(&mut self, after: LocalDuration) {

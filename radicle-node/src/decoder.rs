@@ -1,14 +1,14 @@
 use std::io;
 use std::marker::PhantomData;
 
-use crate::service::message::Envelope;
+use crate::service::message::Message;
 use crate::wire;
 
 /// Message stream decoder.
 ///
 /// Used to for example turn a byte stream into network messages.
 #[derive(Debug)]
-pub struct Decoder<D = Envelope> {
+pub struct Decoder<D = Message> {
     unparsed: Vec<u8>,
     item: PhantomData<D>,
 }

@@ -154,8 +154,7 @@ where
     }
 
     pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
-        self.service
-            .received_message(peer, self.config().network.envelope(msg));
+        self.service.received_message(peer, msg);
     }
 
     pub fn inventory_announcement(&self) -> Message {
@@ -262,8 +261,8 @@ where
         let mut msgs = Vec::new();
 
         self.service.reactor().outbox().retain(|o| match o {
-            Io::Write(a, envelopes) if a == remote => {
-                msgs.extend(envelopes.iter().map(|e| e.msg.clone()));
+            Io::Write(a, messages) if a == remote => {
+                msgs.extend(messages.clone());
                 false
             }
             _ => true,

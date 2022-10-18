@@ -12,15 +12,6 @@ use crate::service::{NodeId, Timestamp, PROTOCOL_VERSION};
 use crate::storage::refs::Refs;
 use crate::wire;
 
-/// Message envelope. All messages sent over the network are wrapped in this type.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Envelope {
-    /// Network magic constant. Used to differentiate networks.
-    pub magic: u32,
-    /// The message payload.
-    pub msg: Message,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: We should check the length and charset when deserializing.
 pub struct Hostname(String);

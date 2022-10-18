@@ -7,7 +7,7 @@ use crate::crypto;
 use crate::prelude::{Id, NodeId, Refs, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
 use crate::service::message::{
-    Address, Announcement, Envelope, InventoryAnnouncement, Message, NodeAnnouncement, Ping,
+    Address, Announcement, InventoryAnnouncement, Message, NodeAnnouncement, Ping,
     RefsAnnouncement, Subscribe, ZeroBytes,
 };
 use crate::wire::message::MessageType;
@@ -25,15 +25,6 @@ impl Arbitrary for Filter {
             bytes[index] = u8::arbitrary(g);
         }
         Self::from(BloomFilter::from(bytes))
-    }
-}
-
-impl Arbitrary for Envelope {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        Self {
-            magic: u32::arbitrary(g),
-            msg: Message::arbitrary(g),
-        }
     }
 }
 

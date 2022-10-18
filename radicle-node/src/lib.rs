@@ -21,7 +21,7 @@ pub mod prelude {
     pub use crate::identity::{Did, Id};
     pub use crate::service::filter::Filter;
     pub use crate::service::message::Address;
-    pub use crate::service::{DisconnectReason, Envelope, Event, Message, Network, NodeId};
+    pub use crate::service::{DisconnectReason, Event, Message, Network, NodeId};
     pub use crate::storage::refs::Refs;
     pub use crate::storage::WriteStorage;
     pub use crate::{LocalDuration, LocalTime};

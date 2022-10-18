@@ -3,7 +3,7 @@ use crate::git;
 use crate::git::Url;
 use crate::identity::{Id, PublicKey};
 use crate::service::filter::Filter;
-use crate::service::message::{Address, Envelope, Message};
+use crate::service::message::Address;
 
 /// Peer-to-peer network.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
@@ -11,22 +11,6 @@ pub enum Network {
     #[default]
     Main,
     Test,
-}
-
-impl Network {
-    pub fn magic(&self) -> u32 {
-        match self {
-            Self::Main => 0x819b43d9,
-            Self::Test => 0x717ebaf8,
-        }
-    }
-
-    pub fn envelope(&self, msg: Message) -> Envelope {
-        Envelope {
-            magic: self.magic(),
-            msg,
-        }
-    }
 }
 
 /// Project tracking policy.

@@ -37,8 +37,6 @@ pub enum SessionState {
 
 #[derive(thiserror::Error, Debug)]
 pub enum SessionError {
-    #[error("wrong network constant in message: {0}")]
-    WrongMagic(u32),
     #[error("wrong protocol version in message: {0}")]
     WrongVersion(u32),
     #[error("invalid announcement timestamp: {0}")]

@@ -38,7 +38,7 @@ use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 
 pub use crate::service::config::{Config, Network};
-pub use crate::service::message::{Envelope, Message, ZeroBytes};
+pub use crate::service::message::{Message, ZeroBytes};
 pub use crate::service::peer::Session;
 
 use self::gossip::Gossip;
@@ -246,7 +246,6 @@ where
         rng: Rng,
     ) -> Self {
         let sessions = Sessions::new(rng.clone());
-        let network = config.network;
 
         Self {
             config,
@@ -259,7 +258,7 @@ where
             gossip: Gossip::default(),
             // FIXME: This should be loaded from the address store.
             nodes: BTreeMap::new(),
-            reactor: Reactor::new(network),
+            reactor: Reactor::default(),
             sessions,
             out_of_sync: false,
             last_idle: LocalTime::default(),
@@ -586,8 +585,8 @@ where
         }
     }
 
-    pub fn received_message(&mut self, addr: &net::SocketAddr, envelope: Envelope) {
-        match self.handle_message(addr, envelope) {
+    pub fn received_message(&mut self, addr: &net::SocketAddr, message: Message) {
+        match self.handle_message(addr, message) {
             Err(SessionError::NotFound(ip)) => {
                 error!("Session not found for {ip}");
             }
@@ -736,7 +735,7 @@ where
     pub fn handle_message(
         &mut self,
         remote: &net::SocketAddr,
-        envelope: Envelope,
+        message: Message,
     ) -> Result<(), peer::SessionError> {
         let peer_ip = remote.ip();
         let peer = if let Some(peer) = self.sessions.get_mut(&peer_ip) {
@@ -746,12 +745,9 @@ where
         };
         peer.last_active = self.clock.local_time();
 
-        if envelope.magic != self.config.network.magic() {
-            return Err(SessionError::WrongMagic(envelope.magic));
-        }
-        debug!("Received {:?} from {}", &envelope.msg, peer.ip());
+        debug!("Received {:?} from {}", &message, peer.ip());
 
-        match (&mut peer.state, envelope.msg) {
+        match (&mut peer.state, message) {
             (
                 SessionState::Initial,
                 Message::Initialize {
