@@ -1,8 +1,7 @@
+use std::mem::size_of;
+
 use crate::service::message::*;
 use crate::service::*;
-use crate::wire;
-
-use std::mem::size_of;
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub enum PingState {
@@ -118,14 +117,14 @@ impl Session {
 
     pub fn ping(&mut self, reactor: &mut Reactor) -> Result<(), SessionError> {
         if let SessionState::Negotiated { ping, .. } = &mut self.state {
-            let ponglen = self.rng.u16(0..wire::message::MAX_PAYLOAD_SIZE_BYTES);
-            let msg =
-                Message::Ping {
-                    ponglen,
-                    zeroes: message::ZeroBytes::new(self.rng.u16(
-                        0..(wire::message::MAX_PAYLOAD_SIZE_BYTES - (size_of::<u16>() as u16)),
-                    )),
-                };
+            let ponglen = self.rng.u16(0..Message::MAX_SIZE);
+            let msg = Message::Ping {
+                ponglen,
+                zeroes: message::ZeroBytes::new(
+                    self.rng
+                        .u16(0..(Message::MAX_SIZE - size_of::<u16>() as u16)),
+                ),
+            };
             reactor.write(self.addr, msg);
 
             *ping = PingState::AwaitingResponse(ponglen);

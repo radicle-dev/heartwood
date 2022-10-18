@@ -7,10 +7,6 @@ use crate::prelude::*;
 use crate::service::message::*;
 use crate::wire;
 
-/// The maximum supported message size in bytes.
-pub const MAX_PAYLOAD_SIZE_BYTES: wire::Size =
-    wire::Size::MAX - (mem::size_of::<MessageType>() as wire::Size);
-
 /// Message type.
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,6 +44,10 @@ impl TryFrom<u16> for MessageType {
 }
 
 impl Message {
+    /// The maximum supported message size in bytes.
+    pub const MAX_SIZE: wire::Size =
+        wire::Size::MAX - (mem::size_of::<MessageType>() as wire::Size);
+
     pub fn type_id(&self) -> u16 {
         match self {
             Self::Initialize { .. } => MessageType::Initialize,
