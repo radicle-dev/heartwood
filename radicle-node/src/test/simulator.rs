@@ -1,5 +1,6 @@
 //! A simple P2P network simulator. Acts as the _reactor_, but without doing any I/O.
 #![allow(clippy::collapsible_if)]
+#![allow(dead_code)]
 
 #[cfg(feature = "quickcheck")]
 pub mod arbitrary;

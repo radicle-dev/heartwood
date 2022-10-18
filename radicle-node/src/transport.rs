@@ -15,19 +15,19 @@ use crate::wire::Wire;
 
 #[derive(Debug)]
 struct Peer {
-    addr: net::SocketAddr,
+    _addr: net::SocketAddr,
 }
 
 #[derive(Debug)]
 pub struct Transport<R, S, T, G> {
-    peers: HashMap<net::IpAddr, Peer>,
+    _peers: HashMap<net::IpAddr, Peer>,
     inner: Wire<R, S, T, G>,
 }
 
 impl<R, S, T, G> Transport<R, S, T, G> {
     pub fn new(inner: Wire<R, S, T, G>) -> Self {
         Self {
-            peers: HashMap::default(),
+            _peers: HashMap::default(),
             inner,
         }
     }

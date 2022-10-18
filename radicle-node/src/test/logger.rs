@@ -41,6 +41,7 @@ impl Log for Logger {
     fn flush(&self) {}
 }
 
+#[allow(dead_code)]
 pub fn init(level: Level) {
     let logger = Logger { level };
 
