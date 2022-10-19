@@ -66,14 +66,6 @@ impl WriteStorage for MockStorage {
         Ok(MockRepository {})
     }
 
-    fn sign_refs<G: Signer>(
-        &self,
-        _repository: &Self::Repository,
-        _signer: G,
-    ) -> Result<crate::storage::refs::SignedRefs<Verified>, Error> {
-        todo!()
-    }
-
     fn fetch(&self, _proj_id: Id, _remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
         Ok(vec![])
     }
@@ -159,6 +151,13 @@ impl WriteRepository for MockRepository {
     }
 
     fn set_head(&self) -> Result<Oid, ProjectError> {
+        todo!()
+    }
+
+    fn sign_refs<G: Signer>(
+        &self,
+        _signer: G,
+    ) -> Result<crate::storage::refs::SignedRefs<Verified>, Error> {
         todo!()
     }
 }

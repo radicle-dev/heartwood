@@ -41,8 +41,6 @@ pub enum Error {
     Id(#[from] IdError),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
-    #[error("invalid repository head")]
-    InvalidHead,
 }
 
 /// Fetch error.
@@ -232,12 +230,6 @@ pub trait WriteStorage: ReadStorage {
     type Repository: WriteRepository;
 
     fn repository(&self, proj: Id) -> Result<Self::Repository, Error>;
-    // TODO: Move this to `WriteRepository`.
-    fn sign_refs<G: Signer>(
-        &self,
-        repository: &Self::Repository,
-        signer: G,
-    ) -> Result<SignedRefs<Verified>, Error>;
     fn fetch(&self, proj_id: Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError>;
 }
 
@@ -286,6 +278,7 @@ pub trait ReadRepository {
 pub trait WriteRepository: ReadRepository {
     fn fetch(&mut self, url: &Url) -> Result<Vec<RefUpdate>, FetchError>;
     fn set_head(&self) -> Result<Oid, ProjectError>;
+    fn sign_refs<G: Signer>(&self, signer: G) -> Result<SignedRefs<Verified>, Error>;
     fn raw(&self) -> &git2::Repository;
 }
 
@@ -324,14 +317,6 @@ where
 
     fn repository(&self, proj: Id) -> Result<Self::Repository, Error> {
         self.deref().repository(proj)
-    }
-
-    fn sign_refs<G: Signer>(
-        &self,
-        repository: &S::Repository,
-        signer: G,
-    ) -> Result<SignedRefs<Verified>, Error> {
-        self.deref().sign_refs(repository, signer)
     }
 
     fn fetch(&self, proj_id: Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {

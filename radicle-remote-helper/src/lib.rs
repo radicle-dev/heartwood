@@ -107,7 +107,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
 
                 if child.wait()?.success() {
                     if *service == GIT_RECEIVE_PACK {
-                        profile.storage.sign_refs(&proj, &profile.signer)?;
+                        proj.sign_refs(&profile.signer)?;
                         proj.set_head()?;
                         // Connect to local node and announce refs to the network.
                         // If our node is not running, we simply skip this step, as the

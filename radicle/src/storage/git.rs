@@ -108,14 +108,6 @@ impl WriteStorage for Storage {
         Repository::open(paths::repository(self, &proj), proj)
     }
 
-    fn sign_refs<G: Signer>(
-        &self,
-        repository: &Repository,
-        signer: G,
-    ) -> Result<SignedRefs<Verified>, Error> {
-        repository.sign_refs(signer)
-    }
-
     fn fetch(&self, proj_id: Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
         let mut repo = self.repository(proj_id)?;
         let mut path = remote.path.clone();
@@ -399,16 +391,6 @@ impl Repository {
         );
         Ok(remotes)
     }
-
-    pub fn sign_refs<G: Signer>(&self, signer: G) -> Result<SignedRefs<Verified>, Error> {
-        let remote = signer.public_key();
-        let refs = self.references(remote)?;
-        let signed = refs.signed(&signer)?;
-
-        signed.save(remote, self)?;
-
-        Ok(signed)
-    }
 }
 
 impl ReadRepository for Repository {
@@ -660,6 +642,16 @@ impl WriteRepository for Repository {
         Ok(head)
     }
 
+    fn sign_refs<G: Signer>(&self, signer: G) -> Result<SignedRefs<Verified>, Error> {
+        let remote = signer.public_key();
+        let refs = self.references(remote)?;
+        let signed = refs.signed(&signer)?;
+
+        signed.save(remote, self)?;
+
+        Ok(signed)
+    }
+
     fn raw(&self) -> &git2::Repository {
         &self.backend
     }
@@ -845,7 +837,7 @@ mod tests {
             .unwrap()
             .id();
         git::push(&proj_repo, "rad", alice_id, [(&refname, &refname)]).unwrap();
-        alice.sign_refs(&alice_proj_storage, &alice_signer).unwrap();
+        alice_proj_storage.sign_refs(&alice_signer).unwrap();
         alice_proj_storage.set_head().unwrap();
 
         // Have Bob fetch Alice's new commit.
@@ -990,7 +982,7 @@ mod tests {
         )
         .unwrap();
 
-        let signed = storage.sign_refs(&project, &signer).unwrap();
+        let signed = project.sign_refs(&signer).unwrap();
         let remote = project.remote(&alice).unwrap();
         let mut unsigned = project.references(&alice).unwrap();
 

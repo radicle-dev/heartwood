@@ -76,7 +76,7 @@ pub fn init<G: Signer, S: storage::WriteStorage>(
 
     git::configure_remote(repo, &REMOTE_NAME, &url)?;
     git::push(repo, &REMOTE_NAME, pk, [(&default_branch, &default_branch)])?;
-    let signed = storage.sign_refs(&project, signer)?;
+    let signed = project.sign_refs(signer)?;
     let _head = project.set_head()?;
 
     Ok((id, signed))
@@ -147,7 +147,7 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
         &format!("creating identity branch for {me}"),
     )?;
 
-    storage.sign_refs(&repository, &signer)?;
+    repository.sign_refs(&signer)?;
 
     Ok(())
 }
@@ -178,7 +178,7 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
         false,
         &format!("creating identity branch for {me}"),
     )?;
-    storage.sign_refs(&repository, &signer)?;
+    repository.sign_refs(&signer)?;
 
     Ok(())
 }

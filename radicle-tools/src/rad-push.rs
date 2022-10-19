@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use radicle::{node::Handle, storage::WriteStorage};
+use radicle::{node::Handle, storage::WriteRepository, storage::WriteStorage};
 
 fn main() -> anyhow::Result<()> {
     let cwd = Path::new(".").canonicalize()?;
@@ -12,9 +12,12 @@ fn main() -> anyhow::Result<()> {
     println!("{}", output);
 
     let project = profile.storage.repository(id)?;
-    let sigrefs = profile.storage.sign_refs(&project, &profile.signer)?;
+    let sigrefs = project.sign_refs(&profile.signer)?;
+    let head = project.set_head()?;
+
     profile.node()?.announce_refs(&id)?;
 
+    println!("head: {}", head);
     println!("ok: {}", sigrefs.signature);
 
     Ok(())
