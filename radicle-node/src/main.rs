@@ -1,7 +1,9 @@
 use std::thread;
-use std::{env, net, process};
+use std::{net, process};
 
-use radicle_node::node;
+use anyhow::Context as _;
+
+use radicle_node::logger;
 use radicle_node::prelude::Address;
 use radicle_node::{client, control, git, service};
 
@@ -53,9 +55,12 @@ impl Options {
 }
 
 fn main() -> anyhow::Result<()> {
+    logger::init(log::Level::Debug)?;
+
     let options = Options::from_env()?;
-    let profile = radicle::Profile::load()?;
-    let client = client::Client::<Reactor>::new(profile)?;
+    let profile = radicle::Profile::load().context("Failed to load node profile")?;
+    let socket = profile.socket();
+    let client = client::Client::<Reactor>::new(profile).context("Failed to initialize client")?;
     let handle = client.handle();
     let config = client::Config {
         service: service::Config {
@@ -65,7 +70,6 @@ fn main() -> anyhow::Result<()> {
         },
         listen: options.listen,
     };
-    let socket = env::var("RAD_SOCKET").unwrap_or_else(|_| node::DEFAULT_SOCKET_NAME.to_owned());
 
     let t1 = thread::spawn(move || control::listen(socket, handle));
     let t2 = thread::spawn(move || client.run(config));

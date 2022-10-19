@@ -84,7 +84,7 @@ impl Profile {
     }
 
     /// Get the path to the radicle node socket.
-    fn socket(&self) -> PathBuf {
+    pub fn socket(&self) -> PathBuf {
         env::var_os("RAD_SOCKET")
             .map(PathBuf::from)
             .unwrap_or_else(|| self.home.join("node").join(node::DEFAULT_SOCKET_NAME))

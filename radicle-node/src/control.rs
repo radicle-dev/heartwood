@@ -4,7 +4,7 @@ use std::io::BufReader;
 use std::io::LineWriter;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fs, io, net};
 
 use crate::client;
@@ -17,12 +17,22 @@ use crate::service::FetchResult;
 pub enum Error {
     #[error("failed to bind control socket listener: {0}")]
     Bind(io::Error),
+    #[error("invalid socket path specified: {0}")]
+    InvalidPath(PathBuf),
 }
 
 /// Listen for commands on the control socket, and process them.
 pub fn listen<P: AsRef<Path>, H: Handle>(path: P, handle: H) -> Result<(), Error> {
     // Remove the socket file on startup before rebinding.
     fs::remove_file(&path).ok();
+    fs::create_dir_all(
+        path.as_ref()
+            .parent()
+            .ok_or_else(|| Error::InvalidPath(path.as_ref().to_path_buf()))?,
+    )
+    .ok();
+
+    log::info!("Binding control socket {}..", path.as_ref().display());
 
     let listener = UnixListener::bind(path).map_err(Error::Bind)?;
     for incoming in listener.incoming() {
