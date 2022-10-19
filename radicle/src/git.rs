@@ -18,7 +18,9 @@ pub use ext::NotFound;
 pub use ext::Oid;
 pub use git2 as raw;
 pub use git_ref_format as fmt;
-pub use git_ref_format::{lit, name, refname, Component, Namespaced, Qualified, RefStr, RefString};
+pub use git_ref_format::{
+    lit, name, qualified, refname, Component, Namespaced, Qualified, RefStr, RefString,
+};
 pub use git_url as url;
 pub use git_url::Url;
 pub use radicle_git_ext as ext;

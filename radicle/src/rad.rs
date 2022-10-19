@@ -352,6 +352,19 @@ mod tests {
             .collect::<Result<_, _>>()
             .unwrap();
 
+        let project_repo = storage.repository(proj).unwrap();
+        let (head, _) = project_repo.head().unwrap();
+
+        // Test canonical refs.
+        assert_eq!(project_repo.raw().refname_to_id("HEAD").unwrap(), *head);
+        assert_eq!(
+            project_repo
+                .raw()
+                .refname_to_id("refs/heads/master")
+                .unwrap(),
+            *head
+        );
+
         assert_eq!(remotes[&public_key].refs, refs);
         assert_eq!(project.name, "acme");
         assert_eq!(project.description, "Acme's repo");

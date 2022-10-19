@@ -424,6 +424,17 @@ impl ReadRepository for Repository {
         self.backend.find_reference(&name).map_err(git::Error::from)
     }
 
+    fn reference_oid(
+        &self,
+        remote: &RemoteId,
+        reference: &git::Qualified,
+    ) -> Result<Oid, git::Error> {
+        let name = reference.with_namespace(remote.into());
+        let oid = self.backend.refname_to_id(&name)?;
+
+        Ok(oid.into())
+    }
+
     fn commit(&self, oid: Oid) -> Result<git2::Commit, git::Error> {
         self.backend
             .find_commit(oid.into())
@@ -435,17 +446,6 @@ impl ReadRepository for Repository {
         revwalk.push(head.into())?;
 
         Ok(revwalk)
-    }
-
-    fn reference_oid(
-        &self,
-        remote: &RemoteId,
-        reference: &git::Qualified,
-    ) -> Result<Oid, git::Error> {
-        let name = reference.with_namespace(remote.into());
-        let oid = self.backend.refname_to_id(&name)?;
-
-        Ok(oid.into())
     }
 
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
