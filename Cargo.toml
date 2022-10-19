@@ -1,5 +1,12 @@
 [workspace]
-members = ["radicle", "radicle-node", "radicle-tools", "radicle-ssh", "radicle-remote-helper"]
+members = [
+  "radicle",
+  "radicle-node",
+  "radicle-tools",
+  "radicle-ssh",
+  "radicle-remote-helper",
+  "radicle-httpd"
+]
 
 [patch.crates-io.nakamoto-net]
 git = "https://github.com/cloudhead/nakamoto"
