@@ -8,7 +8,7 @@ use thiserror::Error;
 use radicle::crypto::{PublicKey, Signer};
 use radicle::node::Handle;
 use radicle::ssh;
-use radicle::storage::{ReadRepository, WriteStorage};
+use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 
 /// The service invoked by git on the remote repository, during a push.
 const GIT_RECEIVE_PACK: &str = "git-receive-pack";
@@ -180,6 +180,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                 if child.wait()?.success() {
                     if *service == GIT_RECEIVE_PACK {
                         profile.storage.sign_refs(&proj, &profile.signer)?;
+                        proj.set_head()?;
                         // Connect to local node and announce refs to the network.
                         // If our node is not running, we simply skip this step, as the
                         // refs will be announced eventually, when the node restarts.

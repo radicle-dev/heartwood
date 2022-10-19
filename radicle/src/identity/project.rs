@@ -509,7 +509,7 @@ mod test {
         let oid = git2::Oid::from_str("2d52a53ce5e4f141148a5f770cfd3ead2d6a45b8").unwrap();
 
         let err = Doc::<Unverified>::head(&remote, &repo).unwrap_err();
-        assert!(dbg!(err).is_not_found());
+        assert!(err.is_not_found());
 
         let err = Doc::load_at(oid.into(), &repo).unwrap_err();
         assert!(err.is_not_found());

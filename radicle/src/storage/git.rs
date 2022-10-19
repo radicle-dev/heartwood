@@ -28,6 +28,7 @@ pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
 pub static SIGNATURES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*/radicle/signature"));
 
+// TODO: Is this is the wrong place for this type?
 #[derive(Error, Debug)]
 pub enum ProjectError {
     #[error("identity branches diverge from each other")]
@@ -228,12 +229,9 @@ impl Repository {
         Ok(Self { id, backend })
     }
 
-    pub fn head(&self) -> Result<git2::Commit, git2::Error> {
-        // TODO: Find longest history, get document and get head.
-        // Perhaps we should even set a local `HEAD` or at least `refs/heads/master`
-        todo!();
-    }
-
+    /// Verify all references in the repository, checking that they are signed
+    /// as part of 'sigrefs'. Also verify that no signed reference is missing
+    /// from the repository.
     pub fn verify(&self) -> Result<(), VerifyError> {
         let mut remotes: HashMap<RemoteId, Refs> = self
             .remotes()?
@@ -243,15 +241,32 @@ impl Repository {
             })
             .collect::<Result<_, VerifyError>>()?;
 
+        // TODO: We could create a higher level `references` method that skips
+        // canonical/unverifiable refs.
         for r in self.backend.references()? {
             let r = r?;
+
             let name = r.name().ok_or(VerifyError::InvalidRef)?;
-            let oid = r.target().ok_or(VerifyError::InvalidRef)?;
+            let oid = if let Some(oid) = r.target() {
+                oid
+            } else {
+                // Ignore symbolic refs, eg. `HEAD`.
+                continue;
+            };
+
             let (remote_id, refname) = git::parse_ref::<RemoteId>(name)?;
+            let remote_id = if let Some(remote_id) = remote_id {
+                remote_id
+            } else {
+                // Ignore refs that aren't part of a namespace, eg. canonical refs.
+                continue;
+            };
 
             if refname == *refs::SIGNATURE_REF {
+                // Ignore the signed-refs reference, as this is what we're verifying.
                 continue;
             }
+
             let remote = remotes
                 .get_mut(&remote_id)
                 .ok_or(VerifyError::InvalidRemote(remote_id))?;
@@ -358,7 +373,7 @@ impl Repository {
             |reference| -> Result<RemoteId, refs::Error> {
                 let r = reference?;
                 let name = r.name().ok_or(refs::Error::InvalidRef)?;
-                let (id, _) = git::parse_ref::<RemoteId>(name)?;
+                let (id, _) = git::parse_ref_namespaced::<RemoteId>(name)?;
 
                 Ok(id)
             },
@@ -376,7 +391,7 @@ impl Repository {
             |reference| -> Result<_, _> {
                 let r = reference?;
                 let name = r.name().ok_or(refs::Error::InvalidRef)?;
-                let (id, _) = git::parse_ref::<RemoteId>(name)?;
+                let (id, _) = git::parse_ref_namespaced::<RemoteId>(name)?;
                 let remote = self.remote(&id)?;
 
                 Ok((id, remote))
@@ -440,6 +455,7 @@ impl ReadRepository for Repository {
         remote: &RemoteId,
         reference: &git::Qualified,
     ) -> Result<Oid, git::Error> {
+        // TODO: Use native git2 function for this.
         let oid = self
             .reference(remote, reference)?
             .target()
@@ -485,6 +501,31 @@ impl ReadRepository for Repository {
 
     fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError> {
         Repository::project(self)
+    }
+
+    fn head(&self) -> Result<(Oid, Qualified), ProjectError> {
+        // TODO: We shouldn't need to re-construct the history here; we should use the cached
+        // document head of the "trusted" (local) user for this project.
+        // In the `fork` function for example, we call Repository::project_identity again,
+        // This should only be necessary once.
+        let (_, project) = self.project_identity()?;
+        let branch_ref = Qualified::from(lit::refs_heads(&project.default_branch));
+        let raw = self.raw();
+
+        let mut heads = Vec::new();
+        for delegate in project.delegates.iter() {
+            let r = self.reference_oid(&delegate.id, &branch_ref)?.into();
+
+            heads.push(r);
+        }
+
+        let oid = match heads.as_slice() {
+            [head] => Ok(*head),
+            // FIXME: This branch is not tested.
+            heads => raw.merge_base_many(heads),
+        }?;
+
+        Ok((oid.into(), branch_ref))
     }
 }
 
@@ -598,8 +639,25 @@ impl WriteRepository for Repository {
             // Fetch from the staging copy into the canonical repo.
             remote.fetch(refs, Some(&mut opts), None)?;
         }
+        // Set repository HEAD for git cloning support.
+        self.set_head()?;
 
         Ok(updates)
+    }
+
+    fn set_head(&self) -> Result<Oid, ProjectError> {
+        let head_ref = refname!("HEAD");
+        let (head, branch_ref) = self.head()?;
+
+        log::debug!("Setting ref {:?} -> {:?}", &branch_ref, head);
+        self.raw()
+            .reference(&branch_ref, *head, true, "set-local-branch (radicle)")?;
+
+        log::debug!("Setting ref {:?} -> {:?}", head_ref, branch_ref);
+        self.raw()
+            .reference_symbolic(&head_ref, &branch_ref, true, "set-head (radicle)")?;
+
+        Ok(head)
     }
 
     fn raw(&self) -> &git2::Repository {
@@ -788,6 +846,7 @@ mod tests {
             .id();
         git::push(&proj_repo, "rad", alice_id, [(&refname, &refname)]).unwrap();
         alice.sign_refs(&alice_proj_storage, &alice_signer).unwrap();
+        alice_proj_storage.set_head().unwrap();
 
         // Have Bob fetch Alice's new commit.
         let updates = bob.repository(proj_id).unwrap().fetch(&alice_url).unwrap();
@@ -887,7 +946,11 @@ mod tests {
             target
                 .remote_anonymous(&format!("rad://{}", proj))
                 .unwrap()
-                .fetch(&["refs/*:refs/*"], Some(&mut opts), None)
+                .fetch(
+                    &["refs/namespaces/*:refs/namespaces/*"],
+                    Some(&mut opts),
+                    None,
+                )
                 .unwrap();
 
             stream.shutdown(net::Shutdown::Both).unwrap();

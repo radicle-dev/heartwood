@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use git_ref_format as fmt;
 use git_url::Url;
 use radicle_git_ext as git_ext;
 
@@ -85,6 +86,10 @@ impl ReadRepository for MockRepository {
         Ok(true)
     }
 
+    fn head(&self) -> Result<(Oid, fmt::Qualified), ProjectError> {
+        todo!()
+    }
+
     fn path(&self) -> &std::path::Path {
         todo!()
     }
@@ -150,6 +155,10 @@ impl WriteRepository for MockRepository {
     }
 
     fn raw(&self) -> &git2::Repository {
+        todo!()
+    }
+
+    fn set_head(&self) -> Result<Oid, ProjectError> {
         todo!()
     }
 }

@@ -3,7 +3,6 @@ use std::io;
 use std::path::Path;
 use std::str::FromStr;
 
-use git_ref_format::{lit, Qualified};
 use once_cell::sync::Lazy;
 use thiserror::Error;
 
@@ -23,6 +22,8 @@ pub static REMOTE_NAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("rad")
 pub enum InitError {
     #[error("doc: {0}")]
     Doc(#[from] identity::project::DocError),
+    #[error("project: {0}")]
+    Project(#[from] storage::git::ProjectError),
     #[error("doc: {0}")]
     DocVerification(#[from] identity::project::VerificationError),
     #[error("git: {0}")]
@@ -76,6 +77,7 @@ pub fn init<G: Signer, S: storage::WriteStorage>(
     git::configure_remote(repo, &REMOTE_NAME, &url)?;
     git::push(repo, &REMOTE_NAME, pk, [(&default_branch, &default_branch)])?;
     let signed = storage.sign_refs(&project, signer)?;
+    let _head = project.set_head()?;
 
     Ok((id, signed))
 }
@@ -158,27 +160,15 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
     let me = signer.public_key();
     let repository = storage.repository(proj)?;
     let (canonical_id, project) = repository.project_identity()?;
+    let (canonical_head, _) = repository.head()?;
     let raw = repository.raw();
-    // TODO: Test the fork functions in isolation.
-    // TODO: Move to function on `Repository`.
-    let canonical_head = {
-        let mut heads = Vec::new();
-        for delegate in project.delegates.iter() {
-            let refname = Qualified::from(lit::refs_heads(&project.default_branch));
-            let r = repository.reference_oid(&delegate.id, &refname)?.into();
-            heads.push(r);
-        }
 
-        match heads.as_slice() {
-            [head] => Ok(*head),
-            // FIXME: This branch is not tested.
-            heads => raw.merge_base_many(heads),
-        }
-    }?;
+    // TODO: We should only get the project HEAD once we've stored the canonical identity
+    // branch on disk. This way it can use what we stored, instead of recomputing it.
 
     raw.reference(
         &git::refs::storage::branch(me, &project.default_branch),
-        canonical_head,
+        *canonical_head,
         false,
         &format!("creating default branch for {me}"),
     )?;

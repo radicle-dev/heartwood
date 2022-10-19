@@ -118,24 +118,47 @@ pub fn remote_refs(url: &Url) -> Result<HashMap<RemoteId, Refs>, ListRefsError> 
 
     let refs = remote.list()?;
     for r in refs {
-        let (id, refname) = parse_ref::<PublicKey>(r.name())?;
-        let entry = remotes.entry(id).or_insert_with(Refs::default);
-
-        entry.insert(refname.into(), r.oid().into());
+        // Skip the `HEAD` reference, as it is untrusted.
+        if r.name() == "HEAD" {
+            continue;
+        }
+        // Nb. skip refs that don't have a public key namespace.
+        if let (Some(id), refname) = parse_ref::<PublicKey>(r.name())? {
+            let entry = remotes.entry(id).or_insert_with(Refs::default);
+            entry.insert(refname.into(), r.oid().into());
+        }
     }
 
     Ok(remotes)
 }
 
-/// Parse a ref string.
-pub fn parse_ref<T>(s: &str) -> Result<(T, format::Qualified), RefError>
+/// Parse a ref string. Returns an error if it isn't namespaced.
+pub fn parse_ref_namespaced<T>(s: &str) -> Result<(T, format::Qualified), RefError>
+where
+    T: FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    match parse_ref::<T>(s) {
+        Ok((None, refname)) => Err(RefError::MissingNamespace(refname.to_ref_string())),
+        Ok((Some(t), r)) => Ok((t, r)),
+        Err(err) => Err(err),
+    }
+}
+
+/// Parse a ref string. Optionally returns a namespace.
+pub fn parse_ref<T>(s: &str) -> Result<(Option<T>, format::Qualified), RefError>
 where
     T: FromStr,
     T::Err: std::error::Error + Send + Sync + 'static,
 {
     let input = format::RefStr::try_from_str(s)?;
     match input.to_namespaced() {
-        None => Err(RefError::MissingNamespace(input.to_owned())),
+        None => {
+            let refname = Qualified::from_refstr(input)
+                .ok_or_else(|| RefError::InvalidName(input.to_owned()))?;
+
+            Ok((None, refname))
+        }
         Some(ns) => {
             let id = ns
                 .namespace()
@@ -146,7 +169,8 @@ where
                     err: Box::new(err),
                 })?;
             let rest = ns.strip_namespace();
-            Ok((id, rest))
+
+            Ok((Some(id), rest))
         }
     }
 }

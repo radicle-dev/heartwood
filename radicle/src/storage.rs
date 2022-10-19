@@ -59,6 +59,9 @@ pub enum FetchError {
     Verify(#[from] git::VerifyError),
     #[error(transparent)]
     Storage(#[from] Error),
+    // TODO: This should wrap a more specific error.
+    #[error("repository head: {0}")]
+    SetHead(#[from] ProjectError),
 }
 
 pub type RemoteId = PublicKey;
@@ -229,6 +232,7 @@ pub trait WriteStorage: ReadStorage {
     type Repository: WriteRepository;
 
     fn repository(&self, proj: Id) -> Result<Self::Repository, Error>;
+    // TODO: Move this to `WriteRepository`.
     fn sign_refs<G: Signer>(
         &self,
         repository: &Self::Repository,
@@ -245,6 +249,11 @@ pub trait ReadRepository {
     fn path(&self) -> &Path;
 
     fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git_ext::Error>;
+
+    /// Get the canonical head of this repository.
+    ///
+    /// Returns the [`Oid`] as well as the qualified reference name.
+    fn head(&self) -> Result<(Oid, Qualified), ProjectError>;
 
     /// Get the `reference` for the given `remote`.
     ///
@@ -276,6 +285,7 @@ pub trait ReadRepository {
 
 pub trait WriteRepository: ReadRepository {
     fn fetch(&mut self, url: &Url) -> Result<Vec<RefUpdate>, FetchError>;
+    fn set_head(&self) -> Result<Oid, ProjectError>;
     fn raw(&self) -> &git2::Repository;
 }
 
