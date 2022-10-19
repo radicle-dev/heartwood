@@ -104,9 +104,15 @@ impl<R: Reactor> Client<R> {
         let time = LocalTime::now();
         let storage = self.profile.storage;
         let signer = self.profile.signer;
-        let addresses =
-            address::Book::open(self.profile.home.join(NODE_DIR).join(ADDRESS_DB_FILE))?;
-        let routing = routing::Table::open(self.profile.home.join(NODE_DIR).join(ROUTING_DB_FILE))?;
+        let node_dir = self.profile.home.join(NODE_DIR);
+        let address_db = node_dir.join(ADDRESS_DB_FILE);
+        let routing_db = node_dir.join(ROUTING_DB_FILE);
+
+        log::info!("Opening address book {}..", address_db.display());
+        let addresses = address::Book::open(address_db)?;
+
+        log::info!("Opening routing table {}..", routing_db.display());
+        let routing = routing::Table::open(routing_db)?;
 
         log::info!("Initializing client ({:?})..", network);
 

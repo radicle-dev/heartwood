@@ -2,7 +2,6 @@
 -- Routing table SQL schema.
 --
 create table if not exists "routing" (
-  "id"           integer   primary key,
   -- Resource being seeded.
   "resource"     text      not null,
   -- Node ID.
@@ -10,6 +9,5 @@ create table if not exists "routing" (
   -- UNIX time at which this entry was added or refreshed.
   "time"         integer   not null,
 
-  unique("resource", "node")
+  primary key ("resource", "node")
 );
-create index "routing_index" on routing ("resource", "node");
