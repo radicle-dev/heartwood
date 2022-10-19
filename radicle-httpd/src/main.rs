@@ -1,47 +1,7 @@
-use std::{net, process};
-
-use tracing::dispatcher::Dispatch;
+use std::process;
 
 use radicle_httpd as httpd;
-
-#[derive(Debug)]
-pub struct Options {
-    pub listen: net::SocketAddr,
-}
-
-impl Options {
-    fn from_env() -> Result<Self, lexopt::Error> {
-        use lexopt::prelude::*;
-
-        let mut parser = lexopt::Parser::from_env();
-        let mut listen = None;
-
-        while let Some(arg) = parser.next()? {
-            match arg {
-                Long("listen") => {
-                    let addr = parser.value()?.parse()?;
-                    listen = Some(addr);
-                }
-                Long("help") => {
-                    println!("usage: radicle-httpd [--listen <addr>]");
-                    process::exit(0);
-                }
-                _ => return Err(arg.unexpected()),
-            }
-        }
-        Ok(Self {
-            listen: listen.unwrap_or_else(|| ([0, 0, 0, 0], 8080).into()),
-        })
-    }
-}
-
-impl From<Options> for httpd::Options {
-    fn from(other: Options) -> Self {
-        Self {
-            listen: other.listen,
-        }
-    }
-}
+use tracing::dispatcher::Dispatch;
 
 #[cfg(feature = "logfmt")]
 mod logger {
@@ -64,14 +24,14 @@ mod logger {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let options = Options::from_env()?;
+    let options = parse_options()?;
 
     tracing::dispatcher::set_global_default(Dispatch::new(logger::subscriber()))
         .expect("Global logger hasn't already been set");
 
     tracing::info!("version {}-{}", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));
 
-    match httpd::run(options.into()).await {
+    match httpd::run(options).await {
         Ok(()) => {}
         Err(err) => {
             tracing::error!("Fatal: {:#}", err);
@@ -79,4 +39,29 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+/// Parse command-line arguments into HTTP options.
+fn parse_options() -> Result<httpd::Options, lexopt::Error> {
+    use lexopt::prelude::*;
+
+    let mut parser = lexopt::Parser::from_env();
+    let mut listen = None;
+
+    while let Some(arg) = parser.next()? {
+        match arg {
+            Long("listen") => {
+                let addr = parser.value()?.parse()?;
+                listen = Some(addr);
+            }
+            Long("help") => {
+                println!("usage: radicle-httpd [--listen <addr>]");
+                process::exit(0);
+            }
+            _ => return Err(arg.unexpected()),
+        }
+    }
+    Ok(httpd::Options {
+        listen: listen.unwrap_or_else(|| ([0, 0, 0, 0], 8080).into()),
+    })
 }
