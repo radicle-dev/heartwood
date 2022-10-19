@@ -125,10 +125,8 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     let repository = storage.repository(proj)?;
 
     let raw = repository.raw();
-    let remote_head = raw
-        .find_reference(&git::refs::storage::branch(remote, &project.default_branch))?
-        .target()
-        .ok_or(ForkError::InvalidReference)?;
+    let remote_head =
+        raw.refname_to_id(&git::refs::storage::branch(remote, &project.default_branch))?;
     raw.reference(
         &git::refs::storage::branch(me, &project.default_branch),
         remote_head,
@@ -136,10 +134,7 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
         &format!("creating default branch for {me}"),
     )?;
 
-    let remote_id = raw
-        .find_reference(&git::refs::storage::id(remote))?
-        .target()
-        .ok_or(ForkError::InvalidReference)?;
+    let remote_id = raw.refname_to_id(&git::refs::storage::id(remote))?;
     raw.reference(
         &git::refs::storage::id(me),
         remote_id,

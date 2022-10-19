@@ -437,11 +437,8 @@ impl ReadRepository for Repository {
         remote: &RemoteId,
         reference: &git::Qualified,
     ) -> Result<Oid, git::Error> {
-        // TODO: Use native git2 function for this.
-        let oid = self
-            .reference(remote, reference)?
-            .target()
-            .ok_or(git::Error::NotFound(git::NotFound::NoRefTarget))?;
+        let name = reference.with_namespace(remote.into());
+        let oid = self.backend.refname_to_id(&name)?;
 
         Ok(oid.into())
     }
