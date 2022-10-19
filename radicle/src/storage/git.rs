@@ -233,32 +233,8 @@ impl Repository {
             })
             .collect::<Result<_, VerifyError>>()?;
 
-        // TODO: We could create a higher level `references` method that skips
-        // canonical/unverifiable refs.
-        for r in self.backend.references()? {
-            let r = r?;
-
-            let name = r.name().ok_or(VerifyError::InvalidRef)?;
-            let oid = if let Some(oid) = r.target() {
-                oid
-            } else {
-                // Ignore symbolic refs, eg. `HEAD`.
-                continue;
-            };
-
-            let (remote_id, refname) = git::parse_ref::<RemoteId>(name)?;
-            let remote_id = if let Some(remote_id) = remote_id {
-                remote_id
-            } else {
-                // Ignore refs that aren't part of a namespace, eg. canonical refs.
-                continue;
-            };
-
-            if refname == *refs::SIGNATURE_REF {
-                // Ignore the signed-refs reference, as this is what we're verifying.
-                continue;
-            }
-
+        for entry in self.public_references()? {
+            let (remote_id, refname, oid) = entry?;
             let remote = remotes
                 .get_mut(&remote_id)
                 .ok_or(VerifyError::InvalidRemote(remote_id))?;
@@ -267,8 +243,8 @@ impl Repository {
                 .remove(&refname)
                 .ok_or_else(|| VerifyError::UnknownRef(remote_id, refname.clone()))?;
 
-            if Oid::from(oid) != signed_oid {
-                return Err(VerifyError::InvalidRefTarget(remote_id, refname, oid));
+            if oid != signed_oid {
+                return Err(VerifyError::InvalidRefTarget(remote_id, refname, *oid));
             }
         }
 
@@ -390,6 +366,35 @@ impl Repository {
             },
         );
         Ok(remotes)
+    }
+
+    /// Return all references that are public, ie. that are replicated, verified and signed.
+    fn public_references(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<(RemoteId, Qualified, Oid), refs::Error>>, git2::Error>
+    {
+        let refs = self.backend.references_glob("refs/namespaces/*")?;
+        let refs = refs
+            .map(|reference| {
+                let r = reference?;
+                let name = r.name().ok_or(refs::Error::InvalidRef)?;
+                let (namespace, refname) = git::parse_ref_namespaced::<RemoteId>(name)?;
+                let oid = if let Some(oid) = r.target() {
+                    oid
+                } else {
+                    // Ignore symbolic refs, eg. `HEAD`.
+                    return Ok(None);
+                };
+
+                if refname == *refs::SIGNATURE_REF {
+                    // Ignore the signed-refs reference, as this is what we're verifying.
+                    return Ok(None);
+                }
+                Ok(Some((namespace, refname.to_owned(), oid.into())))
+            })
+            .filter_map(Result::transpose);
+
+        Ok(refs)
     }
 }
 
@@ -850,6 +855,26 @@ mod tests {
         let bob_master = bob_repo.reference(alice_id, &refname).unwrap();
 
         assert_eq!(bob_master.target().unwrap(), alice_head);
+    }
+
+    #[test]
+    fn test_public_references() {
+        let tmp = tempfile::tempdir().unwrap();
+        let signer = MockSigner::default();
+        let storage = Storage::open(tmp.path().join("storage")).unwrap();
+        let (id, _, _, _) =
+            fixtures::project(tmp.path().join("project"), &storage, &signer).unwrap();
+        let proj = storage.repository(id).unwrap();
+
+        let mut refs = proj
+            .public_references()
+            .unwrap()
+            .map(|r| r.unwrap())
+            .map(|(_, r, _)| r.to_string())
+            .collect::<Vec<_>>();
+        refs.sort();
+
+        assert_eq!(refs, vec!["refs/heads/master", "refs/heads/radicle/id"]);
     }
 
     #[test]
