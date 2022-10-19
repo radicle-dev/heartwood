@@ -1,6 +1,5 @@
 #![allow(clippy::collapsible_if)]
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::{env, io, process};
 
 use thiserror::Error;
@@ -8,6 +7,7 @@ use thiserror::Error;
 use radicle::crypto::{PublicKey, Signer};
 use radicle::node::Handle;
 use radicle::ssh;
+use radicle::storage::git::transport::{Url, UrlError};
 use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 
 /// The service invoked by git on the remote repository, during a push.
@@ -33,78 +33,6 @@ pub enum Error {
     /// Error with the remote url.
     #[error("invalid remote url: {0}")]
     RemoteUrl(#[from] UrlError),
-}
-
-#[derive(Debug, Error)]
-pub enum UrlError {
-    /// Failed to parse.
-    #[error(transparent)]
-    Parse(#[from] radicle::git::url::parse::Error),
-    /// Unsupported URL scheme.
-    #[error("{0}: unsupported scheme: expected `rad://`")]
-    UnsupportedScheme(radicle::git::Url),
-    /// Missing host.
-    #[error("{0}: missing id")]
-    MissingId(radicle::git::Url),
-    /// Invalid remote repository identifier.
-    #[error("{0}: id: {1}")]
-    InvalidId(radicle::git::Url, radicle::identity::IdError),
-    /// Invalid public key.
-    #[error("{0}: key: {1}")]
-    InvalidKey(radicle::git::Url, radicle::crypto::PublicKeyError),
-}
-
-/// A git remote URL.
-///
-/// `rad://<id>/[<pubkey>]`
-///
-/// Eg. `rad://zUBDc1UdoEzbpaGcNXqauQkERJ8r` without the public key,
-/// and `rad://zUBDc1UdoEzbpaGcNXqauQkERJ8r/zCQTxdZGCzQXWBV3XbY3fgkHM3gfkLGyYMd2nL5R2MxQv` with.
-///
-#[derive(Debug)]
-pub struct Url {
-    pub id: radicle::identity::Id,
-    pub public_key: Option<PublicKey>,
-}
-
-impl FromStr for Url {
-    type Err = UrlError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let url: radicle::git::Url = s.as_bytes().try_into()?;
-        Url::try_from(url)
-    }
-}
-
-impl TryFrom<radicle::git::Url> for Url {
-    type Error = UrlError;
-
-    fn try_from(url: radicle::git::Url) -> Result<Self, Self::Error> {
-        if url.scheme != radicle::git::url::Scheme::Radicle {
-            return Err(Self::Error::UnsupportedScheme(url));
-        }
-
-        let id: radicle::identity::Id = url
-            .host
-            .as_ref()
-            .ok_or_else(|| Self::Error::MissingId(url.clone()))?
-            .parse()
-            .map_err(|e| Self::Error::InvalidId(url.clone(), e))?;
-
-        let public_key: Option<PublicKey> = if url.path.is_empty() {
-            Ok(None)
-        } else {
-            let path = url.path.to_string();
-
-            path.strip_prefix('/')
-                .unwrap_or(&path)
-                .parse()
-                .map(Some)
-                .map_err(|e| Self::Error::InvalidKey(url.clone(), e))
-        }?;
-
-        Ok(Url { id, public_key })
-    }
 }
 
 /// Run the radicle remote helper using the given profile.

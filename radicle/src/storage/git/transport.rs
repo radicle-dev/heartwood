@@ -14,6 +14,8 @@
 //!
 //! This module is meant to be used by first registering our transport with [`register`] and then
 //! adding or removing streams through [`Smart`], which can be obtained via [`Smart::singleton`].
+mod url;
+
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::atomic;
@@ -24,6 +26,8 @@ use once_cell::sync::Lazy;
 
 use crate::git;
 use crate::identity::Id;
+
+pub use url::{Url, UrlError};
 
 /// The map of git smart sub-transport streams. We keep a global map because we have
 /// no control over how [`git2::transport::register`] instantiates our [`Smart`] transport
@@ -75,16 +79,9 @@ impl git2::transport::SmartSubtransport for Smart {
         url: &str,
         action: git2::transport::Service,
     ) -> Result<Box<dyn git2::transport::SmartSubtransportStream>, git2::Error> {
-        let url = git::Url::from_bytes(url.as_bytes())
-            .map_err(|e| git2::Error::from_str(e.to_string().as_str()))?;
-        let id = Id::from_str(url.host.unwrap_or_default().as_str())
-            .map_err(|_| git2::Error::from_str("Git URL does not contain a valid project id"))?;
+        let url = Url::from_str(url).map_err(|e| git2::Error::from_str(e.to_string().as_str()))?;
 
-        if url.scheme != git::url::Scheme::Radicle {
-            return Err(git2::Error::from_str("Git URL scheme must be `rad`"));
-        }
-
-        if let Some(stream) = self.take(&id) {
+        if let Some(stream) = self.take(&url.id) {
             match action {
                 git2::transport::Service::UploadPackLs => {}
                 git2::transport::Service::UploadPack => {}
@@ -102,7 +99,8 @@ impl git2::transport::SmartSubtransport for Smart {
             Ok(stream)
         } else {
             Err(git2::Error::from_str(&format!(
-                "repository {id} does not have an associated stream"
+                "repository {} does not have an associated stream",
+                url.id
             )))
         }
     }
