@@ -15,7 +15,7 @@ pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("failed to connecto to node: {0}")]
+    #[error("failed to connect to node: {0}")]
     Connect(#[from] io::Error),
 }
 
