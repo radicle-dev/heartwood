@@ -604,13 +604,15 @@ impl WriteRepository for Repository {
 
         callbacks.update_tips(|name, old, new| {
             if let Ok(name) = git::RefString::try_from(name) {
-                updates.push(RefUpdate::from(name, old, new));
-            } else {
-                log::warn!("Invalid ref `{}` detected; aborting fetch", name);
-                return false;
+                if name.to_namespaced().is_some() {
+                    updates.push(RefUpdate::from(name, old, new));
+                    // Returning `true` ensures the process is not aborted.
+                    return true;
+                }
             }
-            // Returning `true` ensures the process is not aborted.
-            true
+            log::warn!("Invalid ref `{}` detected; aborting fetch", name);
+
+            false
         });
 
         {
@@ -813,6 +815,15 @@ mod tests {
 
             assert_eq!(alice_oid.target(), bob_oid.target());
         }
+
+        // Canonical HEAD is set correctly.
+        let alice_repo = alice.repository(proj).unwrap();
+        let bob_repo = bob.repository(proj).unwrap();
+
+        assert_eq!(
+            bob_repo.backend.head().unwrap().target().unwrap(),
+            alice_repo.backend.head().unwrap().target().unwrap()
+        );
     }
 
     #[test]
