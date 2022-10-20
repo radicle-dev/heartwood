@@ -78,7 +78,11 @@ impl ReadRepository for MockRepository {
         Ok(true)
     }
 
-    fn head(&self) -> Result<(Oid, fmt::Qualified), ProjectError> {
+    fn head(&self) -> Result<(fmt::Qualified, Oid), ProjectError> {
+        todo!()
+    }
+
+    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), ProjectError> {
         todo!()
     }
 

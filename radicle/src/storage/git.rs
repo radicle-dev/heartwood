@@ -487,10 +487,18 @@ impl ReadRepository for Repository {
         Repository::project(self)
     }
 
-    fn head(&self) -> Result<(Oid, Qualified), ProjectError> {
-        // TODO: We shouldn't need to re-construct the history here; we should use the cached
-        // document head of the "trusted" (local) user for this project.
-        // In the `fork` function for example, we call Repository::project_identity again,
+    fn head(&self) -> Result<(Qualified, Oid), ProjectError> {
+        // If `HEAD` is already set locally, just return that.
+        if let Ok(head) = self.backend.head() {
+            if let Ok((name, oid)) = git::refs::qualified_from(&head) {
+                return Ok((name.to_owned(), oid));
+            }
+        }
+        self.canonical_head()
+    }
+
+    fn canonical_head(&self) -> Result<(Qualified, Oid), ProjectError> {
+        // TODO: In the `fork` function for example, we call Repository::project_identity again,
         // This should only be necessary once.
         let (_, project) = self.project_identity()?;
         let branch_ref = Qualified::from(lit::refs_heads(&project.default_branch));
@@ -509,7 +517,7 @@ impl ReadRepository for Repository {
             heads => raw.merge_base_many(heads),
         }?;
 
-        Ok((oid.into(), branch_ref))
+        Ok((branch_ref, oid.into()))
     }
 }
 
@@ -631,7 +639,7 @@ impl WriteRepository for Repository {
 
     fn set_head(&self) -> Result<Oid, ProjectError> {
         let head_ref = refname!("HEAD");
-        let (head, branch_ref) = self.head()?;
+        let (branch_ref, head) = self.canonical_head()?;
 
         log::debug!("Setting ref {:?} -> {:?}", &branch_ref, head);
         self.raw()

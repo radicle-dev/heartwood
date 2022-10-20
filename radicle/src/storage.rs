@@ -242,10 +242,20 @@ pub trait ReadRepository {
 
     fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git_ext::Error>;
 
-    /// Get the canonical head of this repository.
+    /// Get the head of this repository.
+    ///
+    /// Returns the value of `HEAD` if it is set, otherwise computes the canonical head
+    /// using [`ReadRepository::canonical_head`].
     ///
     /// Returns the [`Oid`] as well as the qualified reference name.
-    fn head(&self) -> Result<(Oid, Qualified), ProjectError>;
+    fn head(&self) -> Result<(Qualified, Oid), ProjectError>;
+
+    /// Compute the canonical head of this repository.
+    ///
+    /// Ignores any existing `HEAD` reference.
+    ///
+    /// Returns the [`Oid`] as well as the qualified reference name.
+    fn canonical_head(&self) -> Result<(Qualified, Oid), ProjectError>;
 
     /// Get the `reference` for the given `remote`.
     ///

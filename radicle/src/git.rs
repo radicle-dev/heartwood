@@ -31,8 +31,12 @@ pub const PROTOCOL_PORT: u16 = 9418;
 
 #[derive(thiserror::Error, Debug)]
 pub enum RefError {
-    #[error("invalid ref name '{0}'")]
-    InvalidName(format::RefString),
+    #[error("ref name is not valid UTF-8")]
+    InvalidName,
+    #[error("unexpected symbolic ref: {0}")]
+    Symbolic(RefString),
+    #[error("unexpected unqualified ref: {0}")]
+    Unqualified(RefString),
     #[error("invalid ref format: {0}")]
     Format(#[from] format::Error),
     #[error("expected ref to begin with 'refs/namespaces' but found '{0}'")]
@@ -67,8 +71,20 @@ pub mod refs {
     /// Where project information is kept.
     pub static IDENTITY_BRANCH: Lazy<RefString> = Lazy::new(|| refname!("radicle/id"));
 
-    pub mod storage {
+    /// Try to get a qualified reference from a generic reference.
+    pub fn qualified_from<'a>(r: &'a git2::Reference) -> Result<(Qualified<'a>, Oid), RefError> {
+        let name = r.name().ok_or(RefError::InvalidName)?;
+        let refstr = RefStr::try_from_str(name)?;
+        let target = r
+            .target()
+            .ok_or_else(|| RefError::Symbolic(refstr.to_owned()))?;
+        let qualified = Qualified::from_refstr(refstr)
+            .ok_or_else(|| RefError::Unqualified(refstr.to_owned()))?;
 
+        Ok((qualified, target.into()))
+    }
+
+    pub mod storage {
         use super::*;
 
         /// Create the [`Namespaced`] `branch` under the `remote` namespace, i.e.
@@ -157,7 +173,7 @@ where
     match input.to_namespaced() {
         None => {
             let refname = Qualified::from_refstr(input)
-                .ok_or_else(|| RefError::InvalidName(input.to_owned()))?;
+                .ok_or_else(|| RefError::Unqualified(input.to_owned()))?;
 
             Ok((None, refname))
         }

@@ -154,15 +154,13 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
 ) -> Result<(), ForkError> {
     let me = signer.public_key();
     let repository = storage.repository(proj)?;
-    let (canonical_id, project) = repository.project_identity()?;
-    let (canonical_head, _) = repository.head()?;
+    // TODO: We should get the id branch pointer from a stored canonical reference.
+    let (canonical_id, _) = repository.project_identity()?;
+    let (canonical_branch, canonical_head) = repository.head()?;
     let raw = repository.raw();
 
-    // TODO: We should only get the project HEAD once we've stored the canonical identity
-    // branch on disk. This way it can use what we stored, instead of recomputing it.
-
     raw.reference(
-        &git::refs::storage::branch(me, &project.default_branch),
+        &canonical_branch.with_namespace(me.into()),
         *canonical_head,
         false,
         &format!("creating default branch for {me}"),
@@ -353,7 +351,7 @@ mod tests {
             .unwrap();
 
         let project_repo = storage.repository(proj).unwrap();
-        let (head, _) = project_repo.head().unwrap();
+        let (_, head) = project_repo.head().unwrap();
 
         // Test canonical refs.
         assert_eq!(project_repo.raw().refname_to_id("HEAD").unwrap(), *head);
