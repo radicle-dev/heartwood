@@ -244,8 +244,8 @@ pub trait ReadRepository {
 
     /// Get the head of this repository.
     ///
-    /// Returns the value of `HEAD` if it is set, otherwise computes the canonical head
-    /// using [`ReadRepository::canonical_head`].
+    /// Returns the reference pointed to by `HEAD` if it is set. Otherwise, computes the canonical
+    /// head using [`ReadRepository::canonical_head`].
     ///
     /// Returns the [`Oid`] as well as the qualified reference name.
     fn head(&self) -> Result<(Qualified, Oid), ProjectError>;

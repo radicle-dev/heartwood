@@ -233,7 +233,7 @@ impl Repository {
             })
             .collect::<Result<_, VerifyError>>()?;
 
-        for entry in self.public_references()? {
+        for entry in self.namespaced_references()? {
             let (remote_id, refname, oid) = entry?;
             let remote = remotes
                 .get_mut(&remote_id)
@@ -368,8 +368,8 @@ impl Repository {
         Ok(remotes)
     }
 
-    /// Return all references that are public, ie. that are replicated, verified and signed.
-    fn public_references(
+    /// Return all references that are namespaced, ie. that are signed by a node and verified.
+    fn namespaced_references(
         &self,
     ) -> Result<impl Iterator<Item = Result<(RemoteId, Qualified, Oid), refs::Error>>, git2::Error>
     {
@@ -877,7 +877,7 @@ mod tests {
     }
 
     #[test]
-    fn test_public_references() {
+    fn test_namespaced_references() {
         let tmp = tempfile::tempdir().unwrap();
         let signer = MockSigner::default();
         let storage = Storage::open(tmp.path().join("storage")).unwrap();
@@ -886,7 +886,7 @@ mod tests {
         let proj = storage.repository(id).unwrap();
 
         let mut refs = proj
-            .public_references()
+            .namespaced_references()
             .unwrap()
             .map(|r| r.unwrap())
             .map(|(_, r, _)| r.to_string())
