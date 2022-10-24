@@ -7,7 +7,7 @@ use thiserror::Error;
 use radicle::crypto::{PublicKey, Signer};
 use radicle::node::Handle;
 use radicle::ssh;
-use radicle::storage::git::transport::{Url, UrlError};
+use radicle::storage::git::transport::local::{Url, UrlError};
 use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 
 /// The service invoked by git on the remote repository, during a push.
@@ -52,11 +52,11 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
         }
     }?;
     // Default to profile key.
-    let public_key = url
-        .public_key
+    let namespace = url
+        .namespace
         .unwrap_or_else(|| *profile.signer.public_key());
 
-    let proj = profile.storage.repository(url.id)?;
+    let proj = profile.storage.repository(url.repo)?;
     if proj.is_empty()? {
         return Err(Error::RepositoryNotFound(proj.path().to_path_buf()).into());
     }
@@ -84,14 +84,14 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                 // 2. Our key is not the one loaded in the profile, which means that the signed refs
                 //    won't match the remote we're pushing to.
                 if *service == GIT_RECEIVE_PACK {
-                    if profile.signer.public_key() != &public_key {
-                        return Err(Error::KeyMismatch(public_key).into());
+                    if profile.signer.public_key() != &namespace {
+                        return Err(Error::KeyMismatch(namespace).into());
                     }
                     if !ssh::agent::connect()?
                         .request_identities::<PublicKey>()?
-                        .contains(&public_key)
+                        .contains(&namespace)
                     {
-                        return Err(Error::KeyNotRegistered(public_key).into());
+                        return Err(Error::KeyNotRegistered(namespace).into());
                     }
                 }
                 println!(); // Empty line signifies connection is established.
@@ -99,7 +99,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                 let mut child = process::Command::new(service)
                     .arg(proj.path())
                     .env("GIT_DIR", proj.path())
-                    .env("GIT_NAMESPACE", public_key.to_string())
+                    .env("GIT_NAMESPACE", namespace.to_string())
                     .stdout(process::Stdio::inherit())
                     .stderr(process::Stdio::inherit())
                     .stdin(process::Stdio::inherit())
@@ -113,7 +113,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                         // If our node is not running, we simply skip this step, as the
                         // refs will be announced eventually, when the node restarts.
                         if let Ok(conn) = profile.node() {
-                            conn.announce_refs(&url.id)?;
+                            conn.announce_refs(&url.repo)?;
                         }
                     }
                 }

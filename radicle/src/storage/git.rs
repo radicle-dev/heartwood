@@ -966,18 +966,18 @@ mod tests {
             });
             opts.remote_callbacks(callbacks);
 
-            // Register the `rad://` transport.
-            transport::register().unwrap();
+            // Register the `heartwood://` transport.
+            transport::remote::register().unwrap();
 
             let target = git2::Repository::init_bare(target_path).unwrap();
             let stream = net::TcpStream::connect(addr).unwrap();
-            let smart = transport::Smart::singleton();
+            let smart = transport::remote::Smart::singleton();
 
             smart.insert(proj, Box::new(stream.try_clone().unwrap()));
 
-            // Fetch with the `rad://` transport.
+            // Fetch with the `heartwood://` transport.
             target
-                .remote_anonymous(&format!("rad://{}", proj))
+                .remote_anonymous(&format!("heartwood://{remote}/{proj}"))
                 .unwrap()
                 .fetch(
                     &["refs/namespaces/*:refs/namespaces/*"],
