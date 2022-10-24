@@ -1,4 +1,5 @@
 //! Git local transport URLs.
+use std::fmt;
 use std::str::FromStr;
 
 use thiserror::Error;
@@ -45,6 +46,16 @@ pub struct Url {
 impl Url {
     /// URL scheme.
     pub const SCHEME: &str = "rad";
+}
+
+impl fmt::Display for Url {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(ns) = self.namespace {
+            write!(f, "{}://{}/{}", Self::SCHEME, self.repo, ns)
+        } else {
+            write!(f, "{}://{}", Self::SCHEME, self.repo)
+        }
+    }
 }
 
 impl FromStr for Url {
@@ -102,5 +113,24 @@ mod test {
         assert!(format!("rad://{repo}/{namespace}/fnord")
             .parse::<Url>()
             .is_err());
+    }
+
+    #[test]
+    fn test_url_to_string() {
+        let repo = Id::from_str("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
+        let namespace =
+            Namespace::from_str("z6Mkifeb5NPS6j7JP72kEQEeuqMTpCAVcHsJi1C86jGTzHRi").unwrap();
+
+        let url = Url {
+            repo,
+            namespace: None,
+        };
+        assert_eq!(url.to_string(), format!("rad://{repo}"));
+
+        let url = Url {
+            repo,
+            namespace: Some(namespace),
+        };
+        assert_eq!(url.to_string(), format!("rad://{repo}/{namespace}"));
     }
 }

@@ -1,4 +1,5 @@
 //! Git remote transport URLs.
+use std::fmt;
 use std::str::FromStr;
 
 use thiserror::Error;
@@ -47,6 +48,16 @@ pub struct Url {
 impl Url {
     /// URL scheme.
     pub const SCHEME: &str = "heartwood";
+}
+
+impl fmt::Display for Url {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(ns) = self.namespace {
+            write!(f, "{}://{}/{}/{}", Self::SCHEME, self.node, self.repo, ns)
+        } else {
+            write!(f, "{}://{}/{}", Self::SCHEME, self.node, self.repo)
+        }
+    }
 }
 
 impl FromStr for Url {
