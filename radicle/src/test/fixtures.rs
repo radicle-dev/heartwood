@@ -4,14 +4,17 @@ use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::Id;
 use crate::rad;
+use crate::storage::git::transport;
 use crate::storage::git::Storage;
 use crate::storage::refs::SignedRefs;
-use crate::storage::WriteStorage;
 
 /// Create a new storage with a project.
 pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: G) -> Result<Storage, rad::InitError> {
     let path = path.as_ref();
     let storage = Storage::open(path.join("storage"))?;
+
+    transport::local::register(storage.clone());
+    transport::remote::mock::register(signer.public_key(), storage.path());
 
     for (name, desc) in [
         ("acme", "Acme's repository"),
@@ -33,11 +36,13 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: G) -> Result<Storage,
 }
 
 /// Create a new repository at the given path, and initialize it into a project.
-pub fn project<P: AsRef<Path>, S: WriteStorage, G: Signer>(
+pub fn project<P: AsRef<Path>, G: Signer>(
     path: P,
-    storage: &S,
+    storage: &Storage,
     signer: G,
 ) -> Result<(Id, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
+    transport::local::register(storage.clone());
+
     let (repo, head) = repository(path);
     let (id, refs) = rad::init(
         &repo,

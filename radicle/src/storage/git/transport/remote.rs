@@ -3,72 +3,46 @@
 //! To have control over the communication, and to allow git streams to be multiplexed over
 //! existing TCP connections, we implement the [`git2::transport::SmartSubtransport`] trait.
 //!
-//! We choose `rad` as the URL scheme for this custom transport, and include only the identity
-//! of the repository we're looking to fetch, eg. `rad://zP1GztjSdYNHK7jpdrXbaJ6Ki2Ke`, since
-//! we expect a connection to a host to already be established.
+//! We choose `heartwood` as the URL scheme for this custom transport, and include the node we'd
+//! like to fetch from, as well as the repository. We expect the TCP stream to already be
+//! established when this transport is called.
 //!
-//! We then maintain a map from identifier to stream, for all active streams, ie. streams that
-//! are associated with an underlying TCP connection. When a URL is requested, we lookup
-//! the stream and return it to the [`git2`] smart-protocol implementation, so that it can carry
-//! out the git smart protocol.
+//! We then maintain a map from node identifier to stream, for all active TCP connections. When a
+//! URL is requested, we lookup the associated stream and return it to the [`git2`] smart-protocol
+//! implementation, so that it can carry out the git smart protocol.
 //!
-//! This module is meant to be used by first registering our transport with [`register`] and then
-//! adding or removing streams through [`Smart`], which can be obtained via [`Smart::singleton`].
+//! This module is meant to be used by registering streams with [`register`].
+pub mod mock;
 pub mod url;
 
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::atomic;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
+use std::sync::Once;
 
 use git2::transport::SmartSubtransportStream;
 use once_cell::sync::Lazy;
 
-use crate::identity::Id;
+use crate::storage::RemoteId;
 
 pub use url::{Url, UrlError};
 
 /// The map of git smart sub-transport streams. We keep a global map because we have
 /// no control over how [`git2::transport::register`] instantiates our [`Smart`] transport
 /// or its underlying streams.
-static STREAMS: Lazy<Arc<Mutex<HashMap<Id, Stream>>>> = Lazy::new(Default::default);
+static STREAMS: Lazy<Mutex<HashMap<RemoteId, Stream>>> = Lazy::new(Default::default);
 
 /// The stream associated with a repository.
 type Stream = Box<dyn SmartSubtransportStream>;
 
 /// Git transport protocol over an I/O stream.
 #[derive(Clone)]
-pub struct Smart {
-    /// The underlying active streams, keyed by repository identifier.
-    streams: Arc<Mutex<HashMap<Id, Stream>>>,
-}
-
-impl Smart {
-    /// Get access to the radicle smart transport protocol.
-    /// The returned object has mutable access to the underlying stream map, and is safe to clone.
-    pub fn singleton() -> Self {
-        Self {
-            streams: STREAMS.clone(),
-        }
-    }
-
-    /// Take a stream from the map.
-    /// This makes the stream unavailable until it is re-inserted.
-    pub fn take(&self, id: &Id) -> Option<Stream> {
-        #[allow(clippy::unwrap_used)]
-        self.streams.lock().unwrap().remove(id)
-    }
-
-    pub fn insert(&self, id: Id, stream: Stream) {
-        #[allow(clippy::unwrap_used)]
-        self.streams.lock().unwrap().insert(id, stream);
-    }
-}
+struct Smart;
 
 impl git2::transport::SmartSubtransport for Smart {
     /// Run a git service on this transport.
     ///
-    /// Based on the URL, which must be of the form `rad://zP1GztjSdYNHK7jpdrXbaJ6Ki2Ke`,
+    /// Based on the URL, which must be a valid [`Url`],
     /// we retrieve an underlying stream and return it.
     ///
     /// We only support the upload-pack service, since only fetches are authorized by the
@@ -79,17 +53,12 @@ impl git2::transport::SmartSubtransport for Smart {
         action: git2::transport::Service,
     ) -> Result<Box<dyn git2::transport::SmartSubtransportStream>, git2::Error> {
         let url = Url::from_str(url).map_err(|e| git2::Error::from_str(e.to_string().as_str()))?;
+        let mut streams = STREAMS.lock().expect("lock isn't poisoned");
 
-        if let Some(stream) = self.take(&url.repo) {
+        if let Some(stream) = streams.remove(&url.node) {
             match action {
-                git2::transport::Service::UploadPackLs => {}
-                git2::transport::Service::UploadPack => {}
-                git2::transport::Service::ReceivePack => {
-                    return Err(git2::Error::from_str(
-                        "git-receive-pack is not supported with the custom transport",
-                    ));
-                }
-                git2::transport::Service::ReceivePackLs => {
+                git2::transport::Service::UploadPackLs | git2::transport::Service::UploadPack => {}
+                git2::transport::Service::ReceivePack | git2::transport::Service::ReceivePackLs => {
                     return Err(git2::Error::from_str(
                         "git-receive-pack is not supported with the custom transport",
                     ));
@@ -98,8 +67,8 @@ impl git2::transport::SmartSubtransport for Smart {
             Ok(stream)
         } else {
             Err(git2::Error::from_str(&format!(
-                "repository {} does not have an associated stream",
-                url.repo
+                "node {} does not have an associated stream",
+                url.node
             )))
         }
     }
@@ -111,21 +80,21 @@ impl git2::transport::SmartSubtransport for Smart {
 
 /// Register the radicle transport with `git`.
 ///
-/// Returns an error if called more than once.
+/// This function can be called more than once. Only one transport will be registered.
 ///
-pub fn register() -> Result<(), git2::Error> {
-    static REGISTERED: atomic::AtomicBool = atomic::AtomicBool::new(false);
+pub fn register(node: RemoteId, stream: impl SmartSubtransportStream) {
+    static REGISTER: Once = Once::new();
 
     // Registration is not thread-safe, so make sure we prevent re-entrancy.
-    if !REGISTERED.swap(true, atomic::Ordering::SeqCst) {
-        unsafe {
-            git2::transport::register(Url::SCHEME, move |remote| {
-                git2::transport::Transport::smart(remote, false, Smart::singleton())
-            })
-        }
-    } else {
-        Err(git2::Error::from_str(
-            "custom git transport is already registered",
-        ))
-    }
+    REGISTER.call_once(|| unsafe {
+        git2::transport::register(Url::SCHEME, move |remote| {
+            git2::transport::Transport::smart(remote, false, Smart)
+        })
+        .expect("remote transport registration");
+    });
+
+    STREAMS
+        .lock()
+        .expect("lock isn't poisoned")
+        .insert(node, Box::new(stream));
 }

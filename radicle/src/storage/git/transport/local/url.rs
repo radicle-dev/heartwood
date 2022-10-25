@@ -35,7 +35,7 @@ pub enum UrlError {
 ///
 /// `rad://<repo>[/<namespace>]`
 ///
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Url {
     /// Repository identifier.
     pub repo: Id,
@@ -46,6 +46,21 @@ pub struct Url {
 impl Url {
     /// URL scheme.
     pub const SCHEME: &str = "rad";
+
+    /// Return this URL with the given namespace added.
+    pub fn with_namespace(mut self, namespace: Namespace) -> Self {
+        self.namespace = Some(namespace);
+        self
+    }
+}
+
+impl From<Id> for Url {
+    fn from(repo: Id) -> Self {
+        Self {
+            repo,
+            namespace: None,
+        }
+    }
 }
 
 impl fmt::Display for Url {

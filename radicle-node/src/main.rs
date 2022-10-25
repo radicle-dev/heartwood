@@ -5,7 +5,7 @@ use anyhow::Context as _;
 
 use radicle_node::logger;
 use radicle_node::prelude::Address;
-use radicle_node::{client, control, git, service};
+use radicle_node::{client, control, service};
 
 type Reactor = nakamoto_net_poll::Reactor<net::TcpStream>;
 
@@ -13,7 +13,6 @@ type Reactor = nakamoto_net_poll::Reactor<net::TcpStream>;
 struct Options {
     connect: Vec<Address>,
     listen: Vec<net::SocketAddr>,
-    git_url: git::Url,
 }
 
 impl Options {
@@ -22,7 +21,6 @@ impl Options {
         let mut parser = lexopt::Parser::from_env();
         let mut connect = Vec::new();
         let mut listen = Vec::new();
-        let mut git_url = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -34,11 +32,6 @@ impl Options {
                     let addr = parser.value()?.parse()?;
                     listen.push(addr);
                 }
-                Long("git-url") => {
-                    let url = git::Url::from_bytes(parser.value()?.into_string()?.as_bytes())
-                        .map_err(|e| format!("invalid URL: {}", e))?;
-                    git_url = Some(url);
-                }
                 Long("help") => {
                     println!("usage: radicle-node [--connect <addr>]..");
                     process::exit(0);
@@ -46,11 +39,7 @@ impl Options {
                 _ => return Err(arg.unexpected()),
             }
         }
-        Ok(Self {
-            connect,
-            listen,
-            git_url: git_url.ok_or("a Git URL must be specified with `--git-url`")?,
-        })
+        Ok(Self { connect, listen })
     }
 }
 
@@ -65,7 +54,6 @@ fn main() -> anyhow::Result<()> {
     let config = client::Config {
         service: service::Config {
             connect: options.connect,
-            git_url: options.git_url,
             ..service::Config::default()
         },
         listen: options.listen,

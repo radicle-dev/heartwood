@@ -11,7 +11,8 @@ use crate::git;
 use crate::identity::project::DocError;
 use crate::identity::Id;
 use crate::node;
-use crate::storage::git::ProjectError;
+use crate::storage::git::transport::{self, remote};
+use crate::storage::git::{ProjectError, Storage};
 use crate::storage::refs::SignedRefs;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId, WriteRepository as _};
 use crate::{identity, storage};
@@ -41,13 +42,13 @@ pub enum InitError {
 }
 
 /// Initialize a new radicle project from a git repository.
-pub fn init<G: Signer, S: storage::WriteStorage>(
+pub fn init<G: Signer>(
     repo: &git2::Repository,
     name: &str,
     description: &str,
     default_branch: BranchName,
     signer: G,
-    storage: &S,
+    storage: &Storage,
 ) -> Result<(Id, SignedRefs<Verified>), InitError> {
     // TODO: Better error when project id already exists in storage, but remote doesn't.
     let pk = signer.public_key();
@@ -65,7 +66,7 @@ pub fn init<G: Signer, S: storage::WriteStorage>(
     .verified()?;
 
     let (id, _, project) = doc.create(pk, "Initialize Radicle\n", storage)?;
-    let url = storage.url(&id);
+    let url = git::Url::from(id).with_namespace(*pk);
 
     git::set_upstream(
         repo,
@@ -75,7 +76,14 @@ pub fn init<G: Signer, S: storage::WriteStorage>(
     )?;
 
     git::configure_remote(repo, &REMOTE_NAME, &url)?;
-    git::push(repo, &REMOTE_NAME, pk, [(&default_branch, &default_branch)])?;
+    git::push(
+        repo,
+        &REMOTE_NAME,
+        [(
+            &git::fmt::lit::refs_heads(&default_branch).into(),
+            &git::fmt::lit::refs_heads(&default_branch).into(),
+        )],
+    )?;
     let signed = project.sign_refs(signer)?;
     let _head = project.set_head()?;
 
@@ -205,6 +213,8 @@ pub fn clone<P: AsRef<Path>, G: Signer, S: storage::WriteStorage, H: node::Handl
 
 #[derive(Error, Debug)]
 pub enum CloneUrlError {
+    #[error("missing namespace in url")]
+    MissingNamespace,
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
     #[error("fetch: {0}")]
@@ -216,16 +226,16 @@ pub enum CloneUrlError {
 }
 
 pub fn clone_url<P: AsRef<Path>, G: Signer, S: storage::WriteStorage>(
-    proj: Id,
-    url: &git::Url,
+    url: &remote::Url,
     path: P,
     signer: &G,
     storage: &S,
 ) -> Result<git2::Repository, CloneUrlError> {
-    let mut project = storage.repository(proj)?;
-    let _updates = project.fetch(url)?;
-    let _ = fork(proj, signer, storage)?;
-    let working = checkout(proj, signer.public_key(), path, storage)?;
+    let namespace = url.namespace.ok_or(CloneUrlError::MissingNamespace)?;
+    let mut project = storage.repository(url.repo)?;
+    let _updates = project.fetch(&url.node, namespace)?;
+    let _ = fork(url.repo, signer, storage)?;
+    let working = checkout(url.repo, signer.public_key(), path, storage)?;
 
     Ok(working)
 }
@@ -233,7 +243,7 @@ pub fn clone_url<P: AsRef<Path>, G: Signer, S: storage::WriteStorage>(
 #[derive(Error, Debug)]
 pub enum CheckoutError {
     #[error("failed to fetch to working copy")]
-    Fetch(#[source] io::Error),
+    Fetch(#[source] git2::Error),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("storage: {0}")]
@@ -262,11 +272,11 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     opts.no_reinit(true).description(&project.description);
 
     let repo = git2::Repository::init_opts(path.as_ref().join(&project.name), &opts)?;
-    let url = storage.url(&proj);
+    let url = git::Url::from(proj).with_namespace(*remote);
 
     // Configure and fetch all refs from remote.
     git::configure_remote(&repo, &REMOTE_NAME, &url)?;
-    git::fetch(&repo, &REMOTE_NAME, remote).map_err(CheckoutError::Fetch)?;
+    git::fetch(&repo, &REMOTE_NAME).map_err(CheckoutError::Fetch)?;
 
     {
         // Setup default branch.
@@ -293,23 +303,18 @@ pub enum RemoteError {
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("invalid remote url: {0}")]
-    Url(#[from] git::url::parse::Error),
-    #[error("remote url doesn't have an id: `{0}`")]
-    MissingId(git::Url),
-    #[error("identifier error: {0}")]
-    InvalidId(#[from] identity::IdError),
+    Url(#[from] transport::local::UrlError),
+    #[error("invalid utf-8 string")]
+    InvalidUtf8,
 }
 
 /// Get the radicle ("rad") remote of a repository, and return the associated project id.
 pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, Id), RemoteError> {
     let remote = repo.find_remote(&REMOTE_NAME)?;
-    let url = remote.url_bytes();
-    let url = git::Url::from_bytes(url)?;
-    let path = url.path.to_string();
-    let id = path.split('/').last().ok_or(RemoteError::MissingId(url))?;
-    let id = Id::from_str(id)?;
+    let url = remote.url().ok_or(RemoteError::InvalidUtf8)?;
+    let url = git::Url::from_str(url)?;
 
-    Ok((remote, id))
+    Ok((remote, url.repo))
 }
 
 #[cfg(test)]
@@ -319,6 +324,7 @@ mod tests {
     use super::*;
     use crate::git::fmt::refname;
     use crate::identity::{Delegate, Did};
+    use crate::storage::git::transport;
     use crate::storage::git::Storage;
     use crate::storage::{ReadStorage, WriteStorage};
     use crate::test::{fixtures, signer::MockSigner};
@@ -329,8 +335,10 @@ mod tests {
         let signer = MockSigner::default();
         let public_key = *signer.public_key();
         let storage = Storage::open(tempdir.path().join("storage")).unwrap();
-        let (repo, _) = fixtures::repository(tempdir.path().join("working"));
 
+        transport::local::register(storage.clone());
+
+        let (repo, _) = fixtures::repository(tempdir.path().join("working"));
         let (proj, refs) = init(
             &repo,
             "acme",
@@ -384,9 +392,11 @@ mod tests {
         let bob = MockSigner::new(&mut rng);
         let bob_id = bob.public_key();
         let storage = Storage::open(tempdir.path().join("storage")).unwrap();
-        let (original, _) = fixtures::repository(tempdir.path().join("original"));
+
+        transport::local::register(storage.clone());
 
         // Alice creates a project.
+        let (original, _) = fixtures::repository(tempdir.path().join("original"));
         let (id, alice_refs) = init(
             &original,
             "acme",
@@ -415,8 +425,10 @@ mod tests {
         let signer = MockSigner::default();
         let remote_id = signer.public_key();
         let storage = Storage::open(tempdir.path().join("storage")).unwrap();
-        let (original, _) = fixtures::repository(tempdir.path().join("original"));
 
+        transport::local::register(storage.clone());
+
+        let (original, _) = fixtures::repository(tempdir.path().join("original"));
         let (id, _) = init(
             &original,
             "acme",

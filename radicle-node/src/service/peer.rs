@@ -28,7 +28,6 @@ pub enum SessionState {
         since: LocalTime,
         /// Addresses this peer is reachable on.
         addrs: Vec<Address>,
-        git: Url,
         ping: PingState,
     },
     /// When a peer is disconnected.

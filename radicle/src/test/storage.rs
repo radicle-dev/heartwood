@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use git_ref_format as fmt;
-use git_url::Url;
 use radicle_git_ext as git_ext;
 
 use crate::crypto::{Signer, Verified};
@@ -38,14 +37,6 @@ impl ReadStorage for MockStorage {
         self.path.as_path()
     }
 
-    fn url(&self, _proj: &Id) -> Url {
-        Url {
-            scheme: git_url::Scheme::Radicle,
-            host: Some("mock".to_string()),
-            ..Url::default()
-        }
-    }
-
     fn get(
         &self,
         _remote: &RemoteId,
@@ -64,10 +55,6 @@ impl WriteStorage for MockStorage {
 
     fn repository(&self, _proj: Id) -> Result<Self::Repository, Error> {
         Ok(MockRepository {})
-    }
-
-    fn fetch(&self, _proj_id: Id, _remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
-        Ok(vec![])
     }
 }
 
@@ -146,7 +133,11 @@ impl ReadRepository for MockRepository {
 }
 
 impl WriteRepository for MockRepository {
-    fn fetch(&mut self, _url: &Url) -> Result<Vec<RefUpdate>, FetchError> {
+    fn fetch(
+        &mut self,
+        _node: &RemoteId,
+        _namespaces: impl Into<Namespaces>,
+    ) -> Result<Vec<RefUpdate>, FetchError> {
         Ok(vec![])
     }
 

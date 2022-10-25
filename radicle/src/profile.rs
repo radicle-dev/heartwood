@@ -16,6 +16,7 @@ use std::{env, io};
 use crate::crypto::{KeyPair, PublicKey, SecretKey, Signature, Signer};
 use crate::keystore::{Error, UnsafeKeystore};
 use crate::node;
+use crate::storage::git::transport;
 use crate::storage::git::Storage;
 
 #[derive(Debug)]
@@ -52,6 +53,7 @@ impl Profile {
         };
         let storage = Storage::open(&home.join("storage"))?;
 
+        transport::local::register(storage.clone());
         keystore.put(&signer.public, &signer.secret)?;
 
         Ok(Profile {
@@ -66,6 +68,8 @@ impl Profile {
         let (public, secret) = UnsafeKeystore::new(&home.join("keys")).get()?;
         let signer = UnsafeSigner { public, secret };
         let storage = Storage::open(&home.join("storage"))?;
+
+        transport::local::register(storage.clone());
 
         Ok(Profile {
             home,

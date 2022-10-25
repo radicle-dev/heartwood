@@ -9,8 +9,6 @@ use log::*;
 use crate::address;
 use crate::clock::{RefClock, Timestamp};
 use crate::crypto::Signer;
-use crate::git;
-use crate::git::Url;
 use crate::identity::Id;
 use crate::node;
 use crate::prelude::NodeId;
@@ -19,7 +17,8 @@ use crate::service::config::*;
 use crate::service::message::*;
 use crate::service::reactor::Io;
 use crate::service::*;
-use crate::storage::WriteStorage;
+use crate::storage::git::transport::remote;
+use crate::storage::{RemoteId, WriteStorage};
 use crate::test::arbitrary;
 use crate::test::signer::MockSigner;
 use crate::test::simulator;
@@ -73,26 +72,10 @@ where
     S: WriteStorage + 'static,
 {
     pub fn new(name: &'static str, ip: impl Into<net::IpAddr>, storage: S) -> Self {
-        let git_url = Url {
-            scheme: git::url::Scheme::File,
-            path: storage.path().to_string_lossy().to_string().into(),
-
-            ..git::Url::default()
-        };
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
 
-        Self::config(
-            name,
-            Config {
-                git_url,
-                ..Config::default()
-            },
-            ip,
-            storage,
-            signer,
-            rng,
-        )
+        Self::config(name, Config::default(), ip, storage, signer, rng)
     }
 }
 
@@ -145,8 +128,12 @@ where
         self.service.clock().timestamp()
     }
 
-    pub fn git_url(&self) -> Url {
-        self.config().git_url.clone()
+    pub fn git_url(&self, repo: Id, namespace: Option<RemoteId>) -> remote::Url {
+        remote::Url {
+            node: self.node_id(),
+            repo,
+            namespace,
+        }
     }
 
     pub fn node_id(&self) -> NodeId {
@@ -197,14 +184,12 @@ where
     pub fn connect_from(&mut self, peer: &Self) {
         let remote = simulator::Peer::<S, G>::addr(peer);
         let local = net::SocketAddr::new(self.ip, self.rng.u16(..));
-        let git = format!("file:///{}.git", remote.ip());
-        let git = Url::from_bytes(git.as_bytes()).unwrap();
 
         self.initialize();
         self.service.connected(remote, &local, Link::Inbound);
         self.receive(
             &remote,
-            Message::init(peer.node_id(), vec![Address::from(remote)], git),
+            Message::init(peer.node_id(), vec![Address::from(remote)]),
         );
 
         let mut msgs = self.messages(&remote);
@@ -244,10 +229,9 @@ where
         })
         .expect("`inventory-announcement` is sent");
 
-        let git = peer.config().git_url.clone();
         self.receive(
             &remote,
-            Message::init(peer.node_id(), peer.config().listen.clone(), git),
+            Message::init(peer.node_id(), peer.config().listen.clone()),
         );
     }
 

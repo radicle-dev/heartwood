@@ -2,7 +2,7 @@ pub mod transport;
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
-use std::{fmt, fs, io};
+use std::{fs, io};
 
 use git_ref_format::refspec;
 use once_cell::sync::Lazy;
@@ -21,7 +21,8 @@ use crate::storage::{
 
 pub use crate::git::*;
 
-use super::{RefUpdate, RemoteId};
+use super::{Namespaces, RefUpdate, RemoteId};
+use transport::remote;
 
 pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*"));
@@ -59,30 +60,14 @@ impl ProjectError {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Storage {
     path: PathBuf,
-}
-
-impl fmt::Debug for Storage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Storage(..)")
-    }
 }
 
 impl ReadStorage for Storage {
     fn path(&self) -> &Path {
         self.path.as_path()
-    }
-
-    fn url(&self, proj: &Id) -> Url {
-        let path = paths::repository(self, proj);
-
-        Url {
-            scheme: git_url::Scheme::File,
-            path: path.to_string_lossy().to_string().into(),
-
-            ..git::Url::default()
-        }
     }
 
     fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, ProjectError> {
@@ -106,19 +91,6 @@ impl WriteStorage for Storage {
 
     fn repository(&self, proj: Id) -> Result<Self::Repository, Error> {
         Repository::open(paths::repository(self, &proj), proj)
-    }
-
-    fn fetch(&self, proj_id: Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
-        let mut repo = self.repository(proj_id)?;
-        let mut path = remote.path.clone();
-
-        path.push(b'/');
-        path.extend(proj_id.to_string().into_bytes());
-
-        repo.fetch(&Url {
-            path,
-            ..remote.clone()
-        })
     }
 }
 
@@ -200,7 +172,7 @@ impl Repository {
         let backend = match git2::Repository::open_bare(path.as_ref()) {
             Err(e) if ext::is_not_found_err(&e) => {
                 let backend = git2::Repository::init_opts(
-                    path,
+                    &path,
                     git2::RepositoryInitOptions::new()
                         .bare(true)
                         .no_reinit(true)
@@ -546,9 +518,11 @@ impl WriteRepository for Repository {
     /// with pruning *on*, and discard the staging copy. If it fails, we just discard the
     /// staging copy.
     ///
-    fn fetch(&mut self, url: &git::Url) -> Result<Vec<RefUpdate>, FetchError> {
-        // TODO: Have function to fetch specific remotes.
-        //
+    fn fetch(
+        &mut self,
+        node: &RemoteId,
+        namespaces: impl Into<Namespaces>,
+    ) -> Result<Vec<RefUpdate>, FetchError> {
         // The steps are summarized in the following diagram:
         //
         //     staging <- git-clone -- local (canonical) # create staging copy
@@ -558,8 +532,12 @@ impl WriteRepository for Repository {
         //
         //     local <- git-fetch -- staging             # fetch from staging copy
         //
-        let url = url.to_string();
-        let refs: &[&str] = &["refs/namespaces/*:refs/namespaces/*"];
+
+        let namespace = match namespaces.into() {
+            Namespaces::All => None,
+            Namespaces::One(ns) => Some(ns),
+        };
+
         let mut updates = Vec::new();
         let mut callbacks = git2::RemoteCallbacks::new();
         let tempdir = tempfile::tempdir()?;
@@ -574,10 +552,10 @@ impl WriteRepository for Repository {
                 // TODO: Due to this, I think we'll have to run GC when there is a failure.
                 .clone_local(git2::build::CloneLocal::Local)
                 .clone(
-                    &git::Url {
+                    &git::url::Url {
                         scheme: git::url::Scheme::File,
                         path: self.backend.path().to_string_lossy().to_string().into(),
-                        ..git::Url::default()
+                        ..git::url::Url::default()
                     }
                     .to_string(),
                     &path,
@@ -589,8 +567,16 @@ impl WriteRepository for Repository {
 
             // Fetch from the remote into the staging copy.
             staging_repo
-                .remote_anonymous(&url)?
-                .fetch(refs, Some(&mut opts), None)?;
+                .remote_anonymous(
+                    remote::Url {
+                        node: *node,
+                        repo: self.id,
+                        namespace,
+                    }
+                    .to_string()
+                    .as_str(),
+                )?
+                .fetch(&["refs/*:refs/*"], Some(&mut opts), None)?;
 
             // Verify the staging copy as if it was the canonical copy.
             Repository {
@@ -617,21 +603,26 @@ impl WriteRepository for Repository {
 
         {
             let mut remote = self.backend.remote_anonymous(
-                &git::Url {
+                &git::url::Url {
                     scheme: git::url::Scheme::File,
                     path: staging.to_string_lossy().to_string().into(),
-                    ..git::Url::default()
+                    ..git::url::Url::default()
                 }
                 .to_string(),
             )?;
             let mut opts = git2::FetchOptions::default();
             opts.remote_callbacks(callbacks);
 
+            let refspec = if let Some(namespace) = namespace {
+                format!("refs/namespaces/{namespace}/refs/*:refs/namespaces/{namespace}/refs/*")
+            } else {
+                "refs/namespaces/*:refs/namespaces/*".to_owned()
+            };
             // TODO: Make sure we verify before pruning, as pruning may get us into
             // a state we can't roll back.
             opts.prune(git2::FetchPrune::On);
             // Fetch from the staging copy into the canonical repo.
-            remote.fetch(refs, Some(&mut opts), None)?;
+            remote.fetch(&[refspec], Some(&mut opts), None)?;
         }
         // Set repository HEAD for git cloning support.
         self.set_head()?;
@@ -742,15 +733,7 @@ mod tests {
         let storage = fixtures::storage(dir.path(), &signer).unwrap();
         let inv = storage.inventory().unwrap();
         let proj = inv.first().unwrap();
-        let mut refs = git::remote_refs(&git::Url {
-            scheme: git_url::Scheme::File,
-            path: paths::repository(&storage, proj)
-                .to_string_lossy()
-                .into_owned()
-                .into(),
-            ..git::Url::default()
-        })
-        .unwrap();
+        let mut refs = git::remote_refs(&git::Url::from(*proj)).unwrap();
 
         let project = storage.repository(*proj).unwrap();
         let remotes = project.remotes().unwrap();
@@ -773,6 +756,7 @@ mod tests {
     fn test_fetch() {
         let tmp = tempfile::tempdir().unwrap();
         let alice_signer = MockSigner::default();
+        let alice_pk = *alice_signer.public_key();
         let alice = fixtures::storage(tmp.path().join("alice"), alice_signer).unwrap();
         let bob = Storage::open(tmp.path().join("bob")).unwrap();
         let inventory = alice.inventory().unwrap();
@@ -785,17 +769,10 @@ mod tests {
         let updates = bob
             .repository(proj)
             .unwrap()
-            .fetch(&git::Url {
-                scheme: git_url::Scheme::File,
-                path: paths::repository(&alice, &proj)
-                    .to_string_lossy()
-                    .into_owned()
-                    .into(),
-                ..git::Url::default()
-            })
+            .fetch(&alice_pk, alice_pk)
             .unwrap();
 
-        // Four refs are created for each remote.
+        // Three refs are created for each remote.
         assert_eq!(updates.len(), remotes.len() * 3);
 
         for update in updates {
@@ -831,24 +808,20 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let alice = Storage::open(tmp.path().join("alice/storage")).unwrap();
         let bob = Storage::open(tmp.path().join("bob/storage")).unwrap();
-
         let alice_signer = MockSigner::new(&mut fastrand::Rng::new());
         let alice_id = alice_signer.public_key();
         let (proj_id, _, proj_repo, alice_head) =
             fixtures::project(tmp.path().join("alice/project"), &alice, &alice_signer).unwrap();
-
         let refname = Qualified::from_refstr(git::refname!("refs/heads/master")).unwrap();
-        let alice_url = git::Url {
-            scheme: git_url::Scheme::File,
-            path: paths::repository(&alice, &proj_id)
-                .to_string_lossy()
-                .into_owned()
-                .into(),
-            ..git::Url::default()
-        };
+
+        transport::remote::mock::register(alice_id, alice.path());
 
         // Have Bob fetch Alice's refs.
-        let updates = bob.repository(proj_id).unwrap().fetch(&alice_url).unwrap();
+        let updates = bob
+            .repository(proj_id)
+            .unwrap()
+            .fetch(alice_signer.public_key(), *alice_signer.public_key())
+            .unwrap();
         // Three refs are created: the branch, the signature and the id.
         assert_eq!(updates.len(), 3);
 
@@ -857,12 +830,16 @@ mod tests {
         let alice_head = git::commit(&proj_repo, &alice_head, &refname, "Making changes", "Alice")
             .unwrap()
             .id();
-        git::push(&proj_repo, "rad", alice_id, [(&refname, &refname)]).unwrap();
+        git::push(&proj_repo, "rad", [(&refname, &refname)]).unwrap();
         alice_proj_storage.sign_refs(&alice_signer).unwrap();
         alice_proj_storage.set_head().unwrap();
 
         // Have Bob fetch Alice's new commit.
-        let updates = bob.repository(proj_id).unwrap().fetch(&alice_url).unwrap();
+        let updates = bob
+            .repository(proj_id)
+            .unwrap()
+            .fetch(alice_signer.public_key(), *alice_signer.public_key())
+            .unwrap();
         // The branch and signature refs are updated.
         assert_matches!(
             updates.as_slice(),
@@ -881,6 +858,9 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let signer = MockSigner::default();
         let storage = Storage::open(tmp.path().join("storage")).unwrap();
+
+        transport::local::register(storage.clone());
+
         let (id, _, _, _) =
             fixtures::project(tmp.path().join("project"), &storage, &signer).unwrap();
         let proj = storage.repository(id).unwrap();
@@ -897,6 +877,10 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
+    // Test the remote transport using `git-upload-pack` and TCP streams.
+    // Must be run on its own, since it tries to register the remote transport, which
+    // will fail if the mock transport was already registered.
     fn test_upload_pack() {
         let tmp = tempfile::tempdir().unwrap();
         let signer = MockSigner::default();
@@ -907,6 +891,9 @@ mod tests {
         let source_path = tmp.path().join("source");
         let target_path = tmp.path().join("target");
         let (source, _) = fixtures::repository(&source_path);
+
+        transport::local::register(storage.clone());
+
         let (proj, _) = rad::init(
             &source,
             "radicle",
@@ -966,14 +953,11 @@ mod tests {
             });
             opts.remote_callbacks(callbacks);
 
-            // Register the `heartwood://` transport.
-            transport::remote::register().unwrap();
-
             let target = git2::Repository::init_bare(target_path).unwrap();
             let stream = net::TcpStream::connect(addr).unwrap();
-            let smart = transport::remote::Smart::singleton();
 
-            smart.insert(proj, Box::new(stream.try_clone().unwrap()));
+            // Register the `heartwood://` transport for this stream.
+            transport::remote::register(remote, stream.try_clone().unwrap());
 
             // Fetch with the `heartwood://` transport.
             target

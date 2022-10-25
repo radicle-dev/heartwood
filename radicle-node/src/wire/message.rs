@@ -2,7 +2,6 @@ use std::{io, mem, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
 
-use crate::git;
 use crate::prelude::*;
 use crate::service::message::*;
 use crate::wire;
@@ -169,16 +168,10 @@ impl wire::Encode for Message {
         let mut n = self.type_id().encode(writer)?;
 
         match self {
-            Self::Initialize {
-                id,
-                version,
-                addrs,
-                git,
-            } => {
+            Self::Initialize { id, version, addrs } => {
                 n += id.encode(writer)?;
                 n += version.encode(writer)?;
                 n += addrs.as_slice().encode(writer)?;
-                n += git.encode(writer)?;
             }
             Self::Subscribe(Subscribe {
                 filter,
@@ -226,14 +219,8 @@ impl wire::Decode for Message {
                 let id = NodeId::decode(reader)?;
                 let version = u32::decode(reader)?;
                 let addrs = Vec::<Address>::decode(reader)?;
-                let git = git::Url::decode(reader)?;
 
-                Ok(Self::Initialize {
-                    id,
-                    version,
-                    addrs,
-                    git,
-                })
+                Ok(Self::Initialize { id, version, addrs })
             }
             Ok(MessageType::Subscribe) => {
                 let filter = Filter::decode(reader)?;

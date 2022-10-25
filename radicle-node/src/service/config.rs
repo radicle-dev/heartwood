@@ -1,6 +1,4 @@
 use crate::collections::HashSet;
-use crate::git;
-use crate::git::Url;
 use crate::identity::{Id, PublicKey};
 use crate::service::filter::Filter;
 use crate::service::message::Address;
@@ -58,8 +56,6 @@ pub struct Config {
     pub relay: bool,
     /// List of addresses to listen on for protocol connections.
     pub listen: Vec<Address>,
-    /// Our Git URL for fetching projects.
-    pub git_url: Url,
 }
 
 impl Default for Config {
@@ -71,11 +67,6 @@ impl Default for Config {
             remote_tracking: RemoteTracking::default(),
             relay: true,
             listen: vec![],
-            git_url: Url {
-                scheme: git::url::Scheme::File,
-                path: "/dev/null".to_owned().into(),
-                ..Url::default()
-            },
         }
     }
 }

@@ -4,7 +4,6 @@ use std::{fmt, io, mem, net};
 use thiserror::Error;
 
 use crate::crypto;
-use crate::git;
 use crate::identity::Id;
 use crate::node;
 use crate::service::filter::Filter;
@@ -297,7 +296,6 @@ pub enum Message {
         id: NodeId,
         version: u32,
         addrs: Vec<Address>,
-        git: git::Url,
     },
 
     /// Subscribe to gossip messages matching the filter and time range.
@@ -321,11 +319,10 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn init(id: NodeId, addrs: Vec<Address>, git: git::Url) -> Self {
+    pub fn init(id: NodeId, addrs: Vec<Address>) -> Self {
         Self::Initialize {
             id,
             version: PROTOCOL_VERSION,
-            git,
             addrs,
         }
     }

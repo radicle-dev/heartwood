@@ -19,7 +19,7 @@ use nakamoto_net as nakamoto;
 use nakamoto_net::Link;
 use nonempty::NonEmpty;
 use radicle::node::Features;
-use radicle::storage::ReadStorage;
+use radicle::storage::{Namespaces, ReadStorage};
 
 use crate::address;
 use crate::address::AddressBook;
@@ -27,7 +27,6 @@ use crate::clock::{RefClock, Timestamp};
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::git;
-use crate::git::Url;
 use crate::identity::{Doc, Id};
 use crate::node;
 use crate::service::config::ProjectTracking;
@@ -75,7 +74,7 @@ pub type NodeId = crypto::PublicKey;
 #[derive(Debug, Clone)]
 pub enum Event {
     RefsFetched {
-        from: Url,
+        from: NodeId,
         project: Id,
         updated: Vec<RefUpdate>,
     },
@@ -447,15 +446,8 @@ where
                 .ok();
 
                 // TODO: Limit the number of seeds we fetch from? Randomize?
-                for (_, peer) in seeds {
-                    match repo.fetch(&Url {
-                        scheme: git::url::Scheme::Git,
-                        host: Some(peer.addr.ip().to_string()),
-                        port: Some(peer.addr.port()),
-                        // TODO: Fix upstream crate so that it adds a `/` when needed.
-                        path: format!("/{}", id).into(),
-                        ..Url::default()
-                    }) {
+                for (peer_id, peer) in seeds {
+                    match repo.fetch(&peer_id, Namespaces::default()) {
                         Ok(updated) => {
                             results_
                                 .send(FetchResult::Fetched {
@@ -609,7 +601,6 @@ where
     pub fn handle_announcement(
         &mut self,
         session: &NodeId,
-        git: &git::Url,
         announcement: &Announcement,
     ) -> Result<bool, peer::SessionError> {
         if !announcement.verify() {
@@ -635,7 +626,7 @@ where
                     return Ok(false);
                 }
 
-                if let Err(err) = self.process_inventory(&message.inventory, *node, git) {
+                if let Err(err) = self.process_inventory(&message.inventory, *node) {
                     error!("Error processing inventory from {}: {}", node, err);
 
                     if let Error::Fetch(storage::FetchError::Verify(err)) = err {
@@ -665,11 +656,25 @@ where
                     // Refs are only supposed to be relayed by peers who are tracking
                     // the resource. Therefore, it's safe to fetch from the remote
                     // peer, even though it isn't the announcer.
-                    let updated = self.storage.fetch(message.id, git).unwrap();
+                    let updated = match self
+                        .storage
+                        .repository(message.id)
+                        .map_err(storage::FetchError::from)
+                        .and_then(|mut r| r.fetch(session, Namespaces::default()))
+                    {
+                        Ok(updated) => updated,
+                        Err(err) => {
+                            error!(
+                                "Error fetching repository {} from {}: {}",
+                                message.id, session, err
+                            );
+                            return Ok(false);
+                        }
+                    };
                     let is_updated = !updated.is_empty();
 
                     self.reactor.event(Event::RefsFetched {
-                        from: git.clone(),
+                        from: *session,
                         project: message.id,
                         updated,
                     });
@@ -748,15 +753,7 @@ where
         debug!("Received {:?} from {}", &message, peer.ip());
 
         match (&mut peer.state, message) {
-            (
-                SessionState::Initial,
-                Message::Initialize {
-                    id,
-                    version,
-                    addrs,
-                    git,
-                },
-            ) => {
+            (SessionState::Initial, Message::Initialize { id, version, addrs }) => {
                 if version != PROTOCOL_VERSION {
                     return Err(SessionError::WrongVersion(version));
                 }
@@ -780,7 +777,6 @@ where
                     id,
                     since: self.clock.local_time(),
                     addrs,
-                    git,
                     ping: Default::default(),
                 };
             }
@@ -792,12 +788,11 @@ where
                 return Err(SessionError::Misbehavior);
             }
             // Process a peer announcement.
-            (SessionState::Negotiated { id, git, .. }, Message::Announcement(ann)) => {
-                let git = git.clone();
+            (SessionState::Negotiated { id, .. }, Message::Announcement(ann)) => {
                 let id = *id;
 
                 // Returning true here means that the message should be relayed.
-                if self.handle_announcement(&id, &git, &ann)? {
+                if self.handle_announcement(&id, &ann)? {
                     self.gossip.received(ann.clone(), ann.message.timestamp());
 
                     // Choose peers we should relay this message to.
@@ -857,12 +852,7 @@ where
     }
 
     /// Process a peer inventory announcement by updating our routing table.
-    fn process_inventory(
-        &mut self,
-        inventory: &Inventory,
-        from: NodeId,
-        remote: &Url,
-    ) -> Result<(), Error> {
+    fn process_inventory(&mut self, inventory: &Inventory, from: NodeId) -> Result<(), Error> {
         for proj_id in inventory {
             // TODO: Fire an event on routing update.
             // FIXME: The timestamp we insert should be the announcement timestamp.
@@ -871,7 +861,7 @@ where
                 .insert(*proj_id, from, self.clock.timestamp())?
                 && self.config.is_tracking(proj_id)
             {
-                self.storage.fetch(*proj_id, remote)?;
+                log::info!("Routing table updated for {} with seed {}", proj_id, from);
             }
         }
         Ok(())
@@ -1198,7 +1188,6 @@ mod gossip {
         signer: &G,
         config: &Config,
     ) -> [Message; 4] {
-        let git = config.git_url.clone();
         let inventory = match storage.inventory() {
             Ok(i) => i,
             Err(e) => {
@@ -1210,7 +1199,7 @@ mod gossip {
         };
 
         [
-            Message::init(*signer.public_key(), config.listen.clone(), git),
+            Message::init(*signer.public_key(), config.listen.clone()),
             Message::node(gossip::node(timestamp, config), signer),
             Message::inventory(gossip::inventory(timestamp, inventory), signer),
             Message::subscribe(config.filter(), timestamp, Timestamp::MAX),

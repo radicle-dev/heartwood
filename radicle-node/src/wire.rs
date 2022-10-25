@@ -348,16 +348,6 @@ impl Decode for String {
     }
 }
 
-impl Decode for git::Url {
-    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let url = String::decode(reader)?;
-        let url = Self::from_bytes(url.as_bytes())
-            .map_err(|error| Error::InvalidGitUrl { url, error })?;
-
-        Ok(url)
-    }
-}
-
 impl Decode for Id {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
         let oid: git::Oid = Decode::decode(reader)?;
@@ -646,18 +636,6 @@ mod tests {
             serialize(&String::from("hello")),
             vec![5, b'h', b'e', b'l', b'l', b'o']
         );
-    }
-
-    #[test]
-    fn test_git_url() {
-        let url = git::Url {
-            scheme: git::url::Scheme::Https,
-            path: "/git".to_owned().into(),
-            host: Some("seed.radicle.xyz".to_owned()),
-            port: Some(8888),
-            ..git::Url::default()
-        };
-        assert_eq!(deserialize::<git::Url>(&serialize(&url)).unwrap(), url);
     }
 
     #[test]

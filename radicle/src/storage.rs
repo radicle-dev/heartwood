@@ -15,7 +15,6 @@ use crate::collections::HashMap;
 use crate::crypto;
 use crate::crypto::{PublicKey, Signer, Unverified, Verified};
 use crate::git::ext as git_ext;
-use crate::git::Url;
 use crate::git::{Qualified, RefError, RefString};
 use crate::identity;
 use crate::identity::{Id, IdError};
@@ -25,6 +24,22 @@ use self::refs::SignedRefs;
 
 pub type BranchName = git::RefString;
 pub type Inventory = Vec<Id>;
+
+/// Describes one or more namespaces.
+#[derive(Default, Debug)]
+pub enum Namespaces {
+    /// All namespaces.
+    #[default]
+    All,
+    /// A single namespace, by public key.
+    One(PublicKey),
+}
+
+impl From<PublicKey> for Namespaces {
+    fn from(pk: PublicKey) -> Self {
+        Self::One(pk)
+    }
+}
 
 /// Storage error.
 #[derive(Error, Debug)]
@@ -217,7 +232,6 @@ impl Remote<Verified> {
 
 pub trait ReadStorage {
     fn path(&self) -> &Path;
-    fn url(&self, proj: &Id) -> Url;
     fn get(
         &self,
         remote: &RemoteId,
@@ -230,7 +244,6 @@ pub trait WriteStorage: ReadStorage {
     type Repository: WriteRepository;
 
     fn repository(&self, proj: Id) -> Result<Self::Repository, Error>;
-    fn fetch(&self, proj_id: Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError>;
 }
 
 pub trait ReadRepository {
@@ -286,7 +299,11 @@ pub trait ReadRepository {
 }
 
 pub trait WriteRepository: ReadRepository {
-    fn fetch(&mut self, url: &Url) -> Result<Vec<RefUpdate>, FetchError>;
+    fn fetch(
+        &mut self,
+        node: &RemoteId,
+        namespaces: impl Into<Namespaces>,
+    ) -> Result<Vec<RefUpdate>, FetchError>;
     fn set_head(&self) -> Result<Oid, ProjectError>;
     fn sign_refs<G: Signer>(&self, signer: G) -> Result<SignedRefs<Verified>, Error>;
     fn raw(&self) -> &git2::Repository;
@@ -299,10 +316,6 @@ where
 {
     fn path(&self) -> &Path {
         self.deref().path()
-    }
-
-    fn url(&self, proj: &Id) -> Url {
-        self.deref().url(proj)
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
@@ -327,10 +340,6 @@ where
 
     fn repository(&self, proj: Id) -> Result<Self::Repository, Error> {
         self.deref().repository(proj)
-    }
-
-    fn fetch(&self, proj_id: Id, remote: &Url) -> Result<Vec<RefUpdate>, FetchError> {
-        self.deref().fetch(proj_id, remote)
     }
 }
 

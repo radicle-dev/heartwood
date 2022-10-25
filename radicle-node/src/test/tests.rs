@@ -13,6 +13,7 @@ use crate::service::peer::*;
 use crate::service::reactor::Io;
 use crate::service::ServiceState as _;
 use crate::service::*;
+use crate::storage::git::transport::{local, remote};
 use crate::storage::git::Storage;
 use crate::storage::ReadStorage;
 use crate::test::arbitrary;
@@ -223,16 +224,6 @@ fn test_inventory_sync() {
         let seeds = alice.routing().get(proj).unwrap();
         assert!(seeds.contains(&bob.node_id()));
     }
-
-    let a = alice
-        .storage()
-        .inventory()
-        .unwrap()
-        .into_iter()
-        .collect::<HashSet<_>>();
-    let b = projs.into_iter().collect::<HashSet<_>>();
-
-    assert_eq!(a, b);
 }
 
 #[test]
@@ -441,22 +432,7 @@ fn test_refs_announcement_relay() {
         let signer = MockSigner::new(&mut rng);
         let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
 
-        Peer::config(
-            "bob",
-            Config {
-                git_url: git::Url {
-                    scheme: git::url::Scheme::File,
-                    path: storage.path().to_string_lossy().to_string().into(),
-
-                    ..git::Url::default()
-                },
-                ..Config::default()
-            },
-            [9, 9, 9, 9],
-            storage,
-            signer,
-            rng,
-        )
+        Peer::config("bob", Config::default(), [9, 9, 9, 9], storage, signer, rng)
     };
     let bob_inv = bob.inventory().unwrap();
 
@@ -687,6 +663,11 @@ fn test_push_and_pull() {
     let storage_eve = Storage::open(tempdir.path().join("eve").join("storage")).unwrap();
     let mut eve = Peer::new("eve", [9, 9, 9, 9], storage_eve);
 
+    remote::mock::register(&alice.node_id(), alice.storage().path());
+    remote::mock::register(&eve.node_id(), eve.storage().path());
+    remote::mock::register(&bob.node_id(), bob.storage().path());
+    local::register(alice.storage().clone());
+
     // Alice and Bob connect to Eve.
     alice.command(service::Command::Connect(eve.addr()));
     bob.command(service::Command::Connect(eve.addr()));
@@ -744,7 +725,7 @@ fn test_push_and_pull() {
     assert_matches!(
         sim.events(&bob.ip).next(),
         Some(service::Event::RefsFetched { from, .. })
-        if from == eve.git_url(),
+        if from == eve.node_id(),
         "Bob fetched from Eve"
     );
 }

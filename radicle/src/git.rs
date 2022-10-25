@@ -22,8 +22,8 @@ pub use git_ref_format::{
     lit, name, qualified, refname, Component, Namespaced, Qualified, RefStr, RefString,
 };
 pub use git_url as url;
-pub use git_url::Url;
 pub use radicle_git_ext as ext;
+pub use storage::git::transport::local::Url;
 pub use storage::BranchName;
 
 /// Default port of the `git` transport protocol.
@@ -265,43 +265,25 @@ pub fn configure_remote<'r>(
     Ok(remote)
 }
 
-/// Fetch from the given `remote` using the provided `namespace`.
-///
-/// This uses [`Command`] under the hood and is the equivalent to:
-///
-///  `GIT_NAMESPACE=<namespace> git fetch <remote>`
-pub fn fetch(repo: &git2::Repository, remote: &str, namespace: &RemoteId) -> io::Result<String> {
-    run(
-        &repo.path(),
-        ["fetch", remote],
-        [("GIT_NAMESPACE", Component::from(namespace).as_str())],
-    )
+/// Fetch from the given `remote`.
+pub fn fetch(repo: &git2::Repository, remote: &str) -> Result<(), git2::Error> {
+    repo.find_remote(remote)?.fetch::<&str>(&[], None, None)
 }
 
 /// Push `refspecs` to the given `remote` using the provided `namespace`.
-///
-/// This uses [`Command`] under the hood and is the equivalent to:
-///
-/// `GIT_NAMESPACE=<namespace> git push <remote> [<refspecs>]`
-pub fn push<Ref>(
+pub fn push<'a>(
     repo: &git2::Repository,
     remote: &str,
-    namespace: &RemoteId,
-    refspecs: impl IntoIterator<Item = (Ref, Ref)>,
-) -> io::Result<String>
-where
-    Ref: AsRef<RefStr>,
-{
-    let mut args = vec!["push".to_owned(), remote.to_owned()];
+    refspecs: impl IntoIterator<Item = (&'a Qualified<'a>, &'a Qualified<'a>)>,
+) -> Result<(), git2::Error> {
     let refspecs = refspecs
         .into_iter()
-        .map(|(src, dst)| format!("{}:{}", src.as_ref().as_str(), dst.as_ref().as_str()));
-    args.extend(refspecs);
-    run(
-        &repo.path(),
-        args,
-        [("GIT_NAMESPACE", Component::from(namespace).as_str())],
-    )
+        .map(|(src, dst)| format!("{}:{}", src.as_str(), dst.as_str()));
+
+    repo.find_remote(remote)?
+        .push(refspecs.collect::<Vec<_>>().as_slice(), None)?;
+
+    Ok(())
 }
 
 /// Set the upstream of the given branch to the given remote.

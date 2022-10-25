@@ -21,13 +21,13 @@ pub enum UrlError {
     #[error("unsupported scheme: expected `heartwood://`")]
     UnsupportedScheme,
     /// Invalid node identifier.
-    #[error("node: {0}")]
+    #[error("invalid node: {0}")]
     InvalidNode(#[source] crypto::PublicKeyError),
     /// Invalid repository identifier.
-    #[error("repo: {0}")]
+    #[error("invalid repo: {0}")]
     InvalidRepository(#[source] IdError),
     /// Invalid namespace.
-    #[error("namespace: {0}")]
+    #[error("invalid namespace: {0}")]
     InvalidNamespace(#[source] crypto::PublicKeyError),
 }
 
@@ -35,7 +35,7 @@ pub enum UrlError {
 ///
 /// `heartwood://<node>/<repo>[/<namespace>]`
 ///
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Url {
     /// Node identifier.
     pub node: NodeId,
