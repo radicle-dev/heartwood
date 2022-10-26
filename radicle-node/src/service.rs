@@ -599,17 +599,21 @@ where
     /// and `false` if it should not.
     pub fn handle_announcement(
         &mut self,
-        session: &NodeId,
+        relayer: &NodeId,
         announcement: &Announcement,
     ) -> Result<bool, session::Error> {
         if !announcement.verify() {
             return Err(session::Error::Misbehavior);
         }
-        let Announcement { node, message, .. } = announcement;
+        let Announcement {
+            node: announcer,
+            message,
+            ..
+        } = announcement;
         let now = self.clock.local_time();
         let timestamp = message.timestamp();
         let relay = self.config.relay;
-        let peer = self.nodes.entry(*node).or_insert_with(Node::default);
+        let peer = self.nodes.entry(*announcer).or_insert_with(Node::default);
 
         // Don't allow messages from too far in the future.
         if timestamp.saturating_sub(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
@@ -621,16 +625,16 @@ where
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
                 if !peer.inventory_announced(timestamp) {
-                    debug!("Ignoring stale inventory announcement from {node}");
+                    debug!("Ignoring stale inventory announcement from {announcer}");
                     return Ok(false);
                 }
 
-                if let Err(err) = self.process_inventory(&message.inventory, *node) {
-                    error!("Error processing inventory from {}: {}", node, err);
+                if let Err(err) = self.process_inventory(&message.inventory, *announcer) {
+                    error!("Error processing inventory from {}: {}", announcer, err);
 
                     if let Error::Fetch(storage::FetchError::Verify(err)) = err {
                         // Disconnect the peer if it is the signer of this message.
-                        if node == session {
+                        if announcer == relayer {
                             return Err(session::Error::VerificationFailed(err));
                         }
                     }
@@ -648,7 +652,7 @@ where
                     // Discard inventory messages we've already seen, otherwise update
                     // out last seen time.
                     if !peer.refs_announced(message.id, timestamp) {
-                        debug!("Ignoring stale refs announcement from {node}");
+                        debug!("Ignoring stale refs announcement from {announcer}");
                         return Ok(false);
                     }
                     // TODO: Check refs to see if we should try to fetch or not.
@@ -659,13 +663,13 @@ where
                         .storage
                         .repository(message.id)
                         .map_err(storage::FetchError::from)
-                        .and_then(|mut r| r.fetch(session, Namespaces::default()))
+                        .and_then(|mut r| r.fetch(relayer, Namespaces::default()))
                     {
                         Ok(updated) => updated,
                         Err(err) => {
                             error!(
                                 "Error fetching repository {} from {}: {}",
-                                message.id, session, err
+                                message.id, relayer, err
                             );
                             return Ok(false);
                         }
@@ -673,7 +677,7 @@ where
                     let is_updated = !updated.is_empty();
 
                     self.reactor.event(Event::RefsFetched {
-                        from: *session,
+                        from: *relayer,
                         project: message.id,
                         updated,
                     });
@@ -692,7 +696,7 @@ where
                 // Discard node messages we've already seen, otherwise update
                 // out last seen time.
                 if !peer.node_announced(timestamp) {
-                    debug!("Ignoring stale node announcement from {node}");
+                    debug!("Ignoring stale node announcement from {announcer}");
                     return Ok(false);
                 }
 
@@ -705,13 +709,13 @@ where
                 let alias = match str::from_utf8(alias) {
                     Ok(s) => s,
                     Err(e) => {
-                        warn!("Dropping node announcement from {node}: invalid alias: {e}");
+                        warn!("Dropping node announcement from {announcer}: invalid alias: {e}");
                         return Ok(false);
                     }
                 };
 
                 match self.addresses.insert(
-                    node,
+                    announcer,
                     *features,
                     alias,
                     timestamp,
@@ -722,13 +726,15 @@ where
                     Ok(updated) => {
                         // Only relay if we received new information.
                         if updated {
-                            debug!("Address store entry for node {node} updated at {timestamp}");
+                            debug!(
+                                "Address store entry for node {announcer} updated at {timestamp}"
+                            );
                             return Ok(relay);
                         }
                     }
                     Err(err) => {
                         // An error here is due to a fault in our address store.
-                        error!("Error processing node announcement from {node}: {err}");
+                        error!("Error processing node announcement from {announcer}: {err}");
                     }
                 }
             }
@@ -787,11 +793,11 @@ where
                 return Err(session::Error::Misbehavior);
             }
             // Process a peer announcement.
-            (session::State::Negotiated { id, .. }, Message::Announcement(ann)) => {
-                let id = *id;
+            (session::State::Negotiated { id: relayer, .. }, Message::Announcement(ann)) => {
+                let relayer = *relayer;
 
                 // Returning true here means that the message should be relayed.
-                if self.handle_announcement(&id, &ann)? {
+                if self.handle_announcement(&relayer, &ann)? {
                     self.gossip.received(ann.clone(), ann.message.timestamp());
 
                     // Choose peers we should relay this message to.
