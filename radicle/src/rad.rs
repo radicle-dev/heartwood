@@ -321,13 +321,15 @@ pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, Id), RemoteE
 mod tests {
     use std::collections::HashMap;
 
+    use radicle_crypto::test::signer::MockSigner;
+
     use super::*;
     use crate::git::fmt::refname;
     use crate::identity::{Delegate, Did};
     use crate::storage::git::transport;
     use crate::storage::git::Storage;
     use crate::storage::{ReadStorage, WriteStorage};
-    use crate::test::{fixtures, signer::MockSigner};
+    use crate::test::fixtures;
 
     #[test]
     fn test_init() {

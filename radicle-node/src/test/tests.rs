@@ -5,6 +5,7 @@ use crossbeam_channel as chan;
 use nakamoto_net as nakamoto;
 
 use crate::collections::{HashMap, HashSet};
+use crate::crypto::test::signer::MockSigner;
 use crate::prelude::{LocalDuration, Timestamp};
 use crate::service::config::*;
 use crate::service::filter::Filter;
@@ -22,7 +23,6 @@ use crate::test::fixtures;
 #[allow(unused)]
 use crate::test::logger;
 use crate::test::peer::Peer;
-use crate::test::signer::MockSigner;
 use crate::test::simulator;
 use crate::test::simulator::{Peer as _, Simulation};
 use crate::test::storage::MockStorage;

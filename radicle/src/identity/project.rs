@@ -488,13 +488,14 @@ impl Identity<Untrusted> {
 
 #[cfg(test)]
 mod test {
-    use crate::crypto::Signer;
+    use radicle_crypto::test::signer::MockSigner;
+    use radicle_crypto::Signer;
+
     use crate::rad;
     use crate::storage::git::Storage;
     use crate::storage::{ReadStorage, WriteStorage};
     use crate::test::arbitrary;
     use crate::test::fixtures;
-    use crate::test::signer::MockSigner;
 
     use super::*;
     use quickcheck_macros::quickcheck;

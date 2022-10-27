@@ -1,4 +1,4 @@
-use radicle::test::signer::MockSigner;
+use radicle::crypto::test::signer::MockSigner;
 
 use crate::test::arbitrary;
 use crate::{

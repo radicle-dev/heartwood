@@ -1,4 +1,4 @@
-use radicle::{crypto, ssh};
+use radicle::{crypto, crypto::ssh};
 use std::io::prelude::*;
 use std::{env, io};
 

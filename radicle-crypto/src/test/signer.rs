@@ -1,4 +1,4 @@
-use crate::crypto::{KeyPair, PublicKey, SecretKey, Seed, Signature, Signer};
+use crate::{KeyPair, PublicKey, SecretKey, Seed, Signature, Signer};
 
 #[derive(Debug, Clone)]
 pub struct MockSigner {

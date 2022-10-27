@@ -38,6 +38,11 @@ version = "0.15.0"
 default-features = false
 features = ["vendored-libgit2"]
 
+[dependencies.radicle-crypto]
+path = "../radicle-crypto"
+version = "0"
+features = ["git-ref-format", "ssh", "sqlite"]
+
 [dependencies.radicle-ssh]
 path = "../radicle-ssh"
 version = "0"
@@ -51,3 +56,8 @@ optional = true
 [dev-dependencies]
 quickcheck_macros = { version = "1", default-features = false }
 quickcheck = { version = "1", default-features = false }
+
+[dev-dependencies.radicle-crypto]
+path = "../radicle-crypto"
+version = "0"
+features = ["test"]

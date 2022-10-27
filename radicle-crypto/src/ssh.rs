@@ -9,13 +9,13 @@ use radicle_ssh::encoding::Encodable;
 use radicle_ssh::encoding::Encoding;
 use radicle_ssh::encoding::Reader;
 
-use crate::crypto;
-use crate::crypto::PublicKey;
+use crate as crypto;
+use crate::PublicKey;
 
 pub mod fmt {
     use radicle_ssh::encoding::Encoding as _;
 
-    use crate::crypto::PublicKey;
+    use crate::PublicKey;
 
     /// Get the SSH long key from a public key.
     /// This is the output of `ssh-add -L`.
@@ -49,7 +49,7 @@ pub mod fmt {
         use std::str::FromStr;
 
         use super::*;
-        use crate::crypto::PublicKey;
+        use crate::PublicKey;
 
         #[test]
         fn test_key() {
@@ -319,9 +319,9 @@ mod test {
     use zeroize::Zeroizing;
 
     use super::{fmt, ExtendedSignature, SecretKey};
-    use crate::crypto::PublicKey;
-    use crate::crypto::{self};
+    use crate as crypto;
     use crate::test::arbitrary::ByteArray;
+    use crate::PublicKey;
     use radicle_ssh::agent::client::{AgentClient, ClientStream, Error};
     use radicle_ssh::encoding::*;
 

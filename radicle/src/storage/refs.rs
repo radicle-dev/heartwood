@@ -7,12 +7,11 @@ use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::str::FromStr;
 
+use crypto::{PublicKey, Signature, Signer, Unverified, Verified};
 use once_cell::sync::Lazy;
 use radicle_git_ext as git_ext;
 use thiserror::Error;
 
-use crate::crypto;
-use crate::crypto::{PublicKey, Signature, Signer, Unverified, Verified};
 use crate::git;
 use crate::git::Oid;
 use crate::storage;

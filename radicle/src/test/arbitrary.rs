@@ -3,18 +3,17 @@ use std::hash::Hash;
 use std::iter;
 use std::ops::RangeBounds;
 
+use crypto::test::signer::MockSigner;
+use crypto::{PublicKey, Signer, Unverified, Verified};
 use nonempty::NonEmpty;
 use quickcheck::Arbitrary;
 
 use crate::collections::HashMap;
-use crate::crypto;
-use crate::crypto::{KeyPair, PublicKey, Seed, Signer, Unverified, Verified};
 use crate::git;
 use crate::hash;
 use crate::identity::{project::Delegate, project::Doc, Did, Id};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
-use crate::test::signer::MockSigner;
 use crate::test::storage::MockStorage;
 
 pub fn set<T: Eq + Hash + Arbitrary>(range: impl RangeBounds<usize>) -> HashSet<T> {
@@ -174,16 +173,6 @@ impl Arbitrary for Refs {
     }
 }
 
-impl Arbitrary for MockSigner {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let bytes: ByteArray<32> = Arbitrary::arbitrary(g);
-        let seed = Seed::new(bytes.into_inner());
-        let sk = KeyPair::from_seed(seed).sk;
-
-        MockSigner::from(sk)
-    }
-}
-
 impl Arbitrary for MockStorage {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let inventory = Arbitrary::arbitrary(g);
@@ -214,15 +203,5 @@ impl Arbitrary for hash::Digest {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         let bytes: Vec<u8> = Arbitrary::arbitrary(g);
         hash::Digest::new(&bytes)
-    }
-}
-
-impl Arbitrary for PublicKey {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let bytes: ByteArray<32> = Arbitrary::arbitrary(g);
-        let seed = Seed::new(bytes.into_inner());
-        let keypair = KeyPair::from_seed(seed);
-
-        PublicKey(keypair.pk)
     }
 }

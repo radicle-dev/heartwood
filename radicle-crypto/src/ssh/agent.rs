@@ -1,7 +1,7 @@
 use radicle_ssh::agent::client::AgentClient;
 use radicle_ssh::{self as ssh, agent::client::ClientStream};
 
-use crate::crypto;
+use crate as crypto;
 use crate::ssh::SecretKey;
 
 #[cfg(not(unix))]

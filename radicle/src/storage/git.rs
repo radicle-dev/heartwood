@@ -4,10 +4,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
+use crypto::{Signer, Unverified, Verified};
 use git_ref_format::refspec;
 use once_cell::sync::Lazy;
 
-use crate::crypto::{Signer, Unverified, Verified};
 use crate::git;
 use crate::identity;
 use crate::identity::project::{Identity, IdentityError};
@@ -664,8 +664,8 @@ pub mod trailers {
     use std::str::FromStr;
 
     use super::*;
-    use crate::crypto::{PublicKey, PublicKeyError};
-    use crate::crypto::{Signature, SignatureError};
+    use crypto::{PublicKey, PublicKeyError};
+    use crypto::{Signature, SignatureError};
 
     pub const SIGNATURE_TRAILER: &str = "Rad-Signature";
 
@@ -716,6 +716,8 @@ mod tests {
     use std::io::{Read, Write};
     use std::{io, net, process, thread};
 
+    use crypto::test::signer::MockSigner;
+
     use super::*;
     use crate::assert_matches;
     use crate::git;
@@ -724,7 +726,6 @@ mod tests {
     use crate::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
     use crate::test::arbitrary;
     use crate::test::fixtures;
-    use crate::test::signer::MockSigner;
 
     #[test]
     fn test_remote_refs() {

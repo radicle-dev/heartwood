@@ -8,12 +8,11 @@ use std::{fmt, io};
 
 use thiserror::Error;
 
+use crypto::{PublicKey, Signer, Unverified, Verified};
 pub use git::{ProjectError, VerifyError};
 pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
-use crate::crypto;
-use crate::crypto::{PublicKey, Signer, Unverified, Verified};
 use crate::git::ext as git_ext;
 use crate::git::{Qualified, RefError, RefString};
 use crate::identity;

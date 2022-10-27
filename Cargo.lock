@@ -1092,6 +1092,7 @@ dependencies = [
  "once_cell",
  "quickcheck",
  "quickcheck_macros",
+ "radicle-crypto",
  "radicle-git-ext",
  "radicle-ssh",
  "serde",
@@ -1100,6 +1101,25 @@ dependencies = [
  "siphasher",
  "sqlite",
  "tempfile",
+ "thiserror",
+ "zeroize",
+]
+
+[[package]]
+name = "radicle-crypto"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "ed25519-compact",
+ "fastrand",
+ "git-ref-format",
+ "multibase",
+ "quickcheck",
+ "quickcheck_macros",
+ "radicle-ssh",
+ "serde",
+ "sha2 0.10.6",
+ "sqlite",
  "thiserror",
  "zeroize",
 ]
@@ -1171,6 +1191,7 @@ name = "radicle-remote-helper"
 version = "0.2.0"
 dependencies = [
  "radicle",
+ "radicle-crypto",
  "thiserror",
 ]
 

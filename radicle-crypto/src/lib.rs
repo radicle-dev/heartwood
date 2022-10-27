@@ -7,6 +7,12 @@ use thiserror::Error;
 
 pub use ed25519::{Error, KeyPair, Seed};
 
+#[cfg(any(test, feature = "test"))]
+pub mod test;
+
+#[cfg(feature = "ssh")]
+pub mod ssh;
+
 /// Verified (used as type witness).
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Verified;
@@ -250,9 +256,37 @@ impl Deref for PublicKey {
     }
 }
 
+#[cfg(feature = "git-ref-format")]
+impl<'a> From<&PublicKey> for git_ref_format::Component<'a> {
+    fn from(id: &PublicKey) -> Self {
+        use git_ref_format::{Component, RefString};
+        let refstr =
+            RefString::try_from(id.to_string()).expect("encoded public keys are valid ref strings");
+        Component::from_refstring(refstr).expect("encoded public keys are valid refname components")
+    }
+}
+
+#[cfg(feature = "sqlite")]
+impl sqlite::ValueInto for PublicKey {
+    fn into(value: &sqlite::Value) -> Option<Self> {
+        use sqlite::Value;
+        match value {
+            Value::String(id) => PublicKey::from_str(id).ok(),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "sqlite")]
+impl sqlite::Bindable for &PublicKey {
+    fn bind(self, stmt: &mut sqlite::Statement<'_>, i: usize) -> sqlite::Result<()> {
+        self.to_human().as_str().bind(stmt, i)
+    }
+}
+
 #[cfg(test)]
-mod test {
-    use crate::crypto::PublicKey;
+mod tests {
+    use crate::PublicKey;
     use quickcheck_macros::quickcheck;
     use std::str::FromStr;
 

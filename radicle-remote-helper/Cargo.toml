@@ -12,6 +12,10 @@ thiserror = "1"
 path = "../radicle"
 version = "0"
 
+[dependencies.radicle-crypto]
+path = "../radicle-crypto"
+version = "0"
+
 [[bin]]
 name = "git-remote-rad"
 path = "src/git-remote-rad.rs"

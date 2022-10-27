@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "radicle",
+  "radicle-crypto",
   "radicle-node",
   "radicle-tools",
   "radicle-ssh",

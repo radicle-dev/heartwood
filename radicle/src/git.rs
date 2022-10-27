@@ -57,14 +57,6 @@ pub enum ListRefsError {
     InvalidRef(#[from] RefError),
 }
 
-impl<'a> From<&RemoteId> for Component<'a> {
-    fn from(id: &RemoteId) -> Self {
-        let refstr =
-            RefString::try_from(id.to_string()).expect("encoded public keys are valid ref strings");
-        Component::from_refstring(refstr).expect("encoded public keys are valid refname components")
-    }
-}
-
 pub mod refs {
     use super::*;
 

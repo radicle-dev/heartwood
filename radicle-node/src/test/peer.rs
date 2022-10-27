@@ -8,6 +8,7 @@ use log::*;
 
 use crate::address;
 use crate::clock::{RefClock, Timestamp};
+use crate::crypto::test::signer::MockSigner;
 use crate::crypto::Signer;
 use crate::identity::Id;
 use crate::node;
@@ -20,7 +21,6 @@ use crate::service::*;
 use crate::storage::git::transport::remote;
 use crate::storage::{RemoteId, WriteStorage};
 use crate::test::arbitrary;
-use crate::test::signer::MockSigner;
 use crate::test::simulator;
 use crate::{Link, LocalDuration, LocalTime};
 

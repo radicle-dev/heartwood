@@ -1,7 +1,9 @@
 #![allow(clippy::match_like_matches_macro)]
 #![cfg_attr(not(test), warn(clippy::unwrap_used))]
+
+pub extern crate radicle_crypto as crypto;
+
 pub mod collections;
-pub mod crypto;
 pub mod git;
 pub mod hash;
 pub mod identity;
@@ -12,7 +14,6 @@ pub mod rad;
 pub mod serde_ext;
 #[cfg(feature = "sql")]
 pub mod sql;
-pub mod ssh;
 pub mod storage;
 #[cfg(any(test, feature = "test"))]
 pub mod test;

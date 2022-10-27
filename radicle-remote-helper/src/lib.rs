@@ -4,9 +4,9 @@ use std::{env, io, process};
 
 use thiserror::Error;
 
+use radicle::crypto::ssh;
 use radicle::crypto::{PublicKey, Signer};
 use radicle::node::Handle;
-use radicle::ssh;
 use radicle::storage::git::transport::local::{Url, UrlError};
 use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 

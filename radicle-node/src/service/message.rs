@@ -432,7 +432,7 @@ mod tests {
     use super::*;
     use quickcheck_macros::quickcheck;
 
-    use crate::test::signer::MockSigner;
+    use crate::crypto::test::signer::MockSigner;
 
     #[quickcheck]
     fn prop_refs_announcement_signing(id: Id, refs: Refs) {
