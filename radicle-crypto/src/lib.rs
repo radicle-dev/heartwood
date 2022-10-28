@@ -63,7 +63,8 @@ where
 }
 
 /// Cryptographic signature.
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
+#[serde(into = "String", try_from = "String")]
 pub struct Signature(pub ed25519::Signature);
 
 impl fmt::Display for Signature {
@@ -123,6 +124,20 @@ impl TryFrom<&[u8]> for Signature {
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         ed25519::Signature::from_slice(bytes).map(Self)
+    }
+}
+
+impl From<Signature> for String {
+    fn from(s: Signature) -> Self {
+        s.to_string()
+    }
+}
+
+impl TryFrom<String> for Signature {
+    type Error = SignatureError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::from_str(&s)
     }
 }
 
