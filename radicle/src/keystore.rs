@@ -58,15 +58,21 @@ impl UnsafeKeystore {
         Ok(())
     }
 
-    pub fn get(&self) -> Result<(PublicKey, SecretKey), Error> {
-        let public = fs::read(self.path.join("radicle.pub"))?;
+    pub fn get(&self) -> Result<Option<(PublicKey, SecretKey)>, Error> {
+        let public = self.path.join("radicle.pub");
+        let secret = self.path.join("radicle");
+        if !public.exists() && !secret.exists() {
+            return Ok(None);
+        }
+
+        let public = fs::read(public)?;
         let public = String::from_utf8(public)?;
         let public = PublicKey::from_pem(&public)?;
 
-        let secret = fs::read(self.path.join("radicle"))?;
+        let secret = fs::read(secret)?;
         let secret = String::from_utf8(secret)?;
         let secret = SecretKey::from_pem(&secret)?;
 
-        Ok((public, secret))
+        Ok(Some((public, secret)))
     }
 }

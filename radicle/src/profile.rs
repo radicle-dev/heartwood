@@ -13,11 +13,23 @@
 use std::path::PathBuf;
 use std::{env, io};
 
+use thiserror::Error;
+
 use crate::crypto::{KeyPair, PublicKey, SecretKey, Signature, Signer};
-use crate::keystore::{Error, UnsafeKeystore};
+use crate::keystore::UnsafeKeystore;
 use crate::node;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    #[error(transparent)]
+    KeyStore(#[from] crate::keystore::Error),
+    #[error("no profile found at the filepath '{0}'")]
+    NotFound(PathBuf),
+}
 
 #[derive(Debug)]
 pub struct UnsafeSigner {
@@ -65,7 +77,9 @@ impl Profile {
 
     pub fn load() -> Result<Self, Error> {
         let home = self::home()?;
-        let (public, secret) = UnsafeKeystore::new(&home.join("keys")).get()?;
+        let (public, secret) = UnsafeKeystore::new(&home.join("keys"))
+            .get()?
+            .ok_or_else(|| Error::NotFound(home.clone()))?;
         let signer = UnsafeSigner { public, secret };
         let storage = Storage::open(&home.join("storage"))?;
 
