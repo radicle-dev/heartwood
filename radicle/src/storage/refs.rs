@@ -8,23 +8,19 @@ use std::path::Path;
 use std::str::FromStr;
 
 use crypto::{PublicKey, Signature, Signer, Unverified, Verified};
-use once_cell::sync::Lazy;
-use radicle_git_ext as git_ext;
 use thiserror::Error;
 
 use crate::git;
+use crate::git::ext as git_ext;
 use crate::git::Oid;
 use crate::storage;
 use crate::storage::{ReadRepository, RemoteId, WriteRepository};
 
-pub static SIGNATURE_REF: Lazy<git::Qualified> = Lazy::new(|| {
-    git::Qualified::from_components(
-        git::name::component!("radicle"),
-        git::name::component!("signature"),
-        None,
-    )
-});
+pub use crate::git::refs::storage::*;
+
+/// File in which the signed references are stored, in the `refs/rad/sigrefs` branch.
 pub const REFS_BLOB_PATH: &str = "refs";
+/// File in which the signature over the references is stored in the `refs/rad/sigrefs` branch.
 pub const SIGNATURE_BLOB_PATH: &str = "signature";
 
 #[derive(Debug)]
@@ -129,7 +125,7 @@ impl Refs {
         let mut buf = String::new();
         let refs = self
             .iter()
-            .filter(|(name, oid)| name.as_refstr() != (*SIGNATURE_REF).as_ref() && !oid.is_zero());
+            .filter(|(name, oid)| name.as_refstr() != SIGREFS_BRANCH.as_ref() && !oid.is_zero());
 
         for (name, oid) in refs {
             buf.push_str(&oid.to_string());
@@ -231,7 +227,7 @@ impl SignedRefs<Verified> {
     where
         S: ReadRepository,
     {
-        let oid = repo.reference_oid(remote, &SIGNATURE_REF)?;
+        let oid = repo.reference_oid(remote, &SIGREFS_BRANCH)?;
 
         SignedRefs::load_at(oid, remote, repo)
     }
@@ -266,7 +262,7 @@ impl SignedRefs<Verified> {
         remote: &RemoteId,
         repo: &S,
     ) -> Result<Updated, Error> {
-        let sigref = &*SIGNATURE_REF;
+        let sigref = &SIGREFS_BRANCH;
         let parent = match repo.reference(remote, sigref) {
             Ok(r) => Some(r.peel_to_commit()?),
             Err(git_ext::Error::Git(e)) if git_ext::is_not_found_err(&e) => None,

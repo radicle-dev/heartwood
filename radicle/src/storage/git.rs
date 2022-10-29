@@ -24,10 +24,10 @@ pub use crate::git::*;
 use super::{Namespaces, RefUpdate, RemoteId};
 use transport::remote;
 
-pub static REMOTES_GLOB: Lazy<refspec::PatternString> =
+pub static NAMESPACES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*"));
-pub static SIGNATURES_GLOB: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("refs/namespaces/*/radicle/signature"));
+pub static SIGREFS_GLOB: Lazy<refspec::PatternString> =
+    Lazy::new(|| refspec::pattern!("refs/namespaces/*/rad/sigrefs"));
 
 // TODO: Is this is the wrong place for this type?
 #[derive(Error, Debug)]
@@ -309,7 +309,7 @@ impl Repository {
     pub fn remote_ids(
         &self,
     ) -> Result<impl Iterator<Item = Result<RemoteId, refs::Error>> + '_, git2::Error> {
-        let iter = self.backend.references_glob(SIGNATURES_GLOB.as_str())?.map(
+        let iter = self.backend.references_glob(SIGREFS_GLOB.as_str())?.map(
             |reference| -> Result<RemoteId, refs::Error> {
                 let r = reference?;
                 let name = r.name().ok_or(refs::Error::InvalidRef)?;
@@ -327,16 +327,17 @@ impl Repository {
         impl Iterator<Item = Result<(RemoteId, Remote<Verified>), refs::Error>> + '_,
         git2::Error,
     > {
-        let remotes = self.backend.references_glob(SIGNATURES_GLOB.as_str())?.map(
-            |reference| -> Result<_, _> {
-                let r = reference?;
-                let name = r.name().ok_or(refs::Error::InvalidRef)?;
-                let (id, _) = git::parse_ref_namespaced::<RemoteId>(name)?;
-                let remote = self.remote(&id)?;
+        let remotes =
+            self.backend
+                .references_glob(SIGREFS_GLOB.as_str())?
+                .map(|reference| -> Result<_, _> {
+                    let r = reference?;
+                    let name = r.name().ok_or(refs::Error::InvalidRef)?;
+                    let (id, _) = git::parse_ref_namespaced::<RemoteId>(name)?;
+                    let remote = self.remote(&id)?;
 
-                Ok((id, remote))
-            },
-        );
+                    Ok((id, remote))
+                });
         Ok(remotes)
     }
 
@@ -358,7 +359,7 @@ impl Repository {
                     return Ok(None);
                 };
 
-                if refname == *refs::SIGNATURE_REF {
+                if refname == *refs::SIGREFS_BRANCH {
                     // Ignore the signed-refs reference, as this is what we're verifying.
                     return Ok(None);
                 }
@@ -714,7 +715,7 @@ mod tests {
     use crate::assert_matches;
     use crate::git;
     use crate::rad;
-    use crate::storage::refs::SIGNATURE_REF;
+    use crate::storage::refs::SIGREFS_BRANCH;
     use crate::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
     use crate::test::arbitrary;
     use crate::test::fixtures;
@@ -733,7 +734,7 @@ mod tests {
 
         // Strip the remote refs of sigrefs so we can compare them.
         for remote in refs.values_mut() {
-            let sigref = (*SIGNATURE_REF).to_ref_string();
+            let sigref = (*SIGREFS_BRANCH).to_ref_string();
             remote.remove(&sigref).unwrap();
         }
 
@@ -866,7 +867,7 @@ mod tests {
             .collect::<Vec<_>>();
         refs.sort();
 
-        assert_eq!(refs, vec!["refs/heads/master", "refs/heads/radicle/id"]);
+        assert_eq!(refs, vec!["refs/heads/master", "refs/rad/id"]);
     }
 
     #[test]
@@ -972,8 +973,8 @@ mod tests {
             updates,
             vec![
                 format!("refs/namespaces/{remote}/refs/heads/master"),
-                format!("refs/namespaces/{remote}/refs/heads/radicle/id"),
-                format!("refs/namespaces/{remote}/refs/radicle/signature")
+                format!("refs/namespaces/{remote}/refs/rad/id"),
+                format!("refs/namespaces/{remote}/refs/rad/sigrefs")
             ]
         );
     }
@@ -1005,7 +1006,7 @@ mod tests {
         let mut unsigned = project.references(&alice).unwrap();
 
         // The signed refs doesn't contain the signature ref itself.
-        let sigref = (*SIGNATURE_REF).to_ref_string();
+        let sigref = (*SIGREFS_BRANCH).to_ref_string();
         unsigned.remove(&sigref).unwrap();
 
         assert_eq!(remote.refs, signed);

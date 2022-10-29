@@ -152,7 +152,7 @@ impl Arbitrary for Refs {
             "heads/feature/1",
             "heads/feature/2",
             "heads/feature/3",
-            "heads/radicle/id",
+            "rad/id",
             "tags/v1.0",
             "tags/v2.0",
             "notes/1",

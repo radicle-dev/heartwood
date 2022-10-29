@@ -122,7 +122,7 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     // Creates or copies the following references:
     //
     // refs/remotes/<pk>/heads/master
-    // refs/remotes/<pk>/heads/radicle/id
+    // refs/remotes/<pk>/rad/id
     // refs/remotes/<pk>/tags/*
     // refs/remotes/<pk>/rad/signature
 

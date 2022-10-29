@@ -19,7 +19,7 @@ pub use ext::Oid;
 pub use git2 as raw;
 pub use git_ref_format as fmt;
 pub use git_ref_format::{
-    lit, name, qualified, refname, Component, Namespaced, Qualified, RefStr, RefString,
+    component, lit, name, qualified, refname, Component, Namespaced, Qualified, RefStr, RefString,
 };
 pub use radicle_git_ext as ext;
 pub use storage::git::transport::local::Url;
@@ -59,9 +59,6 @@ pub enum ListRefsError {
 pub mod refs {
     use super::*;
 
-    /// Where project information is kept.
-    pub static IDENTITY_BRANCH: Lazy<RefString> = Lazy::new(|| refname!("radicle/id"));
-
     /// Try to get a qualified reference from a generic reference.
     pub fn qualified_from<'a>(r: &'a git2::Reference) -> Result<(Qualified<'a>, Oid), RefError> {
         let name = r.name().ok_or(RefError::InvalidName)?;
@@ -78,17 +75,36 @@ pub mod refs {
     pub mod storage {
         use super::*;
 
+        /// Where the project's identity document is stored.
+        ///
+        /// `refs/rad/id`
+        ///
+        pub static IDENTITY_BRANCH: Lazy<Qualified> = Lazy::new(|| {
+            Qualified::from_components(name::component!("rad"), name::component!("id"), None)
+        });
+
+        /// Where the project's signed references are stored.
+        ///
+        /// `refs/rad/sigrefs`
+        ///
+        pub static SIGREFS_BRANCH: Lazy<Qualified> = Lazy::new(|| {
+            Qualified::from_components(name::component!("rad"), name::component!("sigrefs"), None)
+        });
+
         /// Create the [`Namespaced`] `branch` under the `remote` namespace, i.e.
+        ///
         /// `refs/namespaces/<remote>/refs/heads/<branch>`
+        ///
         pub fn branch<'a>(remote: &RemoteId, branch: &RefStr) -> Namespaced<'a> {
             Qualified::from(git_ref_format::lit::refs_heads(branch)).with_namespace(remote.into())
         }
 
-        /// Get the branch used to track project information.
+        /// Get the branch where the project's identity document is stored.
         ///
-        /// `refs/namespaces/<remote>/refs/heads/radicle/id`
+        /// `refs/namespaces/<remote>/refs/rad/id`
+        ///
         pub fn id(remote: &RemoteId) -> Namespaced {
-            branch(remote, &IDENTITY_BRANCH)
+            IDENTITY_BRANCH.with_namespace(remote.into())
         }
     }
 

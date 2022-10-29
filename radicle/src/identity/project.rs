@@ -31,9 +31,11 @@ pub struct Untrusted;
 #[derive(Clone, Copy, Debug)]
 pub struct Trusted;
 
+/// Path to the identity document in the identity branch.
 pub static PATH: Lazy<&Path> = Lazy::new(|| Path::new("radicle.json"));
-
+/// Maximum length of a string in the identity document.
 pub const MAX_STRING_LENGTH: usize = 255;
+/// Maximum number of a delegates in the identity document.
 pub const MAX_DELEGATES: usize = 255;
 
 #[derive(Error, Debug)]
@@ -148,11 +150,6 @@ impl Doc<Verified> {
         msg: &str,
         storage: &S,
     ) -> Result<(Id, git::Oid, S::Repository), DocError> {
-        // You can checkout this branch in your working copy with:
-        //
-        //      git fetch rad
-        //      git checkout -b radicle/id remotes/rad/radicle/id
-        //
         let (doc_oid, doc) = self.encode()?;
         let id = Id::from(doc_oid);
         let repo = storage.repository(id)?;
@@ -358,8 +355,8 @@ impl Doc<Unverified> {
 
 impl<V> Doc<V> {
     pub fn head<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<Oid, DocError> {
-        let head = git::Qualified::from(git::lit::refs_heads(&*git::refs::IDENTITY_BRANCH));
-        repo.reference_oid(remote, &head).map_err(DocError::from)
+        repo.reference_oid(remote, &git::refs::storage::IDENTITY_BRANCH)
+            .map_err(DocError::from)
     }
 }
 
