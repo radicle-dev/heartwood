@@ -122,4 +122,11 @@ impl Session {
         }
         Ok(())
     }
+
+    pub fn node_id(&self) -> Option<NodeId> {
+        if let State::Negotiated { id, .. } = &self.state {
+            return Some(*id);
+        }
+        None
+    }
 }

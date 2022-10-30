@@ -1126,13 +1126,7 @@ impl Sessions {
     }
 
     pub fn by_id(&self, id: &NodeId) -> Option<&Session> {
-        self.0.values().find(|p| {
-            if let session::State::Negotiated { id: _id, .. } = &p.state {
-                _id == id
-            } else {
-                false
-            }
-        })
+        self.0.values().find(|p| p.node_id() == Some(*id))
     }
 
     /// Iterator over fully negotiated peers.
