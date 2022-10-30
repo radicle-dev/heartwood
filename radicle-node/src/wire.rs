@@ -46,11 +46,6 @@ pub enum Error {
     InvalidFilterSize(usize),
     #[error(transparent)]
     InvalidRefName(#[from] fmt::Error),
-    #[error("invalid git url `{url}`: {error}")]
-    InvalidGitUrl {
-        url: String,
-        error: git::url::parse::Error,
-    },
     #[error("unknown address type `{0}`")]
     UnknownAddressType(u8),
     #[error("unknown message type `{0}`")]

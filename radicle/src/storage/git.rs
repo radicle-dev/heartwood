@@ -552,12 +552,9 @@ impl WriteRepository for Repository {
                 // TODO: Due to this, I think we'll have to run GC when there is a failure.
                 .clone_local(git2::build::CloneLocal::Local)
                 .clone(
-                    &git::url::Url {
-                        scheme: git::url::Scheme::File,
-                        path: self.backend.path().to_string_lossy().to_string().into(),
-                        ..git::url::Url::default()
-                    }
-                    .to_string(),
+                    git::url::File::new(self.backend.path().to_path_buf())
+                        .to_string()
+                        .as_str(),
                     &path,
                 )?;
 
@@ -602,14 +599,9 @@ impl WriteRepository for Repository {
         });
 
         {
-            let mut remote = self.backend.remote_anonymous(
-                &git::url::Url {
-                    scheme: git::url::Scheme::File,
-                    path: staging.to_string_lossy().to_string().into(),
-                    ..git::url::Url::default()
-                }
-                .to_string(),
-            )?;
+            let mut remote = self
+                .backend
+                .remote_anonymous(git::url::File::new(staging).to_string().as_str())?;
             let mut opts = git2::FetchOptions::default();
             opts.remote_callbacks(callbacks);
 

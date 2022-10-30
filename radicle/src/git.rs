@@ -21,7 +21,6 @@ pub use git_ref_format as fmt;
 pub use git_ref_format::{
     lit, name, qualified, refname, Component, Namespaced, Qualified, RefStr, RefString,
 };
-pub use git_url as url;
 pub use radicle_git_ext as ext;
 pub use storage::git::transport::local::Url;
 pub use storage::BranchName;
@@ -349,6 +348,29 @@ where
         io::ErrorKind::Other,
         String::from_utf8_lossy(&output.stderr),
     ))
+}
+
+/// Git URLs.
+pub mod url {
+    use std::path::PathBuf;
+
+    /// A Git URL using the `file://` scheme.
+    pub struct File {
+        pub path: PathBuf,
+    }
+
+    impl File {
+        /// Create a new file URL pointing to the given path.
+        pub fn new(path: PathBuf) -> Self {
+            Self { path }
+        }
+    }
+
+    impl ToString for File {
+        fn to_string(&self) -> String {
+            format!("file://{}", self.path.display())
+        }
+    }
 }
 
 /// Parsing and formatting of commit objects.
