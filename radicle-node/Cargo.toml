@@ -21,6 +21,7 @@ nakamoto-net-poll = { version = "0.3.0" }
 nonempty = { version = "0.8.0", features = ["serialize"] }
 sqlite = { version = "0.27.0" }
 sqlite3-src = { version = "0.4.0", features = ["bundled"] } # Ensures static linking
+scrypt = { version = "0.10.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tempfile = { version = "3.3.0" }

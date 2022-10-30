@@ -133,6 +133,52 @@ pub struct NodeAnnouncement {
     pub alias: [u8; 32],
     /// Announced addresses.
     pub addresses: Vec<Address>,
+    /// Nonce used for announcement proof-of-work.
+    pub nonce: u64,
+}
+
+impl NodeAnnouncement {
+    /// Validate a node announcement message.
+    ///
+    /// Checks that the proof-of-work is valid, by generating a single byte that
+    /// must be zero.
+    ///
+    /// `scrypt(encode(announcement)) == 0`
+    ///
+    pub fn validate(&self) -> bool {
+        let (n, r, p) = Announcement::POW_PARAMS;
+        let params = scrypt::Params::new(n, r, p).expect("proof-of-work parameters are valid");
+        let mut output = [0; 1];
+
+        scrypt::scrypt(
+            wire::serialize(self).as_ref(),
+            Announcement::POW_SALT,
+            &params,
+            &mut output,
+        )
+        .expect("proof-of-work output vector is a valid length");
+
+        output == [0]
+    }
+
+    /// Solve the proof-of-work of a node announcement by iterating through different nonces.
+    pub fn solve(mut self) -> Self {
+        loop {
+            if let Some(nonce) = self.nonce.checked_add(1) {
+                self.nonce = nonce;
+
+                if self.validate() {
+                    break;
+                }
+            } else {
+                // If a very high difficulty is chosen, it's possible to iterate through all
+                // possible values of the nonce without solving the puzzle. However, with "normal"
+                // values, this is virtually impossible.
+                panic!("could not solve proof-of-work!");
+            }
+        }
+        self
+    }
 }
 
 impl wire::Encode for NodeAnnouncement {
@@ -143,6 +189,7 @@ impl wire::Encode for NodeAnnouncement {
         n += self.timestamp.encode(writer)?;
         n += self.alias.encode(writer)?;
         n += self.addresses.as_slice().encode(writer)?;
+        n += self.nonce.encode(writer)?;
 
         Ok(n)
     }
@@ -154,12 +201,14 @@ impl wire::Decode for NodeAnnouncement {
         let timestamp = Timestamp::decode(reader)?;
         let alias = wire::Decode::decode(reader)?;
         let addresses = Vec::<Address>::decode(reader)?;
+        let nonce = u64::decode(reader)?;
 
         Ok(Self {
             features,
             timestamp,
             alias,
             addresses,
+            nonce,
         })
     }
 }
@@ -271,6 +320,24 @@ pub struct Announcement {
 }
 
 impl Announcement {
+    /// Proof-of-work parameters for announcements.
+    ///
+    /// These parameters are fed into `scrypt`.
+    /// They represent the `log2(N)`, `r`, `p` parameters, respectively.
+    ///
+    /// * log2(N) – iterations count (affects memory and CPU usage), e.g. 15
+    /// * r – block size (affects memory and CPU usage), e.g. 8
+    /// * p – parallelism factor (threads to run in parallel - affects the memory, CPU usage), usually 1
+    ///
+    /// `15, 8, 1` are usually the recommended parameters.
+    ///
+    #[cfg(test)]
+    pub const POW_PARAMS: (u8, u32, u32) = (1, 1, 1);
+    #[cfg(not(test))]
+    pub const POW_PARAMS: (u8, u32, u32) = (15, 8, 1);
+    /// Salt used for generating PoW.
+    pub const POW_SALT: &[u8] = &[b'r', b'a', b'd'];
+
     /// Verify this announcement's signature.
     pub fn verify(&self) -> bool {
         let msg = wire::serialize(&self.message);
@@ -446,5 +513,19 @@ mod tests {
         let ann = message.signed(&signer);
 
         assert!(ann.verify());
+    }
+
+    #[test]
+    fn test_node_announcement_validate() {
+        let ann = NodeAnnouncement {
+            features: node::Features::SEED,
+            timestamp: 42491841,
+            alias: [0; 32],
+            addresses: vec![],
+            nonce: 0,
+        };
+
+        assert!(!ann.validate());
+        assert!(ann.solve().validate());
     }
 }

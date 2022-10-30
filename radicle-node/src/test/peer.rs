@@ -164,7 +164,9 @@ where
                 timestamp: self.timestamp(),
                 alias,
                 addresses: vec![net::SocketAddr::from((self.ip, service::DEFAULT_PORT)).into()],
-            },
+                nonce: 0,
+            }
+            .solve(),
             self.signer(),
         )
     }

@@ -687,23 +687,24 @@ where
                     }
                 }
             }
-            AnnouncementMessage::Node(NodeAnnouncement {
-                features,
-                alias,
-                addresses,
-                ..
-            }) => {
+            AnnouncementMessage::Node(
+                ann @ NodeAnnouncement {
+                    features,
+                    alias,
+                    addresses,
+                    ..
+                },
+            ) => {
                 // Discard node messages we've already seen, otherwise update
-                // out last seen time.
+                // our last seen time.
                 if !peer.node_announced(timestamp) {
                     debug!("Ignoring stale node announcement from {announcer}");
                     return Ok(false);
                 }
 
-                // If this node isn't a seed, we're not interested in adding it
-                // to our address book, but other nodes may be, so we relay the message anyway.
-                if !features.has(Features::SEED) {
-                    return Ok(relay);
+                if !ann.validate() {
+                    warn!("Dropping node announcement from {announcer}: invalid proof-of-work");
+                    return Ok(false);
                 }
 
                 let alias = match str::from_utf8(alias) {
@@ -713,6 +714,12 @@ where
                         return Ok(false);
                     }
                 };
+
+                // If this node isn't a seed, we're not interested in adding it
+                // to our address book, but other nodes may be, so we relay the message anyway.
+                if !features.has(Features::SEED) {
+                    return Ok(relay);
+                }
 
                 match self.addresses.insert(
                     announcer,
@@ -1223,7 +1230,9 @@ mod gossip {
             timestamp,
             alias,
             addresses,
+            nonce: 0,
         }
+        .solve()
     }
 
     pub fn inventory(timestamp: Timestamp, inventory: Vec<Id>) -> InventoryAnnouncement {

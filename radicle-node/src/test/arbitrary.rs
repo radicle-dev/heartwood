@@ -69,6 +69,7 @@ impl Arbitrary for Message {
                     timestamp: Timestamp::arbitrary(g),
                     alias: ByteArray::<32>::arbitrary(g).into_inner(),
                     addresses: Arbitrary::arbitrary(g),
+                    nonce: u64::arbitrary(g),
                 }
                 .into();
                 let bytes: ByteArray<64> = Arbitrary::arbitrary(g);
