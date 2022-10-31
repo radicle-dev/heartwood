@@ -25,7 +25,7 @@ fn main() -> anyhow::Result<()> {
             io::stdin().read_to_end(&mut stdin)?;
 
             let mut agent = ssh::agent::connect()?;
-            let sig = agent.sign_request(profile.id(), stdin.into())?;
+            let sig = agent.sign(profile.id(), &stdin)?;
             let sig = crypto::Signature::from(sig);
 
             println!("{}", &sig);

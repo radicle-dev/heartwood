@@ -43,26 +43,22 @@ pub enum Error {
 /// SSH agent client.
 pub struct AgentClient<S> {
     stream: S,
-    buf: Buffer,
 }
 
 // https://tools.ietf.org/html/draft-miller-ssh-agent-00#section-4.1
 impl<S> AgentClient<S> {
     /// Connect to an SSH agent via the provided stream (on Unix, usually a Unix-domain socket).
     pub fn connect(stream: S) -> Self {
-        AgentClient {
-            stream,
-            buf: Vec::new().into(),
-        }
+        AgentClient { stream }
     }
 }
 
 pub trait ClientStream: Sized + Send + Sync {
-    /// How to read the response from the stream
-    fn read_response(&mut self, buf: &mut Buffer) -> Result<(), Error>;
+    /// Send an agent request to through the stream and read the response.
+    fn request(&mut self, req: &[u8]) -> Result<Buffer, Error>;
 
     /// How to connect the streaming socket
-    fn connect_socket<P>(path: P) -> Result<AgentClient<Self>, Error>
+    fn connect<P>(path: P) -> Result<AgentClient<Self>, Error>
     where
         P: AsRef<Path> + Send;
 
@@ -72,11 +68,11 @@ pub trait ClientStream: Sized + Send + Sync {
         } else {
             return Err(Error::EnvVar("SSH_AUTH_SOCK"));
         };
-        match Self::connect_socket(var) {
+        match Self::connect(var) {
             Err(Error::Io(io_err)) if io_err.kind() == std::io::ErrorKind::NotFound => {
                 Err(Error::BadAuthSock)
             }
-            owise => owise,
+            err => err,
         }
     }
 }
@@ -89,37 +85,38 @@ impl<S: ClientStream> AgentClient<S> {
         K: Encodable,
         K::Error: std::error::Error + Send + Sync + 'static,
     {
-        self.buf.zeroize();
-        self.buf.resize(4, 0);
+        let mut buf = Buffer::default();
+
+        buf.resize(4, 0);
 
         if constraints.is_empty() {
-            self.buf.push(msg::ADD_IDENTITY)
+            buf.push(msg::ADD_IDENTITY)
         } else {
-            self.buf.push(msg::ADD_ID_CONSTRAINED)
+            buf.push(msg::ADD_ID_CONSTRAINED)
         }
-        key.write(&mut self.buf);
+        key.write(&mut buf);
 
         if !constraints.is_empty() {
             for cons in constraints {
                 match *cons {
                     Constraint::KeyLifetime { seconds } => {
-                        self.buf.push(msg::CONSTRAIN_LIFETIME);
-                        self.buf.deref_mut().write_u32::<BigEndian>(seconds)?
+                        buf.push(msg::CONSTRAIN_LIFETIME);
+                        buf.deref_mut().write_u32::<BigEndian>(seconds)?
                     }
-                    Constraint::Confirm => self.buf.push(msg::CONSTRAIN_CONFIRM),
+                    Constraint::Confirm => buf.push(msg::CONSTRAIN_CONFIRM),
                     Constraint::Extensions {
                         ref name,
                         ref details,
                     } => {
-                        self.buf.push(msg::CONSTRAIN_EXTENSION);
-                        self.buf.extend_ssh_string(name);
-                        self.buf.extend_ssh_string(details);
+                        buf.push(msg::CONSTRAIN_EXTENSION);
+                        buf.extend_ssh_string(name);
+                        buf.extend_ssh_string(details);
                     }
                 }
             }
         }
-        self.buf.write_len();
-        self.stream.read_response(&mut self.buf)?;
+        buf.write_len();
+        self.stream.request(&buf)?;
 
         Ok(())
     }
@@ -132,67 +129,68 @@ impl<S: ClientStream> AgentClient<S> {
         pin: &[u8],
         constraints: &[Constraint],
     ) -> Result<(), Error> {
-        self.buf.zeroize();
-        self.buf.resize(4, 0);
+        let mut buf = Buffer::default();
+
+        buf.resize(4, 0);
 
         if constraints.is_empty() {
-            self.buf.push(msg::ADD_SMARTCARD_KEY)
+            buf.push(msg::ADD_SMARTCARD_KEY)
         } else {
-            self.buf.push(msg::ADD_SMARTCARD_KEY_CONSTRAINED)
+            buf.push(msg::ADD_SMARTCARD_KEY_CONSTRAINED)
         }
-        self.buf.extend_ssh_string(id.as_bytes());
-        self.buf.extend_ssh_string(pin);
+        buf.extend_ssh_string(id.as_bytes());
+        buf.extend_ssh_string(pin);
 
         if !constraints.is_empty() {
-            self.buf
-                .deref_mut()
+            buf.deref_mut()
                 .write_u32::<BigEndian>(constraints.len() as u32)?;
             for cons in constraints {
                 match *cons {
                     Constraint::KeyLifetime { seconds } => {
-                        self.buf.push(msg::CONSTRAIN_LIFETIME);
-                        self.buf.deref_mut().write_u32::<BigEndian>(seconds)?;
+                        buf.push(msg::CONSTRAIN_LIFETIME);
+                        buf.deref_mut().write_u32::<BigEndian>(seconds)?;
                     }
-                    Constraint::Confirm => self.buf.push(msg::CONSTRAIN_CONFIRM),
+                    Constraint::Confirm => buf.push(msg::CONSTRAIN_CONFIRM),
                     Constraint::Extensions {
                         ref name,
                         ref details,
                     } => {
-                        self.buf.push(msg::CONSTRAIN_EXTENSION);
-                        self.buf.extend_ssh_string(name);
-                        self.buf.extend_ssh_string(details);
+                        buf.push(msg::CONSTRAIN_EXTENSION);
+                        buf.extend_ssh_string(name);
+                        buf.extend_ssh_string(details);
                     }
                 }
             }
         }
-        self.buf.write_len();
-        self.stream.read_response(&mut self.buf)?;
+        buf.write_len();
+        self.stream.request(&buf)?;
 
         Ok(())
     }
 
     /// Lock the agent, making it refuse to sign until unlocked.
     pub fn lock(&mut self, passphrase: &[u8]) -> Result<(), Error> {
-        self.buf.zeroize();
-        self.buf.resize(4, 0);
-        self.buf.push(msg::LOCK);
-        self.buf.extend_ssh_string(passphrase);
-        self.buf.write_len();
+        let mut buf = Buffer::default();
 
-        self.stream.read_response(&mut self.buf)?;
+        buf.resize(4, 0);
+        buf.push(msg::LOCK);
+        buf.extend_ssh_string(passphrase);
+        buf.write_len();
+
+        self.stream.request(&buf)?;
 
         Ok(())
     }
 
     /// Unlock the agent, allowing it to sign again.
     pub fn unlock(&mut self, passphrase: &[u8]) -> Result<(), Error> {
-        self.buf.zeroize();
-        self.buf.resize(4, 0);
-        self.buf.push(msg::UNLOCK);
-        self.buf.extend_ssh_string(passphrase);
-        self.buf.write_len();
+        let mut buf = Buffer::default();
+        buf.resize(4, 0);
+        buf.push(msg::UNLOCK);
+        buf.extend_ssh_string(passphrase);
+        buf.write_len();
 
-        self.stream.read_response(&mut self.buf)?;
+        self.stream.request(&buf)?;
 
         Ok(())
     }
@@ -204,16 +202,16 @@ impl<S: ClientStream> AgentClient<S> {
         K: Encodable,
         K::Error: std::error::Error + Send + Sync + 'static,
     {
-        self.buf.zeroize();
-        self.buf.resize(4, 0);
-        self.buf.push(msg::REQUEST_IDENTITIES);
-        self.buf.write_len();
-
-        self.stream.read_response(&mut self.buf)?;
+        let mut buf = Buffer::default();
+        buf.resize(4, 0);
+        buf.push(msg::REQUEST_IDENTITIES);
+        buf.write_len();
 
         let mut keys = Vec::new();
-        if self.buf[0] == msg::IDENTITIES_ANSWER {
-            let mut r = self.buf.reader(1);
+        let resp = self.stream.request(&buf)?;
+
+        if resp[0] == msg::IDENTITIES_ANSWER {
+            let mut r = resp.reader(1);
             let n = r.read_u32()?;
 
             for _ in 0..n {
@@ -231,26 +229,23 @@ impl<S: ClientStream> AgentClient<S> {
     }
 
     /// Ask the agent to sign the supplied piece of data.
-    pub fn sign_request<K>(&mut self, public: &K, data: Buffer) -> Result<Signature, Error>
+    pub fn sign<K>(&mut self, public: &K, data: &[u8]) -> Result<Signature, Error>
     where
         K: Encodable + fmt::Debug,
     {
-        self.prepare_sign_request(public, &data);
-        self.stream.read_response(&mut self.buf)?;
+        let req = self.prepare_sign_request(public, data);
+        let resp = self.stream.request(&req)?;
 
-        if !self.buf.is_empty() && self.buf[0] == msg::SIGN_RESPONSE {
-            let mut signature: Signature = [0; 64];
-            self.write_signature(&mut signature)?;
-
-            Ok(signature)
-        } else if self.buf[0] == msg::FAILURE {
+        if !resp.is_empty() && resp[0] == msg::SIGN_RESPONSE {
+            self.read_signature(&resp)
+        } else if !resp.is_empty() && resp[0] == msg::FAILURE {
             Err(Error::AgentFailure)
         } else {
             Err(Error::AgentProtocolError)
         }
     }
 
-    fn prepare_sign_request<K>(&mut self, public: &K, data: &[u8])
+    fn prepare_sign_request<K>(&self, public: &K, data: &[u8]) -> Buffer
     where
         K: Encodable + fmt::Debug,
     {
@@ -264,27 +259,28 @@ impl<S: ClientStream> AgentClient<S> {
 
         let total = 1 + pk.len() + 4 + data.len() + 4;
 
-        self.buf.zeroize();
-        self.buf
-            .write_u32::<BigEndian>(total as u32)
+        let mut buf = Buffer::default();
+        buf.write_u32::<BigEndian>(total as u32)
             .expect("Writing to a vector never fails");
-        self.buf.push(msg::SIGN_REQUEST);
-        self.buf.extend_from_slice(&pk);
-        self.buf.extend_ssh_string(data);
+        buf.push(msg::SIGN_REQUEST);
+        buf.extend_from_slice(&pk);
+        buf.extend_ssh_string(data);
 
         // Signature flags should be zero for ed25519.
-        self.buf.write_u32::<BigEndian>(0).unwrap();
+        buf.write_u32::<BigEndian>(0).unwrap();
+        buf
     }
 
-    fn write_signature(&self, data: &mut [u8]) -> Result<(), Error> {
-        let mut r = self.buf.reader(1);
+    fn read_signature(&self, sig: &[u8]) -> Result<Signature, Error> {
+        let mut r = sig.reader(1);
         let mut resp = r.read_string()?.reader(0);
         let _t = resp.read_string()?;
         let sig = resp.read_string()?;
 
-        data.copy_from_slice(sig);
+        let mut out = [0; 64];
+        out.copy_from_slice(sig);
 
-        Ok(())
+        Ok(out)
     }
 
     /// Ask the agent to remove a key from its memory.
@@ -297,70 +293,71 @@ impl<S: ClientStream> AgentClient<S> {
 
         let total = 1 + pk.len();
 
-        self.buf.zeroize();
-        self.buf.write_u32::<BigEndian>(total as u32)?;
-        self.buf.push(msg::REMOVE_IDENTITY);
-        self.buf.extend_from_slice(&pk);
+        let mut buf = Buffer::default();
+        buf.write_u32::<BigEndian>(total as u32)?;
+        buf.push(msg::REMOVE_IDENTITY);
+        buf.extend_from_slice(&pk);
 
-        self.stream.read_response(&mut self.buf)?;
+        self.stream.request(&buf)?;
 
         Ok(())
     }
 
     /// Ask the agent to remove a smartcard from its memory.
     pub fn remove_smartcard_key(&mut self, id: &str, pin: &[u8]) -> Result<(), Error> {
-        self.buf.zeroize();
-        self.buf.resize(4, 0);
-        self.buf.push(msg::REMOVE_SMARTCARD_KEY);
-        self.buf.extend_ssh_string(id.as_bytes());
-        self.buf.extend_ssh_string(pin);
-        self.buf.write_len();
+        let mut buf = Buffer::default();
+        buf.resize(4, 0);
+        buf.push(msg::REMOVE_SMARTCARD_KEY);
+        buf.extend_ssh_string(id.as_bytes());
+        buf.extend_ssh_string(pin);
+        buf.write_len();
 
-        self.stream.read_response(&mut self.buf)?;
+        self.stream.request(&buf)?;
 
         Ok(())
     }
 
     /// Ask the agent to forget all known keys.
     pub fn remove_all_identities(&mut self) -> Result<(), Error> {
-        self.buf.zeroize();
-        self.buf.resize(4, 0);
-        self.buf.push(msg::REMOVE_ALL_IDENTITIES);
-        self.buf.write_len();
+        let mut buf = Buffer::default();
+        buf.resize(4, 0);
+        buf.push(msg::REMOVE_ALL_IDENTITIES);
+        buf.write_len();
 
-        self.stream.read_response(&mut self.buf)?;
+        self.stream.request(&buf)?;
 
         Ok(())
     }
 
     /// Send a custom message to the agent.
     pub fn extension(&mut self, typ: &[u8], ext: &[u8]) -> Result<(), Error> {
-        self.buf.zeroize();
-        self.buf.resize(4, 0);
-        self.buf.push(msg::EXTENSION);
-        self.buf.extend_ssh_string(typ);
-        self.buf.extend_ssh_string(ext);
-        self.buf.write_len();
+        let mut buf = Buffer::default();
 
-        self.stream.read_response(&mut self.buf)?;
+        buf.resize(4, 0);
+        buf.push(msg::EXTENSION);
+        buf.extend_ssh_string(typ);
+        buf.extend_ssh_string(ext);
+        buf.write_len();
+
+        self.stream.request(&buf)?;
 
         Ok(())
     }
 
-    /// Ask the agent what extensions about supported extensions.
+    /// Ask the agent about supported extensions.
     pub fn query_extension(&mut self, typ: &[u8], mut ext: Buffer) -> Result<bool, Error> {
-        self.buf.zeroize();
-        self.buf.resize(4, 0);
-        self.buf.push(msg::EXTENSION);
-        self.buf.extend_ssh_string(typ);
-        self.buf.write_len();
+        let mut req = Buffer::default();
 
-        self.stream.read_response(&mut self.buf)?;
+        req.resize(4, 0);
+        req.push(msg::EXTENSION);
+        req.extend_ssh_string(typ);
+        req.write_len();
 
-        let mut r = self.buf.reader(1);
+        let resp = self.stream.request(&req)?;
+        let mut r = resp.reader(1);
         ext.extend(r.read_string()?);
 
-        Ok(!self.buf.is_empty() && self.buf[0] == msg::SUCCESS)
+        Ok(!resp.is_empty() && resp[0] == msg::SUCCESS)
     }
 }
 
@@ -384,33 +381,32 @@ impl ClientStream for TcpStream {
 
 #[cfg(unix)]
 impl ClientStream for UnixStream {
-    fn connect_socket<P>(path: P) -> Result<AgentClient<Self>, Error>
+    fn connect<P>(path: P) -> Result<AgentClient<Self>, Error>
     where
         P: AsRef<Path> + Send,
     {
         let stream = UnixStream::connect(path)?;
-        Ok(AgentClient {
-            stream,
-            buf: Vec::new().into(),
-        })
+
+        Ok(AgentClient { stream })
     }
 
-    fn read_response(&mut self, buf: &mut Buffer) -> Result<(), Error> {
+    fn request(&mut self, msg: &[u8]) -> Result<Buffer, Error> {
+        let mut resp = Buffer::default();
+
         // Write the message
-        self.write_all(buf)?;
+        self.write_all(msg)?;
         self.flush()?;
 
         // Read the length
-        buf.zeroize();
-        buf.resize(4, 0);
-        self.read_exact(buf)?;
+        resp.resize(4, 0);
+        self.read_exact(&mut resp)?;
 
         // Read the rest of the buffer
-        let len = BigEndian::read_u32(buf) as usize;
-        buf.zeroize();
-        buf.resize(len, 0);
-        self.read_exact(buf)?;
+        let len = BigEndian::read_u32(&resp) as usize;
+        resp.zeroize();
+        resp.resize(len, 0);
+        self.read_exact(&mut resp)?;
 
-        Ok(())
+        Ok(resp)
     }
 }

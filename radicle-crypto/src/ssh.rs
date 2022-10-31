@@ -289,8 +289,7 @@ impl ExtendedSignature {
             return Err(ExtendedSignatureError::MagicPreamble(preamble));
         }
 
-        let sig = ExtendedSignature::read(&mut reader)?;
-        Ok(sig)
+        ExtendedSignature::read(&mut reader)
     }
 
     pub fn to_armored(&self) -> Vec<u8> {
@@ -316,7 +315,6 @@ mod test {
     use std::sync::{Arc, Mutex};
 
     use quickcheck_macros::quickcheck;
-    use zeroize::Zeroizing;
 
     use super::{fmt, ExtendedSignature, SecretKey};
     use crate as crypto;
@@ -327,21 +325,21 @@ mod test {
 
     #[derive(Clone, Default)]
     struct DummyStream {
-        incoming: Arc<Mutex<Zeroizing<Vec<u8>>>>,
+        incoming: Arc<Mutex<Vec<u8>>>,
     }
 
     impl ClientStream for DummyStream {
-        fn connect_socket<P>(_path: P) -> Result<AgentClient<Self>, Error>
+        fn connect<P>(_path: P) -> Result<AgentClient<Self>, Error>
         where
             P: AsRef<std::path::Path> + Send,
         {
             panic!("This function should never be called!")
         }
 
-        fn read_response(&mut self, buf: &mut Zeroizing<Vec<u8>>) -> Result<(), Error> {
-            *self.incoming.lock().unwrap() = buf.clone();
+        fn request(&mut self, buf: &[u8]) -> Result<Buffer, Error> {
+            *self.incoming.lock().unwrap() = buf.to_vec();
 
-            Ok(())
+            Ok(Buffer::default())
         }
     }
 
@@ -405,9 +403,9 @@ mod test {
 
         let stream = DummyStream::default();
         let mut agent = AgentClient::connect(stream.clone());
-        let data: Zeroizing<Vec<u8>> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9].into();
+        let data: Vec<u8> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-        agent.sign_request(&pk, data).ok();
+        agent.sign(&pk, &data).ok();
 
         assert_eq!(
             stream.incoming.lock().unwrap().as_slice(),
