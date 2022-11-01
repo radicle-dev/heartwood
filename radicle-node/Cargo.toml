@@ -34,5 +34,6 @@ features = ["sql"]
 
 [dev-dependencies]
 radicle = { path = "../radicle", version = "*", features = ["test"] }
+radicle-crypto = { path = "../radicle-crypto", version = "*", features = ["test"] }
 quickcheck = { version = "1", default-features = false }
 quickcheck_macros = { version = "1", default-features = false }

@@ -1457,6 +1457,7 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "radicle",
+ "radicle-crypto",
  "scrypt",
  "serde",
  "serde_json",
