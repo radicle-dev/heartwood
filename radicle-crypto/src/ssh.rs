@@ -227,6 +227,12 @@ pub struct ExtendedSignature {
     signature: crypto::Signature,
 }
 
+impl From<ExtendedSignature> for (crypto::PublicKey, crypto::Signature) {
+    fn from(ex: ExtendedSignature) -> Self {
+        (ex.public_key, ex.signature)
+    }
+}
+
 impl Encodable for ExtendedSignature {
     type Error = ExtendedSignatureError;
 
@@ -262,6 +268,17 @@ impl ExtendedSignature {
     const ARMORED_FOOTER: &[u8] = b"-----END SSH SIGNATURE-----";
     const ARMORED_WIDTH: usize = 70;
     const MAGIC_PREAMBLE: &[u8] = b"SSHSIG";
+
+    pub fn new(public_key: crypto::PublicKey, signature: crypto::Signature) -> Self {
+        Self {
+            version: 1,
+            public_key,
+            namespace: b"radicle".to_vec(),
+            reserved: b"".to_vec(),
+            hash_algorithm: b"sha256".to_vec(),
+            signature,
+        }
+    }
 
     pub fn from_armored(s: &[u8]) -> Result<Self, ExtendedSignatureError> {
         let s = s
