@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod keystore;
 
 use std::io;
 

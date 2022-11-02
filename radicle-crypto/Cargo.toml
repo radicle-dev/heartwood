@@ -10,7 +10,7 @@ edition = "2021"
 
 [features]
 test = ["fastrand", "quickcheck"]
-ssh = ["base64", "radicle-ssh", "sha2"]
+ssh = ["base64", "radicle-ssh", "sha2", "ssh-key"]
 
 [dependencies]
 ed25519-compact = { version = "1.0.12", features = ["pem"] }
@@ -26,6 +26,12 @@ optional = true
 
 [dependencies.git-ref-format]
 version = "0.1"
+optional = true
+
+[dependencies.ssh-key]
+version = "0.5.1"
+default-features = false
+features = ["std", "encryption", "rand_core", "getrandom"]
 optional = true
 
 [dependencies.quickcheck]
@@ -47,9 +53,7 @@ optional = true
 version = "0.13"
 optional = true
 
-
 [dev-dependencies]
-fastrand = { version = "1.8.0" }
 quickcheck_macros = { version = "1", default-features = false }
 quickcheck = { version = "1", default-features = false }
-zeroize = { version = "1.5.7" }
+tempfile = { version = "3.3.0" }
