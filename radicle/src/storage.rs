@@ -304,7 +304,7 @@ pub trait WriteRepository: ReadRepository {
         namespaces: impl Into<Namespaces>,
     ) -> Result<Vec<RefUpdate>, FetchError>;
     fn set_head(&self) -> Result<Oid, ProjectError>;
-    fn sign_refs<G: Signer>(&self, signer: G) -> Result<SignedRefs<Verified>, Error>;
+    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error>;
     fn raw(&self) -> &git2::Repository;
 }
 

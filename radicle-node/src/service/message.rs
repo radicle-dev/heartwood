@@ -247,7 +247,7 @@ pub enum AnnouncementMessage {
 
 impl AnnouncementMessage {
     /// Sign this announcement message.
-    pub fn signed<S: crypto::Signer>(self, signer: S) -> Announcement {
+    pub fn signed<G: crypto::Signer>(self, signer: &G) -> Announcement {
         let msg = wire::serialize(&self);
         let signature = signer.sign(&msg);
 
@@ -407,11 +407,11 @@ impl Message {
         .into()
     }
 
-    pub fn node<S: crypto::Signer>(message: NodeAnnouncement, signer: S) -> Self {
+    pub fn node<G: crypto::Signer>(message: NodeAnnouncement, signer: &G) -> Self {
         AnnouncementMessage::from(message).signed(signer).into()
     }
 
-    pub fn inventory<S: crypto::Signer>(message: InventoryAnnouncement, signer: S) -> Self {
+    pub fn inventory<G: crypto::Signer>(message: InventoryAnnouncement, signer: &G) -> Self {
         AnnouncementMessage::from(message).signed(signer).into()
     }
 

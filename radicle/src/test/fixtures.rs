@@ -9,7 +9,7 @@ use crate::storage::git::Storage;
 use crate::storage::refs::SignedRefs;
 
 /// Create a new storage with a project.
-pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: G) -> Result<Storage, rad::InitError> {
+pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage, rad::InitError> {
     let path = path.as_ref();
     let storage = Storage::open(path.join("storage"))?;
 
@@ -22,14 +22,7 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: G) -> Result<Storage,
         ("rx", "A pixel editor"),
     ] {
         let (repo, _) = repository(path.join("workdir").join(name));
-        rad::init(
-            &repo,
-            name,
-            desc,
-            git::refname!("master"),
-            &signer,
-            &storage,
-        )?;
+        rad::init(&repo, name, desc, git::refname!("master"), signer, &storage)?;
     }
 
     Ok(storage)
@@ -39,7 +32,7 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: G) -> Result<Storage,
 pub fn project<P: AsRef<Path>, G: Signer>(
     path: P,
     storage: &Storage,
-    signer: G,
+    signer: &G,
 ) -> Result<(Id, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
     transport::local::register(storage.clone());
 

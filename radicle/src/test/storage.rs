@@ -151,7 +151,7 @@ impl WriteRepository for MockRepository {
 
     fn sign_refs<G: Signer>(
         &self,
-        _signer: G,
+        _signer: &G,
     ) -> Result<crate::storage::refs::SignedRefs<Verified>, Error> {
         todo!()
     }

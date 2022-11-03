@@ -1,4 +1,4 @@
-use crate::{KeyPair, PublicKey, SecretKey, Seed, Signature, Signer};
+use crate::{KeyPair, PublicKey, SecretKey, Seed, Signature, Signer, SignerError};
 
 #[derive(Debug, Clone)]
 pub struct MockSigner {
@@ -61,5 +61,9 @@ impl Signer for MockSigner {
 
     fn sign(&self, msg: &[u8]) -> Signature {
         self.sk.sign(msg, None).into()
+    }
+
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
+        Ok(self.sign(msg))
     }
 }

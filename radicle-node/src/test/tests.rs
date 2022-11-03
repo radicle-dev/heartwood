@@ -202,7 +202,7 @@ fn test_inventory_sync() {
         Storage::open(tmp.path().join("alice")).unwrap(),
     );
     let bob_signer = MockSigner::default();
-    let bob_storage = fixtures::storage(tmp.path().join("bob"), bob_signer).unwrap();
+    let bob_storage = fixtures::storage(tmp.path().join("bob"), &bob_signer).unwrap();
     let bob = Peer::new("bob", [8, 8, 8, 8], bob_storage);
     let now = LocalTime::now().as_secs();
     let projs = bob.storage().inventory().unwrap();

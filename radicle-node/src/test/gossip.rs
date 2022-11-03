@@ -29,7 +29,7 @@ pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Messa
                 inventory: arbitrary::gen(3),
                 timestamp: time.as_secs(),
             },
-            signer,
+            &signer,
         ))
     }
     msgs

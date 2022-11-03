@@ -638,10 +638,10 @@ impl WriteRepository for Repository {
         Ok(head)
     }
 
-    fn sign_refs<G: Signer>(&self, signer: G) -> Result<SignedRefs<Verified>, Error> {
+    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error> {
         let remote = signer.public_key();
         let refs = self.references(remote)?;
-        let signed = refs.signed(&signer)?;
+        let signed = refs.signed(signer)?;
 
         signed.save(remote, self)?;
 
@@ -751,7 +751,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let alice_signer = MockSigner::default();
         let alice_pk = *alice_signer.public_key();
-        let alice = fixtures::storage(tmp.path().join("alice"), alice_signer).unwrap();
+        let alice = fixtures::storage(tmp.path().join("alice"), &alice_signer).unwrap();
         let bob = Storage::open(tmp.path().join("bob")).unwrap();
         let inventory = alice.inventory().unwrap();
         let proj = *inventory.first().unwrap();
@@ -893,7 +893,7 @@ mod tests {
             "radicle",
             "radicle",
             git::refname!("master"),
-            signer,
+            &signer,
             &storage,
         )
         .unwrap();

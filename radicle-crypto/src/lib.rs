@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::{fmt, ops::Deref, str::FromStr};
 
 use ed25519_compact as ed25519;
@@ -20,37 +19,30 @@ pub struct Verified;
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Unverified;
 
+/// Error returned if signing fails, eg. due to an HSM or KMS.
+#[derive(Debug, Error)]
+#[error(transparent)]
+pub struct SignerError {
+    #[from]
+    source: Box<dyn std::error::Error + Send + Sync>,
+}
+
+impl SignerError {
+    pub fn new(source: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Self {
+            source: Box::new(source),
+        }
+    }
+}
+
 pub trait Signer: Send + Sync {
     /// Return this signer's public/verification key.
     fn public_key(&self) -> &PublicKey;
     /// Sign a message and return the signature.
     fn sign(&self, msg: &[u8]) -> Signature;
-}
-
-impl<T> Signer for Arc<T>
-where
-    T: Signer + ?Sized,
-{
-    fn sign(&self, msg: &[u8]) -> Signature {
-        self.deref().sign(msg)
-    }
-
-    fn public_key(&self) -> &PublicKey {
-        self.deref().public_key()
-    }
-}
-
-impl<T> Signer for &T
-where
-    T: Signer + ?Sized,
-{
-    fn sign(&self, msg: &[u8]) -> Signature {
-        self.deref().sign(msg)
-    }
-
-    fn public_key(&self) -> &PublicKey {
-        self.deref().public_key()
-    }
+    /// Sign a message and return the signature, or fail if the signer was unable
+    /// to produce a signature.
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError>;
 }
 
 /// Cryptographic signature.

@@ -137,7 +137,7 @@ impl Doc<Verified> {
         false
     }
 
-    pub fn sign<G: crypto::Signer>(&self, signer: G) -> Result<(git::Oid, Signature), DocError> {
+    pub fn sign<G: crypto::Signer>(&self, signer: &G) -> Result<(git::Oid, Signature), DocError> {
         let (oid, bytes) = self.encode()?;
         let sig = signer.sign(&bytes);
 

@@ -15,7 +15,7 @@ use std::{env, io};
 
 use thiserror::Error;
 
-use crate::crypto::{KeyPair, PublicKey, SecretKey, Signature, Signer};
+use crate::crypto::{KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
 use crate::keystore::UnsafeKeystore;
 use crate::node;
 use crate::storage::git::transport;
@@ -44,6 +44,10 @@ impl Signer for UnsafeSigner {
 
     fn sign(&self, msg: &[u8]) -> Signature {
         Signature(self.secret.sign(msg, None))
+    }
+
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
+        Ok(self.sign(msg))
     }
 }
 

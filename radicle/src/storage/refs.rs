@@ -7,7 +7,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::str::FromStr;
 
-use crypto::{PublicKey, Signature, Signer, Unverified, Verified};
+use crypto::{PublicKey, Signature, Signer, SignerError, Unverified, Verified};
 use thiserror::Error;
 
 use crate::git;
@@ -36,6 +36,8 @@ pub enum Updated {
 pub enum Error {
     #[error("invalid signature: {0}")]
     InvalidSignature(#[from] crypto::Error),
+    #[error("signer error: {0}")]
+    Signer(#[from] SignerError),
     #[error("canonical refs: {0}")]
     Canonical(#[from] canonical::Error),
     #[error("invalid reference")]
@@ -84,13 +86,13 @@ impl Refs {
     }
 
     /// Sign these refs with the given signer and return [`SignedRefs`].
-    pub fn signed<S>(self, signer: S) -> Result<SignedRefs<Verified>, Error>
+    pub fn signed<G>(self, signer: &G) -> Result<SignedRefs<Verified>, Error>
     where
-        S: Signer,
+        G: Signer,
     {
         let refs = self;
         let msg = refs.canonical();
-        let signature = signer.sign(&msg);
+        let signature = signer.try_sign(&msg)?;
 
         Ok(SignedRefs {
             refs,

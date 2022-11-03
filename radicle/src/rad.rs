@@ -47,7 +47,7 @@ pub fn init<G: Signer>(
     name: &str,
     description: &str,
     default_branch: BranchName,
-    signer: G,
+    signer: &G,
     storage: &Storage,
 ) -> Result<(Id, SignedRefs<Verified>), InitError> {
     // TODO: Better error when project id already exists in storage, but remote doesn't.
@@ -114,7 +114,7 @@ pub enum ForkError {
 pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     proj: Id,
     remote: &RemoteId,
-    signer: G,
+    signer: &G,
     storage: S,
 ) -> Result<(), ForkError> {
     // TODO: Copy tags over?
@@ -150,7 +150,7 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
         &format!("creating identity branch for {me}"),
     )?;
 
-    repository.sign_refs(&signer)?;
+    repository.sign_refs(signer)?;
 
     Ok(())
 }
@@ -179,7 +179,7 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
         false,
         &format!("creating identity branch for {me}"),
     )?;
-    repository.sign_refs(&signer)?;
+    repository.sign_refs(signer)?;
 
     Ok(())
 }
