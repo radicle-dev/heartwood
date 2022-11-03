@@ -639,7 +639,9 @@ where
                     return Ok(false);
                 }
 
-                if let Err(err) = self.process_inventory(&message.inventory, *announcer) {
+                if let Err(err) =
+                    self.process_inventory(&message.inventory, *announcer, &message.timestamp)
+                {
                     error!("Error processing inventory from {}: {}", announcer, err);
 
                     if let Error::Fetch(storage::FetchError::Verify(err)) = err {
@@ -872,14 +874,15 @@ where
     }
 
     /// Process a peer inventory announcement by updating our routing table.
-    fn process_inventory(&mut self, inventory: &Inventory, from: NodeId) -> Result<(), Error> {
+    fn process_inventory(
+        &mut self,
+        inventory: &Inventory,
+        from: NodeId,
+        timestamp: &Timestamp,
+    ) -> Result<(), Error> {
         for proj_id in inventory {
             // TODO: Fire an event on routing update.
-            // FIXME: The timestamp we insert should be the announcement timestamp.
-            if self
-                .routing
-                .insert(*proj_id, from, self.clock.timestamp())?
-                && self.config.is_tracking(proj_id)
+            if self.routing.insert(*proj_id, from, *timestamp)? && self.config.is_tracking(proj_id)
             {
                 log::info!("Routing table updated for {} with seed {}", proj_id, from);
             }
