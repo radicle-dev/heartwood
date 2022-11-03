@@ -100,8 +100,7 @@ impl Profile {
     pub fn signer(&self) -> Result<AgentSigner, Error> {
         match Agent::connect() {
             Ok(agent) => {
-                let signer = AgentSigner::new(agent, self.public_key);
-
+                let signer = agent.signer(self.public_key);
                 if signer.is_ready()? {
                     Ok(signer)
                 } else {

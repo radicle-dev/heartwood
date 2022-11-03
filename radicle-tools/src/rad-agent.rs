@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context as _};
 use radicle::{crypto, crypto::ssh};
 use std::io::prelude::*;
 use std::{env, io};
@@ -7,16 +7,20 @@ fn main() -> anyhow::Result<()> {
     let profile = radicle::Profile::load()?;
     let mut agent = ssh::agent::Agent::connect()?;
 
-    println!("({})", ssh::fmt::key(profile.id()));
+    println!("key: {}", ssh::fmt::key(profile.id()));
+    println!("hash: {}", ssh::fmt::fingerprint(profile.id()));
 
     match env::args().nth(1).as_deref() {
         Some("add") => {
+            print!("passphrase: ");
+            io::stdout().flush()?;
+
             let mut passphrase = String::new();
             io::stdin().lock().read_line(&mut passphrase)?;
 
             let secret = profile
                 .keystore
-                .secret_key(&passphrase)?
+                .secret_key(passphrase.trim())?
                 .ok_or_else(|| anyhow!("Key not found in {:?}", profile.keystore.path()))?;
 
             agent.register(&secret)?;
@@ -34,7 +38,7 @@ fn main() -> anyhow::Result<()> {
             let mut stdin = Vec::new();
             io::stdin().read_to_end(&mut stdin)?;
 
-            let sig = agent.sign(profile.id(), &stdin)?;
+            let sig = agent.sign(profile.id(), &stdin).context("Signing failed")?;
             let sig = crypto::Signature::from(sig);
 
             println!("{}", &sig);
@@ -42,7 +46,13 @@ fn main() -> anyhow::Result<()> {
         Some(other) => {
             anyhow::bail!("Unknown command `{}`", other);
         }
-        None => {}
+        None => {
+            if agent.signer(profile.public_key).is_ready()? {
+                println!("ready: yes");
+            } else {
+                println!("ready: no");
+            }
+        }
     }
 
     Ok(())

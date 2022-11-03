@@ -28,6 +28,11 @@ impl Agent {
     pub fn register(&mut self, key: &crypto::SecretKey) -> Result<(), ssh::Error> {
         self.client.add_identity(&SecretKey::from(*key), &[])
     }
+
+    /// Get a signer from this agent, given the public key.
+    pub fn signer(self, key: PublicKey) -> AgentSigner {
+        AgentSigner::new(self, key)
+    }
 }
 
 impl Deref for Agent {
