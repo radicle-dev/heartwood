@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 use thiserror::Error;
+use zeroize::Zeroizing;
 
 use crate::{KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
 
@@ -82,7 +83,7 @@ impl Keystore {
 
     /// Load the secret key from the store, decrypting it with the given passphrase.
     /// Returns `None` if it wasn't found.
-    pub fn secret_key(&self, passphrase: &str) -> Result<Option<SecretKey>, Error> {
+    pub fn secret_key(&self, passphrase: &str) -> Result<Option<Zeroizing<SecretKey>>, Error> {
         let path = self.path.join("radicle");
         if !path.exists() {
             return Ok(None);
@@ -93,7 +94,7 @@ impl Keystore {
 
         match secret.key_data() {
             ssh_key::private::KeypairData::Ed25519(pair) => {
-                Ok(Some(SecretKey::new(pair.to_bytes())))
+                Ok(Some(SecretKey::from(pair.to_bytes()).into()))
             }
             _ => Err(Error::InvalidKeyType),
         }
@@ -115,7 +116,7 @@ pub enum MemorySignerError {
 #[derive(Debug)]
 pub struct MemorySigner {
     public: PublicKey,
-    secret: SecretKey,
+    secret: Zeroizing<SecretKey>,
 }
 
 impl Signer for MemorySigner {

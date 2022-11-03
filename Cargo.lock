@@ -1401,6 +1401,7 @@ dependencies = [
  "ssh-key",
  "tempfile",
  "thiserror",
+ "zeroize",
 ]
 
 [[package]]

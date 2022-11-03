@@ -138,7 +138,48 @@ impl PublicKey {
 }
 
 /// The private/signing key.
-pub type SecretKey = ed25519::SecretKey;
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct SecretKey(ed25519::SecretKey);
+
+impl zeroize::Zeroize for SecretKey {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl TryFrom<&[u8]> for SecretKey {
+    type Error = ed25519::Error;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, ed25519::Error> {
+        ed25519::SecretKey::from_slice(bytes).map(Self)
+    }
+}
+
+impl AsRef<[u8]> for SecretKey {
+    fn as_ref(&self) -> &[u8] {
+        &*self.0
+    }
+}
+
+impl From<[u8; 64]> for SecretKey {
+    fn from(bytes: [u8; 64]) -> Self {
+        Self(ed25519::SecretKey::new(bytes))
+    }
+}
+
+impl From<ed25519::SecretKey> for SecretKey {
+    fn from(other: ed25519::SecretKey) -> Self {
+        Self(other)
+    }
+}
+
+impl Deref for SecretKey {
+    type Target = ed25519::SecretKey;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum PublicKeyError {

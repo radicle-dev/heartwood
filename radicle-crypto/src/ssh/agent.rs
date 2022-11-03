@@ -5,9 +5,7 @@ pub use radicle_ssh::agent::client::AgentClient;
 pub use radicle_ssh::agent::client::Error;
 pub use radicle_ssh::{self as ssh, agent::client::ClientStream};
 
-use crate::ssh::SecretKey;
-use crate::{self as crypto};
-use crate::{PublicKey, Signature, Signer, SignerError};
+use crate::{PublicKey, SecretKey, Signature, Signer, SignerError};
 
 #[cfg(not(unix))]
 pub use std::net::TcpStream as Stream;
@@ -25,8 +23,8 @@ impl Agent {
     }
 
     /// Register a key with the agent.
-    pub fn register(&mut self, key: &crypto::SecretKey) -> Result<(), ssh::Error> {
-        self.client.add_identity(&SecretKey::from(*key), &[])
+    pub fn register(&mut self, key: &SecretKey) -> Result<(), ssh::Error> {
+        self.client.add_identity(key, &[])
     }
 
     /// Get a signer from this agent, given the public key.

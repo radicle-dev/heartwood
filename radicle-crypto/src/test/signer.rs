@@ -16,7 +16,7 @@ impl MockSigner {
         let seed = Seed::new(bytes);
         let keypair = KeyPair::from_seed(seed);
 
-        Self::from(keypair.sk)
+        Self::from(SecretKey::from(keypair.sk))
     }
 }
 
@@ -35,7 +35,7 @@ impl Default for MockSigner {
 
         Self {
             pk: sk.public_key().into(),
-            sk,
+            sk: sk.into(),
         }
     }
 }

@@ -146,16 +146,6 @@ impl Encodable for PublicKey {
     }
 }
 
-// FIXME: Should zeroize, or we should be creating our own type
-// in `crypto`.
-struct SecretKey(crypto::SecretKey);
-
-impl From<crypto::SecretKey> for SecretKey {
-    fn from(other: crypto::SecretKey) -> Self {
-        Self(other)
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum SecretKeyError {
     #[error(transparent)]
@@ -170,7 +160,7 @@ pub enum SecretKeyError {
     Mismatch,
 }
 
-impl Encodable for SecretKey {
+impl Encodable for crypto::SecretKey {
     type Error = SecretKeyError;
 
     fn read(r: &mut encoding::Cursor) -> Result<Self, Self::Error> {
@@ -179,12 +169,12 @@ impl Encodable for SecretKey {
                 let public = r.read_string()?;
                 let pair = r.read_string()?;
                 let _comment = r.read_string()?;
-                let key = crypto::SecretKey::from_slice(pair)?;
+                let key = crypto::SecretKey::try_from(pair)?;
 
                 if public != key.public_key().as_ref() {
                     return Err(SecretKeyError::Mismatch);
                 }
-                Ok(SecretKey(key))
+                Ok(key)
             }
             s => Err(SecretKeyError::UnknownAlgorithm(
                 String::from_utf8_lossy(s).to_string(),
@@ -197,7 +187,7 @@ impl Encodable for SecretKey {
 
         buf.extend_ssh_string(b"ssh-ed25519");
         buf.extend_ssh_string(public.as_ref());
-        buf.extend_ssh_string(&*self.0);
+        buf.extend_ssh_string(self.0.as_ref());
         buf.extend_ssh_string(b"radicle");
     }
 }
@@ -317,10 +307,10 @@ mod test {
 
     use quickcheck_macros::quickcheck;
 
-    use super::{fmt, ExtendedSignature, SecretKey};
+    use super::{fmt, ExtendedSignature};
     use crate as crypto;
     use crate::test::arbitrary::ByteArray;
-    use crate::PublicKey;
+    use crate::{PublicKey, SecretKey};
     use radicle_ssh::agent::client::{AgentClient, ClientStream, Error};
     use radicle_ssh::encoding::*;
 
@@ -347,13 +337,13 @@ mod test {
     #[quickcheck]
     fn prop_encode_decode_sk(input: ByteArray<64>) {
         let mut buf = Buffer::default();
-        let sk = crypto::SecretKey::new(input.into_inner());
-        SecretKey(sk).write(&mut buf);
+        let sk = crypto::SecretKey::from(input.into_inner());
+        sk.write(&mut buf);
 
         let mut cursor = buf.reader(0);
         let output = SecretKey::read(&mut cursor).unwrap();
 
-        assert_eq!(sk, output.0);
+        assert_eq!(sk, output);
     }
 
     #[test]

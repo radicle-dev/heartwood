@@ -1,6 +1,6 @@
 use quickcheck::Arbitrary;
 
-use crate::{test::signer::MockSigner, KeyPair, PublicKey, Seed};
+use crate::{test::signer::MockSigner, KeyPair, PublicKey, SecretKey, Seed};
 
 impl Arbitrary for MockSigner {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
@@ -8,7 +8,7 @@ impl Arbitrary for MockSigner {
         let seed = Seed::new(bytes.into_inner());
         let sk = KeyPair::from_seed(seed).sk;
 
-        MockSigner::from(sk)
+        MockSigner::from(SecretKey::from(sk))
     }
 }
 
