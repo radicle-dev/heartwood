@@ -8,6 +8,13 @@ members = [
   "radicle-remote-helper",
   "radicle-httpd"
 ]
+default-members = [
+  "radicle",
+  "radicle-crypto",
+  "radicle-node",
+  "radicle-ssh",
+  "radicle-remote-helper",
+]
 
 [patch.crates-io.nakamoto-net]
 git = "https://github.com/cloudhead/nakamoto"
