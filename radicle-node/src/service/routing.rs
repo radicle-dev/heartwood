@@ -57,6 +57,8 @@ impl Table {
 pub trait Store {
     /// Get the nodes seeding the given id.
     fn get(&self, id: &Id) -> Result<HashSet<NodeId>, Error>;
+    /// Get the resources seeded by the given node.
+    fn get_resources(&self, node_id: &NodeId) -> Result<HashSet<Id>, Error>;
     /// Get a specific entry.
     fn entry(&self, id: &Id, node: &NodeId) -> Result<Option<Timestamp>, Error>;
     /// Add a new node seeding the given id.
@@ -81,6 +83,19 @@ impl Store for Table {
             nodes.insert(row?.get::<NodeId, _>("node"));
         }
         Ok(nodes)
+    }
+
+    fn get_resources(&self, node: &NodeId) -> Result<HashSet<Id>, Error> {
+        let mut stmt = self
+            .db
+            .prepare("SELECT resource FROM routing WHERE node = ?")?;
+        stmt.bind(1, node)?;
+
+        let mut resources = HashSet::new();
+        for row in stmt.into_cursor() {
+            resources.insert(row?.get::<Id, _>("resource"));
+        }
+        Ok(resources)
     }
 
     fn entry(&self, id: &Id, node: &NodeId) -> Result<Option<Timestamp>, Error> {
@@ -175,6 +190,26 @@ mod test {
             let seeds = db.get(id).unwrap();
             for node in &nodes {
                 assert!(seeds.contains(node));
+            }
+        }
+    }
+
+    #[test]
+    fn test_insert_and_get_resources() {
+        let ids = arbitrary::set::<Id>(5..10);
+        let nodes = arbitrary::set::<NodeId>(5..10);
+        let mut db = Table::open(":memory:").unwrap();
+
+        for id in &ids {
+            for node in &nodes {
+                assert!(db.insert(*id, *node, 0).unwrap());
+            }
+        }
+
+        for node in &nodes {
+            let projects = db.get_resources(node).unwrap();
+            for id in &ids {
+                assert!(projects.contains(id));
             }
         }
     }

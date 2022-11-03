@@ -6,7 +6,7 @@ pub mod routing;
 pub mod session;
 
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::{fmt, net, net::IpAddr, str};
@@ -876,15 +876,21 @@ where
     /// Process a peer inventory announcement by updating our routing table.
     fn process_inventory(
         &mut self,
-        inventory: &Inventory,
+        inventory: &Vec<Id>,
         from: NodeId,
         timestamp: &Timestamp,
     ) -> Result<(), Error> {
+        let mut included = HashSet::new();
         for proj_id in inventory {
-            // TODO: Fire an event on routing update.
+            included.insert(proj_id);
             if self.routing.insert(*proj_id, from, *timestamp)? && self.config.is_tracking(proj_id)
             {
                 log::info!("Routing table updated for {} with seed {}", proj_id, from);
+            }
+        }
+        for id in self.routing.get_resources(&from)?.into_iter() {
+            if !included.contains(&id) {
+                self.routing.remove(&id, &from)?;
             }
         }
         Ok(())
