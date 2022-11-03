@@ -2,6 +2,7 @@ use std::{env, net, process, thread};
 
 use anyhow::Context as _;
 
+use radicle::profile;
 use radicle_node::crypto::ssh::keystore::MemorySigner;
 use radicle_node::logger;
 use radicle_node::prelude::Address;
@@ -18,6 +19,7 @@ struct Options {
 impl Options {
     fn from_env() -> Result<Self, lexopt::Error> {
         use lexopt::prelude::*;
+
         let mut parser = lexopt::Parser::from_env();
         let mut connect = Vec::new();
         let mut listen = Vec::new();
@@ -53,7 +55,7 @@ fn main() -> anyhow::Result<()> {
     let signer = match profile.signer() {
         Ok(signer) => signer.boxed(),
         Err(err) => {
-            let passphrase = env::var("RAD_PASSPHRASE")
+            let passphrase = env::var(profile::env::RAD_PASSPHRASE)
                 .context("Either ssh-agent must be initialized, or `RAD_PASSPHRASE` must be set")
                 .context(err)?;
             MemorySigner::load(&profile.keystore, &passphrase)?.boxed()

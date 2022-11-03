@@ -10,8 +10,8 @@
 //!     node/
 //!       radicle.sock                           # Node control socket
 //!
+use std::io;
 use std::path::PathBuf;
-use std::{env, io};
 
 use thiserror::Error;
 
@@ -21,6 +21,18 @@ use crate::crypto::PublicKey;
 use crate::node;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
+
+/// Environment variables used by radicle.
+pub mod env {
+    pub use std::env::*;
+
+    /// Path to the radicle home folder.
+    pub const RAD_HOME: &str = "RAD_HOME";
+    /// Path to the radicle node socket file.
+    pub const RAD_SOCKET: &str = "RAD_SOCKET";
+    /// Passphrase for the encrypted radicle secret key.
+    pub const RAD_PASSPHRASE: &str = "RAD_PASSPHRASE";
+}
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -107,7 +119,7 @@ impl Profile {
 
     /// Get the path to the radicle node socket.
     pub fn node(&self) -> PathBuf {
-        env::var_os("RAD_SOCKET")
+        env::var_os(env::RAD_SOCKET)
             .map(PathBuf::from)
             .unwrap_or_else(|| self.home.join("node").join(node::DEFAULT_SOCKET_NAME))
     }
@@ -115,7 +127,7 @@ impl Profile {
 
 /// Get the path to the radicle home folder.
 pub fn home() -> Result<PathBuf, io::Error> {
-    if let Some(home) = env::var_os("RAD_HOME") {
+    if let Some(home) = env::var_os(env::RAD_HOME) {
         Ok(PathBuf::from(home))
     } else if let Some(home) = env::var_os("HOME") {
         Ok(PathBuf::from(home).join(".radicle"))
