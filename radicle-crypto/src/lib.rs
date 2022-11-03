@@ -45,6 +45,23 @@ pub trait Signer: Send + Sync {
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError>;
 }
 
+impl<T> Signer for Box<T>
+where
+    T: Signer + ?Sized,
+{
+    fn public_key(&self) -> &PublicKey {
+        self.deref().public_key()
+    }
+
+    fn sign(&self, msg: &[u8]) -> Signature {
+        self.deref().sign(msg)
+    }
+
+    fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
+        self.deref().try_sign(msg)
+    }
+}
+
 /// Cryptographic signature.
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub struct Signature(pub ed25519::Signature);

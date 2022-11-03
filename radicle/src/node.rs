@@ -33,19 +33,21 @@ pub trait Handle {
     fn shutdown(self) -> Result<(), Error>;
 }
 
-/// Node control socket.
+/// Node controller.
 #[derive(Debug)]
-pub struct Connection {
+pub struct Node {
     stream: UnixStream,
 }
 
-impl Connection {
+impl Node {
+    /// Connect to the node, via the socket at the given path.
     pub fn connect<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let stream = UnixStream::connect(path).map_err(Error::Connect)?;
 
         Ok(Self { stream })
     }
 
+    /// Call a command on the node.
     pub fn call<A: fmt::Display>(
         &self,
         cmd: &str,
@@ -57,7 +59,7 @@ impl Connection {
     }
 }
 
-impl Handle for Connection {
+impl Handle for Node {
     fn fetch(&self, id: &Id) -> Result<(), Error> {
         for line in self.call("fetch", id)? {
             let line = line?;
@@ -93,4 +95,9 @@ impl Handle for Connection {
     fn shutdown(self) -> Result<(), Error> {
         todo!();
     }
+}
+
+/// Connect to the local node.
+pub fn connect<P: AsRef<Path>>(path: P) -> Result<Node, Error> {
+    Node::connect(path)
 }

@@ -4,6 +4,8 @@ use crossbeam_channel as chan;
 use nakamoto_net::{LocalTime, Reactor};
 use thiserror::Error;
 
+use radicle::crypto::Signer;
+
 use crate::clock::RefClock;
 use crate::profile::Profile;
 use crate::service::routing;
@@ -70,7 +72,6 @@ impl Default for Config {
 
 pub struct Client<R: Reactor> {
     reactor: R,
-    profile: Profile,
 
     handle: chan::Sender<service::Command>,
     commands: chan::Receiver<service::Command>,
@@ -80,7 +81,7 @@ pub struct Client<R: Reactor> {
 }
 
 impl<R: Reactor> Client<R> {
-    pub fn new(profile: Profile) -> Result<Self, Error> {
+    pub fn new() -> Result<Self, Error> {
         let (handle, commands) = chan::unbounded::<service::Command>();
         let (shutdown, shutdown_recv) = chan::bounded(1);
         let (listening_send, listening) = chan::bounded(1);
@@ -88,7 +89,6 @@ impl<R: Reactor> Client<R> {
         let events = Events {};
 
         Ok(Self {
-            profile,
             reactor,
             handle,
             commands,
@@ -98,13 +98,17 @@ impl<R: Reactor> Client<R> {
         })
     }
 
-    pub fn run(mut self, config: Config) -> Result<(), Error> {
+    pub fn run<G: Signer>(
+        mut self,
+        config: Config,
+        profile: Profile,
+        signer: G,
+    ) -> Result<(), Error> {
         let network = config.service.network;
         let rng = fastrand::Rng::new();
         let time = LocalTime::now();
-        let storage = self.profile.storage;
-        let signer = self.profile.signer;
-        let node_dir = self.profile.home.join(NODE_DIR);
+        let storage = profile.storage;
+        let node_dir = profile.home.join(NODE_DIR);
         let address_db = node_dir.join(ADDRESS_DB_FILE);
         let routing_db = node_dir.join(ROUTING_DB_FILE);
 

@@ -486,7 +486,7 @@ impl Identity<Untrusted> {
 #[cfg(test)]
 mod test {
     use radicle_crypto::test::signer::MockSigner;
-    use radicle_crypto::Signer;
+    use radicle_crypto::Signer as _;
 
     use crate::rad;
     use crate::storage::git::Storage;

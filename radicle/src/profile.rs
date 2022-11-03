@@ -15,8 +15,9 @@ use std::{env, io};
 
 use thiserror::Error;
 
-use crate::crypto::{KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
-use crate::keystore::UnsafeKeystore;
+use crate::crypto::ssh::agent::{Agent, AgentSigner};
+use crate::crypto::ssh::keystore::Keystore;
+use crate::crypto::PublicKey;
 use crate::node;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
@@ -26,87 +27,86 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
-    KeyStore(#[from] crate::keystore::Error),
+    Keystore(#[from] crate::crypto::ssh::keystore::Error),
     #[error("no profile found at the filepath '{0}'")]
     NotFound(PathBuf),
-}
-
-#[derive(Debug)]
-pub struct UnsafeSigner {
-    pub public: PublicKey,
-    pub secret: SecretKey,
-}
-
-impl Signer for UnsafeSigner {
-    fn public_key(&self) -> &PublicKey {
-        &self.public
-    }
-
-    fn sign(&self, msg: &[u8]) -> Signature {
-        Signature(self.secret.sign(msg, None))
-    }
-
-    fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
-        Ok(self.sign(msg))
-    }
+    #[error("error connecting to ssh-agent: {0}")]
+    Agent(#[from] crate::crypto::ssh::agent::Error),
+    #[error("profile key `{0}` is not registered with ssh-agent")]
+    KeyNotRegistered(PublicKey),
 }
 
 #[derive(Debug)]
 pub struct Profile {
     pub home: PathBuf,
-    pub signer: UnsafeSigner,
     pub storage: Storage,
+    pub keystore: Keystore,
+    pub public_key: PublicKey,
 }
 
 impl Profile {
-    pub fn init(keypair: KeyPair) -> Result<Self, Error> {
+    pub fn init(passphrase: &str) -> Result<Self, Error> {
         let home = self::home()?;
-        let mut keystore = UnsafeKeystore::new(&home.join("keys"));
-        let public = keypair.pk.into();
-        let signer = UnsafeSigner {
-            public,
-            secret: keypair.sk,
-        };
         let storage = Storage::open(&home.join("storage"))?;
+        // TODO: This should generate a keypair at the given location.
+        // For now, we use ssh-keygen?
+        let keystore = Keystore::new(&home.join("keys"));
+        let public_key = keystore.init("radicle", passphrase)?;
 
         transport::local::register(storage.clone());
-        keystore.put(&signer.public, &signer.secret)?;
 
         Ok(Profile {
             home,
-            signer,
             storage,
+            keystore,
+            public_key,
         })
     }
 
     pub fn load() -> Result<Self, Error> {
         let home = self::home()?;
-        let (public, secret) = UnsafeKeystore::new(&home.join("keys"))
-            .get()?
-            .ok_or_else(|| Error::NotFound(home.clone()))?;
-        let signer = UnsafeSigner { public, secret };
         let storage = Storage::open(&home.join("storage"))?;
+        let keystore = Keystore::new(&home.join("keys"));
+        let public_key = keystore
+            .public_key()?
+            .ok_or_else(|| Error::NotFound(home.clone()))?;
 
         transport::local::register(storage.clone());
 
         Ok(Profile {
             home,
-            signer,
             storage,
+            keystore,
+            public_key,
         })
     }
 
-    /// Return a connection to the locally running node.
-    pub fn node(&self) -> Result<node::Connection, node::Error> {
-        node::Connection::connect(self.socket())
+    pub fn id(&self) -> &PublicKey {
+        &self.public_key
     }
 
-    pub fn id(&self) -> &PublicKey {
-        self.signer.public_key()
+    pub fn signer(&self) -> Result<AgentSigner, Error> {
+        match Agent::connect() {
+            Ok(agent) => {
+                let signer = AgentSigner::new(agent, self.public_key);
+
+                if signer.is_ready()? {
+                    Ok(signer)
+                } else {
+                    Err(Error::KeyNotRegistered(self.public_key))
+                }
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// Return the path to the keys folder.
+    pub fn keys(&self) -> PathBuf {
+        self.home.join("keys")
     }
 
     /// Get the path to the radicle node socket.
-    pub fn socket(&self) -> PathBuf {
+    pub fn node(&self) -> PathBuf {
         env::var_os("RAD_SOCKET")
             .map(PathBuf::from)
             .unwrap_or_else(|| self.home.join("node").join(node::DEFAULT_SOCKET_NAME))

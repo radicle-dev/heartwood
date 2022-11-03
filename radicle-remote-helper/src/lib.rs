@@ -4,8 +4,7 @@ use std::{env, io, process};
 
 use thiserror::Error;
 
-use radicle::crypto::ssh;
-use radicle::crypto::{PublicKey, Signer};
+use radicle::crypto::PublicKey;
 use radicle::node::Handle;
 use radicle::storage::git::transport::local::{Url, UrlError};
 use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
@@ -52,9 +51,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
         }
     }?;
     // Default to profile key.
-    let namespace = url
-        .namespace
-        .unwrap_or_else(|| *profile.signer.public_key());
+    let namespace = url.namespace.unwrap_or(profile.public_key);
 
     let proj = profile.storage.repository(url.repo)?;
     if proj.is_empty()? {
@@ -83,17 +80,16 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                 // 1. Our key is not in ssh-agent, which means we won't be able to sign the refs.
                 // 2. Our key is not the one loaded in the profile, which means that the signed refs
                 //    won't match the remote we're pushing to.
-                if *service == GIT_RECEIVE_PACK {
-                    if profile.signer.public_key() != &namespace {
+                let signer = if *service == GIT_RECEIVE_PACK {
+                    if profile.public_key != namespace {
                         return Err(Error::KeyMismatch(namespace).into());
                     }
-                    if !ssh::agent::connect()?
-                        .request_identities::<PublicKey>()?
-                        .contains(&namespace)
-                    {
-                        return Err(Error::KeyNotRegistered(namespace).into());
-                    }
-                }
+                    let signer = profile.signer()?;
+
+                    Some(signer)
+                } else {
+                    None
+                };
                 println!(); // Empty line signifies connection is established.
 
                 let mut child = process::Command::new(service)
@@ -106,13 +102,13 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                     .spawn()?;
 
                 if child.wait()?.success() {
-                    if *service == GIT_RECEIVE_PACK {
-                        proj.sign_refs(&profile.signer)?;
+                    if let Some(signer) = signer {
+                        proj.sign_refs(&signer)?;
                         proj.set_head()?;
                         // Connect to local node and announce refs to the network.
                         // If our node is not running, we simply skip this step, as the
                         // refs will be announced eventually, when the node restarts.
-                        if let Ok(conn) = profile.node() {
+                        if let Ok(conn) = radicle::node::connect(&profile.node()) {
                             conn.announce_refs(&url.repo)?;
                         }
                     }

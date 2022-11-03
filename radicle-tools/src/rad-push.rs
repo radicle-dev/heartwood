@@ -11,11 +11,12 @@ fn main() -> anyhow::Result<()> {
     let output = radicle::git::run::<_, _, &str, &str>(&cwd, &["push", "rad"], None)?;
     println!("{}", output);
 
+    let signer = profile.signer()?;
     let project = profile.storage.repository(id)?;
-    let sigrefs = project.sign_refs(&profile.signer)?;
+    let sigrefs = project.sign_refs(&signer)?;
     let head = project.set_head()?;
 
-    profile.node()?.announce_refs(&id)?;
+    radicle::node::connect(&profile.node())?.announce_refs(&id)?;
 
     println!("head: {}", head);
     println!("ok: {}", sigrefs.signature);

@@ -54,7 +54,7 @@ impl<S> AgentClient<S> {
 }
 
 pub trait ClientStream: Sized + Send + Sync {
-    /// Send an agent request to through the stream and read the response.
+    /// Send an agent request through the stream and read the response.
     fn request(&mut self, req: &[u8]) -> Result<Buffer, Error>;
 
     /// How to connect the streaming socket

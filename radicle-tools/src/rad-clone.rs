@@ -7,11 +7,12 @@ use radicle::identity::Id;
 fn main() -> anyhow::Result<()> {
     let cwd = Path::new(".").canonicalize()?;
     let profile = radicle::Profile::load()?;
+    let signer = profile.signer()?;
 
     if let Some(id) = env::args().nth(1) {
         let id = Id::from_str(&id)?;
-        let node = profile.node()?;
-        let repo = radicle::rad::clone(id, &cwd, &profile.signer, &profile.storage, &node)?;
+        let node = radicle::node::connect(profile.node())?;
+        let repo = radicle::rad::clone(id, &cwd, &signer, &profile.storage, &node)?;
 
         println!(
             "ok: project {id} cloned into `{}`",

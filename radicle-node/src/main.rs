@@ -1,8 +1,8 @@
-use std::thread;
-use std::{net, process};
+use std::{env, net, process, thread};
 
 use anyhow::Context as _;
 
+use radicle_node::crypto::ssh::keystore::MemorySigner;
 use radicle_node::logger;
 use radicle_node::prelude::Address;
 use radicle_node::{client, control, service};
@@ -48,8 +48,17 @@ fn main() -> anyhow::Result<()> {
 
     let options = Options::from_env()?;
     let profile = radicle::Profile::load().context("Failed to load node profile")?;
-    let socket = profile.socket();
-    let client = client::Client::<Reactor>::new(profile).context("Failed to initialize client")?;
+    let node = profile.node();
+    let client = client::Client::<Reactor>::new().context("Failed to initialize client")?;
+    let signer = match profile.signer() {
+        Ok(signer) => signer.boxed(),
+        Err(err) => {
+            let passphrase = env::var("RAD_PASSPHRASE")
+                .context("Either ssh-agent must be initialized, or `RAD_PASSPHRASE` must be set")
+                .context(err)?;
+            MemorySigner::load(&profile.keystore, &passphrase)?.boxed()
+        }
+    };
     let handle = client.handle();
     let config = client::Config {
         service: service::Config {
@@ -59,8 +68,8 @@ fn main() -> anyhow::Result<()> {
         listen: options.listen,
     };
 
-    let t1 = thread::spawn(move || control::listen(socket, handle));
-    let t2 = thread::spawn(move || client.run(config));
+    let t1 = thread::spawn(move || control::listen(node, handle));
+    let t2 = thread::spawn(move || client.run(config, profile, signer));
 
     t1.join().unwrap()?;
     t2.join().unwrap()?;
