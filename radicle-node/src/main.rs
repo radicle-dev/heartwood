@@ -57,8 +57,9 @@ fn main() -> anyhow::Result<()> {
         Err(err) => {
             let passphrase = env::var(profile::env::RAD_PASSPHRASE)
                 .context("Either ssh-agent must be initialized, or `RAD_PASSPHRASE` must be set")
-                .context(err)?;
-            MemorySigner::load(&profile.keystore, &passphrase)?.boxed()
+                .context(err)?
+                .into();
+            MemorySigner::load(&profile.keystore, passphrase)?.boxed()
         }
     };
     let handle = client.handle();

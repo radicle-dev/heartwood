@@ -7,6 +7,9 @@ use zeroize::Zeroizing;
 
 use crate::{KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
 
+/// A secret key passphrase.
+pub type Passphrase = Zeroizing<String>;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
@@ -83,7 +86,10 @@ impl Keystore {
 
     /// Load the secret key from the store, decrypting it with the given passphrase.
     /// Returns `None` if it wasn't found.
-    pub fn secret_key(&self, passphrase: &str) -> Result<Option<Zeroizing<SecretKey>>, Error> {
+    pub fn secret_key(
+        &self,
+        passphrase: Passphrase,
+    ) -> Result<Option<Zeroizing<SecretKey>>, Error> {
         let path = self.path.join("radicle");
         if !path.exists() {
             return Ok(None);
@@ -135,7 +141,7 @@ impl Signer for MemorySigner {
 
 impl MemorySigner {
     /// Load this signer from a keystore, given a secret key passphrase.
-    pub fn load(keystore: &Keystore, passphrase: &str) -> Result<Self, MemorySignerError> {
+    pub fn load(keystore: &Keystore, passphrase: Passphrase) -> Result<Self, MemorySignerError> {
         let public = keystore
             .public_key()?
             .ok_or_else(|| MemorySignerError::NotFound(keystore.path().to_path_buf()))?;
@@ -177,10 +183,13 @@ mod tests {
         let public = store.init("test", "hunter").unwrap();
         assert_eq!(public, store.public_key().unwrap().unwrap());
 
-        let secret = store.secret_key("hunter").unwrap().unwrap();
+        let secret = store
+            .secret_key("hunter".to_owned().into())
+            .unwrap()
+            .unwrap();
         assert_eq!(PublicKey::from(secret.public_key()), public);
 
-        store.secret_key("blunder").unwrap_err(); // Wrong passphrase.
+        store.secret_key("blunder".to_owned().into()).unwrap_err(); // Wrong passphrase.
     }
 
     #[test]
@@ -189,7 +198,7 @@ mod tests {
         let store = Keystore::new(&tmp.path());
 
         let public = store.init("test", "hunter").unwrap();
-        let signer = MemorySigner::load(&store, "hunter").unwrap();
+        let signer = MemorySigner::load(&store, "hunter".to_owned().into()).unwrap();
 
         assert_eq!(public, *signer.public_key());
     }

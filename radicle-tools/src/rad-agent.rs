@@ -18,9 +18,10 @@ fn main() -> anyhow::Result<()> {
             let mut passphrase = String::new();
             io::stdin().lock().read_line(&mut passphrase)?;
 
+            let passphrase = passphrase.trim().to_owned().into();
             let secret = profile
                 .keystore
-                .secret_key(passphrase.trim())?
+                .secret_key(passphrase)?
                 .ok_or_else(|| anyhow!("Key not found in {:?}", profile.keystore.path()))?;
 
             agent.register(&secret)?;
