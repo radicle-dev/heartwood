@@ -560,13 +560,11 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 //
                 // It's also possible that the connection was only attempted and never succeeded,
                 // in which case we would return here.
-                let port = if let Some(port) = self.connections.get(&(node, remote.ip())) {
-                    *port
-                } else {
+                let Some(port) = self.connections.get(&(node, remote.ip())) else {
                     debug!(target: "sim", "Ignoring disconnect of {remote} from {node}");
                     return;
                 };
-                let local_addr: net::SocketAddr = (node, port).into();
+                let local_addr: net::SocketAddr = (node, *port).into();
                 let latency = self.latency(node, remote.ip());
 
                 // The remote node receives the disconnection with some delay.

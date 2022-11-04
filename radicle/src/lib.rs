@@ -1,4 +1,5 @@
 #![allow(clippy::match_like_matches_macro)]
+#![allow(clippy::explicit_auto_deref)] // TODO: This can be removed when the clippy bugs are fixed
 #![cfg_attr(not(test), warn(clippy::unwrap_used))]
 
 pub extern crate radicle_crypto as crypto;

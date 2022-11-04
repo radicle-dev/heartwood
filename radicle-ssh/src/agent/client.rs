@@ -63,9 +63,7 @@ pub trait ClientStream: Sized + Send + Sync {
         P: AsRef<Path> + Send;
 
     fn connect_env() -> Result<AgentClient<Self>, Error> {
-        let var = if let Ok(var) = std::env::var("SSH_AUTH_SOCK") {
-            var
-        } else {
+        let Ok(var) = std::env::var("SSH_AUTH_SOCK") else {
             return Err(Error::EnvVar("SSH_AUTH_SOCK"));
         };
         match Self::connect(var) {

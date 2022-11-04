@@ -417,9 +417,7 @@ where
                 }
 
                 let seeds = self.seeds(&id);
-                let seeds = if let Some(seeds) = NonEmpty::from_vec(seeds) {
-                    seeds
-                } else {
+                let Some(seeds) = NonEmpty::from_vec(seeds) else {
                     log::error!("No seeds found for {}", id);
                     resp.send(FetchLookup::NotFound).ok();
 
@@ -755,9 +753,7 @@ where
         message: Message,
     ) -> Result<(), session::Error> {
         let peer_ip = remote.ip();
-        let peer = if let Some(peer) = self.sessions.get_mut(&peer_ip) {
-            peer
-        } else {
+        let Some(peer) = self.sessions.get_mut(&peer_ip) else {
             return Err(session::Error::NotFound(remote.ip()));
         };
         peer.last_active = self.clock.local_time();

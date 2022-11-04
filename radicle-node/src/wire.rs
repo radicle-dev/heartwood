@@ -129,6 +129,8 @@ impl Encode for PublicKey {
 
 impl<const T: usize> Encode for &[u8; T] {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        // TODO: This can be removed when the clippy bugs are fixed
+        #[allow(clippy::explicit_auto_deref)]
         writer.write_all(*self)?;
 
         Ok(mem::size_of::<Self>())

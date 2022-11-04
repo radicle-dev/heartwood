@@ -352,9 +352,7 @@ impl Repository {
                 let r = reference?;
                 let name = r.name().ok_or(refs::Error::InvalidRef)?;
                 let (namespace, refname) = git::parse_ref_namespaced::<RemoteId>(name)?;
-                let oid = if let Some(oid) = r.target() {
-                    oid
-                } else {
+                let Some(oid) = r.target() else {
                     // Ignore symbolic refs, eg. `HEAD`.
                     return Ok(None);
                 };

@@ -285,7 +285,7 @@ impl PublicKey {
         buf[..2].copy_from_slice(&Self::MULTICODEC_TYPE);
         buf[2..].copy_from_slice(self.0.deref());
 
-        multibase::encode(multibase::Base::Base58Btc, &buf)
+        multibase::encode(multibase::Base::Base58Btc, buf)
     }
 }
 

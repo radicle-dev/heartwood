@@ -48,7 +48,7 @@ impl Keystore {
     /// The `passphrase` is used to encrypt the private key.
     pub fn init(&self, comment: &str, passphrase: &str) -> Result<PublicKey, Error> {
         let pair = KeyPair::generate();
-        let ssh_pair = ssh_key::private::Ed25519Keypair::from_bytes(&*pair)?;
+        let ssh_pair = ssh_key::private::Ed25519Keypair::from_bytes(&pair)?;
         let ssh_pair = ssh_key::private::KeypairData::Ed25519(ssh_pair);
         let secret = ssh_key::PrivateKey::new(ssh_pair, comment)?;
         let secret = secret.encrypt(ssh_key::rand_core::OsRng, passphrase)?;

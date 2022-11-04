@@ -103,7 +103,7 @@ impl Encoding for Vec<u8> {
 
     fn extend_list<'a, I: Iterator<Item = &'a [u8]>>(&mut self, list: I) {
         let len0 = self.len();
-        self.extend(&[0, 0, 0, 0]);
+        self.extend([0, 0, 0, 0]);
 
         let mut first = true;
         for i in list {
@@ -120,7 +120,7 @@ impl Encoding for Vec<u8> {
     }
 
     fn write_empty_list(&mut self) {
-        self.extend(&[0, 0, 0, 0]);
+        self.extend([0, 0, 0, 0]);
     }
 
     fn write_len(&mut self) {
