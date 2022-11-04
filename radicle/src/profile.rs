@@ -48,7 +48,7 @@ pub enum Error {
     KeyNotRegistered(PublicKey),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Profile {
     pub home: PathBuf,
     pub storage: Storage,

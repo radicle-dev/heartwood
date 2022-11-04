@@ -23,7 +23,7 @@ pub enum Error {
 }
 
 /// Stores keys on disk, in OpenSSH format.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Keystore {
     path: PathBuf,
 }
