@@ -11,7 +11,7 @@
 //!       radicle.sock                           # Node control socket
 //!
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
@@ -122,6 +122,11 @@ impl Profile {
             .map(PathBuf::from)
             .unwrap_or_else(|| self.home.join("node").join(node::DEFAULT_SOCKET_NAME))
     }
+
+    /// Get `Paths` of profile
+    pub fn paths(&self) -> Paths {
+        Paths { home: &self.home }
+    }
 }
 
 /// Get the path to the radicle home folder.
@@ -135,5 +140,24 @@ pub fn home() -> Result<PathBuf, io::Error> {
             io::ErrorKind::NotFound,
             "Neither `RAD_HOME` nor `HOME` are set",
         ))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Paths<'a> {
+    home: &'a Path,
+}
+
+impl Paths<'_> {
+    pub fn storage(&self) -> PathBuf {
+        self.home.join("storage")
+    }
+
+    pub fn keys(&self) -> PathBuf {
+        self.home.join("keys")
+    }
+
+    pub fn node(&self) -> PathBuf {
+        self.home.join("node")
     }
 }
