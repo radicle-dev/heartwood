@@ -343,9 +343,16 @@ impl sqlite::ValueInto for PublicKey {
 }
 
 #[cfg(feature = "sqlite")]
+impl From<PublicKey> for sqlite::Value {
+    fn from(pk: PublicKey) -> Self {
+        sqlite::Value::String(pk.to_human())
+    }
+}
+
+#[cfg(feature = "sqlite")]
 impl sqlite::Bindable for &PublicKey {
     fn bind(self, stmt: &mut sqlite::Statement<'_>, i: usize) -> sqlite::Result<()> {
-        self.to_human().as_str().bind(stmt, i)
+        sqlite::Value::from(*self).bind(stmt, i)
     }
 }
 

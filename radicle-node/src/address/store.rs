@@ -57,29 +57,28 @@ impl Book {
 
 impl Store for Book {
     fn get(&self, node: &NodeId) -> Result<Option<types::Node>, Error> {
-        let row = self
+        let mut stmt = self
             .db
-            .prepare("SELECT features, alias, timestamp FROM nodes WHERE id = ?")?
-            .bind(1, node)?
-            .into_cursor()
-            .next();
+            .prepare("SELECT features, alias, timestamp FROM nodes WHERE id = ?")?;
 
-        if let Some(Ok(row)) = row {
-            let features = row.get::<node::Features, _>(0);
-            let alias = row.get::<String, _>(1);
-            let timestamp = row.get::<i64, _>(2) as Timestamp;
+        stmt.bind(1, node)?;
+
+        if let Some(Ok(row)) = stmt.into_cursor().next() {
+            let features = row.get::<node::Features, _>("features");
+            let alias = row.get::<String, _>("alias");
+            let timestamp = row.get::<i64, _>("timestamp") as Timestamp;
             let mut addrs = Vec::new();
 
             let mut stmt = self
                 .db
-                .prepare("SELECT type, value, source FROM addresses WHERE node = ?")?
-                .bind(1, node)?
-                .into_cursor();
+                .prepare("SELECT type, value, source FROM addresses WHERE node = ?")?;
+            stmt.bind(1, node)?;
 
-            while let Some(Ok(row)) = stmt.next() {
-                let _typ = row.get::<AddressType, _>(0);
-                let addr = row.get::<Address, _>(1);
-                let source = row.get::<Source, _>(2);
+            for row in stmt.into_cursor() {
+                let row = row?;
+                let _typ = row.get::<AddressType, _>("type");
+                let addr = row.get::<Address, _>("value");
+                let source = row.get::<Source, _>("source");
 
                 addrs.push(KnownAddress {
                     addr,
@@ -121,35 +120,34 @@ impl Store for Book {
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = KnownAddress>,
     ) -> Result<bool, Error> {
-        self.db
-            .prepare(
-                "INSERT INTO nodes (id, features, alias, timestamp)
-                 VALUES (?1, ?2, ?3, ?4)
-                 ON CONFLICT DO UPDATE
-                 SET features = ?2, alias = ?3, timestamp = ?4
-                 WHERE timestamp < ?4",
-            )?
-            .bind(1, node)?
-            .bind(2, features)?
-            .bind(3, alias)?
-            .bind(4, timestamp as i64)?
-            .next()?;
+        let mut stmt = self.db.prepare(
+            "INSERT INTO nodes (id, features, alias, timestamp)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT DO UPDATE
+             SET features = ?2, alias = ?3, timestamp = ?4
+             WHERE timestamp < ?4",
+        )?;
+
+        stmt.bind(1, node)?;
+        stmt.bind(2, features)?;
+        stmt.bind(3, alias)?;
+        stmt.bind(4, timestamp as i64)?;
+        stmt.next()?;
 
         for addr in addrs {
-            self.db
-                .prepare(
-                    "INSERT INTO addresses (node, type, value, source, timestamp)
-                     VALUES (?1, ?2, ?3, ?4, ?5)
-                     ON CONFLICT DO UPDATE
-                     SET timestamp = ?5
-                     WHERE timestamp < ?5",
-                )?
-                .bind(1, node)?
-                .bind(2, AddressType::from(&addr.addr))?
-                .bind(3, addr.addr)?
-                .bind(4, addr.source)?
-                .bind(5, timestamp as i64)?
-                .next()?;
+            let mut stmt = self.db.prepare(
+                "INSERT INTO addresses (node, type, value, source, timestamp)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT DO UPDATE
+                 SET timestamp = ?5
+                 WHERE timestamp < ?5",
+            )?;
+            stmt.bind(1, node)?;
+            stmt.bind(2, AddressType::from(&addr.addr))?;
+            stmt.bind(3, addr.addr)?;
+            stmt.bind(4, addr.source)?;
+            stmt.bind(5, timestamp as i64)?;
+            stmt.next()?;
         }
         Ok(self.db.change_count() > 0)
     }
@@ -157,12 +155,15 @@ impl Store for Book {
     fn remove(&mut self, node: &NodeId) -> Result<bool, Error> {
         self.db
             .prepare("DELETE FROM nodes WHERE id = ?")?
-            .bind(1, node)?
-            .next()?;
+            .into_cursor()
+            .bind(&[(*node).into()])?
+            .next();
+
         self.db
             .prepare("DELETE FROM addresses WHERE node = ?")?
-            .bind(1, node)?
-            .next()?;
+            .into_cursor()
+            .bind(&[(*node).into()])?
+            .next();
 
         Ok(self.db.change_count() > 0)
     }
@@ -175,10 +176,10 @@ impl Store for Book {
         let mut entries = Vec::new();
 
         while let Some(Ok(row)) = stmt.next() {
-            let node = row.get(0);
-            let _typ = row.get::<AddressType, _>(1);
-            let addr = row.get::<Address, _>(2);
-            let source = row.get::<Source, _>(3);
+            let node = row.get("node");
+            let _typ = row.get::<AddressType, _>("type");
+            let addr = row.get::<Address, _>("value");
+            let source = row.get::<Source, _>("source");
 
             entries.push((
                 node,

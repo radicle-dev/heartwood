@@ -73,45 +73,42 @@ impl Store for Table {
     fn get(&self, id: &Id) -> Result<HashSet<NodeId>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT (node) FROM routing WHERE resource = ?")?
-            .bind(1, id)?
-            .into_cursor();
-        let mut nodes = HashSet::new();
+            .prepare("SELECT (node) FROM routing WHERE resource = ?")?;
+        stmt.bind(1, id)?;
 
-        while let Some(Ok(row)) = stmt.next() {
-            nodes.insert(row.get::<NodeId, _>(0));
+        let mut nodes = HashSet::new();
+        for row in stmt.into_cursor() {
+            nodes.insert(row?.get::<NodeId, _>("node"));
         }
         Ok(nodes)
     }
 
     fn entry(&self, id: &Id, node: &NodeId) -> Result<Option<Timestamp>, Error> {
-        let row = self
+        let mut stmt = self
             .db
-            .prepare("SELECT (time) FROM routing WHERE resource = ? AND node = ?")?
-            .bind(1, id)?
-            .bind(2, node)?
-            .into_cursor()
-            .next();
+            .prepare("SELECT (time) FROM routing WHERE resource = ? AND node = ?")?;
 
-        if let Some(Ok(row)) = row {
-            return Ok(Some(row.get::<i64, _>(0) as Timestamp));
+        stmt.bind(1, id)?;
+        stmt.bind(2, node)?;
+
+        if let Some(Ok(row)) = stmt.into_cursor().next() {
+            return Ok(Some(row.get::<i64, _>("time") as Timestamp));
         }
         Ok(None)
     }
 
     fn insert(&mut self, id: Id, node: NodeId, time: Timestamp) -> Result<bool, Error> {
         let time: i64 = time.try_into().map_err(|_| Error::TimeOverflow)?;
+        let mut stmt = self.db.prepare(
+            "INSERT INTO routing (resource, node, time)
+             VALUES (?, ?, ?)
+             ON CONFLICT DO NOTHING",
+        )?;
 
-        self.db
-            .prepare(
-                "INSERT INTO routing (resource, node, time)
-                 VALUES (?, ?, ?)
-                 ON CONFLICT DO NOTHING",
-            )?
-            .bind(1, &id)?
-            .bind(2, &node)?
-            .bind(3, time)?
-            .next()?;
+        stmt.bind(1, &id)?;
+        stmt.bind(2, &node)?;
+        stmt.bind(3, time)?;
+        stmt.next()?;
 
         Ok(self.db.change_count() > 0)
     }
@@ -124,8 +121,8 @@ impl Store for Table {
         let mut entries = Vec::new();
 
         while let Some(Ok(row)) = stmt.next() {
-            let id = row.get(0);
-            let node = row.get(1);
+            let id = row.get("resource");
+            let node = row.get("node");
 
             entries.push((id, node));
         }
@@ -133,22 +130,23 @@ impl Store for Table {
     }
 
     fn remove(&mut self, id: &Id, node: &NodeId) -> Result<bool, Error> {
-        self.db
-            .prepare("DELETE FROM routing WHERE resource = ? AND node = ?")?
-            .bind(1, id)?
-            .bind(2, node)?
-            .next()?;
+        let mut stmt = self
+            .db
+            .prepare("DELETE FROM routing WHERE resource = ? AND node = ?")?;
+
+        stmt.bind(1, id)?;
+        stmt.bind(2, node)?;
+        stmt.next()?;
 
         Ok(self.db.change_count() > 0)
     }
 
     fn prune(&mut self, oldest: Timestamp) -> Result<usize, Error> {
         let oldest: i64 = oldest.try_into().map_err(|_| Error::TimeOverflow)?;
+        let mut stmt = self.db.prepare("DELETE FROM routing WHERE time < ?")?;
 
-        self.db
-            .prepare("DELETE FROM routing WHERE time < ?")?
-            .bind(1, oldest)?
-            .next()?;
+        stmt.bind(1, oldest)?;
+        stmt.next()?;
 
         Ok(self.db.change_count())
     }
