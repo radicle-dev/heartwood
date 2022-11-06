@@ -11,6 +11,7 @@ use crate::address::{KnownAddress, Source};
 use crate::clock::Timestamp;
 use crate::prelude::Address;
 use crate::service::NodeId;
+use crate::sql::transaction;
 use crate::wire::message::AddressType;
 
 #[derive(Error, Debug)]
@@ -120,52 +121,56 @@ impl Store for Book {
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = KnownAddress>,
     ) -> Result<bool, Error> {
-        let mut stmt = self.db.prepare(
-            "INSERT INTO nodes (id, features, alias, timestamp)
-             VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT DO UPDATE
-             SET features = ?2, alias = ?3, timestamp = ?4
-             WHERE timestamp < ?4",
-        )?;
-
-        stmt.bind(1, node)?;
-        stmt.bind(2, features)?;
-        stmt.bind(3, alias)?;
-        stmt.bind(4, timestamp as i64)?;
-        stmt.next()?;
-
-        for addr in addrs {
-            let mut stmt = self.db.prepare(
-                "INSERT INTO addresses (node, type, value, source, timestamp)
-                 VALUES (?1, ?2, ?3, ?4, ?5)
+        transaction(&self.db, move |db| {
+            let mut stmt = db.prepare(
+                "INSERT INTO nodes (id, features, alias, timestamp)
+                 VALUES (?1, ?2, ?3, ?4)
                  ON CONFLICT DO UPDATE
-                 SET timestamp = ?5
-                 WHERE timestamp < ?5",
+                 SET features = ?2, alias = ?3, timestamp = ?4
+                 WHERE timestamp < ?4",
             )?;
+
             stmt.bind(1, node)?;
-            stmt.bind(2, AddressType::from(&addr.addr))?;
-            stmt.bind(3, addr.addr)?;
-            stmt.bind(4, addr.source)?;
-            stmt.bind(5, timestamp as i64)?;
+            stmt.bind(2, features)?;
+            stmt.bind(3, alias)?;
+            stmt.bind(4, timestamp as i64)?;
             stmt.next()?;
-        }
-        Ok(self.db.change_count() > 0)
+
+            for addr in addrs {
+                let mut stmt = db.prepare(
+                    "INSERT INTO addresses (node, type, value, source, timestamp)
+                     VALUES (?1, ?2, ?3, ?4, ?5)
+                     ON CONFLICT DO UPDATE
+                     SET timestamp = ?5
+                     WHERE timestamp < ?5",
+                )?;
+                stmt.bind(1, node)?;
+                stmt.bind(2, AddressType::from(&addr.addr))?;
+                stmt.bind(3, addr.addr)?;
+                stmt.bind(4, addr.source)?;
+                stmt.bind(5, timestamp as i64)?;
+                stmt.next()?;
+            }
+            Ok(db.change_count() > 0)
+        })
+        .map_err(Error::from)
     }
 
     fn remove(&mut self, node: &NodeId) -> Result<bool, Error> {
-        self.db
-            .prepare("DELETE FROM nodes WHERE id = ?")?
-            .into_cursor()
-            .bind(&[(*node).into()])?
-            .next();
+        transaction(&self.db, move |db| {
+            db.prepare("DELETE FROM nodes WHERE id = ?")?
+                .into_cursor()
+                .bind(&[(*node).into()])?
+                .next();
 
-        self.db
-            .prepare("DELETE FROM addresses WHERE node = ?")?
-            .into_cursor()
-            .bind(&[(*node).into()])?
-            .next();
+            db.prepare("DELETE FROM addresses WHERE node = ?")?
+                .into_cursor()
+                .bind(&[(*node).into()])?
+                .next();
 
-        Ok(self.db.change_count() > 0)
+            Ok(db.change_count() > 0)
+        })
+        .map_err(Error::from)
     }
 
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error> {

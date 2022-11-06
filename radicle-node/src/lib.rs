@@ -5,6 +5,7 @@ pub mod control;
 pub mod decoder;
 pub mod logger;
 pub mod service;
+pub mod sql;
 #[cfg(test)]
 pub mod test;
 pub mod transport;
