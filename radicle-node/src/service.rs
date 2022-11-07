@@ -566,8 +566,8 @@ where
 
                 self.reactor.connect(*addr);
             } else {
-                // TODO: Non-persistent peers should be removed from the
-                // map here or at some later point.
+                self.sessions.remove(&ip);
+                self.maintain_connections();
             }
         }
     }
