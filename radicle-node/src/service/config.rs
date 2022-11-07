@@ -1,3 +1,5 @@
+use super::nakamoto::LocalDuration;
+
 use crate::collections::HashSet;
 use crate::identity::{Id, PublicKey};
 use crate::service::filter::Filter;
@@ -40,6 +42,24 @@ pub enum RemoteTracking {
     Allowed(HashSet<PublicKey>),
 }
 
+/// Configuration parameters defining attributes of minima and maxima.
+#[derive(Debug, Clone)]
+pub struct Limits {
+    /// Number of routing table entries before we start pruning.
+    pub routing_max_size: usize,
+    /// How long to keep a routing table entry before being pruned.
+    pub routing_max_age: LocalDuration,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            routing_max_size: 1000,
+            routing_max_age: LocalDuration::from_mins(7 * 24 * 60),
+        }
+    }
+}
+
 /// Service configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -58,6 +78,7 @@ pub struct Config {
     pub relay: bool,
     /// List of addresses to listen on for protocol connections.
     pub listen: Vec<Address>,
+    pub limits: Limits,
 }
 
 impl Default for Config {
@@ -70,6 +91,7 @@ impl Default for Config {
             remote_tracking: RemoteTracking::default(),
             relay: true,
             listen: vec![],
+            limits: Limits::default(),
         }
     }
 }

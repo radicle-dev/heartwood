@@ -405,7 +405,7 @@ where
         if now - self.last_prune >= PRUNE_INTERVAL {
             debug!("Running 'prune' task...");
 
-            if let Err(err) = self.prune_routing_entries() {
+            if let Err(err) = self.prune_routing_entries(&now) {
                 error!("Error pruning routing entries: {}", err);
             }
             self.reactor.wakeup(PRUNE_INTERVAL);
@@ -934,8 +934,17 @@ where
         Ok(())
     }
 
-    fn prune_routing_entries(&mut self) -> Result<(), storage::Error> {
-        // TODO
+    fn prune_routing_entries(&mut self, now: &LocalTime) -> Result<(), routing::Error> {
+        let count = self.routing.len()?;
+        if count <= self.config.limits.routing_max_size {
+            return Ok(());
+        }
+
+        let delta = count - self.config.limits.routing_max_size;
+        self.routing.prune(
+            (*now - self.config.limits.routing_max_age).as_secs(),
+            Some(delta),
+        )?;
         Ok(())
     }
 

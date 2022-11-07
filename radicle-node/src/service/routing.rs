@@ -16,9 +16,9 @@ pub enum Error {
     /// An Internal error.
     #[error("internal error: {0}")]
     Internal(#[from] sql::Error),
-    /// Internal clock time overflow.
-    #[error("the time overflowed")]
-    TimeOverflow,
+    /// Internal unit overflow.
+    #[error("the unit overflowed")]
+    UnitOverflow,
 }
 
 /// Persistent file storage for a routing table.
@@ -61,14 +61,20 @@ pub trait Store {
     fn get_resources(&self, node_id: &NodeId) -> Result<HashSet<Id>, Error>;
     /// Get a specific entry.
     fn entry(&self, id: &Id, node: &NodeId) -> Result<Option<Timestamp>, Error>;
+    /// Checks if any entries are available.
+    fn is_empty(&self) -> Result<bool, Error> {
+        Ok(self.len()? == 0)
+    }
     /// Add a new node seeding the given id.
     fn insert(&mut self, id: Id, node: NodeId, time: Timestamp) -> Result<bool, Error>;
     /// Remove a node for the given id.
     fn remove(&mut self, id: &Id, node: &NodeId) -> Result<bool, Error>;
     /// Iterate over all entries in the routing table.
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (Id, NodeId)>>, Error>;
+    /// Get the total number of routing entries.
+    fn len(&self) -> Result<usize, Error>;
     /// Prune entries older than the given timestamp.
-    fn prune(&mut self, oldest: Timestamp) -> Result<usize, Error>;
+    fn prune(&mut self, oldest: Timestamp, limit: Option<usize>) -> Result<usize, Error>;
 }
 
 impl Store for Table {
@@ -113,11 +119,13 @@ impl Store for Table {
     }
 
     fn insert(&mut self, id: Id, node: NodeId, time: Timestamp) -> Result<bool, Error> {
-        let time: i64 = time.try_into().map_err(|_| Error::TimeOverflow)?;
+        let time: i64 = time.try_into().map_err(|_| Error::UnitOverflow)?;
         let mut stmt = self.db.prepare(
             "INSERT INTO routing (resource, node, time)
              VALUES (?, ?, ?)
-             ON CONFLICT DO NOTHING",
+             ON CONFLICT DO UPDATE
+             SET time = ?3
+             WHERE time < ?3",
         )?;
 
         stmt.bind(1, &id)?;
@@ -156,11 +164,30 @@ impl Store for Table {
         Ok(self.db.change_count() > 0)
     }
 
-    fn prune(&mut self, oldest: Timestamp) -> Result<usize, Error> {
-        let oldest: i64 = oldest.try_into().map_err(|_| Error::TimeOverflow)?;
-        let mut stmt = self.db.prepare("DELETE FROM routing WHERE time < ?")?;
+    fn len(&self) -> Result<usize, Error> {
+        let stmt = self.db.prepare("SELECT COUNT(1) FROM routing")?;
+        let count: i64 = stmt
+            .into_cursor()
+            .next()
+            .expect("COUNT will always return a single row")?
+            .get(0);
+        let count: usize = count.try_into().map_err(|_| Error::UnitOverflow)?;
+        Ok(count)
+    }
 
+    fn prune(&mut self, oldest: Timestamp, limit: Option<usize>) -> Result<usize, Error> {
+        let oldest: i64 = oldest.try_into().map_err(|_| Error::UnitOverflow)?;
+        let limit: i64 = limit
+            .unwrap_or(i64::MAX as usize)
+            .try_into()
+            .map_err(|_| Error::UnitOverflow)?;
+
+        let mut stmt = self.db.prepare(
+            "DELETE FROM routing WHERE rowid IN
+            (SELECT rowid FROM routing WHERE time < ? LIMIT ?)",
+        )?;
         stmt.bind(1, oldest)?;
+        stmt.bind(2, limit)?;
         stmt.next()?;
 
         Ok(self.db.change_count())
@@ -279,6 +306,19 @@ mod test {
     }
 
     #[test]
+    fn test_len() {
+        let mut db = Table::open(":memory:").unwrap();
+        let ids = arbitrary::vec::<Id>(10);
+        let node = arbitrary::gen(1);
+
+        for id in ids {
+            db.insert(id, node, LocalTime::now().as_secs()).unwrap();
+        }
+
+        assert_eq!(10, db.len().unwrap(), "correct number of rows in table");
+    }
+
+    #[test]
     fn test_prune() {
         let rng = fastrand::Rng::new();
         let now = LocalTime::now();
@@ -303,7 +343,7 @@ mod test {
             }
         }
 
-        let pruned = db.prune(now.as_secs()).unwrap();
+        let pruned = db.prune(now.as_secs(), None).unwrap();
         assert_eq!(pruned, ids.len() * nodes.len());
 
         for id in &ids {

@@ -2,6 +2,8 @@ use std::{env, net, process, thread};
 
 use anyhow::Context as _;
 
+use nakamoto_net::LocalDuration;
+
 use radicle::profile;
 use radicle_node::crypto::ssh::keystore::MemorySigner;
 use radicle_node::logger;
@@ -13,8 +15,9 @@ type Reactor = nakamoto_net_poll::Reactor<net::TcpStream>;
 #[derive(Debug)]
 struct Options {
     connect: Vec<Address>,
-    listen: Vec<net::SocketAddr>,
     external_addresses: Vec<Address>,
+    limits: service::config::Limits,
+    listen: Vec<net::SocketAddr>,
 }
 
 impl Options {
@@ -24,6 +27,7 @@ impl Options {
         let mut parser = lexopt::Parser::from_env();
         let mut connect = Vec::new();
         let mut external_addresses = Vec::new();
+        let mut limits = service::config::Limits::default();
         let mut listen = Vec::new();
 
         while let Some(arg) = parser.next()? {
@@ -32,13 +36,20 @@ impl Options {
                     let addr = parser.value()?.parse()?;
                     connect.push(addr);
                 }
-                Long("listen") => {
-                    let addr = parser.value()?.parse()?;
-                    listen.push(addr);
-                }
                 Long("external-address") => {
                     let addr = parser.value()?.parse()?;
                     external_addresses.push(addr);
+                }
+                Long("limit-routing-max-age") => {
+                    let secs: u64 = parser.value()?.parse()?;
+                    limits.routing_max_age = LocalDuration::from_secs(secs);
+                }
+                Long("limit-routing-max-size") => {
+                    limits.routing_max_size = parser.value()?.parse()?;
+                }
+                Long("listen") => {
+                    let addr = parser.value()?.parse()?;
+                    listen.push(addr);
                 }
                 Long("help") => {
                     println!("usage: radicle-node [--connect <addr>]..");
@@ -49,8 +60,9 @@ impl Options {
         }
         Ok(Self {
             connect,
-            listen,
             external_addresses,
+            limits,
+            listen,
         })
     }
 }
@@ -77,6 +89,7 @@ fn main() -> anyhow::Result<()> {
         service: service::Config {
             connect: options.connect,
             external_addresses: options.external_addresses,
+            limits: options.limits,
             ..service::Config::default()
         },
         listen: options.listen,

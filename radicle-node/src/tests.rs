@@ -7,6 +7,7 @@ use nakamoto_net as nakamoto;
 use crate::address;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto::test::signer::MockSigner;
+use crate::identity::Id;
 use crate::prelude::{LocalDuration, Timestamp};
 use crate::service::config::*;
 use crate::service::filter::Filter;
@@ -224,6 +225,100 @@ fn test_inventory_sync() {
     for proj in &projs {
         let seeds = alice.routing().get(proj).unwrap();
         assert!(seeds.contains(&bob.node_id()));
+    }
+}
+
+#[test]
+fn test_inventory_pruning() {
+    struct Test {
+        limits: Limits,
+        /// Number of projects by peer
+        peer_projects: Vec<usize>,
+        wait_time: LocalDuration,
+        expected_routing_table_size: usize,
+    }
+    let tests = [
+        // All zero
+        Test {
+            limits: Limits {
+                routing_max_size: 0,
+                routing_max_age: LocalDuration::from_secs(0),
+            },
+            peer_projects: vec![10; 5],
+            wait_time: LocalDuration::from_mins(7 * 24 * 60) + LocalDuration::from_secs(1),
+            expected_routing_table_size: 0,
+        },
+        // All entries are too young to expire.
+        Test {
+            limits: Limits {
+                routing_max_size: 0,
+                routing_max_age: LocalDuration::from_mins(7 * 24 * 60),
+            },
+            peer_projects: vec![10; 5],
+            wait_time: LocalDuration::from_mins(7 * 24 * 60) + LocalDuration::from_secs(1),
+            expected_routing_table_size: 0,
+        },
+        // All entries remain because the table is unconstrained.
+        Test {
+            limits: Limits {
+                routing_max_size: 50,
+                routing_max_age: LocalDuration::from_mins(0),
+            },
+            peer_projects: vec![10; 5],
+            wait_time: LocalDuration::from_mins(7 * 24 * 60) + LocalDuration::from_secs(1),
+            expected_routing_table_size: 50,
+        },
+        // Some entries are pruned because the table is constrained.
+        Test {
+            limits: Limits {
+                routing_max_size: 25,
+                routing_max_age: LocalDuration::from_mins(7 * 24 * 60),
+            },
+            peer_projects: vec![10; 5],
+            wait_time: LocalDuration::from_mins(7 * 24 * 60) + LocalDuration::from_secs(1),
+            expected_routing_table_size: 25,
+        },
+    ];
+
+    for test in tests {
+        let mut alice = Peer::config(
+            "alice",
+            Config {
+                limits: test.limits,
+                ..Config::default()
+            },
+            [7, 7, 7, 7],
+            MockStorage::empty(),
+            address::Book::memory().unwrap(),
+            MockSigner::default(),
+            fastrand::Rng::new(),
+        );
+
+        let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+
+        // Tell Alice about the amazing projects available
+        alice.connect_to(&bob);
+        for num_projs in test.peer_projects {
+            alice.receive(
+                &bob.addr(),
+                Message::inventory(
+                    InventoryAnnouncement {
+                        inventory: test::arbitrary::vec::<Id>(num_projs),
+                        timestamp: bob.clock().timestamp(),
+                    },
+                    &MockSigner::default(),
+                ),
+            );
+        }
+
+        // Wait for things to happen
+        assert!(test.wait_time > PRUNE_INTERVAL, "pruning must be triggered");
+        alice.elapse(test.wait_time);
+
+        assert_eq!(
+            test.expected_routing_table_size,
+            alice.routing().len().unwrap()
+        );
     }
 }
 
