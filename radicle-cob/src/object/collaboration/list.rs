@@ -3,7 +3,7 @@
 // This file is part of radicle-link, distributed under the GPLv3 with Radicle
 // Linking Exception. For full terms see the included LICENSE file.
 
-use crate::{change_graph::ChangeGraph, identity::Identity, CollaborativeObject, Store, TypeName};
+use crate::{change_graph::ChangeGraph, CollaborativeObject, Store, TypeName};
 
 use super::error;
 
@@ -13,21 +13,20 @@ use super::error;
 /// [`crate::Change`]s at content-addressable locations. Please see
 /// [`Store`] for further information.
 ///
-/// The `resource` is the parent of this object, for example a
-/// software project.
+/// The `identifier` is a unqiue id that is passed through to the
+/// [`crate::object::Storage`].
 ///
 /// The `typename` is the type of objects to listed.
-pub fn list<S, Resource>(
+pub fn list<S>(
     storage: &S,
-    resource: &Resource,
+    identifier: &S::Identifier,
     typename: &TypeName,
 ) -> Result<Vec<CollaborativeObject>, error::Retrieve>
 where
-    S: Store<Resource>,
-    Resource: Identity,
+    S: Store,
 {
     let references = storage
-        .types(&resource.identifier(), typename)
+        .types(identifier, typename)
         .map_err(|err| error::Retrieve::Refs { err: Box::new(err) })?;
     log::trace!("loaded {} references", references.len());
     let mut result = Vec::new();

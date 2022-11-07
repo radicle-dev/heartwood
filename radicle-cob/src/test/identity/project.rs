@@ -14,6 +14,15 @@ pub struct RemoteProject {
     pub person: test::Person,
 }
 
+impl RemoteProject {
+    pub fn identifier(&self) -> Urn {
+        Urn {
+            name: self.project.name().clone(),
+            remote: Some(self.person.name().clone()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Project {
     pub payload: Payload,
@@ -104,25 +113,6 @@ fn from_commit(
     }))
 }
 
-impl Identity for Project {
-    type Identifier = Urn;
-
-    fn is_delegate(&self, delegation: &crypto::PublicKey) -> bool {
-        self.delegates().contains(delegation)
-    }
-
-    fn content_id(&self) -> Oid {
-        self.content_id
-    }
-
-    fn identifier(&self) -> Self::Identifier {
-        Urn {
-            name: self.name().clone(),
-            remote: None,
-        }
-    }
-}
-
 impl Identity for RemoteProject {
     type Identifier = Urn;
 
@@ -132,12 +122,5 @@ impl Identity for RemoteProject {
 
     fn content_id(&self) -> Oid {
         self.project.content_id
-    }
-
-    fn identifier(&self) -> Self::Identifier {
-        Urn {
-            name: self.project.name().clone(),
-            remote: Some(self.person.name().clone()),
-        }
     }
 }

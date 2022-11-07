@@ -102,11 +102,4 @@ impl Identity for Person {
     fn content_id(&self) -> Oid {
         self.content_id
     }
-
-    fn identifier(&self) -> Self::Identifier {
-        Urn {
-            name: self.name().clone(),
-            remote: None,
-        }
-    }
 }

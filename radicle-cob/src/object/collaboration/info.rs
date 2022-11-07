@@ -14,7 +14,7 @@ use std::collections::BTreeSet;
 
 use git_ext::Oid;
 
-use crate::{change_graph::ChangeGraph, identity::Identity, ObjectId, Store, TypeName};
+use crate::{change_graph::ChangeGraph, ObjectId, Store, TypeName};
 
 use super::error;
 
@@ -43,18 +43,17 @@ pub struct ChangeGraphInfo {
 ///
 /// The `typename` is the type of object to be found, while the `oid`
 /// is the identifier for the particular object under that type.
-pub fn changegraph<S, Resource>(
+pub fn changegraph<S>(
     storage: &S,
-    resource: &Resource,
+    identifier: &S::Identifier,
     typename: &TypeName,
     oid: &ObjectId,
 ) -> Result<Option<ChangeGraphInfo>, error::Retrieve>
 where
-    S: Store<Resource>,
-    Resource: Identity,
+    S: Store,
 {
     let tip_refs = storage
-        .objects(&resource.identifier(), typename, oid)
+        .objects(identifier, typename, oid)
         .map_err(|err| error::Retrieve::Refs { err: Box::new(err) })?;
     Ok(
         ChangeGraph::load(storage, tip_refs.iter(), typename, oid).map(|graph| ChangeGraphInfo {

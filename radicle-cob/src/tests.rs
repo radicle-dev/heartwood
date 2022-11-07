@@ -4,9 +4,7 @@ use crypto::test::signer::MockSigner;
 use quickcheck::Arbitrary;
 use radicle_crypto::Signer;
 
-use crate::{
-    create, get, history, identity::Identity, list, update, Create, ObjectId, TypeName, Update,
-};
+use crate::{create, get, history, list, update, Create, ObjectId, TypeName, Update};
 
 use super::test;
 
@@ -26,6 +24,7 @@ fn roundtrip() {
         &storage,
         signer,
         &proj,
+        &proj.identifier(),
         Create {
             author: Some(terry),
             contents,
@@ -35,7 +34,7 @@ fn roundtrip() {
     )
     .unwrap();
 
-    let expected = get(&storage, &proj, &typename, cob.id())
+    let expected = get(&storage, &proj.identifier(), &typename, cob.id())
         .unwrap()
         .expect("BUG: cob was missing");
 
@@ -57,6 +56,7 @@ fn list_cobs() {
         &storage,
         signer.clone(),
         &proj,
+        &proj.identifier(),
         Create {
             author: Some(terry.clone()),
             contents: history::Contents::Automerge(b"issue 1".to_vec()),
@@ -70,6 +70,7 @@ fn list_cobs() {
         &storage,
         signer,
         &proj,
+        &proj.identifier(),
         Create {
             author: Some(terry),
             contents: history::Contents::Automerge(b"issue 2".to_vec()),
@@ -79,7 +80,7 @@ fn list_cobs() {
     )
     .unwrap();
 
-    let mut expected = list(&storage, &proj, &typename).unwrap();
+    let mut expected = list(&storage, &proj.identifier(), &typename).unwrap();
     expected.sort_by(|x, y| x.id().cmp(y.id()));
 
     let mut actual = vec![issue_1, issue_2];
@@ -104,6 +105,7 @@ fn update_cob() {
         &storage,
         signer.clone(),
         &proj,
+        &proj.identifier(),
         Create {
             author: Some(terry.clone()),
             contents,
@@ -113,7 +115,7 @@ fn update_cob() {
     )
     .unwrap();
 
-    let not_expected = get(&storage, &proj, &typename, cob.id())
+    let not_expected = get(&storage, &proj.identifier(), &typename, cob.id())
         .unwrap()
         .expect("BUG: cob was missing");
 
@@ -121,6 +123,7 @@ fn update_cob() {
         &storage,
         signer,
         &proj,
+        &proj.identifier(),
         Update {
             author: Some(terry),
             changes: history::Contents::Automerge(b"issue 1".to_vec()),
@@ -131,7 +134,7 @@ fn update_cob() {
     )
     .unwrap();
 
-    let expected = get(&storage, &proj, &typename, updated.id())
+    let expected = get(&storage, &proj.identifier(), &typename, updated.id())
         .unwrap()
         .expect("BUG: cob was missing");
 
@@ -160,6 +163,7 @@ fn traverse_cobs() {
         &storage,
         terry_signer,
         &terry_proj,
+        &terry_proj.identifier(),
         Create {
             author: Some(terry),
             contents: history::Contents::Automerge(b"issue 1".to_vec()),
@@ -181,6 +185,7 @@ fn traverse_cobs() {
         &storage,
         neil_signer,
         &neil_proj,
+        &neil_proj.identifier(),
         Update {
             author: Some(neil),
             changes: history::Contents::Automerge(b"issue 2".to_vec()),

@@ -23,7 +23,4 @@ pub trait Identity {
     /// expected to be the latest address for the identity at the time
     /// of use.
     fn content_id(&self) -> Oid;
-
-    /// The unique, stable identifier for the identity.
-    fn identifier(&self) -> Self::Identifier;
 }

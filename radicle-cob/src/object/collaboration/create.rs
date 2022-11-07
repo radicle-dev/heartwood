@@ -40,7 +40,11 @@ impl<Author> Create<Author> {
 /// ensures that the objects origin is cryptographically verifiable.
 ///
 /// The `resource` is the parent of this object, for example a
-/// software project.
+/// software project. Its content-address is stored in the object's
+/// history.
+///
+/// The `identifier` is a unqiue id that is passed through to the
+/// [`crate::object::Storage`].
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]. See
 /// [`Create`] for further information.
@@ -48,10 +52,11 @@ pub fn create<S, Signer, Author, Resource>(
     storage: &S,
     signer: Signer,
     resource: &Resource,
+    identifier: &S::Identifier,
     args: Create<Author>,
 ) -> Result<CollaborativeObject, error::Create>
 where
-    S: Store<Resource>,
+    S: Store,
     Author: Identity,
     Author::Identifier: Clone + PartialEq,
     Resource: Identity,
@@ -88,7 +93,7 @@ where
 
     let object_id = init_change.id().into();
     storage
-        .update(&resource.identifier(), typename, &object_id, &init_change)
+        .update(identifier, typename, &object_id, &init_change)
         .map_err(|err| error::Create::Refs { err: Box::new(err) })?;
 
     Ok(CollaborativeObject {

@@ -40,12 +40,15 @@
 //!   * [`change::Storage`] -- **Note**: there is already an
 //!   implementation for this for [`git2::Repository`] for convenience.
 //!
-//! The `Store` also takes a generic parameter to indicate the type of
-//! resource the collaborative object is living inside, for example a
-//! software project. This `Resource` must also implement
-//! [`identity::Identity`] to allow the internal logic to reference
-//! the resource's content-address in `git` as well as the stable
-//! identifier used for the resource.
+//! ## Resource
+//!
+//! The [`create`] and [`update`] functions take a `Resource`. It
+//! represents the type of resource the collaborative objects are
+//! relating to, for example a software project.
+//!
+//! This `Resource` must implement [`identity::Identity`] to allow the
+//! internal logic to reference the resource's content-address in
+//! `git` as well as the stable identifier used for the resource.
 //!
 //! ## History Traversal
 //!
@@ -111,16 +114,14 @@ mod tests;
 /// for the specific `git` storage:
 ///
 ///   * [`object::Storage`]
-///   * [`identity::Identity`] for `Resource`
 ///
 /// **Note**: [`change::Storage`] is already implemented for
 /// [`git2::Repository`]. It is expected that the underlying storage
 /// for `object::Storage` will also be `git2::Repository`, but if not
 /// please open an issue to change the definition of `Store` :)
-pub trait Store<Resource>
+pub trait Store
 where
-    Resource: identity::Identity,
-    Self: object::Storage<Identifier = Resource::Identifier>
+    Self: object::Storage
         + change::Storage<
             CreateError = git::change::error::Create,
             LoadError = git::change::error::Load,

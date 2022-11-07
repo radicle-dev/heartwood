@@ -12,7 +12,7 @@ use super::error;
 
 /// The data required to update an object
 pub struct Update<Author> {
-    /// The identity of the author for this object's first change.
+    /// The identity of the author for the update of this object.
     pub author: Option<Author>,
     /// The CRDT changes to add to the object.
     pub changes: Contents,
@@ -34,7 +34,11 @@ pub struct Update<Author> {
 /// ensures that the objects origin is cryptographically verifiable.
 ///
 /// The `resource` is the parent of this object, for example a
-/// software project.
+/// software project. Its content-address is stored in the
+/// object's history.
+///
+/// The `identifier` is a unqiue id that is passed through to the
+/// [`crate::object::Storage`].
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]
 /// udpate. See [`Update`] for further information.
@@ -42,10 +46,11 @@ pub fn update<S, Signer, Resource, Author>(
     storage: &S,
     signer: Signer,
     resource: &Resource,
+    identifier: &S::Identifier,
     args: Update<Author>,
 ) -> Result<CollaborativeObject, error::Update>
 where
-    S: Store<Resource>,
+    S: Store,
     Author: Identity,
     Author::Identifier: Clone + PartialEq,
     Resource: Identity,
@@ -71,7 +76,7 @@ where
     };
 
     let existing_refs = storage
-        .objects(&resource.identifier(), typename, &object_id)
+        .objects(identifier, typename, &object_id)
         .map_err(|err| error::Update::Refs { err: Box::new(err) })?;
 
     let mut object = ChangeGraph::load(storage, existing_refs.iter(), typename, &object_id)
@@ -94,7 +99,7 @@ where
         .history
         .extend(change.id, content, change.resource, changes);
     storage
-        .update(&resource.identifier(), typename, &object_id, &change)
+        .update(identifier, typename, &object_id, &change)
         .map_err(|err| error::Update::Refs { err: Box::new(err) })?;
 
     Ok(object)

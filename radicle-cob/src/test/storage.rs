@@ -8,7 +8,7 @@ use crate::{
     ObjectId, Store,
 };
 
-use super::identity::{RemoteProject, Urn};
+use super::identity::Urn;
 
 pub mod error {
     use thiserror::Error;
@@ -60,7 +60,7 @@ impl Storage {
     }
 }
 
-impl Store<RemoteProject> for Storage {}
+impl Store for Storage {}
 
 impl change::Storage for Storage {
     type CreateError = <git2::Repository as change::Storage>::CreateError;
