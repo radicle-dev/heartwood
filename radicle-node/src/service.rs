@@ -544,11 +544,11 @@ where
 
         debug!("Disconnected from {} ({})", ip, reason);
 
-        if let Some(peer) = self.sessions.get_mut(&ip) {
-            peer.state = session::State::Disconnected { since };
+        if let Some(session) = self.sessions.get_mut(&ip) {
+            session.state = session::State::Disconnected { since };
 
             // Attempt to re-connect to persistent peers.
-            if self.config.is_persistent(&address) && peer.attempts() < MAX_CONNECTION_ATTEMPTS {
+            if self.config.is_persistent(&address) && session.attempts() < MAX_CONNECTION_ATTEMPTS {
                 if reason.is_dial_err() {
                     return;
                 }
@@ -559,7 +559,11 @@ where
                 }
                 // TODO: Eventually we want a delay before attempting a reconnection,
                 // with exponential back-off.
-                debug!("Reconnecting to {} (attempts={})...", ip, peer.attempts());
+                debug!(
+                    "Reconnecting to {} (attempts={})...",
+                    ip,
+                    session.attempts()
+                );
 
                 // TODO: Try to reconnect only if the peer was attempted. A disconnect without
                 // even a successful attempt means that we're unlikely to be able to reconnect.
