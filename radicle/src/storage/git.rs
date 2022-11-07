@@ -886,7 +886,7 @@ mod tests {
 
         transport::local::register(storage.clone());
 
-        let (proj, _) = rad::init(
+        let (proj, _, _) = rad::init(
             &source,
             "radicle",
             "radicle",

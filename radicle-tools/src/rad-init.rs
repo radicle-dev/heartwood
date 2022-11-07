@@ -8,7 +8,7 @@ fn main() -> anyhow::Result<()> {
     let repo = radicle::git::raw::Repository::open(cwd)?;
     let profile = Profile::load()?;
     let signer = profile.signer()?;
-    let (id, _) = radicle::rad::init(
+    let (id, _, _) = radicle::rad::init(
         &repo,
         &name,
         "",

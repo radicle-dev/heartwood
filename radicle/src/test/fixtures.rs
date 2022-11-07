@@ -37,7 +37,7 @@ pub fn project<P: AsRef<Path>, G: Signer>(
     transport::local::register(storage.clone());
 
     let (repo, head) = repository(path);
-    let (id, refs) = rad::init(
+    let (id, _, refs) = rad::init(
         &repo,
         "acme",
         "Acme's repository",

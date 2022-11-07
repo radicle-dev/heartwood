@@ -1504,6 +1504,7 @@ dependencies = [
  "radicle",
  "radicle-cob",
  "radicle-crypto",
+ "serde_json",
  "thiserror",
  "zeroize",
 ]

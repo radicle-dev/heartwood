@@ -49,7 +49,7 @@ pub fn init<G: Signer>(
     default_branch: BranchName,
     signer: &G,
     storage: &Storage,
-) -> Result<(Id, SignedRefs<Verified>), InitError> {
+) -> Result<(Id, identity::Doc<Verified>, SignedRefs<Verified>), InitError> {
     // TODO: Better error when project id already exists in storage, but remote doesn't.
     let pk = signer.public_key();
     let delegate = identity::Delegate {
@@ -68,13 +68,6 @@ pub fn init<G: Signer>(
     let (id, _, project) = doc.create(pk, "Initialize Radicle\n", storage)?;
     let url = git::Url::from(id).with_namespace(*pk);
 
-    git::set_upstream(
-        repo,
-        &REMOTE_NAME,
-        &default_branch,
-        &git::refs::workdir::branch(&default_branch),
-    )?;
-
     git::configure_remote(repo, &REMOTE_NAME, &url)?;
     git::push(
         repo,
@@ -87,7 +80,7 @@ pub fn init<G: Signer>(
     let signed = project.sign_refs(signer)?;
     let _head = project.set_head()?;
 
-    Ok((id, signed))
+    Ok((id, doc, signed))
 }
 
 #[derive(Error, Debug)]
@@ -121,10 +114,10 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
 
     // Creates or copies the following references:
     //
-    // refs/remotes/<pk>/heads/master
-    // refs/remotes/<pk>/rad/id
-    // refs/remotes/<pk>/tags/*
-    // refs/remotes/<pk>/rad/signature
+    // refs/namespaces/<pk>/refs/heads/master
+    // refs/namespaces/<pk>/refs/rad/id
+    // refs/namespaces/<pk>/refs/rad/sigrefs
+    // refs/namespaces/<pk>/refs/tags/*
 
     let me = signer.public_key();
     let project = storage
@@ -306,11 +299,19 @@ pub enum RemoteError {
     Url(#[from] transport::local::UrlError),
     #[error("invalid utf-8 string")]
     InvalidUtf8,
+    #[error("remote `{0}` not found")]
+    NotFound(String),
 }
 
 /// Get the radicle ("rad") remote of a repository, and return the associated project id.
 pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, Id), RemoteError> {
-    let remote = repo.find_remote(&REMOTE_NAME)?;
+    let remote = repo.find_remote(&REMOTE_NAME).map_err(|e| {
+        if e.code() == git2::ErrorCode::NotFound {
+            RemoteError::NotFound(REMOTE_NAME.to_string())
+        } else {
+            RemoteError::from(e)
+        }
+    })?;
     let url = remote.url().ok_or(RemoteError::InvalidUtf8)?;
     let url = git::Url::from_str(url)?;
 
@@ -341,7 +342,7 @@ mod tests {
         transport::local::register(storage.clone());
 
         let (repo, _) = fixtures::repository(tempdir.path().join("working"));
-        let (proj, refs) = init(
+        let (proj, _, refs) = init(
             &repo,
             "acme",
             "Acme's repo",
@@ -399,7 +400,7 @@ mod tests {
 
         // Alice creates a project.
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
-        let (id, alice_refs) = init(
+        let (id, _, alice_refs) = init(
             &original,
             "acme",
             "Acme's repo",
@@ -431,7 +432,7 @@ mod tests {
         transport::local::register(storage.clone());
 
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
-        let (id, _) = init(
+        let (id, _, _) = init(
             &original,
             "acme",
             "Acme's repo",
@@ -440,6 +441,7 @@ mod tests {
             &storage,
         )
         .unwrap();
+        git::set_upstream(&original, "rad", "master", "refs/heads/master").unwrap();
 
         let copy = checkout(id, remote_id, tempdir.path().join("copy"), &storage).unwrap();
 

@@ -12,6 +12,7 @@ dialoguer = { version = "0.10.0" }
 indicatif = { version = "0.16.2" }
 lexopt = { version = "0.2" }
 log = { version = "0.4", features = ["std"] }
+serde_json = { version = "1" }
 thiserror = { version = "1" }
 zeroize = { version = "1.1" }
 

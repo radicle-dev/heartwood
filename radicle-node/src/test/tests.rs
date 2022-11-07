@@ -682,7 +682,7 @@ fn test_push_and_pull() {
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
     // Alice creates a new project.
-    let (proj_id, _) = rad::init(
+    let (proj_id, _, _) = rad::init(
         &repo,
         "alice",
         "alice's repo",

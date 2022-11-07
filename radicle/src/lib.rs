@@ -20,3 +20,13 @@ pub mod test;
 
 pub use profile::Profile;
 pub use storage::git::Storage;
+
+pub mod prelude {
+    use super::*;
+
+    pub use crypto::{Signer, Verified};
+    pub use identity::{Doc, Id};
+    pub use node::NodeId;
+    pub use profile::Profile;
+    pub use storage::BranchName;
+}
