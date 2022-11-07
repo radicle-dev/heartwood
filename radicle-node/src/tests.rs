@@ -649,6 +649,53 @@ fn test_persistent_peer_reconnect() {
 }
 
 #[test]
+fn test_maintain_connections() {
+    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
+
+    let connected = vec![
+        Peer::new("connected 1", [8, 8, 8, 1], MockStorage::empty()),
+        Peer::new("connected 2", [8, 8, 8, 2], MockStorage::empty()),
+        Peer::new("connected 3", [8, 8, 8, 3], MockStorage::empty()),
+    ];
+    let mut unconnected = vec![
+        Peer::new("new 1", [9, 9, 9, 1], MockStorage::empty()),
+        Peer::new("new 2", [9, 9, 9, 2], MockStorage::empty()),
+        Peer::new("new 3", [9, 9, 9, 3], MockStorage::empty()),
+    ];
+
+    for peer in connected.iter() {
+        alice.connect_to(peer);
+    }
+    assert_eq!(
+        connected.len(),
+        alice.sessions().len(),
+        "alice should be connected to all peers"
+    );
+
+    for peer in unconnected.iter() {
+        alice.receive(&connected[0].addr(), peer.node_announcement());
+    }
+
+    for peer in connected.iter() {
+        alice.disconnected(
+            &peer.addr(),
+            &nakamoto::DisconnectReason::Protocol(DisconnectReason::User),
+        );
+
+        let addr = alice
+            .outbox()
+            .find_map(|o| match o {
+                Io::Connect(addr) => Some(addr),
+                _ => None,
+            })
+            .expect("Alice connects to a new peer");
+        assert!(addr != peer.addr());
+        unconnected.retain(|p| p.addr() != addr);
+    }
+    assert!(unconnected.is_empty());
+}
+
+#[test]
 fn test_push_and_pull() {
     let tempdir = tempfile::tempdir().unwrap();
 

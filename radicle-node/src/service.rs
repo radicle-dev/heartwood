@@ -945,14 +945,66 @@ where
         }
     }
 
-    fn maintain_connections(&mut self) {
-        // TODO: Connect to all potential seeds.
-        if self.sessions.len() < TARGET_OUTBOUND_PEERS {
-            let delta = TARGET_OUTBOUND_PEERS - self.sessions.len();
-
-            for _ in 0..delta {
-                // TODO: Connect to random peer.
+    fn next_connections(
+        rng: &Rng,
+        sessions: &Sessions,
+        address_pool: &mut dyn Iterator<Item = (NodeId, address::KnownAddress)>,
+    ) -> Vec<Address> {
+        let mut initializing: Vec<Address> = Vec::new();
+        let mut negotiated: HashMap<NodeId, &Session> = HashMap::new();
+        for (_, s) in sessions.iter() {
+            if s.link != Link::Outbound {
+                continue;
             }
+            match s.state {
+                session::State::Initial => {
+                    initializing.push(s.addr.into());
+                }
+                session::State::Negotiated { .. } => {
+                    let node_id = s
+                        .node_id()
+                        .expect("negotiated sessions must have a node ID");
+                    negotiated.insert(node_id, s);
+                }
+                _ => continue,
+            };
+        }
+
+        let wanted = TARGET_OUTBOUND_PEERS
+            .saturating_sub(initializing.len())
+            .saturating_sub(negotiated.len());
+        if wanted == 0 {
+            return Vec::new();
+        }
+
+        // All nodes are considered equal
+        let mut address_pool: Vec<_> = address_pool
+            .filter(|(node_id, s)| {
+                !initializing.contains(&s.addr) && !negotiated.contains_key(node_id)
+            })
+            .take(wanted)
+            .collect();
+
+        let mut next = Vec::new();
+        loop {
+            if address_pool.is_empty() {
+                break;
+            }
+            let i = rng.usize(0..address_pool.len());
+            let (_, addr) = address_pool.swap_remove(i);
+            next.push(addr.addr);
+        }
+        next
+    }
+
+    fn maintain_connections(&mut self) {
+        let mut address_pool = self
+            .addresses
+            .entries()
+            .expect("address store be accessible");
+        let next = Self::next_connections(&self.rng, &self.sessions, &mut address_pool);
+        for addr in next {
+            self.reactor.connect(addr.clone());
         }
     }
 }
