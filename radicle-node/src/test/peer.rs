@@ -7,6 +7,7 @@ use std::ops::{Deref, DerefMut};
 use log::*;
 
 use crate::address;
+use crate::address::Store;
 use crate::clock::{RefClock, Timestamp};
 use crate::crypto::test::signer::MockSigner;
 use crate::crypto::Signer;
@@ -123,6 +124,26 @@ where
 
     pub fn address(&self) -> Address {
         simulator::Peer::addr(self).into()
+    }
+
+    pub fn import_addresses<P>(&mut self, peers: P)
+    where
+        P: AsRef<[Self]>,
+    {
+        let timestamp = self.timestamp();
+        for peer in peers.as_ref() {
+            let known_address = address::KnownAddress::new(peer.address(), address::Source::Peer);
+            self.service
+                .addresses_mut()
+                .insert(
+                    &peer.node_id(),
+                    radicle::node::Features::default(),
+                    peer.name,
+                    timestamp,
+                    Some(known_address),
+                )
+                .unwrap();
+        }
     }
 
     pub fn timestamp(&self) -> Timestamp {

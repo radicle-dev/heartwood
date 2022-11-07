@@ -661,49 +661,24 @@ fn test_persistent_peer_reconnect() {
     assert_matches!(alice.outbox().next(), None);
 }
 
-fn add_peer<A: address::Store>(address_book: &mut A, peer: &Peer<MockStorage, MockSigner>) {
-    let known_address = address::KnownAddress::new(peer.address(), address::Source::Peer);
-    address_book
-        .insert(
-            &peer.node_id(),
-            radicle::node::Features::NONE,
-            peer.name,
-            LocalTime::now().as_secs(),
-            Some(known_address),
-        )
-        .unwrap();
-}
-
 #[test]
 fn test_maintain_connections() {
+    // Peers alice starts out connected to.
     let connected = vec![
         Peer::new("connected", [8, 8, 8, 1], MockStorage::empty()),
         Peer::new("connected", [8, 8, 8, 2], MockStorage::empty()),
         Peer::new("connected", [8, 8, 8, 3], MockStorage::empty()),
     ];
+    // Peers alice will connect to once the others disconnect.
     let mut unconnected = vec![
         Peer::new("unconnected", [9, 9, 9, 1], MockStorage::empty()),
         Peer::new("unconnected", [9, 9, 9, 2], MockStorage::empty()),
         Peer::new("unconnected", [9, 9, 9, 3], MockStorage::empty()),
     ];
 
-    let mut address_book = address::Book::memory().unwrap();
-    for peer in &unconnected {
-        add_peer(&mut address_book, peer);
-    }
+    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
+    alice.import_addresses(&unconnected);
 
-    let mut alice = Peer::config(
-        "alice",
-        Config {
-            project_tracking: ProjectTracking::Allowed(HashSet::default()),
-            ..Config::default()
-        },
-        [7, 7, 7, 7],
-        MockStorage::empty(),
-        address_book,
-        MockSigner::default(),
-        fastrand::Rng::new(),
-    );
     for peer in connected.iter() {
         alice.connect_to(peer);
     }
@@ -713,10 +688,12 @@ fn test_maintain_connections() {
         "alice should be connected to all peers"
     );
 
+    // A transient error such as this will cause Alice to attempt a reconnection.
+    let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
     for peer in connected.iter() {
         alice.disconnected(
             &peer.addr(),
-            &nakamoto::DisconnectReason::Protocol(DisconnectReason::Error(session::Error::Timeout)),
+            &nakamoto::DisconnectReason::ConnectionError(error.clone()),
         );
 
         let addr = alice

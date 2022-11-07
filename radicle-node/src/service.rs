@@ -314,6 +314,16 @@ where
         todo!()
     }
 
+    /// Get the address book instance.
+    pub fn addresses(&self) -> &A {
+        &self.addresses
+    }
+
+    /// Get the mutable address book instance.
+    pub fn addresses_mut(&mut self) -> &mut A {
+        &mut self.addresses
+    }
+
     /// Get the storage instance.
     pub fn storage(&self) -> &S {
         &self.storage
@@ -1228,7 +1238,7 @@ mod gossip {
         storage: &S,
         signer: &G,
         config: &Config,
-    ) -> [Message; 4] {
+    ) -> Vec<Message> {
         let inventory = match storage.inventory() {
             Ok(i) => i,
             Err(e) => {
@@ -1239,27 +1249,37 @@ mod gossip {
             }
         };
 
-        [
+        let mut msgs = vec![
             Message::init(*signer.public_key(), config.listen.clone()),
-            Message::node(gossip::node(timestamp, config), signer),
             Message::inventory(gossip::inventory(timestamp, inventory), signer),
             Message::subscribe(config.filter(), timestamp, Timestamp::MAX),
-        ]
+        ];
+        if let Some(m) = gossip::node(timestamp, config) {
+            msgs.push(Message::node(m, signer));
+        };
+
+        msgs
     }
 
-    pub fn node(timestamp: Timestamp, config: &Config) -> NodeAnnouncement {
+    pub fn node(timestamp: Timestamp, config: &Config) -> Option<NodeAnnouncement> {
         let features = node::Features::SEED;
         let alias = config.alias();
         let addresses = config.external_addresses.clone();
 
-        NodeAnnouncement {
-            features,
-            timestamp,
-            alias,
-            addresses,
-            nonce: 0,
+        if addresses.is_empty() {
+            return None;
         }
-        .solve()
+
+        Some(
+            NodeAnnouncement {
+                features,
+                timestamp,
+                alias,
+                addresses,
+                nonce: 0,
+            }
+            .solve(),
+        )
     }
 
     pub fn inventory(timestamp: Timestamp, inventory: Vec<Id>) -> InventoryAnnouncement {
