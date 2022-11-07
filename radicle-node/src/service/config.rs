@@ -46,6 +46,8 @@ pub struct Config {
     /// Peers to connect to on startup.
     /// Connections to these peers will be maintained.
     pub connect: Vec<Address>,
+    /// Specify the node's public addresses
+    pub external_addresses: Vec<Address>,
     /// Peer-to-peer network.
     pub network: Network,
     /// Project tracking policy.
@@ -62,6 +64,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             connect: Vec::default(),
+            external_addresses: vec![],
             network: Network::default(),
             project_tracking: ProjectTracking::default(),
             remote_tracking: RemoteTracking::default(),

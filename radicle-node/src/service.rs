@@ -945,29 +945,22 @@ where
         }
     }
 
-    fn next_connections(
-        rng: &Rng,
-        sessions: &Sessions,
-        address_pool: &mut dyn Iterator<Item = (NodeId, address::KnownAddress)>,
-    ) -> Vec<Address> {
+    fn choose_addresses(&mut self) -> Vec<Address> {
         let mut initializing: Vec<Address> = Vec::new();
         let mut negotiated: HashMap<NodeId, &Session> = HashMap::new();
-        for (_, s) in sessions.iter() {
-            if s.link != Link::Outbound {
+        for s in self.sessions.values() {
+            if !s.link.is_outbound() {
                 continue;
             }
             match s.state {
                 session::State::Initial => {
                     initializing.push(s.addr.into());
                 }
-                session::State::Negotiated { .. } => {
-                    let node_id = s
-                        .node_id()
-                        .expect("negotiated sessions must have a node ID");
-                    negotiated.insert(node_id, s);
+                session::State::Negotiated { id, .. } => {
+                    negotiated.insert(id, s);
                 }
-                _ => continue,
-            };
+                session::State::Disconnected { .. } => {}
+            }
         }
 
         let wanted = TARGET_OUTBOUND_PEERS
@@ -977,33 +970,23 @@ where
             return Vec::new();
         }
 
-        // All nodes are considered equal
-        let mut address_pool: Vec<_> = address_pool
+        self.addresses
+            .entries()
+            .unwrap()
             .filter(|(node_id, s)| {
                 !initializing.contains(&s.addr) && !negotiated.contains_key(node_id)
             })
             .take(wanted)
-            .collect();
-
-        let mut next = Vec::new();
-        loop {
-            if address_pool.is_empty() {
-                break;
-            }
-            let i = rng.usize(0..address_pool.len());
-            let (_, addr) = address_pool.swap_remove(i);
-            next.push(addr.addr);
-        }
-        next
+            .map(|(_, s)| s.addr)
+            .collect()
     }
 
     fn maintain_connections(&mut self) {
-        let mut address_pool = self
-            .addresses
-            .entries()
-            .expect("address store be accessible");
-        let next = Self::next_connections(&self.rng, &self.sessions, &mut address_pool);
-        for addr in next {
+        let addrs = self.choose_addresses();
+        if addrs.is_empty() {
+            debug!("No eligible peers available to connect to");
+        }
+        for addr in addrs {
             self.reactor.connect(addr.clone());
         }
     }
@@ -1267,7 +1250,7 @@ mod gossip {
     pub fn node(timestamp: Timestamp, config: &Config) -> NodeAnnouncement {
         let features = node::Features::SEED;
         let alias = config.alias();
-        let addresses = vec![]; // TODO
+        let addresses = config.external_addresses.clone();
 
         NodeAnnouncement {
             features,

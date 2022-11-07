@@ -14,6 +14,7 @@ type Reactor = nakamoto_net_poll::Reactor<net::TcpStream>;
 struct Options {
     connect: Vec<Address>,
     listen: Vec<net::SocketAddr>,
+    external_addresses: Vec<Address>,
 }
 
 impl Options {
@@ -22,6 +23,7 @@ impl Options {
 
         let mut parser = lexopt::Parser::from_env();
         let mut connect = Vec::new();
+        let mut external_addresses = Vec::new();
         let mut listen = Vec::new();
 
         while let Some(arg) = parser.next()? {
@@ -34,6 +36,10 @@ impl Options {
                     let addr = parser.value()?.parse()?;
                     listen.push(addr);
                 }
+                Long("external-address") => {
+                    let addr = parser.value()?.parse()?;
+                    external_addresses.push(addr);
+                }
                 Long("help") => {
                     println!("usage: radicle-node [--connect <addr>]..");
                     process::exit(0);
@@ -41,7 +47,11 @@ impl Options {
                 _ => return Err(arg.unexpected()),
             }
         }
-        Ok(Self { connect, listen })
+        Ok(Self {
+            connect,
+            listen,
+            external_addresses,
+        })
     }
 }
 
@@ -66,6 +76,7 @@ fn main() -> anyhow::Result<()> {
     let config = client::Config {
         service: service::Config {
             connect: options.connect,
+            external_addresses: options.external_addresses,
             ..service::Config::default()
         },
         listen: options.listen,

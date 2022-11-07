@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crossbeam_channel as chan;
 use nakamoto_net as nakamoto;
 
+use crate::address;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto::test::signer::MockSigner;
 use crate::prelude::{LocalDuration, Timestamp};
@@ -169,6 +170,7 @@ fn test_persistent_peer_connect() {
         config,
         [7, 7, 7, 7],
         MockStorage::empty(),
+        address::Book::memory().unwrap(),
         MockSigner::new(&mut rng),
         rng,
     );
@@ -235,6 +237,7 @@ fn test_tracking() {
         },
         [7, 7, 7, 7],
         MockStorage::empty(),
+        address::Book::memory().unwrap(),
         MockSigner::default(),
         fastrand::Rng::new(),
     );
@@ -428,10 +431,19 @@ fn test_refs_announcement_relay() {
 
     let bob = {
         let mut rng = fastrand::Rng::new();
+        let addresses = address::Book::memory().unwrap();
         let signer = MockSigner::new(&mut rng);
         let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
 
-        Peer::config("bob", Config::default(), [9, 9, 9, 9], storage, signer, rng)
+        Peer::config(
+            "bob",
+            Config::default(),
+            [9, 9, 9, 9],
+            storage,
+            addresses,
+            signer,
+            rng,
+        )
     };
     let bob_inv = bob.inventory().unwrap();
 
@@ -593,6 +605,7 @@ fn test_persistent_peer_reconnect() {
         },
         [7, 7, 7, 7],
         MockStorage::empty(),
+        address::Book::memory().unwrap(),
         MockSigner::default(),
         fastrand::Rng::new(),
     );
@@ -648,21 +661,49 @@ fn test_persistent_peer_reconnect() {
     assert_matches!(alice.outbox().next(), None);
 }
 
+fn add_peer<A: address::Store>(address_book: &mut A, peer: &Peer<MockStorage, MockSigner>) {
+    let known_address = address::KnownAddress::new(peer.address(), address::Source::Peer);
+    address_book
+        .insert(
+            &peer.node_id(),
+            radicle::node::Features::NONE,
+            peer.name,
+            LocalTime::now().as_secs(),
+            Some(known_address),
+        )
+        .unwrap();
+}
+
 #[test]
 fn test_maintain_connections() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
-
     let connected = vec![
-        Peer::new("connected 1", [8, 8, 8, 1], MockStorage::empty()),
-        Peer::new("connected 2", [8, 8, 8, 2], MockStorage::empty()),
-        Peer::new("connected 3", [8, 8, 8, 3], MockStorage::empty()),
+        Peer::new("connected", [8, 8, 8, 1], MockStorage::empty()),
+        Peer::new("connected", [8, 8, 8, 2], MockStorage::empty()),
+        Peer::new("connected", [8, 8, 8, 3], MockStorage::empty()),
     ];
     let mut unconnected = vec![
-        Peer::new("new 1", [9, 9, 9, 1], MockStorage::empty()),
-        Peer::new("new 2", [9, 9, 9, 2], MockStorage::empty()),
-        Peer::new("new 3", [9, 9, 9, 3], MockStorage::empty()),
+        Peer::new("unconnected", [9, 9, 9, 1], MockStorage::empty()),
+        Peer::new("unconnected", [9, 9, 9, 2], MockStorage::empty()),
+        Peer::new("unconnected", [9, 9, 9, 3], MockStorage::empty()),
     ];
 
+    let mut address_book = address::Book::memory().unwrap();
+    for peer in &unconnected {
+        add_peer(&mut address_book, peer);
+    }
+
+    let mut alice = Peer::config(
+        "alice",
+        Config {
+            project_tracking: ProjectTracking::Allowed(HashSet::default()),
+            ..Config::default()
+        },
+        [7, 7, 7, 7],
+        MockStorage::empty(),
+        address_book,
+        MockSigner::default(),
+        fastrand::Rng::new(),
+    );
     for peer in connected.iter() {
         alice.connect_to(peer);
     }
@@ -672,14 +713,10 @@ fn test_maintain_connections() {
         "alice should be connected to all peers"
     );
 
-    for peer in unconnected.iter() {
-        alice.receive(&connected[0].addr(), peer.node_announcement());
-    }
-
     for peer in connected.iter() {
         alice.disconnected(
             &peer.addr(),
-            &nakamoto::DisconnectReason::Protocol(DisconnectReason::User),
+            &nakamoto::DisconnectReason::Protocol(DisconnectReason::Error(session::Error::Timeout)),
         );
 
         let addr = alice
@@ -692,7 +729,10 @@ fn test_maintain_connections() {
         assert!(addr != peer.addr());
         unconnected.retain(|p| p.addr() != addr);
     }
-    assert!(unconnected.is_empty());
+    assert!(
+        unconnected.is_empty(),
+        "alice should connect to all unconnected peers"
+    );
 }
 
 #[test]

@@ -75,7 +75,8 @@ where
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
 
-        Self::config(name, Config::default(), ip, storage, signer, rng)
+        let addrs = address::Book::memory().unwrap();
+        Self::config(name, Config::default(), ip, storage, addrs, signer, rng)
     }
 }
 
@@ -89,13 +90,13 @@ where
         config: Config,
         ip: impl Into<net::IpAddr>,
         storage: S,
+        addrs: address::Book,
         signer: G,
         rng: fastrand::Rng,
     ) -> Self {
         let local_time = LocalTime::now();
         let clock = RefClock::from(local_time);
         let routing = routing::Table::memory().unwrap();
-        let addrs = address::Book::memory().unwrap();
         let service = Service::new(config, clock, routing, storage, addrs, signer, rng.clone());
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, rng.u16(..));
