@@ -37,6 +37,10 @@ version = "0.15.0"
 default-features = false
 features = ["vendored-libgit2"]
 
+[dependencies.radicle-cob]
+path = "../radicle-cob"
+version = "0"
+
 [dependencies.radicle-crypto]
 path = "../radicle-crypto"
 version = "0"

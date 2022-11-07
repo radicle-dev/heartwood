@@ -1478,6 +1478,7 @@ dependencies = [
  "once_cell",
  "quickcheck",
  "quickcheck_macros",
+ "radicle-cob",
  "radicle-crypto",
  "radicle-git-ext",
  "radicle-ssh",

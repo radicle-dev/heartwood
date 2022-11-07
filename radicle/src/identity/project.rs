@@ -402,6 +402,18 @@ pub struct Identity<I> {
     pub signatures: HashMap<PublicKey, Signature>,
 }
 
+impl radicle_cob::identity::Identity for Identity<Oid> {
+    type Identifier = Oid;
+
+    fn is_delegate(&self, delegation: &crypto::PublicKey) -> bool {
+        self.doc.delegates.iter().any(|d| d.matches(delegation))
+    }
+
+    fn content_id(&self) -> Oid {
+        self.current
+    }
+}
+
 impl Identity<Oid> {
     pub fn verified(self, id: Id) -> Result<Identity<Id>, IdentityError> {
         // The root hash must be equal to the id.

@@ -7,6 +7,7 @@ use std::{fs, io};
 use crypto::{Signer, Unverified, Verified};
 use git_ref_format::refspec;
 use once_cell::sync::Lazy;
+use radicle_cob::{self as cob, change};
 
 use crate::git;
 use crate::identity;
@@ -58,6 +59,28 @@ impl ProjectError {
             _ => false,
         }
     }
+}
+
+#[derive(Error, Debug)]
+pub enum CobObjectsError {
+    #[error(transparent)]
+    Convert(#[from] cob::object::storage::convert::Error),
+    #[error(transparent)]
+    Git(#[from] git2::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum CobTypesError {
+    #[error(transparent)]
+    Convert(#[from] cob::object::storage::convert::Error),
+    #[error(transparent)]
+    Git(#[from] git2::Error),
+    #[error(transparent)]
+    ParseKey(#[from] crypto::Error),
+    #[error(transparent)]
+    ParseObjectId(#[from] cob::object::ParseObjectId),
+    #[error(transparent)]
+    RefFormat(#[from] git_ref_format::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -648,6 +671,116 @@ impl WriteRepository for Repository {
 
     fn raw(&self) -> &git2::Repository {
         &self.backend
+    }
+}
+
+impl cob::Store for Repository {}
+
+impl change::Storage for Repository {
+    type CreateError = <git2::Repository as change::Storage>::CreateError;
+    type LoadError = <git2::Repository as change::Storage>::LoadError;
+
+    type ObjectId = <git2::Repository as change::Storage>::ObjectId;
+    type Author = <git2::Repository as change::Storage>::Author;
+    type Resource = <git2::Repository as change::Storage>::Resource;
+    type Signatures = <git2::Repository as change::Storage>::Signatures;
+
+    fn create<Signer>(
+        &self,
+        author: Option<Self::Author>,
+        authority: Self::Resource,
+        signer: &Signer,
+        spec: change::Create<Self::ObjectId>,
+    ) -> Result<cob::Change, Self::CreateError>
+    where
+        Signer: crypto::Signer,
+    {
+        self.backend.create(author, authority, signer, spec)
+    }
+
+    fn load(&self, id: Self::ObjectId) -> Result<cob::Change, Self::LoadError> {
+        self.backend.load(id)
+    }
+}
+
+impl cob::object::Storage for Repository {
+    type ObjectsError = CobObjectsError;
+    type TypesError = CobTypesError;
+    type UpdateError = git2::Error;
+
+    type Identifier = RemoteId;
+
+    fn objects(
+        &self,
+        typename: &cob::TypeName,
+        object_id: &cob::ObjectId,
+    ) -> Result<cob::object::Objects, Self::ObjectsError> {
+        let refs = self
+            .backend
+            .references_glob(git::refs::storage::cobs(typename, object_id).as_str())?;
+        let refs = refs
+            .map(|r| {
+                r.map_err(Self::ObjectsError::from).and_then(|r| {
+                    cob::object::Reference::try_from(r).map_err(Self::ObjectsError::from)
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(refs.into())
+    }
+
+    fn types(
+        &self,
+        typename: &cob::TypeName,
+    ) -> Result<HashMap<cob::ObjectId, cob::object::Objects>, Self::TypesError> {
+        let mut references = self.backend.references()?.filter_map(|reference| {
+            let reference = reference.ok()?;
+            match RefStr::try_from_str(reference.name()?) {
+                Ok(name) => {
+                    let (ty, object_id) = git::refs::storage::cob_suffix(&name)?;
+                    if ty == *typename {
+                        Some(
+                            cob::object::Reference::try_from(reference)
+                                .map_err(Self::TypesError::from)
+                                .map(|reference| (object_id, reference)),
+                        )
+                    } else {
+                        None
+                    }
+                }
+                Err(err) => Some(Err(err.into())),
+            }
+        });
+
+        references.try_fold(HashMap::new(), |mut objects, result| {
+            let (oid, reference) = result?;
+            objects
+                .entry(oid)
+                .and_modify(|objs: &mut cob::object::Objects| objs.push(reference.clone()))
+                .or_insert_with(|| cob::object::Objects::new(reference));
+            Ok(objects)
+        })
+    }
+
+    fn update(
+        &self,
+        identifier: &Self::Identifier,
+        typename: &cob::TypeName,
+        object_id: &cob::ObjectId,
+        change: &cob::Change,
+    ) -> Result<(), Self::UpdateError> {
+        self.backend.reference(
+            git::refs::storage::cob(identifier, typename, object_id).as_str(),
+            (*change.id()).into(),
+            false,
+            &format!(
+                "Updating collaborative object '{}/{}' with new change {}",
+                typename,
+                object_id,
+                change.id()
+            ),
+        )?;
+
+        Ok(())
     }
 }
 

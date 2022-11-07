@@ -73,6 +73,13 @@ pub mod refs {
     }
 
     pub mod storage {
+        use format::{
+            name::component,
+            refspec::{self, PatternString},
+        };
+
+        use radicle_cob as cob;
+
         use super::*;
 
         /// Where the project's identity document is stored.
@@ -105,6 +112,48 @@ pub mod refs {
         ///
         pub fn id(remote: &RemoteId) -> Namespaced {
             IDENTITY_BRANCH.with_namespace(remote.into())
+        }
+
+        /// The collaborative object reference, identified by `typename` and `object_id`, under the given `remote`.
+        ///
+        /// `refs/namespaces/<remote>/refs/cobs/<typename>/<object_id>`
+        ///
+        pub fn cob<'a>(
+            remote: &RemoteId,
+            typename: &cob::TypeName,
+            object_id: &cob::ObjectId,
+        ) -> Namespaced<'a> {
+            Qualified::from_components(
+                component!("cobs"),
+                Component::from(typename),
+                Some(object_id.into()),
+            )
+            .with_namespace(remote.into())
+        }
+
+        /// All collaborative objects, identified by `typename` and `object_id`, for all remotes.
+        ///
+        /// `refs/namespaces/*/refs/cobs/<typename>/<object_id>`
+        ///
+        pub fn cobs(typename: &cob::TypeName, object_id: &cob::ObjectId) -> PatternString {
+            refspec::pattern!("refs/namespaces/*")
+                .join(refname!("refs/cobs"))
+                .join(Component::from(typename))
+                .join(Component::from(object_id))
+        }
+
+        pub fn cob_suffix<R>(cob: &R) -> Option<(cob::TypeName, cob::ObjectId)>
+        where
+            R: AsRef<RefStr>,
+        {
+            let cob = cob.as_ref().to_namespaced()?;
+            let cob = cob.strip_namespace();
+            let (_refs, _cobs, typename, mut object_id) = cob.non_empty_components();
+            let object_id = object_id
+                .next()
+                .and_then(|oid| oid.parse::<cob::ObjectId>().ok())?;
+            let typename = typename.parse::<cob::TypeName>().ok()?;
+            Some((typename, object_id))
         }
     }
 

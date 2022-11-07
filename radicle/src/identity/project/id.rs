@@ -1,6 +1,7 @@
 use std::ops::Deref;
 use std::{ffi::OsString, fmt, str::FromStr};
 
+use git_ref_format::{Component, RefString};
 use thiserror::Error;
 
 use crate::crypto;
@@ -97,5 +98,13 @@ impl<'de> serde::Deserialize<'de> for Id {
         D: serde::Deserializer<'de>,
     {
         serde_ext::string::deserialize(deserializer)
+    }
+}
+
+impl From<&Id> for Component<'_> {
+    fn from(id: &Id) -> Self {
+        let refstr =
+            RefString::try_from(id.0.to_string()).expect("project id's are valid ref strings");
+        Component::from_refstring(refstr).expect("project id's are valid refname components")
     }
 }
