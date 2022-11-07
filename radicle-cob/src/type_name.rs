@@ -5,6 +5,7 @@
 
 use std::{fmt, str::FromStr};
 
+use git_ref_format::{Component, RefString};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -50,6 +51,15 @@ impl FromStr for TypeName {
             }
         }
         Ok(TypeName(s.to_string()))
+    }
+}
+
+impl From<&TypeName> for Component<'_> {
+    fn from(name: &TypeName) -> Self {
+        let refstr = RefString::try_from(name.0.to_string())
+            .expect("collaborative object type names are valid ref strings");
+        Component::from_refstring(refstr)
+            .expect("collaborative object type names are valid refname components")
     }
 }
 

@@ -6,6 +6,7 @@
 use std::{convert::TryFrom as _, fmt, str::FromStr};
 
 use git_ext::Oid;
+use git_ref_format::{Component, RefString};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -81,5 +82,14 @@ impl<'de> Deserialize<'de> for ObjectId {
         let raw = <&[u8]>::deserialize(deserializer)?;
         let oid = Oid::try_from(raw).map_err(serde::de::Error::custom)?;
         Ok(ObjectId(oid))
+    }
+}
+
+impl From<&ObjectId> for Component<'_> {
+    fn from(id: &ObjectId) -> Self {
+        let refstr = RefString::try_from(id.0.to_string())
+            .expect("collaborative object id's are valid ref strings");
+        Component::from_refstring(refstr)
+            .expect("collaborative object id's are valid refname components")
     }
 }
