@@ -35,6 +35,7 @@ use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 
+pub use crate::node::NodeId;
 pub use crate::service::config::{Config, Network};
 pub use crate::service::message::{Message, ZeroBytes};
 pub use crate::service::session::Session;
@@ -65,9 +66,6 @@ pub const KEEP_ALIVE_DELTA: LocalDuration = LocalDuration::from_secs(30);
 pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Maximum attempts to connect to a peer before we give up.
 pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
-
-/// Network node identifier.
-pub type NodeId = crypto::PublicKey;
 
 /// A service event.
 #[derive(Debug, Clone)]

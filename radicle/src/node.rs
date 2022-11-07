@@ -6,6 +6,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 
+use crate::crypto::PublicKey;
 use crate::identity::Id;
 
 pub use features::Features;
@@ -32,6 +33,9 @@ pub trait Handle {
     /// Ask the node to shutdown.
     fn shutdown(self) -> Result<(), Error>;
 }
+
+/// Public node & device identifier.
+pub type NodeId = PublicKey;
 
 /// Node controller.
 #[derive(Debug)]

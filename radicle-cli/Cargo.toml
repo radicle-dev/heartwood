@@ -1,0 +1,28 @@
+[package]
+name = "radicle-cli"
+license = "MIT OR Apache-2.0"
+version = "0.8.0"
+authors = ["Alexis Sellier <alexis@radicle.xyz>"]
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1" }
+console = { version = "0.15" }
+dialoguer = { version = "0.10.0" }
+indicatif = { version = "0.16.2" }
+lexopt = { version = "0.2" }
+log = { version = "0.4", features = ["std"] }
+thiserror = { version = "1" }
+zeroize = { version = "1.1" }
+
+[dependencies.radicle]
+version = "0"
+path = "../radicle"
+
+[dependencies.radicle-cob]
+version = "0"
+path = "../radicle-cob"
+
+[dependencies.radicle-crypto]
+version = "0"
+path = "../radicle-crypto"
