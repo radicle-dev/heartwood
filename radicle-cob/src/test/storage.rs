@@ -1,11 +1,10 @@
 use std::{collections::HashMap, convert::TryFrom as _};
 
-use git_ref_format::RefString;
 use tempfile::TempDir;
 
 use crate::{
     change,
-    object::{self, Commit, Reference},
+    object::{self, Reference},
     ObjectId, Store,
 };
 
@@ -13,6 +12,8 @@ use super::identity::{RemoteProject, Urn};
 
 pub mod error {
     use thiserror::Error;
+
+    use crate::object::storage::convert;
 
     #[derive(Debug, Error)]
     pub enum Identity {
@@ -28,6 +29,8 @@ pub mod error {
 
     #[derive(Debug, Error)]
     pub enum Objects {
+        #[error(transparent)]
+        Conversion(#[from] convert::Error),
         #[error(transparent)]
         Git(#[from] git2::Error),
         #[error(transparent)]
@@ -122,12 +125,15 @@ impl object::Storage for Storage {
         );
         let local = {
             let r = self.raw.find_reference(&name)?;
-            Some(resolve_reference(r)?)
+            Some(Reference::try_from(r)?)
         };
         let remotes = self
             .raw
             .references_glob(&glob)?
-            .map(|r| r.map_err(error::Objects::from).and_then(resolve_reference))
+            .map(|r| {
+                r.map_err(error::Objects::from)
+                    .and_then(|r| Reference::try_from(r).map_err(error::Objects::from))
+            })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(object::Objects { local, remotes })
     }
@@ -150,7 +156,7 @@ impl object::Storage for Storage {
                 objects.insert(
                     oid,
                     object::Objects {
-                        local: Some(resolve_reference(r)?),
+                        local: Some(Reference::try_from(r)?),
                         remotes: Vec::new(),
                     },
                 );
@@ -176,24 +182,4 @@ impl object::Storage for Storage {
         self.raw.reference(&name, id.into(), true, "new change")?;
         Ok(())
     }
-}
-
-fn resolve_reference(r: git2::Reference) -> Result<Reference, error::Objects> {
-    let commit = r.peel_to_commit()?;
-    let target = resolve_parents(commit)?;
-    Ok(Reference {
-        name: RefString::try_from(r.name().unwrap().to_owned())?,
-        target,
-    })
-}
-
-fn resolve_parents(commit: git2::Commit) -> Result<Commit, git2::Error> {
-    let parents = commit
-        .parents()
-        .map(resolve_parents)
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(Commit {
-        id: commit.id().into(),
-        parents,
-    })
 }

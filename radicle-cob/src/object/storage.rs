@@ -83,3 +83,49 @@ pub trait Storage {
         change: &Change,
     ) -> Result<(), Self::UpdateError>;
 }
+
+pub mod convert {
+    use std::str;
+
+    use git_ref_format::RefString;
+    use thiserror::Error;
+
+    use super::{Commit, Reference};
+
+    #[derive(Debug, Error)]
+    pub enum Error {
+        #[error("the reference '{name}' does not point to a commit object")]
+        NotCommit {
+            name: RefString,
+            #[source]
+            err: git2::Error,
+        },
+        #[error(transparent)]
+        Ref(#[from] git_ref_format::Error),
+        #[error(transparent)]
+        Utf8(#[from] str::Utf8Error),
+    }
+
+    impl<'a> TryFrom<git2::Reference<'a>> for Reference {
+        type Error = Error;
+
+        fn try_from(value: git2::Reference<'a>) -> Result<Self, Self::Error> {
+            let name = RefString::try_from(str::from_utf8(value.name_bytes())?)?;
+            let target = Commit::from(value.peel_to_commit().map_err(|err| Error::NotCommit {
+                name: name.clone(),
+                err,
+            })?);
+            Ok(Self { name, target })
+        }
+    }
+
+    impl<'a> From<git2::Commit<'a>> for Commit {
+        fn from(commit: git2::Commit<'a>) -> Self {
+            let parents = commit.parents().map(Commit::from).collect();
+            Commit {
+                id: commit.id().into(),
+                parents,
+            }
+        }
+    }
+}
