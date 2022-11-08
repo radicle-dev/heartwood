@@ -6,11 +6,6 @@ use anyhow::anyhow;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
 
-use auth as rad_auth;
-use checkout as rad_checkout;
-use help as rad_help;
-use init as rad_init;
-
 pub const NAME: &str = "rad";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const DESCRIPTION: &str = "Radicle command line interface";
@@ -136,6 +131,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 rad_init::HELP,
                 "Initialization",
                 rad_init::run,
+                args.to_vec(),
+            );
+        }
+        "self" => {
+            term::run_command_args::<rad_self::Options, _>(
+                rad_self::HELP,
+                "Command",
+                rad_self::run,
                 args.to_vec(),
             );
         }
