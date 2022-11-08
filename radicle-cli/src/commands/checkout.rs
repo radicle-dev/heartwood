@@ -77,12 +77,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
+    let id = options.id;
     let storage = &profile.storage;
-    let repo = storage.repository(options.id)?;
-    let project = repo
+    let Doc {
+        payload, delegates, ..
+    } = storage
+        .repository(id)?
         .project_of(profile.id())
         .context("project could not be found in local storage")?;
-    let path = PathBuf::from(project.name.clone());
+    let path = PathBuf::from(payload.name.clone());
 
     if path.exists() {
         anyhow::bail!("the local path {:?} already exists", path.as_path());
@@ -91,12 +94,12 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     term::headline(&format!(
         "Initializing local checkout for 🌱 {} ({})",
         term::format::highlight(options.id),
-        project.name,
+        payload.name,
     ));
 
     let spinner = term::spinner("Performing checkout...");
-    let working = match radicle::rad::checkout(options.id, profile.id(), path.clone(), &storage) {
-        Ok(working) => working,
+    let repo = match radicle::rad::checkout(options.id, profile.id(), path.clone(), &storage) {
+        Ok(repo) => repo,
         Err(err) => {
             spinner.failed();
             term::blank();
@@ -106,31 +109,41 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     };
     spinner.finish();
 
-    // Setup a remote and tracking branch for all project delegates except yourself.
-    let setup = project::SetupRemote {
-        project: options.id,
-        default_branch: project.default_branch.clone(),
-        repo: &working,
-        fetch: true,
-        tracking: true,
-    };
-    for remote_id in repo.remote_ids()? {
-        let remote_id = remote_id?;
-        if &remote_id == profile.id() {
-            continue;
-        }
+    let remotes = delegates
+        .iter()
+        .map(|d| *d.id)
+        .filter(|id| id != profile.id())
+        .collect::<Vec<_>>();
 
-        if let Some((remote, branch)) = setup.run(remote_id)? {
+    // Setup tracking for project delegates.
+    setup_tracking(
+        project::SetupRemote {
+            project: id,
+            default_branch: payload.default_branch,
+            repo: &repo,
+            fetch: true,
+            tracking: true,
+        },
+        &remotes,
+    )?;
+
+    Ok(path)
+}
+
+/// Setup a remote and tracking branch for each given remote.
+pub fn setup_tracking(setup: project::SetupRemote, remotes: &[NodeId]) -> anyhow::Result<()> {
+    for remote_id in remotes {
+        if let Some((remote, branch)) = setup.run(*remote_id)? {
             let remote = remote.name().unwrap(); // Only valid UTF-8 is used.
                                                  //
             term::success!("Remote {} set", term::format::highlight(remote));
             term::success!(
                 "Remote-tracking branch {} created for {}",
                 term::format::highlight(&branch),
-                term::format::tertiary(term::format::node(&remote_id))
+                term::format::tertiary(term::format::node(remote_id))
             );
         }
     }
 
-    Ok(path)
+    Ok(())
 }
