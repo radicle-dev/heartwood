@@ -107,26 +107,10 @@ impl object::Storage for Storage {
 
     fn objects(
         &self,
-        identifier: &Self::Identifier,
         typename: &crate::TypeName,
         object_id: &ObjectId,
     ) -> Result<object::Objects, Self::ObjectsError> {
-        let name = format!(
-            "refs/rad/{}/cobs/{}/{}",
-            identifier.to_path(),
-            typename,
-            object_id
-        );
-        let glob = format!(
-            "refs/rad/{}/*/cobs/{}/{}",
-            identifier.name.as_str(),
-            typename,
-            object_id
-        );
-        let local = {
-            let r = self.raw.find_reference(&name)?;
-            Some(Reference::try_from(r)?)
-        };
+        let glob = format!("refs/rad/*/cobs/{}/{}", typename, object_id);
         let remotes = self
             .raw
             .references_glob(&glob)?
@@ -135,31 +119,28 @@ impl object::Storage for Storage {
                     .and_then(|r| Reference::try_from(r).map_err(error::Objects::from))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(object::Objects { local, remotes })
+        Ok(remotes.into())
     }
 
     fn types(
         &self,
-        identifier: &Self::Identifier,
         typename: &crate::TypeName,
     ) -> Result<HashMap<ObjectId, object::Objects>, Self::TypesError> {
         let mut objects = HashMap::new();
-        let prefix = format!("refs/rad/{}/cobs/{}", identifier.to_path(), typename);
-        for r in self.raw.references()? {
+        for r in self.raw.references_glob("refs/rad/*")? {
             let r = r?;
             let name = r.name().unwrap();
+            println!("NAME: {}", name);
             let oid = r
                 .target()
                 .map(ObjectId::from)
                 .expect("BUG: the cob references should be direct");
-            if name.starts_with(&prefix) {
-                objects.insert(
-                    oid,
-                    object::Objects {
-                        local: Some(Reference::try_from(r)?),
-                        remotes: Vec::new(),
-                    },
-                );
+            if name.contains(typename.as_str()) {
+                let reference = Reference::try_from(r)?;
+                objects
+                    .entry(oid)
+                    .and_modify(|objs: &mut object::Objects| objs.push(reference.clone()))
+                    .or_insert_with(|| object::Objects::new(reference));
             }
         }
         Ok(objects)

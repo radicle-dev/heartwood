@@ -38,14 +38,10 @@ pub struct ChangeGraphInfo {
 /// [`crate::Change`]s at content-addressable locations. Please see
 /// [`Store`] for further information.
 ///
-/// The `resource` is the parent of this object, for example a
-/// software project.
-///
 /// The `typename` is the type of object to be found, while the `oid`
 /// is the identifier for the particular object under that type.
 pub fn changegraph<S>(
     storage: &S,
-    identifier: &S::Identifier,
     typename: &TypeName,
     oid: &ObjectId,
 ) -> Result<Option<ChangeGraphInfo>, error::Retrieve>
@@ -53,7 +49,7 @@ where
     S: Store,
 {
     let tip_refs = storage
-        .objects(identifier, typename, oid)
+        .objects(typename, oid)
         .map_err(|err| error::Retrieve::Refs { err: Box::new(err) })?;
     Ok(
         ChangeGraph::load(storage, tip_refs.iter(), typename, oid).map(|graph| ChangeGraphInfo {

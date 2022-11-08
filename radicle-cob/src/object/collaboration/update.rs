@@ -76,7 +76,7 @@ where
     };
 
     let existing_refs = storage
-        .objects(identifier, typename, &object_id)
+        .objects(typename, &object_id)
         .map_err(|err| error::Update::Refs { err: Box::new(err) })?;
 
     let mut object = ChangeGraph::load(storage, existing_refs.iter(), typename, &object_id)

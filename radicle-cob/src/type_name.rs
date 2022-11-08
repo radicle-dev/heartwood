@@ -21,6 +21,12 @@ use thiserror::Error;
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TypeName(String);
 
+impl TypeName {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 impl fmt::Display for TypeName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.0.as_str())

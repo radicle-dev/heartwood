@@ -14,20 +14,27 @@ use crate::{ObjectId, TypeName};
 /// The [`Reference`]s that refer to the commits that make up a
 /// [`crate::CollaborativeObject`].
 #[derive(Clone, Debug)]
-pub struct Objects {
-    /// If the local peer has a [`Reference`] for this particular
-    /// object, then `local` should be set.
-    pub local: Option<Reference>,
-    /// The `remotes` are the entries for each remote peer's version
-    /// of the particular object.
-    pub remotes: Vec<Reference>,
-}
+pub struct Objects(Vec<Reference>);
 
 impl Objects {
+    pub fn new(reference: Reference) -> Self {
+        Self(vec![reference])
+    }
+
+    pub fn push(&mut self, reference: Reference) {
+        self.0.push(reference)
+    }
+
     /// Return an iterator over the `local` and `remotes` of the given
     /// [`Objects`].
     pub fn iter(&self) -> impl Iterator<Item = &Reference> {
-        self.local.iter().chain(self.remotes.iter())
+        self.0.iter()
+    }
+}
+
+impl From<Vec<Reference>> for Objects {
+    fn from(refs: Vec<Reference>) -> Self {
+        Objects(refs)
     }
 }
 
@@ -61,18 +68,13 @@ pub trait Storage {
     /// particular object
     fn objects(
         &self,
-        identifier: &Self::Identifier,
         typename: &TypeName,
         object_id: &ObjectId,
     ) -> Result<Objects, Self::ObjectsError>;
 
     /// Get all references to objects of a given type within a particular
     /// identity
-    fn types(
-        &self,
-        identifier: &Self::Identifier,
-        typename: &TypeName,
-    ) -> Result<HashMap<ObjectId, Objects>, Self::TypesError>;
+    fn types(&self, typename: &TypeName) -> Result<HashMap<ObjectId, Objects>, Self::TypesError>;
 
     /// Update a ref to a particular collaborative object
     fn update(

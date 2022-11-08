@@ -34,7 +34,7 @@ fn roundtrip() {
     )
     .unwrap();
 
-    let expected = get(&storage, &proj.identifier(), &typename, cob.id())
+    let expected = get(&storage, &typename, cob.id())
         .unwrap()
         .expect("BUG: cob was missing");
 
@@ -80,7 +80,7 @@ fn list_cobs() {
     )
     .unwrap();
 
-    let mut expected = list(&storage, &proj.identifier(), &typename).unwrap();
+    let mut expected = list(&storage, &typename).unwrap();
     expected.sort_by(|x, y| x.id().cmp(y.id()));
 
     let mut actual = vec![issue_1, issue_2];
@@ -115,7 +115,7 @@ fn update_cob() {
     )
     .unwrap();
 
-    let not_expected = get(&storage, &proj.identifier(), &typename, cob.id())
+    let not_expected = get(&storage, &typename, cob.id())
         .unwrap()
         .expect("BUG: cob was missing");
 
@@ -134,7 +134,7 @@ fn update_cob() {
     )
     .unwrap();
 
-    let expected = get(&storage, &proj.identifier(), &typename, updated.id())
+    let expected = get(&storage, &typename, updated.id())
         .unwrap()
         .expect("BUG: cob was missing");
 

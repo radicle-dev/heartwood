@@ -13,20 +13,16 @@ use super::error;
 /// [`crate::Change`]s at content-addressable locations. Please see
 /// [`Store`] for further information.
 ///
-/// The `identifier` is a unqiue id that is passed through to the
-/// [`crate::object::Storage`].
-///
 /// The `typename` is the type of objects to listed.
 pub fn list<S>(
     storage: &S,
-    identifier: &S::Identifier,
     typename: &TypeName,
 ) -> Result<Vec<CollaborativeObject>, error::Retrieve>
 where
     S: Store,
 {
     let references = storage
-        .types(identifier, typename)
+        .types(typename)
         .map_err(|err| error::Retrieve::Refs { err: Box::new(err) })?;
     log::trace!("loaded {} references", references.len());
     let mut result = Vec::new();
