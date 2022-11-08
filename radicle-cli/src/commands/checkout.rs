@@ -115,8 +115,8 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
         .filter(|id| id != profile.id())
         .collect::<Vec<_>>();
 
-    // Setup tracking for project delegates.
-    setup_tracking(
+    // Setup remote tracking branches for project delegates.
+    setup_remotes(
         project::SetupRemote {
             project: id,
             default_branch: payload.default_branch,
@@ -131,7 +131,7 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
 }
 
 /// Setup a remote and tracking branch for each given remote.
-pub fn setup_tracking(setup: project::SetupRemote, remotes: &[NodeId]) -> anyhow::Result<()> {
+pub fn setup_remotes(setup: project::SetupRemote, remotes: &[NodeId]) -> anyhow::Result<()> {
     for remote_id in remotes {
         if let Some((remote, branch)) = setup.run(*remote_id)? {
             let remote = remote.name().unwrap(); // Only valid UTF-8 is used.

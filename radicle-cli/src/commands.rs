@@ -2,6 +2,8 @@
 pub mod rad_auth;
 #[path = "commands/checkout.rs"]
 pub mod rad_checkout;
+#[path = "commands/clone.rs"]
+pub mod rad_clone;
 #[path = "commands/help.rs"]
 pub mod rad_help;
 #[path = "commands/init.rs"]
