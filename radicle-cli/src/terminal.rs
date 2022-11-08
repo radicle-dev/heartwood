@@ -120,7 +120,7 @@ where
 }
 
 /// Get the default profile. Fails if there is no profile.
-fn profile() -> Result<Profile, anyhow::Error> {
+pub fn profile() -> Result<Profile, anyhow::Error> {
     let error = args::Error::WithHint {
         err: anyhow::anyhow!("Could not load radicle profile"),
         hint: "To setup your radicle profile, run `rad auth`.",

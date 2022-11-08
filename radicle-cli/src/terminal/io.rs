@@ -33,7 +33,7 @@ macro_rules! success {
 #[macro_export]
 macro_rules! tip {
     ($($arg:tt)*) => ({
-        $crate::io::tip_args(format_args!($($arg)*));
+        $crate::terminal::io::tip_args(format_args!($($arg)*));
     })
 }
 
@@ -370,10 +370,8 @@ where
 }
 
 pub fn markdown(content: &str) {
-    if !content.is_empty() {
-        if command::bat(["-p", "-l", "md"], content).is_err() {
-            blob(content);
-        }
+    if !content.is_empty() && command::bat(["-p", "-l", "md"], content).is_err() {
+        blob(content);
     }
 }
 
