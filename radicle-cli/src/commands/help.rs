@@ -3,10 +3,7 @@ use std::ffi::OsString;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
-use super::rad_auth;
-use super::rad_checkout;
-use super::rad_init;
-use super::rad_self;
+use super::*;
 
 pub const HELP: Help = Help {
     name: "help",
@@ -20,6 +17,8 @@ const COMMANDS: &[Help] = &[
     rad_init::HELP,
     rad_checkout::HELP,
     rad_self::HELP,
+    rad_track::HELP,
+    rad_untrack::HELP,
     HELP,
 ];
 

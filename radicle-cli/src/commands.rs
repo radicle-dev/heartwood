@@ -10,3 +10,7 @@ pub mod rad_help;
 pub mod rad_init;
 #[path = "commands/self.rs"]
 pub mod rad_self;
+#[path = "commands/track.rs"]
+pub mod rad_track;
+#[path = "commands/untrack.rs"]
+pub mod rad_untrack;

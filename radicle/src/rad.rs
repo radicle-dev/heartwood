@@ -324,6 +324,14 @@ pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, Id), RemoteE
     Ok((remote, url.repo))
 }
 
+/// Get the Id of project in current working directory
+pub fn cwd() -> Result<(git2::Repository, Id), RemoteError> {
+    let repo = git2::Repository::open(Path::new("."))?;
+    let (_, id) = remote(&repo)?;
+
+    Ok((repo, id))
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;

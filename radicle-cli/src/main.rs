@@ -142,6 +142,22 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "track" => {
+            term::run_command_args::<rad_track::Options, _>(
+                rad_track::HELP,
+                "Track",
+                rad_track::run,
+                args.to_vec(),
+            );
+        }
+        "untrack" => {
+            term::run_command_args::<rad_untrack::Options, _>(
+                rad_untrack::HELP,
+                "Untrack",
+                rad_untrack::run,
+                args.to_vec(),
+            );
+        }
         _ => {
             let exe = format!("{}-{}", NAME, exe);
             let status = process::Command::new(exe.clone()).args(args).status();
