@@ -141,20 +141,6 @@ pub mod refs {
                 .join(Component::from(typename))
                 .join(Component::from(object_id))
         }
-
-        pub fn cob_suffix<R>(cob: &R) -> Option<(cob::TypeName, cob::ObjectId)>
-        where
-            R: AsRef<RefStr>,
-        {
-            let cob = cob.as_ref().to_namespaced()?;
-            let cob = cob.strip_namespace();
-            let (_refs, _cobs, typename, mut object_id) = cob.non_empty_components();
-            let object_id = object_id
-                .next()
-                .and_then(|oid| oid.parse::<cob::ObjectId>().ok())?;
-            let typename = typename.parse::<cob::TypeName>().ok()?;
-            Some((typename, object_id))
-        }
     }
 
     pub mod workdir {
