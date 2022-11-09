@@ -1,12 +1,9 @@
-pub(crate) mod arbitrary;
-pub(crate) mod gossip;
-pub(crate) mod handle;
-pub(crate) mod logger;
-pub(crate) mod peer;
-pub(crate) mod simulator;
-pub(crate) mod tests;
+pub mod arbitrary;
+pub mod gossip;
+pub mod handle;
+pub mod logger;
+pub mod peer;
+pub mod simulator;
 
-#[cfg(test)]
 pub use radicle::assert_matches;
-#[cfg(test)]
 pub use radicle::test::*;

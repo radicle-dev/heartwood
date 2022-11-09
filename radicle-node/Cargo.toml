@@ -5,6 +5,9 @@ version = "0.2.0"
 authors = ["Alexis Sellier <alexis@radicle.xyz>"]
 edition = "2021"
 
+[features]
+test = ["radicle/test", "radicle-crypto/test", "quickcheck"]
+
 [dependencies]
 anyhow = { version = "1" }
 bloomy = { version = "1.2" }
@@ -19,6 +22,7 @@ log = { version = "0.4.17", features = ["std"] }
 nakamoto-net = { version = "0.3.0" }
 nakamoto-net-poll = { version = "0.3.0" }
 nonempty = { version = "0.8.0", features = ["serialize"] }
+quickcheck = { version = "1", default-features = false, optional = true }
 sqlite = { version = "0.28.1" }
 sqlite3-src = { version = "0.4.0", features = ["bundled"] } # Ensures static linking
 scrypt = { version = "0.10.0", default-features = false }

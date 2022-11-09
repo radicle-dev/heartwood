@@ -6,7 +6,7 @@ pub mod decoder;
 pub mod logger;
 pub mod service;
 pub mod sql;
-#[cfg(test)]
+#[cfg(any(test, feature = "test"))]
 pub mod test;
 pub mod transport;
 pub mod wire;

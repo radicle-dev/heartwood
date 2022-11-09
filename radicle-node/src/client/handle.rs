@@ -60,25 +60,25 @@ impl<W: Waker> traits::Handle for Handle<W> {
         self.listening.recv().map_err(Error::from)
     }
 
-    fn fetch(&self, id: Id) -> Result<FetchLookup, Error> {
+    fn fetch(&mut self, id: Id) -> Result<FetchLookup, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.commands.send(service::Command::Fetch(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
-    fn track(&self, id: Id) -> Result<bool, Error> {
+    fn track(&mut self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.commands.send(service::Command::Track(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
-    fn untrack(&self, id: Id) -> Result<bool, Error> {
+    fn untrack(&mut self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.commands.send(service::Command::Untrack(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
-    fn announce_refs(&self, id: Id) -> Result<(), Error> {
+    fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
         self.command(service::Command::AnnounceRefs(id))
     }
 
@@ -143,14 +143,14 @@ pub mod traits {
         /// Wait for the node's listening socket to be bound.
         fn listening(&self) -> Result<net::SocketAddr, Error>;
         /// Retrieve or update the project from network.
-        fn fetch(&self, id: Id) -> Result<FetchLookup, Error>;
+        fn fetch(&mut self, id: Id) -> Result<FetchLookup, Error>;
         /// Start tracking the given project. Doesn't do anything if the project is already
         /// tracked.
-        fn track(&self, id: Id) -> Result<bool, Error>;
+        fn track(&mut self, id: Id) -> Result<bool, Error>;
         /// Untrack the given project and delete it from storage.
-        fn untrack(&self, id: Id) -> Result<bool, Error>;
+        fn untrack(&mut self, id: Id) -> Result<bool, Error>;
         /// Notify the client that a project has been updated.
-        fn announce_refs(&self, id: Id) -> Result<(), Error>;
+        fn announce_refs(&mut self, id: Id) -> Result<(), Error>;
         /// Send a command to the command channel, and wake up the event loop.
         fn command(&self, cmd: service::Command) -> Result<(), Error>;
         /// Ask the client to shutdown.

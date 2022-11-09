@@ -104,7 +104,7 @@ impl Reactor {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test"))]
     pub(crate) fn outbox(&mut self) -> &mut VecDeque<Io> {
         &mut self.io
     }

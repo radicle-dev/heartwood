@@ -2,9 +2,6 @@
 #![allow(clippy::collapsible_if)]
 #![allow(dead_code)]
 
-#[cfg(feature = "quickcheck")]
-pub mod arbitrary;
-
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};

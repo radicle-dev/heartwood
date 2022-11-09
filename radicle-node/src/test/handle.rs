@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use crossbeam_channel as chan;
@@ -11,6 +12,7 @@ use crate::service::FetchLookup;
 #[derive(Default, Clone)]
 pub struct Handle {
     pub updates: Arc<Mutex<Vec<Id>>>,
+    pub tracking: HashSet<Id>,
 }
 
 impl traits::Handle for Handle {
@@ -18,19 +20,19 @@ impl traits::Handle for Handle {
         unimplemented!()
     }
 
-    fn fetch(&self, _id: Id) -> Result<FetchLookup, Error> {
+    fn fetch(&mut self, _id: Id) -> Result<FetchLookup, Error> {
         Ok(FetchLookup::NotFound)
     }
 
-    fn track(&self, _id: Id) -> Result<bool, Error> {
-        Ok(true)
+    fn track(&mut self, id: Id) -> Result<bool, Error> {
+        Ok(self.tracking.insert(id))
     }
 
-    fn untrack(&self, _id: Id) -> Result<bool, Error> {
-        Ok(true)
+    fn untrack(&mut self, id: Id) -> Result<bool, Error> {
+        Ok(self.tracking.remove(&id))
     }
 
-    fn announce_refs(&self, id: Id) -> Result<(), Error> {
+    fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
         self.updates.lock().unwrap().push(id);
 
         Ok(())

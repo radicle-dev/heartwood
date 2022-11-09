@@ -13,11 +13,19 @@ pub use features::Features;
 
 /// Default name for control socket file.
 pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
+/// Response on node socket indicating that a command was carried out successfully.
+pub const RESPONSE_OK: &str = "ok";
+/// Response on node socket indicating that a command had no effect.
+pub const RESPONSE_NOOP: &str = "noop";
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("failed to connect to node: {0}")]
     Connect(#[from] io::Error),
+    #[error("received invalid response for `{cmd}` command: '{response}'")]
+    InvalidResponse { cmd: &'static str, response: String },
+    #[error("received empty response for `{cmd}` command")]
+    EmptyResponse { cmd: &'static str },
 }
 
 pub trait Handle {
@@ -67,31 +75,49 @@ impl Handle for Node {
     fn fetch(&self, id: &Id) -> Result<(), Error> {
         for line in self.call("fetch", id)? {
             let line = line?;
-            log::info!("node: {}", line);
+            log::debug!("node: {}", line);
         }
         Ok(())
     }
 
     fn track(&self, id: &Id) -> Result<bool, Error> {
-        for line in self.call("track", id)? {
-            let line = line?;
-            log::info!("node: {}", line);
+        let mut line = self.call("track", id)?;
+        let line = line.next().ok_or(Error::EmptyResponse { cmd: "track" })??;
+
+        log::debug!("node: {}", line);
+
+        match line.as_str() {
+            RESPONSE_OK => Ok(true),
+            RESPONSE_NOOP => Ok(false),
+            _ => Err(Error::InvalidResponse {
+                cmd: "track",
+                response: line,
+            }),
         }
-        Ok(true)
     }
 
     fn untrack(&self, id: &Id) -> Result<bool, Error> {
-        for line in self.call("untrack", id)? {
-            let line = line?;
-            log::info!("node: {}", line);
+        let mut line = self.call("untrack", id)?;
+        let line = line
+            .next()
+            .ok_or(Error::EmptyResponse { cmd: "untrack" })??;
+
+        log::debug!("node: {}", line);
+
+        match line.as_str() {
+            RESPONSE_OK => Ok(true),
+            RESPONSE_NOOP => Ok(false),
+            _ => Err(Error::InvalidResponse {
+                cmd: "untrack",
+                response: line,
+            }),
         }
-        Ok(true)
     }
 
     fn announce_refs(&self, id: &Id) -> Result<(), Error> {
         for line in self.call("announce-refs", id)? {
             let line = line?;
-            log::info!("node: {}", line);
+            log::debug!("node: {}", line);
         }
         Ok(())
     }
@@ -104,4 +130,39 @@ impl Handle for Node {
 /// Connect to the local node.
 pub fn connect<P: AsRef<Path>>(path: P) -> Result<Node, Error> {
     Node::connect(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::thread;
+
+    use super::*;
+    use crate::test;
+
+    #[test]
+    fn test_track_untrack() {
+        let tmp = tempfile::tempdir().unwrap();
+        let socket = tmp.path().join("node.sock");
+        let proj = test::arbitrary::gen::<Id>(1);
+
+        thread::spawn({
+            use radicle_node as node;
+
+            let socket = socket.clone();
+            let handle = node::test::handle::Handle::default();
+
+            move || node::control::listen(socket, handle)
+        });
+
+        let handle = loop {
+            if let Ok(conn) = Node::connect(&socket) {
+                break conn;
+            }
+        };
+
+        assert!(handle.track(&proj).unwrap());
+        assert!(!handle.track(&proj).unwrap());
+        assert!(handle.untrack(&proj).unwrap());
+        assert!(!handle.untrack(&proj).unwrap());
+    }
 }

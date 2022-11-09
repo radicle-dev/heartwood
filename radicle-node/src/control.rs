@@ -10,6 +10,7 @@ use std::{fs, io, net};
 use crate::client;
 use crate::client::handle::traits::Handle;
 use crate::identity::Id;
+use crate::node;
 use crate::service::FetchLookup;
 use crate::service::FetchResult;
 
@@ -22,7 +23,7 @@ pub enum Error {
 }
 
 /// Listen for commands on the control socket, and process them.
-pub fn listen<P: AsRef<Path>, H: Handle>(path: P, handle: H) -> Result<(), Error> {
+pub fn listen<P: AsRef<Path>, H: Handle>(path: P, mut handle: H) -> Result<(), Error> {
     // Remove the socket file on startup before rebinding.
     fs::remove_file(&path).ok();
     fs::create_dir_all(
@@ -38,7 +39,7 @@ pub fn listen<P: AsRef<Path>, H: Handle>(path: P, handle: H) -> Result<(), Error
     for incoming in listener.incoming() {
         match incoming {
             Ok(mut stream) => {
-                if let Err(e) = drain(&stream, &handle) {
+                if let Err(e) = drain(&stream, &mut handle) {
                     log::error!("Received {} on control socket", e);
 
                     writeln!(stream, "error: {}", e).ok();
@@ -68,8 +69,9 @@ enum DrainError {
     Io(#[from] io::Error),
 }
 
-fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
+fn drain<H: Handle>(stream: &UnixStream, handle: &mut H) -> Result<(), DrainError> {
     let mut reader = BufReader::new(stream);
+    let mut writer = LineWriter::new(stream);
 
     // TODO: refactor to include helper
     for line in reader.by_ref().lines().flatten() {
@@ -83,8 +85,17 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
             }
             Some(("track", arg)) => {
                 if let Ok(id) = arg.parse() {
-                    if let Err(e) = handle.track(id) {
-                        return Err(DrainError::Client(e));
+                    match handle.track(id) {
+                        Ok(updated) => {
+                            if updated {
+                                writeln!(writer, "{}", node::RESPONSE_OK)?;
+                            } else {
+                                writeln!(writer, "{}", node::RESPONSE_NOOP)?;
+                            }
+                        }
+                        Err(e) => {
+                            return Err(DrainError::Client(e));
+                        }
                     }
                 } else {
                     return Err(DrainError::InvalidCommandArg(arg.to_owned()));
@@ -92,8 +103,17 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
             }
             Some(("untrack", arg)) => {
                 if let Ok(id) = arg.parse() {
-                    if let Err(e) = handle.untrack(id) {
-                        return Err(DrainError::Client(e));
+                    match handle.untrack(id) {
+                        Ok(updated) => {
+                            if updated {
+                                writeln!(writer, "{}", node::RESPONSE_OK)?;
+                            } else {
+                                writeln!(writer, "{}", node::RESPONSE_NOOP)?;
+                            }
+                        }
+                        Err(e) => {
+                            return Err(DrainError::Client(e));
+                        }
                     }
                 } else {
                     return Err(DrainError::InvalidCommandArg(arg.to_owned()));
@@ -114,8 +134,6 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
             None => match line.as_str() {
                 "routing" => match handle.routing() {
                     Ok(c) => {
-                        let mut writer = LineWriter::new(stream);
-
                         for (id, seed) in c.iter() {
                             writeln!(writer, "{id} {seed}",)?;
                         }
@@ -124,8 +142,6 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
                 },
                 "inventory" => match handle.inventory() {
                     Ok(c) => {
-                        let mut writer = LineWriter::new(stream);
-
                         for id in c.iter() {
                             writeln!(writer, "{id}")?;
                         }
@@ -141,7 +157,7 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &H) -> Result<(), DrainError> {
     Ok(())
 }
 
-fn fetch<W: Write, H: Handle>(id: Id, mut writer: W, handle: &H) -> Result<(), DrainError> {
+fn fetch<W: Write, H: Handle>(id: Id, mut writer: W, handle: &mut H) -> Result<(), DrainError> {
     match handle.fetch(id) {
         Err(e) => {
             return Err(DrainError::Client(e));
