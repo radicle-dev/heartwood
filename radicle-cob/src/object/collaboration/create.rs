@@ -97,8 +97,10 @@ where
         .map_err(|err| error::Create::Refs { err: Box::new(err) })?;
 
     Ok(CollaborativeObject {
-        typename: args.typename,
+        identifier: ObjectIdentifier {
+            name: args.typename,
+            object: init_change.id().into(),
+        },
         history,
-        id: init_change.id().into(),
     })
 }

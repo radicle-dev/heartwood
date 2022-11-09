@@ -4,23 +4,20 @@
 // Linking Exception. For full terms see the included LICENSE file.
 
 use crate::{
-    change, change_graph::ChangeGraph, identity::Identity, CollaborativeObject, Contents, ObjectId,
-    Store, TypeName,
+    change, change_graph::ChangeGraph, identity::Identity, CollaborativeObject, Contents, Store,
 };
 
-use super::error;
+use super::{error, ObjectIdentifier};
 
-/// The data required to update an object
+/// The data required to update a [`CollaborativeObject`].
 pub struct Update<Author> {
-    /// The identity of the author for the update of this object.
+    /// The identity of the author for the update of the [`CollaborativeObject`].
     pub author: Option<Author>,
-    /// The CRDT changes to add to the object.
+    /// The CRDT changes to add to the [`CollaborativeObject`].
     pub changes: Contents,
-    /// The object ID of the object to be updated.
-    pub object_id: ObjectId,
-    /// The typename of the object to be updated.
-    pub typename: TypeName,
-    /// The message to add when updating this object.
+    /// The identifier of the [`CollaborativeObject`] that is being updated.
+    pub identifier: ObjectIdentifier,
+    /// The message to add when updating the [`CollaborativeObject`].
     pub message: String,
 }
 
@@ -58,8 +55,11 @@ where
 {
     let Update {
         author,
-        ref typename,
-        object_id,
+        identifier:
+            ObjectIdentifier {
+                name: ref typename,
+                object: object_id,
+            },
         changes,
         message,
     } = args;

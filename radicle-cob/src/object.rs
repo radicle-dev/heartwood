@@ -11,7 +11,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub mod collaboration;
-pub use collaboration::{create, get, info, list, update, CollaborativeObject, Create, Update};
+pub use collaboration::{
+    create, get, info, list, update, CollaborativeObject, Create, ObjectIdentifier, Update,
+};
 
 pub mod storage;
 pub use storage::{Commit, Objects, Reference, Storage};

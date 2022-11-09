@@ -15,7 +15,10 @@ use petgraph::{
 };
 
 use crate::{
-    change, object, signatures::Signatures, Change, CollaborativeObject, ObjectId, TypeName,
+    change,
+    object::{self, ObjectIdentifier},
+    signatures::Signatures,
+    Change, CollaborativeObject, ObjectId, TypeName,
 };
 
 mod evaluation;
@@ -120,9 +123,11 @@ impl ChangeGraph {
             evaluate(*root_change.id(), items)
         };
         CollaborativeObject {
-            typename,
+            identifier: ObjectIdentifier {
+                name: typename,
+                object: self.object_id,
+            },
             history,
-            id: self.object_id,
         }
     }
 
