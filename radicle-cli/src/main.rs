@@ -166,6 +166,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "edit" => {
+            term::run_command_args::<rad_edit::Options, _>(
+                rad_edit::HELP,
+                "Edit",
+                rad_edit::run,
+                args.to_vec(),
+            );
+        }
         _ => {
             let exe = format!("{}-{}", NAME, exe);
             let status = process::Command::new(exe.clone()).args(args).status();
