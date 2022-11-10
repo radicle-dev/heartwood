@@ -19,6 +19,7 @@ const COMMANDS: &[Help] = &[
     rad_self::HELP,
     rad_track::HELP,
     rad_untrack::HELP,
+    rad_ls::HELP,
     HELP,
 ];
 

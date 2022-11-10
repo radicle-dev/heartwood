@@ -8,6 +8,8 @@ pub mod rad_clone;
 pub mod rad_help;
 #[path = "commands/init.rs"]
 pub mod rad_init;
+#[path = "commands/ls.rs"]
+pub mod rad_ls;
 #[path = "commands/self.rs"]
 pub mod rad_self;
 #[path = "commands/track.rs"]
