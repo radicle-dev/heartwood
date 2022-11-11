@@ -8,6 +8,8 @@ pub mod service;
 pub mod sql;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
+#[cfg(test)]
+pub mod tests;
 pub mod transport;
 pub mod wire;
 
