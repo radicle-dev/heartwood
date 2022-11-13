@@ -148,7 +148,11 @@ pub struct Paths<'a> {
     home: &'a Path,
 }
 
-impl Paths<'_> {
+impl<'a> Paths<'a> {
+    pub fn new(home: &'a Path) -> Self {
+        Self { home }
+    }
+
     pub fn storage(&self) -> PathBuf {
         self.home.join("storage")
     }
