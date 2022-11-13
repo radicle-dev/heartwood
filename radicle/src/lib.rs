@@ -25,9 +25,9 @@ pub use storage::git::Storage;
 pub mod prelude {
     use super::*;
 
-    pub use crypto::{Signer, Verified};
-    pub use identity::{Doc, Id};
+    pub use crypto::{PublicKey, Signer, Verified};
+    pub use identity::{Did, Doc, Id};
     pub use node::NodeId;
     pub use profile::Profile;
-    pub use storage::BranchName;
+    pub use storage::{BranchName, ReadRepository, ReadStorage, WriteRepository, WriteStorage};
 }

@@ -48,19 +48,19 @@ impl<Author> Create<Author> {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]. See
 /// [`Create`] for further information.
-pub fn create<S, Signer, Author, Resource>(
+pub fn create<S, G, Author, Resource>(
     storage: &S,
-    signer: Signer,
+    signer: &G,
     resource: &Resource,
     identifier: &S::Identifier,
     args: Create<Author>,
 ) -> Result<CollaborativeObject, error::Create>
 where
     S: Store,
+    G: crypto::Signer,
     Author: Identity,
     Author::Identifier: Clone + PartialEq,
     Resource: Identity,
-    Signer: crypto::Signer,
 {
     let Create {
         author,
@@ -81,7 +81,7 @@ where
     };
 
     let init_change = storage
-        .create(content, resource.content_id(), &signer, args.create_spec())
+        .create(content, resource.content_id(), signer, args.create_spec())
         .map_err(error::Create::from)?;
 
     let history = History::new_from_root(

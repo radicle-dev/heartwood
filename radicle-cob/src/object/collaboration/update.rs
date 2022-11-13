@@ -42,19 +42,19 @@ pub struct Update<Author> {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]
 /// udpate. See [`Update`] for further information.
-pub fn update<S, Signer, Resource, Author>(
+pub fn update<S, G, Resource, Author>(
     storage: &S,
-    signer: Signer,
+    signer: &G,
     resource: &Resource,
     identifier: &S::Identifier,
     args: Update<Author>,
 ) -> Result<CollaborativeObject, error::Update>
 where
     S: Store,
+    G: crypto::Signer,
     Author: Identity,
     Author::Identifier: Clone + PartialEq,
     Resource: Identity,
-    Signer: crypto::Signer,
 {
     let Update {
         author,
@@ -86,7 +86,7 @@ where
     let change = storage.create(
         content,
         resource.content_id(),
-        &signer,
+        signer,
         change::Create {
             tips: object.tips().iter().cloned().collect(),
             contents: changes.clone(),

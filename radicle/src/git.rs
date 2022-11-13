@@ -151,9 +151,9 @@ pub mod refs {
             let (_refs, _cobs, typename, mut object_id) = cob.non_empty_components();
             let object_id = object_id
                 .next()
-                .and_then(|oid| oid.parse::<cob::ObjectId>().ok())?;
+                .and_then(|oid| oid.parse::<git2::Oid>().ok())?;
             let typename = typename.parse::<cob::TypeName>().ok()?;
-            Some((typename, object_id))
+            Some((typename, object_id.into()))
         }
     }
 

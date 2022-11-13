@@ -22,7 +22,7 @@ fn roundtrip() {
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
     let cob = create(
         &storage,
-        signer,
+        &signer,
         &proj,
         &proj.identifier(),
         Create {
@@ -54,7 +54,7 @@ fn list_cobs() {
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
     let issue_1 = create(
         &storage,
-        signer.clone(),
+        &signer,
         &proj,
         &proj.identifier(),
         Create {
@@ -68,7 +68,7 @@ fn list_cobs() {
 
     let issue_2 = create(
         &storage,
-        signer,
+        &signer,
         &proj,
         &proj.identifier(),
         Create {
@@ -103,7 +103,7 @@ fn update_cob() {
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
     let cob = create(
         &storage,
-        signer.clone(),
+        &signer,
         &proj,
         &proj.identifier(),
         Create {
@@ -121,7 +121,7 @@ fn update_cob() {
 
     let updated = update(
         &storage,
-        signer,
+        &signer,
         &proj,
         &proj.identifier(),
         Update {
@@ -161,7 +161,7 @@ fn traverse_cobs() {
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
     let cob = create(
         &storage,
-        terry_signer,
+        &terry_signer,
         &terry_proj,
         &terry_proj.identifier(),
         Create {
@@ -183,7 +183,7 @@ fn traverse_cobs() {
 
     let updated = update(
         &storage,
-        neil_signer,
+        &neil_signer,
         &neil_proj,
         &neil_proj.identifier(),
         Update {

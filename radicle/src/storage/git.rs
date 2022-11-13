@@ -771,7 +771,7 @@ impl cob::object::Storage for Repository {
         self.backend.reference(
             git::refs::storage::cob(identifier, typename, object_id).as_str(),
             (*change.id()).into(),
-            false,
+            true,
             &format!(
                 "Updating collaborative object '{}/{}' with new change {}",
                 typename,

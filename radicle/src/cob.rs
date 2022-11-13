@@ -5,8 +5,11 @@ pub use cob::{
 use radicle_cob as cob;
 use radicle_git_ext::Oid;
 
+pub use radicle_cob::*;
+
 use crate::{
     identity::{project::Identity, Did},
+    node::NodeId,
     storage::git::Repository,
 };
 
@@ -19,6 +22,20 @@ use crate::{
 /// contain the zero `Oid` for the `author` field.
 pub struct Author {
     did: Did,
+}
+
+impl From<Did> for Author {
+    fn from(did: Did) -> Self {
+        Self { did }
+    }
+}
+
+impl From<NodeId> for Author {
+    fn from(node_id: NodeId) -> Self {
+        Self {
+            did: Did::from(node_id),
+        }
+    }
 }
 
 impl identity::Identity for Author {
@@ -47,14 +64,14 @@ impl identity::Identity for Author {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]
 /// udpate. See [`Update`] for further information.
-pub fn create<S>(
+pub fn create<G>(
     repository: &Repository,
-    signer: S,
+    signer: &G,
     project: &Identity<Oid>,
     args: Create<Author>,
 ) -> Result<CollaborativeObject, error::Create>
 where
-    S: crypto::Signer,
+    G: crypto::Signer,
 {
     let namespace = *signer.public_key();
     cob::create(repository, signer, project, &namespace, args)
@@ -103,14 +120,14 @@ pub fn list(
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]
 /// udpate. See [`Update`] for further information.
-pub fn update<S>(
+pub fn update<G>(
     repository: &Repository,
-    signer: S,
+    signer: &G,
     project: &Identity<Oid>,
     args: Update<Author>,
 ) -> Result<CollaborativeObject, error::Update>
 where
-    S: crypto::Signer,
+    G: crypto::Signer,
 {
     let namespace = *signer.public_key();
     cob::update(repository, signer, project, &namespace, args)
