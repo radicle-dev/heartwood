@@ -10,7 +10,6 @@ pub mod sql;
 pub mod test;
 #[cfg(test)]
 pub mod tests;
-pub mod transport;
 pub mod wire;
 
 pub use nakamoto_net::{Io, Link, LocalDuration, LocalTime};

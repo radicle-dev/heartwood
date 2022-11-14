@@ -4,13 +4,13 @@ pub mod transcoder;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::convert::TryFrom;
 use std::net;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::string::FromUtf8Error;
 use std::{io, mem};
 
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 use nakamoto_net as nakamoto;
-use nakamoto_net::Link;
+use nakamoto_net::{Link, LocalTime};
 
 use crate::address;
 use crate::crypto::{PublicKey, Signature, Signer, Unverified};
@@ -443,7 +443,7 @@ impl<R, S, W, G, T: Transcode> Wire<R, S, W, G, T> {
     }
 }
 
-impl<R, S, W, G, T> Wire<R, S, W, G, T>
+impl<R, S, W, G, T> nakamoto::Protocol for Wire<R, S, W, G, T>
 where
     R: routing::Store,
     S: address::Store,
@@ -451,12 +451,36 @@ where
     G: Signer,
     T: Transcode,
 {
-    pub fn connected(&mut self, addr: net::SocketAddr, local_addr: &net::SocketAddr, link: Link) {
+    type Event = service::Event;
+    type Command = service::Command;
+    type DisconnectReason = service::DisconnectReason;
+
+    fn initialize(&mut self, time: LocalTime) {
+        self.inner.initialize(time)
+    }
+
+    fn tick(&mut self, now: nakamoto::LocalTime) {
+        self.inner.tick(now)
+    }
+
+    fn wake(&mut self) {
+        self.inner.wake()
+    }
+
+    fn command(&mut self, cmd: Self::Command) {
+        self.inner.command(cmd)
+    }
+
+    fn attempted(&mut self, addr: &std::net::SocketAddr) {
+        self.inner.attempted(addr)
+    }
+
+    fn connected(&mut self, addr: net::SocketAddr, local_addr: &net::SocketAddr, link: Link) {
         self.inboxes.insert(addr, Decoder::new(256));
         self.inner.connected(addr, local_addr, link)
     }
 
-    pub fn disconnected(
+    fn disconnected(
         &mut self,
         addr: &net::SocketAddr,
         reason: nakamoto::DisconnectReason<service::DisconnectReason>,
@@ -465,7 +489,7 @@ where
         self.inner.disconnected(addr, &reason)
     }
 
-    pub fn received_bytes(&mut self, addr: &net::SocketAddr, raw_bytes: &[u8]) {
+    fn received_bytes(&mut self, addr: &net::SocketAddr, raw_bytes: &[u8]) {
         let bytes = match self.transcoder.input(raw_bytes) {
             // The received bytes were consumed by transcoder updating its inner
             // state (for instance, this happens during handshake).
@@ -536,20 +560,6 @@ impl<R, S, W, G, T: Transcode> Iterator for Wire<R, S, W, G, T> {
 
             None => None,
         }
-    }
-}
-
-impl<R, S, W, G, T: Transcode> Deref for Wire<R, S, W, G, T> {
-    type Target = service::Service<R, S, W, G>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<R, S, W, G, T: Transcode> DerefMut for Wire<R, S, W, G, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
     }
 }
 
