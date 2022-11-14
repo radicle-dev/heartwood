@@ -1,7 +1,7 @@
 pub mod message;
 pub mod transcoder;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::convert::TryFrom;
 use std::net;
 use std::ops::{Deref, DerefMut};
@@ -26,7 +26,7 @@ use crate::service::{filter, routing};
 use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
-use crate::wire::transcoder::Transcode;
+use crate::wire::transcoder::{DecodedData, Transcode};
 
 /// The default type we use to represent sizes on the wire.
 ///
@@ -429,6 +429,7 @@ pub struct Wire<R, S, W, G, T: Transcode> {
     inboxes: HashMap<net::SocketAddr, Parser>,
     inner: service::Service<R, S, W, G>,
     transcoder: T,
+    handshake_queue: VecDeque<(net::SocketAddr, Vec<u8>)>,
 }
 
 impl<R, S, W, G, T: Transcode> Wire<R, S, W, G, T> {
@@ -437,6 +438,7 @@ impl<R, S, W, G, T: Transcode> Wire<R, S, W, G, T> {
             inboxes: HashMap::new(),
             inner,
             transcoder,
+            handshake_queue: Default::default(),
         }
     }
 }
@@ -463,9 +465,28 @@ where
         self.inner.disconnected(addr, &reason)
     }
 
-    pub fn received_bytes(&mut self, addr: &net::SocketAddr, bytes: &[u8]) {
+    pub fn received_bytes(&mut self, addr: &net::SocketAddr, raw_bytes: &[u8]) {
+        let bytes = match self.transcoder.input(raw_bytes) {
+            // The received bytes were consumed by transcoder updating its inner
+            // state (for instance, this happens during handshake).
+            Ok(DecodedData::Local(bytes)) | Ok(DecodedData::Remote(bytes)) if bytes.is_empty() => {
+                return
+            }
+            Ok(DecodedData::Local(bytes)) => bytes,
+            Ok(DecodedData::Remote(output)) => {
+                log::trace!("performing handshake, sending to the remote peer more data");
+                self.handshake_queue.push_back((*addr, output));
+                return;
+            }
+            Err(err) => {
+                // TODO: Disconnect peer.
+                log::error!("invalid transcoder input. Details: {}", err);
+                return;
+            }
+        };
+
         if let Some(inbox) = self.inboxes.get_mut(addr) {
-            inbox.input(bytes);
+            inbox.input(&bytes);
 
             loop {
                 match inbox.decode_next() {
@@ -490,6 +511,10 @@ impl<R, S, W, G, T: Transcode> Iterator for Wire<R, S, W, G, T> {
     type Item = nakamoto::Io<service::Event, service::DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if let Some((addr, handshake_data)) = self.handshake_queue.pop_front() {
+            return Some(nakamoto::Io::Write(addr, handshake_data));
+        }
+
         match self.inner.next() {
             Some(Io::Write(addr, msgs)) => {
                 let mut buf = Vec::new();
