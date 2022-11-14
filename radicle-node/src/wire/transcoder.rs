@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 /// Data processed by the transcoder, which may be either a decoded data block
 /// or an output which must be sent to the remote peer (used during handshake).
-#[derive(Clone, PartialOrd, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum DecodedData {
     /// Data represent a decoded fragment which must be processed by a local peer.
     Local(Vec<u8>),

@@ -461,7 +461,7 @@ where
         addr: &net::SocketAddr,
         reason: nakamoto::DisconnectReason<service::DisconnectReason>,
     ) {
-        self.inboxes.remove(&addr);
+        self.inboxes.remove(addr);
         self.inner.disconnected(addr, &reason)
     }
 
