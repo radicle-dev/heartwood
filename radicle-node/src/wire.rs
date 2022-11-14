@@ -1,4 +1,5 @@
 pub mod message;
+pub mod transcoder;
 
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
@@ -25,6 +26,7 @@ use crate::service::{filter, routing};
 use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
+use crate::wire::transcoder::Transcode;
 
 /// The default type we use to represent sizes on the wire.
 ///
@@ -423,33 +425,32 @@ impl Decode for node::Features {
 }
 
 #[derive(Debug)]
-pub struct Wire<R, S, T, G> {
+pub struct Wire<R, S, W, G, T: Transcode> {
     inboxes: HashMap<net::SocketAddr, Decoder>,
-    inner: service::Service<R, S, T, G>,
+    inner: service::Service<R, S, W, G>,
+    #[allow(dead_code)]
+    transcoder: T,
 }
 
-impl<R, S, T, G> Wire<R, S, T, G> {
-    pub fn new(inner: service::Service<R, S, T, G>) -> Self {
+impl<R, S, W, G, T: Transcode> Wire<R, S, W, G, T> {
+    pub fn new(inner: service::Service<R, S, W, G>, transcoder: T) -> Self {
         Self {
             inboxes: HashMap::new(),
             inner,
+            transcoder,
         }
     }
 }
 
-impl<R, S, T, G> Wire<R, S, T, G>
+impl<R, S, W, G, T> Wire<R, S, W, G, T>
 where
     R: routing::Store,
     S: address::Store,
-    T: WriteStorage + 'static,
+    W: WriteStorage + 'static,
     G: Signer,
+    T: Transcode,
 {
-    pub fn connected(
-        &mut self,
-        addr: net::SocketAddr,
-        local_addr: &net::SocketAddr,
-        link: Link,
-    ) {
+    pub fn connected(&mut self, addr: net::SocketAddr, local_addr: &net::SocketAddr, link: Link) {
         self.inboxes.insert(addr, Decoder::new(256));
         self.inner.connected(addr, local_addr, link)
     }
@@ -459,7 +460,7 @@ where
         addr: &net::SocketAddr,
         reason: nakamoto::DisconnectReason<service::DisconnectReason>,
     ) {
-        self.inboxes.remove(&addr);
+        self.inboxes.remove(addr);
         self.inner.disconnected(addr, &reason)
     }
 
@@ -486,7 +487,7 @@ where
     }
 }
 
-impl<R, S, T, G> Iterator for Wire<R, S, T, G> {
+impl<R, S, W, G, T: Transcode> Iterator for Wire<R, S, W, G, T> {
     type Item = nakamoto::Io<service::Event, service::DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -511,15 +512,15 @@ impl<R, S, T, G> Iterator for Wire<R, S, T, G> {
     }
 }
 
-impl<R, S, T, G> Deref for Wire<R, S, T, G> {
-    type Target = service::Service<R, S, T, G>;
+impl<R, S, W, G, T: Transcode> Deref for Wire<R, S, W, G, T> {
+    type Target = service::Service<R, S, W, G>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<R, S, T, G> DerefMut for Wire<R, S, T, G> {
+impl<R, S, W, G, T: Transcode> DerefMut for Wire<R, S, W, G, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }

@@ -10,6 +10,7 @@ use crate::clock::RefClock;
 use crate::profile::Profile;
 use crate::service::routing;
 use crate::transport::Transport;
+use crate::wire::transcoder::PlainTranscoder;
 use crate::wire::Wire;
 use crate::{address, service};
 
@@ -130,9 +131,11 @@ impl<R: Reactor> Client<R> {
             rng,
         );
 
+        let transcode = PlainTranscoder::default();
+
         self.reactor.run(
             &config.listen,
-            Transport::new(Wire::new(service)),
+            Transport::new(Wire::new(service, transcode)),
             self.events,
             self.commands,
         )?;
