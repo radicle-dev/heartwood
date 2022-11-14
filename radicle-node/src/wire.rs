@@ -26,7 +26,7 @@ use crate::service::{filter, routing};
 use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
-use crate::wire::transcoder::{DecodedData, Transcode};
+use crate::wire::transcoder::{Handshake, HandshakeResult, Transcode};
 
 /// The default type we use to represent sizes on the wire.
 ///
@@ -425,31 +425,37 @@ impl Decode for node::Features {
 }
 
 #[derive(Debug)]
-pub struct Wire<R, S, W, G, T: Transcode> {
-    inboxes: HashMap<net::SocketAddr, Deserializer>,
-    inner: service::Service<R, S, W, G>,
-    transcoder: T,
-    handshake_queue: VecDeque<(net::SocketAddr, Vec<u8>)>,
+pub struct Inbox<T: Transcode> {
+    pub transcoder: T,
+    pub deserializer: Deserializer,
 }
 
-impl<R, S, W, G, T: Transcode> Wire<R, S, W, G, T> {
-    pub fn new(inner: service::Service<R, S, W, G>, transcoder: T) -> Self {
+#[derive(Debug)]
+pub struct Wire<R, S, W, G, H: Handshake> {
+    handshakes: HashMap<net::SocketAddr, H>,
+    handshake_queue: VecDeque<(net::SocketAddr, Vec<u8>)>,
+    inboxes: HashMap<net::SocketAddr, Inbox<H::Transcoder>>,
+    inner: service::Service<R, S, W, G>,
+}
+
+impl<R, S, W, G, H: Handshake> Wire<R, S, W, G, H> {
+    pub fn new(inner: service::Service<R, S, W, G>) -> Self {
         Self {
+            handshakes: HashMap::new(),
+            handshake_queue: Default::default(),
             inboxes: HashMap::new(),
             inner,
-            transcoder,
-            handshake_queue: Default::default(),
         }
     }
 }
 
-impl<R, S, W, G, T> nakamoto::Protocol for Wire<R, S, W, G, T>
+impl<R, S, W, G, H> nakamoto::Protocol for Wire<R, S, W, G, H>
 where
     R: routing::Store,
     S: address::Store,
     W: WriteStorage + 'static,
     G: Signer,
-    T: Transcode,
+    H: Handshake,
 {
     type Event = service::Event;
     type Command = service::Command;
@@ -476,7 +482,8 @@ where
     }
 
     fn connected(&mut self, addr: net::SocketAddr, local_addr: &net::SocketAddr, link: Link) {
-        self.inboxes.insert(addr, Deserializer::new(256));
+        // self.inboxes.insert(addr, Deserializer::new(256));
+        self.handshakes.insert(addr, H::new());
         self.inner.connected(addr, local_addr, link)
     }
 
@@ -485,35 +492,52 @@ where
         addr: &net::SocketAddr,
         reason: nakamoto::DisconnectReason<service::DisconnectReason>,
     ) {
+        self.handshakes.remove(addr);
         self.inboxes.remove(addr);
         self.inner.disconnected(addr, &reason)
     }
 
     fn received_bytes(&mut self, addr: &net::SocketAddr, raw_bytes: &[u8]) {
-        let bytes = match self.transcoder.input(raw_bytes) {
-            // The received bytes were consumed by transcoder updating its inner
-            // state (for instance, this happens during handshake).
-            Ok(DecodedData::Local(bytes)) | Ok(DecodedData::Remote(bytes)) if bytes.is_empty() => {
-                return
+        if let Some(handshake) = self.handshakes.remove(addr) {
+            debug_assert!(!self.inboxes.contains_key(addr));
+            match handshake.next_stage(raw_bytes) {
+                HandshakeResult::Next(handshake, reply) => {
+                    self.handshakes.insert(*addr, handshake);
+                    if !reply.is_empty() {
+                        self.handshake_queue.push_back((*addr, reply));
+                    }
+                    return;
+                }
+                HandshakeResult::Complete(transcoder, reply) => {
+                    log::debug!("handshake with peer {} is complete", addr);
+                    if !reply.is_empty() {
+                        self.handshake_queue.push_back((*addr, reply));
+                    }
+                    self.inboxes.insert(
+                        *addr,
+                        Inbox {
+                            transcoder,
+                            deserializer: Deserializer::new(256),
+                        },
+                    );
+                }
+                HandshakeResult::Error(err) => {
+                    log::error!("invalid handshake input. Details: {}", err);
+                    return;
+                }
             }
-            Ok(DecodedData::Local(bytes)) => bytes,
-            Ok(DecodedData::Remote(output)) => {
-                log::trace!("performing handshake, sending to the remote peer more data");
-                self.handshake_queue.push_back((*addr, output));
-                return;
-            }
-            Err(err) => {
-                // TODO: Disconnect peer.
-                log::error!("invalid transcoder input. Details: {}", err);
-                return;
-            }
-        };
+        }
 
-        if let Some(inbox) = self.inboxes.get_mut(addr) {
-            inbox.input(&bytes);
+        if let Some(Inbox {
+            transcoder,
+            deserializer,
+        }) = self.inboxes.get_mut(addr)
+        {
+            let bytes = transcoder.decrypt(raw_bytes);
+            deserializer.input(&bytes);
 
             loop {
-                match inbox.deserialize_next() {
+                match deserializer.deserialize_next() {
                     Ok(Some(msg)) => self.inner.received_message(addr, msg),
                     Ok(None) => break,
 
@@ -531,7 +555,7 @@ where
     }
 }
 
-impl<R, S, W, G, T: Transcode> Iterator for Wire<R, S, W, G, T> {
+impl<R, S, W, G, H: Handshake> Iterator for Wire<R, S, W, G, H> {
     type Item = nakamoto::Io<service::Event, service::DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -548,9 +572,10 @@ impl<R, S, W, G, T: Transcode> Iterator for Wire<R, S, W, G, T> {
                     msg.encode(&mut buf)
                         .expect("writing to an in-memory buffer doesn't fail");
                 }
-                let data = self.transcoder.output(buf).expect(
+                let Inbox { transcoder, .. } = self.inboxes.get_mut(&addr).expect(
                     "broken handshake implementation: data sent before handshake was complete",
                 );
+                let data = transcoder.encrypt(buf);
                 Some(nakamoto::Io::Write(addr, data))
             }
             Some(Io::Event(e)) => Some(nakamoto::Io::Event(e)),

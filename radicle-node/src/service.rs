@@ -501,6 +501,7 @@ where
         peer.attempted();
     }
 
+    // TODO: Split into two functions: `connected` and `negotiated`
     pub fn connected(
         &mut self,
         addr: std::net::SocketAddr,
