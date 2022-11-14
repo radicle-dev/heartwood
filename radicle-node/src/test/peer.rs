@@ -211,6 +211,7 @@ where
 
         self.initialize();
         self.service.connecting(remote, &local, Link::Inbound);
+        self.service.connected(remote, Link::Inbound);
         self.receive(
             &remote,
             Message::init(peer.node_id(), vec![Address::from(remote)]),
@@ -238,6 +239,7 @@ where
         self.service.attempted(&remote);
         self.service
             .connecting(remote, &self.local_addr, Link::Outbound);
+        self.service.connected(remote, Link::Outbound);
 
         let mut msgs = self.messages(&remote);
         msgs.find(|m| matches!(m, Message::Initialize { .. }))

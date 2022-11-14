@@ -386,6 +386,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         if attempted || link.is_inbound() {
                             if self.connections.insert(conn, local_addr.port()).is_none() {
                                 p.connecting(addr, &local_addr, link);
+                                p.connected(addr, link);
                             }
                         }
                     }

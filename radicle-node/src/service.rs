@@ -501,7 +501,12 @@ where
         peer.attempted();
     }
 
-    pub fn connecting(&mut self, addr: net::SocketAddr, _local_addr: &net::SocketAddr, link: Link) {
+    pub fn connecting(
+        &mut self,
+        _addr: net::SocketAddr,
+        _local_addr: &net::SocketAddr,
+        _link: Link,
+    ) {
     }
 
     pub fn connected(&mut self, addr: net::SocketAddr, link: Link) {
