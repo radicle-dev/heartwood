@@ -107,8 +107,10 @@ impl<T: Transcode> Framer<T> {
         let len = u8::try_from(len).map_err(|_| OversizedData(len))?;
         let len = len.to_be_bytes();
         let mut buf = Vec::with_capacity(data.len() + 2);
+
         buf.extend(len);
         buf.append(&mut data);
+
         Ok(buf)
     }
 }
@@ -124,16 +126,20 @@ impl<T: Transcode> Iterator for Framer<T> {
         self.input
             .read_exact(&mut len)
             .expect("the length is checked");
+
         let len = u16::from_be_bytes(len) as usize;
         if self.input.len() < 2 + len {
             return None;
         }
         self.input.pop_front();
         self.input.pop_front();
+
         let reminder = self.input.split_off(len);
         let mut data = vec![0u8; len];
+
         self.input.read_exact(&mut data).expect("checked length");
         self.input = reminder;
+
         Some(data)
     }
 }
@@ -147,6 +153,17 @@ pub struct MuxMsg {
     pub data: Vec<u8>,
 }
 
+impl From<MuxMsg> for Frame {
+    fn from(mut msg: MuxMsg) -> Self {
+        let channel = msg.channel.to_be_bytes();
+        let mut data = Vec::with_capacity(msg.data.len() + 2);
+
+        data.extend(channel);
+        data.append(&mut msg.data);
+        data
+    }
+}
+
 impl TryFrom<Frame> for MuxMsg {
     type Error = ChannelError;
 
@@ -156,10 +173,13 @@ impl TryFrom<Frame> for MuxMsg {
         }
         let mut channel = [0u8; 2];
         let mut cursor = io::Cursor::new(frame);
+
         cursor
             .read_exact(&mut channel)
             .expect("the length is checked");
+
         let channel = u16::from_be_bytes(channel);
+
         Ok(MuxMsg {
             channel,
             data: cursor.into_inner(),
@@ -170,16 +190,19 @@ impl TryFrom<Frame> for MuxMsg {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::deserializer::Deserializer;
 
     #[test]
-    fn transcode() {
+    fn decode() {
         let mut pipeline = Framer::new(PlainTranscoder);
+        let mut deser = Deserializer::<String>::new(512);
 
         let data = [
             0x00, 0x04, 0x00, 0x00, b'a', b'b', 0x00, 0x07, 0x00, 0x01, b'M', b'a', b'x', b'i',
             b'm',
         ];
         let mut expected_payloads = [(0u16, b"ab".to_vec()), (1, b"Maxim".to_vec())].into_iter();
+        let mut expected_msgs = ["ab", "Maxim"].into_iter();
 
         for byte in data {
             // Writing data byte by byte, ensuring that the reading is not broken
@@ -187,8 +210,14 @@ mod test {
             for frame in &mut pipeline {
                 let msg = MuxMsg::try_from(frame).unwrap();
                 let (channel, data) = expected_payloads.next().unwrap();
+                deser.input(&data);
                 assert_eq!(msg, MuxMsg { channel, data });
             }
+        }
+
+        for msg in deser {
+            let msg = msg.unwrap();
+            assert_eq!(msg, expected_msgs.next().unwrap());
         }
     }
 }
