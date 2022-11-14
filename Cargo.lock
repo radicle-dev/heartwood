@@ -979,6 +979,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "json-color"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6dc8c55175cad7234a98cc3e31ba3009e276800271692ed3ad2c2f1c574b6e8"
+dependencies = [
+ "colored",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1498,9 +1509,11 @@ name = "radicle-cli"
 version = "0.8.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "console",
  "dialoguer",
  "indicatif",
+ "json-color",
  "lexopt",
  "log",
  "radicle",

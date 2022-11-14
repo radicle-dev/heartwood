@@ -332,6 +332,14 @@ pub fn cwd() -> Result<(git2::Repository, Id), RemoteError> {
     Ok((repo, id))
 }
 
+/// Get the repository of project in specified directory
+pub fn repo(path: impl AsRef<Path>) -> Result<(git2::Repository, Id), RemoteError> {
+    let repo = git2::Repository::open(path)?;
+    let (_, id) = remote(&repo)?;
+
+    Ok((repo, id))
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;

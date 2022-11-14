@@ -7,9 +7,11 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1" }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 console = { version = "0.15" }
 dialoguer = { version = "0.10.0" }
 indicatif = { version = "0.16.2" }
+json-color = { version = "0.7" }
 lexopt = { version = "0.2" }
 log = { version = "0.4", features = ["std"] }
 serde_json = { version = "1" }

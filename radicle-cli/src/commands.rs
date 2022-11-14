@@ -10,6 +10,8 @@ pub mod rad_edit;
 pub mod rad_help;
 #[path = "commands/init.rs"]
 pub mod rad_init;
+#[path = "commands/inspect.rs"]
+pub mod rad_inspect;
 #[path = "commands/ls.rs"]
 pub mod rad_ls;
 #[path = "commands/self.rs"]

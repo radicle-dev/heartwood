@@ -108,6 +108,7 @@ pub struct Doc<V> {
     pub delegates: NonEmpty<Delegate>,
     pub threshold: usize,
 
+    #[serde(skip)]
     verified: PhantomData<V>,
 }
 
