@@ -13,7 +13,7 @@ use nakamoto_net::Link;
 
 use crate::address;
 use crate::crypto::{PublicKey, Signature, Signer, Unverified};
-use crate::decoder::Decoder;
+use crate::parser::Parser;
 use crate::git;
 use crate::git::fmt;
 use crate::hash::Digest;
@@ -424,7 +424,7 @@ impl Decode for node::Features {
 
 #[derive(Debug)]
 pub struct Wire<R, S, T, G> {
-    inboxes: HashMap<net::SocketAddr, Decoder>,
+    inboxes: HashMap<net::SocketAddr, Parser>,
     inner: service::Service<R, S, T, G>,
 }
 
@@ -450,7 +450,7 @@ where
         local_addr: &net::SocketAddr,
         link: Link,
     ) {
-        self.inboxes.insert(addr, Decoder::new(256));
+        self.inboxes.insert(addr, Parser::new(256));
         self.inner.connected(addr, local_addr, link)
     }
 

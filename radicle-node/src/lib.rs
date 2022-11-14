@@ -2,7 +2,7 @@ pub mod address;
 pub mod client;
 pub mod clock;
 pub mod control;
-pub mod decoder;
+pub mod parser;
 pub mod logger;
 pub mod service;
 pub mod sql;
@@ -19,7 +19,7 @@ pub use radicle::{collections, crypto, git, hash, identity, node, profile, rad, 
 pub mod prelude {
     pub use crate::clock::Timestamp;
     pub use crate::crypto::{PublicKey, Signature, Signer};
-    pub use crate::decoder::Decoder;
+    pub use crate::parser::Parser;
     pub use crate::hash::Digest;
     pub use crate::identity::{Did, Id};
     pub use crate::service::filter::Filter;
