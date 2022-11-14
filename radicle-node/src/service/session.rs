@@ -51,6 +51,8 @@ pub enum Error {
     Misbehavior,
     #[error("peer timed out")]
     Timeout,
+    #[error("handshake error")]
+    Handshake(String),
 }
 
 /// A peer session. Each connected peer will have one session.
