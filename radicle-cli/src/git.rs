@@ -109,22 +109,8 @@ pub fn repository() -> Result<Repository, anyhow::Error> {
 pub fn git<S: AsRef<std::ffi::OsStr>>(
     repo: &std::path::Path,
     args: impl IntoIterator<Item = S>,
-) -> Result<String, anyhow::Error> {
-    let output = Command::new("git").current_dir(repo).args(args).output()?;
-
-    if output.status.success() {
-        let out = if output.stdout.is_empty() {
-            &output.stderr
-        } else {
-            &output.stdout
-        };
-        return Ok(String::from_utf8_lossy(out).into());
-    }
-
-    Err(anyhow::Error::new(std::io::Error::new(
-        std::io::ErrorKind::Other,
-        String::from_utf8_lossy(&output.stderr),
-    )))
+) -> Result<String, io::Error> {
+    radicle::git::run::<_, _, &str, &str>(repo, args, [])
 }
 
 /// Configure SSH signing in the given git repo, for the given peer.
@@ -285,7 +271,7 @@ pub fn branch_remote(repo: &Repository, branch: &str) -> anyhow::Result<String> 
 }
 
 /// Call `git pull`, optionally with `--force`.
-pub fn pull(repo: &Path, force: bool) -> anyhow::Result<String> {
+pub fn pull(repo: &Path, force: bool) -> io::Result<String> {
     let mut args = vec!["-c", "color.diff=always", "pull", "-v"];
     if force {
         args.push("--force");
@@ -294,7 +280,7 @@ pub fn pull(repo: &Path, force: bool) -> anyhow::Result<String> {
 }
 
 /// Clone the given repository via `git clone` into a directory.
-pub fn clone(repo: &str, destination: &Path) -> Result<String, anyhow::Error> {
+pub fn clone(repo: &str, destination: &Path) -> Result<String, io::Error> {
     git(
         Path::new("."),
         ["clone", repo, &destination.to_string_lossy()],
@@ -353,11 +339,11 @@ pub fn add_tag(
     Ok(oid)
 }
 
-pub fn push_tag(tag_name: &str) -> anyhow::Result<String> {
+pub fn push_tag(tag_name: &str) -> io::Result<String> {
     git(Path::new("."), vec!["push", "rad", "tag", tag_name])
 }
 
-pub fn push_branch(name: &str) -> anyhow::Result<String> {
+pub fn push_branch(name: &str) -> io::Result<String> {
     git(Path::new("."), vec!["push", "rad", name])
 }
 

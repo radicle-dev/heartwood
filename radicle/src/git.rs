@@ -384,7 +384,7 @@ pub fn set_upstream(
 
 /// Execute a git command by spawning a child process.
 pub fn run<P, S, K, V>(
-    repo: &P,
+    repo: P,
     args: impl IntoIterator<Item = S>,
     envs: impl IntoIterator<Item = (K, V)>,
 ) -> Result<String, io::Error>
