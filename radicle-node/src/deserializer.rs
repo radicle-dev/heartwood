@@ -4,16 +4,16 @@ use std::marker::PhantomData;
 use crate::service::message::Message;
 use crate::wire;
 
-/// Message stream decoder.
+/// Message stream deserializer.
 ///
 /// Used to for example turn a byte stream into network messages.
 #[derive(Debug)]
-pub struct Decoder<D = Message> {
+pub struct Deserializer<D = Message> {
     unparsed: Vec<u8>,
     item: PhantomData<D>,
 }
 
-impl<D> From<Vec<u8>> for Decoder<D> {
+impl<D> From<Vec<u8>> for Deserializer<D> {
     fn from(unparsed: Vec<u8>) -> Self {
         Self {
             unparsed,
@@ -22,7 +22,7 @@ impl<D> From<Vec<u8>> for Decoder<D> {
     }
 }
 
-impl<D: wire::Decode> Decoder<D> {
+impl<D: wire::Decode> Deserializer<D> {
     /// Create a new stream decoder.
     pub fn new(capacity: usize) -> Self {
         Self {
@@ -37,7 +37,7 @@ impl<D: wire::Decode> Decoder<D> {
     }
 
     /// Decode and return the next message. Returns [`None`] if nothing was decoded.
-    pub fn decode_next(&mut self) -> Result<Option<D>, wire::Error> {
+    pub fn deserialize_next(&mut self) -> Result<Option<D>, wire::Error> {
         let mut reader = io::Cursor::new(self.unparsed.as_mut_slice());
 
         match D::decode(&mut reader) {
@@ -53,7 +53,7 @@ impl<D: wire::Decode> Decoder<D> {
     }
 }
 
-impl<D: wire::Decode> io::Write for Decoder<D> {
+impl<D: wire::Decode> io::Write for Deserializer<D> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.input(buf);
 
@@ -65,11 +65,11 @@ impl<D: wire::Decode> io::Write for Decoder<D> {
     }
 }
 
-impl<D: wire::Decode> Iterator for Decoder<D> {
+impl<D: wire::Decode> Iterator for Deserializer<D> {
     type Item = Result<D, wire::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.decode_next().transpose()
+        self.deserialize_next().transpose()
     }
 }
 
@@ -85,7 +85,7 @@ mod test {
     fn prop_decode_next(chunk_size: usize) {
         let mut bytes = vec![];
         let mut msgs = vec![];
-        let mut decoder = Decoder::<String>::new(8);
+        let mut decoder = Deserializer::<String>::new(8);
 
         let chunk_size = 1 + chunk_size % MSG_HELLO.len() + MSG_BYE.len();
 
@@ -95,7 +95,7 @@ mod test {
         for chunk in bytes.as_slice().chunks(chunk_size) {
             decoder.input(chunk);
 
-            while let Some(msg) = decoder.decode_next().unwrap() {
+            while let Some(msg) = decoder.deserialize_next().unwrap() {
                 msgs.push(msg);
             }
         }

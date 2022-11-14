@@ -14,7 +14,7 @@ use nakamoto_net::{Link, LocalTime};
 
 use crate::address;
 use crate::crypto::{PublicKey, Signature, Signer, Unverified};
-use crate::decoder::Decoder;
+use crate::deserializer::Deserializer;
 use crate::git;
 use crate::git::fmt;
 use crate::hash::Digest;
@@ -426,7 +426,7 @@ impl Decode for node::Features {
 
 #[derive(Debug)]
 pub struct Wire<R, S, W, G, T: Transcode> {
-    inboxes: HashMap<net::SocketAddr, Decoder>,
+    inboxes: HashMap<net::SocketAddr, Deserializer>,
     inner: service::Service<R, S, W, G>,
     transcoder: T,
     handshake_queue: VecDeque<(net::SocketAddr, Vec<u8>)>,
@@ -476,7 +476,7 @@ where
     }
 
     fn connected(&mut self, addr: net::SocketAddr, local_addr: &net::SocketAddr, link: Link) {
-        self.inboxes.insert(addr, Decoder::new(256));
+        self.inboxes.insert(addr, Deserializer::new(256));
         self.inner.connected(addr, local_addr, link)
     }
 
@@ -513,7 +513,7 @@ where
             inbox.input(&bytes);
 
             loop {
-                match inbox.decode_next() {
+                match inbox.deserialize_next() {
                     Ok(Some(msg)) => self.inner.received_message(addr, msg),
                     Ok(None) => break,
 

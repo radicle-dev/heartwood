@@ -360,7 +360,7 @@ mod tests {
     use super::*;
     use quickcheck_macros::quickcheck;
 
-    use crate::decoder::Decoder;
+    use crate::deserializer::Deserializer;
     use crate::wire::{self, Encode};
 
     #[test]
@@ -412,7 +412,7 @@ mod tests {
     #[test]
     fn prop_message_decoder() {
         fn property(items: Vec<Message>) {
-            let mut decoder = Decoder::<Message>::new(8);
+            let mut decoder = Deserializer::<Message>::new(8);
 
             for item in &items {
                 item.encode(&mut decoder).unwrap();
