@@ -524,7 +524,10 @@ impl<R, S, W, G, T: Transcode> Iterator for Wire<R, S, W, G, T> {
                     msg.encode(&mut buf)
                         .expect("writing to an in-memory buffer doesn't fail");
                 }
-                Some(nakamoto::Io::Write(addr, buf))
+                let data = self.transcoder.output(buf).expect(
+                    "broken handshake implementation: data sent before handshake was complete",
+                );
+                Some(nakamoto::Io::Write(addr, data))
             }
             Some(Io::Event(e)) => Some(nakamoto::Io::Event(e)),
             Some(Io::Connect(a)) => Some(nakamoto::Io::Connect(a)),
