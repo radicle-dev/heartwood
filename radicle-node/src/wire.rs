@@ -2,7 +2,7 @@ pub mod message;
 
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
-use std::net::IpAddr;
+use std::net;
 use std::ops::{Deref, DerefMut};
 use std::string::FromUtf8Error;
 use std::{io, mem};
@@ -424,7 +424,7 @@ impl Decode for node::Features {
 
 #[derive(Debug)]
 pub struct Wire<R, S, T, G> {
-    inboxes: HashMap<IpAddr, Decoder>,
+    inboxes: HashMap<net::SocketAddr, Decoder>,
     inner: service::Service<R, S, T, G>,
 }
 
@@ -446,27 +446,25 @@ where
 {
     pub fn connected(
         &mut self,
-        addr: std::net::SocketAddr,
-        local_addr: &std::net::SocketAddr,
+        addr: net::SocketAddr,
+        local_addr: &net::SocketAddr,
         link: Link,
     ) {
-        self.inboxes.insert(addr.ip(), Decoder::new(256));
+        self.inboxes.insert(addr, Decoder::new(256));
         self.inner.connected(addr, local_addr, link)
     }
 
     pub fn disconnected(
         &mut self,
-        addr: &std::net::SocketAddr,
+        addr: &net::SocketAddr,
         reason: nakamoto::DisconnectReason<service::DisconnectReason>,
     ) {
-        self.inboxes.remove(&addr.ip());
+        self.inboxes.remove(&addr);
         self.inner.disconnected(addr, &reason)
     }
 
-    pub fn received_bytes(&mut self, addr: &std::net::SocketAddr, bytes: &[u8]) {
-        let peer_ip = addr.ip();
-
-        if let Some(inbox) = self.inboxes.get_mut(&peer_ip) {
+    pub fn received_bytes(&mut self, addr: &net::SocketAddr, bytes: &[u8]) {
+        if let Some(inbox) = self.inboxes.get_mut(addr) {
             inbox.input(bytes);
 
             loop {
@@ -476,14 +474,14 @@ where
 
                     Err(err) => {
                         // TODO: Disconnect peer.
-                        log::error!("Invalid message received from {}: {}", peer_ip, err);
+                        log::error!("Invalid message received from {}: {}", addr, err);
 
                         return;
                     }
                 }
             }
         } else {
-            log::debug!("Received message from unknown peer {}", peer_ip);
+            log::debug!("Received message from unknown peer {}", addr);
         }
     }
 }
