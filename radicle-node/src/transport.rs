@@ -11,6 +11,7 @@ use crate::crypto;
 use crate::service::routing;
 use crate::service::{Command, DisconnectReason, Event, Service};
 use crate::storage::WriteStorage;
+use crate::wire::transcoder::Transcode;
 use crate::wire::Wire;
 
 #[derive(Debug)]
@@ -19,13 +20,13 @@ struct Peer {
 }
 
 #[derive(Debug)]
-pub struct Transport<R, S, T, G> {
+pub struct Transport<R, S, W, G, T: Transcode> {
     _peers: HashMap<net::IpAddr, Peer>,
-    inner: Wire<R, S, T, G>,
+    inner: Wire<R, S, W, G, T>,
 }
 
-impl<R, S, T, G> Transport<R, S, T, G> {
-    pub fn new(inner: Wire<R, S, T, G>) -> Self {
+impl<R, S, W, G, T: Transcode> Transport<R, S, W, G, T> {
+    pub fn new(inner: Wire<R, S, W, G, T>) -> Self {
         Self {
             _peers: HashMap::default(),
             inner,
@@ -33,12 +34,13 @@ impl<R, S, T, G> Transport<R, S, T, G> {
     }
 }
 
-impl<R, S, T, G> nakamoto::Protocol for Transport<R, S, T, G>
+impl<R, S, W, G, T> nakamoto::Protocol for Transport<R, S, W, G, T>
 where
     R: routing::Store,
-    T: WriteStorage + 'static,
+    W: WriteStorage + 'static,
     S: address::Store,
     G: crypto::Signer,
+    T: Transcode,
 {
     type Event = Event;
     type Command = Command;
@@ -86,7 +88,7 @@ where
     }
 }
 
-impl<R, S, T, G> Iterator for Transport<R, S, T, G> {
+impl<R, S, W, G, T: Transcode> Iterator for Transport<R, S, W, G, T> {
     type Item = Io<Event, DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -94,15 +96,15 @@ impl<R, S, T, G> Iterator for Transport<R, S, T, G> {
     }
 }
 
-impl<R, S, T, G> Deref for Transport<R, S, T, G> {
-    type Target = Service<R, S, T, G>;
+impl<R, S, W, G, T: Transcode> Deref for Transport<R, S, W, G, T> {
+    type Target = Service<R, S, W, G>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<R, S, T, G> DerefMut for Transport<R, S, T, G> {
+impl<R, S, W, G, T: Transcode> DerefMut for Transport<R, S, W, G, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
