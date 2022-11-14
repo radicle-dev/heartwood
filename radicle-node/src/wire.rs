@@ -14,12 +14,12 @@ use nakamoto_net::Link;
 
 use crate::address;
 use crate::crypto::{PublicKey, Signature, Signer, Unverified};
+use crate::decoder::Decoder;
 use crate::git;
 use crate::git::fmt;
 use crate::hash::Digest;
 use crate::identity::Id;
 use crate::node;
-use crate::parser::Parser;
 use crate::service;
 use crate::service::reactor::Io;
 use crate::service::{filter, routing};
@@ -426,7 +426,7 @@ impl Decode for node::Features {
 
 #[derive(Debug)]
 pub struct Wire<R, S, W, G, T: Transcode> {
-    inboxes: HashMap<net::SocketAddr, Parser>,
+    inboxes: HashMap<net::SocketAddr, Decoder>,
     inner: service::Service<R, S, W, G>,
     transcoder: T,
     handshake_queue: VecDeque<(net::SocketAddr, Vec<u8>)>,
@@ -452,7 +452,7 @@ where
     T: Transcode,
 {
     pub fn connected(&mut self, addr: net::SocketAddr, local_addr: &net::SocketAddr, link: Link) {
-        self.inboxes.insert(addr, Parser::new(256));
+        self.inboxes.insert(addr, Decoder::new(256));
         self.inner.connected(addr, local_addr, link)
     }
 

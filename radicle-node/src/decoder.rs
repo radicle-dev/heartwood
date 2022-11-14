@@ -4,16 +4,16 @@ use std::marker::PhantomData;
 use crate::service::message::Message;
 use crate::wire;
 
-/// Parser of Radicle messages from the network stream.
+/// Message stream decoder.
 ///
-/// Used to turn a byte stream into network messages.
+/// Used to for example turn a byte stream into network messages.
 #[derive(Debug)]
-pub struct Parser<D = Message> {
+pub struct Decoder<D = Message> {
     unparsed: Vec<u8>,
     item: PhantomData<D>,
 }
 
-impl<D> From<Vec<u8>> for Parser<D> {
+impl<D> From<Vec<u8>> for Decoder<D> {
     fn from(unparsed: Vec<u8>) -> Self {
         Self {
             unparsed,
@@ -22,7 +22,7 @@ impl<D> From<Vec<u8>> for Parser<D> {
     }
 }
 
-impl<D: wire::Decode> Parser<D> {
+impl<D: wire::Decode> Decoder<D> {
     /// Create a new stream decoder.
     pub fn new(capacity: usize) -> Self {
         Self {
@@ -53,7 +53,7 @@ impl<D: wire::Decode> Parser<D> {
     }
 }
 
-impl<D: wire::Decode> io::Write for Parser<D> {
+impl<D: wire::Decode> io::Write for Decoder<D> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.input(buf);
 
@@ -65,7 +65,7 @@ impl<D: wire::Decode> io::Write for Parser<D> {
     }
 }
 
-impl<D: wire::Decode> Iterator for Parser<D> {
+impl<D: wire::Decode> Iterator for Decoder<D> {
     type Item = Result<D, wire::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -85,7 +85,7 @@ mod test {
     fn prop_decode_next(chunk_size: usize) {
         let mut bytes = vec![];
         let mut msgs = vec![];
-        let mut decoder = Parser::<String>::new(8);
+        let mut decoder = Decoder::<String>::new(8);
 
         let chunk_size = 1 + chunk_size % MSG_HELLO.len() + MSG_BYE.len();
 
