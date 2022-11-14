@@ -1,5 +1,5 @@
 pub mod message;
-pub mod transcoder;
+pub mod transcode;
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::convert::TryFrom;
@@ -26,7 +26,7 @@ use crate::service::{filter, routing, session};
 use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
-use crate::wire::transcoder::{Handshake, HandshakeResult, Transcode};
+use crate::wire::transcode::{Framer, Handshake, HandshakeResult, MuxMsg, Transcode};
 
 /// The default type we use to represent sizes on the wire.
 ///
@@ -426,7 +426,7 @@ impl Decode for node::Features {
 
 #[derive(Debug)]
 pub struct Inbox<T: Transcode> {
-    pub transcoder: T,
+    pub pipeline: Framer<T>,
     pub deserializer: Deserializer,
 }
 
@@ -514,10 +514,11 @@ where
                         self.inner_queue
                             .push_back(nakamoto::Io::Write(*addr, reply));
                     }
+                    let pipeline = Framer::new(transcoder);
                     self.inboxes.insert(
                         *addr,
                         Inbox {
-                            transcoder,
+                            pipeline,
                             deserializer: Deserializer::new(256),
                         },
                     );
@@ -537,18 +538,31 @@ where
         }
 
         if let Some(Inbox {
-            transcoder,
+            pipeline,
             deserializer,
         }) = self.inboxes.get_mut(addr)
         {
-            let bytes = transcoder.decode(raw_bytes);
-            deserializer.input(&bytes);
+            pipeline.input(raw_bytes);
+            for frame in pipeline {
+                let Ok(msg) = MuxMsg::try_from(frame) else {
+                    // TODO: Disconnect peer.
+                    log::error!("Message frame with invalid channel structure from {}", addr);
+                    return;
+                };
+                match msg.channel {
+                    0 => deserializer.input(&msg.data),
+                    1 => { /* TODO: Send to git worker */ }
+                    wrong_channel => {
+                        // TODO: Disconnect peer.
+                        log::error!("Wrong message channel {} from peer {}", wrong_channel, addr);
+                        return;
+                    }
+                };
+            }
 
-            loop {
-                match deserializer.deserialize_next() {
-                    Ok(Some(msg)) => self.inner.received_message(addr, msg),
-                    Ok(None) => break,
-
+            for message in deserializer {
+                match message {
+                    Ok(msg) => self.inner.received_message(addr, msg),
                     Err(err) => {
                         // TODO: Disconnect peer.
                         log::error!("Invalid message received from {}: {}", addr, err);
@@ -580,11 +594,12 @@ impl<R, S, W, G, H: Handshake> Iterator for Wire<R, S, W, G, H> {
                     msg.encode(&mut buf)
                         .expect("writing to an in-memory buffer doesn't fail");
                 }
-                let Inbox { transcoder, .. } = self.inboxes.get_mut(&addr).expect(
+                let Inbox { pipeline, .. } = self.inboxes.get_mut(&addr).expect(
                     "broken handshake implementation: data sent before handshake was complete",
                 );
-                let data = transcoder.encode(buf);
-                Some(nakamoto::Io::Write(addr, data))
+                let data = pipeline.frame(buf).expect("oversized data for a frame");
+                let msg = MuxMsg { channel: 0, data };
+                Some(nakamoto::Io::Write(addr, msg.into()))
             }
             Some(Io::Event(e)) => Some(nakamoto::Io::Event(e)),
             Some(Io::Connect(a)) => Some(nakamoto::Io::Connect(a)),

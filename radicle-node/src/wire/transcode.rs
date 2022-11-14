@@ -152,6 +152,16 @@ pub struct MuxMsg {
     pub data: Vec<u8>,
 }
 
+impl From<MuxMsg> for Frame {
+    fn from(mut msg: MuxMsg) -> Self {
+        let channel = msg.channel.to_be_bytes();
+        let mut data = Vec::with_capacity(msg.data.len() + 2);
+        data.extend(channel);
+        data.append(&mut msg.data);
+        data
+    }
+}
+
 impl TryFrom<Frame> for MuxMsg {
     type Error = ChannelError;
 
@@ -175,16 +185,19 @@ impl TryFrom<Frame> for MuxMsg {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::deserializer::Deserializer;
 
     #[test]
-    fn transcode() {
+    fn decode() {
         let mut pipeline = Framer::new(PlainTranscoder);
+        let mut deser = Deserializer::<String>::new(512);
 
         let data = [
             0x00, 0x04, 0x00, 0x00, b'a', b'b', 0x00, 0x07, 0x00, 0x01, b'M', b'a', b'x', b'i',
             b'm',
         ];
         let mut expected_payloads = [(0u16, b"ab".to_vec()), (1, b"Maxim".to_vec())].into_iter();
+        let mut expected_msgs = ["ab", "Maxim"].into_iter();
 
         for byte in data {
             // Writing data byte by byte, ensuring that the reading is not broken
@@ -192,8 +205,14 @@ mod test {
             for frame in &mut pipeline {
                 let msg = MuxMsg::try_from(frame).unwrap();
                 let (channel, data) = expected_payloads.next().unwrap();
+                deser.input(&data);
                 assert_eq!(msg, MuxMsg { channel, data });
             }
+        }
+
+        for msg in deser {
+            let msg = msg.unwrap();
+            assert_eq!(msg, expected_msgs.next().unwrap());
         }
     }
 }
