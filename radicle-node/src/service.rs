@@ -501,13 +501,10 @@ where
         peer.attempted();
     }
 
-    // TODO: Split into two functions: `connected` and `negotiated`
-    pub fn connected(
-        &mut self,
-        addr: std::net::SocketAddr,
-        _local_addr: &std::net::SocketAddr,
-        link: Link,
-    ) {
+    pub fn connecting(&mut self, addr: net::SocketAddr, _local_addr: &net::SocketAddr, link: Link) {
+    }
+
+    pub fn connected(&mut self, addr: net::SocketAddr, link: Link) {
         let ip = addr.ip();
         let address = addr.into();
 

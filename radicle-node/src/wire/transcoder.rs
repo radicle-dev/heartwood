@@ -1,3 +1,4 @@
+use nakamoto_net::Link;
 use std::convert::Infallible;
 
 // TODO: Implement Try trait once stabilized
@@ -6,7 +7,7 @@ pub enum HandshakeResult<H: Handshake, T: Transcode> {
     /// Handshake is not completed; we process to the next handshake stage.
     Next(H, Vec<u8>),
     /// Handshake is completed; we now can communicate in encrypted way.
-    Complete(T, Vec<u8>),
+    Complete(T, Vec<u8>, Link),
     /// Handshake has failed with some error.
     Error(H::Error),
 }
@@ -22,27 +23,34 @@ pub trait Handshake: Sized {
     type Error: std::error::Error;
 
     /// Constructs a new handshake state machine.
-    fn new() -> Self;
+    fn new(link: Link) -> Self;
 
     /// Post a new byte stream received by local peer and progress handshake
     /// protocol.
     fn next_stage(self, input: &[u8]) -> HandshakeResult<Self, Self::Transcoder>;
+
+    /// Returns direction of the handshake protocol
+    fn link(&self) -> Link;
 }
 
 /// Dumb handshake structure which runs void protocol.
-#[derive(Debug, Default)]
-pub struct NoHandshake;
+#[derive(Debug)]
+pub struct NoHandshake(Link);
 
 impl Handshake for NoHandshake {
     type Transcoder = PlainTranscoder;
     type Error = Infallible;
 
-    fn new() -> Self {
-        NoHandshake
+    fn new(link: Link) -> Self {
+        NoHandshake(link)
     }
 
     fn next_stage(self, _input: &[u8]) -> HandshakeResult<Self, Self::Transcoder> {
-        HandshakeResult::Complete(PlainTranscoder, vec![])
+        HandshakeResult::Complete(PlainTranscoder, vec![], self.0)
+    }
+
+    fn link(&self) -> Link {
+        self.0
     }
 }
 

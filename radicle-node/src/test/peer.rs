@@ -210,7 +210,7 @@ where
         let local = net::SocketAddr::new(self.ip, self.rng.u16(..));
 
         self.initialize();
-        self.service.connected(remote, &local, Link::Inbound);
+        self.service.connecting(remote, &local, Link::Inbound);
         self.receive(
             &remote,
             Message::init(peer.node_id(), vec![Address::from(remote)]),
@@ -237,7 +237,7 @@ where
         self.initialize();
         self.service.attempted(&remote);
         self.service
-            .connected(remote, &self.local_addr, Link::Outbound);
+            .connecting(remote, &self.local_addr, Link::Outbound);
 
         let mut msgs = self.messages(&remote);
         msgs.find(|m| matches!(m, Message::Initialize { .. }))
