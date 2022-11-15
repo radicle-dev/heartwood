@@ -69,9 +69,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let Doc { payload, .. } = storage.repository(id)?.project_of(profile.id())?;
-    let node = radicle::node::connect(&profile.node())?;
 
-    if node.untrack(&id)? {
+    if untrack(id, &profile)? {
         term::success!(
             "Tracking relationships for {} ({}) removed",
             term::format::highlight(payload.name),
@@ -86,4 +85,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+pub fn untrack(id: Id, profile: &Profile) -> anyhow::Result<bool> {
+    let node = radicle::node::connect(profile.node())?;
+    node.untrack(&id).map_err(|e| anyhow!(e))
 }
