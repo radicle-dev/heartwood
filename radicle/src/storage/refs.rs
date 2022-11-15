@@ -101,6 +101,17 @@ impl Refs {
         })
     }
 
+    /// Get a particular ref.
+    pub fn get(&self, name: &git::Qualified) -> Option<Oid> {
+        self.0.get(name.to_ref_string().as_refstr()).copied()
+    }
+
+    /// Get a particular head ref.
+    pub fn head(&self, name: impl AsRef<git::RefStr>) -> Option<Oid> {
+        let branch = git::refname!("refs/heads").join(name);
+        self.0.get(&branch).copied()
+    }
+
     /// Create refs from a canonical representation.
     pub fn from_canonical(bytes: &[u8]) -> Result<Self, canonical::Error> {
         let reader = BufReader::new(bytes);

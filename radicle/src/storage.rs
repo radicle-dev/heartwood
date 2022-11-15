@@ -185,7 +185,7 @@ impl<V> From<Remotes<V>> for HashMap<RemoteId, Refs> {
 
 /// A project remote.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Remote<V> {
+pub struct Remote<V = Verified> {
     /// ID of remote.
     pub id: PublicKey,
     /// Git references published under this remote, and their hashes.

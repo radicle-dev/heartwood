@@ -51,7 +51,7 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         let Ok(repo) = storage.repository(id) else { return };
         let Ok((_, head)) = repo.head() else { return };
         let Ok(Doc { payload, .. }) = repo.project_of(profile.id()) else { return };
-        let head = term::format::oid(&head);
+        let head = term::format::oid(head);
         table.push([
             term::format::bold(payload.name),
             term::format::tertiary(id),

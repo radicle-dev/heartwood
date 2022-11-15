@@ -1579,6 +1579,7 @@ dependencies = [
  "radicle-crypto",
  "serde_json",
  "thiserror",
+ "timeago",
  "zeroize",
 ]
 
@@ -2241,6 +2242,12 @@ checksum = "65bb801831d812c562ae7d2bfb531f26e66e4e1f6b17307ba4149c5064710e5b"
 dependencies = [
  "time-core",
 ]
+
+[[package]]
+name = "timeago"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ec32dde57efb15c035ac074118d7f32820451395f28cb0524a01d4e94983b26"
 
 [[package]]
 name = "tinyvec"

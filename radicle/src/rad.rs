@@ -18,6 +18,7 @@ use crate::storage::refs::SignedRefs;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId, WriteRepository as _};
 use crate::{identity, storage};
 
+/// Name of the radicle storage remote.
 pub static REMOTE_NAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("rad"));
 
 /// Radicle remote name for peer, eg. `rad/<node-id>`
@@ -346,13 +347,14 @@ mod tests {
 
     use radicle_crypto::test::signer::MockSigner;
 
-    use super::*;
-    use crate::git::fmt::refname;
+    use crate::git::{name::component, qualified, Qualified};
     use crate::identity::{Delegate, Did};
     use crate::storage::git::transport;
     use crate::storage::git::Storage;
     use crate::storage::{ReadStorage, WriteStorage};
     use crate::test::fixtures;
+
+    use super::*;
 
     #[test]
     fn test_init() {
@@ -387,6 +389,7 @@ mod tests {
         let (_, head) = project_repo.head().unwrap();
 
         // Test canonical refs.
+        assert_eq!(refs.head(&component!("master")).unwrap(), head);
         assert_eq!(project_repo.raw().refname_to_id("HEAD").unwrap(), *head);
         assert_eq!(
             project_repo
@@ -439,8 +442,11 @@ mod tests {
         let bob_remote = storage.repository(id).unwrap().remote(bob_id).unwrap();
 
         assert_eq!(
-            bob_remote.refs.get(&refname!("master")),
-            alice_refs.get(&refname!("master"))
+            bob_remote
+                .refs
+                .get(&qualified!("refs/heads/master"))
+                .unwrap(),
+            alice_refs.get(&qualified!("refs/heads/master")).unwrap()
         );
     }
 

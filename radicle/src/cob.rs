@@ -8,13 +8,14 @@ pub mod transaction;
 pub mod value;
 
 pub use cob::{
-    identity, object::collaboration::error, CollaborativeObject, Create, Entry, History, ObjectId,
-    TypeName, Update,
+    identity, object::collaboration::error, CollaborativeObject, Contents, Create, Entry, History,
+    ObjectId, TypeName, Update,
 };
+pub use shared::Timestamp;
+pub use store::Store;
+
 use radicle_cob as cob;
 use radicle_git_ext::Oid;
-
-pub use radicle_cob::*;
 
 use crate::{
     identity::{project::Identity, Did},

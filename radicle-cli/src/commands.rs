@@ -14,6 +14,8 @@ pub mod rad_init;
 pub mod rad_inspect;
 #[path = "commands/ls.rs"]
 pub mod rad_ls;
+#[path = "commands/patch.rs"]
+pub mod rad_patch;
 #[path = "commands/push.rs"]
 pub mod rad_push;
 #[path = "commands/rm.rs"]

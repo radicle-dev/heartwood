@@ -56,7 +56,7 @@ pub fn list_commits(commits: &[git::raw::Commit]) -> anyhow::Result<()> {
             .summary_bytes()
             .unwrap_or_else(|| commit.message_bytes());
         table.push([
-            term::format::secondary(term::format::oid(&commit.id().into())),
+            term::format::secondary(term::format::oid(commit.id())),
             term::format::italic(String::from_utf8_lossy(message)),
         ]);
     }

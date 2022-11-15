@@ -1,6 +1,7 @@
-use std::fmt;
+use std::{fmt, time};
 
 use dialoguer::console::style;
+use radicle::cob::Timestamp;
 use radicle::node::NodeId;
 use radicle::profile::Profile;
 use radicle_cob::ObjectId;
@@ -17,13 +18,22 @@ pub fn node(node: &NodeId) -> String {
 }
 
 /// Format a git Oid.
-pub fn oid(oid: &radicle::git::Oid) -> String {
-    format!("{:.7}", oid)
+pub fn oid(oid: impl Into<radicle::git::Oid>) -> String {
+    format!("{:.7}", oid.into())
 }
 
 /// Format a COB id.
 pub fn cob(id: &ObjectId) -> String {
     format!("{:.11}", id.to_string())
+}
+
+/// Format a timestamp.
+pub fn timestamp(time: &Timestamp) -> String {
+    let fmt = timeago::Formatter::new();
+    let now = Timestamp::now();
+    let duration = time::Duration::from_secs(now.as_secs() - time.as_secs());
+
+    fmt.convert(duration)
 }
 
 /// Identity formatter that takes a profile and displays it as

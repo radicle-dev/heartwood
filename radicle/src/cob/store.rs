@@ -111,6 +111,11 @@ impl<'a, T> Store<'a, T> {
     pub fn author(&self) -> Author {
         Author::new(self.whoami)
     }
+
+    /// Get the public key associated with this store.
+    pub fn public_key(&self) -> &PublicKey {
+        &self.whoami
+    }
 }
 
 impl<'a, T: FromHistory> Store<'a, T> {
