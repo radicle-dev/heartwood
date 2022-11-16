@@ -190,6 +190,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "issue" => {
+            term::run_command_args::<rad_issue::Options, _>(
+                rad_issue::HELP,
+                "Command",
+                rad_issue::run,
+                args.to_vec(),
+            );
+        }
         _ => {
             let exe = format!("{}-{}", NAME, exe);
             let status = process::Command::new(exe.clone()).args(args).status();

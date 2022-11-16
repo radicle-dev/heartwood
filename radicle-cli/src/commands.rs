@@ -12,6 +12,8 @@ pub mod rad_help;
 pub mod rad_init;
 #[path = "commands/inspect.rs"]
 pub mod rad_inspect;
+#[path = "commands/issue.rs"]
+pub mod rad_issue;
 #[path = "commands/ls.rs"]
 pub mod rad_ls;
 #[path = "commands/patch.rs"]

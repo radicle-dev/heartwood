@@ -223,7 +223,7 @@ impl<'a> IssueStore<'a> {
     }
 
     /// Remove an issue.
-    pub fn remove<G: Signer>(&self, _issue_id: &IssueId) -> Result<(), Error> {
+    pub fn remove<G: Signer>(&self, _issue_id: &IssueId, _signer: &G) -> Result<(), Error> {
         todo!()
     }
 

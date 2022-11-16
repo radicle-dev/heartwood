@@ -14,7 +14,9 @@ indicatif = { version = "0.16.2" }
 json-color = { version = "0.7" }
 lexopt = { version = "0.2" }
 log = { version = "0.4", features = ["std"] }
+serde = { version = "1.0" }
 serde_json = { version = "1" }
+serde_yaml = { version = "0.8" }
 thiserror = { version = "1" }
 timeago = { version = "0.3", default-features = false }
 zeroize = { version = "1.1" }

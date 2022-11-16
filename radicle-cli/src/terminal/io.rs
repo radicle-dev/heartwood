@@ -1,12 +1,15 @@
 use std::fmt;
 use std::str::FromStr;
 
+use dialoguer::{console::style, console::Style, theme::ColorfulTheme, Input, Password};
+
+use radicle::cob::issue::Issue;
+use radicle::cob::shared::CommentId;
 use radicle::crypto::ssh::keystore::Passphrase;
 use radicle::crypto::Signer;
 use radicle::profile::env::RAD_PASSPHRASE;
 use radicle::profile::Profile;
 
-use dialoguer::{console::style, console::Style, theme::ColorfulTheme, Input, Password};
 use radicle_crypto::ssh::keystore::MemorySigner;
 
 use super::command;
@@ -367,6 +370,24 @@ where
         .unwrap();
 
     result.map(|i| &options[i])
+}
+
+pub fn comment_select(issue: &Issue) -> Option<CommentId> {
+    let selection = dialoguer::Select::with_theme(&theme())
+        .with_prompt("Which comment do you want to react to?")
+        .item(&issue.description().to_string())
+        .items(
+            &issue
+                .comments()
+                .iter()
+                .map(|p| p.body.clone())
+                .collect::<Vec<_>>(),
+        )
+        .default(CommentId::root().into())
+        .interact_opt()
+        .unwrap();
+
+    selection.map(CommentId::from)
 }
 
 pub fn markdown(content: &str) {
