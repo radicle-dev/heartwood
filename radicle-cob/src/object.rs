@@ -11,7 +11,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub mod collaboration;
-pub use collaboration::{create, get, info, list, update, CollaborativeObject, Create, Update};
+pub use collaboration::{
+    create, get, info, list, parse_refstr, update, CollaborativeObject, Create, Update,
+};
 
 pub mod storage;
 pub use storage::{Commit, Objects, Reference, Storage};
@@ -30,7 +32,7 @@ impl FromStr for ObjectId {
     type Err = ParseObjectId;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let oid = Oid::try_from(s.as_bytes())?;
+        let oid = Oid::from_str(s)?;
         Ok(ObjectId(oid))
     }
 }

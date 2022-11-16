@@ -736,7 +736,7 @@ impl cob::object::Storage for Repository {
             let reference = reference.ok()?;
             match RefStr::try_from_str(reference.name()?) {
                 Ok(name) => {
-                    let (ty, object_id) = git::refs::storage::cob_suffix(&name)?;
+                    let (ty, object_id) = cob::object::parse_refstr(&name)?;
                     if ty == *typename {
                         Some(
                             cob::object::Reference::try_from(reference)
