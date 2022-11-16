@@ -20,6 +20,8 @@ pub mod rad_ls;
 pub mod rad_patch;
 #[path = "commands/push.rs"]
 pub mod rad_push;
+#[path = "commands/review.rs"]
+pub mod rad_review;
 #[path = "commands/rm.rs"]
 pub mod rad_rm;
 #[path = "commands/self.rs"]
