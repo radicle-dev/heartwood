@@ -16,6 +16,8 @@ pub mod rad_inspect;
 pub mod rad_issue;
 #[path = "commands/ls.rs"]
 pub mod rad_ls;
+#[path = "commands/merge.rs"]
+pub mod rad_merge;
 #[path = "commands/patch.rs"]
 pub mod rad_patch;
 #[path = "commands/push.rs"]

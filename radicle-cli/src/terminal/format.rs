@@ -1,6 +1,7 @@
 use std::{fmt, time};
 
-use dialoguer::console::style;
+pub use dialoguer::console::style;
+
 use radicle::cob::Timestamp;
 use radicle::node::NodeId;
 use radicle::profile::Profile;
