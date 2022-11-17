@@ -20,6 +20,8 @@ pub mod rad_ls;
 pub mod rad_merge;
 #[path = "commands/patch.rs"]
 pub mod rad_patch;
+#[path = "commands/path.rs"]
+pub mod rad_path;
 #[path = "commands/push.rs"]
 pub mod rad_push;
 #[path = "commands/review.rs"]
