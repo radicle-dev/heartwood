@@ -5,6 +5,10 @@ version = "0.8.0"
 authors = ["Alexis Sellier <alexis@radicle.xyz>"]
 edition = "2021"
 
+[[bin]]
+name = "rad"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
