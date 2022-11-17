@@ -374,6 +374,23 @@ impl sqlite::Bindable for &PublicKey {
     }
 }
 
+pub mod keypair {
+    use super::*;
+    use std::env;
+
+    /// Generate a new keypair using OS randomness.
+    pub fn generate() -> KeyPair {
+        #[cfg(debug_assertions)]
+        if env::var("RAD_DEBUG").is_ok() {
+            // Generate a test keypair that is always the same.
+            // This is useful for debugging and testing, since the
+            // public key is known in advance.
+            return KeyPair::from_seed(Seed::new([0xff; 32]));
+        }
+        KeyPair::generate()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::PublicKey;

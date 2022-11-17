@@ -5,7 +5,7 @@ use std::{fs, io};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
-use crate::{KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
+use crate::{keypair, PublicKey, SecretKey, Signature, Signer, SignerError};
 
 /// A secret key passphrase.
 pub type Passphrase = Zeroizing<String>;
@@ -47,7 +47,7 @@ impl Keystore {
     /// The `comment` is associated with the private key.
     /// The `passphrase` is used to encrypt the private key.
     pub fn init(&self, comment: &str, passphrase: &str) -> Result<PublicKey, Error> {
-        let pair = KeyPair::generate();
+        let pair = keypair::generate();
         let ssh_pair = ssh_key::private::Ed25519Keypair::from_bytes(&pair)?;
         let ssh_pair = ssh_key::private::KeypairData::Ed25519(ssh_pair);
         let secret = ssh_key::PrivateKey::new(ssh_pair, comment)?;
