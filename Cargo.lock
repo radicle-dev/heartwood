@@ -1596,6 +1596,7 @@ name = "radicle-cob"
 version = "0.1.0"
 dependencies = [
  "ed25519-compact",
+ "fastrand",
  "git-commit",
  "git-ref-format",
  "git-trailers",
@@ -1603,6 +1604,7 @@ dependencies = [
  "log",
  "petgraph",
  "quickcheck",
+ "quickcheck_macros",
  "radicle-crypto",
  "radicle-git-ext",
  "serde",

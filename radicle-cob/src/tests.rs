@@ -1,10 +1,14 @@
 use std::ops::ControlFlow;
 
 use crypto::test::signer::MockSigner;
+use git_ref_format::{refname, Component, RefString};
 use quickcheck::Arbitrary;
 use radicle_crypto::Signer;
 
-use crate::{create, get, history, list, update, Create, ObjectId, TypeName, Update};
+use crate::{
+    create, get, history, list, object, test::arbitrary::Invalid, update, Create, ObjectId,
+    TypeName, Update,
+};
 
 use super::test;
 
@@ -221,6 +225,69 @@ fn traverse_cobs() {
     });
 
     assert_eq!(contents, vec![b"issue 1".to_vec(), b"issue 2".to_vec()]);
+}
+
+#[quickcheck]
+fn parse_refstr(oid: ObjectId, typename: TypeName) {
+    let suffix = refname!("refs/cobs")
+        .and(Component::from(&typename))
+        .and(Component::from(&oid));
+
+    // refs/cobs/<typename>/<object_id> gives back the <typename> and <object_id>
+    assert_eq!(object::parse_refstr(&suffix), Some((typename.clone(), oid)));
+
+    // strips a single namespace
+    assert_eq!(
+        object::parse_refstr(&refname!("refs/namespaces/a").join(&suffix)),
+        Some((typename.clone(), oid))
+    );
+
+    // strips multiple namespaces
+    assert_eq!(
+        object::parse_refstr(&refname!("refs/namespaces/a/refs/namespaces/b").join(&suffix)),
+        Some((typename.clone(), oid))
+    );
+
+    // ignores the extra path
+    assert_eq!(
+        object::parse_refstr(
+            &refname!("refs/namespaces/a/refs/namespaces/b")
+                .join(suffix)
+                .and(refname!("more/paths"))
+        ),
+        Some((typename, oid))
+    );
+}
+
+/// Note: an invalid type name is also an invalid reference string, it
+/// cannot start or end with a '.', and cannot have '..'.
+#[quickcheck]
+fn invalid_parse_refstr(oid: Invalid<ObjectId>, typename: TypeName) {
+    let oid = RefString::try_from(oid.value).unwrap();
+    let typename = Component::from(&typename);
+    let suffix = refname!("refs/cobs").and(typename).and(oid);
+
+    // All parsing will fail because `oid` is not a valid ObjectId
+    assert_eq!(object::parse_refstr(&suffix), None);
+
+    assert_eq!(
+        object::parse_refstr(&refname!("refs/namespaces/a").join(&suffix)),
+        None
+    );
+
+    assert_eq!(
+        object::parse_refstr(&refname!("refs/namespaces/a/refs/namespaces/b").join(&suffix)),
+        None
+    );
+
+    assert_eq!(
+        object::parse_refstr(
+            &refname!("refs/namespaces/a/refs/namespaces/b")
+                .join(suffix)
+                .and(refname!("more/paths"))
+        ),
+        None
+    );
 }
 
 fn gen<T: Arbitrary>(size: usize) -> T {
