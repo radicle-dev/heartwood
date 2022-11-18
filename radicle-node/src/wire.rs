@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::net::IpAddr;
 use std::ops::{Deref, DerefMut};
+use std::slice;
 use std::string::FromUtf8Error;
 use std::{io, mem};
 
@@ -25,6 +26,132 @@ use crate::service::{filter, routing};
 use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
+
+pub trait Number {
+    fn new() -> Self;
+    fn usize() -> usize;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct N8();
+
+impl Number for N8 {
+    fn new() -> Self {
+        N8()
+    }
+
+    fn usize() -> usize {
+        8
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct N128();
+
+impl Number for N128 {
+    fn new() -> Self {
+        N128()
+    }
+
+    fn usize() -> usize {
+        128
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct N1024();
+
+impl Number for N1024 {
+    fn new() -> Self {
+        N1024()
+    }
+
+    fn usize() -> usize {
+        1024
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LimitedVec<N, T> {
+    size: N,
+    v: Vec<T>,
+}
+
+impl<N, T> LimitedVec<N, T>
+where
+    N: Number,
+{
+    pub fn new() -> Self {
+        LimitedVec {
+            size: N::new(),
+            v: Vec::new(),
+        }
+    }
+
+    pub fn as_slice(&self) -> &[T] {
+        self.v.as_slice()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.v.is_empty()
+    }
+
+    pub fn iter(&self) -> slice::Iter<'_, T> {
+        self.v.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.v.len()
+    }
+
+    pub fn push(&mut self, item: T) -> bool {
+        if self.len() > N::usize() {
+            return false;
+        }
+        self.v.push(item);
+        true
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        if capacity > N::usize() {
+            todo!()
+        }
+        Self {
+            size: N::new(),
+            v: Vec::with_capacity(capacity),
+        }
+    }
+}
+
+impl<N, T> Default for LimitedVec<N, T>
+where
+    N: Number,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<N, T> TryFrom<Vec<T>> for LimitedVec<N, T>
+where
+    N: Number,
+    T: Clone,
+{
+    type Error = Error;
+
+    fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
+        if value.len() > N::usize() {
+            return Err(Error::InvalidSize {
+                expected: N::usize(),
+                actual: value.len(),
+            });
+        }
+        Ok(LimitedVec {
+            size: N::new(),
+            v: value,
+        })
+    }
+}
 
 /// The default type we use to represent sizes on the wire.
 ///
@@ -327,6 +454,26 @@ where
         for _ in 0..len {
             let item = T::decode(reader)?;
             vec.push(item);
+        }
+        Ok(vec)
+    }
+}
+
+impl<N, T> Decode for LimitedVec<N, T>
+where
+    T: Decode,
+    N: Number,
+{
+    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        let len: Size = Size::decode(reader)?;
+
+        let mut vec: LimitedVec<N, T> = LimitedVec::with_capacity(len as usize);
+
+        for _ in 0..len {
+            let item = T::decode(reader)?;
+            if !vec.push(item) {
+                todo!()
+            }
         }
         Ok(vec)
     }

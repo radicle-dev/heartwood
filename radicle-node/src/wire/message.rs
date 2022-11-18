@@ -18,7 +18,6 @@ pub enum MessageType {
     Ping = 10,
     Pong = 12,
 }
-
 impl From<MessageType> for u16 {
     fn from(other: MessageType) -> Self {
         other as u16
@@ -153,7 +152,7 @@ impl wire::Encode for InventoryAnnouncement {
 
 impl wire::Decode for InventoryAnnouncement {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
-        let inventory = Vec::<Id>::decode(reader)?;
+        let inventory = wire::LimitedVec::decode(reader)?;
         let timestamp = Timestamp::decode(reader)?;
 
         Ok(Self {

@@ -34,6 +34,7 @@ use crate::service::message::{Address, Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
+use crate::wire;
 
 pub use crate::node::NodeId;
 pub use crate::service::config::{Config, Network};
@@ -639,9 +640,11 @@ where
                     return Ok(false);
                 }
 
-                if let Err(err) =
-                    self.process_inventory(&message.inventory, *announcer, &message.timestamp)
-                {
+                if let Err(err) = self.process_inventory(
+                    message.inventory.as_slice(),
+                    *announcer,
+                    &message.timestamp,
+                ) {
                     error!("Error processing inventory from {}: {}", announcer, err);
 
                     if let Error::Fetch(storage::FetchError::Verify(err)) = err {
@@ -876,7 +879,7 @@ where
     /// Process a peer inventory announcement by updating our routing table.
     fn process_inventory(
         &mut self,
-        inventory: &Vec<Id>,
+        inventory: &[Id],
         from: NodeId,
         timestamp: &Timestamp,
     ) -> Result<(), Error> {
@@ -1302,7 +1305,7 @@ mod gossip {
 
     pub fn inventory(timestamp: Timestamp, inventory: Vec<Id>) -> InventoryAnnouncement {
         InventoryAnnouncement {
-            inventory,
+            inventory: wire::LimitedVec::try_from(inventory).unwrap(),
             timestamp,
         }
     }

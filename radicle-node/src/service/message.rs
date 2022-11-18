@@ -229,7 +229,7 @@ pub struct RefsAnnouncement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InventoryAnnouncement {
     /// Node inventory.
-    pub inventory: Vec<Id>,
+    pub inventory: wire::LimitedVec<wire::N1024, Id>,
     /// Time of announcement.
     pub timestamp: Timestamp,
 }

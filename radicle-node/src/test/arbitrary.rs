@@ -10,6 +10,7 @@ use crate::service::message::{
     Address, Announcement, InventoryAnnouncement, Message, NodeAnnouncement, Ping,
     RefsAnnouncement, Subscribe, ZeroBytes,
 };
+use crate::wire;
 use crate::wire::message::MessageType;
 
 pub use radicle::test::arbitrary::*;
@@ -45,7 +46,7 @@ impl Arbitrary for Message {
             MessageType::InventoryAnnouncement => Announcement {
                 node: NodeId::arbitrary(g),
                 message: InventoryAnnouncement {
-                    inventory: Vec::<Id>::arbitrary(g),
+                    inventory: wire::LimitedVec::arbitrary(g),
                     timestamp: Timestamp::arbitrary(g),
                 }
                 .into(),
@@ -121,5 +122,16 @@ impl Arbitrary for Address {
 impl Arbitrary for ZeroBytes {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         ZeroBytes::new(u16::arbitrary(g))
+    }
+}
+
+impl<N, T> Arbitrary for wire::LimitedVec<N, T>
+where
+    N: wire::Number + Clone + 'static,
+    T: Arbitrary + Eq,
+{
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let v: Vec<T> = Arbitrary::arbitrary(g);
+        v.try_into().unwrap()
     }
 }
