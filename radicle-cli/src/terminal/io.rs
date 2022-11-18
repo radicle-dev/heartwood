@@ -56,9 +56,10 @@ pub fn tip_args(args: fmt::Arguments) {
     );
 }
 
-pub fn width() -> usize {
-    let (_, rows) = console::Term::stdout().size();
-    rows as usize
+pub fn width() -> Option<usize> {
+    console::Term::stdout()
+        .size_checked()
+        .map(|(_, cols)| cols as usize)
 }
 
 pub fn headline(headline: &str) {

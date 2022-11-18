@@ -39,8 +39,10 @@ impl fmt::Display for TextBox {
             .max()
             .unwrap_or(0)
             + 2;
-        if term::width() < width + 2 {
-            width = term::width() - 2
+        if let Some(max) = term::width() {
+            if max < width + 2 {
+                width = max - 2
+            }
         }
 
         let (connector, header_width) = if !self.first {

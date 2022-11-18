@@ -57,7 +57,14 @@ impl<const W: usize> Table<W> {
                     .ok();
                 }
             }
-            println!("{}", console::truncate_str(&output, width - 1, "…"));
+            println!(
+                "{}",
+                if let Some(width) = width {
+                    console::truncate_str(&output, width - 1, "…")
+                } else {
+                    output.into()
+                }
+            );
         }
     }
 
