@@ -20,6 +20,7 @@ use crate::git;
 use crate::git::fmt;
 use crate::identity::Id;
 use crate::node;
+use crate::prelude::*;
 use crate::service;
 use crate::service::reactor::Io;
 use crate::service::{filter, routing, session};
@@ -158,6 +159,15 @@ where
             n += item.encode(writer)?;
         }
         Ok(n)
+    }
+}
+
+impl<T, const N: usize> Encode for BoundedVec<T, N>
+where
+    T: Encode,
+{
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        self.as_slice().encode(writer)
     }
 }
 
@@ -318,19 +328,22 @@ impl<const N: usize> Decode for [u8; N] {
     }
 }
 
-impl<T> Decode for Vec<T>
+impl<T, const N: usize> Decode for BoundedVec<T, N>
 where
     T: Decode,
 {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let len: Size = Size::decode(reader)?;
-        let mut vec = Vec::with_capacity(len as usize);
+        let len: usize = Size::decode(reader)? as usize;
+        let mut items = Self::with_capacity(len).map_err(|_| Error::InvalidSize {
+            expected: Self::max(),
+            actual: len,
+        })?;
 
-        for _ in 0..len {
+        for _ in 0..items.capacity() {
             let item = T::decode(reader)?;
-            vec.push(item);
+            items.push(item).ok();
         }
-        Ok(vec)
+        Ok(items)
     }
 }
 
@@ -652,9 +665,9 @@ mod tests {
     }
 
     #[quickcheck]
-    fn prop_vec(input: Vec<String>) {
+    fn prop_vec(input: BoundedVec<String, 16>) {
         assert_eq!(
-            deserialize::<Vec<String>>(&serialize(&input.as_slice())).unwrap(),
+            deserialize::<BoundedVec<String, 16>>(&serialize(&input.as_slice())).unwrap(),
             input
         );
     }
@@ -729,6 +742,26 @@ mod tests {
         assert_matches!(
             deserialize::<filter::Filter>(&bytes).unwrap_err(),
             Error::InvalidFilterSize(_)
+        );
+    }
+
+    #[test]
+    fn test_bounded_vec_limit() {
+        let v: BoundedVec<u8, 2> = vec![1, 2].try_into().unwrap();
+        let buf = serialize(&v);
+
+        assert_matches!(
+            deserialize::<BoundedVec<u8, 1>>(&buf),
+            Err(Error::InvalidSize {
+                expected: 1,
+                actual: 2
+            }),
+            "fail when vector is too small for buffer",
+        );
+
+        assert!(
+            deserialize::<BoundedVec<u8, 2>>(&buf).is_ok(),
+            "successfully decode vector of same size",
         );
     }
 }

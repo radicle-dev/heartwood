@@ -8,6 +8,7 @@ use crate::address;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto::test::signer::MockSigner;
 use crate::identity::Id;
+use crate::prelude::*;
 use crate::prelude::{LocalDuration, Timestamp};
 use crate::service::config::*;
 use crate::service::filter::Filter;
@@ -27,6 +28,8 @@ use crate::test::peer::Peer;
 use crate::test::simulator;
 use crate::test::simulator::{Peer as _, Simulation};
 use crate::test::storage::MockStorage;
+use crate::wire::Decode;
+use crate::wire::Encode;
 use crate::LocalTime;
 use crate::{client, git, identity, rad, service, test};
 
@@ -37,6 +40,20 @@ use crate::{client, git, identity, rad, service, test};
 //      logger::init(log::Level::Debug);
 //
 // You may then run the test with eg. `cargo test -- --nocapture` to always show output.
+
+#[test]
+fn test_inventory_decode() {
+    let inventory: Vec<Id> = arbitrary::gen(300);
+    let timestamp = LocalTime::now().as_secs();
+
+    let mut buf = Vec::new();
+    inventory.as_slice().encode(&mut buf).unwrap();
+    timestamp.encode(&mut buf).unwrap();
+
+    let m = InventoryAnnouncement::decode(&mut buf.as_slice()).expect("message decodes");
+    assert_eq!(inventory.as_slice(), m.inventory.as_slice());
+    assert_eq!(timestamp, m.timestamp);
+}
 
 #[test]
 fn test_ping_response() {
@@ -215,7 +232,7 @@ fn test_inventory_sync() {
         &bob.addr(),
         Message::inventory(
             InventoryAnnouncement {
-                inventory: projs.clone(),
+                inventory: projs.clone().try_into().unwrap(),
                 timestamp: now,
             },
             bob.signer(),
@@ -303,7 +320,7 @@ fn test_inventory_pruning() {
                 &bob.addr(),
                 Message::inventory(
                     InventoryAnnouncement {
-                        inventory: test::arbitrary::vec::<Id>(num_projs),
+                        inventory: test::arbitrary::vec::<Id>(num_projs).try_into().unwrap(),
                         timestamp: bob.clock().timestamp(),
                     },
                     &MockSigner::default(),
@@ -369,7 +386,7 @@ fn test_inventory_relay_bad_timestamp() {
         &bob.addr(),
         Message::inventory(
             InventoryAnnouncement {
-                inventory: vec![],
+                inventory: BoundedVec::new(),
                 timestamp,
             },
             bob.signer(),
@@ -598,7 +615,7 @@ fn test_inventory_relay() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
-    let inv = vec![];
+    let inv = BoundedVec::new();
     let now = LocalTime::now().as_secs();
 
     // Inventory from Bob relayed to Eve.

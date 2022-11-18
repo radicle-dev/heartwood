@@ -29,6 +29,7 @@ use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::{Doc, Id};
 use crate::node;
+use crate::prelude::*;
 use crate::service::config::ProjectTracking;
 use crate::service::message::{Address, Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
@@ -66,6 +67,11 @@ pub const KEEP_ALIVE_DELTA: LocalDuration = LocalDuration::from_secs(30);
 pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Maximum attempts to connect to a peer before we give up.
 pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
+
+/// Maximum external address limit imposed by message size limits.
+pub use message::ADDRESS_LIMIT;
+/// Maximum inventory limit imposed by message size limits.
+pub use message::INVENTORY_LIMIT;
 
 /// A service event.
 #[derive(Debug, Clone)]
@@ -639,9 +645,11 @@ where
                     return Ok(false);
                 }
 
-                if let Err(err) =
-                    self.process_inventory(&message.inventory, *announcer, &message.timestamp)
-                {
+                if let Err(err) = self.process_inventory(
+                    message.inventory.as_slice(),
+                    *announcer,
+                    &message.timestamp,
+                ) {
                     error!("Error processing inventory from {}: {}", announcer, err);
 
                     if let Error::Fetch(storage::FetchError::Verify(err)) = err {
@@ -797,7 +805,7 @@ where
                 peer.state = session::State::Negotiated {
                     id,
                     since: self.clock.local_time(),
-                    addrs,
+                    addrs: addrs.unbound(),
                     ping: Default::default(),
                 };
             }
@@ -875,7 +883,7 @@ where
     /// Process a peer inventory announcement by updating our routing table.
     fn process_inventory(
         &mut self,
-        inventory: &Vec<Id>,
+        inventory: &[Id],
         from: NodeId,
         timestamp: &Timestamp,
     ) -> Result<(), Error> {
@@ -1269,7 +1277,14 @@ mod gossip {
         };
 
         let mut msgs = vec![
-            Message::init(*signer.public_key(), config.external_addresses.clone()),
+            Message::init(
+                *signer.public_key(),
+                config
+                    .external_addresses
+                    .clone()
+                    .try_into()
+                    .expect("external addresses are within the limit"),
+            ),
             Message::inventory(gossip::inventory(timestamp, inventory), signer),
             Message::subscribe(config.filter(), timestamp, Timestamp::MAX),
         ];
@@ -1283,7 +1298,11 @@ mod gossip {
     pub fn node(timestamp: Timestamp, config: &Config) -> Option<NodeAnnouncement> {
         let features = node::Features::SEED;
         let alias = config.alias();
-        let addresses = config.external_addresses.clone();
+        let addresses: BoundedVec<_, ADDRESS_LIMIT> = config
+            .external_addresses
+            .clone()
+            .try_into()
+            .expect("external addresses are within the limit");
 
         if addresses.is_empty() {
             return None;
@@ -1302,8 +1321,17 @@ mod gossip {
     }
 
     pub fn inventory(timestamp: Timestamp, inventory: Vec<Id>) -> InventoryAnnouncement {
+        type Inventory = BoundedVec<Id, INVENTORY_LIMIT>;
+
+        if inventory.len() > Inventory::max() {
+            log::error!(
+                "inventory announcement limit ({}) exceeded, other nodes will see only some of your projects",
+                inventory.len()
+            );
+        }
+
         InventoryAnnouncement {
-            inventory,
+            inventory: BoundedVec::truncate(inventory),
             timestamp,
         }
     }

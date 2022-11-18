@@ -3,6 +3,7 @@ use std::{io, mem, net};
 use byteorder::{NetworkEndian, ReadBytesExt};
 
 use crate::prelude::*;
+use crate::service;
 use crate::service::message::*;
 use crate::wire;
 
@@ -144,7 +145,7 @@ impl wire::Encode for InventoryAnnouncement {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         let mut n = 0;
 
-        n += self.inventory.as_slice().encode(writer)?;
+        n += self.inventory.encode(writer)?;
         n += self.timestamp.encode(writer)?;
 
         Ok(n)
@@ -153,7 +154,7 @@ impl wire::Encode for InventoryAnnouncement {
 
 impl wire::Decode for InventoryAnnouncement {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
-        let inventory = Vec::<Id>::decode(reader)?;
+        let inventory = BoundedVec::decode(reader)?;
         let timestamp = Timestamp::decode(reader)?;
 
         Ok(Self {
@@ -171,7 +172,7 @@ impl wire::Encode for Message {
             Self::Initialize { id, version, addrs } => {
                 n += id.encode(writer)?;
                 n += version.encode(writer)?;
-                n += addrs.as_slice().encode(writer)?;
+                n += addrs.encode(writer)?;
             }
             Self::Subscribe(Subscribe {
                 filter,
@@ -218,7 +219,7 @@ impl wire::Decode for Message {
             Ok(MessageType::Initialize) => {
                 let id = NodeId::decode(reader)?;
                 let version = u32::decode(reader)?;
-                let addrs = Vec::<Address>::decode(reader)?;
+                let addrs = BoundedVec::<Address, { service::ADDRESS_LIMIT }>::decode(reader)?;
 
                 Ok(Self::Initialize { id, version, addrs })
             }

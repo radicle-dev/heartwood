@@ -1,4 +1,5 @@
 pub mod address;
+pub mod bounded;
 pub mod client;
 pub mod clock;
 pub mod control;
@@ -16,6 +17,7 @@ pub use nakamoto_net::{Io, Link, LocalDuration, LocalTime};
 pub use radicle::{collections, crypto, git, identity, node, profile, rad, storage};
 
 pub mod prelude {
+    pub use crate::bounded::BoundedVec;
     pub use crate::clock::Timestamp;
     pub use crate::crypto::hash::Digest;
     pub use crate::crypto::{PublicKey, Signature, Signer};

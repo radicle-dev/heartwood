@@ -185,7 +185,8 @@ where
                 features: node::Features::SEED,
                 timestamp: self.timestamp(),
                 alias,
-                addresses: vec![net::SocketAddr::from((self.ip, service::DEFAULT_PORT)).into()],
+                addresses: Some(net::SocketAddr::from((self.ip, service::DEFAULT_PORT)).into())
+                    .into(),
                 nonce: 0,
             }
             .solve(),
@@ -214,7 +215,7 @@ where
         self.service.connected(remote, Link::Inbound);
         self.receive(
             &remote,
-            Message::init(peer.node_id(), vec![Address::from(remote)]),
+            Message::init(peer.node_id(), Some(Address::from(remote)).into()),
         );
 
         let mut msgs = self.messages(&remote);
@@ -257,7 +258,14 @@ where
 
         self.receive(
             &remote,
-            Message::init(peer.node_id(), peer.config().listen.clone()),
+            Message::init(
+                peer.node_id(),
+                peer.config()
+                    .listen
+                    .clone()
+                    .try_into()
+                    .expect("within bound limits"),
+            ),
         );
     }
 

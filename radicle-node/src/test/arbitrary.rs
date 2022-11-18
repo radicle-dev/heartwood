@@ -4,7 +4,7 @@ use bloomy::BloomFilter;
 use quickcheck::Arbitrary;
 
 use crate::crypto;
-use crate::prelude::{Id, NodeId, Refs, Timestamp};
+use crate::prelude::{BoundedVec, Id, NodeId, Refs, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
 use crate::service::message::{
     Address, Announcement, InventoryAnnouncement, Message, NodeAnnouncement, Ping,
@@ -45,7 +45,7 @@ impl Arbitrary for Message {
             MessageType::InventoryAnnouncement => Announcement {
                 node: NodeId::arbitrary(g),
                 message: InventoryAnnouncement {
-                    inventory: Vec::<Id>::arbitrary(g),
+                    inventory: BoundedVec::arbitrary(g),
                     timestamp: Timestamp::arbitrary(g),
                 }
                 .into(),
@@ -121,5 +121,16 @@ impl Arbitrary for Address {
 impl Arbitrary for ZeroBytes {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
         ZeroBytes::new(u16::arbitrary(g))
+    }
+}
+
+impl<T, const N: usize> Arbitrary for BoundedVec<T, N>
+where
+    T: Arbitrary + Eq,
+{
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let mut v: Vec<T> = Arbitrary::arbitrary(g);
+        v.truncate(N);
+        v.try_into().expect("size within bounds")
     }
 }

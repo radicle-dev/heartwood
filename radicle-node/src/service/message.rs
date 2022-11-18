@@ -6,10 +6,16 @@ use thiserror::Error;
 use crate::crypto;
 use crate::identity::Id;
 use crate::node;
+use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
 use crate::service::{NodeId, Timestamp, PROTOCOL_VERSION};
 use crate::storage::refs::Refs;
 use crate::wire;
+
+/// Maximum number of addresses which can be announced to other nodes.
+pub const ADDRESS_LIMIT: usize = 16;
+/// Maximum number of inventory which can be announced to other nodes.
+pub const INVENTORY_LIMIT: usize = 2973;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: We should check the length and charset when deserializing.
@@ -132,7 +138,7 @@ pub struct NodeAnnouncement {
     /// Non-unique alias. Must be valid UTF-8.
     pub alias: [u8; 32],
     /// Announced addresses.
-    pub addresses: Vec<Address>,
+    pub addresses: BoundedVec<Address, ADDRESS_LIMIT>,
     /// Nonce used for announcement proof-of-work.
     pub nonce: u64,
 }
@@ -188,7 +194,7 @@ impl wire::Encode for NodeAnnouncement {
         n += self.features.encode(writer)?;
         n += self.timestamp.encode(writer)?;
         n += self.alias.encode(writer)?;
-        n += self.addresses.as_slice().encode(writer)?;
+        n += self.addresses.encode(writer)?;
         n += self.nonce.encode(writer)?;
 
         Ok(n)
@@ -200,7 +206,7 @@ impl wire::Decode for NodeAnnouncement {
         let features = node::Features::decode(reader)?;
         let timestamp = Timestamp::decode(reader)?;
         let alias = wire::Decode::decode(reader)?;
-        let addresses = Vec::<Address>::decode(reader)?;
+        let addresses = BoundedVec::<Address, ADDRESS_LIMIT>::decode(reader)?;
         let nonce = u64::decode(reader)?;
 
         Ok(Self {
@@ -229,7 +235,7 @@ pub struct RefsAnnouncement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InventoryAnnouncement {
     /// Node inventory.
-    pub inventory: Vec<Id>,
+    pub inventory: BoundedVec<Id, INVENTORY_LIMIT>,
     /// Time of announcement.
     pub timestamp: Timestamp,
 }
@@ -362,7 +368,7 @@ pub enum Message {
         // TODO: This is currently untrusted.
         id: NodeId,
         version: u32,
-        addrs: Vec<Address>,
+        addrs: BoundedVec<Address, ADDRESS_LIMIT>,
     },
 
     /// Subscribe to gossip messages matching the filter and time range.
@@ -386,7 +392,7 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn init(id: NodeId, addrs: Vec<Address>) -> Self {
+    pub fn init(id: NodeId, addrs: BoundedVec<Address, ADDRESS_LIMIT>) -> Self {
         Self::Initialize {
             id,
             version: PROTOCOL_VERSION,
@@ -497,9 +503,41 @@ impl ZeroBytes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck_macros::quickcheck;
+    use crate::prelude::*;
+    use crate::wire::Encode;
 
     use crate::crypto::test::signer::MockSigner;
+    use crate::test::arbitrary;
+    use quickcheck_macros::quickcheck;
+
+    #[test]
+    fn test_inventory_limit() {
+        let msg = Message::inventory(
+            InventoryAnnouncement {
+                inventory: arbitrary::vec(INVENTORY_LIMIT)
+                    .try_into()
+                    .expect("size within bounds limit"),
+                timestamp: LocalTime::now().as_secs(),
+            },
+            &MockSigner::default(),
+        );
+        let mut buf: Vec<u8> = Vec::new();
+        assert!(
+            msg.encode(&mut buf).is_ok(),
+            "INVENTORY_LIMIT is a valid limit for encoding",
+        );
+
+        let decoded = wire::deserialize(buf.as_slice());
+        assert!(
+            decoded.is_ok(),
+            "INVENTORY_LIMIT is a valid limit for decoding"
+        );
+        assert_eq!(
+            msg,
+            decoded.unwrap(),
+            "encoding and decoding should be safe for message at INVENTORY_LIMIT",
+        );
+    }
 
     #[quickcheck]
     fn prop_refs_announcement_signing(id: Id, refs: Refs) {
@@ -521,7 +559,7 @@ mod tests {
             features: node::Features::SEED,
             timestamp: 42491841,
             alias: [0; 32],
-            addresses: vec![],
+            addresses: BoundedVec::new(),
             nonce: 0,
         };
 

@@ -21,7 +21,7 @@ struct Options {
 }
 
 impl Options {
-    fn from_env() -> Result<Self, lexopt::Error> {
+    fn from_env() -> Result<Self, anyhow::Error> {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_env();
@@ -55,9 +55,17 @@ impl Options {
                     println!("usage: radicle-node [--connect <addr>]..");
                     process::exit(0);
                 }
-                _ => return Err(arg.unexpected()),
+                _ => anyhow::bail!(arg.unexpected()),
             }
         }
+
+        if external_addresses.len() > service::ADDRESS_LIMIT {
+            anyhow::bail!(
+                "external address limit ({}) exceeded",
+                service::ADDRESS_LIMIT,
+            )
+        }
+
         Ok(Self {
             connect,
             external_addresses,

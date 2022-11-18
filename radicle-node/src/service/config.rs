@@ -85,7 +85,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             connect: Vec::default(),
-            external_addresses: vec![],
+            external_addresses: Vec::default(),
             network: Network::default(),
             project_tracking: ProjectTracking::default(),
             remote_tracking: RemoteTracking::default(),
