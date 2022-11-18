@@ -7,7 +7,7 @@ edition = "2021"
 
 [features]
 default = []
-test = ["quickcheck"]
+test = ["quickcheck", "radicle-crypto/test", "radicle-node/test"]
 sql = ["sqlite"]
 
 [dependencies]
