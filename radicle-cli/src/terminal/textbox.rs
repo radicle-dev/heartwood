@@ -40,7 +40,7 @@ impl fmt::Display for TextBox {
             .unwrap_or(0)
             + 2;
         if let Some(max) = term::width() {
-            if max < width + 2 {
+            if width + 2 > max {
                 width = max - 2
             }
         }
