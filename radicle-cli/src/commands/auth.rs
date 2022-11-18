@@ -4,6 +4,7 @@ use std::ffi::OsString;
 use anyhow::anyhow;
 
 use radicle::crypto::ssh;
+use radicle::profile;
 use radicle::Profile;
 
 use crate::git;
@@ -76,9 +77,10 @@ pub fn init(options: Options) -> anyhow::Result<()> {
         term::blank();
     }
 
+    let home = profile::home()?;
     let passphrase = term::read_passphrase(options.stdin, true)?;
     let spinner = term::spinner("Creating your 🌱 Ed25519 keypair...");
-    let profile = Profile::init(passphrase.as_str())?;
+    let profile = Profile::init(home, passphrase.as_str())?;
     spinner.finish();
 
     term::success!(
