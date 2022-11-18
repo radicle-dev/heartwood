@@ -177,7 +177,9 @@ pub fn abort<D: fmt::Display>(prompt: D) -> bool {
 
 /// Get the signer. First we try getting it from ssh-agent, otherwise we prompt the user.
 pub fn signer(profile: &Profile) -> anyhow::Result<Box<dyn Signer>> {
-    let signer = if let Ok(signer) = profile.signer() {
+    let signer = if let Ok(passphrase) = read_passphrase_from_env_var() {
+        MemorySigner::load(&profile.keystore, passphrase)?.boxed()
+    } else if let Ok(signer) = profile.signer() {
         signer.boxed()
     } else {
         let passphrase = secret_input();
