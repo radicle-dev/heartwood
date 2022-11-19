@@ -23,7 +23,7 @@ pub enum ReactionError {
     InvalidReaction,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Reaction {
     pub emoji: char,
@@ -278,7 +278,7 @@ impl Comment<Replies> {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialOrd, PartialEq, Ord, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq, Ord, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Timestamp {
     seconds: u64,
@@ -300,6 +300,16 @@ impl Timestamp {
 
     pub fn as_secs(&self) -> u64 {
         self.seconds
+    }
+}
+
+impl std::ops::Add<u64> for Timestamp {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self::Output {
+        Self {
+            seconds: self.seconds + rhs,
+        }
     }
 }
 

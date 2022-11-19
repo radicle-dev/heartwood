@@ -1,0 +1,20 @@
+[package]
+name = "radicle-crdt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+num-traits = { version = "0.2.15", default-features = false, features = ["std"] }
+olpc-cjson = { version = "0.1.1" }
+radicle = { path = "../radicle" }
+serde = { version = "1" }
+serde_json = { version = "1" }
+
+[dev-dependencies]
+itertools = { version = "0.10.5" }
+fastrand = { version = "1.8.0" }
+pretty_assertions = { version = "1.3.0" }
+quickcheck = { version = "1" }
+quickcheck_macros = { version = "1" }
+radicle = { path = "../radicle", features = ["test"] }
+radicle-crypto = { path = "../radicle-crypto", features = ["test"] }
