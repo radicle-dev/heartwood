@@ -542,7 +542,7 @@ where
             deserializer,
         }) = self.inboxes.get_mut(addr)
         {
-            let bytes = transcoder.decrypt(raw_bytes);
+            let bytes = transcoder.decode(raw_bytes);
             deserializer.input(&bytes);
 
             loop {
@@ -584,7 +584,7 @@ impl<R, S, W, G, H: Handshake> Iterator for Wire<R, S, W, G, H> {
                 let Inbox { transcoder, .. } = self.inboxes.get_mut(&addr).expect(
                     "broken handshake implementation: data sent before handshake was complete",
                 );
-                let data = transcoder.encrypt(buf);
+                let data = transcoder.encode(buf);
                 Some(nakamoto::Io::Write(addr, data))
             }
             Some(Io::Event(e)) => Some(nakamoto::Io::Event(e)),
