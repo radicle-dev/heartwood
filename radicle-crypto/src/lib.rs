@@ -64,7 +64,7 @@ where
 }
 
 /// Cryptographic signature.
-#[derive(PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Serialize, Deserialize)]
 #[serde(into = "String", try_from = "String")]
 pub struct Signature(pub ed25519::Signature);
 
