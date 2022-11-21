@@ -13,7 +13,7 @@ test = ["fastrand", "quickcheck"]
 ssh = ["base64", "radicle-ssh", "sha2", "ssh-key"]
 
 [dependencies]
-ed25519-compact = { version = "1.0.12", features = ["pem"] }
+ed25519-compact = { version = "2.0.2", features = ["pem"] }
 multibase = { version = "0.9.1" }
 serde = { version = "1", features = ["derive"] }
 sqlite = { version = "0.28.1", optional = true }
