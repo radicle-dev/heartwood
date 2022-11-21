@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::{fmt, ops::Deref, str::FromStr};
 
 use ed25519_compact as ed25519;
@@ -155,6 +156,18 @@ impl PublicKey {
 /// The private/signing key.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct SecretKey(ed25519::SecretKey);
+
+impl PartialOrd for SecretKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SecretKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+}
 
 impl zeroize::Zeroize for SecretKey {
     fn zeroize(&mut self) {
