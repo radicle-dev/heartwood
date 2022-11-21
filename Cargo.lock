@@ -20,6 +20,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "amplify_derive"
+version = "2.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c3de270e75f27a4468a7c344070109046656e85cb522141f7d40ab4b83803ac"
+dependencies = [
+ "amplify_syn",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "amplify_syn"
+version = "1.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da24db1445cc7bc3842fa072c2d51fe5b25b812b6a572d65842a4c72e87221ac"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -454,6 +477,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "cyphernet"
+version = "0.1.0"
+source = "git+https://github.com/Internet2-WG/rust-cyphernet#e29a5f994e3d63fd2a41c47323930c243d513e84"
+dependencies = [
+ "amplify_derive",
+ "multibase",
+ "socks",
 ]
 
 [[package]]
@@ -1541,6 +1574,7 @@ dependencies = [
  "base64",
  "byteorder",
  "crossbeam-channel",
+ "cyphernet",
  "ed25519-compact",
  "fastrand",
  "git-ref-format",
@@ -1618,6 +1652,7 @@ name = "radicle-crypto"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "cyphernet",
  "ed25519-compact",
  "fastrand",
  "git-ref-format",
@@ -2046,6 +2081,17 @@ version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02e2d2db9033d13a1567121ddd7a095ee144db4e1ca1b1bda3419bc0da294ebd"
 dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
+name = "socks"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0c3dbbd9ae980613c6dd8e28a9407b50509d3803b57624d5dfe8315218cd58b"
+dependencies = [
+ "byteorder",
  "libc",
  "winapi",
 ]
