@@ -34,7 +34,6 @@ use crate::service::message::{Address, Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
-use crate::wire;
 
 pub use crate::node::NodeId;
 pub use crate::service::config::{Config, Network};
@@ -1305,7 +1304,7 @@ mod gossip {
 
     pub fn inventory(timestamp: Timestamp, inventory: Vec<Id>) -> InventoryAnnouncement {
         InventoryAnnouncement {
-            inventory: wire::BoundedVec::try_from(inventory).unwrap(),
+            inventory: inventory.try_into().unwrap(),
             timestamp,
         }
     }
