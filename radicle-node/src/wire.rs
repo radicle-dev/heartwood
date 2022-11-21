@@ -482,8 +482,8 @@ where
     }
 
     fn connected(&mut self, addr: net::SocketAddr, local_addr: &net::SocketAddr, link: Link) {
-        self.handshakes.insert(addr, H::new());
-        self.inner.connected(addr, local_addr, link)
+        self.handshakes.insert(addr, H::new(link));
+        self.inner.connecting(addr, local_addr, link)
     }
 
     fn disconnected(
@@ -509,7 +509,7 @@ where
                     }
                     return;
                 }
-                HandshakeResult::Complete(transcoder, reply) => {
+                HandshakeResult::Complete(transcoder, reply, link) => {
                     log::debug!("handshake with peer {} is complete", addr);
                     if !reply.is_empty() {
                         self.inner_queue
@@ -522,6 +522,7 @@ where
                             deserializer: Deserializer::new(256),
                         },
                     );
+                    self.inner.connected(*addr, link);
                 }
                 HandshakeResult::Error(err) => {
                     log::error!("invalid handshake input. Details: {}", err);

@@ -385,7 +385,8 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         let attempted = link.is_outbound() && self.attempts.remove(&conn);
                         if attempted || link.is_inbound() {
                             if self.connections.insert(conn, local_addr.port()).is_none() {
-                                p.connected(addr, &local_addr, link);
+                                p.connecting(addr, &local_addr, link);
+                                p.connected(addr, link);
                             }
                         }
                     }
