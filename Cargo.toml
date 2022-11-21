@@ -27,3 +27,8 @@ version = "0.3.0"
 git = "https://github.com/cloudhead/nakamoto"
 rev = "90cc3eac67aa5cfd5f42cf7cb1e2b155af3214fb"
 version = "0.3.0"
+
+[patch.crates-io.cyphernet]
+git = "https://github.com/internet2-wg/rust-cyphernet"
+rev = "dee03a95abe4c964e5d9f8532c7dc76998dfeea7"
+version = "0.1.0"
