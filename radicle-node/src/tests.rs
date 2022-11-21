@@ -616,7 +616,7 @@ fn test_inventory_relay() {
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
     // TODO: remove BoundedVec const integral when it becomes conferable
-    let inv: wire::BoundedVec<1024, _> = vec![].try_into().unwrap();
+    let inv: wire::BoundedVec<_, 1024> = vec![].try_into().unwrap();
     let now = LocalTime::now().as_secs();
 
     // Inventory from Bob relayed to Eve.

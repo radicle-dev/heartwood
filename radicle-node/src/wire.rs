@@ -28,11 +28,11 @@ use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BoundedVec<const N: usize, T> {
+pub struct BoundedVec<T, const N: usize> {
     v: Vec<T>,
 }
 
-impl<const N: usize, T> BoundedVec<N, T> {
+impl<T, const N: usize> BoundedVec<T, N> {
     pub fn new() -> Self {
         BoundedVec { v: Vec::new() }
     }
@@ -75,13 +75,13 @@ impl<const N: usize, T> BoundedVec<N, T> {
     }
 }
 
-impl<const N: usize, T> Default for BoundedVec<N, T> {
+impl<T, const N: usize> Default for BoundedVec<T, N> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<const N: usize, T> TryFrom<Vec<T>> for BoundedVec<N, T>
+impl<T, const N: usize> TryFrom<Vec<T>> for BoundedVec<T, N>
 where
     T: Clone,
 {
@@ -404,14 +404,14 @@ where
     }
 }
 
-impl<const N: usize, T> Decode for BoundedVec<N, T>
+impl<T, const N: usize> Decode for BoundedVec<T, N>
 where
     T: Decode,
 {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
         let len: Size = Size::decode(reader)?;
 
-        let mut vec: BoundedVec<N, T> = BoundedVec::with_capacity(len as usize);
+        let mut vec: BoundedVec<T, N> = BoundedVec::with_capacity(len as usize);
 
         for _ in 0..len {
             let item = T::decode(reader)?;

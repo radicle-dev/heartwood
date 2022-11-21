@@ -125,7 +125,7 @@ impl Arbitrary for ZeroBytes {
     }
 }
 
-impl<const N: usize, T> Arbitrary for wire::BoundedVec<N, T>
+impl<T, const N: usize> Arbitrary for wire::BoundedVec<T, N>
 where
     T: Arbitrary + Eq,
 {
