@@ -13,6 +13,11 @@ pub mod test;
 #[cfg(feature = "ssh")]
 pub mod ssh;
 
+#[cfg(feature = "cyphernet")]
+mod cyphernet;
+#[cfg(feature = "cyphernet")]
+pub use self::cyphernet::Ed25519;
+
 /// Verified (used as type witness).
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Verified;
