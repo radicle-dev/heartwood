@@ -152,7 +152,7 @@ impl wire::Encode for InventoryAnnouncement {
 
 impl wire::Decode for InventoryAnnouncement {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
-        let inventory = wire::LimitedVec::decode(reader)?;
+        let inventory = wire::BoundedVec::decode(reader)?;
         let timestamp = Timestamp::decode(reader)?;
 
         Ok(Self {

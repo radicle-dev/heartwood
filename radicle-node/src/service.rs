@@ -1305,7 +1305,7 @@ mod gossip {
 
     pub fn inventory(timestamp: Timestamp, inventory: Vec<Id>) -> InventoryAnnouncement {
         InventoryAnnouncement {
-            inventory: wire::LimitedVec::try_from(inventory).unwrap(),
+            inventory: wire::BoundedVec::try_from(inventory).unwrap(),
             timestamp,
         }
     }

@@ -27,65 +27,14 @@ use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
 
-pub trait Number {
-    fn new() -> Self;
-    fn usize() -> usize;
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct N8();
-
-impl Number for N8 {
-    fn new() -> Self {
-        N8()
-    }
-
-    fn usize() -> usize {
-        8
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct N128();
-
-impl Number for N128 {
-    fn new() -> Self {
-        N128()
-    }
-
-    fn usize() -> usize {
-        128
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct N1024();
-
-impl Number for N1024 {
-    fn new() -> Self {
-        N1024()
-    }
-
-    fn usize() -> usize {
-        1024
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LimitedVec<N, T> {
-    size: N,
+pub struct BoundedVec<const N: usize, T> {
     v: Vec<T>,
 }
 
-impl<N, T> LimitedVec<N, T>
-where
-    N: Number,
-{
+impl<const N: usize, T> BoundedVec<N, T> {
     pub fn new() -> Self {
-        LimitedVec {
-            size: N::new(),
-            v: Vec::new(),
-        }
+        BoundedVec { v: Vec::new() }
     }
 
     pub fn as_slice(&self) -> &[T] {
@@ -104,8 +53,12 @@ where
         self.v.len()
     }
 
+    pub fn max(&self) -> usize {
+        N
+    }
+
     pub fn push(&mut self, item: T) -> bool {
-        if self.len() > N::usize() {
+        if self.len() > N {
             return false;
         }
         self.v.push(item);
@@ -113,43 +66,35 @@ where
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        if capacity > N::usize() {
+        if capacity > N {
             todo!()
         }
         Self {
-            size: N::new(),
             v: Vec::with_capacity(capacity),
         }
     }
 }
 
-impl<N, T> Default for LimitedVec<N, T>
-where
-    N: Number,
-{
+impl<const N: usize, T> Default for BoundedVec<N, T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<N, T> TryFrom<Vec<T>> for LimitedVec<N, T>
+impl<const N: usize, T> TryFrom<Vec<T>> for BoundedVec<N, T>
 where
-    N: Number,
     T: Clone,
 {
     type Error = Error;
 
     fn try_from(value: Vec<T>) -> Result<Self, Self::Error> {
-        if value.len() > N::usize() {
+        if value.len() > N {
             return Err(Error::InvalidSize {
-                expected: N::usize(),
+                expected: N,
                 actual: value.len(),
             });
         }
-        Ok(LimitedVec {
-            size: N::new(),
-            v: value,
-        })
+        Ok(BoundedVec { v: value })
     }
 }
 
@@ -459,15 +404,14 @@ where
     }
 }
 
-impl<N, T> Decode for LimitedVec<N, T>
+impl<const N: usize, T> Decode for BoundedVec<N, T>
 where
     T: Decode,
-    N: Number,
 {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
         let len: Size = Size::decode(reader)?;
 
-        let mut vec: LimitedVec<N, T> = LimitedVec::with_capacity(len as usize);
+        let mut vec: BoundedVec<N, T> = BoundedVec::with_capacity(len as usize);
 
         for _ in 0..len {
             let item = T::decode(reader)?;

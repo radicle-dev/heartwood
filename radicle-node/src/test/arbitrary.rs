@@ -46,7 +46,7 @@ impl Arbitrary for Message {
             MessageType::InventoryAnnouncement => Announcement {
                 node: NodeId::arbitrary(g),
                 message: InventoryAnnouncement {
-                    inventory: wire::LimitedVec::arbitrary(g),
+                    inventory: wire::BoundedVec::arbitrary(g),
                     timestamp: Timestamp::arbitrary(g),
                 }
                 .into(),
@@ -125,9 +125,8 @@ impl Arbitrary for ZeroBytes {
     }
 }
 
-impl<N, T> Arbitrary for wire::LimitedVec<N, T>
+impl<const N: usize, T> Arbitrary for wire::BoundedVec<N, T>
 where
-    N: wire::Number + Clone + 'static,
     T: Arbitrary + Eq,
 {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
