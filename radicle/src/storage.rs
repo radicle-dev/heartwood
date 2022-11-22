@@ -6,6 +6,7 @@ use std::ops::Deref;
 use std::path::Path;
 use std::{fmt, io};
 
+use serde::Serialize;
 use thiserror::Error;
 
 use crypto::{PublicKey, Signer, Unverified, Verified};
@@ -184,11 +185,12 @@ impl<V> From<Remotes<V>> for HashMap<RemoteId, Refs> {
 }
 
 /// A project remote.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Remote<V = Verified> {
     /// ID of remote.
     pub id: PublicKey,
     /// Git references published under this remote, and their hashes.
+    #[serde(flatten)]
     pub refs: SignedRefs<V>,
     /// Whether this remote is a delegate for the project.
     pub delegate: bool,

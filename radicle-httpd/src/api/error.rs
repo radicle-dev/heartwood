@@ -67,6 +67,10 @@ pub enum Error {
     /// Git2 error.
     #[error(transparent)]
     Git2(#[from] radicle::git::raw::Error),
+
+    /// Storage refs error.
+    #[error(transparent)]
+    StorageRef(#[from] radicle::storage::refs::Error),
 }
 
 impl Error {

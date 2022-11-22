@@ -13,8 +13,10 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use radicle::cob::issue::Issues;
 use radicle::git::raw::BranchType;
 use radicle::identity::{Doc, Id};
+use radicle::node::NodeId;
 use radicle::storage::{Oid, ReadRepository, WriteRepository, WriteStorage};
 use radicle_surf::git::History;
+use radicle_surf::Revision::Sha;
 
 use crate::api::axum_extra::{Path, Query};
 use crate::api::error::Error;
@@ -39,6 +41,10 @@ pub fn router(ctx: Context) -> Router {
             ),
         )
         .route("/projects/:project/tree/:sha/*path", get(tree_handler))
+        .route("/projects/:project/remotes", get(remotes_handler))
+        .route("/projects/:project/remotes/:peer", get(remote_handler))
+        .route("/projects/:project/blob/:sha/*path", get(blob_handler))
+        .route("/projects/:project/readme/:sha", get(readme_handler))
         .layer(Extension(ctx))
 }
 
@@ -183,7 +189,7 @@ async fn commit_handler(
     let repo = storage.repository(project)?;
     let commit = radicle_surf::commit(&repo.raw().into(), sha)?;
 
-    Ok::<_, Error>(Json(json!(commit)))
+    Ok::<_, Error>(Json(commit))
 }
 
 /// Get project activity for the past year.
@@ -221,11 +227,7 @@ async fn tree_handler(
     let path = path.strip_prefix('/').ok_or(Error::NotFound)?.to_string();
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let tree = radicle_surf::object::tree(
-        &repo.raw().into(),
-        Some(radicle_surf::Revision::Sha { sha }),
-        Some(path),
-    )?;
+    let tree = radicle_surf::object::tree(&repo.raw().into(), Some(Sha { sha }), Some(path))?;
     let response = json!({
         "path": &tree.path,
         "entries": &tree.entries,
@@ -234,6 +236,77 @@ async fn tree_handler(
     });
 
     Ok::<_, Error>(Json(response))
+}
+
+/// Get all project remotes.
+/// `GET /projects/:project/remotes`
+async fn remotes_handler(
+    Extension(ctx): Extension<Context>,
+    Path(project): Path<Id>,
+) -> impl IntoResponse {
+    let storage = &ctx.profile.storage;
+    let repo = storage.repository(project)?;
+    let remotes = repo
+        .remotes()?
+        .filter_map(|r| r.map(|r| r.1).ok())
+        .collect::<Vec<_>>();
+
+    Ok::<_, Error>(Json(remotes))
+}
+
+/// Get project remote.
+/// `GET /projects/:project/remotes/:peer`
+async fn remote_handler(
+    Extension(ctx): Extension<Context>,
+    Path((project, node_id)): Path<(Id, NodeId)>,
+) -> impl IntoResponse {
+    let storage = &ctx.profile.storage;
+    let repo = storage.repository(project)?;
+    let remote = repo.remote(&node_id)?;
+
+    Ok::<_, Error>(Json(remote))
+}
+
+/// Get project source file.
+/// `GET /projects/:project/blob/:sha/*path`
+async fn blob_handler(
+    Extension(ctx): Extension<Context>,
+    Path((project, sha, path)): Path<(Id, Oid, String)>,
+) -> impl IntoResponse {
+    let path = path.strip_prefix('/').ok_or(Error::NotFound)?;
+    let storage = &ctx.profile.storage;
+    let repo = storage.repository(project)?;
+    let blob = radicle_surf::blob::blob(&repo.raw().into(), Some(Sha { sha }), path)?;
+
+    Ok::<_, Error>(Json(blob))
+}
+
+/// Get project readme.
+/// `GET /projects/:project/readme/:sha`
+async fn readme_handler(
+    Extension(ctx): Extension<Context>,
+    Path((project, sha)): Path<(Id, Oid)>,
+) -> impl IntoResponse {
+    let storage = &ctx.profile.storage;
+    let repo = storage.repository(project)?;
+    let paths = &[
+        "README",
+        "README.md",
+        "README.markdown",
+        "README.txt",
+        "README.rst",
+        "Readme.md",
+    ];
+
+    for path in paths {
+        if let Ok(blob) = radicle_surf::blob::blob(&repo.raw().into(), Some(Sha { sha }), path) {
+            return Ok::<_, Error>(Json(blob));
+        }
+    }
+
+    Err(radicle_surf::object::Error::PathNotFound(
+        radicle_surf::file_system::Path::try_from("README").unwrap(),
+    ))?
 }
 
 #[derive(Serialize)]

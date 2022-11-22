@@ -8,6 +8,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use crypto::{PublicKey, Signature, Signer, SignerError, Unverified, Verified};
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::git;
@@ -62,7 +63,7 @@ impl Error {
 }
 
 /// The published state of a local repository.
-#[derive(Default, Clone, Debug, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Refs(BTreeMap<git::RefString, Oid>);
 
 impl Refs {
@@ -197,11 +198,12 @@ impl DerefMut for Refs {
 ///
 /// The type parameter keeps track of whether the signature was [`Verified`] or
 /// [`Unverified`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SignedRefs<V> {
     pub refs: Refs,
+    #[serde(skip)]
     pub signature: Signature,
-
+    #[serde(skip)]
     _verified: PhantomData<V>,
 }
 

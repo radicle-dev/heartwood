@@ -19,7 +19,7 @@ mod cyphernet;
 pub use self::cyphernet::Ed25519;
 
 /// Verified (used as type witness).
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize)]
 pub struct Verified;
 /// Unverified (used as type witness).
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
