@@ -56,6 +56,19 @@ impl From<net::SocketAddr> for Address {
     }
 }
 
+impl Address {
+    pub fn to_socket_addr(&self) -> net::SocketAddr {
+        match self {
+            Self::Ipv4 { ip, port } => net::SocketAddrV4::new(*ip, *port).into(),
+            Self::Ipv6 { ip, port } => net::SocketAddrV6::new(*ip, *port, 0, 0).into(),
+
+            _ => {
+                todo!();
+            }
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum AddressParseError {
     #[error("unsupported address type `{0}`")]

@@ -14,7 +14,7 @@ pub enum Io {
     /// There are some messages ready to be sent to a peer.
     Write(net::SocketAddr, Vec<Message>),
     /// Connect to a peer.
-    Connect(net::SocketAddr),
+    Connect(Address),
     /// Disconnect from a peer.
     Disconnect(net::SocketAddr, DisconnectReason),
     /// Ask for a wakeup in a specified amount of time.
@@ -38,20 +38,7 @@ impl Reactor {
 
     /// Connect to a peer.
     pub fn connect(&mut self, addr: impl Into<Address>) {
-        // TODO: Make sure we don't try to connect more than once to the same address.
-        match addr.into() {
-            Address::Ipv4 { ip, port } => {
-                self.io
-                    .push_back(Io::Connect(net::SocketAddr::new(net::IpAddr::V4(ip), port)));
-            }
-            Address::Ipv6 { ip, port } => {
-                self.io
-                    .push_back(Io::Connect(net::SocketAddr::new(net::IpAddr::V6(ip), port)));
-            }
-            other => {
-                log::error!("Unsupported address type `{}`", other);
-            }
-        }
+        self.io.push_back(Io::Connect(addr.into()));
     }
 
     /// Disconnect a peer.

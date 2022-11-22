@@ -536,6 +536,7 @@ version = "0.1.0"
 source = "git+https://github.com/internet2-wg/rust-cyphernet?rev=dee03a95abe4c964e5d9f8532c7dc76998dfeea7#dee03a95abe4c964e5d9f8532c7dc76998dfeea7"
 dependencies = [
  "amplify_derive",
+ "ed25519-compact",
  "multibase",
  "socks",
 ]
@@ -637,6 +638,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f2d21333b679bbbac680b3eb45c86937e42f69277028f4e97b599b80b86c253"
 dependencies = [
  "ct-codecs",
+ "ed25519",
  "getrandom 0.2.8",
 ]
 
@@ -1812,6 +1814,7 @@ dependencies = [
  "chrono",
  "colored",
  "crossbeam-channel",
+ "cyphernet",
  "fastrand",
  "git-ref-format",
  "lexopt",

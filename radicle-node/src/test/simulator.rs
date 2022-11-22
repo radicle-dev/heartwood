@@ -479,7 +479,8 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 );
             }
             Io::Connect(remote) => {
-                assert!(remote.ip() != node, "self-connections are not allowed");
+                let remote = remote.to_socket_addr();
+                assert_ne!(remote.ip(), node, "self-connections are not allowed");
 
                 // Create an ephemeral sockaddr for the connecting (local) node.
                 let local_addr: net::SocketAddr = net::SocketAddr::new(node, self.rng.u16(8192..));

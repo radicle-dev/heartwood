@@ -20,6 +20,7 @@ use crate::git::fmt;
 use crate::hash::Digest;
 use crate::identity::Id;
 use crate::node;
+use crate::prelude::Address;
 use crate::service;
 use crate::service::reactor::Io;
 use crate::service::{filter, routing, session};
@@ -432,6 +433,7 @@ pub struct Inbox<T: Transcode> {
 
 #[derive(Debug)]
 pub struct Wire<R, S, W, G, H: Handshake> {
+    connecting: HashMap<net::SocketAddr, Address>,
     handshakes: HashMap<net::SocketAddr, H>,
     inner_queue: VecDeque<nakamoto::Io<service::Event, service::DisconnectReason>>,
     inboxes: HashMap<net::SocketAddr, Inbox<H::Transcoder>>,
@@ -441,6 +443,7 @@ pub struct Wire<R, S, W, G, H: Handshake> {
 impl<R, S, W, G, H: Handshake> Wire<R, S, W, G, H> {
     pub fn new(inner: service::Service<R, S, W, G>) -> Self {
         Self {
+            connecting: Default::default(),
             handshakes: HashMap::new(),
             inner_queue: Default::default(),
             inboxes: HashMap::new(),
@@ -455,7 +458,7 @@ where
     S: address::Store,
     W: WriteStorage + 'static,
     G: Signer,
-    H: Handshake,
+    H: Handshake<Init = Address>,
 {
     type Event = service::Event;
     type Command = service::Command;
@@ -482,7 +485,17 @@ where
     }
 
     fn connected(&mut self, addr: net::SocketAddr, local_addr: &net::SocketAddr, link: Link) {
-        self.handshakes.insert(addr, H::new(link));
+        let handshake = match (link, self.connecting.remove(&addr)) {
+            (Link::Inbound, None) => H::accept(),
+            (Link::Outbound, Some(addr)) => H::init(addr),
+            (Link::Inbound, Some(a)) => {
+                panic!("inbound connection to {} which is in the process of outbound connection establishment", a);
+            }
+            (Link::Outbound, None) => {
+                panic!("outbound connection with no registered peer address");
+            }
+        };
+        self.handshakes.insert(addr, handshake);
         self.inner.connecting(addr, local_addr, link)
     }
 
@@ -603,8 +616,19 @@ impl<R, S, W, G, H: Handshake> Iterator for Wire<R, S, W, G, H> {
                 Some(nakamoto::Io::Write(addr, msg.into()))
             }
             Some(Io::Event(e)) => Some(nakamoto::Io::Event(e)),
-            Some(Io::Connect(a)) => Some(nakamoto::Io::Connect(a)),
-            Some(Io::Disconnect(a, r)) => Some(nakamoto::Io::Disconnect(a, r)),
+            Some(Io::Connect(addr)) => {
+                let socket_addr = addr.to_socket_addr();
+                self.connecting.insert(socket_addr, addr);
+
+                Some(nakamoto::Io::Connect(socket_addr))
+            }
+            Some(Io::Disconnect(socket_addr, reason)) => {
+                // TODO: (max) Handle incomplete handshakes and connecting list
+                self.connecting.remove(&socket_addr);
+                self.handshakes.remove(&socket_addr);
+
+                Some(nakamoto::Io::Disconnect(socket_addr, reason))
+            }
             Some(Io::Wakeup(d)) => Some(nakamoto::Io::Wakeup(d)),
 
             None => None,

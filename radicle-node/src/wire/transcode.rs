@@ -5,6 +5,8 @@ use std::io::Read;
 
 use nakamoto_net::Link;
 
+use crate::prelude::Address;
+
 // TODO: Implement Try trait once stabilized
 /// Result of a state-machine transition.
 pub enum HandshakeResult<H: Handshake, T: Transcode> {
@@ -16,17 +18,19 @@ pub enum HandshakeResult<H: Handshake, T: Transcode> {
     Error(H::Error),
 }
 
-/// State machine implementation of a handshake protocol which can be run by
-/// peers.
+/// State machine implementation of a handshake protocol which can be run by peers.
 pub trait Handshake: Sized {
-    /// The resulting transcoder which will be constructed upon a successful
-    /// handshake
+    /// Passed to `init` method.
+    type Init;
+    /// The resulting transcoder which will be constructed upon a successful handshake.
     type Transcoder: Transcode;
     /// Errors which may happen during the handshake.
     type Error: std::error::Error;
 
-    /// Create a new handshake state-machine.
-    fn new(link: Link) -> Self;
+    /// Create a new handshake state-machine for outbound peers.
+    fn init(state: Self::Init) -> Self;
+    /// Create a new handshake state machine for inbound peers.
+    fn accept() -> Self;
     /// Advance the state-machine to the next state.
     fn step(self, input: &[u8]) -> HandshakeResult<Self, Self::Transcoder>;
     /// Returns direction of the handshake protocol.
@@ -38,11 +42,16 @@ pub trait Handshake: Sized {
 pub struct NoHandshake(Link);
 
 impl Handshake for NoHandshake {
+    type Init = Address;
     type Transcoder = PlainTranscoder;
     type Error = Infallible;
 
-    fn new(link: Link) -> Self {
-        NoHandshake(link)
+    fn init(_: Address) -> Self {
+        NoHandshake(Link::Outbound)
+    }
+
+    fn accept() -> Self {
+        NoHandshake(Link::Inbound)
     }
 
     fn step(self, _input: &[u8]) -> HandshakeResult<Self, Self::Transcoder> {
