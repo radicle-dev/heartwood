@@ -39,6 +39,10 @@ pub enum Error {
     /// An error occurred while parsing the siwe message.
     #[error(transparent)]
     SiweParse(#[from] siwe::ParseError),
+
+    /// Storage error.
+    #[error(transparent)]
+    StorageError(#[from] radicle::storage::Error),
 }
 
 impl Error {

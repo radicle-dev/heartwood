@@ -99,7 +99,7 @@ async fn root_handler(Extension(ctx): Extension<Context>) -> impl IntoResponse {
                 "type": "GET"
             },
             {
-                "href": "/v1/delegates/:urn/projects",
+                "href": "/v1/delegates/:did/projects",
                 "rel": "projects",
                 "type": "GET"
             }
