@@ -1,6 +1,8 @@
 use crate::Semilattice;
 
 /// Last-Write-Wins Register.
+///
+/// In case of conflict, biased towards larger values.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LWWReg<T, C> {
     value: T,
@@ -27,8 +29,12 @@ impl<T: PartialOrd, C: PartialOrd> LWWReg<T, C> {
         &self.clock
     }
 
-    pub fn into_inner(self) -> T {
-        self.value
+    pub fn into_inner(self) -> (T, C) {
+        (self.value, self.clock)
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        self.set(other.value, other.clock);
     }
 }
 
@@ -38,7 +44,7 @@ where
     C: PartialOrd + Default,
 {
     fn join(mut self, other: Self) -> Self {
-        self.set(other.value, other.clock);
+        self.merge(other);
         self
     }
 }

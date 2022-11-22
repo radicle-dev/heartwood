@@ -1,72 +1,39 @@
-use std::collections::BTreeMap;
-
-use crate::Semilattice;
+use crate::{lwwmap::LWWMap, Semilattice};
 
 /// Last-Write-Wins Set.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LWWSet<T, C> {
-    added: BTreeMap<T, C>,
-    removed: BTreeMap<T, C>,
+    inner: LWWMap<T, (), C>,
 }
 
 impl<T: Ord, C: Ord + Copy> LWWSet<T, C> {
     pub fn singleton(value: T, clock: C) -> Self {
         Self {
-            added: BTreeMap::from_iter([(value, clock)]),
-            removed: BTreeMap::default(),
+            inner: LWWMap::from_iter([(value, (), clock)]),
         }
     }
 
     pub fn insert(&mut self, value: T, clock: C) {
-        self.added
-            .entry(value)
-            .and_modify(|t| *t = C::max(*t, clock))
-            .or_insert(clock);
+        self.inner.insert(value, (), clock);
     }
 
     pub fn remove(&mut self, value: T, clock: C) {
-        // TODO: Should we remove from 'added' set if timestamp is newer?
-        self.removed
-            .entry(value)
-            .and_modify(|t| *t = C::max(*t, clock))
-            .or_insert(clock);
+        self.inner.remove(value, clock);
     }
 
     pub fn contains(&self, value: T) -> bool {
-        let Some(added) = self.added.get(&value) else {
-            // If the element was never added, return false.
-            return false;
-        };
-
-        if let Some(removed) = self.removed.get(&value) {
-            // If the element was added and also removed, whichever came last
-            // is the winner, or if they came at the same time, we bias towards
-            // it having been added last.
-            return added >= removed;
-        }
-        // If it was only added and never removed, return true.
-        true
+        self.inner.contains_key(value)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.added.iter().filter_map(|(value, added)| {
-            if let Some(removed) = self.removed.get(value) {
-                // Note, in case the element was added and removed at the same time,
-                // we bias towards it being added, ie. this won't return `None`.
-                if removed > added {
-                    return None;
-                }
-            }
-            Some(value)
-        })
+        self.inner.iter().map(|(k, _)| k)
     }
 }
 
 impl<T, C> Default for LWWSet<T, C> {
     fn default() -> Self {
         Self {
-            added: BTreeMap::default(),
-            removed: BTreeMap::default(),
+            inner: LWWMap::default(),
         }
     }
 }
@@ -92,11 +59,12 @@ impl<T: Ord, C: Ord + Copy> Extend<(T, C)> for LWWSet<T, C> {
 impl<T, C> Semilattice for LWWSet<T, C>
 where
     T: Ord,
-    C: Ord + Copy,
+    C: Ord + Copy + Default,
 {
-    fn join(mut self, other: Self) -> Self {
-        self.extend(other.added.into_iter());
-        self
+    fn join(self, other: Self) -> Self {
+        Self {
+            inner: self.inner.join(other.inner),
+        }
     }
 }
 

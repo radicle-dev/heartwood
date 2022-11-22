@@ -1,6 +1,7 @@
 #![allow(clippy::collapsible_if)]
 #![allow(clippy::collapsible_else_if)]
 #![allow(clippy::type_complexity)]
+pub mod lwwmap;
 pub mod lwwreg;
 pub mod lwwset;
 pub mod ord;
