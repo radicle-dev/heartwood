@@ -13,7 +13,7 @@ mod test;
 ////////////////////////////////////////////////////////////////////////////////
 
 /// A join-semilattice.
-pub trait Semilattice: Default {
+pub trait Semilattice {
     /// Join or "merge" two semilattices into one.
     fn join(self, other: Self) -> Self;
 }
@@ -21,7 +21,7 @@ pub trait Semilattice: Default {
 /// Reduce an iterator of semilattice values to its least upper bound.
 pub fn fold<S>(i: impl IntoIterator<Item = S>) -> S
 where
-    S: Semilattice,
+    S: Semilattice + Default,
 {
     i.into_iter().fold(S::default(), S::join)
 }

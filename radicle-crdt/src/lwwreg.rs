@@ -1,40 +1,41 @@
+use crate::ord::Max;
 use crate::Semilattice;
 
 /// Last-Write-Wins Register.
 ///
 /// In case of conflict, biased towards larger values.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LWWReg<T, C> {
-    value: T,
-    clock: C,
+    /// Nb. the order of the tuple types ensures we bias towards the clock before the value.
+    inner: Max<(C, T)>,
 }
 
 impl<T: PartialOrd, C: PartialOrd> LWWReg<T, C> {
     pub fn new(value: T, clock: C) -> Self {
-        Self { value, clock }
-    }
-
-    pub fn set(&mut self, value: T, clock: C) {
-        if clock > self.clock || (clock == self.clock && value > self.value) {
-            self.value = value;
-            self.clock = clock;
+        Self {
+            inner: Max::from((clock, value)),
         }
     }
 
+    pub fn set(&mut self, value: T, clock: C) {
+        self.inner.merge(Max::from((clock, value)));
+    }
+
     pub fn get(&self) -> &T {
-        &self.value
+        &self.inner.get().1
     }
 
     pub fn clock(&self) -> &C {
-        &self.clock
+        &self.inner.get().0
     }
 
     pub fn into_inner(self) -> (T, C) {
-        (self.value, self.clock)
+        let (t, c) = self.inner.into_inner();
+        (c, t)
     }
 
     pub fn merge(&mut self, other: Self) {
-        self.set(other.value, other.clock);
+        self.inner.merge(other.inner);
     }
 }
 
@@ -43,9 +44,10 @@ where
     T: PartialOrd + Default,
     C: PartialOrd + Default,
 {
-    fn join(mut self, other: Self) -> Self {
-        self.merge(other);
-        self
+    fn join(self, other: Self) -> Self {
+        Self {
+            inner: self.inner.join(other.inner),
+        }
     }
 }
 

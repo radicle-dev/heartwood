@@ -1,9 +1,30 @@
 use std::{cmp, ops};
 
+use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
+
+use crate::Semilattice;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Max<T>(T);
+
+impl<T> Max<T> {
+    pub fn get(&self) -> &T {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T: PartialOrd> Max<T> {
+    pub fn merge(&mut self, other: Self) {
+        if other.0 > self.0 {
+            self.0 = other.0;
+        }
+    }
+}
 
 impl<T: num_traits::SaturatingAdd + num_traits::One> Max<T> {
     pub fn incr(&mut self) {
@@ -13,7 +34,7 @@ impl<T: num_traits::SaturatingAdd + num_traits::One> Max<T> {
 
 impl<T> Default for Max<T>
 where
-    T: num_traits::bounds::Bounded,
+    T: Bounded,
 {
     fn default() -> Self {
         Self(T::min_value())
@@ -34,13 +55,23 @@ impl<T> From<T> for Max<T> {
     }
 }
 
+impl<T: PartialOrd> Semilattice for Max<T> {
+    fn join(self, other: Self) -> Self {
+        if other.0 > self.0 {
+            other
+        } else {
+            self
+        }
+    }
+}
+
 #[allow(clippy::derive_ord_xor_partial_ord)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, Serialize, Deserialize)]
 pub struct Min<T>(pub T);
 
 impl<T> Default for Min<T>
 where
-    T: num_traits::bounds::Bounded,
+    T: Bounded,
 {
     fn default() -> Self {
         Self(T::max_value())
