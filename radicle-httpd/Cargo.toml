@@ -19,6 +19,7 @@ anyhow = { version = "1" }
 axum = { version = "0.5.16", default-features = false, features = ["json", "headers", "query"] }
 axum-server = { version = "0.4.2", default-features = false }
 ethers-core = { version = "1.0" }
+fastrand = { version = "1.7.0" }
 flate2 = { version = "1" }
 hyper = { version = "0.14.17", default-features = false }
 lexopt = { version = "0.2.1" }

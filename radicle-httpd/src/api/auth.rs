@@ -5,10 +5,10 @@ use ethers_core::types::{Signature, H160};
 use serde::{Deserialize, Serialize, Serializer};
 use time::OffsetDateTime;
 
-use crate::error::Error;
+use crate::api::error::Error;
 
 #[derive(Clone)]
-pub struct DateTime(OffsetDateTime);
+pub struct DateTime(pub OffsetDateTime);
 
 impl Serialize for DateTime {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

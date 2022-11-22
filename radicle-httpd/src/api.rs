@@ -16,9 +16,11 @@ use tower_http::cors::{self, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::Span;
 
-use radicle::{Profile, Storage};
+use radicle::Profile;
 
 mod auth;
+mod axum_extra;
+mod error;
 mod v1;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -38,10 +40,6 @@ impl Context {
             profile,
             sessions: Default::default(),
         }
-    }
-
-    fn storage(&self) -> &Storage {
-        &self.profile.storage
     }
 }
 

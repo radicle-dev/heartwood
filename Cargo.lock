@@ -2242,6 +2242,7 @@ dependencies = [
  "axum",
  "axum-server",
  "ethers-core",
+ "fastrand",
  "flate2",
  "hyper",
  "lexopt",
