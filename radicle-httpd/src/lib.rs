@@ -32,6 +32,8 @@ use radicle::profile::Profile;
 
 use error::Error;
 
+mod api;
+
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone)]
@@ -39,7 +41,7 @@ pub struct Options {
     pub listen: net::SocketAddr,
 }
 
-/// Run the Git Server.
+/// Run the Server.
 pub async fn run(options: Options) -> anyhow::Result<()> {
     let git_version = Command::new("git")
         .arg("version")
@@ -48,12 +50,12 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         .stdout;
     tracing::info!("{}", str::from_utf8(&git_version)?.trim());
 
-    let profile = radicle::Profile::load()?;
+    let profile = Arc::new(radicle::Profile::load()?);
     tracing::info!("using radicle home at {}", profile.home.display());
 
-    let app = Router::new()
+    let git_router = Router::new()
         .route("/:project/*request", any(git_handler))
-        .layer(Extension(Arc::new(profile)))
+        .layer(Extension(profile.clone()))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<Body>| {
@@ -73,10 +75,17 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
                         tracing::info!("Processed");
                     },
                 ),
-        )
-        .into_make_service_with_connect_info::<SocketAddr>();
+        );
+
+    let ctx = api::Context::new(profile);
+    let api_router = api::router(ctx);
 
     tracing::info!("listening on http://{}", options.listen);
+
+    let app = Router::new()
+        .merge(git_router)
+        .nest("/api", api_router)
+        .into_make_service_with_connect_info::<SocketAddr>();
 
     axum::Server::bind(&options.listen)
         .serve(app)

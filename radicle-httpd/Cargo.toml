@@ -16,17 +16,22 @@ logfmt = [
 
 [dependencies]
 anyhow = { version = "1" }
-flate2 = { version = "1" }
-lexopt = { version = "0.2.1" }
-thiserror = { version = "1" }
-tokio = { version = "1.21", default-features = false, features = ["macros", "rt-multi-thread"] }
-tracing = { version = "0.1.37", default-features = false, features = ["std", "log"] }
-tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "ansi", "fmt"] }
-tracing-logfmt = { version = "0.2", optional = true }
-axum = { version = "0.5.16", default-features = false }
+axum = { version = "0.5.16", default-features = false, features = ["json", "headers", "query"] }
 axum-server = { version = "0.4.2", default-features = false }
+ethers-core = { version = "1.0" }
+flate2 = { version = "1" }
 hyper = { version = "0.14.17", default-features = false }
-tower-http = { version = "0.3.4", default-features = false, features = ["trace"] }
+lexopt = { version = "0.2.1" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+siwe = { version = "0.5" }
+thiserror = { version = "1" }
+time = { version = "0.3.17" }
+tokio = { version = "1.21", default-features = false, features = ["macros", "rt-multi-thread"] }
+tower-http = { version = "0.3.4", default-features = false, features = ["trace", "cors"] }
+tracing = { version = "0.1.37", default-features = false, features = ["std", "log"] }
+tracing-logfmt = { version = "0.2", optional = true }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "ansi", "fmt"] }
 
 [dependencies.radicle]
 path = "../radicle"

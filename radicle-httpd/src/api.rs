@@ -1,0 +1,119 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+
+use axum::body::{Body, BoxBody};
+use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
+use axum::http::Method;
+use axum::response::{IntoResponse, Json};
+use axum::routing::get;
+use axum::{Extension, Router};
+use hyper::http::{Request, Response};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use tokio::sync::RwLock;
+use tower_http::cors::{self, CorsLayer};
+use tower_http::trace::TraceLayer;
+use tracing::Span;
+
+use radicle::{Profile, Storage};
+
+mod auth;
+mod v1;
+
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Identifier for sessions
+type SessionId = String;
+
+#[derive(Clone)]
+pub struct Context {
+    profile: Arc<Profile>,
+    sessions: Arc<RwLock<HashMap<SessionId, auth::AuthState>>>,
+}
+
+impl Context {
+    pub fn new(profile: Arc<Profile>) -> Self {
+        Self {
+            profile,
+            sessions: Default::default(),
+        }
+    }
+
+    fn storage(&self) -> &Storage {
+        &self.profile.storage
+    }
+}
+
+pub fn router(ctx: Context) -> Router {
+    let root_router = Router::new()
+        .route("/", get(root_handler))
+        .layer(Extension(ctx.clone()));
+
+    Router::new()
+        .merge(root_router)
+        .merge(v1::router(ctx))
+        .layer(
+            CorsLayer::new()
+                .max_age(Duration::from_secs(86400))
+                .allow_origin(cors::Any)
+                .allow_methods([Method::GET, Method::POST, Method::PUT])
+                .allow_headers([CONTENT_TYPE, AUTHORIZATION]),
+        )
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &Request<Body>| {
+                    tracing::info_span!(
+                        "request",
+                        method = %request.method(),
+                        uri = %request.uri(),
+                        status = tracing::field::Empty,
+                        latency = tracing::field::Empty,
+                    )
+                })
+                .on_response(
+                    |response: &Response<BoxBody>, latency: Duration, span: &Span| {
+                        span.record("status", &tracing::field::debug(response.status()));
+                        span.record("latency", &tracing::field::debug(latency));
+
+                        tracing::info!("Processed");
+                    },
+                ),
+        )
+}
+
+async fn root_handler(Extension(ctx): Extension<Context>) -> impl IntoResponse {
+    let response = json!({
+        "message": "Welcome!",
+        "service": "radicle-httpd",
+        "version": format!("{}-{}", VERSION, env!("GIT_HEAD")),
+        "node": { "id": ctx.profile.public_key },
+        "path": "/",
+        "links": [
+            {
+                "href": "/v1/projects",
+                "rel": "projects",
+                "type": "GET"
+            },
+            {
+                "href": "/v1/node",
+                "rel": "node",
+                "type": "GET"
+            },
+            {
+                "href": "/v1/delegates/:urn/projects",
+                "rel": "projects",
+                "type": "GET"
+            }
+        ]
+    });
+
+    Json(response)
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "kebab-case")]
+pub struct PaginationQuery {
+    pub page: Option<usize>,
+    pub per_page: Option<usize>,
+}
