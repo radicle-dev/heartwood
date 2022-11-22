@@ -1687,7 +1687,6 @@ dependencies = [
  "radicle-cob",
  "radicle-crypto",
  "radicle-git-ext",
- "radicle-node",
  "radicle-ssh",
  "serde",
  "serde_json",

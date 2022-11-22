@@ -7,7 +7,7 @@ edition = "2021"
 
 [features]
 default = []
-test = ["quickcheck", "radicle-crypto/test", "radicle-node/test"]
+test = ["quickcheck", "radicle-crypto/test"]
 sql = ["sqlite"]
 
 [dependencies]
@@ -65,10 +65,5 @@ quickcheck = { version = "1", default-features = false }
 
 [dev-dependencies.radicle-crypto]
 path = "../radicle-crypto"
-version = "0"
-features = ["test"]
-
-[dev-dependencies.radicle-node]
-path = "../radicle-node"
 version = "0"
 features = ["test"]

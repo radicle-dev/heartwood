@@ -131,38 +131,3 @@ impl Handle for Node {
 pub fn connect<P: AsRef<Path>>(path: P) -> Result<Node, Error> {
     Node::connect(path)
 }
-
-#[cfg(test)]
-mod tests {
-    use std::thread;
-
-    use super::*;
-    use crate::test;
-
-    #[test]
-    fn test_track_untrack() {
-        let tmp = tempfile::tempdir().unwrap();
-        let socket = tmp.path().join("node.sock");
-        let proj = test::arbitrary::gen::<Id>(1);
-
-        thread::spawn({
-            use radicle_node as node;
-
-            let socket = socket.clone();
-            let handle = node::test::handle::Handle::default();
-
-            move || node::control::listen(socket, handle)
-        });
-
-        let handle = loop {
-            if let Ok(conn) = Node::connect(&socket) {
-                break conn;
-            }
-        };
-
-        assert!(handle.track(&proj).unwrap());
-        assert!(!handle.track(&proj).unwrap());
-        assert!(handle.untrack(&proj).unwrap());
-        assert!(!handle.untrack(&proj).unwrap());
-    }
-}

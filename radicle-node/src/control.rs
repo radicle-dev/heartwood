@@ -213,6 +213,8 @@ mod tests {
 
     use super::*;
     use crate::identity::Id;
+    use crate::node::Handle;
+    use crate::node::Node;
     use crate::test;
 
     #[test]
@@ -246,5 +248,30 @@ mod tests {
         for proj in &projs {
             assert!(handle.updates.lock().unwrap().contains(proj));
         }
+    }
+
+    #[test]
+    fn test_track_untrack() {
+        let tmp = tempfile::tempdir().unwrap();
+        let socket = tmp.path().join("node.sock");
+        let proj = test::arbitrary::gen::<Id>(1);
+
+        thread::spawn({
+            let socket = socket.clone();
+            let handle = crate::test::handle::Handle::default();
+
+            move || crate::control::listen(socket, handle)
+        });
+
+        let handle = loop {
+            if let Ok(conn) = Node::connect(&socket) {
+                break conn;
+            }
+        };
+
+        assert!(handle.track(&proj).unwrap());
+        assert!(!handle.track(&proj).unwrap());
+        assert!(handle.untrack(&proj).unwrap());
+        assert!(!handle.untrack(&proj).unwrap());
     }
 }
