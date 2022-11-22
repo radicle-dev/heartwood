@@ -42,7 +42,19 @@ pub enum Error {
 
     /// Storage error.
     #[error(transparent)]
-    StorageError(#[from] radicle::storage::Error),
+    Storage(#[from] radicle::storage::Error),
+
+    /// Cob store error.
+    #[error(transparent)]
+    CobStore(#[from] radicle::cob::store::Error),
+
+    /// Git project error.
+    #[error(transparent)]
+    GitProject(#[from] radicle::storage::git::ProjectError),
+
+    /// Surf error.
+    #[error(transparent)]
+    SurfCommit(#[from] radicle_surf::commit::Error),
 }
 
 impl Error {

@@ -35,3 +35,7 @@ version = "0.3.0"
 git = "https://github.com/internet2-wg/rust-cyphernet"
 rev = "dee03a95abe4c964e5d9f8532c7dc76998dfeea7"
 version = "0.1.0"
+
+[patch.crates-io.radicle-git-ext]
+git = "https://github.com/radicle-dev/radicle-git"
+rev = "d3115a22158c8395705babefdc89049f7510d32d"

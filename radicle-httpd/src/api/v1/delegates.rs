@@ -1,30 +1,16 @@
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
-use serde::Serialize;
 
-use radicle::cob::store::Store;
-use radicle::git::Oid;
-use radicle::identity::project::Payload;
+use radicle::cob::issue::Issues;
 use radicle::identity::{Did, Doc};
 use radicle::storage::{ReadRepository, WriteStorage};
 
 use crate::api::axum_extra::{Path, Query};
 use crate::api::error::Error;
+use crate::api::project::Info;
 use crate::api::Context;
 use crate::api::PaginationQuery;
-
-/// Project info.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Info {
-    /// Project metadata.
-    #[serde(flatten)]
-    pub payload: Payload,
-    pub head: Oid,
-    pub patches: usize,
-    pub issues: usize,
-}
 
 pub fn router(ctx: Context) -> Router {
     Router::new()
@@ -58,15 +44,14 @@ async fn delegates_projects_handler(
                 return None;
             }
 
-            let Ok(cobs) = Store::open(ctx.profile.public_key, &repo) else { return None };
-            let Ok(issues) = cobs.issues().count() else { return None };
-            let Ok(patches) = cobs.patches().count() else { return None };
+            let Ok(issues) = Issues::open(ctx.profile.public_key, &repo) else { return None };
+            let Ok(issues) = (*issues).count() else { return None };
 
             Some(Info {
                 payload,
                 head,
                 issues,
-                patches,
+                patches: 0,
                 id,
             })
         })

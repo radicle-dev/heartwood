@@ -147,6 +147,13 @@ impl<'a, T: FromHistory> Store<'a, T> {
         }))
     }
 
+    /// Return objects count.
+    pub fn count(&self) -> Result<usize, Error> {
+        let raw = cob::list(self.raw, T::type_name())?;
+
+        Ok(raw.len())
+    }
+
     pub fn remove(&self, _id: &ObjectId) -> Result<(), Error> {
         todo!();
     }

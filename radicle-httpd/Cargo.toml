@@ -18,6 +18,7 @@ logfmt = [
 anyhow = { version = "1" }
 axum = { version = "0.5.16", default-features = false, features = ["json", "headers", "query"] }
 axum-server = { version = "0.4.2", default-features = false }
+chrono = { version = "0.4.22" }
 ethers-core = { version = "1.0" }
 fastrand = { version = "1.7.0" }
 flate2 = { version = "1" }
@@ -29,7 +30,7 @@ siwe = { version = "0.5" }
 thiserror = { version = "1" }
 time = { version = "0.3.17" }
 tokio = { version = "1.21", default-features = false, features = ["macros", "rt-multi-thread"] }
-tower-http = { version = "0.3.4", default-features = false, features = ["trace", "cors"] }
+tower-http = { version = "0.3.4", default-features = false, features = ["trace", "cors", "set-header"] }
 tracing = { version = "0.1.37", default-features = false, features = ["std", "log"] }
 tracing-logfmt = { version = "0.2", optional = true }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "ansi", "fmt"] }
@@ -37,3 +38,8 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["s
 [dependencies.radicle]
 path = "../radicle"
 version = "0.2.0"
+
+[dependencies.radicle-surf]
+git = "https://github.com/radicle-dev/radicle-git"
+features = ["serialize"]
+rev = "d3115a22158c8395705babefdc89049f7510d32d"
