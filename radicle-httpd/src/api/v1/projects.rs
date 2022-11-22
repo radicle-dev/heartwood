@@ -1,13 +1,17 @@
+use std::collections::BTreeSet;
+
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use hyper::StatusCode;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use radicle::cob::issue::Issues;
+use radicle::git::raw::BranchType;
 use radicle::identity::{Doc, Id};
 use radicle::storage::{Oid, ReadRepository, WriteRepository, WriteStorage};
 use radicle_surf::git::History;
@@ -23,6 +27,7 @@ pub fn router(ctx: Context) -> Router {
     Router::new()
         .route("/projects", get(project_root_handler))
         .route("/projects/:project", get(project_handler))
+        .route("/projects/:project/commits", get(history_handler))
         .route("/projects/:project/commits/:sha", get(commit_handler))
         .route(
             "/projects/:project/activity",
@@ -33,6 +38,7 @@ pub fn router(ctx: Context) -> Router {
                 )),
             ),
         )
+        .route("/projects/:project/tree/:sha/*path", get(tree_handler))
         .layer(Extension(ctx))
 }
 
@@ -82,6 +88,91 @@ async fn project_handler(
     Ok::<_, Error>(Json(info))
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "kebab-case")]
+pub struct CommitsQueryString {
+    pub parent: Option<String>,
+    pub since: Option<i64>,
+    pub until: Option<i64>,
+    pub page: Option<usize>,
+    pub per_page: Option<usize>,
+}
+
+/// Get project commit range.
+/// `GET /projects/:project/commits?since=<sha>`
+async fn history_handler(
+    Extension(ctx): Extension<Context>,
+    Path(project): Path<Id>,
+    Query(qs): Query<CommitsQueryString>,
+) -> impl IntoResponse {
+    let CommitsQueryString {
+        since,
+        until,
+        parent,
+        page,
+        per_page,
+    } = qs;
+
+    let (sha, fallback_to_head) = match parent {
+        Some(commit) => (commit, false),
+        None => {
+            let info = ctx.project_info(project)?;
+
+            (info.head.to_string(), true)
+        }
+    };
+
+    let storage = &ctx.profile.storage;
+    let repo = storage.repository(project)?;
+
+    // If a pagination is defined, we do not want to paginate the commits, and we return all of them on the first page.
+    let page = page.unwrap_or(0);
+    let per_page = if per_page.is_none() && (since.is_some() || until.is_some()) {
+        usize::MAX
+    } else {
+        per_page.unwrap_or(30)
+    };
+
+    let headers = History::new(repo.raw().into(), sha.as_str())?
+        .filter(|q| {
+            if let Ok(q) = q {
+                if let (Some(since), Some(until)) = (since, until) {
+                    q.committer.time.seconds() >= since && q.committer.time.seconds() < until
+                } else if let Some(since) = since {
+                    q.committer.time.seconds() >= since
+                } else if let Some(until) = until {
+                    q.committer.time.seconds() < until
+                } else {
+                    // If neither `since` nor `until` are specified, we include the commit.
+                    true
+                }
+            } else {
+                false
+            }
+        })
+        .skip(page * per_page)
+        .take(per_page)
+        .filter_map(|commit| {
+            if let Ok(commit) = commit {
+                radicle_surf::commit(&repo.raw().into(), commit.id).ok()
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let response = json!({
+        "headers": headers,
+        "stats":  stats(&repo)?,
+    });
+
+    if fallback_to_head {
+        return Ok::<_, Error>((StatusCode::FOUND, Json(response)));
+    }
+
+    Ok::<_, Error>((StatusCode::OK, Json(response)))
+}
+
 /// Get project commit.
 /// `GET /projects/:project/commits/:sha`
 async fn commit_handler(
@@ -106,8 +197,7 @@ async fn activity_handler(
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
     let (_, head) = repo.head()?;
-    let timestamps = History::new(repo.raw().into(), head)
-        .unwrap()
+    let timestamps = History::new(repo.raw().into(), head)?
         .filter_map(|a| {
             if let Ok(a) = a {
                 let seconds = a.committer.time.seconds();
@@ -120,4 +210,57 @@ async fn activity_handler(
         .collect::<Vec<i64>>();
 
     Ok::<_, Error>((StatusCode::OK, Json(json!({ "activity": timestamps }))))
+}
+
+/// Get project source tree.
+/// `GET /projects/:project/tree/:sha/*path`
+async fn tree_handler(
+    Extension(ctx): Extension<Context>,
+    Path((project, sha, path)): Path<(Id, Oid, String)>,
+) -> impl IntoResponse {
+    let path = path.strip_prefix('/').ok_or(Error::NotFound)?.to_string();
+    let storage = &ctx.profile.storage;
+    let repo = storage.repository(project)?;
+    let tree = radicle_surf::object::tree(
+        &repo.raw().into(),
+        Some(radicle_surf::Revision::Sha { sha }),
+        Some(path),
+    )?;
+    let response = json!({
+        "path": &tree.path,
+        "entries": &tree.entries,
+        "info": &tree.info,
+        "stats": stats(&repo)?,
+    });
+
+    Ok::<_, Error>(Json(response))
+}
+
+#[derive(Serialize)]
+struct Stats {
+    branches: usize,
+    commits: usize,
+    contributors: usize,
+}
+
+fn stats<R: WriteRepository>(repo: &R) -> Result<Stats, Error> {
+    let branches = repo.raw().branches(Some(BranchType::Local))?.count();
+    let (_, head) = repo.head()?;
+    let mut commits = 0;
+    let contributors = History::new(repo.raw().into(), head)?
+        .filter_map(|commit| {
+            commits += 1;
+            if let Ok(commit) = commit {
+                Some((commit.author.name, commit.author.email))
+            } else {
+                None
+            }
+        })
+        .collect::<BTreeSet<_>>();
+
+    Ok(Stats {
+        branches,
+        commits,
+        contributors: contributors.len(),
+    })
 }

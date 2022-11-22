@@ -52,9 +52,21 @@ pub enum Error {
     #[error(transparent)]
     GitProject(#[from] radicle::storage::git::ProjectError),
 
-    /// Surf error.
+    /// Surf commit error.
     #[error(transparent)]
     SurfCommit(#[from] radicle_surf::commit::Error),
+
+    /// Surf object error.
+    #[error(transparent)]
+    SurfObject(#[from] radicle_surf::object::Error),
+
+    /// Surf git error.
+    #[error(transparent)]
+    SurfGit(#[from] radicle_surf::git::Error),
+
+    /// Git2 error.
+    #[error(transparent)]
+    Git2(#[from] radicle::git::raw::Error),
 }
 
 impl Error {
