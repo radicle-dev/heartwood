@@ -248,9 +248,26 @@ impl Thread {
 pub struct Actor<G> {
     signer: G,
     clock: LClock,
+    changes: BTreeMap<(LClock, PublicKey), Change>,
 }
 
 impl<G: Signer> Actor<G> {
+    pub fn receive(&mut self, changes: impl IntoIterator<Item = Change>) -> LClock {
+        for change in changes {
+            let clock = change.clock;
+
+            self.changes.insert((clock, change.author), change);
+            self.clock.merge(clock);
+        }
+        self.clock
+    }
+
+    /// Reset actor state to initial state.
+    pub fn reset(&mut self) {
+        self.changes.clear();
+        self.clock = LClock::default();
+    }
+
     /// Create a new thread.
     pub fn thread(&mut self, title: &str, timestamp: Timestamp) -> Change {
         self.change(
@@ -259,6 +276,11 @@ impl<G: Signer> Actor<G> {
             },
             timestamp,
         )
+    }
+
+    /// Returned an ordered list of events.
+    pub fn timeline(&self) -> impl Iterator<Item = &Change> {
+        self.changes.values()
     }
 
     /// Create a new comment.
@@ -290,13 +312,15 @@ impl<G: Signer> Actor<G> {
     pub fn change(&mut self, action: Action, timestamp: Timestamp) -> Change {
         let author = *self.signer.public_key();
         let clock = self.clock.tick();
-
-        Change {
+        let change = Change {
             action,
             author,
             timestamp,
-            clock: clock.into(),
-        }
+            clock,
+        };
+        self.changes.insert((self.clock, author), change.clone());
+
+        change
     }
 
     pub fn sign(&self, changes: impl IntoIterator<Item = Change>) -> Envelope {
@@ -408,8 +432,8 @@ mod tests {
 
             for action in gen.take(g.size().min(8)) {
                 let timestamp = Timestamp::now() + rng.u64(0..3);
+                let clock = clock.tick();
 
-                clock.tick();
                 changes.push(Change {
                     action,
                     author,
@@ -425,6 +449,80 @@ mod tests {
 
             Changes { permutations }
         }
+    }
+
+    #[test]
+    fn test_timelines_basic() {
+        let mut alice = Actor::<MockSigner>::default();
+        let mut bob = Actor::<MockSigner>::default();
+        let timestamp = Timestamp::now();
+
+        let a0 = alice.thread("Alice's thread", timestamp);
+        let a1 = alice.comment("First comment", timestamp + 1, a0.id());
+        let a2 = alice.comment("Second comment", timestamp + 2, a0.id());
+
+        bob.receive([a0.clone(), a1.clone(), a2.clone()]);
+        assert_eq!(
+            bob.timeline().collect::<Vec<_>>(),
+            alice.timeline().collect::<Vec<_>>()
+        );
+        assert_eq!(alice.timeline().collect::<Vec<_>>(), vec![&a0, &a1, &a2]);
+
+        bob.reset();
+        bob.receive([a2, a1, a0]);
+        assert_eq!(
+            bob.timeline().collect::<Vec<_>>(),
+            alice.timeline().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_timelines_concurrent() {
+        let mut alice = Actor::<MockSigner>::default();
+        let mut bob = Actor::<MockSigner>::default();
+        let mut eve = Actor::<MockSigner>::default();
+        let timestamp = Timestamp::now();
+
+        let a0 = alice.thread("Alice's thread", timestamp);
+        let a1 = alice.comment("First comment", timestamp, a0.id());
+
+        bob.receive([a0.clone(), a1.clone()]);
+
+        let b0 = bob.comment("Bob's first reply to Alice", timestamp, a0.id());
+        let b1 = bob.comment("Bob's second reply to Alice", timestamp, a0.id());
+
+        eve.receive([a0.clone(), b1.clone(), b0.clone()]);
+        let e0 = eve.comment("Eve's first reply to Alice", timestamp, a0.id());
+
+        bob.receive([e0.clone()]);
+        let b2 = bob.comment("Bob's third reply to Alice", timestamp, a0.id());
+
+        eve.receive([b2.clone(), a1.clone()]);
+        let e1 = eve.comment("Eve's second reply to Alice", timestamp, a0.id());
+
+        alice.receive([b0.clone(), b1.clone(), b2.clone(), e0.clone(), e1.clone()]);
+        bob.receive([e1.clone()]);
+
+        let a2 = alice.comment("Second comment", timestamp, a0.id());
+        eve.receive([a2.clone()]);
+        bob.receive([a2.clone()]);
+
+        assert_eq!(alice.changes.len(), 8);
+        assert_eq!(bob.changes.len(), 8);
+        assert_eq!(eve.changes.len(), 8);
+
+        assert_eq!(
+            bob.timeline().collect::<Vec<_>>(),
+            alice.timeline().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            eve.timeline().collect::<Vec<_>>(),
+            alice.timeline().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![&a0, &a1, &b0, &b1, &e0, &b2, &e1, &a2],
+            alice.timeline().collect::<Vec<_>>(),
+        );
     }
 
     #[quickcheck]
