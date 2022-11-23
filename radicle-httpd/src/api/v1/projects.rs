@@ -45,6 +45,8 @@ pub fn router(ctx: Context) -> Router {
         .route("/projects/:project/remotes/:peer", get(remote_handler))
         .route("/projects/:project/blob/:sha/*path", get(blob_handler))
         .route("/projects/:project/readme/:sha", get(readme_handler))
+        .route("/projects/:project/issues", get(issues_handler))
+        .route("/projects/:project/issues/:id", get(issue_handler))
         .layer(Extension(ctx))
 }
 
@@ -307,6 +309,63 @@ async fn readme_handler(
     Err(radicle_surf::object::Error::PathNotFound(
         radicle_surf::file_system::Path::try_from("README").unwrap(),
     ))?
+}
+
+/// Get project issues list.
+/// `GET /projects/:project/issues`
+async fn issues_handler(
+    Extension(ctx): Extension<Context>,
+    Path(project): Path<Id>,
+    Query(qs): Query<PaginationQuery>,
+) -> impl IntoResponse {
+    let PaginationQuery { page, per_page } = qs;
+    let page = page.unwrap_or(0);
+    let per_page = per_page.unwrap_or(10);
+    let storage = &ctx.profile.storage;
+    let repo = storage.repository(project)?;
+    let issues = Issues::open(ctx.profile.public_key, &repo)?;
+    let issues = issues
+        .all()?
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .map(|(id, issue)| {
+            json!({
+                "id": id,
+                "author": issue.author(),
+                "title": issue.title(),
+                "status": issue.status(),
+                "discussion": issue.comments().collect::<Vec<_>>(),
+                "tags": issue.tags().collect::<Vec<_>>(),
+            })
+        })
+        .skip(page * per_page)
+        .take(per_page)
+        .collect::<Vec<_>>();
+
+    Ok::<_, Error>(Json(issues))
+}
+
+/// Get project issue.
+/// `GET /projects/:project/issues/:id`
+async fn issue_handler(
+    Extension(ctx): Extension<Context>,
+    Path((project, issue_id)): Path<(Id, Oid)>,
+) -> impl IntoResponse {
+    let storage = &ctx.profile.storage;
+    let repo = storage.repository(project)?;
+    let issue = Issues::open(ctx.profile.public_key, &repo)?
+        .get(&issue_id.into())?
+        .ok_or(Error::NotFound)?;
+    let issue = json!({
+        "id": issue_id,
+        "author": issue.author(),
+        "title": issue.title(),
+        "status": issue.status(),
+        "discussion": issue.comments().collect::<Vec<_>>(),
+        "tags": issue.tags().collect::<Vec<_>>(),
+    });
+
+    Ok::<_, Error>(Json(issue))
 }
 
 #[derive(Serialize)]
