@@ -8,6 +8,7 @@ use radicle::cob::Timestamp;
 use radicle::crypto::{PublicKey, Signature, Signer};
 use radicle::hash;
 
+use crate::clock::LClock;
 use crate::lwwreg::LWWReg;
 use crate::lwwset::LWWSet;
 
@@ -31,6 +32,8 @@ pub struct Change {
     author: Author,
     /// The time at which this change was authored.
     timestamp: Timestamp,
+    /// Lamport clock.
+    clock: LClock,
 }
 
 impl Change {
@@ -244,11 +247,12 @@ impl Thread {
 #[derive(Default)]
 pub struct Actor<G> {
     signer: G,
+    clock: LClock,
 }
 
 impl<G: Signer> Actor<G> {
     /// Create a new thread.
-    pub fn thread(&self, title: &str, timestamp: Timestamp) -> Change {
+    pub fn thread(&mut self, title: &str, timestamp: Timestamp) -> Change {
         self.change(
             Action::Thread {
                 title: title.to_owned(),
@@ -258,7 +262,7 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Create a new comment.
-    pub fn comment(&self, body: &str, timestamp: Timestamp, parent: ChangeId) -> Change {
+    pub fn comment(&mut self, body: &str, timestamp: Timestamp, parent: ChangeId) -> Change {
         self.change(
             Action::Comment {
                 comment: Comment::new(String::from(body), parent),
@@ -268,28 +272,30 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Add a tag.
-    pub fn tag(&self, tag: TagId, timestamp: Timestamp) -> Change {
+    pub fn tag(&mut self, tag: TagId, timestamp: Timestamp) -> Change {
         self.change(Action::Tag { tag }, timestamp)
     }
 
     /// Remove a tag.
-    pub fn untag(&self, tag: TagId, timestamp: Timestamp) -> Change {
+    pub fn untag(&mut self, tag: TagId, timestamp: Timestamp) -> Change {
         self.change(Action::Untag { tag }, timestamp)
     }
 
     /// Create a new redaction.
-    pub fn redact(&self, id: ChangeId, timestamp: Timestamp) -> Change {
+    pub fn redact(&mut self, id: ChangeId, timestamp: Timestamp) -> Change {
         self.change(Action::Redact { id }, timestamp)
     }
 
     /// Create a new change.
-    pub fn change(&self, action: Action, timestamp: Timestamp) -> Change {
+    pub fn change(&mut self, action: Action, timestamp: Timestamp) -> Change {
         let author = *self.signer.public_key();
+        let clock = self.clock.tick();
 
         Change {
             action,
             author,
             timestamp,
+            clock: clock.into(),
         }
     }
 
@@ -397,15 +403,18 @@ mod tests {
 
             let mut changes = Vec::new();
             let mut permutations: [Vec<Change>; N] = array::from_fn(|_| Vec::new());
+            let mut clock = LClock::default();
             let author = PublicKey::from([0; 32]);
 
             for action in gen.take(g.size().min(8)) {
                 let timestamp = Timestamp::now() + rng.u64(0..3);
 
+                clock.tick();
                 changes.push(Change {
                     action,
                     author,
                     timestamp,
+                    clock,
                 });
             }
 
@@ -420,7 +429,7 @@ mod tests {
 
     #[quickcheck]
     fn prop_invariants(log: Changes<3>) {
-        let bob = Actor::<MockSigner>::default();
+        let mut bob = Actor::<MockSigner>::default();
         let b0 = bob.thread("The Thread", Timestamp::now());
         let t = Thread::new(b0);
         let [p1, p2, p3] = log.permutations;
@@ -440,8 +449,8 @@ mod tests {
 
     #[test]
     fn test_invariants() {
-        let alice = Actor::<MockSigner>::default();
-        let bob = Actor::<MockSigner>::default();
+        let mut alice = Actor::<MockSigner>::default();
+        let mut bob = Actor::<MockSigner>::default();
         let time = Timestamp::now();
 
         let b0 = bob.thread("Dinner Ingredients", time);

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::Semilattice;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Max<T>(T);
 
 impl<T> Max<T> {
