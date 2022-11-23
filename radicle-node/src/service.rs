@@ -1271,7 +1271,7 @@ mod gossip {
         };
 
         let mut msgs = vec![
-            Message::init(*signer.public_key(), config.listen.clone()),
+            Message::init(*signer.public_key(), config.external_addresses.clone()),
             Message::inventory(gossip::inventory(timestamp, inventory), signer),
             Message::subscribe(config.filter(), timestamp, Timestamp::MAX),
         ];
