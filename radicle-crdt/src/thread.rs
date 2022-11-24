@@ -11,6 +11,7 @@ use radicle::hash;
 use crate::clock::LClock;
 use crate::lwwreg::LWWReg;
 use crate::lwwset::LWWSet;
+use crate::redactable::Redactable;
 
 /// Identifies a change.
 pub type ChangeId = radicle::hash::Digest;
@@ -61,16 +62,6 @@ pub struct Envelope {
     pub changes: Vec<u8>,
     /// Signature over the change, by the change author.
     pub signature: Signature,
-}
-
-/// An object that can be either present or removed.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Redactable<T> {
-    /// When the object is present.
-    Present(T),
-    /// When the object has been removed.
-    #[default]
-    Redacted,
 }
 
 /// A comment on a discussion thread.

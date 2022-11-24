@@ -39,6 +39,7 @@ pub struct Entry {
     /// The identifier for this entry
     pub(super) id: EntryId,
     /// The content-address for this entry's author.
+    /// TODO: This shouldn't be here?
     pub(super) author: Option<Oid>,
     /// The content-address for the resource this entry lives under.
     pub(super) resource: Oid,

@@ -6,6 +6,7 @@ pub mod lwwmap;
 pub mod lwwreg;
 pub mod lwwset;
 pub mod ord;
+pub mod redactable;
 pub mod thread;
 
 #[cfg(test)]
