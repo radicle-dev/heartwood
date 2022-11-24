@@ -121,6 +121,11 @@ async fn root_handler(Extension(ctx): Extension<Context>) -> impl IntoResponse {
                 "href": "/v1/delegates/:did/projects",
                 "rel": "projects",
                 "type": "GET"
+            },
+            {
+                "href": "/v1/stats",
+                "rel": "stats",
+                "type": "GET"
             }
         ]
     });
