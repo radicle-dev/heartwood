@@ -1819,6 +1819,7 @@ dependencies = [
  "radicle-crypto",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

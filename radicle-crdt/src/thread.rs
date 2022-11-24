@@ -79,12 +79,12 @@ pub struct Comment {
     /// The comment body.
     body: String,
     /// Thread or comment this is a reply to.
-    reply_to: ChangeId,
+    reply_to: Option<ChangeId>,
 }
 
 impl Comment {
     /// Create a new comment.
-    pub fn new(body: String, reply_to: ChangeId) -> Self {
+    pub fn new(body: String, reply_to: Option<ChangeId>) -> Self {
         Self { body, reply_to }
     }
 }
@@ -92,8 +92,6 @@ impl Comment {
 /// An action that can be carried out in a change.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum Action {
-    /// Initialize a new thread.
-    Thread { title: String },
     /// Comment on a thread.
     Comment { comment: Comment },
     /// Redact a change. Not all changes can be redacted.
@@ -111,16 +109,8 @@ pub enum Action {
 }
 
 /// A discussion thread.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Thread {
-    /// The id of the thread.
-    id: ChangeId,
-    /// The thread title.
-    title: String,
-    /// The thread author.
-    author: Author,
-    /// The thread timestamp.
-    timestamp: Timestamp,
     /// The comments under the thread.
     comments: BTreeMap<ChangeId, Redactable<Comment>>,
     /// Associated tags.
@@ -138,24 +128,6 @@ impl Deref for Thread {
 }
 
 impl Thread {
-    pub fn new(root: Change) -> Self {
-        let id = root.id();
-
-        let Action::Thread { title } = root.action else {
-            panic!("Threads need to be initialized with a `Thread` message");
-        };
-
-        Self {
-            id,
-            title,
-            author: root.author,
-            timestamp: root.timestamp,
-            comments: BTreeMap::default(),
-            tags: BTreeMap::default(),
-            reactions: BTreeMap::default(),
-        }
-    }
-
     pub fn clear(&mut self) {
         self.comments.clear();
     }
@@ -219,9 +191,6 @@ impl Thread {
                             }
                         });
                 }
-                Action::Thread { .. } => {
-                    // Ignored
-                }
             }
         }
     }
@@ -252,6 +221,14 @@ pub struct Actor<G> {
 }
 
 impl<G: Signer> Actor<G> {
+    pub fn new(signer: G) -> Self {
+        Self {
+            signer,
+            clock: LClock::default(),
+            changes: BTreeMap::default(),
+        }
+    }
+
     pub fn receive(&mut self, changes: impl IntoIterator<Item = Change>) -> LClock {
         for change in changes {
             let clock = change.clock;
@@ -269,13 +246,8 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Create a new thread.
-    pub fn thread(&mut self, title: &str, timestamp: Timestamp) -> Change {
-        self.change(
-            Action::Thread {
-                title: title.to_owned(),
-            },
-            timestamp,
-        )
+    pub fn thread(&self) -> Thread {
+        Thread::default()
     }
 
     /// Returned an ordered list of events.
@@ -284,7 +256,12 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Create a new comment.
-    pub fn comment(&mut self, body: &str, timestamp: Timestamp, parent: ChangeId) -> Change {
+    pub fn comment(
+        &mut self,
+        body: &str,
+        timestamp: Timestamp,
+        parent: Option<ChangeId>,
+    ) -> Change {
         self.change(
             Action::Comment {
                 comment: Comment::new(String::from(body), parent),
@@ -345,13 +322,15 @@ impl<G: Signer> Actor<G> {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::ControlFlow;
+    use std::str::FromStr;
     use std::{array, iter};
 
     use itertools::Itertools;
     use pretty_assertions::assert_eq;
     use quickcheck::Arbitrary;
     use quickcheck_macros::quickcheck;
-    use radicle::crypto::test::signer::MockSigner;
+    use radicle::{cob::TypeName, crypto::test::signer::MockSigner, identity::project::Identity};
 
     use super::*;
     use crate::test::WeightedGenerator;
@@ -452,24 +431,83 @@ mod tests {
     }
 
     #[test]
+    fn test_storage() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_storage, signer, repository) = radicle::test::setup::context(&tmp);
+        let mut alice = Actor::new(signer);
+        let project = Identity::load(alice.signer.public_key(), &repository).unwrap();
+        let timestamp = Timestamp::now();
+        let typename = TypeName::from_str("xyz.radicle.thread").unwrap();
+
+        let a1 = alice.comment("First comment", timestamp + 1, None);
+        let a2 = alice.comment("Second comment", timestamp + 2, None);
+
+        let mut expected = Thread::default();
+        expected.apply([a1.clone(), a2.clone()]);
+
+        let created = radicle::cob::create(
+            &repository,
+            &alice.signer,
+            &project,
+            radicle::cob::Create {
+                author: None,
+                history_type: radicle::cob::HistoryType::default(),
+                contents: a1.encode(),
+                typename: typename.clone(),
+                message: "Thread created".to_owned(),
+            },
+        )
+        .unwrap();
+
+        radicle::cob::update(
+            &repository,
+            &alice.signer,
+            &project,
+            radicle::cob::Update {
+                author: None,
+                history_type: radicle::cob::HistoryType::default(),
+                changes: a2.encode(),
+                object_id: *created.id(),
+                typename: typename.clone(),
+                message: "Thread updated".to_owned(),
+            },
+        )
+        .unwrap();
+
+        let retrieved = radicle::cob::get(&repository, &typename, created.id())
+            .unwrap()
+            .unwrap();
+
+        let actual: Thread = retrieved
+            .history()
+            .traverse(Thread::default(), |mut acc, entry| {
+                let change: Change = serde_json::from_slice(entry.contents()).unwrap();
+                acc.apply([change]);
+
+                ControlFlow::Continue(acc)
+            });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_timelines_basic() {
         let mut alice = Actor::<MockSigner>::default();
         let mut bob = Actor::<MockSigner>::default();
         let timestamp = Timestamp::now();
 
-        let a0 = alice.thread("Alice's thread", timestamp);
-        let a1 = alice.comment("First comment", timestamp + 1, a0.id());
-        let a2 = alice.comment("Second comment", timestamp + 2, a0.id());
+        let a1 = alice.comment("First comment", timestamp + 1, None);
+        let a2 = alice.comment("Second comment", timestamp + 2, None);
 
-        bob.receive([a0.clone(), a1.clone(), a2.clone()]);
+        bob.receive([a1.clone(), a2.clone()]);
         assert_eq!(
             bob.timeline().collect::<Vec<_>>(),
             alice.timeline().collect::<Vec<_>>()
         );
-        assert_eq!(alice.timeline().collect::<Vec<_>>(), vec![&a0, &a1, &a2]);
+        assert_eq!(alice.timeline().collect::<Vec<_>>(), vec![&a1, &a2]);
 
         bob.reset();
-        bob.receive([a2, a1, a0]);
+        bob.receive([a2, a1]);
         assert_eq!(
             bob.timeline().collect::<Vec<_>>(),
             alice.timeline().collect::<Vec<_>>()
@@ -483,33 +521,32 @@ mod tests {
         let mut eve = Actor::<MockSigner>::default();
         let timestamp = Timestamp::now();
 
-        let a0 = alice.thread("Alice's thread", timestamp);
-        let a1 = alice.comment("First comment", timestamp, a0.id());
+        let a1 = alice.comment("First comment", timestamp, None);
 
-        bob.receive([a0.clone(), a1.clone()]);
+        bob.receive([a1.clone()]);
 
-        let b0 = bob.comment("Bob's first reply to Alice", timestamp, a0.id());
-        let b1 = bob.comment("Bob's second reply to Alice", timestamp, a0.id());
+        let b0 = bob.comment("Bob's first reply to Alice", timestamp, None);
+        let b1 = bob.comment("Bob's second reply to Alice", timestamp, None);
 
-        eve.receive([a0.clone(), b1.clone(), b0.clone()]);
-        let e0 = eve.comment("Eve's first reply to Alice", timestamp, a0.id());
+        eve.receive([b1.clone(), b0.clone()]);
+        let e0 = eve.comment("Eve's first reply to Alice", timestamp, None);
 
         bob.receive([e0.clone()]);
-        let b2 = bob.comment("Bob's third reply to Alice", timestamp, a0.id());
+        let b2 = bob.comment("Bob's third reply to Alice", timestamp, None);
 
         eve.receive([b2.clone(), a1.clone()]);
-        let e1 = eve.comment("Eve's second reply to Alice", timestamp, a0.id());
+        let e1 = eve.comment("Eve's second reply to Alice", timestamp, None);
 
         alice.receive([b0.clone(), b1.clone(), b2.clone(), e0.clone(), e1.clone()]);
         bob.receive([e1.clone()]);
 
-        let a2 = alice.comment("Second comment", timestamp, a0.id());
+        let a2 = alice.comment("Second comment", timestamp, None);
         eve.receive([a2.clone()]);
         bob.receive([a2.clone()]);
 
-        assert_eq!(alice.changes.len(), 8);
-        assert_eq!(bob.changes.len(), 8);
-        assert_eq!(eve.changes.len(), 8);
+        assert_eq!(alice.changes.len(), 7);
+        assert_eq!(bob.changes.len(), 7);
+        assert_eq!(eve.changes.len(), 7);
 
         assert_eq!(
             bob.timeline().collect::<Vec<_>>(),
@@ -520,16 +557,14 @@ mod tests {
             alice.timeline().collect::<Vec<_>>()
         );
         assert_eq!(
-            vec![&a0, &a1, &b0, &b1, &e0, &b2, &e1, &a2],
+            vec![&a1, &b0, &b1, &e0, &b2, &e1, &a2],
             alice.timeline().collect::<Vec<_>>(),
         );
     }
 
     #[quickcheck]
     fn prop_invariants(log: Changes<3>) {
-        let mut bob = Actor::<MockSigner>::default();
-        let b0 = bob.thread("The Thread", Timestamp::now());
-        let t = Thread::new(b0);
+        let t = Thread::default();
         let [p1, p2, p3] = log.permutations;
 
         let mut t1 = t.clone();
@@ -548,17 +583,15 @@ mod tests {
     #[test]
     fn test_invariants() {
         let mut alice = Actor::<MockSigner>::default();
-        let mut bob = Actor::<MockSigner>::default();
+        let bob = Actor::<MockSigner>::default();
         let time = Timestamp::now();
 
-        let b0 = bob.thread("Dinner Ingredients", time);
-        let a0 = alice.comment("Ham", time, b0.id());
-        let a1 = alice.comment("Rye", time, a0.id());
-        let a2 = alice.comment("Dough", time, a1.id());
+        let t = bob.thread();
+        let a0 = alice.comment("Ham", time, None);
+        let a1 = alice.comment("Rye", time, None);
+        let a2 = alice.comment("Dough", time, Some(a1.id()));
         let a3 = alice.redact(a1.id(), time);
-        let a4 = alice.comment("Bread", time, b0.id());
-
-        let t = Thread::new(b0);
+        let a4 = alice.comment("Bread", time, None);
 
         assert_order_invariance(&t, [&a0, &a1, &a2, &a3, &a4]);
         assert_idempotence(&t, [&a0, &a1, &a2, &a3, &a4]);
