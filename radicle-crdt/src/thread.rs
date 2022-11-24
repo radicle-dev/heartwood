@@ -53,6 +53,11 @@ impl Change {
 
         buf
     }
+
+    /// Deserialize a change from a byte string.
+    pub fn decode(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(bytes)
+    }
 }
 
 /// Change envelope. Carries signed changes.
@@ -472,7 +477,7 @@ mod tests {
         let actual: Thread = retrieved
             .history()
             .traverse(Thread::default(), |mut acc, entry| {
-                let change: Change = serde_json::from_slice(entry.contents()).unwrap();
+                let change = Change::decode(entry.contents()).unwrap();
                 acc.apply([change]);
 
                 ControlFlow::Continue(acc)
