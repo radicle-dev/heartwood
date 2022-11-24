@@ -1,16 +1,20 @@
 #![allow(clippy::collapsible_if)]
 #![allow(clippy::collapsible_else_if)]
 #![allow(clippy::type_complexity)]
+pub mod change;
 pub mod clock;
 pub mod lwwmap;
 pub mod lwwreg;
 pub mod lwwset;
 pub mod ord;
 pub mod redactable;
-pub mod thread;
 
-#[cfg(test)]
-mod test;
+#[cfg(any(test, feature = "test"))]
+pub mod test;
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub use change::*;
 
 ////////////////////////////////////////////////////////////////////////////////
 

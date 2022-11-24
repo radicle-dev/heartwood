@@ -13,6 +13,8 @@ members = [
 ]
 default-members = [
   "radicle",
+  "radicle-cob",
+  "radicle-crdt",
   "radicle-crypto",
   "radicle-node",
   "radicle-ssh",

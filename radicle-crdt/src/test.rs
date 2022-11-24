@@ -55,7 +55,10 @@ impl<'a, T, C: Default> WeightedGenerator<'a, T, C> {
 pub fn assert_laws<S: Debug + Semilattice + PartialEq + Clone>(a: &S, b: &S, c: &S) {
     assert_associative(a, b, c);
     assert_commutative(a, b);
+    assert_commutative(b, c);
     assert_idempotent(a);
+    assert_idempotent(b);
+    assert_idempotent(c);
 }
 
 pub fn assert_associative<S: Debug + Semilattice + PartialEq + Clone>(a: &S, b: &S, c: &S) {
