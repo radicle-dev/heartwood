@@ -12,6 +12,7 @@ use crate::clock::LClock;
 use crate::lwwreg::LWWReg;
 use crate::lwwset::LWWSet;
 use crate::redactable::Redactable;
+use crate::Semilattice;
 
 /// Identifies a change.
 pub type ChangeId = radicle::hash::Digest;
@@ -85,6 +86,12 @@ impl Comment {
     }
 }
 
+impl PartialOrd for Comment {
+    fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
+        None
+    }
+}
+
 /// An action that can be carried out in a change.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum Action {
@@ -113,6 +120,14 @@ pub struct Thread {
     tags: BTreeMap<TagId, LWWReg<bool, Timestamp>>,
     /// Reactions to changes.
     reactions: BTreeMap<ChangeId, LWWSet<(ActorId, Reaction), Timestamp>>,
+}
+
+impl Semilattice for Thread {
+    fn merge(&mut self, other: Self) {
+        self.comments.merge(other.comments);
+        self.tags.merge(other.tags);
+        self.reactions.merge(other.reactions);
+    }
 }
 
 impl Deref for Thread {
@@ -329,7 +344,7 @@ mod tests {
     use radicle::{cob::TypeName, crypto::test::signer::MockSigner, identity::project::Identity};
 
     use super::*;
-    use crate::test::WeightedGenerator;
+    use crate::test::{assert_laws, WeightedGenerator};
 
     #[derive(Clone)]
     struct Changes<const N: usize> {
@@ -574,6 +589,7 @@ mod tests {
 
         assert_eq!(t1, t2);
         assert_eq!(t2, t3);
+        assert_laws(&t1, &t2, &t3);
     }
 
     #[test]
