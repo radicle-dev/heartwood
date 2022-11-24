@@ -90,7 +90,7 @@ where
     V: PartialOrd + Eq,
     C: Ord + Copy + Default,
 {
-    fn join(mut self, other: Self) -> Self {
+    fn merge(&mut self, other: Self) {
         for (k, v) in other.inner.into_iter() {
             match self.inner.entry(k) {
                 Entry::Occupied(mut e) => {
@@ -101,7 +101,6 @@ where
                 }
             }
         }
-        self
     }
 }
 

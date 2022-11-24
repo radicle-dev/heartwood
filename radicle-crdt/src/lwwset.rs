@@ -61,10 +61,8 @@ where
     T: Ord,
     C: Ord + Copy + Default,
 {
-    fn join(self, other: Self) -> Self {
-        Self {
-            inner: self.inner.join(other.inner),
-        }
+    fn merge(&mut self, other: Self) {
+        self.inner.merge(other.inner);
     }
 }
 

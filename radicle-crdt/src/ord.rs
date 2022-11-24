@@ -57,11 +57,9 @@ impl<T> From<T> for Max<T> {
 }
 
 impl<T: PartialOrd> Semilattice for Max<T> {
-    fn join(self, other: Self) -> Self {
+    fn merge(&mut self, other: Self) {
         if other.0 > self.0 {
-            other
-        } else {
-            self
+            self.0 = other.0;
         }
     }
 }

@@ -19,8 +19,8 @@ impl<T> From<Option<T>> for Redactable<T> {
     }
 }
 
-impl<T: PartialOrd> Redactable<T> {
-    pub fn merge(&mut self, other: Self) {
+impl<T: PartialOrd> Semilattice for Redactable<T> {
+    fn merge(&mut self, other: Self) {
         match (&self, other) {
             (Self::Redacted, _) => {}
             (Self::Present(_), Self::Redacted) => {
@@ -32,13 +32,6 @@ impl<T: PartialOrd> Redactable<T> {
                 }
             }
         }
-    }
-}
-
-impl<T: PartialOrd> Semilattice for Redactable<T> {
-    fn join(mut self, other: Self) -> Self {
-        self.merge(other);
-        self
     }
 }
 

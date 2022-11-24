@@ -15,9 +15,18 @@ mod test;
 ////////////////////////////////////////////////////////////////////////////////
 
 /// A join-semilattice.
-pub trait Semilattice {
-    /// Join or "merge" two semilattices into one.
-    fn join(self, other: Self) -> Self;
+pub trait Semilattice: Sized {
+    /// Merge an other semilattice into this one.
+    ///
+    /// This operation should obbey the semilattice laws and should thus be idempotent,
+    /// associative and commutative.
+    fn merge(&mut self, other: Self);
+
+    /// Like [`Semilattice::merge`] but takes and returns a new semilattice.
+    fn join(mut self, other: Self) -> Self {
+        self.merge(other);
+        self
+    }
 }
 
 /// Reduce an iterator of semilattice values to its least upper bound.

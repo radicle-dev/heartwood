@@ -33,10 +33,6 @@ impl<T: PartialOrd, C: PartialOrd> LWWReg<T, C> {
         let (t, c) = self.inner.into_inner();
         (c, t)
     }
-
-    pub fn merge(&mut self, other: Self) {
-        self.inner.merge(other.inner);
-    }
 }
 
 impl<T, C> Semilattice for LWWReg<T, C>
@@ -44,10 +40,8 @@ where
     T: PartialOrd + Default,
     C: PartialOrd + Default,
 {
-    fn join(self, other: Self) -> Self {
-        Self {
-            inner: self.inner.join(other.inner),
-        }
+    fn merge(&mut self, other: Self) {
+        self.inner.merge(other.inner);
     }
 }
 
