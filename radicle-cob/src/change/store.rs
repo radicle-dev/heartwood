@@ -47,6 +47,7 @@ pub trait Storage {
 
 pub struct Create<Id> {
     pub typename: TypeName,
+    pub history_type: HistoryType,
     pub tips: Vec<Id>,
     pub message: String,
     pub contents: Contents,

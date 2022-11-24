@@ -135,16 +135,13 @@ impl FromHistory for Issue {
 
     fn from_history(history: &History) -> Result<Self, Error> {
         let doc = history.traverse(Automerge::new(), |mut doc, entry| {
-            match entry.contents() {
-                Contents::Automerge(bytes) => {
-                    match automerge::Change::from_bytes(bytes.clone()) {
-                        Ok(change) => {
-                            doc.apply_changes([change]).ok();
-                        }
-                        Err(_err) => {
-                            // Ignore
-                        }
-                    }
+            let bytes = entry.contents();
+            match automerge::Change::from_bytes(bytes.clone()) {
+                Ok(change) => {
+                    doc.apply_changes([change]).ok();
+                }
+                Err(_err) => {
+                    // Ignore
                 }
             }
             ControlFlow::Continue(doc)
@@ -379,7 +376,7 @@ mod events {
             .map_err(|failure| failure.error)?
             .result;
 
-        Ok(Contents::Automerge(doc.save_incremental()))
+        Ok(doc.save_incremental())
     }
 
     pub fn comment(
@@ -414,7 +411,7 @@ mod events {
         #[allow(clippy::unwrap_used)]
         let change = issue.get_last_local_change().unwrap().raw_bytes().to_vec();
 
-        Ok(Contents::Automerge(change))
+        Ok(change)
     }
 
     pub fn lifecycle(
@@ -439,7 +436,7 @@ mod events {
         #[allow(clippy::unwrap_used)]
         let change = issue.get_last_local_change().unwrap().raw_bytes().to_vec();
 
-        Ok(Contents::Automerge(change))
+        Ok(change)
     }
 
     pub fn label(
@@ -466,7 +463,7 @@ mod events {
         #[allow(clippy::unwrap_used)]
         let change = issue.get_last_local_change().unwrap().raw_bytes().to_vec();
 
-        Ok(Contents::Automerge(change))
+        Ok(change)
     }
 
     pub fn reply(
@@ -503,7 +500,7 @@ mod events {
         #[allow(clippy::unwrap_used)]
         let change = issue.get_last_local_change().unwrap().raw_bytes().to_vec();
 
-        Ok(Contents::Automerge(change))
+        Ok(change)
     }
 
     pub fn react(
@@ -546,7 +543,7 @@ mod events {
         #[allow(clippy::unwrap_used)]
         let change = issue.get_last_local_change().unwrap().raw_bytes().to_vec();
 
-        Ok(Contents::Automerge(change))
+        Ok(change)
     }
 }
 

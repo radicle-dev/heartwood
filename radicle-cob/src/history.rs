@@ -16,14 +16,17 @@ use crate::pruning_fold;
 pub mod entry;
 pub use entry::{Contents, Entry, EntryId};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
 pub enum HistoryType {
+    #[default]
+    Default,
     Automerge,
 }
 
 /// The DAG of changes making up the history of a collaborative object.
-///
-/// The `Author` represents the content address for the author of the change entry.
 #[derive(Clone, Debug)]
 pub struct History {
     graph: petgraph::Graph<Entry, (), petgraph::Directed, u32>,

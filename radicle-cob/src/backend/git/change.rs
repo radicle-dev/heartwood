@@ -96,13 +96,14 @@ impl change::Storage for git2::Repository {
     {
         let change::Create {
             typename,
+            history_type,
             tips,
             message,
             contents,
         } = spec;
         let manifest = store::Manifest {
             typename,
-            history_type: (&contents).into(),
+            history_type,
         };
 
         let revision = write_manifest(self, &manifest, &contents)?;
@@ -200,7 +201,7 @@ fn load_contents(
     manifest: &store::Manifest,
 ) -> Result<entry::Contents, error::Load> {
     Ok(match manifest.history_type {
-        HistoryType::Automerge => {
+        HistoryType::Default | HistoryType::Automerge => {
             let contents_tree_entry = tree
                 .get_name(CHANGE_BLOB_NAME)
                 .ok_or_else(|| error::Load::NoChange(tree.id().into()))?;
@@ -208,7 +209,7 @@ fn load_contents(
             let contents_blob = contents_object
                 .as_blob()
                 .ok_or_else(|| error::Load::ChangeNotBlob(tree.id().into()))?;
-            entry::Contents::automerge(contents_blob.content())
+            contents_blob.content().to_owned()
         }
     })
 }

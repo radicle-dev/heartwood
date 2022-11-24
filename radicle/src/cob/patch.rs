@@ -161,16 +161,13 @@ impl TryFrom<&History> for Patch {
 
     fn try_from(history: &History) -> Result<Self, Self::Error> {
         let doc = history.traverse(Automerge::new(), |mut doc, entry| {
-            match entry.contents() {
-                Contents::Automerge(bytes) => {
-                    match automerge::Change::from_bytes(bytes.clone()) {
-                        Ok(change) => {
-                            doc.apply_changes([change]).ok();
-                        }
-                        Err(_err) => {
-                            // Ignore
-                        }
-                    }
+            let bytes = entry.contents();
+            match automerge::Change::from_bytes(bytes.clone()) {
+                Ok(change) => {
+                    doc.apply_changes([change]).ok();
+                }
+                Err(_err) => {
+                    // Ignore
                 }
             }
             ControlFlow::Continue(doc)
@@ -750,7 +747,7 @@ mod events {
             .map_err(|failure| failure.error)?
             .result;
 
-        Ok(Contents::Automerge(doc.save_incremental()))
+        Ok(doc.save_incremental())
     }
 
     pub fn comment(
@@ -788,7 +785,7 @@ mod events {
         #[allow(clippy::unwrap_used)]
         let change = patch.get_last_local_change().unwrap().raw_bytes().to_vec();
 
-        Ok(Contents::Automerge(change))
+        Ok(change)
     }
 
     pub fn update(
@@ -817,7 +814,7 @@ mod events {
         #[allow(clippy::unwrap_used)]
         let change = patch.get_last_local_change().unwrap().raw_bytes().to_vec();
 
-        Ok((revision_ix, Contents::Automerge(change)))
+        Ok((revision_ix, change))
     }
 
     pub fn reply(
@@ -857,7 +854,7 @@ mod events {
         #[allow(clippy::unwrap_used)]
         let change = patch.get_last_local_change().unwrap().raw_bytes().to_vec();
 
-        Ok(Contents::Automerge(change))
+        Ok(change)
     }
 
     pub fn review(
@@ -888,7 +885,7 @@ mod events {
         #[allow(clippy::unwrap_used)]
         let change = patch.get_last_local_change().unwrap().raw_bytes().to_vec();
 
-        Ok(((), Contents::Automerge(change)))
+        Ok(((), change))
     }
 
     pub fn merge(
@@ -921,7 +918,7 @@ mod events {
         #[allow(clippy::unwrap_used)]
         let change = patch.get_last_local_change().unwrap().raw_bytes().to_vec();
 
-        Ok(Contents::Automerge(change))
+        Ok(change)
     }
 }
 

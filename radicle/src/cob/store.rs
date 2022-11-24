@@ -11,7 +11,7 @@ use crate::cob::shared::Author;
 use crate::cob::transaction::TransactionError;
 use crate::cob::CollaborativeObject;
 use crate::cob::{issue, label, patch};
-use crate::cob::{Contents, Create, History, ObjectId, TypeName, Update};
+use crate::cob::{Contents, Create, History, HistoryType, ObjectId, TypeName, Update};
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::project;
@@ -134,6 +134,7 @@ impl<'a, T: FromHistory> Store<'a, T> {
             Update {
                 author: Some(cob::Author::from(*signer.public_key())),
                 object_id,
+                history_type: HistoryType::Automerge,
                 typename: T::type_name().clone(),
                 message: message.to_owned(),
                 changes,
@@ -154,6 +155,7 @@ impl<'a, T: FromHistory> Store<'a, T> {
             &self.project,
             Create {
                 author: Some(cob::Author::from(*signer.public_key())),
+                history_type: HistoryType::Automerge,
                 typename: T::type_name().clone(),
                 message: message.to_owned(),
                 contents,
@@ -182,11 +184,7 @@ impl<'a, T: FromHistory> Store<'a, T> {
         };
 
         let doc = cob.history().traverse(Vec::new(), |mut doc, entry| {
-            match entry.contents() {
-                Contents::Automerge(bytes) => {
-                    doc.extend(bytes);
-                }
-            }
+            doc.extend(entry.contents());
             ControlFlow::Continue(doc)
         });
 

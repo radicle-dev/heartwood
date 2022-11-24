@@ -9,7 +9,7 @@ pub mod value;
 
 pub use cob::{
     identity, object::collaboration::error, CollaborativeObject, Contents, Create, Entry, History,
-    ObjectId, TypeName, Update,
+    HistoryType, ObjectId, TypeName, Update,
 };
 pub use shared::Timestamp;
 pub use store::Store;

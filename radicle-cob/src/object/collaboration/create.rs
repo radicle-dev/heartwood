@@ -3,7 +3,7 @@
 // This file is part of radicle-link, distributed under the GPLv3 with Radicle
 // Linking Exception. For full terms see the included LICENSE file.
 
-use crate::Store;
+use crate::{HistoryType, Store};
 
 use super::*;
 
@@ -11,6 +11,8 @@ use super::*;
 pub struct Create<Author> {
     /// The identity of the author for this object's first change.
     pub author: Option<Author>,
+    /// The type of history that will be used for this object.
+    pub history_type: HistoryType,
     /// The CRDT history to initialize this object with.
     pub contents: Contents,
     /// The typename for this object.
@@ -23,6 +25,7 @@ impl<Author> Create<Author> {
     fn create_spec(&self) -> change::Create<git_ext::Oid> {
         change::Create {
             typename: self.typename.clone(),
+            history_type: self.history_type,
             tips: Vec::new(),
             message: self.message.clone(),
             contents: self.contents.clone(),

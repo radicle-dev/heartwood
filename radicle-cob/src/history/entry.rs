@@ -7,34 +7,9 @@ use git_ext::Oid;
 
 use crate::pruning_fold;
 
-use super::HistoryType;
-
-#[derive(Clone, Debug, PartialEq, Hash, Eq)]
-pub enum Contents {
-    Automerge(Vec<u8>),
-}
-
-impl Contents {
-    pub fn automerge(bytes: &[u8]) -> Self {
-        Self::Automerge(bytes.to_vec())
-    }
-}
-
-impl From<&Contents> for HistoryType {
-    fn from(c: &Contents) -> Self {
-        match c {
-            Contents::Automerge(..) => HistoryType::Automerge,
-        }
-    }
-}
-
-impl AsRef<[u8]> for Contents {
-    fn as_ref(&self) -> &[u8] {
-        match self {
-            Self::Automerge(bytes) => bytes,
-        }
-    }
-}
+/// Entry contents.
+/// This is the change payload.
+pub type Contents = Vec<u8>;
 
 /// A unique identifier for a history entry.
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq, PartialOrd, Ord)]

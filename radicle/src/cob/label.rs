@@ -43,16 +43,13 @@ impl TryFrom<&History> for Label {
 
     fn try_from(history: &History) -> Result<Self, Self::Error> {
         let doc = history.traverse(Automerge::new(), |mut doc, entry| {
-            match entry.contents() {
-                Contents::Automerge(bytes) => {
-                    match automerge::Change::from_bytes(bytes.clone()) {
-                        Ok(change) => {
-                            doc.apply_changes([change]).ok();
-                        }
-                        Err(_err) => {
-                            // Ignore
-                        }
-                    }
+            let bytes = entry.contents();
+            match automerge::Change::from_bytes(bytes.clone()) {
+                Ok(change) => {
+                    doc.apply_changes([change]).ok();
+                }
+                Err(_err) => {
+                    // Ignore
                 }
             }
             ControlFlow::Continue(doc)
@@ -143,7 +140,7 @@ mod events {
         )
         .map_err(|failure| failure.error)?;
 
-        Ok(Contents::Automerge(doc.save_incremental()))
+        Ok(doc.save_incremental())
     }
 }
 
