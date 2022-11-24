@@ -7,11 +7,12 @@ use automerge::{Automerge, ObjType};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-use crate::cob::doc::Document;
-use crate::cob::shared::*;
-use crate::cob::store::{Error, FromHistory, Store};
-use crate::cob::transaction::TransactionError;
-use crate::cob::{Contents, History, ObjectId, TypeName};
+use crate::cob::automerge::doc::Document;
+use crate::cob::automerge::shared::FromHistory;
+use crate::cob::automerge::store::{Error, Store};
+use crate::cob::automerge::transaction::TransactionError;
+use crate::cob::common::*;
+use crate::cob::{Contents, History, ObjectId, Timestamp, TypeName};
 use crate::prelude::*;
 
 pub static TYPENAME: Lazy<TypeName> =

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 pub use automerge::{ScalarValue, Value};
 
+use crate::cob::patch::*;
 use crate::git;
 use crate::prelude::*;
 
@@ -73,5 +74,24 @@ impl<'a> FromValue<'a> for git::Oid {
 impl<'a> FromValue<'a> for String {
     fn from_value(val: Value) -> Result<String, ValueError> {
         val.into_string().map_err(|_| ValueError::InvalidType)
+    }
+}
+
+impl<'a> FromValue<'a> for MergeTarget {
+    fn from_value(value: Value<'a>) -> Result<Self, ValueError> {
+        let state = value.to_str().ok_or(ValueError::InvalidType)?;
+
+        match state {
+            "delegates" => Ok(Self::Delegates),
+            _ => Err(ValueError::InvalidValue(value.to_string())),
+        }
+    }
+}
+
+impl From<MergeTarget> for ScalarValue {
+    fn from(target: MergeTarget) -> Self {
+        match target {
+            MergeTarget::Delegates => ScalarValue::from("delegates"),
+        }
     }
 }

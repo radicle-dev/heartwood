@@ -1,18 +1,13 @@
-pub mod doc;
+pub mod automerge;
+pub mod common;
 pub mod issue;
-pub mod label;
 pub mod patch;
-pub mod shared;
-pub mod store;
-pub mod transaction;
-pub mod value;
 
 pub use cob::{
     identity, object::collaboration::error, CollaborativeObject, Contents, Create, Entry, History,
     HistoryType, ObjectId, TypeName, Update,
 };
-pub use shared::Timestamp;
-pub use store::Store;
+pub use common::*;
 
 use radicle_cob as cob;
 use radicle_git_ext::Oid;

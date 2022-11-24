@@ -7,7 +7,7 @@ use anyhow::{anyhow, Context};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use radicle::cob;
+use radicle::cob::automerge;
 use radicle::cob::patch::RevisionIx;
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::git;
@@ -141,7 +141,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .project_of(profile.id())
         .context(format!("couldn't load project {} from local state", id))?;
     let repository = profile.storage.repository(id)?;
-    let cobs = cob::Store::open(*profile.id(), &repository)?;
+    let cobs = automerge::Store::open(*profile.id(), &repository)?;
     let patches = cobs.patches();
 
     if repo.head_detached()? {

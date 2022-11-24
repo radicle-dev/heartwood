@@ -2,7 +2,8 @@ use std::path::Path;
 
 use anyhow::{anyhow, Context};
 
-use radicle::cob::patch::{MergeTarget, Patch, PatchId, PatchStore};
+use radicle::cob::automerge;
+use radicle::cob::automerge::patch::{MergeTarget, Patch, PatchId, PatchStore};
 use radicle::git;
 use radicle::git::raw::Oid;
 use radicle::prelude::*;
@@ -51,7 +52,7 @@ pub fn run(
     ));
 
     let signer = term::signer(profile)?;
-    let cobs = radicle::cob::Store::open(profile.public_key, storage)?;
+    let cobs = automerge::Store::open(profile.public_key, storage)?;
     let patches = cobs.patches();
 
     // `HEAD`; This is what we are proposing as a patch.

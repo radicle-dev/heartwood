@@ -3,8 +3,8 @@ use std::str::FromStr;
 
 use dialoguer::{console::style, console::Style, theme::ColorfulTheme, Input, Password};
 
+use radicle::cob::common::CommentId;
 use radicle::cob::issue::Issue;
-use radicle::cob::shared::CommentId;
 use radicle::crypto::ssh::keystore::Passphrase;
 use radicle::crypto::Signer;
 use radicle::profile::env::RAD_PASSPHRASE;

@@ -7,9 +7,9 @@ use anyhow::{anyhow, Context as _};
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
+use radicle::cob::automerge::store::Store;
+use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue::{CloseReason, IssueId, State};
-use radicle::cob::shared::{Label, Reaction};
-use radicle::cob::store::Store;
 use radicle::storage::WriteStorage;
 
 pub const HELP: Help = Help {

@@ -1,4 +1,4 @@
-use radicle::cob;
+use radicle::cob::automerge;
 use radicle::cob::patch::{Patch, PatchId, Verdict};
 use radicle::git;
 use radicle::prelude::*;
@@ -22,7 +22,7 @@ pub fn run(
     }
 
     let me = *profile.id();
-    let cobs = cob::Store::open(*profile.id(), storage)?;
+    let cobs = automerge::Store::open(*profile.id(), storage)?;
     let patches = cobs.patches();
     let proposed = patches.proposed()?;
 

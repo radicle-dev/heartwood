@@ -6,12 +6,13 @@ use std::ops::ControlFlow;
 use automerge::{Automerge, AutomergeError};
 
 use crate::cob;
-use crate::cob::doc::DocumentError;
-use crate::cob::shared::Author;
-use crate::cob::transaction::TransactionError;
+use crate::cob::automerge::doc::DocumentError;
+use crate::cob::automerge::shared::FromHistory;
+use crate::cob::automerge::transaction::TransactionError;
+use crate::cob::automerge::{issue, label, patch};
+use crate::cob::common::Author;
 use crate::cob::CollaborativeObject;
-use crate::cob::{issue, label, patch};
-use crate::cob::{Contents, Create, History, HistoryType, ObjectId, TypeName, Update};
+use crate::cob::{Contents, Create, HistoryType, ObjectId, TypeName, Update};
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::project;
@@ -37,15 +38,6 @@ pub enum Error {
     Document(#[from] DocumentError),
     #[error("object `{1}`of type `{0}` was not found")]
     NotFound(TypeName, ObjectId),
-}
-
-/// A type that can be materialized from an event history.
-/// All collaborative objects implement this trait.
-pub trait FromHistory: Sized {
-    /// The object type name.
-    fn type_name() -> &'static TypeName;
-    /// Create an object from a history.
-    fn from_history(history: &History) -> Result<Self, Error>;
 }
 
 /// Storage for collaborative objects of a specific type `T` in a single project.

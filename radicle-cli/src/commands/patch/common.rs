@@ -1,4 +1,4 @@
-use radicle::cob::patch::{MergeTarget, Patch, PatchId, PatchStore};
+use radicle::cob::automerge::patch::{MergeTarget, Patch, PatchId, PatchStore};
 use radicle::git;
 use radicle::git::raw::Oid;
 use radicle::prelude::*;

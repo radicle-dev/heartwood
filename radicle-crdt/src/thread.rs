@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
 
-use radicle::cob::shared::Reaction;
+use radicle::cob::common::Reaction;
 use radicle::cob::Timestamp;
 use radicle::crypto::{PublicKey, Signature, Signer};
 use radicle::hash;

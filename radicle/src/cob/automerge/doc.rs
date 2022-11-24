@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use automerge::{Automerge, AutomergeError, ObjType};
 
-use crate::cob::value::{FromValue, ValueError};
+use crate::cob::automerge::value::{FromValue, ValueError};
 
 /// Error decoding a document.
 #[derive(thiserror::Error, Debug)]

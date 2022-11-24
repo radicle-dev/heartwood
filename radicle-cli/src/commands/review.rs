@@ -4,7 +4,7 @@ use std::str::FromStr;
 use anyhow::{anyhow, Context};
 
 use radicle::cob;
-use radicle::cob::patch::{PatchId, RevisionIx, Verdict};
+use radicle::cob::automerge::patch::{PatchId, RevisionIx, Verdict};
 use radicle::prelude::*;
 use radicle::rad;
 
@@ -138,7 +138,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let _project = repository
         .project_of(profile.id())
         .context(format!("couldn't load project {} from local state", id))?;
-    let cobs = cob::Store::open(*profile.id(), &repository)?;
+    let cobs = cob::automerge::Store::open(*profile.id(), &repository)?;
     let patches = cobs.patches();
 
     let patch_id = options.id;

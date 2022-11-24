@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use automerge::transaction::Transactable;
 use automerge::AutomergeError;
 
-use crate::cob::value::Value;
+use crate::cob::automerge::value::Value;
 
 /// Wraps an automerge transaction with additional functionality.
 #[derive(Debug)]
