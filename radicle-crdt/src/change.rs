@@ -25,12 +25,14 @@ pub struct Change<A> {
     pub clock: LClock,
 }
 
-impl<'de, A: Serialize + Deserialize<'de>> Change<A> {
+impl<A> Change<A> {
     /// Get the change id.
     pub fn id(&self) -> ChangeId {
         (self.clock, self.author)
     }
+}
 
+impl<A: Serialize> Change<A> {
     /// Serialize the change into a byte string.
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::new();
@@ -41,7 +43,9 @@ impl<'de, A: Serialize + Deserialize<'de>> Change<A> {
 
         buf
     }
+}
 
+impl<'de, A: Deserialize<'de>> Change<A> {
     /// Deserialize a change from a byte string.
     pub fn decode(bytes: &'de [u8]) -> Result<Self, serde_json::Error> {
         serde_json::from_slice(bytes)

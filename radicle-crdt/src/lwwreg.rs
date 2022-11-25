@@ -1,3 +1,5 @@
+use num_traits::Bounded;
+
 use crate::ord::Max;
 use crate::Semilattice;
 
@@ -43,10 +45,28 @@ impl<T: PartialOrd + Semilattice, C: PartialOrd> LWWReg<T, C> {
     }
 }
 
+impl<T, C: Default> From<T> for LWWReg<T, C> {
+    fn from(value: T) -> Self {
+        Self {
+            clock: Max::from(C::default()),
+            value,
+        }
+    }
+}
+
+impl<T: Default, C: Default + Bounded> Default for LWWReg<T, C> {
+    fn default() -> Self {
+        Self {
+            clock: Max::default(),
+            value: T::default(),
+        }
+    }
+}
+
 impl<T, C> Semilattice for LWWReg<T, C>
 where
-    T: PartialOrd + Default + Semilattice,
-    C: PartialOrd + Default,
+    T: PartialOrd + Semilattice,
+    C: PartialOrd,
 {
     fn merge(&mut self, other: Self) {
         self.set(other.value, other.clock.into_inner());
