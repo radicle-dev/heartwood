@@ -118,6 +118,22 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "clone" => {
+            term::run_command_args::<rad_clone::Options, _>(
+                rad_clone::HELP,
+                "Clone",
+                rad_clone::run,
+                args.to_vec(),
+            );
+        }
+        "edit" => {
+            term::run_command_args::<rad_edit::Options, _>(
+                rad_edit::HELP,
+                "Edit",
+                rad_edit::run,
+                args.to_vec(),
+            );
+        }
         "help" => {
             term::run_command_args::<rad_help::Options, _>(
                 rad_help::HELP,
@@ -131,6 +147,78 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 rad_init::HELP,
                 "Initialization",
                 rad_init::run,
+                args.to_vec(),
+            );
+        }
+        "inspect" => {
+            term::run_command_args::<rad_inspect::Options, _>(
+                rad_inspect::HELP,
+                "Inspect",
+                rad_inspect::run,
+                args.to_vec(),
+            );
+        }
+        "issue" => {
+            term::run_command_args::<rad_issue::Options, _>(
+                rad_issue::HELP,
+                "Command",
+                rad_issue::run,
+                args.to_vec(),
+            );
+        }
+        "ls" => {
+            term::run_command_args::<rad_ls::Options, _>(
+                rad_ls::HELP,
+                "List",
+                rad_ls::run,
+                args.to_vec(),
+            );
+        }
+        "merge" => {
+            term::run_command_args::<rad_merge::Options, _>(
+                rad_merge::HELP,
+                "Merge",
+                rad_merge::run,
+                args.to_vec(),
+            );
+        }
+        "patch" => {
+            term::run_command_args::<rad_patch::Options, _>(
+                rad_patch::HELP,
+                "Command",
+                rad_patch::run,
+                args.to_vec(),
+            );
+        }
+        "path" => {
+            term::run_command_args::<rad_path::Options, _>(
+                rad_path::HELP,
+                "Path",
+                rad_path::run,
+                args.to_vec(),
+            );
+        }
+        "push" => {
+            term::run_command_args::<rad_push::Options, _>(
+                rad_push::HELP,
+                "Push",
+                rad_push::run,
+                args.to_vec(),
+            );
+        }
+        "review" => {
+            term::run_command_args::<rad_review::Options, _>(
+                rad_review::HELP,
+                "Review",
+                rad_review::run,
+                args.to_vec(),
+            );
+        }
+        "rm" => {
+            term::run_command_args::<rad_rm::Options, _>(
+                rad_rm::HELP,
+                "Remove",
+                rad_rm::run,
                 args.to_vec(),
             );
         }
@@ -155,54 +243,6 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 rad_untrack::HELP,
                 "Untrack",
                 rad_untrack::run,
-                args.to_vec(),
-            );
-        }
-        "ls" => {
-            term::run_command_args::<rad_ls::Options, _>(
-                rad_ls::HELP,
-                "List",
-                rad_ls::run,
-                args.to_vec(),
-            );
-        }
-        "edit" => {
-            term::run_command_args::<rad_edit::Options, _>(
-                rad_edit::HELP,
-                "Edit",
-                rad_edit::run,
-                args.to_vec(),
-            );
-        }
-        "inspect" => {
-            term::run_command_args::<rad_inspect::Options, _>(
-                rad_inspect::HELP,
-                "Inspect",
-                rad_inspect::run,
-                args.to_vec(),
-            );
-        }
-        "rm" => {
-            term::run_command_args::<rad_rm::Options, _>(
-                rad_rm::HELP,
-                "Remove",
-                rad_rm::run,
-                args.to_vec(),
-            );
-        }
-        "issue" => {
-            term::run_command_args::<rad_issue::Options, _>(
-                rad_issue::HELP,
-                "Command",
-                rad_issue::run,
-                args.to_vec(),
-            );
-        }
-        "path" => {
-            term::run_command_args::<rad_path::Options, _>(
-                rad_path::HELP,
-                "Command",
-                rad_path::run,
                 args.to_vec(),
             );
         }
