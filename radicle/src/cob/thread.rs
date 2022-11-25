@@ -95,6 +95,7 @@ impl store::FromHistory for Thread {
         }))
     }
 }
+
 impl Semilattice for Thread {
     fn merge(&mut self, other: Self) {
         self.comments.merge(other.comments);

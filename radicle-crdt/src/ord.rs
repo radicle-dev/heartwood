@@ -99,3 +99,28 @@ where
         other.0.partial_cmp(&self.0)
     }
 }
+
+impl<T: PartialOrd> Semilattice for Min<T> {
+    fn merge(&mut self, other: Self) {
+        if other.0 < self.0 {
+            self.0 = other.0;
+        }
+    }
+}
+
+#[cfg(any(test, feature = "test"))]
+mod arbitrary {
+    use super::*;
+
+    impl<T: quickcheck::Arbitrary> quickcheck::Arbitrary for Max<T> {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            Self::from(T::arbitrary(g))
+        }
+    }
+
+    impl<T: quickcheck::Arbitrary> quickcheck::Arbitrary for Min<T> {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            Self::from(T::arbitrary(g))
+        }
+    }
+}

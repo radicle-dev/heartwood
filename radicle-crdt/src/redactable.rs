@@ -2,15 +2,19 @@ use crate::Semilattice;
 
 /// An object that can be either present or removed.
 ///
+/// The "redacted" state is the top-most element and takes precedence
+/// over other states.
+///
+/// There is no `Default` instance, as it wouldn't obbey semilattice laws.
+///
 /// Nb. The merge rules are such that if two redactables with different
 /// values present are merged; the result is redacted. This is the preserve
 /// the semilattice laws.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Redactable<T> {
     /// When the object is present.
     Present(T),
     /// When the object has been removed.
-    #[default]
     Redacted,
 }
 

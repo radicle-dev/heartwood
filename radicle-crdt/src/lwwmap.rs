@@ -10,7 +10,7 @@ pub struct LWWMap<K, V, C> {
     inner: BTreeMap<K, LWWReg<Option<V>, C>>,
 }
 
-impl<K: Ord, V: PartialOrd + Eq, C: PartialOrd + Ord + Copy> LWWMap<K, V, C> {
+impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: PartialOrd + Ord + Copy> LWWMap<K, V, C> {
     pub fn singleton(key: K, value: V, clock: C) -> Self {
         Self {
             inner: BTreeMap::from_iter([(key, LWWReg::new(Some(value), clock))]),
@@ -66,7 +66,9 @@ impl<K, V, C> Default for LWWMap<K, V, C> {
     }
 }
 
-impl<K: Ord, V: PartialOrd + Eq, C: Copy + Ord> FromIterator<(K, V, C)> for LWWMap<K, V, C> {
+impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Copy + Ord> FromIterator<(K, V, C)>
+    for LWWMap<K, V, C>
+{
     fn from_iter<I: IntoIterator<Item = (K, V, C)>>(iter: I) -> Self {
         let mut map = LWWMap::default();
         for (k, v, c) in iter.into_iter() {
@@ -76,7 +78,9 @@ impl<K: Ord, V: PartialOrd + Eq, C: Copy + Ord> FromIterator<(K, V, C)> for LWWM
     }
 }
 
-impl<K: Ord, V: PartialOrd + Eq, C: Ord + Copy> Extend<(K, V, C)> for LWWMap<K, V, C> {
+impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Ord + Copy> Extend<(K, V, C)>
+    for LWWMap<K, V, C>
+{
     fn extend<I: IntoIterator<Item = (K, V, C)>>(&mut self, iter: I) {
         for (k, v, c) in iter.into_iter() {
             self.insert(k, v, c);
@@ -87,7 +91,7 @@ impl<K: Ord, V: PartialOrd + Eq, C: Ord + Copy> Extend<(K, V, C)> for LWWMap<K, 
 impl<K, V, C> Semilattice for LWWMap<K, V, C>
 where
     K: Ord,
-    V: PartialOrd + Eq,
+    V: Semilattice + PartialOrd + Eq,
     C: Ord + Copy + Default,
 {
     fn merge(&mut self, other: Self) {
@@ -106,15 +110,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use quickcheck_macros::quickcheck;
+
+    use super::*;
+    use crate::ord::Max;
 
     #[quickcheck]
     fn prop_semilattice(
-        a: Vec<(u8, u8, u16)>,
-        b: Vec<(u8, u8, u16)>,
-        c: Vec<(u8, u8, u16)>,
-        mix: Vec<(u8, u8, u16)>,
+        a: Vec<(u8, Max<u8>, u16)>,
+        b: Vec<(u8, Max<u8>, u16)>,
+        c: Vec<(u8, Max<u8>, u16)>,
+        mix: Vec<(u8, Max<u8>, u16)>,
     ) {
         let mut a = LWWMap::from_iter(a);
         let mut b = LWWMap::from_iter(b);
@@ -130,18 +136,18 @@ mod tests {
     fn test_insert() {
         let mut map = LWWMap::default();
 
-        map.insert('a', 1, 0);
-        map.insert('b', 2, 0);
-        map.insert('c', 3, 0);
+        map.insert('a', Max::from(1), 0);
+        map.insert('b', Max::from(2), 0);
+        map.insert('c', Max::from(3), 0);
 
-        assert_eq!(map.get('a'), Some(&1));
-        assert_eq!(map.get('b'), Some(&2));
+        assert_eq!(map.get('a'), Some(&Max::from(1)));
+        assert_eq!(map.get('b'), Some(&Max::from(2)));
         assert_eq!(map.get('?'), None);
 
-        let values = map.iter().collect::<Vec<(&char, &u8)>>();
-        assert!(values.contains(&(&'a', &1)));
-        assert!(values.contains(&(&'b', &2)));
-        assert!(values.contains(&(&'c', &3)));
+        let values = map.iter().collect::<Vec<(&char, &Max<u8>)>>();
+        assert!(values.contains(&(&'a', &Max::from(1))));
+        assert!(values.contains(&(&'b', &Max::from(2))));
+        assert!(values.contains(&(&'c', &Max::from(3))));
         assert_eq!(values.len(), 3);
     }
 
@@ -149,7 +155,7 @@ mod tests {
     fn test_insert_remove() {
         let mut map = LWWMap::default();
 
-        map.insert('a', "alice", 1);
+        map.insert('a', Max::from("alice"), 1);
         assert!(map.contains_key('a'));
 
         map.remove('a', 0);
@@ -168,16 +174,16 @@ mod tests {
     fn test_remove_insert() {
         let mut map = LWWMap::default();
 
-        map.insert('a', "alice", 1);
-        assert_eq!(map.get('a'), Some(&"alice"));
+        map.insert('a', Max::from("alice"), 1);
+        assert_eq!(map.get('a'), Some(&Max::from("alice")));
 
         map.remove('a', 2);
         assert!(!map.contains_key('a'));
 
-        map.insert('a', "alice", 1);
+        map.insert('a', Max::from("alice"), 1);
         assert!(!map.contains_key('a'));
 
-        map.insert('a', "amy", 2);
-        assert_eq!(map.get('a'), Some(&"amy"));
+        map.insert('a', Max::from("amy"), 2);
+        assert_eq!(map.get('a'), Some(&Max::from("amy")));
     }
 }
