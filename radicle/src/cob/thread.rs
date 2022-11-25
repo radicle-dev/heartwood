@@ -1,3 +1,4 @@
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::str::FromStr;
@@ -121,22 +122,22 @@ impl Thread {
 
             match change.action {
                 Action::Comment { comment } => {
-                    match self.comments.get(&id) {
-                        Some(Redactable::Present(_)) => {
-                            // Do nothing, the action was already processed,
-                            // since a change with the same content-id as this
-                            // one exists already.
+                    let present = Redactable::Present(comment);
+
+                    match self.comments.entry(id) {
+                        Entry::Vacant(e) => {
+                            e.insert(present);
                         }
-                        Some(Redactable::Redacted) => {
-                            // Do nothing, the action was redacted.
-                        }
-                        None => {
-                            self.comments.insert(id, Redactable::Present(comment));
+                        Entry::Occupied(mut e) => {
+                            e.get_mut().merge(present);
                         }
                     }
                 }
                 Action::Redact { id } => {
-                    self.comments.insert(id, Redactable::Redacted);
+                    self.comments
+                        .entry(id)
+                        .and_modify(|e| e.merge(Redactable::Redacted))
+                        .or_insert(Redactable::Redacted);
                 }
                 Action::Tag { tag } => {
                     self.tags
