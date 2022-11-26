@@ -33,7 +33,7 @@ impl TryFrom<Document<'_>> for Patch {
         let target = doc.get(&obj_id, "target")?;
         let timestamp = doc.get(&obj_id, "timestamp")?;
         let revisions = doc.list(&obj_id, "revisions", lookup::revision)?;
-        let labels: HashSet<Label> = doc.keys(&obj_id, "labels")?;
+        let labels: HashSet<Tag> = doc.keys(&obj_id, "labels")?;
         let revisions =
             NonEmpty::from_vec(revisions).ok_or(DocumentError::EmptyList("revisions"))?;
         let author: Author = Author::new(author);
@@ -81,7 +81,7 @@ impl<'a> PatchStore<'a> {
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
-        labels: &[Label],
+        labels: &[Tag],
         signer: &G,
     ) -> Result<PatchId, Error> {
         let author = self.author();
@@ -464,7 +464,7 @@ mod events {
         revision: &Revision,
         target: MergeTarget,
         timestamp: Timestamp,
-        labels: &[Label],
+        labels: &[Tag],
     ) -> Result<Contents, TransactionError> {
         let title = title.trim();
         if title.is_empty() {

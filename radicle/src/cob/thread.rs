@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 use radicle_crdt as crdt;
 use serde::{Deserialize, Serialize};
 
-use crate::cob::common::Reaction;
+use crate::cob::common::{Reaction, Tag};
 use crate::cob::store;
 use crate::cob::{History, TypeName};
 use crate::crypto::{PublicKey, Signer};
@@ -22,18 +22,18 @@ use crdt::{Change, ChangeId, Semilattice};
 pub static TYPENAME: Lazy<TypeName> =
     Lazy::new(|| FromStr::from_str("xyz.radicle.thread").expect("type name is valid"));
 
-/// Identifies a tag.
-pub type TagId = String;
 /// Alias for `Author`.
 pub type ActorId = PublicKey;
+/// Identifies a comment.
+pub type CommentId = ChangeId;
 
 /// A comment on a discussion thread.
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Comment {
     /// The comment body.
-    body: String,
+    pub body: String,
     /// Thread or comment this is a reply to.
-    reply_to: Option<ChangeId>,
+    pub reply_to: Option<ChangeId>,
 }
 
 impl Comment {
@@ -56,10 +56,10 @@ pub enum Action {
     Comment { comment: Comment },
     /// Redact a change. Not all changes can be redacted.
     Redact { id: ChangeId },
-    /// Add a tag to the thread.
-    Tag { tag: TagId },
-    /// Remove a tag from the thread.
-    Untag { tag: TagId },
+    /// Add tags to the thread.
+    Tag { tags: Vec<Tag> },
+    /// Remove tags from the thread.
+    Untag { tags: Vec<Tag> },
     /// React to a change.
     React {
         to: ChangeId,
@@ -72,11 +72,11 @@ pub enum Action {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Thread {
     /// The comments under the thread.
-    comments: BTreeMap<ChangeId, Redactable<Comment>>,
+    comments: BTreeMap<CommentId, Redactable<Comment>>,
     /// Associated tags.
-    tags: BTreeMap<TagId, LWWReg<bool, LClock>>,
+    tags: BTreeMap<Tag, LWWReg<bool, LClock>>,
     /// Reactions to changes.
-    reactions: BTreeMap<ChangeId, LWWSet<(ActorId, Reaction), LClock>>,
+    reactions: BTreeMap<CommentId, LWWSet<(ActorId, Reaction), LClock>>,
 }
 
 impl store::FromHistory for Thread {
@@ -105,7 +105,7 @@ impl Semilattice for Thread {
 }
 
 impl Deref for Thread {
-    type Target = BTreeMap<ChangeId, Redactable<Comment>>;
+    type Target = BTreeMap<CommentId, Redactable<Comment>>;
 
     fn deref(&self) -> &Self::Target {
         &self.comments
@@ -115,6 +115,39 @@ impl Deref for Thread {
 impl Thread {
     pub fn clear(&mut self) {
         self.comments.clear();
+    }
+
+    pub fn comment(&self, id: &CommentId) -> Option<&Comment> {
+        if let Some(Redactable::Present(comment)) = self.comments.get(id) {
+            Some(comment)
+        } else {
+            None
+        }
+    }
+
+    pub fn replies<'a>(
+        &'a self,
+        to: &'a CommentId,
+    ) -> impl Iterator<Item = (&CommentId, &Comment)> {
+        self.comments().filter_map(move |(id, c)| {
+            if let Some(parent) = &c.reply_to {
+                if parent == to {
+                    return Some((id, c));
+                }
+            }
+            None
+        })
+    }
+
+    pub fn reactions<'a>(
+        &'a self,
+        to: &'a CommentId,
+    ) -> impl Iterator<Item = (&ActorId, &Reaction)> {
+        self.reactions
+            .get(to)
+            .into_iter()
+            .flat_map(move |rs| rs.iter())
+            .map(|(a, r)| (a, r))
     }
 
     pub fn apply(&mut self, changes: impl IntoIterator<Item = Change<Action>>) {
@@ -140,17 +173,21 @@ impl Thread {
                         .and_modify(|e| e.merge(Redactable::Redacted))
                         .or_insert(Redactable::Redacted);
                 }
-                Action::Tag { tag } => {
-                    self.tags
-                        .entry(tag)
-                        .and_modify(|r| r.set(true, change.clock))
-                        .or_insert_with(|| LWWReg::new(true, change.clock));
+                Action::Tag { tags } => {
+                    for tag in tags {
+                        self.tags
+                            .entry(tag)
+                            .and_modify(|r| r.set(true, change.clock))
+                            .or_insert_with(|| LWWReg::new(true, change.clock));
+                    }
                 }
-                Action::Untag { tag } => {
-                    self.tags
-                        .entry(tag)
-                        .and_modify(|r| r.set(false, change.clock))
-                        .or_insert_with(|| LWWReg::new(false, change.clock));
+                Action::Untag { tags } => {
+                    for tag in tags {
+                        self.tags
+                            .entry(tag)
+                            .and_modify(|r| r.set(false, change.clock))
+                            .or_insert_with(|| LWWReg::new(false, change.clock));
+                    }
                 }
                 Action::React {
                     to,
@@ -180,7 +217,7 @@ impl Thread {
         }
     }
 
-    pub fn comments(&self) -> impl Iterator<Item = (&ChangeId, &Comment)> + '_ {
+    pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &Comment)> + '_ {
         self.comments.iter().filter_map(|(id, comment)| {
             if let Redactable::Present(c) = comment {
                 Some((id, c))
@@ -190,7 +227,7 @@ impl Thread {
         })
     }
 
-    pub fn tags(&self) -> impl Iterator<Item = &TagId> + '_ {
+    pub fn tags(&self) -> impl Iterator<Item = &Tag> + '_ {
         self.tags
             .iter()
             .filter_map(|(tag, r)| if *r.get() { Some(tag) } else { None })
@@ -230,13 +267,13 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Add a tag.
-    pub fn tag(&mut self, tag: TagId) -> Change<Action> {
-        self.change(Action::Tag { tag })
+    pub fn tag(&mut self, tag: Tag) -> Change<Action> {
+        self.change(Action::Tag { tags: vec![tag] })
     }
 
     /// Remove a tag.
-    pub fn untag(&mut self, tag: TagId) -> Change<Action> {
-        self.change(Action::Untag { tag })
+    pub fn untag(&mut self, tag: Tag) -> Change<Action> {
+        self.change(Action::Untag { tags: vec![tag] })
     }
 
     /// Create a new redaction.
@@ -294,7 +331,7 @@ mod tests {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
             let gen =
-                WeightedGenerator::<Action, (Vec<TagId>, Vec<Change<Action>>)>::new(rng.clone())
+                WeightedGenerator::<Action, (Vec<Tag>, Vec<Change<Action>>)>::new(rng.clone())
                     .variant(2, |_, rng| {
                         Some(Action::Comment {
                             comment: Comment {
@@ -327,19 +364,20 @@ mod tests {
                             let tag = iter::repeat_with(|| rng.alphabetic())
                                 .take(8)
                                 .collect::<String>();
+                            let tag = Tag::new(tag).unwrap();
                             tags.push(tag.clone());
                             tag
                         } else {
                             tags[rng.usize(..tags.len())].clone()
                         };
-                        Some(Action::Tag { tag })
+                        Some(Action::Tag { tags: vec![tag] })
                     })
                     .variant(2, |(tags, _), rng| {
                         if tags.is_empty() {
                             return None;
                         }
                         let tag = tags[rng.usize(..tags.len())].clone();
-                        Some(Action::Untag { tag })
+                        Some(Action::Untag { tags: vec![tag] })
                     });
 
             let mut changes = Vec::new();
@@ -381,14 +419,12 @@ mod tests {
         let mut expected = Thread::default();
         expected.apply([a1.clone(), a2.clone()]);
 
-        let created = store
-            .create("Thread created", a1.encode(), &alice.signer)
-            .unwrap();
+        let (id, _) = store.create("Thread created", a1, &alice.signer).unwrap();
         store
-            .update(*created.id(), "Thread updated", a2.encode(), &alice.signer)
+            .update(id, "Thread updated", a2, &alice.signer)
             .unwrap();
 
-        let actual = store.get(created.id()).unwrap().unwrap();
+        let actual = store.get(&id).unwrap().unwrap();
 
         assert_eq!(actual, expected);
     }

@@ -7,9 +7,8 @@ use anyhow::{anyhow, Context as _};
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
-use radicle::cob::automerge::store::Store;
-use radicle::cob::common::{Label, Reaction};
-use radicle::cob::issue::{CloseReason, IssueId, State};
+use radicle::cob::common::{Reaction, Tag};
+use radicle::cob::issue::{CloseReason, IssueId, Issues, Status};
 use radicle::storage::WriteStorage;
 
 pub const HELP: Help = Help {
@@ -34,7 +33,7 @@ Options
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct Metadata {
     title: String,
-    labels: Vec<Label>,
+    labels: Vec<Tag>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -60,7 +59,7 @@ pub enum Operation {
     },
     State {
         id: IssueId,
-        state: State,
+        state: Status,
     },
     Delete {
         id: IssueId,
@@ -87,7 +86,7 @@ impl Args for Options {
         let mut title: Option<String> = None;
         let mut reaction: Option<Reaction> = None;
         let mut description: Option<String> = None;
-        let mut state: Option<State> = None;
+        let mut state: Option<Status> = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -98,15 +97,15 @@ impl Args for Options {
                     title = Some(parser.value()?.to_string_lossy().into());
                 }
                 Long("closed") if op == Some(OperationName::State) => {
-                    state = Some(State::Closed {
+                    state = Some(Status::Closed {
                         reason: CloseReason::Other,
                     });
                 }
                 Long("open") if op == Some(OperationName::State) => {
-                    state = Some(State::Open);
+                    state = Some(Status::Open);
                 }
                 Long("solved") if op == Some(OperationName::State) => {
-                    state = Some(State::Closed {
+                    state = Some(Status::Closed {
                         reason: CloseReason::Solved,
                     });
                 }
@@ -170,23 +169,23 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let (_, id) = radicle::rad::cwd()?;
     let repo = storage.repository(id)?;
-    let cobs = Store::open(*signer.public_key(), &repo)?;
-    let issues = cobs.issues();
+    let mut issues = Issues::open(*signer.public_key(), &repo)?;
 
     match options.op {
         Operation::Create {
             title: Some(title),
             description: Some(description),
         } => {
-            issues.create(&title, &description, &[], &signer)?;
+            issues.create(title, description, &[], &signer)?;
         }
         Operation::State { id, state } => {
-            issues.lifecycle(&id, state, &signer)?;
+            let mut issue = issues.get_mut(&id)?;
+            issue.lifecycle(state, &signer)?;
         }
         Operation::React { id, reaction } => {
-            if let Some(issue) = issues.get(&id)? {
+            if let Ok(mut issue) = issues.get_mut(&id) {
                 let comment_id = term::comment_select(&issue).unwrap();
-                issues.react(&id, comment_id, reaction, &signer)?;
+                issue.react(comment_id, reaction, &signer)?;
             }
         }
         Operation::Create { title, description } => {
@@ -234,12 +233,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::List => {
-            for (id, issue) in issues.all()? {
+            for result in issues.all()? {
+                let (id, issue) = result?;
                 println!("{} {}", id, issue.title());
             }
         }
         Operation::Delete { id } => {
-            issues.remove(&id, &signer)?;
+            issues.remove(&id)?;
         }
     }
 

@@ -2,10 +2,13 @@
 #![allow(clippy::large_enum_variant)]
 use std::marker::PhantomData;
 
+use radicle_crdt::Change;
+use serde::Serialize;
+
 use crate::cob;
 use crate::cob::common::Author;
 use crate::cob::CollaborativeObject;
-use crate::cob::{Contents, Create, History, HistoryType, ObjectId, TypeName, Update};
+use crate::cob::{Create, History, HistoryType, ObjectId, TypeName, Update};
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::project;
@@ -32,7 +35,7 @@ pub enum Error {
     Retrieve(#[from] cob::error::Retrieve),
     #[error(transparent)]
     Identity(#[from] project::IdentityError),
-    #[error("object `{1}`of type `{0}` was not found")]
+    #[error("object `{1}` of type `{0}` was not found")]
     NotFound(TypeName, ObjectId),
 }
 
@@ -62,9 +65,7 @@ impl<'a, T> Store<'a, T> {
             witness: PhantomData,
         })
     }
-}
 
-impl<'a, T> Store<'a, T> {
     /// Get this store's author.
     pub fn author(&self) -> Author {
         Author::new(self.whoami)
@@ -78,11 +79,11 @@ impl<'a, T> Store<'a, T> {
 
 impl<'a, T: FromHistory> Store<'a, T> {
     /// Update an object.
-    pub fn update<G: Signer>(
+    pub fn update<A: Serialize, G: Signer>(
         &self,
         object_id: ObjectId,
         message: &'static str,
-        changes: Contents,
+        change: Change<A>,
         signer: &G,
     ) -> Result<CollaborativeObject, cob::error::Update> {
         cob::update(
@@ -95,19 +96,19 @@ impl<'a, T: FromHistory> Store<'a, T> {
                 history_type: HistoryType::default(),
                 typename: T::type_name().clone(),
                 message: message.to_owned(),
-                changes,
+                changes: change.encode(),
             },
         )
     }
 
     /// Create an object.
-    pub fn create<G: Signer>(
+    pub fn create<A: Serialize, G: Signer>(
         &self,
         message: &'static str,
-        contents: Contents,
+        change: Change<A>,
         signer: &G,
-    ) -> Result<CollaborativeObject, cob::error::Create> {
-        cob::create(
+    ) -> Result<(ObjectId, T), Error> {
+        let cob = cob::create(
             self.raw,
             signer,
             &self.project,
@@ -116,9 +117,12 @@ impl<'a, T: FromHistory> Store<'a, T> {
                 history_type: HistoryType::default(),
                 typename: T::type_name().clone(),
                 message: message.to_owned(),
-                contents,
+                contents: change.encode(),
             },
-        )
+        )?;
+        let object = T::from_history(cob.history())?;
+
+        Ok((*cob.id(), object))
     }
 
     /// Get an object.
@@ -126,24 +130,24 @@ impl<'a, T: FromHistory> Store<'a, T> {
         let cob = cob::get(self.raw, T::type_name(), id)?;
 
         if let Some(cob) = cob {
-            let history = cob.history();
-            let obj = T::from_history(history)?;
-
+            let obj = T::from_history(cob.history())?;
             Ok(Some(obj))
         } else {
             Ok(None)
         }
     }
 
-    /// List objects.
-    pub fn list(&self) -> Result<Vec<(ObjectId, T)>, Error> {
+    /// Return all objects.
+    pub fn all(&self) -> Result<impl Iterator<Item = Result<(ObjectId, T), Error>>, Error> {
         let raw = cob::list(self.raw, T::type_name())?;
 
-        raw.into_iter()
-            .map(|o| {
-                let obj = T::from_history(o.history())?;
-                Ok::<_, Error>((*o.id(), obj))
-            })
-            .collect()
+        Ok(raw.into_iter().map(|o| {
+            let obj = T::from_history(o.history())?;
+            Ok((*o.id(), obj))
+        }))
+    }
+
+    pub fn remove(&self, _id: &ObjectId) -> Result<(), Error> {
+        todo!();
     }
 }

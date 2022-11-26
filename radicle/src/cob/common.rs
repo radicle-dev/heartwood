@@ -95,21 +95,21 @@ impl FromStr for Reaction {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum LabelError {
-    #[error("invalid label name: `{0}`")]
+pub enum TagError {
+    #[error("invalid tag name: `{0}`")]
     InvalidName(String),
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Label(String);
+pub struct Tag(String);
 
-impl Label {
-    pub fn new(name: impl Into<String>) -> Result<Self, LabelError> {
+impl Tag {
+    pub fn new(name: impl Into<String>) -> Result<Self, TagError> {
         let name = name.into();
 
         if name.chars().any(|c| c.is_whitespace()) || name.is_empty() {
-            return Err(LabelError::InvalidName(name));
+            return Err(TagError::InvalidName(name));
         }
         Ok(Self(name))
     }
@@ -119,16 +119,16 @@ impl Label {
     }
 }
 
-impl FromStr for Label {
-    type Err = LabelError;
+impl FromStr for Tag {
+    type Err = TagError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::new(s)
     }
 }
 
-impl From<Label> for String {
-    fn from(Label(name): Label) -> Self {
+impl From<Tag> for String {
+    fn from(Tag(name): Tag) -> Self {
         name
     }
 }

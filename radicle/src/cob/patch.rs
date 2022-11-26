@@ -51,7 +51,7 @@ where
     /// Target this patch is meant to be merged in.
     pub target: MergeTarget,
     /// Labels associated with the patch.
-    pub labels: HashSet<Label>,
+    pub labels: HashSet<Tag>,
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
     pub revisions: NonEmpty<Revision<T>>,

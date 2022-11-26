@@ -9,7 +9,7 @@ use crate::cob;
 use crate::cob::automerge::doc::DocumentError;
 use crate::cob::automerge::shared::FromHistory;
 use crate::cob::automerge::transaction::TransactionError;
-use crate::cob::automerge::{issue, label, patch};
+use crate::cob::automerge::{label, patch};
 use crate::cob::common::Author;
 use crate::cob::CollaborativeObject;
 use crate::cob::{Contents, Create, HistoryType, ObjectId, TypeName, Update};
@@ -70,16 +70,6 @@ impl<'a> Store<'a, ()> {
     /// Return a patch store from this generic store.
     pub fn patches(&self) -> patch::PatchStore<'_> {
         patch::PatchStore::new(Store {
-            whoami: self.whoami,
-            project: self.project.clone(),
-            raw: self.raw,
-            witness: PhantomData,
-        })
-    }
-
-    /// Return an issues store from this generic store.
-    pub fn issues(&self) -> issue::IssueStore<'_> {
-        issue::IssueStore::new(Store {
             whoami: self.whoami,
             project: self.project.clone(),
             raw: self.raw,

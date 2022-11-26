@@ -3,8 +3,8 @@ use std::str::FromStr;
 
 use dialoguer::{console::style, console::Style, theme::ColorfulTheme, Input, Password};
 
-use radicle::cob::common::CommentId;
 use radicle::cob::issue::Issue;
+use radicle::cob::thread::CommentId;
 use radicle::crypto::ssh::keystore::Passphrase;
 use radicle::crypto::Signer;
 use radicle::profile::env::RAD_PASSPHRASE;
@@ -378,19 +378,20 @@ where
 pub fn comment_select(issue: &Issue) -> Option<CommentId> {
     let selection = dialoguer::Select::with_theme(&theme())
         .with_prompt("Which comment do you want to react to?")
-        .item(&issue.description().to_string())
+        .item(issue.description().unwrap_or_default())
         .items(
             &issue
                 .comments()
-                .iter()
-                .map(|p| p.body.clone())
+                .map(|(_, i)| i.body.clone())
                 .collect::<Vec<_>>(),
         )
-        .default(CommentId::root().into())
+        .default(0)
         .interact_opt()
         .unwrap();
 
-    selection.map(CommentId::from)
+    selection
+        .and_then(|n| issue.comments().nth(n))
+        .map(|(id, _)| *id)
 }
 
 pub fn markdown(content: &str) {
