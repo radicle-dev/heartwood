@@ -5,7 +5,7 @@ use crate::Semilattice;
 /// The "redacted" state is the top-most element and takes precedence
 /// over other states.
 ///
-/// There is no `Default` instance, as it wouldn't obbey semilattice laws.
+/// There is no `Default` instance, since this is not a "bounded" semilattice.
 ///
 /// Nb. The merge rules are such that if two redactables with different
 /// values present are merged; the result is redacted. This is the preserve

@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::ops::{ControlFlow, Deref, DerefMut};
@@ -42,8 +43,12 @@ impl Comment {
 }
 
 impl PartialOrd for Comment {
-    fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
-        None
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self == other {
+            Some(Ordering::Equal)
+        } else {
+            None
+        }
     }
 }
 
