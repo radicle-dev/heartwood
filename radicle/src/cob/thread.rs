@@ -10,20 +10,18 @@ use serde::{Deserialize, Serialize};
 use crate::cob::common::{Reaction, Tag};
 use crate::cob::store;
 use crate::cob::{History, TypeName};
-use crate::crypto::{PublicKey, Signer};
+use crate::crypto::Signer;
 
 use crdt::clock::LClock;
 use crdt::lwwreg::LWWReg;
 use crdt::lwwset::LWWSet;
 use crdt::redactable::Redactable;
-use crdt::{Change, ChangeId, Semilattice};
+use crdt::{ActorId, Change, ChangeId, Semilattice};
 
 /// Type name of a thread.
 pub static TYPENAME: Lazy<TypeName> =
     Lazy::new(|| FromStr::from_str("xyz.radicle.thread").expect("type name is valid"));
 
-/// Alias for `Author`.
-pub type ActorId = PublicKey;
 /// Identifies a comment.
 pub type CommentId = ChangeId;
 
@@ -383,7 +381,7 @@ mod tests {
             let mut changes = Vec::new();
             let mut permutations: [Vec<Change<Action>>; N] = array::from_fn(|_| Vec::new());
             let mut clock = LClock::default();
-            let author = PublicKey::from([0; 32]);
+            let author = ActorId::from([0; 32]);
 
             for action in gen.take(g.size().min(8)) {
                 let clock = clock.tick();

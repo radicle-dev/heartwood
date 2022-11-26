@@ -6,10 +6,8 @@ use serde::{Deserialize, Serialize};
 use crate::clock::LClock;
 
 /// Identifies a change.
-pub type ChangeId = (LClock, Author);
+pub type ChangeId = (LClock, ActorId);
 /// The author of a change.
-pub type Author = PublicKey;
-/// Alias for `Author`.
 pub type ActorId = PublicKey;
 
 /// The `Change` is the unit of replication.
@@ -20,7 +18,7 @@ pub struct Change<A> {
     /// The action carried out by this change.
     pub action: A,
     /// The author of the change.
-    pub author: Author,
+    pub author: ActorId,
     /// Lamport clock.
     pub clock: LClock,
 }
