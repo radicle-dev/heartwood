@@ -10,7 +10,7 @@ pub struct LWWMap<K, V, C> {
     inner: BTreeMap<K, LWWReg<Option<V>, C>>,
 }
 
-impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: PartialOrd + Ord + Copy> LWWMap<K, V, C> {
+impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: PartialOrd + Ord> LWWMap<K, V, C> {
     pub fn singleton(key: K, value: V, clock: C) -> Self {
         Self {
             inner: BTreeMap::from_iter([(key, LWWReg::new(Some(value), clock))]),
@@ -37,10 +37,14 @@ impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: PartialOrd + Ord + Copy> LWWMa
     }
 
     pub fn remove(&mut self, key: K, clock: C) {
-        self.inner
-            .entry(key)
-            .and_modify(|reg| reg.set(None, clock))
-            .or_insert_with(|| LWWReg::new(None, clock));
+        match self.inner.entry(key) {
+            Entry::Occupied(mut e) => {
+                e.get_mut().set(None, clock);
+            }
+            Entry::Vacant(e) => {
+                e.insert(LWWReg::new(None, clock));
+            }
+        }
     }
 
     pub fn contains_key(&self, key: K) -> bool {
