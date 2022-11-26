@@ -201,7 +201,7 @@ fn load_contents(
     manifest: &store::Manifest,
 ) -> Result<entry::Contents, error::Load> {
     Ok(match manifest.history_type {
-        HistoryType::Default | HistoryType::Automerge => {
+        HistoryType::Radicle | HistoryType::Automerge => {
             let contents_tree_entry = tree
                 .get_name(CHANGE_BLOB_NAME)
                 .ok_or_else(|| error::Load::NoChange(tree.id().into()))?;

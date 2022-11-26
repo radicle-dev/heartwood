@@ -22,7 +22,7 @@ pub use entry::{Contents, Entry, EntryId};
 #[serde(rename_all = "lowercase")]
 pub enum HistoryType {
     #[default]
-    Default,
+    Radicle,
     Automerge,
 }
 
