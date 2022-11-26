@@ -6,7 +6,7 @@ pub struct LWWSet<T, C> {
     inner: LWWMap<T, (), C>,
 }
 
-impl<T: Ord, C: Ord + Copy> LWWSet<T, C> {
+impl<T: Ord, C: Ord> LWWSet<T, C> {
     pub fn singleton(value: T, clock: C) -> Self {
         Self {
             inner: LWWMap::from_iter([(value, (), clock)]),
@@ -38,7 +38,7 @@ impl<T, C> Default for LWWSet<T, C> {
     }
 }
 
-impl<T: Ord, C: Copy + Ord> FromIterator<(T, C)> for LWWSet<T, C> {
+impl<T: Ord, C: Ord> FromIterator<(T, C)> for LWWSet<T, C> {
     fn from_iter<I: IntoIterator<Item = (T, C)>>(iter: I) -> Self {
         let mut set = LWWSet::default();
         for (v, c) in iter.into_iter() {
@@ -48,7 +48,7 @@ impl<T: Ord, C: Copy + Ord> FromIterator<(T, C)> for LWWSet<T, C> {
     }
 }
 
-impl<T: Ord, C: Ord + Copy> Extend<(T, C)> for LWWSet<T, C> {
+impl<T: Ord, C: Ord> Extend<(T, C)> for LWWSet<T, C> {
     fn extend<I: IntoIterator<Item = (T, C)>>(&mut self, iter: I) {
         for (v, c) in iter.into_iter() {
             self.insert(v, c);
@@ -59,7 +59,7 @@ impl<T: Ord, C: Ord + Copy> Extend<(T, C)> for LWWSet<T, C> {
 impl<T, C> Semilattice for LWWSet<T, C>
 where
     T: Ord,
-    C: Ord + Copy + Default,
+    C: Ord + Default,
 {
     fn merge(&mut self, other: Self) {
         self.inner.merge(other.inner);

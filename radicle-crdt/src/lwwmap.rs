@@ -70,9 +70,7 @@ impl<K, V, C> Default for LWWMap<K, V, C> {
     }
 }
 
-impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Copy + Ord> FromIterator<(K, V, C)>
-    for LWWMap<K, V, C>
-{
+impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Ord> FromIterator<(K, V, C)> for LWWMap<K, V, C> {
     fn from_iter<I: IntoIterator<Item = (K, V, C)>>(iter: I) -> Self {
         let mut map = LWWMap::default();
         for (k, v, c) in iter.into_iter() {
@@ -82,9 +80,7 @@ impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Copy + Ord> FromIterator<(K, V
     }
 }
 
-impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Ord + Copy> Extend<(K, V, C)>
-    for LWWMap<K, V, C>
-{
+impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Ord> Extend<(K, V, C)> for LWWMap<K, V, C> {
     fn extend<I: IntoIterator<Item = (K, V, C)>>(&mut self, iter: I) {
         for (k, v, c) in iter.into_iter() {
             self.insert(k, v, c);
@@ -96,7 +92,7 @@ impl<K, V, C> Semilattice for LWWMap<K, V, C>
 where
     K: Ord,
     V: Semilattice + PartialOrd + Eq,
-    C: Ord + Copy + Default,
+    C: Ord + Default,
 {
     fn merge(&mut self, other: Self) {
         for (k, v) in other.inner.into_iter() {
