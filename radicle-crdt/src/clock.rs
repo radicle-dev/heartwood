@@ -6,11 +6,11 @@ use crate::Semilattice as _;
 /// Lamport clock.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct LClock {
+pub struct Lamport {
     counter: Max<u64>,
 }
 
-impl LClock {
+impl Lamport {
     /// Return the clock value.
     pub fn get(&self) -> u64 {
         *self.counter.get()
@@ -31,7 +31,7 @@ impl LClock {
     }
 }
 
-impl From<u64> for LClock {
+impl From<u64> for Lamport {
     fn from(counter: u64) -> Self {
         Self {
             counter: Max::from(counter),

@@ -12,7 +12,7 @@ use crate::cob::store;
 use crate::cob::{History, TypeName};
 use crate::crypto::Signer;
 
-use crdt::clock::LClock;
+use crdt::clock::Lamport;
 use crdt::lwwreg::LWWReg;
 use crdt::lwwset::LWWSet;
 use crdt::redactable::Redactable;
@@ -72,9 +72,9 @@ pub struct Thread {
     /// The comments under the thread.
     comments: BTreeMap<CommentId, Redactable<Comment>>,
     /// Associated tags.
-    tags: BTreeMap<Tag, LWWReg<bool, LClock>>,
+    tags: BTreeMap<Tag, LWWReg<bool, Lamport>>,
     /// Reactions to changes.
-    reactions: BTreeMap<CommentId, LWWSet<(ActorId, Reaction), LClock>>,
+    reactions: BTreeMap<CommentId, LWWSet<(ActorId, Reaction), Lamport>>,
 }
 
 impl store::FromHistory for Thread {
@@ -380,7 +380,7 @@ mod tests {
 
             let mut changes = Vec::new();
             let mut permutations: [Vec<Change<Action>>; N] = array::from_fn(|_| Vec::new());
-            let mut clock = LClock::default();
+            let mut clock = Lamport::default();
             let author = ActorId::from([0; 32]);
 
             for action in gen.take(g.size().min(8)) {

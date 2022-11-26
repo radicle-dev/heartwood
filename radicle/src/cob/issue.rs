@@ -3,7 +3,8 @@ use std::str::FromStr;
 
 use once_cell::sync::Lazy;
 use radicle_crdt as crdt;
-use radicle_crdt::{ChangeId, LClock, LWWReg, Max, Semilattice};
+use radicle_crdt::clock;
+use radicle_crdt::{ChangeId, LWWReg, Max, Semilattice};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -73,10 +74,10 @@ impl Status {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Issue {
     // TODO(cloudhead): Title should bias towards shorter strings.
-    title: LWWReg<Max<String>, LClock>,
-    status: LWWReg<Max<Status>, LClock>,
+    title: LWWReg<Max<String>, clock::Lamport>,
+    status: LWWReg<Max<Status>, clock::Lamport>,
     thread: Thread,
-    clock: LClock,
+    clock: clock::Lamport,
 }
 
 impl Semilattice for Issue {
@@ -93,7 +94,7 @@ impl Default for Issue {
             title: Max::from(String::default()).into(),
             status: Max::from(Status::default()).into(),
             thread: Thread::default(),
-            clock: LClock::default(),
+            clock: clock::Lamport::default(),
         }
     }
 }
@@ -146,7 +147,7 @@ impl Issue {
         self.thread.comments().map(|(id, comment)| (id, comment))
     }
 
-    pub fn clock(&self) -> &LClock {
+    pub fn clock(&self) -> &clock::Lamport {
         &self.clock
     }
 
@@ -186,14 +187,14 @@ impl Deref for Issue {
 
 pub struct IssueMut<'a, 'g> {
     id: ObjectId,
-    clock: LClock,
+    clock: clock::Lamport,
     issue: Issue,
     store: &'g mut Issues<'a>,
 }
 
 impl<'a, 'g> IssueMut<'a, 'g> {
     /// Get the internal logical clock.
-    pub fn clock(&self) -> &LClock {
+    pub fn clock(&self) -> &clock::Lamport {
         &self.clock
     }
 
@@ -372,7 +373,7 @@ impl<'a> Issues<'a> {
         let change = Change {
             author: self.author().id,
             action: Action::Title { title },
-            clock: LClock::default(),
+            clock: clock::Lamport::default(),
         };
         let (id, issue): (_, Issue) = self.raw.create("Create issue", change, signer)?;
         let mut issue = IssueMut {
@@ -485,7 +486,7 @@ mod test {
             .create("My first issue", "Blah blah blah.", &[], &signer)
             .unwrap();
 
-        let comment = (LClock::default(), *signer.public_key());
+        let comment = (clock::Lamport::default(), *signer.public_key());
         let reaction = Reaction::new('🥳').unwrap();
         issue.react(comment, reaction, &signer).unwrap();
 

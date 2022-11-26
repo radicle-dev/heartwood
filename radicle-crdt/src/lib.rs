@@ -16,7 +16,7 @@ pub mod test;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub use change::*;
-pub use clock::LClock;
+pub use clock::Lamport;
 pub use lwwmap::LWWMap;
 pub use lwwreg::LWWReg;
 pub use lwwset::LWWSet;

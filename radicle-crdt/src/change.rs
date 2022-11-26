@@ -3,10 +3,10 @@ use std::collections::BTreeMap;
 use radicle_crypto::{PublicKey, Signature, Signer};
 use serde::{Deserialize, Serialize};
 
-use crate::clock::LClock;
+use crate::clock::Lamport;
 
 /// Identifies a change.
-pub type ChangeId = (LClock, ActorId);
+pub type ChangeId = (Lamport, ActorId);
 /// The author of a change.
 pub type ActorId = PublicKey;
 
@@ -20,7 +20,7 @@ pub struct Change<A> {
     /// The author of the change.
     pub author: ActorId,
     /// Lamport clock.
-    pub clock: LClock,
+    pub clock: Lamport,
 }
 
 impl<A> Change<A> {
@@ -63,20 +63,20 @@ pub struct Envelope {
 #[derive(Default)]
 pub struct Actor<G, A> {
     pub signer: G,
-    pub clock: LClock,
-    pub changes: BTreeMap<(LClock, PublicKey), Change<A>>,
+    pub clock: Lamport,
+    pub changes: BTreeMap<(Lamport, PublicKey), Change<A>>,
 }
 
 impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
     pub fn new(signer: G) -> Self {
         Self {
             signer,
-            clock: LClock::default(),
+            clock: Lamport::default(),
             changes: BTreeMap::default(),
         }
     }
 
-    pub fn receive(&mut self, changes: impl IntoIterator<Item = Change<A>>) -> LClock {
+    pub fn receive(&mut self, changes: impl IntoIterator<Item = Change<A>>) -> Lamport {
         for change in changes {
             let clock = change.clock;
 
@@ -89,7 +89,7 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
     /// Reset actor state to initial state.
     pub fn reset(&mut self) {
         self.changes.clear();
-        self.clock = LClock::default();
+        self.clock = Lamport::default();
     }
 
     /// Returned an ordered list of events.
