@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ord::Max;
+use crate::Semilattice as _;
 
 /// Lamport clock.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

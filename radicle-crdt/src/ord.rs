@@ -19,14 +19,6 @@ impl<T> Max<T> {
     }
 }
 
-impl<T: PartialOrd> Max<T> {
-    pub fn merge(&mut self, other: Self) {
-        if other.0 > self.0 {
-            self.0 = other.0;
-        }
-    }
-}
-
 impl<T: num_traits::SaturatingAdd + num_traits::One> Max<T> {
     pub fn incr(&mut self) {
         self.0 = self.0.saturating_add(&T::one());
