@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::cob::common::{Reaction, Tag};
 use crate::cob::store;
-use crate::cob::{History, TypeName};
+use crate::cob::{History, Timestamp, TypeName};
 use crate::crypto::Signer;
 
 use crdt::clock::Lamport;
@@ -33,12 +33,18 @@ pub struct Comment {
     pub body: String,
     /// Thread or comment this is a reply to.
     pub reply_to: Option<ChangeId>,
+    /// When the comment was authored.
+    pub timestamp: Timestamp,
 }
 
 impl Comment {
     /// Create a new comment.
-    pub fn new(body: String, reply_to: Option<ChangeId>) -> Self {
-        Self { body, reply_to }
+    pub fn new(body: String, reply_to: Option<ChangeId>, timestamp: Timestamp) -> Self {
+        Self {
+            body,
+            reply_to,
+            timestamp,
+        }
     }
 }
 
@@ -56,7 +62,12 @@ impl PartialOrd for Comment {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum Action {
     /// Comment on a thread.
-    Comment { comment: Comment },
+    Comment {
+        /// Comment body.
+        body: String,
+        /// Another comment this is a reply to.
+        reply_to: Option<ChangeId>,
+    },
     /// Redact a change. Not all changes can be redacted.
     Redact { id: ChangeId },
     /// Add tags to the thread.
@@ -161,12 +172,15 @@ impl Thread {
         changes: impl IntoIterator<Item = Change<Action>>,
         clock: &mut Lamport,
     ) {
+        // FIXME(cloudhead): Use commit timestamp.
+        let timestamp = Timestamp::default();
+
         for change in changes.into_iter() {
             let id = change.id();
 
             match change.action {
-                Action::Comment { comment } => {
-                    let present = Redactable::Present(comment);
+                Action::Comment { body, reply_to } => {
+                    let present = Redactable::Present(Comment::new(body, reply_to, timestamp));
 
                     match self.comments.entry(id) {
                         Entry::Vacant(e) => {
@@ -271,9 +285,10 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Create a new comment.
-    pub fn comment(&mut self, body: &str, parent: Option<ChangeId>) -> Change<Action> {
+    pub fn comment(&mut self, body: &str, reply_to: Option<ChangeId>) -> Change<Action> {
         self.change(Action::Comment {
-            comment: Comment::new(String::from(body), parent),
+            body: String::from(body),
+            reply_to,
         })
     }
 
@@ -352,10 +367,8 @@ mod tests {
                     Some((
                         *clock,
                         Action::Comment {
-                            comment: Comment {
-                                body: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
-                                reply_to: Default::default(),
-                            },
+                            body: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
+                            reply_to: None,
                         },
                     ))
                 })

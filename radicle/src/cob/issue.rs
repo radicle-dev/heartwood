@@ -220,9 +220,11 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         let author = *signer.public_key();
         let clock = self.clock.tick();
         let body = body.into();
-        let comment = thread::Comment::new(body, None);
         let change = Change {
-            action: Action::from(thread::Action::Comment { comment }),
+            action: Action::from(thread::Action::Comment {
+                body,
+                reply_to: None,
+            }),
             author,
             clock,
         };
@@ -261,9 +263,11 @@ impl<'a, 'g> IssueMut<'a, 'g> {
 
         assert!(self.thread.comment(&parent).is_some());
 
-        let comment = thread::Comment::new(body, Some(parent));
         let change = Change {
-            action: Action::from(thread::Action::Comment { comment }),
+            action: Action::from(thread::Action::Comment {
+                body,
+                reply_to: Some(parent),
+            }),
             author,
             clock,
         };
