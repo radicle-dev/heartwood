@@ -340,65 +340,77 @@ mod tests {
 
     impl<const N: usize> Arbitrary for Changes<N> {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            let author = ActorId::from([0; 32]);
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
             let gen =
-                WeightedGenerator::<Action, (Vec<Tag>, Vec<Change<Action>>)>::new(rng.clone())
-                    .variant(2, |_, rng| {
-                        Some(Action::Comment {
+                WeightedGenerator::<(Lamport, Action), (Lamport, Vec<Tag>, Vec<ChangeId>)>::new(
+                    rng.clone(),
+                )
+                .variant(3, |(clock, _, changes), rng| {
+                    changes.push((clock.tick(), author));
+
+                    Some((
+                        *clock,
+                        Action::Comment {
                             comment: Comment {
                                 body: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
                                 reply_to: Default::default(),
                             },
-                        })
-                    })
-                    .variant(2, |(_, changes), rng| {
-                        if changes.is_empty() {
-                            return None;
-                        }
-                        let to = changes[rng.usize(..changes.len())].id();
+                        },
+                    ))
+                })
+                .variant(2, |(clock, _, changes), rng| {
+                    if changes.is_empty() {
+                        return None;
+                    }
+                    let to = changes[rng.usize(..changes.len())];
 
-                        Some(Action::React {
+                    Some((
+                        clock.tick(),
+                        Action::React {
                             to,
                             reaction: Reaction::new('✨').unwrap(),
                             active: rng.bool(),
-                        })
-                    })
-                    .variant(2, |(_, changes), rng| {
-                        if changes.is_empty() {
-                            return None;
-                        }
-                        let id = changes[rng.usize(..changes.len())].id();
-                        Some(Action::Redact { id })
-                    })
-                    .variant(2, |(tags, _), rng| {
-                        let tag = if tags.is_empty() || rng.bool() {
-                            let tag = iter::repeat_with(|| rng.alphabetic())
-                                .take(8)
-                                .collect::<String>();
-                            let tag = Tag::new(tag).unwrap();
-                            tags.push(tag.clone());
-                            tag
-                        } else {
-                            tags[rng.usize(..tags.len())].clone()
-                        };
-                        Some(Action::Tag { tags: vec![tag] })
-                    })
-                    .variant(2, |(tags, _), rng| {
-                        if tags.is_empty() {
-                            return None;
-                        }
-                        let tag = tags[rng.usize(..tags.len())].clone();
-                        Some(Action::Untag { tags: vec![tag] })
-                    });
+                        },
+                    ))
+                })
+                .variant(2, |(clock, _, changes), rng| {
+                    if changes.is_empty() {
+                        return None;
+                    }
+                    let id = changes[rng.usize(..changes.len())];
+
+                    Some((clock.tick(), Action::Redact { id }))
+                })
+                .variant(2, |(clock, tags, _), rng| {
+                    let tag = if tags.is_empty() || rng.bool() {
+                        let tag = iter::repeat_with(|| rng.alphabetic())
+                            .take(8)
+                            .collect::<String>();
+                        let tag = Tag::new(tag).unwrap();
+
+                        tags.push(tag.clone());
+                        tag
+                    } else {
+                        tags[rng.usize(..tags.len())].clone()
+                    };
+
+                    Some((clock.tick(), Action::Tag { tags: vec![tag] }))
+                })
+                .variant(2, |(clock, tags, _), rng| {
+                    if tags.is_empty() {
+                        return None;
+                    }
+                    let tag = tags[rng.usize(..tags.len())].clone();
+                    clock.tick();
+
+                    Some((clock.tick(), Action::Untag { tags: vec![tag] }))
+                });
 
             let mut changes = Vec::new();
             let mut permutations: [Vec<Change<Action>>; N] = array::from_fn(|_| Vec::new());
-            let mut clock = Lamport::default();
-            let author = ActorId::from([0; 32]);
 
-            for action in gen.take(g.size().min(8)) {
-                let clock = clock.tick();
-
+            for (clock, action) in gen.take(g.size().min(8)) {
                 changes.push(Change {
                     action,
                     author,
