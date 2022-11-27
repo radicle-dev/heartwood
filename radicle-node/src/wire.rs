@@ -13,11 +13,11 @@ use nakamoto_net as nakamoto;
 use nakamoto_net::{Link, LocalTime};
 
 use crate::address;
+use crate::crypto::hash::Digest;
 use crate::crypto::{PublicKey, Signature, Signer, Unverified};
 use crate::deserializer::Deserializer;
 use crate::git;
 use crate::git::fmt;
-use crate::hash::Digest;
 use crate::identity::Id;
 use crate::node;
 use crate::service;

@@ -10,7 +10,6 @@ use quickcheck::Arbitrary;
 
 use crate::collections::HashMap;
 use crate::git;
-use crate::hash;
 use crate::identity::{project::Delegate, project::Doc, Did, Id};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
@@ -196,12 +195,5 @@ impl Arbitrary for Id {
         let oid = git::Oid::try_from(bytes.as_slice()).unwrap();
 
         Id::from(oid)
-    }
-}
-
-impl Arbitrary for hash::Digest {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let bytes: Vec<u8> = Arbitrary::arbitrary(g);
-        hash::Digest::new(&bytes)
     }
 }

@@ -10,6 +10,7 @@ pub use ed25519::{Error, KeyPair, Seed};
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 
+pub mod hash;
 #[cfg(feature = "ssh")]
 pub mod ssh;
 

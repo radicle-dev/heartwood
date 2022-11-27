@@ -8,7 +8,6 @@ pub extern crate radicle_crypto as crypto;
 pub mod cob;
 pub mod collections;
 pub mod git;
-pub mod hash;
 pub mod identity;
 pub mod node;
 pub mod profile;

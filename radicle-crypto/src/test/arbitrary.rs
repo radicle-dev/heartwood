@@ -1,6 +1,6 @@
 use quickcheck::Arbitrary;
 
-use crate::{test::signer::MockSigner, KeyPair, PublicKey, SecretKey, Seed};
+use crate::{hash, test::signer::MockSigner, KeyPair, PublicKey, SecretKey, Seed};
 
 impl Arbitrary for MockSigner {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
@@ -19,6 +19,13 @@ impl Arbitrary for PublicKey {
         let keypair = KeyPair::from_seed(seed);
 
         PublicKey(keypair.pk)
+    }
+}
+
+impl Arbitrary for hash::Digest {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let bytes: Vec<u8> = Arbitrary::arbitrary(g);
+        hash::Digest::new(&bytes)
     }
 }
 
