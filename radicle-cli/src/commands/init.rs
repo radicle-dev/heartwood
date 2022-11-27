@@ -19,7 +19,7 @@ use serde_json as json;
 
 pub const HELP: Help = Help {
     name: "init",
-    description: "Initialize radicle projects from git repositories",
+    description: "Initialize a project from a git repository",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

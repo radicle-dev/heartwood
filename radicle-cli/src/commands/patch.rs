@@ -19,7 +19,7 @@ use crate::terminal::patch::Comment;
 
 pub const HELP: Help = Help {
     name: "patch",
-    description: "Work with radicle patches",
+    description: "Manage patches",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

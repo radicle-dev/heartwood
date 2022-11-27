@@ -12,7 +12,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "untrack",
-    description: "Untrack radicle project peers",
+    description: "Untrack project peers",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

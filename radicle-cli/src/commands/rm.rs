@@ -13,7 +13,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "rm",
-    description: "Remove radicle projects",
+    description: "Remove a project",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

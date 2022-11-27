@@ -10,7 +10,7 @@ use anyhow::anyhow;
 
 pub const HELP: Help = Help {
     name: "push",
-    description: env!("CARGO_PKG_DESCRIPTION"),
+    description: "Publish a project to the network",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

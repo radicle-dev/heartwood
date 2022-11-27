@@ -17,7 +17,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "inspect",
-    description: "Inspect a radicle identity or project directory",
+    description: "Inspect an identity or project directory",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

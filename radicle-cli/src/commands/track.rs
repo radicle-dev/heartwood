@@ -12,7 +12,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "track",
-    description: "Manage radicle project tracking relationships",
+    description: "Manage project tracking relationships",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

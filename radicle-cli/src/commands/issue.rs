@@ -13,7 +13,7 @@ use radicle::storage::WriteStorage;
 
 pub const HELP: Help = Help {
     name: "issue",
-    description: "Manage radicle issues",
+    description: "Manage issues",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

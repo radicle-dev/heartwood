@@ -8,7 +8,7 @@ use radicle::storage::{ReadRepository, WriteStorage};
 
 pub const HELP: Help = Help {
     name: "ls",
-    description: "List radicle projects and other objects",
+    description: "List projects",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

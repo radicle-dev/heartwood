@@ -11,7 +11,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "edit",
-    description: "Edit a radicle identity doc",
+    description: "Edit an identity doc",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

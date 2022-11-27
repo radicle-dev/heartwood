@@ -19,7 +19,7 @@ use crate::terminal::Interactive;
 
 pub const HELP: Help = Help {
     name: "clone",
-    description: "Clone radicle projects",
+    description: "Clone a project",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

@@ -16,7 +16,7 @@ use radicle::rad;
 
 pub const HELP: Help = Help {
     name: "merge",
-    description: "Merge radicle patches",
+    description: "Merge a patch",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

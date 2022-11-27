@@ -8,7 +8,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "self",
-    description: "Show information about your radicle identity and device",
+    description: "Show information about your identity and device",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

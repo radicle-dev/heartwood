@@ -13,7 +13,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "auth",
-    description: "Manage radicle identities and profiles",
+    description: "Manage identities and profiles",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

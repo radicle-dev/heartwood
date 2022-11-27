@@ -7,7 +7,7 @@ use super::*;
 
 pub const HELP: Help = Help {
     name: "help",
-    description: "Radicle CLI help",
+    description: "CLI help",
     version: env!("CARGO_PKG_VERSION"),
     usage: "Usage: rad help [--help]",
 };

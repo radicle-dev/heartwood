@@ -13,7 +13,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "checkout",
-    description: "Checkout a radicle project working copy",
+    description: "Checkout a project into the local directory",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage

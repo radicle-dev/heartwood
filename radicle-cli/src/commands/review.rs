@@ -14,7 +14,7 @@ use crate::terminal::patch::Comment;
 
 pub const HELP: Help = Help {
     name: "review",
-    description: "Approve and reject radicle patches",
+    description: "Approve or reject a patch",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
