@@ -77,7 +77,6 @@ pub struct Issue {
     title: LWWReg<Max<String>, clock::Lamport>,
     status: LWWReg<Max<Status>, clock::Lamport>,
     thread: Thread,
-    clock: clock::Lamport,
 }
 
 impl Semilattice for Issue {
@@ -94,7 +93,6 @@ impl Default for Issue {
             title: Max::from(String::default()).into(),
             status: Max::from(Status::default()).into(),
             thread: Thread::default(),
-            clock: clock::Lamport::default(),
         }
     }
 }
@@ -104,10 +102,13 @@ impl store::FromHistory for Issue {
         &*TYPENAME
     }
 
-    fn from_history(history: &radicle_cob::History) -> Result<Self, store::Error> {
-        Ok(history.traverse(Self::default(), |mut acc, entry| {
+    fn from_history(
+        history: &radicle_cob::History,
+    ) -> Result<(Self, clock::Lamport), store::Error> {
+        let mut clock = clock::Lamport::default();
+        let obj = history.traverse(Self::default(), |mut acc, entry| {
             if let Ok(change) = Change::decode(entry.contents()) {
-                if let Err(err) = acc.apply(change) {
+                if let Err(err) = acc.apply(change, &mut clock) {
                     log::warn!("Error applying change to issue state: {err}");
                     return ControlFlow::Break(acc);
                 }
@@ -115,7 +116,9 @@ impl store::FromHistory for Issue {
                 return ControlFlow::Break(acc);
             }
             ControlFlow::Continue(acc)
-        }))
+        });
+
+        Ok((obj, clock))
     }
 }
 
@@ -147,32 +150,31 @@ impl Issue {
         self.thread.comments().map(|(id, comment)| (id, comment))
     }
 
-    pub fn clock(&self) -> &clock::Lamport {
-        &self.clock
-    }
-
     pub fn timeline(&self) -> Vec<Action> {
         todo!();
     }
 
-    pub fn apply(&mut self, change: Change) -> Result<(), Error> {
+    pub fn apply(&mut self, change: Change, clock: &mut clock::Lamport) -> Result<(), Error> {
         match change.action {
             Action::Title { title } => {
                 self.title.set(title, change.clock);
+                clock.merge(change.clock);
             }
             Action::Lifecycle { status } => {
                 self.status.set(status, change.clock);
+                clock.merge(change.clock);
             }
             Action::Thread { action } => {
-                self.thread.apply([crdt::Change {
-                    action,
-                    author: change.author,
-                    clock: change.clock,
-                }]);
+                self.thread.apply(
+                    [crdt::Change {
+                        action,
+                        author: change.author,
+                        clock: change.clock,
+                    }],
+                    clock,
+                );
             }
         }
-        self.clock.merge(change.clock);
-
         Ok(())
     }
 }
@@ -300,7 +302,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
     ) -> Result<ChangeId, Error> {
         let id = change.id();
 
-        self.issue.apply(change.clone())?;
+        self.issue.apply(change.clone(), &mut self.clock)?;
         self.store
             .update(self.id, msg, change, signer)
             .map_err(|e| Error::Store(store::Error::from(e)))?;
@@ -342,19 +344,19 @@ impl<'a> Issues<'a> {
 
     /// Get an issue.
     pub fn get(&self, id: &ObjectId) -> Result<Option<Issue>, store::Error> {
-        self.raw.get(id)
+        self.raw.get(id).map(|r| r.map(|(i, _clock)| i))
     }
 
     /// Get an issue mutably.
     pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<IssueMut<'a, 'g>, store::Error> {
-        let issue = self
+        let (issue, clock) = self
             .raw
             .get(id)?
             .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *id))?;
 
         Ok(IssueMut {
             id: *id,
-            clock: issue.clock,
+            clock,
             issue,
             store: self,
         })
@@ -375,10 +377,10 @@ impl<'a> Issues<'a> {
             action: Action::Title { title },
             clock: clock::Lamport::default(),
         };
-        let (id, issue): (_, Issue) = self.raw.create("Create issue", change, signer)?;
+        let (id, issue, clock) = self.raw.create("Create issue", change, signer)?;
         let mut issue = IssueMut {
             id,
-            clock: issue.clock,
+            clock,
             issue,
             store: self,
         };
@@ -600,13 +602,14 @@ mod test {
         let issues = issues
             .all()
             .unwrap()
+            .map(|r| r.map(|(_, i, _)| i))
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
 
         assert_eq!(issues.len(), 3);
 
-        issues.iter().find(|(_, i)| i.title() == "First").unwrap();
-        issues.iter().find(|(_, i)| i.title() == "Second").unwrap();
-        issues.iter().find(|(_, i)| i.title() == "Third").unwrap();
+        issues.iter().find(|i| i.title() == "First").unwrap();
+        issues.iter().find(|i| i.title() == "Second").unwrap();
+        issues.iter().find(|i| i.title() == "Third").unwrap();
     }
 }

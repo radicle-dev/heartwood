@@ -234,7 +234,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::List => {
             for result in issues.all()? {
-                let (id, issue) = result?;
+                let (id, issue, _) = result?;
                 println!("{} {}", id, issue.title());
             }
         }

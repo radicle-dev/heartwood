@@ -328,7 +328,7 @@ async fn issues_handler(
         .all()?
         .into_iter()
         .filter_map(|r| r.ok())
-        .map(|(id, issue)| {
+        .map(|(id, issue, _)| {
             json!({
                 "id": id,
                 "author": issue.author(),

@@ -87,15 +87,18 @@ impl store::FromHistory for Thread {
         &*TYPENAME
     }
 
-    fn from_history(history: &History) -> Result<Self, store::Error> {
-        Ok(history.traverse(Thread::default(), |mut acc, entry| {
+    fn from_history(history: &History) -> Result<(Self, Lamport), store::Error> {
+        let mut clock = Lamport::default();
+        let obj = history.traverse(Thread::default(), |mut acc, entry| {
             if let Ok(change) = Change::decode(entry.contents()) {
-                acc.apply([change]);
+                acc.apply([change], &mut clock);
                 ControlFlow::Continue(acc)
             } else {
                 ControlFlow::Break(acc)
             }
-        }))
+        });
+
+        Ok((obj, clock))
     }
 }
 
@@ -153,7 +156,11 @@ impl Thread {
             .map(|(a, r)| (a, r))
     }
 
-    pub fn apply(&mut self, changes: impl IntoIterator<Item = Change<Action>>) {
+    pub fn apply(
+        &mut self,
+        changes: impl IntoIterator<Item = Change<Action>>,
+        clock: &mut Lamport,
+    ) {
         for change in changes.into_iter() {
             let id = change.id();
 
@@ -217,6 +224,7 @@ impl Thread {
                         });
                 }
             }
+            clock.merge(change.clock);
         }
     }
 
@@ -413,6 +421,7 @@ mod tests {
         let (_, signer, repository) = radicle::test::setup::context(&tmp);
         let store =
             radicle::cob::store::Store::<Thread>::open(*signer.public_key(), &repository).unwrap();
+        let mut clock = Lamport::default();
 
         let mut alice = Actor::new(signer);
 
@@ -420,14 +429,14 @@ mod tests {
         let a2 = alice.comment("Second comment", None);
 
         let mut expected = Thread::default();
-        expected.apply([a1.clone(), a2.clone()]);
+        expected.apply([a1.clone(), a2.clone()], &mut clock);
 
-        let (id, _) = store.create("Thread created", a1, &alice.signer).unwrap();
+        let (id, _, _) = store.create("Thread created", a1, &alice.signer).unwrap();
         store
             .update(id, "Thread updated", a2, &alice.signer)
             .unwrap();
 
-        let actual = store.get(&id).unwrap().unwrap();
+        let (actual, _) = store.get(&id).unwrap().unwrap();
 
         assert_eq!(actual, expected);
     }
@@ -506,15 +515,16 @@ mod tests {
     fn prop_invariants(log: Changes<3>) {
         let t = Thread::default();
         let [p1, p2, p3] = log.permutations;
+        let mut clock = Lamport::default();
 
         let mut t1 = t.clone();
-        t1.apply(p1);
+        t1.apply(p1, &mut clock);
 
         let mut t2 = t.clone();
-        t2.apply(p2);
+        t2.apply(p2, &mut clock);
 
         let mut t3 = t;
-        t3.apply(p3);
+        t3.apply(p3, &mut clock);
 
         assert_eq!(t1, t2);
         assert_eq!(t2, t3);

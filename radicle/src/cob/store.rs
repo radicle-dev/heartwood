@@ -2,7 +2,7 @@
 #![allow(clippy::large_enum_variant)]
 use std::marker::PhantomData;
 
-use radicle_crdt::Change;
+use radicle_crdt::{Change, Lamport};
 use serde::Serialize;
 
 use crate::cob;
@@ -21,7 +21,7 @@ pub trait FromHistory: Sized {
     /// The object type name.
     fn type_name() -> &'static TypeName;
     /// Create an object from a history.
-    fn from_history(history: &History) -> Result<Self, Error>;
+    fn from_history(history: &History) -> Result<(Self, Lamport), Error>;
 }
 
 /// Store error.
@@ -107,7 +107,7 @@ impl<'a, T: FromHistory> Store<'a, T> {
         message: &'static str,
         change: Change<A>,
         signer: &G,
-    ) -> Result<(ObjectId, T), Error> {
+    ) -> Result<(ObjectId, T, Lamport), Error> {
         let cob = cob::create(
             self.raw,
             signer,
@@ -120,30 +120,32 @@ impl<'a, T: FromHistory> Store<'a, T> {
                 contents: change.encode(),
             },
         )?;
-        let object = T::from_history(cob.history())?;
+        let (object, clock) = T::from_history(cob.history())?;
 
-        Ok((*cob.id(), object))
+        Ok((*cob.id(), object, clock))
     }
 
     /// Get an object.
-    pub fn get(&self, id: &ObjectId) -> Result<Option<T>, Error> {
+    pub fn get(&self, id: &ObjectId) -> Result<Option<(T, Lamport)>, Error> {
         let cob = cob::get(self.raw, T::type_name(), id)?;
 
         if let Some(cob) = cob {
-            let obj = T::from_history(cob.history())?;
-            Ok(Some(obj))
+            let (obj, clock) = T::from_history(cob.history())?;
+            Ok(Some((obj, clock)))
         } else {
             Ok(None)
         }
     }
 
     /// Return all objects.
-    pub fn all(&self) -> Result<impl Iterator<Item = Result<(ObjectId, T), Error>>, Error> {
+    pub fn all(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<(ObjectId, T, Lamport), Error>>, Error> {
         let raw = cob::list(self.raw, T::type_name())?;
 
         Ok(raw.into_iter().map(|o| {
-            let obj = T::from_history(o.history())?;
-            Ok((*o.id(), obj))
+            let (obj, clock) = T::from_history(o.history())?;
+            Ok((*o.id(), obj, clock))
         }))
     }
 
