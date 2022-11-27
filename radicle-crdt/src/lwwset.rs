@@ -1,8 +1,9 @@
+use crate::clock;
 use crate::{lwwmap::LWWMap, Semilattice};
 
 /// Last-Write-Wins Set.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LWWSet<T, C> {
+pub struct LWWSet<T, C = clock::Lamport> {
     inner: LWWMap<T, (), C>,
 }
 
@@ -27,6 +28,10 @@ impl<T: Ord, C: Ord> LWWSet<T, C> {
 
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.inner.iter().map(|(k, _)| k)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 }
 

@@ -1,5 +1,6 @@
 use num_traits::Bounded;
 
+use crate::clock;
 use crate::ord::Max;
 use crate::Semilattice;
 
@@ -7,7 +8,7 @@ use crate::Semilattice;
 ///
 /// In case of conflict, uses the [`Semilattice`] instance of `T` to merge.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LWWReg<T, C> {
+pub struct LWWReg<T, C = clock::Lamport> {
     clock: Max<C>,
     value: T,
 }

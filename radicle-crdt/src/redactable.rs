@@ -18,11 +18,38 @@ pub enum Redactable<T> {
     Redacted,
 }
 
+impl<T> Redactable<T> {
+    pub fn get(&self) -> Option<&T> {
+        match self {
+            Self::Present(val) => Some(val),
+            Self::Redacted => None,
+        }
+    }
+}
+
 impl<T> From<Option<T>> for Redactable<T> {
     fn from(option: Option<T>) -> Self {
         match option {
             Some(v) => Self::Present(v),
             None => Self::Redacted,
+        }
+    }
+}
+
+impl<T> From<Redactable<T>> for Option<T> {
+    fn from(redactable: Redactable<T>) -> Self {
+        match redactable {
+            Redactable::Present(v) => Some(v),
+            Redactable::Redacted => None,
+        }
+    }
+}
+
+impl<'a, T> From<&'a Redactable<T>> for Option<&'a T> {
+    fn from(redactable: &'a Redactable<T>) -> Self {
+        match redactable {
+            Redactable::Present(v) => Some(v),
+            Redactable::Redacted => None,
         }
     }
 }

@@ -60,6 +60,10 @@ impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: PartialOrd + Ord> LWWMap<K, V,
             .iter()
             .filter_map(|(k, v)| v.get().as_ref().map(|v| (k, v)))
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.iter().next().is_none()
+    }
 }
 
 impl<K, V, C> Default for LWWMap<K, V, C> {
@@ -168,6 +172,18 @@ mod tests {
         map.remove('a', 2);
         assert!(!map.contains_key('a'));
         assert!(!map.iter().any(|(c, _)| *c == 'a'));
+    }
+
+    #[test]
+    fn test_is_empty() {
+        let mut map = LWWMap::default();
+        assert!(map.is_empty());
+
+        map.insert('a', Max::from("alice"), 1);
+        assert!(!map.is_empty());
+
+        map.remove('a', 2);
+        assert!(map.is_empty());
     }
 
     #[test]
