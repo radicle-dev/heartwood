@@ -123,7 +123,7 @@ impl Args for Options {
                         reason: CloseReason::Solved,
                     });
                 }
-                Long("reaction") if op == Some(OperationName::React) => {
+                Long("emoji") if op == Some(OperationName::React) => {
                     if let Some(emoji) = parser.value()?.to_str() {
                         reaction =
                             Some(Reaction::from_str(emoji).map_err(|_| anyhow!("invalid emoji"))?);
