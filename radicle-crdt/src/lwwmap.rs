@@ -10,15 +10,15 @@ pub struct LWWMap<K, V, C> {
     inner: BTreeMap<K, LWWReg<Option<V>, C>>,
 }
 
-impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: PartialOrd + Ord> LWWMap<K, V, C> {
+impl<K: Ord, V: Semilattice, C: PartialOrd + Ord> LWWMap<K, V, C> {
     pub fn singleton(key: K, value: V, clock: C) -> Self {
         Self {
             inner: BTreeMap::from_iter([(key, LWWReg::new(Some(value), clock))]),
         }
     }
 
-    pub fn get(&self, key: K) -> Option<&V> {
-        let Some(value) = self.inner.get(&key) else {
+    pub fn get(&self, key: &K) -> Option<&V> {
+        let Some(value) = self.inner.get(key) else {
             // If the element was never added, return nothing.
             return None;
         };
@@ -47,8 +47,8 @@ impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: PartialOrd + Ord> LWWMap<K, V,
         }
     }
 
-    pub fn contains_key(&self, key: K) -> bool {
-        let Some(value) = self.inner.get(&key) else {
+    pub fn contains_key(&self, key: &K) -> bool {
+        let Some(value) = self.inner.get(key) else {
             // If the element was never added, return false.
             return false;
         };
@@ -144,9 +144,9 @@ mod tests {
         map.insert('b', Max::from(2), 0);
         map.insert('c', Max::from(3), 0);
 
-        assert_eq!(map.get('a'), Some(&Max::from(1)));
-        assert_eq!(map.get('b'), Some(&Max::from(2)));
-        assert_eq!(map.get('?'), None);
+        assert_eq!(map.get(&'a'), Some(&Max::from(1)));
+        assert_eq!(map.get(&'b'), Some(&Max::from(2)));
+        assert_eq!(map.get(&'?'), None);
 
         let values = map.iter().collect::<Vec<(&char, &Max<u8>)>>();
         assert!(values.contains(&(&'a', &Max::from(1))));
@@ -160,17 +160,17 @@ mod tests {
         let mut map = LWWMap::default();
 
         map.insert('a', Max::from("alice"), 1);
-        assert!(map.contains_key('a'));
+        assert!(map.contains_key(&'a'));
 
         map.remove('a', 0);
-        assert!(map.contains_key('a'));
+        assert!(map.contains_key(&'a'));
 
         map.remove('a', 1);
-        assert!(map.contains_key('a')); // Add takes precedence over remove.
+        assert!(map.contains_key(&'a')); // Add takes precedence over remove.
         assert!(map.iter().any(|(c, _)| *c == 'a'));
 
         map.remove('a', 2);
-        assert!(!map.contains_key('a'));
+        assert!(!map.contains_key(&'a'));
         assert!(!map.iter().any(|(c, _)| *c == 'a'));
     }
 
@@ -191,15 +191,15 @@ mod tests {
         let mut map = LWWMap::default();
 
         map.insert('a', Max::from("alice"), 1);
-        assert_eq!(map.get('a'), Some(&Max::from("alice")));
+        assert_eq!(map.get(&'a'), Some(&Max::from("alice")));
 
         map.remove('a', 2);
-        assert!(!map.contains_key('a'));
+        assert!(!map.contains_key(&'a'));
 
         map.insert('a', Max::from("alice"), 1);
-        assert!(!map.contains_key('a'));
+        assert!(!map.contains_key(&'a'));
 
         map.insert('a', Max::from("amy"), 2);
-        assert_eq!(map.get('a'), Some(&Max::from("amy")));
+        assert_eq!(map.get(&'a'), Some(&Max::from("amy")));
     }
 }

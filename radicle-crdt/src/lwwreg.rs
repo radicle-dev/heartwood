@@ -13,7 +13,7 @@ pub struct LWWReg<T, C = clock::Lamport> {
     value: T,
 }
 
-impl<T: PartialOrd + Semilattice, C: PartialOrd> LWWReg<T, C> {
+impl<T: Semilattice, C: PartialOrd> LWWReg<T, C> {
     pub fn new(value: T, clock: C) -> Self {
         Self {
             clock: Max::from(clock),

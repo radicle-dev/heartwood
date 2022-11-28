@@ -22,7 +22,7 @@ impl<T: Ord, C: Ord> LWWSet<T, C> {
         self.inner.remove(value, clock);
     }
 
-    pub fn contains(&self, value: T) -> bool {
+    pub fn contains(&self, value: &T) -> bool {
         self.inner.contains_key(value)
     }
 
@@ -101,9 +101,9 @@ mod tests {
         set.insert('b', 0);
         set.insert('c', 0);
 
-        assert!(set.contains('a'));
-        assert!(set.contains('b'));
-        assert!(!set.contains('?'));
+        assert!(set.contains(&'a'));
+        assert!(set.contains(&'b'));
+        assert!(!set.contains(&'?'));
 
         let values = set.iter().cloned().collect::<Vec<_>>();
         assert!(values.contains(&'a'));
@@ -117,17 +117,17 @@ mod tests {
         let mut set = LWWSet::default();
 
         set.insert('a', 1);
-        assert!(set.contains('a'));
+        assert!(set.contains(&'a'));
 
         set.remove('a', 0);
-        assert!(set.contains('a'));
+        assert!(set.contains(&'a'));
 
         set.remove('a', 1);
-        assert!(set.contains('a')); // Add takes precedence over remove.
+        assert!(set.contains(&'a')); // Add takes precedence over remove.
         assert!(set.iter().any(|c| *c == 'a'));
 
         set.remove('a', 2);
-        assert!(!set.contains('a'));
+        assert!(!set.contains(&'a'));
         assert!(!set.iter().any(|c| *c == 'a'));
     }
 
@@ -136,15 +136,15 @@ mod tests {
         let mut set = LWWSet::default();
 
         set.insert('a', 1);
-        assert!(set.contains('a'));
+        assert!(set.contains(&'a'));
 
         set.remove('a', 2);
-        assert!(!set.contains('a'));
+        assert!(!set.contains(&'a'));
 
         set.insert('a', 1);
-        assert!(!set.contains('a'));
+        assert!(!set.contains(&'a'));
 
         set.insert('a', 2);
-        assert!(set.contains('a'));
+        assert!(set.contains(&'a'));
     }
 }
