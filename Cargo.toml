@@ -36,6 +36,14 @@ version = "0.3.0"
 git = "https://github.com/cyphernet-wg/rust-cyphernet"
 version = "0.1.0"
 
+[patch.crates-io.poll-reactor]
+git = "https://github.com/cyphernet-wg/rust-netservices"
+version = "0.1.0"
+
+[patch.crates-io.netservices]
+git = "https://github.com/cyphernet-wg/rust-netservices"
+version = "0.1.0"
+
 [patch.crates-io.radicle-git-ext]
 git = "https://github.com/radicle-dev/radicle-git"
 rev = "d3115a22158c8395705babefdc89049f7510d32d"

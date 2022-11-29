@@ -119,7 +119,7 @@ pub enum MemorySignerError {
 /// so that signing never fails.
 ///
 /// Can be created from a [`Keystore`] with the [`MemorySigner::load`] function.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MemorySigner {
     public: PublicKey,
     secret: Zeroizing<SecretKey>,
