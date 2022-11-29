@@ -130,7 +130,7 @@ impl wire::Encode for RefsAnnouncement {
 impl wire::Decode for RefsAnnouncement {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
         let id = Id::decode(reader)?;
-        let refs = Refs::decode(reader)?;
+        let refs = BoundedVec::decode(reader)?;
         let timestamp = Timestamp::decode(reader)?;
 
         Ok(Self {

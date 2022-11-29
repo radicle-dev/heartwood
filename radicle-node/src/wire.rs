@@ -226,6 +226,24 @@ impl Encode for Refs {
     }
 }
 
+impl<A, B> Encode for (A, B)
+where
+    A: Encode,
+    B: Encode,
+{
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        let mut n = self.0.encode(writer)?;
+        n += self.1.encode(writer)?;
+        Ok(n)
+    }
+}
+
+impl Encode for git::RefString {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        self.as_str().encode(writer)
+    }
+}
+
 impl Encode for Signature {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         self.deref().encode(writer)
@@ -263,6 +281,25 @@ impl Decode for Refs {
             refs.insert(name, oid);
         }
         Ok(refs.into())
+    }
+}
+
+impl Decode for git::RefString {
+    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        let ref_str = String::decode(reader)?;
+        git::RefString::try_from(ref_str).map_err(Error::from)
+    }
+}
+
+impl<A, B> Decode for (A, B)
+where
+    A: Decode,
+    B: Decode,
+{
+    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        let a = A::decode(reader)?;
+        let b = B::decode(reader)?;
+        Ok((a, b))
     }
 }
 
@@ -628,6 +665,7 @@ impl<R, S, W, G, H: Handshake> Iterator for Wire<R, S, W, G, H> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use qcheck;
     use qcheck_macros::quickcheck;
 
     use crate::crypto::Unverified;
@@ -698,6 +736,14 @@ mod tests {
     #[quickcheck]
     fn prop_refs(input: Refs) {
         assert_eq!(deserialize::<Refs>(&serialize(&input)).unwrap(), input);
+    }
+
+    #[quickcheck]
+    fn prop_tuple(input: (String, String)) {
+        assert_eq!(
+            deserialize::<(String, String)>(&serialize(&input)).unwrap(),
+            input
+        );
     }
 
     #[quickcheck]

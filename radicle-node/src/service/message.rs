@@ -4,16 +4,18 @@ use std::{fmt, io, mem, net};
 use thiserror::Error;
 
 use crate::crypto;
+use crate::git;
 use crate::identity::Id;
 use crate::node;
 use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
 use crate::service::{NodeId, Timestamp, PROTOCOL_VERSION};
-use crate::storage::refs::Refs;
 use crate::wire;
 
 /// Maximum number of addresses which can be announced to other nodes.
 pub const ADDRESS_LIMIT: usize = 16;
+/// Maximum number of project git references.
+pub const REF_LIMIT: usize = 235;
 /// Maximum number of inventory which can be announced to other nodes.
 pub const INVENTORY_LIMIT: usize = 2973;
 
@@ -225,7 +227,7 @@ pub struct RefsAnnouncement {
     /// Repository identifier.
     pub id: Id,
     /// Updated refs.
-    pub refs: Refs,
+    pub refs: BoundedVec<(git::RefString, git::Oid), REF_LIMIT>,
     /// Time of announcement.
     pub timestamp: Timestamp,
 }
@@ -508,7 +510,42 @@ mod tests {
 
     use crate::crypto::test::signer::MockSigner;
     use crate::test::arbitrary;
+    use fastrand;
     use qcheck_macros::quickcheck;
+
+    #[test]
+    fn test_ref_limit() {
+        let mut refs = Refs::default();
+        while refs.len() < REF_LIMIT {
+            refs.insert(arbitrary::refstring(u8::MAX as usize), arbitrary::oid());
+        }
+
+        let bounded_refs = BoundedVec::collect_from(&mut refs.iter().map(|(a, b)| (a.clone(), *b)));
+        let msg: Message = AnnouncementMessage::from(RefsAnnouncement {
+            id: arbitrary::gen(1),
+            refs: bounded_refs,
+            timestamp: LocalTime::now().as_secs(),
+        })
+        .signed(&MockSigner::default())
+        .into();
+
+        let mut buf: Vec<u8> = Vec::new();
+        assert!(
+            msg.encode(&mut buf).is_ok(),
+            "REF_LIMIT is too big to support message encoding",
+        );
+
+        let decoded = wire::deserialize(buf.as_slice());
+        assert!(
+            decoded.is_ok(),
+            "REF_LIMIT is too big to support message decoding"
+        );
+        assert_eq!(
+            msg,
+            decoded.unwrap(),
+            "encoding and decoding should be safe for message at REF_LIMIT",
+        );
+    }
 
     #[test]
     fn test_inventory_limit() {
@@ -543,9 +580,10 @@ mod tests {
     fn prop_refs_announcement_signing(id: Id, refs: Refs) {
         let signer = MockSigner::new(&mut fastrand::Rng::new());
         let timestamp = 0;
+
         let message = AnnouncementMessage::Refs(RefsAnnouncement {
             id,
-            refs,
+            refs: BoundedVec::collect_from(&mut refs.iter().map(|(k, v)| (k.clone(), *v))),
             timestamp,
         });
         let ann = message.signed(&signer);

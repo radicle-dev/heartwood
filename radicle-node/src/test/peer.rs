@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use std::collections::BTreeMap;
 use std::iter;
 use std::net;
 use std::ops::{Deref, DerefMut};
@@ -13,7 +12,7 @@ use crate::crypto::test::signer::MockSigner;
 use crate::crypto::Signer;
 use crate::identity::Id;
 use crate::node;
-use crate::prelude::NodeId;
+use crate::prelude::*;
 use crate::service;
 use crate::service::message::*;
 use crate::service::reactor::Io;
@@ -214,7 +213,7 @@ where
     }
 
     pub fn refs_announcement(&self, id: Id) -> Message {
-        let refs = BTreeMap::new().into();
+        let refs = BoundedVec::new();
         let ann = AnnouncementMessage::from(RefsAnnouncement {
             id,
             refs,

@@ -15,6 +15,23 @@ use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::storage::MockStorage;
 
+pub fn oid() -> storage::Oid {
+    let oid_bytes: [u8; 20] = gen(1);
+    storage::Oid::try_from(oid_bytes.as_slice()).unwrap()
+}
+
+pub fn refstring(len: usize) -> git::RefString {
+    let mut buf = Vec::<u8>::new();
+    for _ in 0..len {
+        buf.push(fastrand::u8(0x61..0x7a));
+    }
+    std::str::from_utf8(&buf)
+        .unwrap()
+        .to_string()
+        .try_into()
+        .unwrap()
+}
+
 pub fn set<T: Eq + Hash + Arbitrary>(range: impl RangeBounds<usize>) -> HashSet<T> {
     let size = fastrand::usize(range);
     let mut set = HashSet::with_capacity(size);

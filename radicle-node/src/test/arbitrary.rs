@@ -56,7 +56,9 @@ impl Arbitrary for Message {
                 node: NodeId::arbitrary(g),
                 message: RefsAnnouncement {
                     id: Id::arbitrary(g),
-                    refs: Refs::arbitrary(g),
+                    refs: BoundedVec::collect_from(
+                        &mut Refs::arbitrary(g).iter().map(|(k, v)| (k.clone(), *v)),
+                    ),
                     timestamp: Timestamp::arbitrary(g),
                 }
                 .into(),

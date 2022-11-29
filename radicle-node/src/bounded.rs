@@ -18,6 +18,25 @@ impl<T, const N: usize> BoundedVec<T, N> {
         BoundedVec { v: Vec::new() }
     }
 
+    /// Build a `BoundedVec` by consuming from the given iterator up to its limit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use radicle_node::bounded;
+    ///
+    /// let mut iter = (0..4).into_iter();
+    /// let bounded: bounded::BoundedVec<i32,3> = bounded::BoundedVec::collect_from(&mut iter);
+    ///
+    /// assert_eq!(bounded.len(), 3);
+    /// assert_eq!(iter.count(), 1);
+    /// ```
+    pub fn collect_from<I: Iterator<Item = T>>(iter: &mut I) -> Self {
+        BoundedVec {
+            v: iter.into_iter().take(N).collect(),
+        }
+    }
+
     /// Create a new `BoundedVec<T,N>` which takes upto the first N values of its argument, taking
     /// ownership.
     ///

@@ -73,6 +73,8 @@ pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
 pub use message::ADDRESS_LIMIT;
 /// Maximum inventory limit imposed by message size limits.
 pub use message::INVENTORY_LIMIT;
+/// Maximum number of project git references imposed by message size limits.
+pub use message::REF_LIMIT;
 
 /// A service event.
 #[derive(Debug, Clone)]
@@ -959,12 +961,22 @@ where
 
     /// Announce local refs for given id.
     fn announce_refs(&mut self, id: Id) -> Result<(), storage::Error> {
+        type Refs = BoundedVec<Id, REF_LIMIT>;
+
         let node = self.node_id();
         let repo = self.storage.repository(id)?;
         let remote = repo.remote(&node)?;
         let peers = self.sessions.negotiated().map(|(_, _, p)| p);
-        let refs = remote.refs.into();
         let timestamp = self.clock.as_secs();
+
+        if remote.refs.len() > Refs::max() {
+            log::error!(
+                "refs announcement limit ({}) exceeded, other nodes will see only some of your project references",
+                Refs::max(),
+            );
+        }
+        let refs = BoundedVec::collect_from(&mut remote.refs.iter().map(|(a, b)| (a.clone(), *b)));
+
         let msg = AnnouncementMessage::from(RefsAnnouncement {
             id,
             refs,
