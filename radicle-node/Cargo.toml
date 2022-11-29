@@ -17,8 +17,8 @@ byteorder = { version = "1" }
 chrono = { version = "0.4.0" }
 colored = { version = "1.9.0" }
 crossbeam-channel = { version = "0.5.6" }
-poll-reactor = { git = "https://github.com/Cyphernet-WG/rust-netservices", optional = true }
-cyphernet = { git = "https://github.com/Cyphernet-WG/rust-cyphernet", features = ["serde", "tor", "i2p", "nym", "dns", "ed25519"] }
+poll-reactor = { version = "0", optional = true }
+cyphernet = { version = "0", features = ["serde", "tor", "i2p", "nym", "dns", "ed25519"] }
 fastrand = { version = "1.8.0" }
 git-ref-format = { version = "0", features = ["serde", "macro"] }
 lexopt = { version = "0.2.1" }

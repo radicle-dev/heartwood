@@ -627,17 +627,7 @@ dependencies = [
 [[package]]
 name = "cyphernet"
 version = "0.1.0"
-source = "git+https://github.com/internet2-wg/rust-cyphernet?rev=dee03a95abe4c964e5d9f8532c7dc76998dfeea7#dee03a95abe4c964e5d9f8532c7dc76998dfeea7"
-dependencies = [
- "amplify_derive 2.11.3",
- "multibase",
- "socks",
-]
-
-[[package]]
-name = "cyphernet"
-version = "0.1.0"
-source = "git+https://github.com/Cyphernet-WG/rust-cyphernet#abf48fb4c243c92eb40f7876c4564c26f7c581f4"
+source = "git+https://github.com/Cyphernet-WG/rust-cyphernet?rev=d42c66399dd48f6a757ba63c49d7a9fbaa52c027#d42c66399dd48f6a757ba63c49d7a9fbaa52c027"
 dependencies = [
  "amplify_derive 2.11.3",
  "ed25519-compact",
@@ -1755,7 +1745,7 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 [[package]]
 name = "poll-reactor"
 version = "0.1.0"
-source = "git+https://github.com/Cyphernet-WG/rust-netservices#37acbf6eac18d51853912907f2383e6563efacbb"
+source = "git+https://github.com/Cyphernet-WG/rust-netservices?rev=37acbf6eac18d51853912907f2383e6563efacbb#37acbf6eac18d51853912907f2383e6563efacbb"
 dependencies = [
  "amplify 3.13.0",
  "crossbeam-channel",
@@ -1886,7 +1876,7 @@ dependencies = [
  "base64",
  "byteorder",
  "crossbeam-channel",
- "cyphernet 0.1.0 (git+https://github.com/internet2-wg/rust-cyphernet?rev=dee03a95abe4c964e5d9f8532c7dc76998dfeea7)",
+ "cyphernet",
  "ed25519-compact",
  "fastrand",
  "git-ref-format",
@@ -1982,7 +1972,7 @@ name = "radicle-crypto"
 version = "0.1.0"
 dependencies = [
  "base64",
- "cyphernet 0.1.0 (git+https://github.com/internet2-wg/rust-cyphernet?rev=dee03a95abe4c964e5d9f8532c7dc76998dfeea7)",
+ "cyphernet",
  "ed25519-compact",
  "fastrand",
  "git-ref-format",
@@ -2043,7 +2033,7 @@ dependencies = [
  "chrono",
  "colored",
  "crossbeam-channel",
- "cyphernet 0.1.0 (git+https://github.com/Cyphernet-WG/rust-cyphernet)",
+ "cyphernet",
  "fastrand",
  "git-ref-format",
  "lexopt",

@@ -1,9 +1,12 @@
+use std::collections::HashMap;
+
 use super::nakamoto::LocalDuration;
 
 use crate::collections::HashSet;
 use crate::identity::{Id, PublicKey};
 use crate::service::filter::Filter;
 use crate::service::message::Address;
+use crate::service::NodeId;
 
 /// Peer-to-peer network.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
@@ -65,7 +68,7 @@ impl Default for Limits {
 pub struct Config {
     /// Peers to connect to on startup.
     /// Connections to these peers will be maintained.
-    pub connect: Vec<Address>,
+    pub connect: HashMap<NodeId, Address>,
     /// Specify the node's public addresses
     pub external_addresses: Vec<Address>,
     /// Peer-to-peer network.
@@ -84,7 +87,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            connect: Vec::default(),
+            connect: HashMap::default(),
             external_addresses: vec![],
             network: Network::default(),
             project_tracking: ProjectTracking::default(),
@@ -97,8 +100,8 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn is_persistent(&self, addr: &Address) -> bool {
-        self.connect.contains(addr)
+    pub fn is_persistent(&self, id: &NodeId) -> bool {
+        self.connect.contains_key(id)
     }
 
     pub fn is_tracking(&self, id: &Id) -> bool {
