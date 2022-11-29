@@ -98,6 +98,8 @@ impl Default for Issue {
 }
 
 impl store::FromHistory for Issue {
+    type Action = Action;
+
     fn type_name() -> &'static TypeName {
         &*TYPENAME
     }
@@ -105,10 +107,13 @@ impl store::FromHistory for Issue {
     fn from_history(
         history: &radicle_cob::History,
     ) -> Result<(Self, clock::Lamport), store::Error> {
-        let mut clock = clock::Lamport::default();
         let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(change) = Change::decode(entry.contents()) {
-                if let Err(err) = acc.apply(change, &mut clock) {
+            if let Ok(action) = Action::decode(entry.contents()) {
+                if let Err(err) = acc.apply(Change {
+                    action,
+                    author: *entry.actor(),
+                    clock: entry.clock().into(),
+                }) {
                     log::warn!("Error applying change to issue state: {err}");
                     return ControlFlow::Break(acc);
                 }
@@ -118,7 +123,7 @@ impl store::FromHistory for Issue {
             ControlFlow::Continue(acc)
         });
 
-        Ok((obj, clock))
+        Ok((obj, history.clock().into()))
     }
 }
 
@@ -150,29 +155,20 @@ impl Issue {
         self.thread.comments().map(|(id, comment)| (id, comment))
     }
 
-    pub fn timeline(&self) -> Vec<Action> {
-        todo!();
-    }
-
-    pub fn apply(&mut self, change: Change, clock: &mut clock::Lamport) -> Result<(), Error> {
+    pub fn apply(&mut self, change: Change) -> Result<(), Error> {
         match change.action {
             Action::Title { title } => {
                 self.title.set(title, change.clock);
-                clock.merge(change.clock);
             }
             Action::Lifecycle { status } => {
                 self.status.set(status, change.clock);
-                clock.merge(change.clock);
             }
             Action::Thread { action } => {
-                self.thread.apply(
-                    [crdt::Change {
-                        action,
-                        author: change.author,
-                        clock: change.clock,
-                    }],
-                    clock,
-                );
+                self.thread.apply([crdt::Change {
+                    action,
+                    author: change.author,
+                    clock: change.clock,
+                }]);
             }
         }
         Ok(())
@@ -202,13 +198,8 @@ impl<'a, 'g> IssueMut<'a, 'g> {
 
     /// Lifecycle an issue.
     pub fn lifecycle<G: Signer>(&mut self, status: Status, signer: &G) -> Result<ChangeId, Error> {
-        let clock = self.clock.tick();
-        let change = Change {
-            action: Action::Lifecycle { status },
-            author: *signer.public_key(),
-            clock,
-        };
-        self.apply("Lifecycle", change, signer)
+        let action = Action::Lifecycle { status };
+        self.apply("Lifecycle", action, signer)
     }
 
     /// Comment on an issue.
@@ -217,18 +208,12 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         body: S,
         signer: &G,
     ) -> Result<CommentId, Error> {
-        let author = *signer.public_key();
-        let clock = self.clock.tick();
         let body = body.into();
-        let change = Change {
-            action: Action::from(thread::Action::Comment {
-                body,
-                reply_to: None,
-            }),
-            author,
-            clock,
-        };
-        self.apply("Comment", change, signer)
+        let action = Action::from(thread::Action::Comment {
+            body,
+            reply_to: None,
+        });
+        self.apply("Comment", action, signer)
     }
 
     /// Tag an issue.
@@ -237,17 +222,11 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         tags: impl IntoIterator<Item = Tag>,
         signer: &G,
     ) -> Result<ChangeId, Error> {
-        let author = *signer.public_key();
-        let clock = self.clock.tick();
         let tags = tags.into_iter().collect::<Vec<_>>();
-        let change = Change {
-            author,
-            action: Action::Thread {
-                action: thread::Action::Tag { tags },
-            },
-            clock,
+        let action = Action::Thread {
+            action: thread::Action::Tag { tags },
         };
-        self.apply("Tag", change, signer)
+        self.apply("Tag", action, signer)
     }
 
     /// Reply to on an issue comment.
@@ -257,21 +236,15 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         body: S,
         signer: &G,
     ) -> Result<ChangeId, Error> {
-        let author = *signer.public_key();
-        let clock = self.clock.tick();
         let body = body.into();
 
         assert!(self.thread.comment(&parent).is_some());
 
-        let change = Change {
-            action: Action::from(thread::Action::Comment {
-                body,
-                reply_to: Some(parent),
-            }),
-            author,
-            clock,
-        };
-        self.apply("Reply", change, signer)
+        let action = Action::from(thread::Action::Comment {
+            body,
+            reply_to: Some(parent),
+        });
+        self.apply("Reply", action, signer)
     }
 
     /// React to an issue comment.
@@ -281,37 +254,37 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         reaction: Reaction,
         signer: &G,
     ) -> Result<ChangeId, Error> {
-        let author = *signer.public_key();
-        let clock = self.clock.tick();
-        let change = Change {
-            action: Action::Thread {
-                action: thread::Action::React {
-                    to,
-                    reaction,
-                    active: true,
-                },
+        let action = Action::Thread {
+            action: thread::Action::React {
+                to,
+                reaction,
+                active: true,
             },
-            author,
-            clock,
         };
-        self.apply("React", change, signer)
+        self.apply("React", action, signer)
     }
 
     /// Apply a change to the issue.
     pub fn apply<G: Signer>(
         &mut self,
         msg: &'static str,
-        change: Change,
+        action: Action,
         signer: &G,
     ) -> Result<ChangeId, Error> {
-        let id = change.id();
+        let cob = self
+            .store
+            .update(self.id, msg, action.clone(), signer)
+            .map_err(Error::Store)?;
+        let clock = cob.history().clock();
 
-        self.issue.apply(change.clone(), &mut self.clock)?;
-        self.store
-            .update(self.id, msg, change, signer)
-            .map_err(|e| Error::Store(store::Error::from(e)))?;
+        let change = Change {
+            author: *signer.public_key(),
+            action,
+            clock: clock.into(),
+        };
+        self.issue.apply(change)?;
 
-        Ok(id)
+        Ok((clock.into(), *signer.public_key()))
     }
 }
 
@@ -376,12 +349,8 @@ impl<'a> Issues<'a> {
     ) -> Result<IssueMut<'a, 'g>, Error> {
         let title = title.into();
         let description = description.into();
-        let change = Change {
-            author: self.author().id,
-            action: Action::Title { title },
-            clock: clock::Lamport::default(),
-        };
-        let (id, issue, clock) = self.raw.create("Create issue", change, signer)?;
+        let action = Action::Title { title };
+        let (id, issue, clock) = self.raw.create("Create issue", action, signer)?;
         let mut issue = IssueMut {
             id,
             clock,
@@ -409,6 +378,12 @@ pub enum Action {
     Thread { action: thread::Action },
 }
 
+impl Action {
+    pub fn decode(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(bytes)
+    }
+}
+
 impl From<thread::Action> for Action {
     fn from(action: thread::Action) -> Self {
         Self::Thread { action }
@@ -417,6 +392,8 @@ impl From<thread::Action> for Action {
 
 #[cfg(test)]
 mod test {
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::cob::Reaction;
     use crate::test;
@@ -443,7 +420,7 @@ mod test {
         let (id, created) = (created.id, created.issue);
         let issue = issues.get(&id).unwrap().unwrap();
 
-        assert_eq!(issue, created);
+        assert_eq!(created, issue);
         assert_eq!(issue.title(), "My first issue");
         assert_eq!(issue.author(), Some(issues.author()));
         assert_eq!(issue.description(), Some("Blah blah blah."));

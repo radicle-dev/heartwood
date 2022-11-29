@@ -2,7 +2,7 @@
 #![allow(clippy::large_enum_variant)]
 use std::marker::PhantomData;
 
-use radicle_crdt::{Change, Lamport};
+use radicle_crdt::Lamport;
 use serde::Serialize;
 
 use crate::cob;
@@ -18,6 +18,8 @@ use crate::storage::git as storage;
 /// A type that can be materialized from an event history.
 /// All collaborative objects implement this trait.
 pub trait FromHistory: Sized {
+    type Action;
+
     /// The object type name.
     fn type_name() -> &'static TypeName;
     /// Create an object from a history.
@@ -35,6 +37,8 @@ pub enum Error {
     Retrieve(#[from] cob::error::Retrieve),
     #[error(transparent)]
     Identity(#[from] project::IdentityError),
+    #[error(transparent)]
+    Serialize(#[from] serde_json::Error),
     #[error("object `{1}` of type `{0}` was not found")]
     NotFound(TypeName, ObjectId),
 }
@@ -77,15 +81,20 @@ impl<'a, T> Store<'a, T> {
     }
 }
 
-impl<'a, T: FromHistory> Store<'a, T> {
+impl<'a, T: FromHistory> Store<'a, T>
+where
+    T::Action: Serialize,
+{
     /// Update an object.
-    pub fn update<A: Serialize, G: Signer>(
+    pub fn update<G: Signer>(
         &self,
         object_id: ObjectId,
         message: &'static str,
-        change: Change<A>,
+        action: T::Action,
         signer: &G,
-    ) -> Result<CollaborativeObject, cob::error::Update> {
+    ) -> Result<CollaborativeObject, Error> {
+        let changes = encoding::encode(&action)?;
+
         cob::update(
             self.raw,
             signer,
@@ -96,18 +105,20 @@ impl<'a, T: FromHistory> Store<'a, T> {
                 history_type: HistoryType::default(),
                 typename: T::type_name().clone(),
                 message: message.to_owned(),
-                changes: change.encode(),
+                changes,
             },
         )
+        .map_err(Error::from)
     }
 
     /// Create an object.
-    pub fn create<A: Serialize, G: Signer>(
+    pub fn create<G: Signer>(
         &self,
         message: &'static str,
-        change: Change<A>,
+        action: T::Action,
         signer: &G,
     ) -> Result<(ObjectId, T, Lamport), Error> {
+        let contents = encoding::encode(&action)?;
         let cob = cob::create(
             self.raw,
             signer,
@@ -117,7 +128,7 @@ impl<'a, T: FromHistory> Store<'a, T> {
                 history_type: HistoryType::default(),
                 typename: T::type_name().clone(),
                 message: message.to_owned(),
-                contents: change.encode(),
+                contents,
             },
         )?;
         let (object, clock) = T::from_history(cob.history())?;
@@ -158,5 +169,20 @@ impl<'a, T: FromHistory> Store<'a, T> {
 
     pub fn remove(&self, _id: &ObjectId) -> Result<(), Error> {
         todo!();
+    }
+}
+
+mod encoding {
+    use serde::Serialize;
+
+    /// Serialize the change into a byte string.
+    pub fn encode<T: Serialize>(obj: &T) -> Result<Vec<u8>, serde_json::Error> {
+        let mut buf = Vec::new();
+        let mut serializer =
+            serde_json::Serializer::with_formatter(&mut buf, olpc_cjson::CanonicalFormatter::new());
+
+        obj.serialize(&mut serializer)?;
+
+        Ok(buf)
     }
 }

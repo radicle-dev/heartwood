@@ -82,6 +82,13 @@ pub enum Action {
     },
 }
 
+impl Action {
+    /// Deserialize an action from a byte string.
+    pub fn decode(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(bytes)
+    }
+}
+
 /// A discussion thread.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Thread {
@@ -94,22 +101,26 @@ pub struct Thread {
 }
 
 impl store::FromHistory for Thread {
+    type Action = Action;
+
     fn type_name() -> &'static radicle_cob::TypeName {
         &*TYPENAME
     }
 
     fn from_history(history: &History) -> Result<(Self, Lamport), store::Error> {
-        let mut clock = Lamport::default();
         let obj = history.traverse(Thread::default(), |mut acc, entry| {
-            if let Ok(change) = Change::decode(entry.contents()) {
-                acc.apply([change], &mut clock);
+            if let Ok(action) = Action::decode(entry.contents()) {
+                acc.apply([Change {
+                    action,
+                    author: *entry.actor(),
+                    clock: entry.clock().into(),
+                }]);
                 ControlFlow::Continue(acc)
             } else {
                 ControlFlow::Break(acc)
             }
         });
-
-        Ok((obj, clock))
+        Ok((obj, history.clock().into()))
     }
 }
 
@@ -142,6 +153,14 @@ impl Thread {
         }
     }
 
+    pub fn first(&self) -> Option<&str> {
+        self.comments
+            .values()
+            .filter_map(|r| r.get())
+            .map(|c| c.body.as_str())
+            .next()
+    }
+
     pub fn replies<'a>(
         &'a self,
         to: &'a CommentId,
@@ -167,11 +186,7 @@ impl Thread {
             .map(|(a, r)| (a, r))
     }
 
-    pub fn apply(
-        &mut self,
-        changes: impl IntoIterator<Item = Change<Action>>,
-        clock: &mut Lamport,
-    ) {
+    pub fn apply(&mut self, changes: impl IntoIterator<Item = Change<Action>>) {
         // FIXME(cloudhead): Use commit timestamp.
         let timestamp = Timestamp::default();
 
@@ -238,7 +253,6 @@ impl Thread {
                         });
                 }
             }
-            clock.merge(change.clock);
         }
     }
 
@@ -441,12 +455,47 @@ mod tests {
     }
 
     #[test]
+    fn test_redact_comment() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, repository) = radicle::test::setup::context(&tmp);
+        let store =
+            radicle::cob::store::Store::<Thread>::open(*signer.public_key(), &repository).unwrap();
+        let mut alice = Actor::new(signer);
+
+        let a1 = alice.comment("First comment", None);
+        let a2 = alice.comment("Second comment", None);
+        let a3 = alice.comment("Third comment", None);
+
+        let (id, _, _) = store
+            .create("Thread created", a1.action, &alice.signer)
+            .unwrap();
+        let second = store
+            .update(id, "Thread updated", a2.action, &alice.signer)
+            .unwrap();
+        store
+            .update(id, "Thread updated", a3.action, &alice.signer)
+            .unwrap();
+
+        let a4 = alice.redact((second.history().clock().into(), *alice.signer.public_key()));
+        store
+            .update(id, "Comment redacted", a4.action, &alice.signer)
+            .unwrap();
+
+        let (thread, _) = store.get(&id).unwrap().unwrap();
+        let (_, comment0) = thread.comments().nth(0).unwrap();
+        let (_, comment1) = thread.comments().nth(1).unwrap();
+
+        assert_eq!(thread.comments().count(), 2);
+        assert_eq!(comment0.body, "First comment");
+        assert_eq!(comment1.body, "Third comment"); // Second comment was redacted.
+    }
+
+    #[test]
     fn test_storage() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, repository) = radicle::test::setup::context(&tmp);
         let store =
             radicle::cob::store::Store::<Thread>::open(*signer.public_key(), &repository).unwrap();
-        let mut clock = Lamport::default();
 
         let mut alice = Actor::new(signer);
 
@@ -454,11 +503,13 @@ mod tests {
         let a2 = alice.comment("Second comment", None);
 
         let mut expected = Thread::default();
-        expected.apply([a1.clone(), a2.clone()], &mut clock);
+        expected.apply([a1.clone(), a2.clone()]);
 
-        let (id, _, _) = store.create("Thread created", a1, &alice.signer).unwrap();
+        let (id, _, _) = store
+            .create("Thread created", a1.action, &alice.signer)
+            .unwrap();
         store
-            .update(id, "Thread updated", a2, &alice.signer)
+            .update(id, "Thread updated", a2.action, &alice.signer)
             .unwrap();
 
         let (actual, _) = store.get(&id).unwrap().unwrap();
@@ -540,16 +591,15 @@ mod tests {
     fn prop_invariants(log: Changes<3>) {
         let t = Thread::default();
         let [p1, p2, p3] = log.permutations;
-        let mut clock = Lamport::default();
 
         let mut t1 = t.clone();
-        t1.apply(p1, &mut clock);
+        t1.apply(p1);
 
         let mut t2 = t.clone();
-        t2.apply(p2, &mut clock);
+        t2.apply(p2);
 
         let mut t3 = t;
-        t3.apply(p3, &mut clock);
+        t3.apply(p3);
 
         assert_eq!(t1, t2);
         assert_eq!(t2, t3);
