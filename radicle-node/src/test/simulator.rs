@@ -6,15 +6,16 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};
 use std::rc::Rc;
-use std::{fmt, io, net};
+use std::{fmt, io};
 
 use log::*;
 use nakamoto_net as nakamoto;
 use nakamoto_net::{Link, LocalDuration, LocalTime};
 
 use crate::crypto::Signer;
+use crate::prelude::Address;
 use crate::service::reactor::Io;
-use crate::service::{DisconnectReason, Event, Message};
+use crate::service::{DisconnectReason, Event, Message, NodeId};
 use crate::storage::WriteStorage;
 use crate::test::peer::Service;
 
@@ -22,10 +23,6 @@ use crate::test::peer::Service;
 pub const MIN_LATENCY: LocalDuration = LocalDuration::from_millis(1);
 /// Maximum number of events buffered per peer.
 pub const MAX_EVENTS: usize = 2048;
-
-/// Identifier for a simulated node/peer.
-/// The simulator requires each peer to have a distinct IP address.
-type NodeId = std::net::IpAddr;
 
 /// A simulated peer. Service instances have to be wrapped in this type to be simulated.
 pub trait Peer<S, G>:
@@ -35,7 +32,9 @@ pub trait Peer<S, G>:
     /// current time.
     fn init(&mut self);
     /// Get the peer address.
-    fn addr(&self) -> net::SocketAddr;
+    fn addr(&self) -> Address;
+    /// Get the peer id.
+    fn id(&self) -> NodeId;
 }
 
 /// Simulated service input.
@@ -43,25 +42,22 @@ pub trait Peer<S, G>:
 pub enum Input {
     /// Connection attempt underway.
     Connecting {
-        /// Remote peer address.
-        addr: net::SocketAddr,
+        /// Remote peer id.
+        id: NodeId,
+        /// Address used to connect.
+        addr: Address,
     },
     /// New connection with a peer.
     Connected {
         /// Remote peer id.
-        addr: net::SocketAddr,
-        /// Local peer id.
-        local_addr: net::SocketAddr,
+        id: NodeId,
         /// Link direction.
         link: Link,
     },
     /// Disconnected from peer.
-    Disconnected(
-        net::SocketAddr,
-        Rc<nakamoto::DisconnectReason<DisconnectReason>>,
-    ),
+    Disconnected(NodeId, Rc<nakamoto::DisconnectReason<DisconnectReason>>),
     /// Received a message from a remote peer.
-    Received(net::SocketAddr, Vec<Message>),
+    Received(NodeId, Vec<Message>),
     /// Used to advance the state machine after some wall time has passed.
     Wake,
 }
@@ -73,7 +69,7 @@ pub struct Scheduled {
     pub node: NodeId,
     /// The remote peer from which this input originates.
     /// If the input originates from the local node, this should be set to the zero address.
-    pub remote: net::SocketAddr,
+    pub remote: NodeId,
     /// The input being scheduled.
     pub input: Input,
 }
@@ -88,19 +84,17 @@ impl fmt::Display for Scheduled {
                 Ok(())
             }
             Input::Connected {
-                addr,
-                local_addr,
+                id: addr,
                 link: Link::Inbound,
                 ..
-            } => write!(f, "{} <== {}: Connected", local_addr, addr),
+            } => write!(f, "{} <== {}: Connected", self.node, addr),
             Input::Connected {
-                local_addr,
-                addr,
+                id: addr,
                 link: Link::Outbound,
                 ..
-            } => write!(f, "{} ==> {}: Connected", local_addr, addr),
-            Input::Connecting { addr } => {
-                write!(f, "{} => {}: Connecting", self.node, addr)
+            } => write!(f, "{} ==> {}: Connected", self.node, addr),
+            Input::Connecting { id, .. } => {
+                write!(f, "{} => {}: Connecting", self.node, id)
             }
             Input::Disconnected(addr, reason) => {
                 write!(f, "{} =/= {}: Disconnected: {}", self.node, addr, reason)
@@ -139,7 +133,7 @@ impl Inbox {
     }
 
     /// Get the last message sent between two peers. Only checks one direction.
-    fn last(&self, node: &NodeId, remote: &net::SocketAddr) -> Option<(&LocalTime, &Scheduled)> {
+    fn last(&self, node: &NodeId, remote: &NodeId) -> Option<(&LocalTime, &Scheduled)> {
         self.messages
             .iter()
             .rev()
@@ -179,7 +173,7 @@ pub struct Simulation<S, G> {
     /// Network partitions between two nodes.
     partitions: BTreeSet<(NodeId, NodeId)>,
     /// Set of existing connections between nodes.
-    connections: BTreeMap<(NodeId, NodeId), u16>,
+    connections: BTreeSet<(NodeId, NodeId)>,
     /// Set of connection attempts.
     attempts: BTreeSet<(NodeId, NodeId)>,
     /// Simulation options.
@@ -207,7 +201,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
             priority: VecDeque::new(),
             partitions: BTreeSet::new(),
             latencies: BTreeMap::new(),
-            connections: BTreeMap::new(),
+            connections: BTreeSet::new(),
             attempts: BTreeSet::new(),
             opts,
             start_time: time,
@@ -287,7 +281,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
     ) where
         P: Peer<S, G>,
     {
-        let mut nodes: BTreeMap<_, _> = peers.into_iter().map(|p| (p.addr().ip(), p)).collect();
+        let mut nodes: BTreeMap<_, _> = peers.into_iter().map(|p| (p.id(), p)).collect();
 
         while self.step_(&mut nodes) {
             if !pred(self) {
@@ -300,7 +294,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
     /// This function should be called until it returns `false`, or some desired state is reached.
     /// Returns `true` if there are more messages to process.
     pub fn step<'a, P: Peer<S, G>>(&mut self, peers: impl IntoIterator<Item = &'a mut P>) -> bool {
-        let mut nodes: BTreeMap<_, _> = peers.into_iter().map(|p| (p.addr().ip(), p)).collect();
+        let mut nodes: BTreeMap<_, _> = peers.into_iter().map(|p| (p.id(), p)).collect();
         self.step_(&mut nodes)
     }
 
@@ -340,10 +334,10 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
 
         // Schedule any messages in the pipes.
         for peer in nodes.values_mut() {
-            let ip = peer.addr().ip();
+            let id = peer.id();
 
             for o in peer.by_ref() {
-                self.schedule(&ip, o);
+                self.schedule(&id, o);
             }
         }
         // Next high-priority message.
@@ -370,42 +364,38 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 p.tick(time);
 
                 match input {
-                    Input::Connecting { addr } => {
-                        if self.attempts.insert((node, addr.ip())) {
-                            p.attempted(&addr);
+                    Input::Connecting { id, addr } => {
+                        if self.attempts.insert((node, id)) {
+                            // TODO: Also call `inbound` for inbound attempts.
+                            p.attempted(id, &addr);
                         }
                     }
-                    Input::Connected {
-                        addr,
-                        local_addr,
-                        link,
-                    } => {
-                        let conn = (node, addr.ip());
+                    Input::Connected { id, link } => {
+                        let conn = (node, id);
 
                         let attempted = link.is_outbound() && self.attempts.remove(&conn);
                         if attempted || link.is_inbound() {
-                            if self.connections.insert(conn, local_addr.port()).is_none() {
-                                p.connecting(addr, &local_addr, link);
-                                p.connected(addr, link);
+                            if self.connections.insert(conn) {
+                                p.connected(id, link);
                             }
                         }
                     }
-                    Input::Disconnected(addr, reason) => {
-                        let conn = (node, addr.ip());
+                    Input::Disconnected(id, reason) => {
+                        let conn = (node, id);
                         let attempt = self.attempts.remove(&conn);
-                        let connection = self.connections.remove(&conn).is_some();
+                        let connection = self.connections.remove(&conn);
 
                         // Can't be both attempting and connected.
                         assert!(!(attempt && connection));
 
                         if attempt || connection {
-                            p.disconnected(&addr, &reason);
+                            p.disconnected(id, &reason);
                         }
                     }
                     Input::Wake => p.wake(),
-                    Input::Received(addr, msgs) => {
+                    Input::Received(id, msgs) => {
                         for msg in msgs {
-                            p.received_message(&addr, msg);
+                            p.received_message(id, msg);
                         }
                     }
                 }
@@ -433,14 +423,12 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 }
                 // If the other end has disconnected the sender with some latency, there may not be
                 // a connection remaining to use.
-                let port = if let Some(port) = self.connections.get(&(node, receiver.ip())) {
-                    *port
-                } else {
+                if self.connections.get(&(node, receiver)).is_none() {
                     return;
-                };
+                }
+                let sender = node;
 
-                let sender: net::SocketAddr = (node, port).into();
-                if self.is_partitioned(sender.ip(), receiver.ip()) {
+                if self.is_partitioned(sender, receiver) {
                     // Drop message if nodes are partitioned.
                     info!(
                         target: "sim",
@@ -452,10 +440,10 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
 
                 // Schedule message in the future, ensuring messages don't arrive out-of-order
                 // between two peers.
-                let latency = self.latency(node, receiver.ip());
+                let latency = self.latency(node, receiver);
                 let time = self
                     .inbox
-                    .last(&receiver.ip(), &sender)
+                    .last(&receiver, &sender)
                     .map(|(k, _)| *k)
                     .unwrap_or_else(|| self.time);
                 let time = time + latency;
@@ -473,30 +461,28 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     time,
                     Scheduled {
                         remote: sender,
-                        node: receiver.ip(),
+                        node: receiver,
                         input: Input::Received(sender, msgs),
                     },
                 );
             }
-            Io::Connect(remote) => {
-                assert!(remote.ip() != node, "self-connections are not allowed");
+            Io::Connect(remote, addr) => {
+                assert!(remote != node, "self-connections are not allowed");
 
-                // Create an ephemeral sockaddr for the connecting (local) node.
-                let local_addr: net::SocketAddr = net::SocketAddr::new(node, self.rng.u16(8192..));
-                let latency = self.latency(node, remote.ip());
+                let latency = self.latency(node, remote);
 
                 self.inbox.insert(
                     self.time + MIN_LATENCY,
                     Scheduled {
                         node,
                         remote,
-                        input: Input::Connecting { addr: remote },
+                        input: Input::Connecting { id: remote, addr },
                     },
                 );
 
                 // Fail to connect if the nodes are partitioned.
-                if self.is_partitioned(node, remote.ip()) {
-                    log::info!(target: "sim", "{} -/-> {} (partitioned)", node, remote.ip());
+                if self.is_partitioned(node, remote) {
+                    log::info!(target: "sim", "{} -/-> {} (partitioned)", node, remote);
 
                     // Sometimes, the service gets a failure input, other times it just hangs.
                     if self.rng.bool() {
@@ -521,11 +507,10 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     // The remote will get the connection attempt with some latency.
                     self.time + latency,
                     Scheduled {
-                        node: remote.ip(),
-                        remote: local_addr,
+                        node: remote,
+                        remote: node,
                         input: Input::Connected {
-                            addr: local_addr,
-                            local_addr: remote,
+                            id: node,
                             link: Link::Inbound,
                         },
                     },
@@ -537,8 +522,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         remote,
                         node,
                         input: Input::Connected {
-                            addr: remote,
-                            local_addr,
+                            id: remote,
                             link: Link::Outbound,
                         },
                     },
@@ -558,21 +542,20 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 //
                 // It's also possible that the connection was only attempted and never succeeded,
                 // in which case we would return here.
-                let Some(port) = self.connections.get(&(node, remote.ip())) else {
+                if !self.connections.contains(&(node, remote)) {
                     debug!(target: "sim", "Ignoring disconnect of {remote} from {node}");
                     return;
                 };
-                let local_addr: net::SocketAddr = (node, *port).into();
-                let latency = self.latency(node, remote.ip());
+                let latency = self.latency(node, remote);
 
                 // The remote node receives the disconnection with some delay.
                 self.inbox.insert(
                     self.time + latency,
                     Scheduled {
-                        node: remote.ip(),
-                        remote: local_addr,
+                        node: remote,
+                        remote: node,
                         input: Input::Disconnected(
-                            local_addr,
+                            node,
                             Rc::new(nakamoto::DisconnectReason::ConnectionError(
                                 io::Error::from(io::ErrorKind::ConnectionReset).into(),
                             )),
@@ -595,7 +578,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         Scheduled {
                             node,
                             // The remote is not applicable for this type of output.
-                            remote: ([0, 0, 0, 0], 0).into(),
+                            remote: [0; 32].into(),
                             input: Input::Wake,
                         },
                     );

@@ -1,16 +1,9 @@
-use std::{io, net};
+use std::io;
 
-use crossbeam_channel as chan;
-use nakamoto_net::{LocalTime, Reactor};
 use thiserror::Error;
 
-use radicle::crypto::Signer;
-
-use crate::profile::Profile;
+use crate::address;
 use crate::service::{routing, tracking};
-use crate::wire::transcode::NoHandshake;
-use crate::wire::Wire;
-use crate::{address, service};
 
 pub mod handle;
 
@@ -41,129 +34,4 @@ pub enum Error {
     /// A networking error.
     #[error("network error: {0}")]
     Net(#[from] nakamoto_net::error::Error),
-}
-
-/// Client configuration.
-#[derive(Debug, Clone)]
-pub struct Config {
-    /// Client service configuration.
-    pub service: service::Config,
-    /// Client listen addresses.
-    pub listen: Vec<net::SocketAddr>,
-}
-
-impl Config {
-    /// Create a new configuration for the given network.
-    pub fn new(network: service::Network) -> Self {
-        Self {
-            service: service::Config {
-                network,
-                ..service::Config::default()
-            },
-            ..Self::default()
-        }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            service: service::Config::default(),
-            listen: vec![([0, 0, 0, 0], 0).into()],
-        }
-    }
-}
-
-pub struct Client<R: Reactor> {
-    reactor: R,
-
-    handle: chan::Sender<service::Command>,
-    commands: chan::Receiver<service::Command>,
-    shutdown: chan::Sender<()>,
-    listening: chan::Receiver<net::SocketAddr>,
-    events: Events,
-}
-
-impl<R: Reactor> Client<R> {
-    pub fn new() -> Result<Self, Error> {
-        let (handle, commands) = chan::unbounded::<service::Command>();
-        let (shutdown, shutdown_recv) = chan::bounded(1);
-        let (listening_send, listening) = chan::bounded(1);
-        let reactor = R::new(shutdown_recv, listening_send)?;
-        let events = Events {};
-
-        Ok(Self {
-            reactor,
-            handle,
-            commands,
-            listening,
-            shutdown,
-            events,
-        })
-    }
-
-    pub fn run<G: Signer>(
-        mut self,
-        config: Config,
-        profile: Profile,
-        signer: G,
-    ) -> Result<(), Error> {
-        let network = config.service.network;
-        let rng = fastrand::Rng::new();
-        let time = LocalTime::now();
-        let storage = profile.storage;
-        let node_dir = profile.home.join(NODE_DIR);
-        let address_db = node_dir.join(ADDRESS_DB_FILE);
-        let routing_db = node_dir.join(ROUTING_DB_FILE);
-        let tracking_db = node_dir.join(TRACKING_DB_FILE);
-
-        log::info!("Opening address book {}..", address_db.display());
-        let addresses = address::Book::open(address_db)?;
-
-        log::info!("Opening routing table {}..", routing_db.display());
-        let routing = routing::Table::open(routing_db)?;
-
-        log::info!("Opening tracking policy table {}..", tracking_db.display());
-        let tracking = tracking::Config::open(tracking_db)?;
-
-        log::info!("Initializing client ({:?})..", network);
-
-        let service = service::Service::new(
-            config.service,
-            time,
-            routing,
-            storage,
-            addresses,
-            tracking,
-            signer,
-            rng,
-        );
-
-        self.reactor.run(
-            &config.listen,
-            Wire::<_, _, _, _, NoHandshake>::new(service),
-            self.events,
-            self.commands,
-        )?;
-
-        Ok(())
-    }
-
-    /// Create a new handle to communicate with the client.
-    pub fn handle(&self) -> handle::Handle<R::Waker> {
-        handle::Handle {
-            waker: self.reactor.waker(),
-            commands: self.handle.clone(),
-            shutdown: self.shutdown.clone(),
-            listening: self.listening.clone(),
-        }
-    }
-}
-
-pub struct Events {}
-
-impl nakamoto_net::Publisher<service::Event> for Events {
-    fn publish(&mut self, e: service::Event) {
-        log::info!("Received event {:?}", e);
-    }
 }

@@ -1,11 +1,12 @@
 use std::{io, mem, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
+use cyphernet::addr::{Addr, HostAddr, NetAddr};
 
 use crate::prelude::*;
-use crate::service;
 use crate::service::message::*;
 use crate::wire;
+use crate::wire::{Decode, Encode};
 
 /// Message type.
 #[repr(u16)]
@@ -64,6 +65,22 @@ impl Message {
     }
 }
 
+impl netservices::Frame for Message {
+    type Error = wire::Error;
+
+    fn unmarshall(mut reader: impl io::Read) -> Result<Option<Self>, Self::Error> {
+        match Message::decode(&mut reader) {
+            Ok(msg) => Ok(Some(msg)),
+            Err(wire::Error::Io(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    fn marshall(&self, mut writer: impl io::Write) -> Result<usize, Self::Error> {
+        self.encode(&mut writer).map_err(wire::Error::from)
+    }
+}
+
 /// Address type.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,11 +99,12 @@ impl From<AddressType> for u8 {
 
 impl From<&Address> for AddressType {
     fn from(a: &Address) -> Self {
-        match a {
-            Address::Ipv4 { .. } => AddressType::Ipv4,
-            Address::Ipv6 { .. } => AddressType::Ipv6,
-            Address::Hostname { .. } => AddressType::Hostname,
-            Address::Onion { .. } => AddressType::Onion,
+        match a.host {
+            HostAddr::Ip(net::IpAddr::V4(_)) => AddressType::Ipv4,
+            HostAddr::Ip(net::IpAddr::V6(_)) => AddressType::Ipv6,
+            HostAddr::Dns(_) => AddressType::Hostname,
+            HostAddr::Tor(_) => AddressType::Onion,
+            _ => todo!(), // FIXME(cloudhead): Maxim will remove `non-exhaustive`
         }
     }
 }
@@ -169,11 +187,7 @@ impl wire::Encode for Message {
         let mut n = self.type_id().encode(writer)?;
 
         match self {
-            Self::Initialize { id, version, addrs } => {
-                n += id.encode(writer)?;
-                n += version.encode(writer)?;
-                n += addrs.encode(writer)?;
-            }
+            Self::Initialize {} => {}
             Self::Subscribe(Subscribe {
                 filter,
                 since,
@@ -216,13 +230,7 @@ impl wire::Decode for Message {
         let type_id = reader.read_u16::<NetworkEndian>()?;
 
         match MessageType::try_from(type_id) {
-            Ok(MessageType::Initialize) => {
-                let id = NodeId::decode(reader)?;
-                let version = u32::decode(reader)?;
-                let addrs = BoundedVec::<Address, { service::ADDRESS_LIMIT }>::decode(reader)?;
-
-                Ok(Self::Initialize { id, version, addrs })
-            }
+            Ok(MessageType::Initialize) => Ok(Self::Initialize {}),
             Ok(MessageType::Subscribe) => {
                 let filter = Filter::decode(reader)?;
                 let since = Timestamp::decode(reader)?;
@@ -288,20 +296,21 @@ impl wire::Encode for Address {
     fn encode<W: std::io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
         let mut n = 0;
 
-        match self {
-            Self::Ipv4 { ip, port } => {
+        match self.host {
+            HostAddr::Ip(net::IpAddr::V4(ip)) => {
                 n += u8::from(AddressType::Ipv4).encode(writer)?;
                 n += ip.octets().encode(writer)?;
-                n += port.encode(writer)?;
             }
-            Self::Ipv6 { ip, port } => {
+            HostAddr::Ip(net::IpAddr::V6(ip)) => {
                 n += u8::from(AddressType::Ipv6).encode(writer)?;
                 n += ip.octets().encode(writer)?;
-                n += port.encode(writer)?;
             }
-            Self::Hostname { .. } => todo!(),
-            Self::Onion { .. } => todo!(),
+            _ => {
+                todo!();
+            }
         }
+        n += self.port().encode(writer)?;
+
         Ok(n)
     }
 }
@@ -309,21 +318,18 @@ impl wire::Encode for Address {
 impl wire::Decode for Address {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
         let addrtype = reader.read_u8()?;
-
-        match AddressType::try_from(addrtype) {
+        let host = match AddressType::try_from(addrtype) {
             Ok(AddressType::Ipv4) => {
                 let octets: [u8; 4] = wire::Decode::decode(reader)?;
                 let ip = net::Ipv4Addr::from(octets);
-                let port = u16::decode(reader)?;
 
-                Ok(Self::Ipv4 { ip, port })
+                HostAddr::Ip(net::IpAddr::V4(ip))
             }
             Ok(AddressType::Ipv6) => {
                 let octets: [u8; 16] = wire::Decode::decode(reader)?;
                 let ip = net::Ipv6Addr::from(octets);
-                let port = u16::decode(reader)?;
 
-                Ok(Self::Ipv6 { ip, port })
+                HostAddr::Ip(net::IpAddr::V6(ip))
             }
             Ok(AddressType::Hostname) => {
                 todo!();
@@ -331,8 +337,14 @@ impl wire::Decode for Address {
             Ok(AddressType::Onion) => {
                 todo!();
             }
-            Err(other) => Err(wire::Error::UnknownAddressType(other)),
-        }
+            Err(other) => return Err(wire::Error::UnknownAddressType(other)),
+        };
+        let port = u16::decode(reader)?;
+
+        Ok(Self::from(NetAddr {
+            host,
+            port: Some(port),
+        }))
     }
 }
 

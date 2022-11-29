@@ -1,22 +1,27 @@
 use std::{env, net, process, thread};
 
 use anyhow::Context as _;
-
-use nakamoto_net::LocalDuration;
+use cyphernet::addr::PeerAddr;
+use nakamoto_net::{LocalDuration, LocalTime};
+use reactor::poller::popol;
+use reactor::Reactor;
 
 use radicle::profile;
+use radicle_node::client::handle::Handle;
+use radicle_node::client::{ADDRESS_DB_FILE, NODE_DIR, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle_node::crypto::ssh::keystore::MemorySigner;
-use radicle_node::logger;
-use radicle_node::prelude::Address;
-use radicle_node::{client, control, service};
-
-type Reactor = nakamoto_net_poll::Reactor<net::TcpStream>;
+use radicle_node::prelude::{Address, NodeId};
+use radicle_node::service::{routing, tracking};
+use radicle_node::wire::Transport;
+use radicle_node::{address, control, logger, service};
 
 #[derive(Debug)]
 struct Options {
-    connect: Vec<Address>,
+    connect: Vec<(NodeId, Address)>,
     external_addresses: Vec<Address>,
     limits: service::config::Limits,
+    // FIXME(cloudhead): Listen on incoming connections.
+    #[allow(dead_code)]
     listen: Vec<net::SocketAddr>,
 }
 
@@ -33,8 +38,8 @@ impl Options {
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("connect") => {
-                    let addr = parser.value()?.parse()?;
-                    connect.push(addr);
+                    let peer: PeerAddr<NodeId, Address> = parser.value()?.parse()?;
+                    connect.push((*peer.id(), peer.addr().clone()));
                 }
                 Long("external-address") => {
                     let addr = parser.value()?.parse()?;
@@ -81,33 +86,48 @@ fn main() -> anyhow::Result<()> {
     let options = Options::from_env()?;
     let profile = radicle::Profile::load().context("Failed to load node profile")?;
     let node = profile.node();
-    let client = client::Client::<Reactor>::new().context("Failed to initialize client")?;
-    let signer = match profile.signer() {
-        Ok(signer) => signer.boxed(),
-        Err(err) => {
-            let passphrase = env::var(profile::env::RAD_PASSPHRASE)
-                .context("Either ssh-agent must be initialized, or `RAD_PASSPHRASE` must be set")
-                .context(err)?
-                .into();
-            MemorySigner::load(&profile.keystore, passphrase)?.boxed()
-        }
+    let passphrase = env::var(profile::env::RAD_PASSPHRASE)
+        .context("`RAD_PASSPHRASE` is required to be set for the node to establish connections")?
+        .into();
+    let signer = MemorySigner::load(&profile.keystore, passphrase)?;
+    let negotiator = signer.clone();
+    let config = service::Config {
+        connect: options.connect.into_iter().collect(),
+        external_addresses: options.external_addresses,
+        limits: options.limits,
+        ..service::Config::default()
     };
-    let handle = client.handle();
-    let config = client::Config {
-        service: service::Config {
-            connect: options.connect,
-            external_addresses: options.external_addresses,
-            limits: options.limits,
-            ..service::Config::default()
-        },
-        listen: options.listen,
-    };
+    let proxy_addr = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
+    let network = config.network;
+    let rng = fastrand::Rng::new();
+    let clock = LocalTime::now();
+    let storage = profile.storage;
+    let node_dir = profile.home.join(NODE_DIR);
+    let address_db = node_dir.join(ADDRESS_DB_FILE);
+    let routing_db = node_dir.join(ROUTING_DB_FILE);
+    let tracking_db = node_dir.join(TRACKING_DB_FILE);
 
-    let t1 = thread::spawn(move || control::listen(node, handle));
-    let t2 = thread::spawn(move || client.run(config, profile, signer));
+    log::info!("Opening address book {}..", address_db.display());
+    let addresses = address::Book::open(address_db)?;
 
-    t1.join().unwrap()?;
-    t2.join().unwrap()?;
+    log::info!("Opening routing table {}..", routing_db.display());
+    let routing = routing::Table::open(routing_db)?;
+
+    log::info!("Opening tracking policy table {}..", tracking_db.display());
+    let tracking = tracking::Config::open(tracking_db)?;
+
+    log::info!("Initializing service ({:?})..", network);
+    let service = service::Service::new(
+        config, clock, routing, storage, addresses, tracking, signer, rng,
+    );
+
+    let wire = Transport::new(service, negotiator, proxy_addr, clock);
+    let reactor = Reactor::new(wire, popol::Poller::new());
+    let handle = Handle::from(reactor.controller());
+    let control = thread::spawn(move || control::listen(node, handle));
+
+    control.join().unwrap()?;
+    reactor.join().unwrap();
 
     Ok(())
 }

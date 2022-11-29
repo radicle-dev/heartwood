@@ -64,28 +64,28 @@ fn test_ping_response() {
 
     alice.connect_to(&bob);
     alice.receive(
-        &bob.addr(),
+        bob.id(),
         Message::Ping(Ping {
             ponglen: Ping::MAX_PONG_ZEROES,
             zeroes: ZeroBytes::new(42),
         }),
     );
     assert_matches!(
-        alice.messages(&bob.addr()).next(),
+        alice.messages(bob.id()).next(),
         Some(Message::Pong { zeroes }) if zeroes.len() == Ping::MAX_PONG_ZEROES as usize,
         "respond with correctly formatted pong",
     );
 
     alice.connect_to(&eve);
     alice.receive(
-        &eve.addr(),
+        eve.id(),
         Message::Ping(Ping {
             ponglen: Ping::MAX_PONG_ZEROES + 1,
             zeroes: ZeroBytes::new(42),
         }),
     );
     assert_matches!(
-        alice.messages(&eve.addr()).next(),
+        alice.messages(eve.id()).next(),
         None,
         "ignore unsupported ping message",
     );
@@ -101,7 +101,7 @@ fn test_disconnecting_unresponsive_peer() {
     alice.elapse(STALE_CONNECTION_TIMEOUT + LocalDuration::from_secs(1));
     alice
         .outbox()
-        .find(|m| matches!(m, &Io::Disconnect(addr, _) if addr == bob.addr()))
+        .find(|m| matches!(m, &Io::Disconnect(addr, _) if addr == bob.id()))
         .expect("disconnect an unresponsive bob");
 }
 
@@ -117,7 +117,7 @@ fn test_connection_kept_alive() {
     )
     .initialize([&mut alice, &mut bob]);
 
-    alice.command(service::Command::Connect(bob.addr()));
+    alice.command(service::Command::Connect(bob.id(), bob.address()));
     sim.run_while([&mut alice, &mut bob], |s| !s.is_settled());
     assert_eq!(1, alice.sessions().negotiated().count(), "bob connects");
 
@@ -148,11 +148,11 @@ fn test_outbound_connection() {
         .service
         .sessions()
         .negotiated()
-        .map(|(ip, _, _)| *ip)
+        .map(|(id, _)| *id)
         .collect::<Vec<_>>();
 
-    assert!(peers.contains(&eve.addr()));
-    assert!(peers.contains(&bob.addr()));
+    assert!(peers.contains(&eve.id()));
+    assert!(peers.contains(&bob.id()));
 }
 
 #[test]
@@ -168,11 +168,11 @@ fn test_inbound_connection() {
         .service
         .sessions()
         .negotiated()
-        .map(|(ip, _, _)| *ip)
+        .map(|(id, _)| *id)
         .collect::<Vec<_>>();
 
-    assert!(peers.contains(&eve.addr()));
-    assert!(peers.contains(&bob.addr()));
+    assert!(peers.contains(&eve.id()));
+    assert!(peers.contains(&bob.id()));
 }
 
 #[test]
@@ -185,7 +185,7 @@ fn test_persistent_peer_connect() {
         MockStorage::empty(),
         peer::Config {
             config: Config {
-                connect: vec![bob.address(), eve.address()],
+                connect: vec![(bob.id(), bob.address()), (eve.id(), eve.address())],
                 ..Config::default()
             },
             ..peer::Config::default()
@@ -195,21 +195,9 @@ fn test_persistent_peer_connect() {
     alice.initialize();
 
     let mut outbox = alice.outbox();
-    assert_matches!(outbox.next(), Some(Io::Connect(a)) if a == bob.addr());
-    assert_matches!(outbox.next(), Some(Io::Connect(a)) if a == eve.addr());
+    assert_matches!(outbox.next(), Some(Io::Connect(a, _)) if a == bob.id());
+    assert_matches!(outbox.next(), Some(Io::Connect(a, _)) if a == eve.id());
     assert_matches!(outbox.next(), None);
-}
-
-#[test]
-#[ignore]
-fn test_wrong_peer_version() {
-    // TODO
-}
-
-#[test]
-#[ignore]
-fn test_wrong_peer_magic() {
-    // TODO
 }
 
 #[test]
@@ -229,7 +217,7 @@ fn test_inventory_sync() {
 
     alice.connect_to(&bob);
     alice.receive(
-        &bob.addr(),
+        bob.id(),
         Message::inventory(
             InventoryAnnouncement {
                 inventory: projs.clone().try_into().unwrap(),
@@ -325,7 +313,7 @@ fn test_inventory_pruning() {
         alice.connect_to(&bob);
         for num_projs in test.peer_projects {
             alice.receive(
-                &bob.addr(),
+                bob.id(),
                 Message::inventory(
                     InventoryAnnouncement {
                         inventory: test::arbitrary::vec::<Id>(num_projs).try_into().unwrap(),
@@ -380,7 +368,7 @@ fn test_inventory_relay_bad_timestamp() {
 
     alice.connect_to(&bob);
     alice.receive(
-        &bob.addr(),
+        bob.id(),
         Message::inventory(
             InventoryAnnouncement {
                 inventory: BoundedVec::new(),
@@ -392,7 +380,7 @@ fn test_inventory_relay_bad_timestamp() {
     assert_matches!(
         alice.outbox().next(),
         Some(Io::Disconnect(addr, DisconnectReason::Error(session::Error::InvalidTimestamp(t))))
-        if addr == bob.addr() && t == timestamp
+        if addr == bob.id() && t == timestamp
     );
 }
 
@@ -406,12 +394,12 @@ fn test_announcement_rebroadcast() {
 
     let received = test::gossip::messages(6, alice.local_time(), MAX_TIME_DELTA);
     for msg in received.iter().cloned() {
-        alice.receive(&bob.addr(), msg);
+        alice.receive(bob.id(), msg);
     }
 
     alice.connect_from(&eve);
     alice.receive(
-        &eve.addr(),
+        eve.id(),
         Message::Subscribe(Subscribe {
             filter: Filter::default(),
             since: Timestamp::MIN,
@@ -419,7 +407,7 @@ fn test_announcement_rebroadcast() {
         }),
     );
 
-    let relayed = alice.messages(&eve.addr()).collect::<Vec<_>>();
+    let relayed = alice.messages(eve.id()).collect::<Vec<_>>();
     assert_eq!(relayed, received);
 }
 
@@ -443,13 +431,13 @@ fn test_announcement_rebroadcast_timestamp_filtered() {
         .chain(third.iter())
         .cloned()
     {
-        alice.receive(&bob.addr(), msg);
+        alice.receive(bob.id(), msg);
     }
 
     // Eve subscribes to messages within the period of the second batch only.
     alice.connect_from(&eve);
     alice.receive(
-        &eve.addr(),
+        eve.id(),
         Message::Subscribe(Subscribe {
             filter: Filter::default(),
             since: alice.local_time().as_secs(),
@@ -457,7 +445,7 @@ fn test_announcement_rebroadcast_timestamp_filtered() {
         }),
     );
 
-    let relayed = alice.messages(&eve.addr()).collect::<Vec<_>>();
+    let relayed = alice.messages(eve.id()).collect::<Vec<_>>();
     assert_eq!(relayed.len(), second.len());
     assert_eq!(relayed, second);
 }
@@ -470,56 +458,56 @@ fn test_announcement_relay() {
 
     alice.connect_to(&bob);
     alice.connect_to(&eve);
-    alice.receive(&bob.addr(), bob.inventory_announcement());
+    alice.receive(bob.id(), bob.inventory_announcement());
 
     assert_matches!(
-        alice.messages(&eve.addr()).next(),
+        alice.messages(eve.id()).next(),
         Some(Message::Announcement(_))
     );
 
-    alice.receive(&bob.addr(), bob.inventory_announcement());
+    alice.receive(bob.id(), bob.inventory_announcement());
     assert!(
-        alice.messages(&eve.addr()).next().is_none(),
+        alice.messages(eve.id()).next().is_none(),
         "Another inventory with the same timestamp is ignored"
     );
 
     bob.elapse(LocalDuration::from_mins(1));
-    alice.receive(&bob.addr(), bob.inventory_announcement());
+    alice.receive(bob.id(), bob.inventory_announcement());
     assert_matches!(
-        alice.messages(&eve.addr()).next(),
+        alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
         "Another inventory with a fresher timestamp is relayed"
     );
 
-    alice.receive(&bob.addr(), bob.node_announcement());
+    alice.receive(bob.id(), bob.node_announcement());
     assert_matches!(
-        alice.messages(&eve.addr()).next(),
+        alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
         "A node announcement with the same timestamp as the inventory is relayed"
     );
 
-    alice.receive(&bob.addr(), bob.node_announcement());
-    assert!(alice.messages(&eve.addr()).next().is_none(), "Only once");
+    alice.receive(bob.id(), bob.node_announcement());
+    assert!(alice.messages(eve.id()).next().is_none(), "Only once");
 
-    alice.receive(&eve.addr(), eve.node_announcement());
+    alice.receive(eve.id(), eve.node_announcement());
     assert_matches!(
-        alice.messages(&bob.addr()).next(),
+        alice.messages(bob.id()).next(),
         Some(Message::Announcement(_)),
         "A node announcement from Eve is relayed to Bob"
     );
     assert!(
-        alice.messages(&eve.addr()).next().is_none(),
+        alice.messages(eve.id()).next().is_none(),
         "But not back to Eve"
     );
 
     eve.elapse(LocalDuration::from_mins(1));
-    alice.receive(&bob.addr(), eve.node_announcement());
+    alice.receive(bob.id(), eve.node_announcement());
     assert!(
-        alice.messages(&bob.addr()).next().is_none(),
+        alice.messages(bob.id()).next().is_none(),
         "Bob already know about this message, since he sent it"
     );
     assert!(
-        alice.messages(&eve.addr()).next().is_none(),
+        alice.messages(eve.id()).next().is_none(),
         "Eve already know about this message, since she signed it"
     );
 }
@@ -563,31 +551,31 @@ fn test_refs_announcement_relay() {
     alice.track_repo(&bob_inv[2], tracking::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.connect_to(&eve);
-    alice.receive(&eve.addr(), Message::Subscribe(Subscribe::all()));
+    alice.receive(eve.id(), Message::Subscribe(Subscribe::all()));
 
-    alice.receive(&bob.addr(), bob.refs_announcement(bob_inv[0]));
+    alice.receive(bob.id(), bob.refs_announcement(bob_inv[0]));
     assert_matches!(
-        alice.messages(&eve.addr()).next(),
+        alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
         "A refs announcement from Bob is relayed to Eve"
     );
 
-    alice.receive(&bob.addr(), bob.refs_announcement(bob_inv[0]));
+    alice.receive(bob.id(), bob.refs_announcement(bob_inv[0]));
     assert!(
-        alice.messages(&eve.addr()).next().is_none(),
+        alice.messages(eve.id()).next().is_none(),
         "The same ref announement is not relayed"
     );
 
-    alice.receive(&bob.addr(), bob.refs_announcement(bob_inv[1]));
+    alice.receive(bob.id(), bob.refs_announcement(bob_inv[1]));
     assert_matches!(
-        alice.messages(&eve.addr()).next(),
+        alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
         "But a different one is"
     );
 
-    alice.receive(&bob.addr(), bob.refs_announcement(bob_inv[2]));
+    alice.receive(bob.id(), bob.refs_announcement(bob_inv[2]));
     assert_matches!(
-        alice.messages(&eve.addr()).next(),
+        alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
         "And a third one is as well"
     );
@@ -603,9 +591,9 @@ fn test_refs_announcement_no_subscribe() {
     alice.track_repo(&id, tracking::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.connect_to(&eve);
-    alice.receive(&bob.addr(), bob.refs_announcement(id));
+    alice.receive(bob.id(), bob.refs_announcement(id));
 
-    assert!(alice.messages(&eve.addr()).next().is_none());
+    assert!(alice.messages(eve.id()).next().is_none());
 }
 
 #[test]
@@ -621,7 +609,7 @@ fn test_inventory_relay() {
     alice.connect_to(&bob);
     alice.connect_from(&eve);
     alice.receive(
-        &bob.addr(),
+        bob.id(),
         Message::inventory(
             InventoryAnnouncement {
                 inventory: inv.clone(),
@@ -631,7 +619,7 @@ fn test_inventory_relay() {
         ),
     );
     assert_matches!(
-        alice.messages(&eve.addr()).next(),
+        alice.messages(eve.id()).next(),
         Some(Message::Announcement(Announcement {
             node,
             message: AnnouncementMessage::Inventory(InventoryAnnouncement { timestamp, .. }),
@@ -640,13 +628,13 @@ fn test_inventory_relay() {
         if node == bob.node_id() && timestamp == now
     );
     assert_matches!(
-        alice.messages(&bob.addr()).next(),
+        alice.messages(bob.id()).next(),
         None,
         "The inventory is not sent back to Bob"
     );
 
     alice.receive(
-        &bob.addr(),
+        bob.id(),
         Message::inventory(
             InventoryAnnouncement {
                 inventory: inv.clone(),
@@ -656,13 +644,13 @@ fn test_inventory_relay() {
         ),
     );
     assert_matches!(
-        alice.messages(&eve.addr()).next(),
+        alice.messages(eve.id()).next(),
         None,
         "Sending the same inventory again doesn't trigger a relay"
     );
 
     alice.receive(
-        &bob.addr(),
+        bob.id(),
         Message::inventory(
             InventoryAnnouncement {
                 inventory: inv.clone(),
@@ -672,7 +660,7 @@ fn test_inventory_relay() {
         ),
     );
     assert_matches!(
-        alice.messages(&eve.addr()).next(),
+        alice.messages(eve.id()).next(),
         Some(Message::Announcement(Announcement {
             node,
             message: AnnouncementMessage::Inventory(InventoryAnnouncement { timestamp, .. }),
@@ -684,7 +672,7 @@ fn test_inventory_relay() {
 
     // Inventory from Eve relayed to Bob.
     alice.receive(
-        &eve.addr(),
+        eve.id(),
         Message::inventory(
             InventoryAnnouncement {
                 inventory: inv,
@@ -694,7 +682,7 @@ fn test_inventory_relay() {
         ),
     );
     assert_matches!(
-        alice.messages(&bob.addr()).next(),
+        alice.messages(bob.id()).next(),
         Some(Message::Announcement(Announcement {
             node,
             message: AnnouncementMessage::Inventory(InventoryAnnouncement { timestamp, .. }),
@@ -714,7 +702,7 @@ fn test_persistent_peer_reconnect() {
         MockStorage::empty(),
         peer::Config {
             config: Config {
-                connect: vec![bob.address(), eve.address()],
+                connect: vec![(bob.id(), bob.address()), (eve.id(), eve.address())],
                 ..Config::default()
             },
             ..peer::Config::default()
@@ -733,10 +721,10 @@ fn test_persistent_peer_reconnect() {
     let ips = alice
         .sessions()
         .negotiated()
-        .map(|(ip, _, _)| *ip)
+        .map(|(id, _)| *id)
         .collect::<Vec<_>>();
-    assert!(ips.contains(&bob.addr()));
-    assert!(ips.contains(&eve.addr()));
+    assert!(ips.contains(&bob.id()));
+    assert!(ips.contains(&eve.id()));
 
     // ... Negotiated ...
     //
@@ -748,25 +736,25 @@ fn test_persistent_peer_reconnect() {
     // A non-transient disconnect, such as one requested by the user will not trigger
     // a reconnection.
     alice.disconnected(
-        &eve.addr(),
+        eve.id(),
         &nakamoto::DisconnectReason::DialError(error.clone()),
     );
     assert_matches!(alice.outbox().next(), None);
 
     for _ in 0..MAX_CONNECTION_ATTEMPTS {
         alice.disconnected(
-            &bob.addr(),
+            bob.id(),
             &nakamoto::DisconnectReason::ConnectionError(error.clone()),
         );
-        assert_matches!(alice.outbox().next(), Some(Io::Connect(a)) if a == bob.addr());
+        assert_matches!(alice.outbox().next(), Some(Io::Connect(a, _)) if a == bob.id());
         assert_matches!(alice.outbox().next(), None);
 
-        alice.attempted(&bob.addr());
+        alice.attempted(bob.id(), &bob.address());
     }
 
     // After the max connection attempts, a disconnect doesn't trigger a reconnect.
     alice.disconnected(
-        &bob.addr(),
+        bob.id(),
         &nakamoto::DisconnectReason::ConnectionError(error),
     );
     assert_matches!(alice.outbox().next(), None);
@@ -803,19 +791,19 @@ fn test_maintain_connections() {
     let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
     for peer in connected.iter() {
         alice.disconnected(
-            &peer.addr(),
+            peer.id(),
             &nakamoto::DisconnectReason::ConnectionError(error.clone()),
         );
 
-        let addr = alice
+        let id = alice
             .outbox()
             .find_map(|o| match o {
-                Io::Connect(addr) => Some(addr),
+                Io::Connect(id, _) => Some(id),
                 _ => None,
             })
             .expect("Alice connects to a new peer");
-        assert!(addr != peer.addr());
-        unconnected.retain(|p| p.addr() != addr);
+        assert!(id != peer.id());
+        unconnected.retain(|p| p.id() != id);
     }
     assert!(
         unconnected.is_empty(),
@@ -848,8 +836,8 @@ fn test_push_and_pull() {
     local::register(alice.storage().clone());
 
     // Alice and Bob connect to Eve.
-    alice.command(service::Command::Connect(eve.addr()));
-    bob.command(service::Command::Connect(eve.addr()));
+    alice.command(service::Command::Connect(eve.id(), eve.address()));
+    bob.command(service::Command::Connect(eve.id(), eve.address()));
 
     // Alice creates a new project.
     let (proj_id, _, _) = rad::init(
@@ -902,7 +890,7 @@ fn test_push_and_pull() {
         .unwrap()
         .is_some());
     assert_matches!(
-        sim.events(&bob.ip).next(),
+        sim.events(&bob.id).next(),
         Some(service::Event::RefsFetched { from, .. })
         if from == eve.node_id(),
         "Bob fetched from Eve"
@@ -947,10 +935,10 @@ fn prop_inventory_exchange_dense() {
         }
 
         // Fully-connected.
-        bob.command(Command::Connect(alice.addr()));
-        bob.command(Command::Connect(eve.addr()));
-        eve.command(Command::Connect(alice.addr()));
-        eve.command(Command::Connect(bob.addr()));
+        bob.command(Command::Connect(alice.id(), alice.address()));
+        bob.command(Command::Connect(eve.id(), eve.address()));
+        eve.command(Command::Connect(alice.id(), alice.address()));
+        eve.command(Command::Connect(bob.id(), bob.address()));
 
         let mut peers: HashMap<_, _> = [
             (alice.node_id(), alice),

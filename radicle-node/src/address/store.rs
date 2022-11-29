@@ -12,7 +12,7 @@ use crate::clock::Timestamp;
 use crate::prelude::Address;
 use crate::service::NodeId;
 use crate::sql::transaction;
-use crate::wire::message::AddressType;
+use crate::wire::AddressType;
 
 #[derive(Error, Debug)]
 pub enum Error {

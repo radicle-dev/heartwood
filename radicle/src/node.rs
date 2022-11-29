@@ -1,9 +1,9 @@
 mod features;
 
+use std::io;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::{io, net};
 
 use crate::crypto::PublicKey;
 use crate::identity::Id;
@@ -37,8 +37,6 @@ pub trait Handle {
     /// The error returned by all methods.
     type Error: std::error::Error;
 
-    /// Wait for the node's listening socket to be bound.
-    fn listening(&self) -> Result<net::SocketAddr, Self::Error>;
     /// Retrieve or update the project from network.
     fn fetch(&mut self, id: Id) -> Result<Self::FetchLookup, Self::Error>;
     /// Start tracking the given project. Doesn't do anything if the project is already
@@ -199,10 +197,6 @@ impl Handle for Node {
     }
 
     fn sessions(&self) -> Result<chan::Receiver<(NodeId, Self::Session)>, Error> {
-        todo!();
-    }
-
-    fn listening(&self) -> Result<net::SocketAddr, Error> {
         todo!();
     }
 

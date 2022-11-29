@@ -7,15 +7,11 @@ use thiserror::Error;
 
 pub use ed25519::{Error, KeyPair, Seed};
 
-#[cfg(any(test, feature = "test"))]
-pub mod test;
-
 pub mod hash;
 #[cfg(feature = "ssh")]
 pub mod ssh;
-
-#[cfg(feature = "cyphernet")]
-mod cyphernet;
+#[cfg(any(test, feature = "test"))]
+pub mod test;
 
 /// Verified (used as type witness).
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize)]
@@ -26,6 +22,19 @@ pub struct Unverified;
 
 /// Output of a Diffie-Hellman key exchange.
 pub type SharedSecret = [u8; 32];
+
+/// Trait alias used for Diffie–Hellman key exchange.
+#[cfg(feature = "cyphernet")]
+pub trait Negotiator:
+    cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone
+{
+}
+
+#[cfg(feature = "cyphernet")]
+impl<T> Negotiator for T where
+    T: cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone
+{
+}
 
 /// Error returned if signing fails, eg. due to an HSM or KMS.
 #[derive(Debug, Error)]
@@ -68,13 +77,6 @@ where
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
         self.deref().try_sign(msg)
     }
-}
-
-/// A signer that can perform Elliptic-curve Diffie–Hellman.
-pub trait Ecdh: Signer {
-    /// Perform an ECDH key exchange. Takes the counter-party's public key,
-    /// and returns a computed shared secret.
-    fn ecdh(&self, other: &PublicKey) -> Result<SharedSecret, Error>;
 }
 
 /// Cryptographic signature.
@@ -166,6 +168,9 @@ impl PublicKey {
         ed25519::PublicKey::from_pem(pem).map(Self)
     }
 }
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::crypto::EcPk for PublicKey {}
 
 /// The private/signing key.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]

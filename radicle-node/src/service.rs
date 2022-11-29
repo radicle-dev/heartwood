@@ -48,8 +48,6 @@ use self::reactor::Reactor;
 
 /// Default radicle protocol port.
 pub const DEFAULT_PORT: u16 = 8776;
-/// Protocol version. Only updated for wire protocol changes.
-pub const PROTOCOL_VERSION: u32 = 1;
 /// Target number of peers to maintain connections to.
 pub const TARGET_OUTBOUND_PEERS: usize = 8;
 /// How often to run the "idle" task.
@@ -113,7 +111,7 @@ pub enum FetchError {
 pub enum FetchLookup {
     /// Found seeds for the given project.
     Found {
-        seeds: NonEmpty<net::SocketAddr>,
+        seeds: NonEmpty<NodeId>,
         results: chan::Receiver<FetchResult>,
     },
     /// Can't fetch because no seeds were found for this project.
@@ -130,14 +128,11 @@ pub enum FetchLookup {
 pub enum FetchResult {
     /// Successful fetch from a seed.
     Fetched {
-        from: net::SocketAddr,
+        from: NodeId,
         updated: Vec<RefUpdate>,
     },
     /// Error fetching the resource from a seed.
-    Error {
-        from: net::SocketAddr,
-        error: FetchError,
-    },
+    Error { from: NodeId, error: FetchError },
 }
 
 /// Function used to query internal service state.
@@ -148,7 +143,7 @@ pub enum Command {
     /// Announce repository references for given project id to peers.
     AnnounceRefs(Id),
     /// Connect to node with the given address.
-    Connect(net::SocketAddr),
+    Connect(NodeId, Address),
     /// Fetch the given project from the network.
     Fetch(Id, chan::Sender<FetchLookup>),
     /// Track the given project.
@@ -167,7 +162,7 @@ impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({})", id),
-            Self::Connect(addr) => write!(f, "Connect({})", addr),
+            Self::Connect(id, addr) => write!(f, "Connect({}, {})", id, addr),
             Self::Fetch(id, _) => write!(f, "Fetch({})", id),
             Self::TrackRepo(id, _) => write!(f, "TrackRepo({})", id),
             Self::UntrackRepo(id, _) => write!(f, "UntrackRepo({})", id),
@@ -384,8 +379,8 @@ where
 
         // Connect to configured peers.
         let addrs = self.config.connect.clone();
-        for addr in addrs {
-            self.reactor.connect(addr);
+        for (id, addr) in addrs {
+            self.reactor.connect(id, addr);
         }
     }
 
@@ -440,7 +435,7 @@ where
         debug!("Command {:?}", cmd);
 
         match cmd {
-            Command::Connect(addr) => self.reactor.connect(addr),
+            Command::Connect(id, addr) => self.reactor.connect(id, addr),
             Command::Fetch(id, resp) => {
                 if !self
                     .tracking
@@ -472,7 +467,7 @@ where
 
                 let (results_, results) = chan::bounded(seeds.len());
                 resp.send(FetchLookup::Found {
-                    seeds: seeds.clone().map(|(_, peer)| peer.addr),
+                    seeds: seeds.clone().map(|(_, peer)| peer.id),
                     results,
                 })
                 .ok();
@@ -483,7 +478,7 @@ where
                         Ok(updated) => {
                             results_
                                 .send(FetchResult::Fetched {
-                                    from: peer.addr,
+                                    from: peer.id,
                                     updated,
                                 })
                                 .ok();
@@ -491,7 +486,7 @@ where
                         Err(err) => {
                             results_
                                 .send(FetchResult::Error {
-                                    from: peer.addr,
+                                    from: peer.id,
                                     error: err.into(),
                                 })
                                 .ok();
@@ -536,38 +531,31 @@ where
         }
     }
 
-    pub fn attempted(&mut self, addr: &net::SocketAddr) {
-        let address = Address::from(*addr);
-        let persistent = self.config.is_persistent(&address);
+    pub fn accepted(&mut self, _addr: net::SocketAddr) {
+        // Inbound connection attempt.
+    }
+
+    pub fn attempted(&mut self, id: NodeId, _addr: &Address) {
+        let persistent = self.config.is_persistent(&id);
         let peer = self
             .sessions
-            .entry(*addr)
-            .or_insert_with(|| Session::new(*addr, Link::Outbound, persistent, self.rng.clone()));
+            .entry(id)
+            .or_insert_with(|| Session::new(id, Link::Outbound, persistent, self.rng.clone()));
 
         peer.attempted();
     }
 
-    pub fn connecting(
-        &mut self,
-        _addr: net::SocketAddr,
-        _local_addr: &net::SocketAddr,
-        _link: Link,
-    ) {
-    }
-
-    pub fn connected(&mut self, addr: net::SocketAddr, link: Link) {
-        let address = addr.into();
-
-        debug!("Connected to {} ({:?})", addr, link);
+    pub fn connected(&mut self, remote: NodeId, link: Link) {
+        debug!("Connected to {} ({:?})", remote, link);
 
         // For outbound connections, we are the first to say "Hello".
         // For inbound connections, we wait for the remote to say "Hello" first.
         // TODO: How should we deal with multiple peers connecting from the same IP address?
         if link.is_outbound() {
-            if let Some(peer) = self.sessions.get_mut(&addr) {
+            if let Some(peer) = self.sessions.get_mut(&remote) {
                 if link.is_outbound() {
                     self.reactor.write_all(
-                        addr,
+                        remote,
                         gossip::handshake(
                             self.clock.as_secs(),
                             &self.storage,
@@ -581,11 +569,11 @@ where
             }
         } else {
             self.sessions.insert(
-                addr,
+                remote,
                 Session::new(
-                    addr,
+                    remote,
                     Link::Inbound,
-                    self.config.is_persistent(&address),
+                    self.config.is_persistent(&remote),
                     self.rng.clone(),
                 ),
             );
@@ -594,55 +582,57 @@ where
 
     pub fn disconnected(
         &mut self,
-        addr: &net::SocketAddr,
+        remote: NodeId,
         reason: &nakamoto::DisconnectReason<DisconnectReason>,
     ) {
         let since = self.local_time();
-        let address = Address::from(*addr);
 
-        debug!("Disconnected from {} ({})", addr, reason);
+        debug!("Disconnected from {} ({})", remote, reason);
 
-        if let Some(session) = self.sessions.get_mut(addr) {
+        if let Some(session) = self.sessions.get_mut(&remote) {
             session.state = session::State::Disconnected { since };
 
             // Attempt to re-connect to persistent peers.
-            if self.config.is_persistent(&address) && session.attempts() < MAX_CONNECTION_ATTEMPTS {
-                if reason.is_dial_err() {
-                    return;
-                }
-                if let nakamoto::DisconnectReason::Protocol(r) = reason {
-                    if !r.is_transient() {
+            if let Some(address) = self.config.peer(&remote) {
+                if session.attempts() < MAX_CONNECTION_ATTEMPTS {
+                    if reason.is_dial_err() {
                         return;
                     }
+                    if let nakamoto::DisconnectReason::Protocol(r) = reason {
+                        if !r.is_transient() {
+                            return;
+                        }
+                    }
+                    // TODO: Eventually we want a delay before attempting a reconnection,
+                    // with exponential back-off.
+                    debug!(
+                        "Reconnecting to {} (attempts={})...",
+                        remote,
+                        session.attempts()
+                    );
+
+                    // TODO: Try to reconnect only if the peer was attempted. A disconnect without
+                    // even a successful attempt means that we're unlikely to be able to reconnect.
+
+                    self.reactor.connect(remote, address.clone());
                 }
-                // TODO: Eventually we want a delay before attempting a reconnection,
-                // with exponential back-off.
-                debug!(
-                    "Reconnecting to {} (attempts={})...",
-                    addr,
-                    session.attempts()
-                );
-
-                // TODO: Try to reconnect only if the peer was attempted. A disconnect without
-                // even a successful attempt means that we're unlikely to be able to reconnect.
-
-                self.reactor.connect(*addr);
             } else {
-                self.sessions.remove(addr);
+                self.sessions.remove(&remote);
                 self.maintain_connections();
             }
         }
     }
 
-    pub fn received_message(&mut self, addr: &net::SocketAddr, message: Message) {
-        match self.handle_message(addr, message) {
-            Err(session::Error::NotFound(ip)) => {
-                error!("Session not found for {ip}");
+    pub fn received_message(&mut self, remote: NodeId, message: Message) {
+        match self.handle_message(&remote, message) {
+            Err(session::Error::NotFound(id)) => {
+                error!("Session not found for {id}");
             }
             Err(err) => {
                 // If there's an error, stop processing messages from this peer.
                 // However, we still relay messages returned up to this point.
-                self.reactor.disconnect(*addr, DisconnectReason::Error(err));
+                self.reactor
+                    .disconnect(remote, DisconnectReason::Error(err));
 
                 // FIXME: The peer should be set in a state such that we don'that
                 // process further messages.
@@ -822,7 +812,7 @@ where
 
     pub fn handle_message(
         &mut self,
-        remote: &net::SocketAddr,
+        remote: &NodeId,
         message: Message,
     ) -> Result<(), session::Error> {
         let Some(peer) = self.sessions.get_mut(remote) else {
@@ -830,18 +820,15 @@ where
         };
         peer.last_active = self.clock;
 
-        debug!("Received {:?} from {}", &message, peer.ip());
+        debug!("Received {:?} from {}", &message, peer.id);
 
         match (&mut peer.state, message) {
-            (session::State::Initial, Message::Initialize { id, version, addrs }) => {
-                if version != PROTOCOL_VERSION {
-                    return Err(session::Error::WrongVersion(version));
-                }
+            (session::State::Initial, Message::Initialize {}) => {
                 // Nb. This is a very primitive handshake. Eventually we should have anyhow
                 // extra "acknowledgment" message sent when the `Initialize` is well received.
                 if peer.link.is_inbound() {
                     self.reactor.write_all(
-                        peer.addr,
+                        peer.id,
                         gossip::handshake(
                             self.clock.as_secs(),
                             &self.storage,
@@ -855,16 +842,15 @@ where
                 // set after the first message is received only. Setting it here would
                 // mean that messages received right after the handshake could be ignored.
                 peer.state = session::State::Negotiated {
-                    id,
+                    id: *remote,
                     since: self.clock,
-                    addrs: addrs.unbound(),
                     ping: Default::default(),
                 };
             }
             (session::State::Initial, _) => {
                 debug!(
                     "Disconnecting peer {} for sending us a message before handshake",
-                    peer.ip()
+                    peer.id
                 );
                 return Err(session::Error::Misbehavior);
             }
@@ -882,10 +868,9 @@ where
                     let relay_to = self
                         .sessions
                         .negotiated()
-                        .filter(|(addr, _, _)| *addr != remote)
-                        .filter(|(_, id, _)| **id != ann.node);
+                        .filter(|(id, _)| *id != remote && *id != &ann.node);
 
-                    self.reactor.relay(ann.clone(), relay_to.map(|(_, _, p)| p));
+                    self.reactor.relay(ann.clone(), relay_to.map(|(_, p)| p));
 
                     return Ok(());
                 }
@@ -895,14 +880,14 @@ where
                     .gossip
                     .filtered(&subscribe.filter, subscribe.since, subscribe.until)
                 {
-                    self.reactor.write(peer.addr, msg);
+                    self.reactor.write(peer.id, msg);
                 }
                 peer.subscribe = Some(subscribe);
             }
             (session::State::Negotiated { .. }, Message::Initialize { .. }) => {
                 debug!(
                     "Disconnecting peer {} for sending us a redundant handshake message",
-                    peer.ip()
+                    peer.id
                 );
                 return Err(session::Error::Misbehavior);
             }
@@ -912,7 +897,7 @@ where
                     return Ok(());
                 }
                 self.reactor.write(
-                    peer.addr,
+                    peer.id,
                     Message::Pong {
                         zeroes: ZeroBytes::new(ponglen),
                     },
@@ -926,7 +911,7 @@ where
                 }
             }
             (session::State::Disconnected { .. }, msg) => {
-                debug!("Ignoring {:?} from disconnected peer {}", msg, peer.ip());
+                debug!("Ignoring {:?} from disconnected peer {}", msg, peer.id);
             }
         }
         Ok(())
@@ -966,7 +951,7 @@ where
         let node = self.node_id();
         let repo = self.storage.repository(id)?;
         let remote = repo.remote(&node)?;
-        let peers = self.sessions.negotiated().map(|(_, _, p)| p);
+        let peers = self.sessions.negotiated().map(|(_, p)| p);
         let timestamp = self.clock.as_secs();
 
         if remote.refs.len() > Refs::max() {
@@ -976,7 +961,6 @@ where
             );
         }
         let refs = BoundedVec::collect_from(&mut remote.refs.iter().map(|(a, b)| (a.clone(), *b)));
-
         let msg = AnnouncementMessage::from(RefsAnnouncement {
             id,
             refs,
@@ -1001,8 +985,8 @@ where
             &self.signer,
         );
 
-        for addr in self.sessions.negotiated().map(|(_, _, p)| p.addr) {
-            self.reactor.write(addr, inv.clone());
+        for id in self.sessions.negotiated().map(|(id, _)| id) {
+            self.reactor.write(*id, inv.clone());
         }
         Ok(())
     }
@@ -1025,12 +1009,11 @@ where
         let stale = self
             .sessions
             .negotiated()
-            .filter(|(_, _, session)| session.last_active < *now - STALE_CONNECTION_TIMEOUT);
-        for (_, _, session) in stale {
-            self.reactor.disconnect(
-                session.addr,
-                DisconnectReason::Error(session::Error::Timeout),
-            );
+            .filter(|(_, session)| session.last_active < *now - STALE_CONNECTION_TIMEOUT);
+
+        for (_, session) in stale {
+            self.reactor
+                .disconnect(session.id, DisconnectReason::Error(session::Error::Timeout));
         }
     }
 
@@ -1046,16 +1029,18 @@ where
         }
     }
 
-    fn choose_addresses(&mut self) -> Vec<Address> {
-        let mut initializing: Vec<Address> = Vec::new();
+    fn choose_addresses(&mut self) -> Vec<(NodeId, Address)> {
+        // TODO(cloudhead): Remove once noise is implemented.
+        let mut initializing: Vec<NodeId> = Vec::new();
         let mut negotiated: HashMap<NodeId, &Session> = HashMap::new();
         for s in self.sessions.values() {
             if !s.link.is_outbound() {
                 continue;
             }
             match s.state {
+                // TODO(cloudhead): Remove when we have noise handshake.
                 session::State::Initial => {
-                    initializing.push(s.addr.into());
+                    initializing.push(s.id);
                 }
                 session::State::Negotiated { id, .. } => {
                     negotiated.insert(id, s);
@@ -1074,11 +1059,11 @@ where
         self.addresses
             .entries()
             .unwrap()
-            .filter(|(node_id, s)| {
-                !initializing.contains(&s.addr) && !negotiated.contains_key(node_id)
+            .filter(|(node_id, _)| {
+                !initializing.contains(node_id) && !negotiated.contains_key(node_id)
             })
             .take(wanted)
-            .map(|(_, s)| s.addr)
+            .map(|(n, s)| (n, s.addr))
             .collect()
     }
 
@@ -1087,8 +1072,8 @@ where
         if addrs.is_empty() {
             debug!("No eligible peers available to connect to");
         }
-        for addr in addrs {
-            self.reactor.connect(addr.clone());
+        for (id, addr) in addrs {
+            self.reactor.connect(id, addr.clone());
         }
     }
 }
@@ -1149,6 +1134,7 @@ where
 #[derive(Debug)]
 pub enum DisconnectReason {
     User,
+    Peer,
     Error(session::Error),
 }
 
@@ -1156,6 +1142,7 @@ impl DisconnectReason {
     fn is_transient(&self) -> bool {
         match self {
             Self::User => false,
+            Self::Peer => false,
             Self::Error(..) => false,
         }
     }
@@ -1171,6 +1158,7 @@ impl fmt::Display for DisconnectReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::User => write!(f, "user"),
+            Self::Peer => write!(f, "peer"),
             Self::Error(err) => write!(f, "error: {}", err),
         }
     }
@@ -1258,7 +1246,7 @@ impl Node {
 
 #[derive(Debug)]
 /// Holds currently (or recently) connected peers.
-pub struct Sessions(AddressBook<net::SocketAddr, Session>);
+pub struct Sessions(AddressBook<NodeId, Session>);
 
 impl Sessions {
     pub fn new(rng: Rng) -> Self {
@@ -1270,25 +1258,23 @@ impl Sessions {
     }
 
     /// Iterator over fully negotiated peers.
-    pub fn negotiated(
-        &self,
-    ) -> impl Iterator<Item = (&net::SocketAddr, &NodeId, &Session)> + Clone {
+    pub fn negotiated(&self) -> impl Iterator<Item = (&NodeId, &Session)> + Clone {
         self.0
             .iter()
-            .filter_map(move |(addr, sess)| match &sess.state {
-                session::State::Negotiated { id, .. } => Some((addr, id, sess)),
+            .filter_map(move |(_, sess)| match &sess.state {
+                session::State::Negotiated { id, .. } => Some((id, sess)),
                 _ => None,
             })
     }
 
     /// Iterator over mutable fully negotiated peers.
-    pub fn negotiated_mut(&mut self) -> impl Iterator<Item = (&net::SocketAddr, &mut Session)> {
+    pub fn negotiated_mut(&mut self) -> impl Iterator<Item = (&NodeId, &mut Session)> {
         self.0.iter_mut().filter(move |(_, p)| p.is_negotiated())
     }
 }
 
 impl Deref for Sessions {
-    type Target = AddressBook<net::SocketAddr, Session>;
+    type Target = AddressBook<NodeId, Session>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -1350,14 +1336,7 @@ mod gossip {
         };
 
         let mut msgs = vec![
-            Message::init(
-                *signer.public_key(),
-                config
-                    .external_addresses
-                    .clone()
-                    .try_into()
-                    .expect("external addresses are within the limit"),
-            ),
+            Message::init(),
             Message::inventory(gossip::inventory(timestamp, inventory), signer),
             Message::subscribe(filter, timestamp, Timestamp::MAX),
         ];

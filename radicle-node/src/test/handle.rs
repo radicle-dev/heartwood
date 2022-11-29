@@ -21,10 +21,6 @@ impl radicle::node::Handle for Handle {
     type Session = service::Session;
     type FetchLookup = FetchLookup;
 
-    fn listening(&self) -> Result<std::net::SocketAddr, Error> {
-        unimplemented!()
-    }
-
     fn fetch(&mut self, _id: Id) -> Result<FetchLookup, Error> {
         Ok(FetchLookup::NotFound)
     }

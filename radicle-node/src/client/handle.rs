@@ -1,8 +1,6 @@
-use std::net;
 use std::sync::Arc;
 
 use crossbeam_channel as chan;
-use nakamoto_net::Waker;
 use thiserror::Error;
 
 use crate::identity::Id;
@@ -48,62 +46,56 @@ impl<T> From<chan::SendError<T>> for Error {
     }
 }
 
-pub struct Handle<W: Waker> {
-    pub(crate) commands: chan::Sender<service::Command>,
-    pub(crate) shutdown: chan::Sender<()>,
-    pub(crate) listening: chan::Receiver<net::SocketAddr>,
-    pub(crate) waker: W,
+pub struct Handle {
+    pub(crate) controller: reactor::Controller<service::Command>,
 }
 
-impl<W: Waker> Handle<W> {
+impl From<reactor::Controller<service::Command>> for Handle {
+    fn from(controller: reactor::Controller<service::Command>) -> Handle {
+        Handle { controller }
+    }
+}
+
+impl Handle {
     fn command(&self, cmd: service::Command) -> Result<(), Error> {
-        self.commands.send(cmd)?;
-        self.waker.wake()?;
+        self.controller.send(cmd)?;
 
         Ok(())
     }
 }
 
-impl<W: Waker> radicle::node::Handle for Handle<W> {
+impl radicle::node::Handle for Handle {
     type Session = Session;
     type FetchLookup = FetchLookup;
     type Error = Error;
 
-    fn listening(&self) -> Result<net::SocketAddr, Error> {
-        self.listening.recv().map_err(Error::from)
-    }
-
     fn fetch(&mut self, id: Id) -> Result<Self::FetchLookup, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.commands.send(service::Command::Fetch(id, sender))?;
+        self.command(service::Command::Fetch(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.commands
-            .send(service::Command::TrackNode(id, alias, sender))?;
+        self.command(service::Command::TrackNode(id, alias, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     fn untrack_node(&mut self, id: NodeId) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.commands
-            .send(service::Command::UntrackNode(id, sender))?;
+        self.command(service::Command::UntrackNode(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     fn track_repo(&mut self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.commands
-            .send(service::Command::TrackRepo(id, sender))?;
+        self.command(service::Command::TrackRepo(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
     fn untrack_repo(&mut self, id: Id) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.commands
-            .send(service::Command::UntrackRepo(id, sender))?;
+        self.command(service::Command::UntrackRepo(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
@@ -151,9 +143,6 @@ impl<W: Waker> radicle::node::Handle for Handle<W> {
     }
 
     fn shutdown(self) -> Result<(), Error> {
-        self.shutdown.send(())?;
-        self.waker.wake()?;
-
-        Ok(())
+        self.controller.shutdown().map_err(|_| Error::NotConnected)
     }
 }

@@ -1,6 +1,5 @@
 use crate::service::message;
 use crate::service::message::Message;
-use crate::service::net;
 use crate::service::storage;
 use crate::service::{Link, LocalTime, NodeId, Reactor, Rng};
 
@@ -18,10 +17,8 @@ pub enum PingState {
 #[derive(Debug, Default, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum State {
-    /// Initial peer state. For outgoing peers this
-    /// means we've attempted a connection. For incoming
-    /// peers, this means they've successfully connected
-    /// to us.
+    /// Pre-handshake state.
+    /// TODO(cloudhead): Remove once noise handshake is implemented.
     #[default]
     Initial,
     /// State after successful handshake.
@@ -29,8 +26,6 @@ pub enum State {
         /// The peer's unique identifier.
         id: NodeId,
         since: LocalTime,
-        /// Addresses this peer is reachable on.
-        addrs: Vec<message::Address>,
         ping: PingState,
     },
     /// When a peer is disconnected.
@@ -43,8 +38,8 @@ pub enum Error {
     WrongVersion(u32),
     #[error("invalid announcement timestamp: {0}")]
     InvalidTimestamp(u64),
-    #[error("session not found for address `{0}`")]
-    NotFound(net::SocketAddr),
+    #[error("session not found for node `{0}`")]
+    NotFound(NodeId),
     #[error("verification failed on fetch: {0}")]
     VerificationFailed(#[from] storage::VerifyError),
     #[error("peer misbehaved")]
@@ -58,8 +53,8 @@ pub enum Error {
 /// A peer session. Each connected peer will have one session.
 #[derive(Debug, Clone)]
 pub struct Session {
-    /// Peer address.
-    pub addr: net::SocketAddr,
+    /// Peer id.
+    pub id: NodeId,
     /// Connection direction.
     pub link: Link,
     /// Whether we should attempt to re-connect
@@ -82,10 +77,10 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(addr: net::SocketAddr, link: Link, persistent: bool, rng: Rng) -> Self {
+    pub fn new(id: NodeId, link: Link, persistent: bool, rng: Rng) -> Self {
         Self {
-            addr,
-            state: State::default(),
+            id,
+            state: State::Initial,
             link,
             subscribe: None,
             persistent,
@@ -93,10 +88,6 @@ impl Session {
             attempts: 0,
             rng,
         }
-    }
-
-    pub fn ip(&self) -> net::IpAddr {
-        self.addr.ip()
     }
 
     pub fn is_negotiated(&self) -> bool {
@@ -120,7 +111,7 @@ impl Session {
             let msg = message::Ping::new(&mut self.rng);
             *ping = PingState::AwaitingResponse(msg.ponglen);
 
-            reactor.write(self.addr, Message::Ping(msg));
+            reactor.write(self.id, Message::Ping(msg));
         }
         Ok(())
     }

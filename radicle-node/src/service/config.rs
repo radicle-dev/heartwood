@@ -1,6 +1,7 @@
 use super::nakamoto::LocalDuration;
 
 use crate::service::message::Address;
+use crate::service::NodeId;
 
 /// Peer-to-peer network.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
@@ -33,7 +34,7 @@ impl Default for Limits {
 pub struct Config {
     /// Peers to connect to on startup.
     /// Connections to these peers will be maintained.
-    pub connect: Vec<Address>,
+    pub connect: Vec<(NodeId, Address)>,
     /// Specify the node's public addresses
     pub external_addresses: Vec<Address>,
     /// Peer-to-peer network.
@@ -50,7 +51,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             connect: Vec::default(),
-            external_addresses: Vec::default(),
+            external_addresses: vec![],
             network: Network::default(),
             relay: true,
             listen: vec![],
@@ -67,8 +68,12 @@ impl Config {
         }
     }
 
-    pub fn is_persistent(&self, addr: &Address) -> bool {
-        self.connect.contains(addr)
+    pub fn peer(&self, id: &NodeId) -> Option<&Address> {
+        self.connect.iter().find(|(i, _)| i == id).map(|(_, a)| a)
+    }
+
+    pub fn is_persistent(&self, id: &NodeId) -> bool {
+        self.connect.iter().any(|(i, _)| i == id)
     }
 
     pub fn alias(&self) -> [u8; 32] {

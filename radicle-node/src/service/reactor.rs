@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use std::net;
 
 use log::*;
 
@@ -12,11 +11,11 @@ use super::message::{Announcement, AnnouncementMessage};
 #[derive(Debug)]
 pub enum Io {
     /// There are some messages ready to be sent to a peer.
-    Write(net::SocketAddr, Vec<Message>),
+    Write(NodeId, Vec<Message>),
     /// Connect to a peer.
-    Connect(net::SocketAddr),
+    Connect(NodeId, Address),
     /// Disconnect from a peer.
-    Disconnect(net::SocketAddr, DisconnectReason),
+    Disconnect(NodeId, DisconnectReason),
     /// Ask for a wakeup in a specified amount of time.
     Wakeup(LocalDuration),
     /// Emit an event.
@@ -37,35 +36,23 @@ impl Reactor {
     }
 
     /// Connect to a peer.
-    pub fn connect(&mut self, addr: impl Into<Address>) {
+    pub fn connect(&mut self, id: NodeId, addr: Address) {
         // TODO: Make sure we don't try to connect more than once to the same address.
-        match addr.into() {
-            Address::Ipv4 { ip, port } => {
-                self.io
-                    .push_back(Io::Connect(net::SocketAddr::new(net::IpAddr::V4(ip), port)));
-            }
-            Address::Ipv6 { ip, port } => {
-                self.io
-                    .push_back(Io::Connect(net::SocketAddr::new(net::IpAddr::V6(ip), port)));
-            }
-            other => {
-                log::error!("Unsupported address type `{}`", other);
-            }
-        }
+        self.io.push_back(Io::Connect(id, addr));
     }
 
     /// Disconnect a peer.
-    pub fn disconnect(&mut self, addr: net::SocketAddr, reason: DisconnectReason) {
-        self.io.push_back(Io::Disconnect(addr, reason));
+    pub fn disconnect(&mut self, id: NodeId, reason: DisconnectReason) {
+        self.io.push_back(Io::Disconnect(id, reason));
     }
 
-    pub fn write(&mut self, remote: net::SocketAddr, msg: Message) {
-        debug!("Write {:?} to {}", &msg, remote.ip());
+    pub fn write(&mut self, remote: NodeId, msg: Message) {
+        debug!("Write {:?} to {}", &msg, remote);
 
         self.io.push_back(Io::Write(remote, vec![msg]));
     }
 
-    pub fn write_all(&mut self, remote: net::SocketAddr, msgs: impl IntoIterator<Item = Message>) {
+    pub fn write_all(&mut self, remote: NodeId, msgs: impl IntoIterator<Item = Message>) {
         self.io
             .push_back(Io::Write(remote, msgs.into_iter().collect()));
     }
@@ -81,7 +68,7 @@ impl Reactor {
         peers: impl IntoIterator<Item = &'a Session>,
     ) {
         for peer in peers {
-            self.write(peer.addr, msg.clone().into());
+            self.write(peer.id, msg.clone().into());
         }
     }
 

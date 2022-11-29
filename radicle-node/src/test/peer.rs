@@ -31,6 +31,7 @@ pub type Service<S, G> = service::Service<routing::Table, address::Book, S, G>;
 pub struct Peer<S, G> {
     pub name: &'static str,
     pub service: Service<S, G>,
+    pub id: NodeId,
     pub ip: net::IpAddr,
     pub rng: fastrand::Rng,
     pub local_addr: net::SocketAddr,
@@ -47,8 +48,12 @@ where
         self.initialize()
     }
 
-    fn addr(&self) -> net::SocketAddr {
-        net::SocketAddr::new(self.ip, DEFAULT_PORT)
+    fn addr(&self) -> Address {
+        self.address()
+    }
+
+    fn id(&self) -> NodeId {
+        self.id
     }
 }
 
@@ -108,6 +113,7 @@ where
     ) -> Self {
         let routing = routing::Table::memory().unwrap();
         let tracking = tracking::Config::memory().unwrap();
+        let id = *config.signer.public_key();
         let service = Service::new(
             config.config,
             config.local_time,
@@ -124,6 +130,7 @@ where
         Self {
             name,
             service,
+            id,
             ip,
             local_addr,
             rng: config.rng,
@@ -141,7 +148,7 @@ where
     }
 
     pub fn address(&self) -> Address {
-        simulator::Peer::addr(self).into()
+        Address::from(net::SocketAddr::from((self.ip, 8776)))
     }
 
     pub fn import_addresses<P>(&mut self, peers: P)
@@ -180,7 +187,7 @@ where
         self.service.node_id()
     }
 
-    pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
+    pub fn receive(&mut self, peer: NodeId, msg: Message) {
         self.service.received_message(peer, msg);
     }
 
@@ -225,20 +232,15 @@ where
     }
 
     pub fn connect_from(&mut self, peer: &Self) {
-        let remote = simulator::Peer::<S, G>::addr(peer);
-        let local = net::SocketAddr::new(self.ip, self.rng.u16(..));
+        let remote_id = simulator::Peer::<S, G>::id(peer);
 
         self.initialize();
-        self.service.connecting(remote, &local, Link::Inbound);
-        self.service.connected(remote, Link::Inbound);
-        self.receive(
-            &remote,
-            Message::init(peer.node_id(), Some(Address::from(remote)).into()),
-        );
+        self.service.connected(remote_id, Link::Inbound);
+        self.receive(remote_id, Message::init());
 
-        let mut msgs = self.messages(&remote);
+        let mut msgs = self.messages(remote_id);
         msgs.find(|m| matches!(m, Message::Initialize { .. }))
-            .expect("`initialize` is sent");
+            .expect("`initialize` must be sent");
         msgs.find(|m| {
             matches!(
                 m,
@@ -248,21 +250,20 @@ where
                 })
             )
         })
-        .expect("`inventory-announcement` is sent");
+        .expect("`inventory-announcement` must be sent");
     }
 
     pub fn connect_to(&mut self, peer: &Self) {
-        let remote = simulator::Peer::<S, G>::addr(peer);
+        let remote_id = simulator::Peer::<S, G>::id(peer);
+        let remote_addr = simulator::Peer::<S, G>::addr(peer);
 
         self.initialize();
-        self.service.attempted(&remote);
-        self.service
-            .connecting(remote, &self.local_addr, Link::Outbound);
-        self.service.connected(remote, Link::Outbound);
+        self.service.attempted(remote_id, &remote_addr);
+        self.service.connected(remote_id, Link::Outbound);
 
-        let mut msgs = self.messages(&remote);
+        let mut msgs = self.messages(remote_id);
         msgs.find(|m| matches!(m, Message::Initialize { .. }))
-            .expect("`initialize` is sent");
+            .expect("`initialize` must be sent");
         msgs.find(|m| {
             matches!(
                 m,
@@ -272,19 +273,9 @@ where
                 })
             )
         })
-        .expect("`inventory-announcement` is sent");
+        .expect("`inventory-announcement` must be sent");
 
-        self.receive(
-            &remote,
-            Message::init(
-                peer.node_id(),
-                peer.config()
-                    .listen
-                    .clone()
-                    .try_into()
-                    .expect("within bound limits"),
-            ),
-        );
+        self.receive(remote_id, Message::init());
     }
 
     pub fn elapse(&mut self, duration: LocalDuration) {
@@ -293,11 +284,11 @@ where
     }
 
     /// Drain outgoing messages sent from this peer to the remote address.
-    pub fn messages(&mut self, remote: &net::SocketAddr) -> impl Iterator<Item = Message> {
+    pub fn messages(&mut self, remote: NodeId) -> impl Iterator<Item = Message> {
         let mut msgs = Vec::new();
 
         self.service.reactor().outbox().retain(|o| match o {
-            Io::Write(a, messages) if a == remote => {
+            Io::Write(a, messages) if *a == remote => {
                 msgs.extend(messages.clone());
                 false
             }
