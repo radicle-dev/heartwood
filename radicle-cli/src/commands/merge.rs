@@ -7,9 +7,8 @@ use anyhow::{anyhow, Context};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use radicle::cob::automerge;
 use radicle::cob::patch::RevisionIx;
-use radicle::cob::patch::{Patch, PatchId};
+use radicle::cob::patch::{Patch, PatchId, Patches};
 use radicle::git;
 use radicle::prelude::*;
 use radicle::rad;
@@ -141,8 +140,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .project_of(profile.id())
         .context(format!("couldn't load project {} from local state", id))?;
     let repository = profile.storage.repository(id)?;
-    let cobs = automerge::Store::open(*profile.id(), &repository)?;
-    let patches = cobs.patches();
+    let mut patches = Patches::open(*profile.id(), &repository)?;
 
     if repo.head_detached()? {
         anyhow::bail!("HEAD is in a detached state; can't merge");
@@ -152,9 +150,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     // Get patch information
     //
     let patch_id = options.id;
-    let patch = patches
-        .get(&patch_id)?
-        .ok_or_else(|| anyhow!("couldn't find patch {} locally", &options.id))?;
+    let mut patch = patches
+        .get_mut(&patch_id)
+        .map_err(|e| anyhow!("couldn't find patch {} locally: {e}", &options.id))?;
 
     let head = repo.head()?;
     let branch = head
@@ -163,11 +161,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let head_oid = head
         .target()
         .ok_or_else(|| anyhow!("cannot merge into detatched head; aborting"))?;
-    let revision_id = options.revision.unwrap_or_else(|| patch.version());
-    let revision = patch
-        .revisions
-        .get(revision_id)
-        .ok_or_else(|| anyhow!("revision R{} does not exist", revision_id))?;
+    let revision_ix = options.revision.unwrap_or_else(|| patch.version());
+    let (revision_id, revision) = patch
+        .revisions()
+        .nth(revision_ix)
+        .ok_or_else(|| anyhow!("revision R{} does not exist", revision_ix))?;
 
     //
     // Analyze merge
@@ -234,9 +232,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         "{} {} {} ({}) by {} into {} ({}) via {}...",
         term::format::bold("Merging"),
         term::format::tertiary(term::format::cob(&patch_id)),
-        term::format::dim(format!("R{}", revision_id)),
+        term::format::dim(format!("R{}", revision_ix)),
         term::format::secondary(term::format::oid(revision.oid)),
-        term::format::tertiary(patch.author.id),
+        term::format::tertiary(patch.author().id),
         term::format::highlight(branch),
         term::format::secondary(term::format::oid(head_oid)),
         merge_style_pretty
@@ -251,7 +249,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     //
     match merge_style {
         MergeStyle::Commit => {
-            merge_commit(&repo, patch_id, &patch_commit, &patch, cobs.public_key())?;
+            merge_commit(&repo, patch_id, &patch_commit, &patch, signer.public_key())?;
         }
         MergeStyle::FastForward => {
             fast_forward(&repo, &revision.oid)?;
@@ -270,7 +268,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     // Update patch COB
     //
     // TODO: Don't allow merging the same revision twice?
-    patches.merge(&patch_id, revision_id, head_oid.into(), &signer)?;
+    patch.merge(*revision_id, head_oid.into(), &signer)?;
 
     term::success!(
         "Patch state updated, use {} to publish",
@@ -294,21 +292,21 @@ fn merge_commit(
     patch: &Patch,
     whoami: &PublicKey,
 ) -> anyhow::Result<()> {
-    let description = patch.description().trim();
+    let description = patch.description().unwrap_or_default().trim();
     let mut merge_opts = git::raw::MergeOptions::new();
     let mut merge_msg = format!(
         "Merge patch '{}' from {}",
         term::format::cob(&patch_id),
-        patch.author.id()
+        patch.author().id()
     );
     write!(&mut merge_msg, "\n\n")?;
 
     if !description.is_empty() {
-        write!(&mut merge_msg, "{}", patch.description().trim())?;
+        write!(&mut merge_msg, "{}", description)?;
         write!(&mut merge_msg, "\n\n")?;
     }
     writeln!(&mut merge_msg, "Rad-Patch: {}", patch_id)?;
-    writeln!(&mut merge_msg, "Rad-Author: {}", patch.author.id())?;
+    writeln!(&mut merge_msg, "Rad-Author: {}", patch.author().id())?;
     writeln!(&mut merge_msg, "Rad-Committer: {}", whoami)?;
     writeln!(&mut merge_msg)?;
     writeln!(&mut merge_msg, "{}", MERGE_HELP_MSG.trim())?;

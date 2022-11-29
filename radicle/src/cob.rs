@@ -1,4 +1,3 @@
-pub mod automerge;
 pub mod common;
 pub mod issue;
 pub mod patch;

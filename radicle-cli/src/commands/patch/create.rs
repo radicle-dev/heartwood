@@ -2,8 +2,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, Context};
 
-use radicle::cob::automerge;
-use radicle::cob::automerge::patch::{MergeTarget, Patch, PatchId, PatchStore};
+use radicle::cob::patch::{MergeTarget, PatchId, PatchMut, Patches};
 use radicle::git;
 use radicle::git::raw::Oid;
 use radicle::prelude::*;
@@ -52,8 +51,7 @@ pub fn run(
     ));
 
     let signer = term::signer(profile)?;
-    let cobs = automerge::Store::open(profile.public_key, storage)?;
-    let patches = cobs.patches();
+    let mut patches = Patches::open(profile.public_key, storage)?;
 
     // `HEAD`; This is what we are proposing as a patch.
     let head = workdir.head()?;
@@ -132,17 +130,17 @@ pub fn run(
                 workdir,
             )?;
 
-            if let Some((id, patch)) = result.pop() {
+            if let Some((id, patch, clock)) = result.pop() {
                 if result.is_empty() {
                     spinner.message(format!(
                         "Found existing patch {} {}",
                         term::format::tertiary(term::format::cob(&id)),
-                        term::format::italic(&patch.title)
+                        term::format::italic(patch.title())
                     ));
                     spinner.finish();
                     term::blank();
 
-                    Some((id, patch))
+                    Some((id, PatchMut::new(id, patch, clock, &mut patches)))
                 } else {
                     spinner.failed();
                     term::blank();
@@ -155,7 +153,7 @@ pub fn run(
             }
         }
         Update::Patch(id) => {
-            if let Some(patch) = patches.get(id)? {
+            if let Ok(patch) = patches.get_mut(id) {
                 Some((*id, patch))
             } else {
                 anyhow::bail!("Patch `{}` not found", id);
@@ -167,9 +165,7 @@ pub fn run(
         if term::confirm("Update?") {
             term::blank();
 
-            return update(
-                patch, id, &base_oid, &head_oid, &patches, workdir, options, &signer,
-            );
+            return update(patch, id, &base_oid, &head_oid, workdir, options, &signer);
         } else {
             anyhow::bail!("Patch update aborted by user");
         }
@@ -183,7 +179,7 @@ pub fn run(
         term::format::dim(target_peer.id),
         term::format::highlight(&project.default_branch.to_string()),
         term::format::secondary(&term::format::oid(*target_oid)),
-        term::format::dim(term::format::node(cobs.public_key())),
+        term::format::dim(term::format::node(patches.public_key())),
         term::format::highlight(&head_branch.to_string()),
         term::format::secondary(&term::format::oid(head_oid)),
     );
@@ -237,7 +233,7 @@ pub fn run(
         anyhow::bail!("patch proposal aborted by user");
     }
 
-    let id = patches.create(
+    let patch = patches.create(
         title,
         &description,
         MergeTarget::default(),
@@ -248,7 +244,7 @@ pub fn run(
     )?;
 
     term::blank();
-    term::success!("Patch {} created 🌱", term::format::highlight(id));
+    term::success!("Patch {} created 🌱", term::format::highlight(patch.id));
 
     if options.sync {
         // TODO
@@ -259,16 +255,17 @@ pub fn run(
 
 /// Update an existing patch with a new revision.
 fn update<G: Signer>(
-    patch: Patch,
+    mut patch: PatchMut,
     patch_id: PatchId,
     base: &Oid,
     head: &Oid,
-    patches: &PatchStore,
     workdir: &git::raw::Repository,
     options: Options,
     signer: &G,
 ) -> anyhow::Result<()> {
-    let (current, current_revision) = patch.latest();
+    // TODO(cloudhead): Handle error.
+    let (_, current_revision) = patch.latest().unwrap();
+    let current_version = patch.version();
 
     if *current_revision.oid == *head {
         term::info!("Nothing to do, patch is already up to date.");
@@ -278,9 +275,9 @@ fn update<G: Signer>(
     term::info!(
         "{} {} ({}) -> {} ({})",
         term::format::tertiary(term::format::cob(&patch_id)),
-        term::format::dim(format!("R{}", current)),
+        term::format::dim(format!("R{}", current_version)),
         term::format::secondary(term::format::oid(current_revision.oid)),
-        term::format::dim(format!("R{}", current + 1)),
+        term::format::dim(format!("R{}", current_version + 1)),
         term::format::secondary(term::format::oid(*head)),
     );
     let message = options.message.get(REVISION_MSG);
@@ -292,9 +289,7 @@ fn update<G: Signer>(
     if !term::confirm("Continue?") {
         anyhow::bail!("patch update aborted by user");
     }
-
-    let new = patches.update(&patch_id, message, *base, *head, signer)?;
-    assert_eq!(new, current + 1);
+    patch.update(message, *base, *head, signer)?;
 
     term::blank();
     term::success!("Patch {} updated 🌱", term::format::highlight(patch_id));

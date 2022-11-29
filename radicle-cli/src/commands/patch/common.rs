@@ -1,4 +1,4 @@
-use radicle::cob::automerge::patch::{MergeTarget, Patch, PatchId, PatchStore};
+use radicle::cob::patch::{Clock, MergeTarget, Patch, PatchId, Patches};
 use radicle::git;
 use radicle::git::raw::Oid;
 use radicle::prelude::*;
@@ -111,15 +111,15 @@ pub fn find_unmerged_with_base(
     patch_head: Oid,
     target_head: Oid,
     merge_base: Oid,
-    patches: &PatchStore,
+    patches: &Patches,
     workdir: &git::raw::Repository,
-) -> anyhow::Result<Vec<(PatchId, Patch)>> {
+) -> anyhow::Result<Vec<(PatchId, Patch, Clock)>> {
     // My patches.
     let proposed: Vec<_> = patches.proposed_by(patches.public_key())?.collect();
     let mut matches = Vec::new();
 
-    for (id, patch) in proposed {
-        let (_, rev) = patch.latest();
+    for (id, patch, clock) in proposed {
+        let (_, rev) = patch.latest().unwrap();
 
         if !rev.merges.is_empty() {
             continue;
@@ -129,7 +129,7 @@ pub fn find_unmerged_with_base(
         }
         // Merge-base between the two patches.
         if workdir.merge_base(**patch.head(), target_head)? == merge_base {
-            matches.push((id, patch));
+            matches.push((id, patch, clock));
         }
     }
     Ok(matches)

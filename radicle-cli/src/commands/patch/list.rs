@@ -1,5 +1,6 @@
-use radicle::cob::automerge;
-use radicle::cob::patch::{Patch, PatchId, Verdict};
+use anyhow::anyhow;
+
+use radicle::cob::patch::{Patch, PatchId, Patches, Verdict};
 use radicle::git;
 use radicle::prelude::*;
 use radicle::profile::Profile;
@@ -22,8 +23,7 @@ pub fn run(
     }
 
     let me = *profile.id();
-    let cobs = automerge::Store::open(*profile.id(), storage)?;
-    let patches = cobs.patches();
+    let patches = Patches::open(*profile.id(), storage)?;
     let proposed = patches.proposed()?;
 
     // Patches the user authored.
@@ -31,8 +31,8 @@ pub fn run(
     // Patches other users authored.
     let mut other = Vec::new();
 
-    for (id, patch) in proposed {
-        if *patch.author.id() == me {
+    for (id, patch, _) in proposed {
+        if *patch.author().id() == me {
             own.push((id, patch));
         } else {
             other.push((id, patch));
@@ -61,7 +61,7 @@ pub fn run(
         for (id, patch) in &mut other {
             term::blank();
 
-            print(cobs.public_key(), id, patch, &workdir, storage)?;
+            print(patches.public_key(), id, patch, &workdir, storage)?;
         }
     }
     term::blank();
@@ -77,25 +77,29 @@ fn print(
     workdir: &Option<git::raw::Repository>,
     storage: &Repository,
 ) -> anyhow::Result<()> {
-    let target_head = common::patch_merge_target_oid(patch.target, storage)?;
+    let target_head = common::patch_merge_target_oid(patch.target(), storage)?;
 
-    let you = patch.author.id() == whoami;
+    let you = patch.author().id() == whoami;
     let prefix = "└─ ";
     let mut author_info = vec![format!(
         "{}* opened by {}",
         prefix,
-        term::format::tertiary(patch.author.id()),
+        term::format::tertiary(patch.author().id()),
     )];
 
     if you {
         author_info.push(term::format::secondary("(you)"));
     }
-    author_info.push(term::format::dim(term::format::timestamp(&patch.timestamp)));
+    author_info.push(term::format::dim(term::format::timestamp(
+        &patch.timestamp(),
+    )));
 
-    let revision = patch.revisions.last();
+    let (_, revision) = patch
+        .latest()
+        .ok_or_else(|| anyhow!("patch is malformed: no revisions found"))?;
     term::info!(
         "{} {} {} {} {}",
-        term::format::bold(&patch.title),
+        term::format::bold(patch.title()),
         term::format::highlight(term::format::cob(patch_id)),
         term::format::dim(format!("R{}", patch.version())),
         common::pretty_commit_version(&revision.oid, workdir)?,
@@ -104,7 +108,7 @@ fn print(
     term::info!("{}", author_info.join(" "));
 
     let mut timeline = Vec::new();
-    for merge in &revision.merges {
+    for merge in revision.merges.iter() {
         let peer = storage.remote(&merge.node)?;
         let mut badges = Vec::new();
 
@@ -126,13 +130,13 @@ fn print(
             ),
         ));
     }
-    for review in revision.reviews.values() {
-        let verdict = match review.verdict {
+    for (reviewer, review) in revision.reviews.iter() {
+        let verdict = match review.verdict() {
             Some(Verdict::Accept) => term::format::positive(term::format::dim("✓ accepted")),
             Some(Verdict::Reject) => term::format::negative(term::format::dim("✗ rejected")),
             None => term::format::negative(term::format::dim("⋄ reviewed")),
         };
-        let peer = storage.remote(review.author.id())?;
+        let peer = storage.remote(reviewer)?;
         let mut badges = Vec::new();
 
         if peer.delegate {
@@ -143,12 +147,12 @@ fn print(
         }
 
         timeline.push((
-            review.timestamp,
+            review.timestamp(),
             format!(
                 "{}{} by {} {}",
                 " ".repeat(term::text_width(prefix)),
                 verdict,
-                term::format::tertiary(review.author.id()),
+                term::format::tertiary(reviewer),
                 badges.join(" "),
             ),
         ));

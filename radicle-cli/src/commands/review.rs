@@ -3,8 +3,7 @@ use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
 
-use radicle::cob;
-use radicle::cob::automerge::patch::{PatchId, RevisionIx, Verdict};
+use radicle::cob::patch::{PatchId, Patches, RevisionIx, Verdict};
 use radicle::prelude::*;
 use radicle::rad;
 
@@ -140,18 +139,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let _project = repository
         .project_of(profile.id())
         .context(format!("couldn't load project {} from local state", id))?;
-    let cobs = cob::automerge::Store::open(*profile.id(), &repository)?;
-    let patches = cobs.patches();
+    let mut patches = Patches::open(*profile.id(), &repository)?;
 
     let patch_id = options.id;
-    let patch = patches
-        .get(&patch_id)?
+    let mut patch = patches
+        .get_mut(&patch_id)
         .context(format!("couldn't find patch {} locally", patch_id))?;
     let patch_id_pretty = term::format::tertiary(term::format::cob(&patch_id));
     let revision_ix = options.revision.unwrap_or_else(|| patch.version());
-    let _revision = patch
-        .revisions
-        .get(revision_ix)
+    let (revision_id, _) = patch
+        .revisions()
+        .nth(revision_ix)
         .ok_or_else(|| anyhow!("revision R{} does not exist", revision_ix))?;
     let message = options.message.get(REVIEW_HELP_MSG);
 
@@ -165,16 +163,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         verdict_pretty,
         patch_id_pretty,
         term::format::dim(format!("R{}", revision_ix)),
-        term::format::tertiary(patch.author.id())
+        term::format::tertiary(patch.author().id())
     )) {
         anyhow::bail!("Patch review aborted");
     }
 
-    patches.review(
-        &patch_id,
-        revision_ix,
+    patch.review(
+        *revision_id,
         options.verdict,
-        message,
+        Some(message),
         vec![],
         &signer,
     )?;

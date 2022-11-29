@@ -1,157 +1,404 @@
-use std::collections::{HashMap, HashSet};
+#![allow(clippy::too_many_arguments)]
+use std::collections::BTreeMap;
+use std::collections::VecDeque;
 use std::fmt;
-use std::ops::RangeInclusive;
+use std::ops::ControlFlow;
+use std::ops::Deref;
+use std::ops::Range;
 use std::str::FromStr;
 
-use nonempty::NonEmpty;
 use once_cell::sync::Lazy;
+use radicle_crdt as crdt;
+use radicle_crdt::clock;
+use radicle_crdt::{ActorId, ChangeId, LWWMap, LWWReg, LWWSet, Max, Redactable, Semilattice};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
-use crate::cob::common::*;
-use crate::cob::{ObjectId, Timestamp, TypeName};
+use crate::cob::common::{Author, Tag};
+use crate::cob::thread;
+use crate::cob::thread::CommentId;
+use crate::cob::thread::Thread;
+use crate::cob::Timestamp;
+use crate::cob::{store, ObjectId, TypeName};
+use crate::crypto::{PublicKey, Signer};
 use crate::git;
 use crate::prelude::*;
+use crate::storage::git as storage;
+
+/// The logical clock we use to order changes to patches.
+pub use clock::Lamport as Clock;
 
 /// Type name of a patch.
 pub static TYPENAME: Lazy<TypeName> =
     Lazy::new(|| FromStr::from_str("xyz.radicle.patch").expect("type name is valid"));
 
+pub type Change = crdt::Change<Action>;
+
 /// Identifier for a patch.
 pub type PatchId = ObjectId;
 
 /// Unique identifier for a patch revision.
-pub type RevisionId = uuid::Uuid;
+pub type RevisionId = ChangeId;
 
 /// Index of a revision in the revisions list.
 pub type RevisionIx = usize;
 
+/// Error updating or creating patches.
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("apply failed")]
+    Apply,
+    #[error("store: {0}")]
+    Store(#[from] store::Error),
+}
+
+/// Patch operation.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub enum Action {
+    Edit {
+        title: String,
+        description: String,
+        target: MergeTarget,
+    },
+    Tag {
+        add: Vec<Tag>,
+        remove: Vec<Tag>,
+    },
+    Revision {
+        base: git::Oid,
+        oid: git::Oid,
+    },
+    Review {
+        revision: RevisionId,
+        comment: Option<String>,
+        verdict: Option<Verdict>,
+        inline: Vec<CodeComment>,
+    },
+    Merge {
+        revision: RevisionId,
+        commit: git::Oid,
+    },
+    Thread {
+        revision: RevisionId,
+        action: thread::Action,
+    },
+}
+
+impl Action {
+    pub fn decode(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(bytes)
+    }
+}
+
 /// Where a patch is intended to be merged.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MergeTarget {
     /// Intended for the default branch of the project delegates.
     /// Note that if the delegations change while the patch is open,
     /// this will always mean whatever the "current" delegation set is.
+    /// If it were otherwise, patches could become un-mergeable.
     #[default]
     Delegates,
 }
 
-/// A patch to a repository.
-#[derive(Debug, Clone, Serialize)]
-pub struct Patch<T = ()>
-where
-    T: Clone,
-{
-    /// Author of the patch.
-    pub author: Author,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Patch {
     /// Title of the patch.
-    pub title: String,
-    /// Current state of the patch.
-    pub state: State,
+    pub title: LWWReg<Max<String>>,
+    /// Patch description.
+    pub description: LWWReg<Max<String>>,
+    /// Current status of the patch.
+    pub status: LWWReg<Max<Status>>,
     /// Target this patch is meant to be merged in.
-    pub target: MergeTarget,
-    /// Labels associated with the patch.
-    pub labels: HashSet<Tag>,
+    pub target: LWWReg<Max<MergeTarget>>,
+    /// Associated tags.
+    pub tags: LWWSet<Tag>,
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
-    pub revisions: NonEmpty<Revision<T>>,
-    /// Patch creation time.
-    pub timestamp: Timestamp,
+    pub revisions: BTreeMap<RevisionId, Redactable<Revision>>,
+}
+
+impl Semilattice for Patch {
+    fn merge(&mut self, other: Self) {
+        self.title.merge(other.title);
+        self.description.merge(other.description);
+        self.status.merge(other.status);
+        self.target.merge(other.target);
+        self.tags.merge(other.tags);
+        self.revisions.merge(other.revisions);
+    }
+}
+
+impl Default for Patch {
+    fn default() -> Self {
+        Self {
+            title: Max::from(String::default()).into(),
+            description: Max::from(String::default()).into(),
+            status: Max::from(Status::default()).into(),
+            target: Max::from(MergeTarget::default()).into(),
+            tags: LWWSet::default(),
+            revisions: BTreeMap::default(),
+        }
+    }
 }
 
 impl Patch {
+    pub fn title(&self) -> &str {
+        self.title.get().get()
+    }
+
+    pub fn status(&self) -> Status {
+        *self.status.get().get()
+    }
+
+    pub fn target(&self) -> MergeTarget {
+        *self.target.get().get()
+    }
+
+    pub fn timestamp(&self) -> Timestamp {
+        self.revisions()
+            .next()
+            .map(|(_, r)| r)
+            .expect("Patch::timestamp: at least one revision is present")
+            .timestamp
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        Some(self.description.get().get())
+    }
+
+    pub fn author(&self) -> &Author {
+        &self
+            .revisions()
+            .next()
+            .map(|(_, r)| r)
+            .expect("Patch::author: at least one revision is present")
+            .author
+    }
+
+    pub fn revisions(&self) -> impl DoubleEndedIterator<Item = (&RevisionId, &Revision)> {
+        self.revisions
+            .iter()
+            .filter_map(|(rid, r)| -> Option<(&RevisionId, &Revision)> {
+                r.get().map(|r| (rid, r))
+            })
+    }
+
     pub fn head(&self) -> &git::Oid {
-        &self.revisions.last().oid
+        &self
+            .latest()
+            .map(|(_, r)| r)
+            .expect("Patch::head: at least one revision is present")
+            .oid
     }
 
     pub fn version(&self) -> RevisionIx {
-        self.revisions.len() - 1
+        self.revisions
+            .len()
+            .checked_sub(1)
+            .expect("Patch::version: at least one revision is present")
     }
 
-    pub fn latest(&self) -> (RevisionIx, &Revision) {
-        let version = self.version();
-        let revision = &self.revisions[version];
-
-        (version, revision)
+    pub fn latest(&self) -> Option<(&RevisionId, &Revision)> {
+        self.revisions().next_back()
     }
 
     pub fn is_proposed(&self) -> bool {
-        matches!(self.state, State::Proposed)
+        matches!(self.status.get().get(), Status::Proposed)
     }
 
     pub fn is_archived(&self) -> bool {
-        matches!(self.state, State::Archived)
+        matches!(self.status.get().get(), &Status::Archived)
     }
 
-    pub fn description(&self) -> &str {
-        self.latest().1.description()
+    /// Apply a list of changes to the state.
+    pub fn apply(
+        &mut self,
+        changes: impl IntoIterator<Item = Change>,
+        waiting: &mut BTreeMap<ChangeId, Vec<Change>>,
+    ) -> Result<(), Error> {
+        let mut queue = changes.into_iter().collect::<VecDeque<_>>();
+
+        while let Some(change) = queue.pop_front() {
+            let id = change.id();
+            self.apply_one(change, waiting)?;
+
+            // If we have changes waiting for the change we just applied, we can now process them.
+            if let Some(waiting) = waiting.remove(&id) {
+                queue.extend(waiting);
+            }
+        }
+        Ok(())
+    }
+
+    /// Apply a single change to the state.
+    pub fn apply_one(
+        &mut self,
+        change: Change,
+        waiting: &mut BTreeMap<ChangeId, Vec<Change>>,
+    ) -> Result<(), Error> {
+        let id = change.id();
+        let author = Author::new(change.author);
+        // FIXME(cloudhead): Use commit timestamp.
+        let timestamp = Timestamp::default();
+
+        match change.action {
+            Action::Edit {
+                title,
+                description,
+                target,
+            } => {
+                self.title.set(title, change.clock);
+                self.description.set(description, change.clock);
+                self.target.set(target, change.clock);
+            }
+            Action::Tag { add, remove } => {
+                for tag in add {
+                    self.tags.insert(tag, change.clock);
+                }
+                for tag in remove {
+                    self.tags.remove(tag, change.clock);
+                }
+            }
+            Action::Revision { base, oid } => {
+                self.revisions.insert(
+                    id,
+                    Redactable::Present(Revision::new(author, base, oid, timestamp)),
+                );
+            }
+            Action::Review {
+                revision,
+                ref comment,
+                verdict,
+                ref inline,
+            } => {
+                // TODO(cloudhead): Test review on redacted revision.
+                // TODO(cloudhead): Test that updating a review only requires the fields that we
+                // want to update.
+                if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
+                    revision.reviews.insert(
+                        change.author,
+                        Review::new(verdict, comment.to_owned(), inline.to_owned(), timestamp),
+                        change.clock,
+                    );
+                } else {
+                    waiting.entry(revision).or_default().push(change);
+                }
+            }
+            Action::Merge { revision, commit } => {
+                if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
+                    revision.merges.insert(
+                        Merge {
+                            node: change.author,
+                            commit,
+                            timestamp,
+                        }
+                        .into(),
+                        change.clock,
+                    );
+                } else {
+                    waiting.entry(revision).or_default().push(change);
+                }
+            }
+            Action::Thread { revision, action } => {
+                // TODO(cloudhead): Make sure we can deal with redacted revisions which are added
+                // to out of order, like in the `Merge` case.
+                if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
+                    revision.discussion.apply([crdt::Change {
+                        action,
+                        author: change.author,
+                        clock: change.clock,
+                    }]);
+                }
+            }
+        }
+        Ok(())
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum State {
-    Draft,
-    Proposed,
-    Archived,
+impl store::FromHistory for Patch {
+    type Action = Action;
+
+    fn type_name() -> &'static TypeName {
+        &*TYPENAME
+    }
+
+    fn from_history(
+        history: &radicle_cob::History,
+    ) -> Result<(Self, clock::Lamport), store::Error> {
+        let mut waiting = BTreeMap::default();
+        let obj = history.traverse(Self::default(), |mut acc, entry| {
+            if let Ok(action) = Action::decode(entry.contents()) {
+                if let Err(err) = acc.apply(
+                    [Change {
+                        action,
+                        author: *entry.actor(),
+                        clock: entry.clock().into(),
+                    }],
+                    &mut waiting,
+                ) {
+                    log::warn!("Error applying change to patch state: {err}");
+                    return ControlFlow::Break(acc);
+                }
+            } else {
+                return ControlFlow::Break(acc);
+            }
+            ControlFlow::Continue(acc)
+        });
+
+        Ok((obj, history.clock().into()))
+    }
 }
 
 /// A patch revision.
-#[derive(Debug, Clone, Serialize)]
-pub struct Revision<T = ()> {
-    /// Unique revision ID. This is useful in case of conflicts, eg.
-    /// a user published a revision from two devices by mistake.
-    pub id: RevisionId,
-    /// Base branch commit (merge base).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Revision {
+    /// Author of the revision.
+    pub author: Author,
+    /// Base branch commit, used as a merge base.
     pub base: git::Oid,
     /// Reference to the Git object containing the code (revision head).
     pub oid: git::Oid,
-    /// "Cover letter" for this changeset.
-    pub comment: Comment,
     /// Discussion around this revision.
-    pub discussion: Discussion,
-    /// Reviews (one per user) of the changes.
-    pub reviews: HashMap<NodeId, Review>,
+    pub discussion: Thread,
     /// Merges of this revision into other repositories.
-    pub merges: Vec<Merge>,
-    /// Code changeset for this revision.
-    pub changeset: T,
+    pub merges: LWWSet<Max<Merge>>,
+    /// Reviews of this revision's changes (one per actor).
+    pub reviews: LWWMap<ActorId, Review>,
     /// When this revision was created.
     pub timestamp: Timestamp,
 }
 
 impl Revision {
-    pub fn new(
-        author: Author,
-        base: git::Oid,
-        oid: git::Oid,
-        comment: String,
-        timestamp: Timestamp,
-    ) -> Self {
+    pub fn new(author: Author, base: git::Oid, oid: git::Oid, timestamp: Timestamp) -> Self {
         Self {
-            id: uuid::Uuid::new_v4(),
+            author,
             base,
             oid,
-            comment: Comment::new(author, comment, timestamp),
-            discussion: Discussion::default(),
-            reviews: HashMap::default(),
-            merges: Vec::default(),
-            changeset: (),
+            discussion: Thread::default(),
+            merges: LWWSet::default(),
+            reviews: LWWMap::default(),
             timestamp,
         }
     }
 
-    pub fn description(&self) -> &str {
-        &self.comment.body
-    }
-
-    pub fn author(&self) -> &Author {
-        &self.comment.author
+    pub fn description(&self) -> Option<&str> {
+        self.discussion.first()
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Status {
+    #[default]
+    Proposed,
+    Draft,
+    Archived,
+}
+
 /// A merged patch revision.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Merge {
     /// Owner of repository that this patch was merged into.
     pub node: NodeId,
@@ -162,13 +409,21 @@ pub struct Merge {
 }
 
 /// A patch review verdict.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Verdict {
     /// Accept patch.
     Accept,
     /// Reject patch.
     Reject,
+}
+
+impl Semilattice for Verdict {
+    fn merge(&mut self, other: Self) {
+        if self == &Self::Accept && other == Self::Reject {
+            *self = other;
+        }
+    }
 }
 
 impl fmt::Display for Verdict {
@@ -181,56 +436,631 @@ impl fmt::Display for Verdict {
 }
 
 /// Code location, used for attaching comments.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CodeLocation {
-    /// Line number commented on.
-    pub lines: RangeInclusive<usize>,
-    /// Commit commented on.
-    pub commit: git::Oid,
     /// File being commented on.
     pub blob: git::Oid,
+    /// Commit commented on.
+    pub commit: git::Oid,
+    /// Line range commented on.
+    pub lines: Range<usize>,
+}
+
+impl PartialOrd for CodeLocation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CodeLocation {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (&self.blob, &self.commit, &self.lines.start, &self.lines.end).cmp(&(
+            &other.blob,
+            &other.commit,
+            &other.lines.start,
+            &other.lines.end,
+        ))
+    }
 }
 
 /// Comment on code.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct CodeComment {
     /// Code location of the comment.
-    location: CodeLocation,
+    pub location: CodeLocation,
     /// Comment.
-    comment: Comment,
+    pub comment: String,
+    /// Timestamp.
+    pub timestamp: Timestamp,
 }
 
 /// A patch review on a revision.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Review {
-    /// Review author.
-    pub author: Author,
     /// Review verdict.
-    pub verdict: Option<Verdict>,
+    pub verdict: LWWReg<Option<Verdict>>,
     /// Review general comment.
-    pub comment: Comment<Replies>,
+    pub comment: LWWReg<Option<Max<String>>>,
     /// Review inline code comments.
-    pub inline: Vec<CodeComment>,
+    pub inline: LWWSet<Max<CodeComment>>,
     /// Review timestamp.
-    pub timestamp: Timestamp,
+    pub timestamp: Max<Timestamp>,
+}
+
+impl Semilattice for Review {
+    fn merge(&mut self, other: Self) {
+        self.verdict.merge(other.verdict);
+        self.comment.merge(other.comment);
+        self.inline.merge(other.inline);
+        self.timestamp.merge(other.timestamp);
+    }
 }
 
 impl Review {
     pub fn new(
-        author: Author,
         verdict: Option<Verdict>,
-        comment: impl Into<String>,
+        comment: Option<String>,
         inline: Vec<CodeComment>,
         timestamp: Timestamp,
     ) -> Self {
-        let comment = Comment::new(author.clone(), comment.into(), timestamp);
-
         Self {
-            author,
-            verdict,
-            comment,
-            inline,
-            timestamp,
+            verdict: LWWReg::from(verdict),
+            comment: LWWReg::from(comment.map(Max::from)),
+            inline: LWWSet::from_iter(
+                inline
+                    .into_iter()
+                    .map(Max::from)
+                    .zip(std::iter::repeat(clock::Lamport::default())),
+            ),
+            timestamp: Max::from(timestamp),
         }
+    }
+
+    pub fn verdict(&self) -> Option<Verdict> {
+        self.verdict.get().as_ref().copied()
+    }
+
+    pub fn comment(&self) -> Option<&str> {
+        self.comment.get().as_ref().map(|m| m.get().as_str())
+    }
+
+    pub fn timestamp(&self) -> Timestamp {
+        *self.timestamp.get()
+    }
+}
+
+pub struct PatchMut<'a, 'g> {
+    pub id: ObjectId,
+
+    patch: Patch,
+    clock: clock::Lamport,
+    store: &'g mut Patches<'a>,
+}
+
+impl<'a, 'g> PatchMut<'a, 'g> {
+    pub fn new(
+        id: ObjectId,
+        patch: Patch,
+        clock: clock::Lamport,
+        store: &'g mut Patches<'a>,
+    ) -> Self {
+        Self {
+            id,
+            clock,
+            patch,
+            store,
+        }
+    }
+
+    /// Get the internal logical clock.
+    pub fn clock(&self) -> &clock::Lamport {
+        &self.clock
+    }
+
+    /// Edit patch metadata.
+    pub fn edit<G: Signer>(
+        &mut self,
+        title: String,
+        description: String,
+        target: MergeTarget,
+        signer: &G,
+    ) -> Result<ChangeId, Error> {
+        let action = Action::Edit {
+            title,
+            description,
+            target,
+        };
+        self.apply("Edit", action, signer)
+    }
+
+    /// Comment on a patch revision.
+    pub fn comment<G: Signer, S: Into<String>>(
+        &mut self,
+        revision: RevisionId,
+        body: S,
+        signer: &G,
+    ) -> Result<CommentId, Error> {
+        let body = body.into();
+        let action = Action::Thread {
+            revision,
+            action: thread::Action::Comment {
+                body,
+                reply_to: None,
+            },
+        };
+        self.apply("Comment", action, signer)
+    }
+
+    /// Review a patch revision.
+    pub fn review<G: Signer>(
+        &mut self,
+        revision: RevisionId,
+        verdict: Option<Verdict>,
+        comment: Option<String>,
+        inline: Vec<CodeComment>,
+        signer: &G,
+    ) -> Result<ChangeId, Error> {
+        let action = Action::Review {
+            revision,
+            comment,
+            verdict,
+            inline,
+        };
+        self.apply("Review patch", action, signer)
+    }
+
+    /// Merge a patch revision.
+    pub fn merge<G: Signer>(
+        &mut self,
+        revision: RevisionId,
+        commit: git::Oid,
+        signer: &G,
+    ) -> Result<ChangeId, Error> {
+        let action = Action::Merge { revision, commit };
+        self.apply("Merge revision", action, signer)
+    }
+
+    /// Update a patch with a new revision.
+    pub fn update<G: Signer>(
+        &mut self,
+        description: impl Into<String>,
+        base: impl Into<git::Oid>,
+        oid: impl Into<git::Oid>,
+        signer: &G,
+    ) -> Result<ChangeId, Error> {
+        let description = description.into();
+        let base = base.into();
+        let oid = oid.into();
+        let revision = self.apply(
+            "Update patch with new revision",
+            Action::Revision { base, oid },
+            signer,
+        )?;
+        self.comment(revision, description, signer)?;
+
+        Ok(revision)
+    }
+
+    /// Tag a patch.
+    pub fn tag<G: Signer>(
+        &mut self,
+        add: impl IntoIterator<Item = Tag>,
+        remove: impl IntoIterator<Item = Tag>,
+        signer: &G,
+    ) -> Result<ChangeId, Error> {
+        let add = add.into_iter().collect::<Vec<_>>();
+        let remove = remove.into_iter().collect::<Vec<_>>();
+        let action = Action::Tag { add, remove };
+
+        self.apply("Tag", action, signer)
+    }
+
+    /// Apply a change to the patch.
+    pub fn apply<G: Signer>(
+        &mut self,
+        msg: &'static str,
+        action: Action,
+        signer: &G,
+    ) -> Result<ChangeId, Error> {
+        let mut waiting = BTreeMap::default();
+        let change = Change {
+            author: *signer.public_key(),
+            action: action.clone(),
+            clock: self.clock.tick(),
+        };
+
+        self.patch.apply([change], &mut waiting)?;
+
+        if !waiting.is_empty() {
+            return Err(Error::Apply);
+        }
+        let cob = self
+            .store
+            .update(self.id, msg, action, signer)
+            .map_err(Error::Store)?;
+        let clock = cob.history().clock();
+
+        Ok((clock.into(), *signer.public_key()))
+    }
+}
+
+impl<'a, 'g> Deref for PatchMut<'a, 'g> {
+    type Target = Patch;
+
+    fn deref(&self) -> &Self::Target {
+        &self.patch
+    }
+}
+
+pub struct Patches<'a> {
+    raw: store::Store<'a, Patch>,
+}
+
+impl<'a> Deref for Patches<'a> {
+    type Target = store::Store<'a, Patch>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.raw
+    }
+}
+
+impl<'a> Patches<'a> {
+    /// Open an patches store.
+    pub fn open(
+        whoami: PublicKey,
+        repository: &'a storage::Repository,
+    ) -> Result<Self, store::Error> {
+        let raw = store::Store::open(whoami, repository)?;
+
+        Ok(Self { raw })
+    }
+
+    /// Create a patch.
+    pub fn create<'g, G: Signer>(
+        &'g mut self,
+        title: impl Into<String>,
+        description: impl Into<String>,
+        target: MergeTarget,
+        base: impl Into<git::Oid>,
+        oid: impl Into<git::Oid>,
+        tags: &[Tag],
+        signer: &G,
+    ) -> Result<PatchMut<'a, 'g>, Error> {
+        let title = title.into();
+        let description = description.into();
+        let action = Action::Revision {
+            base: base.into(),
+            oid: oid.into(),
+        };
+        let (id, patch, clock) = self.raw.create("Create patch", action, signer)?;
+        let mut patch = PatchMut::new(id, patch, clock, self);
+
+        patch.edit(title, description, target, signer)?;
+        patch.tag(tags.to_owned(), [], signer)?;
+
+        Ok(patch)
+    }
+
+    /// Get an issue.
+    pub fn get(&self, id: &ObjectId) -> Result<Option<Patch>, store::Error> {
+        self.raw.get(id).map(|r| r.map(|(p, _)| p))
+    }
+
+    /// Get an issue mutably.
+    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<PatchMut<'a, 'g>, store::Error> {
+        let (patch, clock) = self
+            .raw
+            .get(id)?
+            .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *id))?;
+
+        Ok(PatchMut {
+            id: *id,
+            clock,
+            patch,
+            store: self,
+        })
+    }
+
+    /// Get proposed patches.
+    pub fn proposed(
+        &self,
+    ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)>, Error> {
+        let all = self.all()?;
+
+        Ok(all
+            .into_iter()
+            .filter_map(|result| result.ok())
+            .filter(|(_, p, _)| p.is_proposed()))
+    }
+
+    /// Get patches proposed by the given key.
+    pub fn proposed_by<'b>(
+        &'b self,
+        who: &'b PublicKey,
+    ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)> + '_, Error> {
+        Ok(self
+            .proposed()?
+            .filter(move |(_, p, _)| p.author().id() == who))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+    use std::{array, iter};
+
+    use crdt::test::{assert_laws, WeightedGenerator};
+    use crdt::ActorId;
+
+    use pretty_assertions::assert_eq;
+    use quickcheck::Arbitrary;
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+    use crate::test;
+
+    #[derive(Clone)]
+    struct Changes<const N: usize> {
+        permutations: [Vec<Change>; N],
+    }
+
+    impl<const N: usize> std::fmt::Debug for Changes<N> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            for (i, p) in self.permutations.iter().enumerate() {
+                writeln!(
+                    f,
+                    "{i}: {:#?}",
+                    p.iter().map(|c| &c.action).collect::<Vec<_>>()
+                )?;
+            }
+            Ok(())
+        }
+    }
+
+    impl<const N: usize> Arbitrary for Changes<N> {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            type State = (clock::Lamport, Vec<ChangeId>);
+
+            let author = ActorId::from([0; 32]);
+            let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+            let oids = iter::repeat_with(|| {
+                git::Oid::try_from(
+                    iter::repeat_with(|| rng.u8(..))
+                        .take(20)
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                )
+                .unwrap()
+            })
+            .take(16)
+            .collect::<Vec<_>>();
+
+            let gen = WeightedGenerator::<(clock::Lamport, Action), State>::new(rng.clone())
+                .variant(1, |(clock, _), rng| {
+                    Some((
+                        clock.tick(),
+                        Action::Edit {
+                            title: iter::repeat_with(|| rng.alphabetic()).take(8).collect(),
+                            description: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
+                            target: MergeTarget::Delegates,
+                        },
+                    ))
+                })
+                .variant(1, |(clock, revisions), rng| {
+                    if revisions.is_empty() {
+                        return None;
+                    }
+                    let revision = revisions[rng.usize(..revisions.len())];
+                    let commit = oids[rng.usize(..oids.len())];
+
+                    Some((clock.tick(), Action::Merge { revision, commit }))
+                })
+                .variant(1, |(clock, revisions), rng| {
+                    let oid = oids[rng.usize(..oids.len())];
+                    let base = oids[rng.usize(..oids.len())];
+
+                    revisions.push((clock.tick(), author));
+
+                    Some((*clock, Action::Revision { base, oid }))
+                });
+
+            let mut changes = Vec::new();
+            let mut permutations: [Vec<Change>; N] = array::from_fn(|_| Vec::new());
+
+            for (clock, action) in gen.take(g.size().min(8)) {
+                changes.push(Change {
+                    action,
+                    author,
+                    clock,
+                });
+            }
+
+            for p in &mut permutations {
+                *p = changes.clone();
+                rng.shuffle(&mut changes);
+            }
+
+            Changes { permutations }
+        }
+    }
+
+    // TODO: Test merging of redacted revision
+
+    #[quickcheck]
+    fn prop_invariants(log: Changes<3>) {
+        let t = Patch::default();
+        let [p1, p2, p3] = log.permutations;
+        let mut waiting = BTreeMap::default();
+
+        let mut t1 = t.clone();
+        t1.apply(p1, &mut waiting).unwrap();
+
+        waiting.clear();
+
+        let mut t2 = t.clone();
+        t2.apply(p2, &mut waiting).unwrap();
+
+        waiting.clear();
+
+        let mut t3 = t;
+        t3.apply(p3, &mut waiting).unwrap();
+
+        assert_eq!(t1, t2);
+        assert_eq!(t2, t3);
+        assert_laws(&t1, &t2, &t3);
+        assert!(waiting.is_empty());
+    }
+
+    #[test]
+    fn test_patch_create_and_get() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let author = *signer.public_key();
+        let target = MergeTarget::Delegates;
+        let oid = git::Oid::from_str("e2a85016a458cd809c0ecee81f8c99613b0b0945").unwrap();
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                target,
+                base,
+                oid,
+                &[],
+                &signer,
+            )
+            .unwrap();
+
+        let id = patch.id;
+        let patch = patches.get(&id).unwrap().unwrap();
+
+        assert_eq!(patch.title(), "My first patch");
+        assert_eq!(patch.description(), Some("Blah blah blah."));
+        assert_eq!(patch.author().id(), &author);
+        assert_eq!(patch.status(), Status::Proposed);
+        assert_eq!(patch.target(), target);
+        assert_eq!(patch.version(), 0);
+
+        let (_, revision) = patch.latest().unwrap();
+
+        assert_eq!(revision.author.id(), &author);
+        assert_eq!(revision.description(), None);
+        assert_eq!(revision.discussion.len(), 0);
+        assert_eq!(revision.oid, oid);
+        assert_eq!(revision.base, base);
+    }
+
+    #[test]
+    fn test_patch_merge() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let oid = git::Oid::from_str("e2a85016a458cd809c0ecee81f8c99613b0b0945").unwrap();
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                base,
+                oid,
+                &[],
+                &signer,
+            )
+            .unwrap();
+
+        let id = patch.id;
+        let (rid, _) = patch.revisions().next().unwrap();
+        let _merge = patch.merge(*rid, base, &signer).unwrap();
+
+        let patch = patches.get(&id).unwrap().unwrap();
+
+        let (_, r) = patch.revisions().next().unwrap();
+        let merges = r.merges.iter().collect::<Vec<_>>();
+        assert_eq!(merges.len(), 1);
+
+        let merge = merges.first().unwrap();
+        assert_eq!(merge.node, *signer.public_key());
+        assert_eq!(merge.commit, base);
+    }
+
+    #[test]
+    fn test_patch_review() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                base,
+                oid,
+                &[],
+                &signer,
+            )
+            .unwrap();
+
+        let (rid, _) = patch.latest().unwrap();
+        patch
+            .review(
+                *rid,
+                Some(Verdict::Accept),
+                Some("LGTM".to_owned()),
+                vec![],
+                &signer,
+            )
+            .unwrap();
+
+        let id = patch.id;
+        let patch = patches.get(&id).unwrap().unwrap();
+        let (_, revision) = patch.latest().unwrap();
+        assert_eq!(revision.reviews.iter().count(), 1);
+
+        let review = revision.reviews.get(signer.public_key()).unwrap();
+        assert_eq!(review.verdict(), Some(Verdict::Accept));
+        assert_eq!(review.comment(), Some("LGTM"));
+    }
+
+    #[test]
+    fn test_patch_update() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let base = git::Oid::from_str("af08e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let rev0_oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let rev1_oid = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                base,
+                rev0_oid,
+                &[],
+                &signer,
+            )
+            .unwrap();
+
+        assert_eq!(patch.description(), Some("Blah blah blah."));
+        assert_eq!(patch.version(), 0);
+
+        let _rev1_id = patch
+            .update("I've made changes.", base, rev1_oid, &signer)
+            .unwrap();
+
+        let id = patch.id;
+        let patch = patches.get(&id).unwrap().unwrap();
+        assert_eq!(patch.version(), 1);
+        assert_eq!(patch.revisions.len(), 2);
+
+        let (_, revision) = patch.latest().unwrap();
+
+        assert_eq!(patch.version(), 1);
+        assert_eq!(revision.oid, rev1_oid);
+        assert_eq!(revision.description(), Some("I've made changes."));
     }
 }

@@ -157,8 +157,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let blob = Doc::blob_at(oid, &repo)?;
             let content: serde_json::Value = serde_json::from_slice(blob.content())?;
             let timezone = if tip.time().sign() == '+' {
+                #[allow(deprecated)]
                 FixedOffset::east(tip.time().offset_minutes() * 60)
             } else {
+                #[allow(deprecated)]
                 FixedOffset::west(tip.time().offset_minutes() * 60)
             };
             let time = DateTime::<Utc>::from(

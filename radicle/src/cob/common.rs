@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -168,56 +167,47 @@ impl FromStr for Color {
     }
 }
 
-/// A discussion thread.
-pub type Discussion = Vec<Comment<Replies>>;
-
-/// Comment replies.
-pub type Replies = Vec<Comment>;
-
-/// Local id of a comment in an issue.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
-pub struct CommentId {
-    /// Represents the index of the comment in the thread,
-    /// with `0` being the top-level comment.
-    ix: usize,
-}
-
-impl CommentId {
-    /// Root comment.
-    pub const fn root() -> Self {
-        Self { ix: 0 }
+impl Serialize for Color {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        let s = self.to_string();
+        serializer.serialize_str(&s)
     }
 }
 
-impl From<usize> for CommentId {
-    fn from(ix: usize) -> Self {
-        Self { ix }
+impl<'a> Deserialize<'a> for Color {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+    {
+        let color = String::deserialize(deserializer)?;
+        Self::from_str(&color).map_err(serde::de::Error::custom)
     }
 }
 
-impl From<CommentId> for usize {
-    fn from(id: CommentId) -> Self {
-        id.ix
-    }
-}
+#[cfg(test)]
+mod test {
+    use super::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Comment<R = ()> {
-    pub author: Author,
-    pub body: String,
-    pub reactions: HashMap<Reaction, usize>,
-    pub replies: R,
-    pub timestamp: Timestamp,
-}
+    #[test]
+    fn test_color() {
+        let c = Color::from_str("#ffccaa").unwrap();
+        assert_eq!(c.to_string(), "#ffccaa".to_owned());
+        assert_eq!(serde_json::to_string(&c).unwrap(), "\"#ffccaa\"".to_owned());
+        assert_eq!(serde_json::from_str::<'_, Color>("\"#ffccaa\"").unwrap(), c);
 
-impl<R: Default> Comment<R> {
-    pub fn new(author: Author, body: String, timestamp: Timestamp) -> Self {
-        Self {
-            author,
-            body,
-            reactions: HashMap::default(),
-            replies: R::default(),
-            timestamp,
-        }
+        let c = Color::from_str("#0000aa").unwrap();
+        assert_eq!(c.to_string(), "#0000aa".to_owned());
+
+        let c = Color::from_str("#aa0000").unwrap();
+        assert_eq!(c.to_string(), "#aa0000".to_owned());
+
+        let c = Color::from_str("#00aa00").unwrap();
+        assert_eq!(c.to_string(), "#00aa00".to_owned());
+
+        Color::from_str("#aa00").unwrap_err();
+        Color::from_str("#abc").unwrap_err();
     }
 }
