@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::{fmt, net, str};
 
 use crossbeam_channel as chan;
+use cyphernet::addr::{NetAddr, PeerAddr};
 use fastrand::Rng;
 use log::*;
 use nakamoto::{LocalDuration, LocalTime};
@@ -66,6 +67,9 @@ pub const KEEP_ALIVE_DELTA: LocalDuration = LocalDuration::from_secs(30);
 pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Maximum attempts to connect to a peer before we give up.
 pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
+
+/// A pair of peer address and peer node id.
+pub type NodeAddr = PeerAddr<NodeId, NetAddr<DEFAULT_PORT>>;
 
 /// A service event.
 #[derive(Debug, Clone)]
