@@ -44,7 +44,7 @@ pub enum Error {
     #[error("invalid announcement timestamp: {0}")]
     InvalidTimestamp(u64),
     #[error("session not found for address `{0}`")]
-    NotFound(net::IpAddr),
+    NotFound(net::SocketAddr),
     #[error("verification failed on fetch: {0}")]
     VerificationFailed(#[from] storage::VerifyError),
     #[error("peer misbehaved")]

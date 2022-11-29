@@ -9,7 +9,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::{fmt, net, net::IpAddr, str};
+use std::{fmt, net, str};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
@@ -489,13 +489,12 @@ where
         }
     }
 
-    pub fn attempted(&mut self, addr: &std::net::SocketAddr) {
+    pub fn attempted(&mut self, addr: &net::SocketAddr) {
         let address = Address::from(*addr);
-        let ip = addr.ip();
         let persistent = self.config.is_persistent(&address);
         let peer = self
             .sessions
-            .entry(ip)
+            .entry(*addr)
             .or_insert_with(|| Session::new(*addr, Link::Outbound, persistent, self.rng.clone()));
 
         peer.attempted();
@@ -510,16 +509,15 @@ where
     }
 
     pub fn connected(&mut self, addr: net::SocketAddr, link: Link) {
-        let ip = addr.ip();
         let address = addr.into();
 
-        debug!("Connected to {} ({:?})", ip, link);
+        debug!("Connected to {} ({:?})", addr, link);
 
         // For outbound connections, we are the first to say "Hello".
         // For inbound connections, we wait for the remote to say "Hello" first.
         // TODO: How should we deal with multiple peers connecting from the same IP address?
         if link.is_outbound() {
-            if let Some(peer) = self.sessions.get_mut(&ip) {
+            if let Some(peer) = self.sessions.get_mut(&addr) {
                 if link.is_outbound() {
                     self.reactor.write_all(
                         addr,
@@ -535,7 +533,7 @@ where
             }
         } else {
             self.sessions.insert(
-                ip,
+                addr,
                 Session::new(
                     addr,
                     Link::Inbound,
@@ -548,16 +546,15 @@ where
 
     pub fn disconnected(
         &mut self,
-        addr: &std::net::SocketAddr,
+        addr: &net::SocketAddr,
         reason: &nakamoto::DisconnectReason<DisconnectReason>,
     ) {
         let since = self.local_time();
         let address = Address::from(*addr);
-        let ip = addr.ip();
 
-        debug!("Disconnected from {} ({})", ip, reason);
+        debug!("Disconnected from {} ({})", addr, reason);
 
-        if let Some(session) = self.sessions.get_mut(&ip) {
+        if let Some(session) = self.sessions.get_mut(addr) {
             session.state = session::State::Disconnected { since };
 
             // Attempt to re-connect to persistent peers.
@@ -574,7 +571,7 @@ where
                 // with exponential back-off.
                 debug!(
                     "Reconnecting to {} (attempts={})...",
-                    ip,
+                    addr,
                     session.attempts()
                 );
 
@@ -583,7 +580,7 @@ where
 
                 self.reactor.connect(*addr);
             } else {
-                self.sessions.remove(&ip);
+                self.sessions.remove(addr);
                 self.maintain_connections();
             }
         }
@@ -769,9 +766,8 @@ where
         remote: &net::SocketAddr,
         message: Message,
     ) -> Result<(), session::Error> {
-        let peer_ip = remote.ip();
-        let Some(peer) = self.sessions.get_mut(&peer_ip) else {
-            return Err(session::Error::NotFound(remote.ip()));
+        let Some(peer) = self.sessions.get_mut(remote) else {
+            return Err(session::Error::NotFound(*remote));
         };
         peer.last_active = self.clock.local_time();
 
@@ -826,7 +822,7 @@ where
                     let relay_to = self
                         .sessions
                         .negotiated()
-                        .filter(|(ip, _, _)| **ip != remote.ip())
+                        .filter(|(addr, _, _)| *addr != remote)
                         .filter(|(_, id, _)| **id != ann.node);
 
                     self.reactor.relay(ann.clone(), relay_to.map(|(_, _, p)| p));
@@ -1182,7 +1178,7 @@ impl Node {
 
 #[derive(Debug)]
 /// Holds currently (or recently) connected peers.
-pub struct Sessions(AddressBook<IpAddr, Session>);
+pub struct Sessions(AddressBook<net::SocketAddr, Session>);
 
 impl Sessions {
     pub fn new(rng: Rng) -> Self {
@@ -1194,23 +1190,25 @@ impl Sessions {
     }
 
     /// Iterator over fully negotiated peers.
-    pub fn negotiated(&self) -> impl Iterator<Item = (&IpAddr, &NodeId, &Session)> + Clone {
+    pub fn negotiated(
+        &self,
+    ) -> impl Iterator<Item = (&net::SocketAddr, &NodeId, &Session)> + Clone {
         self.0
             .iter()
-            .filter_map(move |(ip, sess)| match &sess.state {
-                session::State::Negotiated { id, .. } => Some((ip, id, sess)),
+            .filter_map(move |(addr, sess)| match &sess.state {
+                session::State::Negotiated { id, .. } => Some((addr, id, sess)),
                 _ => None,
             })
     }
 
     /// Iterator over mutable fully negotiated peers.
-    pub fn negotiated_mut(&mut self) -> impl Iterator<Item = (&IpAddr, &mut Session)> {
+    pub fn negotiated_mut(&mut self) -> impl Iterator<Item = (&net::SocketAddr, &mut Session)> {
         self.0.iter_mut().filter(move |(_, p)| p.is_negotiated())
     }
 }
 
 impl Deref for Sessions {
-    type Target = AddressBook<IpAddr, Session>;
+    type Target = AddressBook<net::SocketAddr, Session>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

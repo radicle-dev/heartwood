@@ -133,8 +133,8 @@ fn test_outbound_connection() {
         .map(|(ip, _, _)| *ip)
         .collect::<Vec<_>>();
 
-    assert!(peers.contains(&eve.ip));
-    assert!(peers.contains(&bob.ip));
+    assert!(peers.contains(&eve.addr()));
+    assert!(peers.contains(&bob.addr()));
 }
 
 #[test]
@@ -153,8 +153,8 @@ fn test_inbound_connection() {
         .map(|(ip, _, _)| *ip)
         .collect::<Vec<_>>();
 
-    assert!(peers.contains(&eve.ip));
-    assert!(peers.contains(&bob.ip));
+    assert!(peers.contains(&eve.addr()));
+    assert!(peers.contains(&bob.addr()));
 }
 
 #[test]
@@ -719,8 +719,8 @@ fn test_persistent_peer_reconnect() {
         .negotiated()
         .map(|(ip, _, _)| *ip)
         .collect::<Vec<_>>();
-    assert!(ips.contains(&bob.ip));
-    assert!(ips.contains(&eve.ip));
+    assert!(ips.contains(&bob.addr()));
+    assert!(ips.contains(&eve.addr()));
 
     // ... Negotiated ...
     //
