@@ -11,6 +11,9 @@ use crate::pruning_fold;
 /// This is the change payload.
 pub type Contents = Vec<u8>;
 
+/// Logical clock used to track causality in change graph.
+pub type Clock = u64;
+
 /// A unique identifier for a history entry.
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq, PartialOrd, Ord)]
 pub struct EntryId(Oid);
@@ -105,5 +108,48 @@ impl pruning_fold::GraphNode for Entry {
 
     fn child_ids(&self) -> &[Self::Id] {
         &self.children
+    }
+}
+
+/// Wraps an [`Entry`], adding a logical clock to it.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct EntryWithClock {
+    pub entry: Entry,
+    pub clock: Clock,
+}
+
+impl From<Entry> for EntryWithClock {
+    fn from(entry: Entry) -> Self {
+        Self {
+            entry,
+            clock: Clock::default(),
+        }
+    }
+}
+
+impl EntryWithClock {
+    /// Get the clock value.
+    pub fn clock(&self) -> Clock {
+        self.clock
+    }
+}
+
+impl pruning_fold::GraphNode for EntryWithClock {
+    type Id = EntryId;
+
+    fn id(&self) -> &Self::Id {
+        &self.entry.id
+    }
+
+    fn child_ids(&self) -> &[Self::Id] {
+        &self.entry.children
+    }
+}
+
+impl std::ops::Deref for EntryWithClock {
+    type Target = Entry;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry
     }
 }

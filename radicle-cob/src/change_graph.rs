@@ -113,11 +113,12 @@ impl ChangeGraph {
             let child_commits = outgoing_edges
                 .map(|e| *self.graph[e.target()].id())
                 .collect::<Vec<_>>();
-            (node, child_commits)
+
+            (node, idx, child_commits)
         });
         let history = {
             let root_change = &self.graph[*root];
-            evaluate(*root_change.id(), items)
+            evaluate(*root_change.id(), &self.graph, items)
         };
         CollaborativeObject {
             typename,

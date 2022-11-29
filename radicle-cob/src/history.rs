@@ -14,7 +14,7 @@ use petgraph::visit::Walker as _;
 use crate::pruning_fold;
 
 pub mod entry;
-pub use entry::{Contents, Entry, EntryId};
+pub use entry::{Clock, Contents, Entry, EntryId, EntryWithClock};
 
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
@@ -29,7 +29,7 @@ pub enum HistoryType {
 /// The DAG of changes making up the history of a collaborative object.
 #[derive(Clone, Debug)]
 pub struct History {
-    graph: petgraph::Graph<Entry, (), petgraph::Directed, u32>,
+    graph: petgraph::Graph<EntryWithClock, (), petgraph::Directed, u32>,
     indices: HashMap<EntryId, petgraph::graph::NodeIndex<u32>>,
 }
 
@@ -66,12 +66,12 @@ impl History {
             contents,
         };
         let mut entries = HashMap::new();
-        entries.insert(id, root_entry.clone());
-        let NewGraph { graph, indices } = create_petgraph(&root_entry.id, &entries);
+        entries.insert(id, EntryWithClock::from(root_entry));
+        let NewGraph { graph, indices } = create_petgraph(&id, &entries);
         Self { graph, indices }
     }
 
-    pub fn new<Id>(root: Id, entries: HashMap<EntryId, Entry>) -> Result<Self, CreateError>
+    pub fn new<Id>(root: Id, entries: HashMap<EntryId, EntryWithClock>) -> Result<Self, CreateError>
     where
         Id: Into<EntryId>,
     {
@@ -84,6 +84,16 @@ impl History {
         }
     }
 
+    /// Get the current value of the logical clock.
+    /// This is the maximum value of all tips.
+    pub fn clock(&self) -> Clock {
+        self.graph
+            .externals(petgraph::Direction::Outgoing)
+            .map(|n| self.graph[n].clock)
+            .max()
+            .unwrap_or_default()
+    }
+
     /// A topological (parents before children) traversal of the dependency
     /// graph of this history. This is analagous to
     /// [`std::iter::Iterator::fold`] in that it folds every change into an
@@ -92,13 +102,13 @@ impl History {
     /// `ControlFlow::Break`.
     pub fn traverse<F, A>(&self, init: A, f: F) -> A
     where
-        F: for<'r> FnMut(A, &'r Entry) -> ControlFlow<A, A>,
+        F: for<'r> FnMut(A, &'r EntryWithClock) -> ControlFlow<A, A>,
     {
         let topo = petgraph::visit::Topo::new(&self.graph);
         #[allow(clippy::let_and_return)]
         let items = topo.iter(&self.graph).map(|idx| {
-            let node = &self.graph[idx];
-            node
+            let entry = &self.graph[idx];
+            entry
         });
         pruning_fold::pruning_fold(init, items, f)
     }
@@ -131,7 +141,10 @@ impl History {
             std::iter::empty::<git2::Oid>(),
             new_contents,
         );
-        let new_ix = self.graph.add_node(new_entry);
+        let new_ix = self.graph.add_node(EntryWithClock {
+            entry: new_entry,
+            clock: self.clock() + 1,
+        });
         for tip in tips {
             let tip_ix = self.indices.get(&tip.into()).unwrap();
             self.graph.update_edge(*tip_ix, new_ix, ());
@@ -140,11 +153,14 @@ impl History {
 }
 
 struct NewGraph {
-    graph: petgraph::Graph<Entry, (), petgraph::Directed, u32>,
+    graph: petgraph::Graph<EntryWithClock, (), petgraph::Directed, u32>,
     indices: HashMap<EntryId, petgraph::graph::NodeIndex<u32>>,
 }
 
-fn create_petgraph<'a>(root: &'a EntryId, entries: &'a HashMap<EntryId, Entry>) -> NewGraph {
+fn create_petgraph<'a>(
+    root: &'a EntryId,
+    entries: &'a HashMap<EntryId, EntryWithClock>,
+) -> NewGraph {
     let mut graph = petgraph::Graph::new();
     let mut indices = HashMap::<EntryId, petgraph::graph::NodeIndex<u32>>::new();
     let root = entries.get(root).unwrap().clone();
@@ -153,8 +169,8 @@ fn create_petgraph<'a>(root: &'a EntryId, entries: &'a HashMap<EntryId, Entry>) 
     let mut to_process = vec![root];
     while let Some(entry) = to_process.pop() {
         let entry_ix = indices[&entry.id];
-        for child_id in entry.children {
-            let child = entries[&child_id].clone();
+        for child_id in entry.children() {
+            let child = entries[child_id].clone();
             let child_ix = graph.add_node(child.clone());
             indices.insert(child.id, child_ix);
             graph.update_edge(entry_ix, child_ix, ());
