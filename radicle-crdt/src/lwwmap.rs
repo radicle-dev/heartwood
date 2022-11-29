@@ -2,11 +2,14 @@ use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
 use crate::lwwreg::LWWReg;
-use crate::Semilattice;
+use crate::{clock, Semilattice};
 
 /// Last-Write-Wins Map.
+///
+/// In case a value is added and removed under a key at the same time,
+/// the "add" takes precedence over the "remove".
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LWWMap<K, V, C> {
+pub struct LWWMap<K, V, C = clock::Lamport> {
     inner: BTreeMap<K, LWWReg<Option<V>, C>>,
 }
 

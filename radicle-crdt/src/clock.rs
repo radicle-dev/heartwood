@@ -29,6 +29,11 @@ impl Lamport {
         self.counter.merge(other.counter);
         self.tick()
     }
+
+    /// Reset clock to default state.
+    pub fn reset(&mut self) {
+        self.counter = Max::default();
+    }
 }
 
 impl From<u64> for Lamport {

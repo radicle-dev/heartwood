@@ -100,13 +100,14 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
     /// Create a new change.
     pub fn change(&mut self, action: A) -> Change<A> {
         let author = *self.signer.public_key();
-        let clock = self.clock.tick();
+        let clock = self.clock;
         let change = Change {
             action,
             author,
             clock,
         };
         self.changes.insert((self.clock, author), change.clone());
+        self.clock.tick();
 
         change
     }

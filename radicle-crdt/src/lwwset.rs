@@ -2,6 +2,9 @@ use crate::clock;
 use crate::{lwwmap::LWWMap, Semilattice};
 
 /// Last-Write-Wins Set.
+///
+/// In case the same value is added and removed at the same time,
+/// the "add" takes precedence over the "remove".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LWWSet<T, C = clock::Lamport> {
     inner: LWWMap<T, (), C>,
@@ -129,6 +132,14 @@ mod tests {
         set.remove('a', 2);
         assert!(!set.contains(&'a'));
         assert!(!set.iter().any(|c| *c == 'a'));
+
+        set.insert('b', 3);
+        set.remove('b', 3);
+        assert!(set.contains(&'b')); // Insert precedence.
+
+        set.remove('c', 3);
+        set.insert('c', 3);
+        assert!(set.contains(&'c')); // Insert precedence.
     }
 
     #[test]
