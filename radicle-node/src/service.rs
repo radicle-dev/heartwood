@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::{fmt, net, str};
 
 use crossbeam_channel as chan;
+use cyphernet::addr::{NetAddr, PeerAddr};
 use fastrand::Rng;
 use log::*;
 use nakamoto::{LocalDuration, LocalTime};
@@ -72,6 +73,9 @@ pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
 pub use message::ADDRESS_LIMIT;
 /// Maximum inventory limit imposed by message size limits.
 pub use message::INVENTORY_LIMIT;
+
+/// A pair of peer address and peer node id.
+pub type NodeAddr = PeerAddr<NodeId, NetAddr<DEFAULT_PORT>>;
 
 /// A service event.
 #[derive(Debug, Clone)]

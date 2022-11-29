@@ -1,14 +1,12 @@
-use std::str::FromStr;
-use std::{fmt, io, mem, net};
-
-use thiserror::Error;
+use cyphernet::addr::NetAddr;
+use std::{fmt, io, mem};
 
 use crate::crypto;
 use crate::identity::Id;
 use crate::node;
 use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
-use crate::service::{NodeId, Timestamp, PROTOCOL_VERSION};
+use crate::service::{NodeId, Timestamp, DEFAULT_PORT, PROTOCOL_VERSION};
 use crate::storage::refs::Refs;
 use crate::wire;
 
@@ -28,85 +26,9 @@ impl fmt::Display for Hostname {
 }
 
 /// Peer public protocol address.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Address {
-    Ipv4 {
-        ip: net::Ipv4Addr,
-        port: u16,
-    },
-    Ipv6 {
-        ip: net::Ipv6Addr,
-        port: u16,
-    },
-    Hostname {
-        host: Hostname,
-        port: u16,
-    },
-    /// Tor V3 onion address.
-    Onion {
-        key: crypto::PublicKey,
-        port: u16,
-        checksum: u16,
-        version: u8,
-    },
-}
-
-impl From<net::SocketAddr> for Address {
-    fn from(other: net::SocketAddr) -> Self {
-        let port = other.port();
-
-        match other.ip() {
-            net::IpAddr::V4(ip) => Self::Ipv4 { ip, port },
-            net::IpAddr::V6(ip) => Self::Ipv6 { ip, port },
-        }
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum AddressParseError {
-    #[error("unsupported address type `{0}`")]
-    Unsupported(String),
-}
-
-impl FromStr for Address {
-    type Err = AddressParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Ok(addr) = net::SocketAddr::from_str(s) {
-            match addr.ip() {
-                net::IpAddr::V4(ip) => Ok(Self::Ipv4 {
-                    ip,
-                    port: addr.port(),
-                }),
-                net::IpAddr::V6(ip) => Ok(Self::Ipv6 {
-                    ip,
-                    port: addr.port(),
-                }),
-            }
-        } else {
-            Err(Self::Err::Unsupported(s.to_owned()))
-        }
-    }
-}
-
-impl fmt::Display for Address {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Ipv4 { ip, port } => {
-                write!(f, "{}:{}", ip, port)
-            }
-            Self::Ipv6 { ip, port } => {
-                write!(f, "{}:{}", ip, port)
-            }
-            Self::Hostname { host, port } => {
-                write!(f, "{}:{}", host, port)
-            }
-            Self::Onion { key, port, .. } => {
-                write!(f, "{}:{}", key, port)
-            }
-        }
-    }
-}
+#[derive(Wrapper, Clone, Eq, PartialEq, Debug, From)]
+#[wrapper(Deref, Display, FromStr)]
+pub struct Address(NetAddr<DEFAULT_PORT>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Subscribe {

@@ -37,21 +37,9 @@ impl Reactor {
     }
 
     /// Connect to a peer.
-    pub fn connect(&mut self, addr: impl Into<Address>) {
+    pub fn connect(&mut self, addr: impl Into<net::SocketAddr>) {
         // TODO: Make sure we don't try to connect more than once to the same address.
-        match addr.into() {
-            Address::Ipv4 { ip, port } => {
-                self.io
-                    .push_back(Io::Connect(net::SocketAddr::new(net::IpAddr::V4(ip), port)));
-            }
-            Address::Ipv6 { ip, port } => {
-                self.io
-                    .push_back(Io::Connect(net::SocketAddr::new(net::IpAddr::V6(ip), port)));
-            }
-            other => {
-                log::error!("Unsupported address type `{}`", other);
-            }
-        }
+        self.io.push_back(Io::Connect(addr.into()));
     }
 
     /// Disconnect a peer.
