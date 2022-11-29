@@ -66,6 +66,7 @@ fn evaluate_change(
 
     Ok(history::Entry::new(
         *change.id(),
+        change.signature.key,
         *change.author(),
         change.resource,
         child_commits.iter().cloned(),

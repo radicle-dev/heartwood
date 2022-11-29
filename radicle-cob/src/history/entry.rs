@@ -5,6 +5,8 @@
 
 use git_ext::Oid;
 
+use radicle_crypto::PublicKey;
+
 use crate::pruning_fold;
 
 /// Entry contents.
@@ -41,6 +43,8 @@ impl From<EntryId> for Oid {
 pub struct Entry {
     /// The identifier for this entry
     pub(super) id: EntryId,
+    /// The actor that authored this entry.
+    pub(super) actor: PublicKey,
     /// The content-address for this entry's author.
     /// TODO: This shouldn't be here?
     pub(super) author: Option<Oid>,
@@ -55,6 +59,7 @@ pub struct Entry {
 impl Entry {
     pub fn new<Id1, Id2, ChildIds>(
         id: Id1,
+        actor: PublicKey,
         author: Option<Oid>,
         resource: Oid,
         children: ChildIds,
@@ -67,6 +72,7 @@ impl Entry {
     {
         Self {
             id: id.into(),
+            actor,
             author,
             resource,
             children: children.into_iter().map(|id| id.into()).collect(),
@@ -84,9 +90,14 @@ impl Entry {
         self.resource
     }
 
+    /// The public key of the actor.
+    pub fn actor(&self) -> &PublicKey {
+        &self.actor
+    }
+
     /// The `Oid` of the author that made this change.
-    pub fn author(&self) -> &Option<Oid> {
-        &self.author
+    pub fn author(&self) -> Option<&Oid> {
+        self.author.as_ref()
     }
 
     /// The contents of this change

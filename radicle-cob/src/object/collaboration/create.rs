@@ -89,6 +89,7 @@ where
 
     let history = History::new_from_root(
         *init_change.id(),
+        init_change.signature.key,
         content,
         resource.content_id(),
         contents.clone(),

@@ -20,8 +20,8 @@ pub mod error;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Signature {
-    key: PublicKey,
-    sig: crypto::Signature,
+    pub(super) key: PublicKey,
+    pub(super) sig: crypto::Signature,
 }
 
 impl Signature {

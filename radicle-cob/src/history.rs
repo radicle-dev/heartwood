@@ -10,6 +10,7 @@ use std::{
 
 use git_ext::Oid;
 use petgraph::visit::Walker as _;
+use radicle_crypto::PublicKey;
 
 use crate::pruning_fold;
 
@@ -50,6 +51,7 @@ pub enum CreateError {
 impl History {
     pub(crate) fn new_from_root<Id>(
         id: Id,
+        actor: PublicKey,
         author: Option<Oid>,
         resource: Oid,
         contents: Contents,
@@ -60,6 +62,7 @@ impl History {
         let id = id.into();
         let root_entry = Entry {
             id,
+            actor,
             author,
             resource,
             children: vec![],
@@ -126,6 +129,7 @@ impl History {
     pub(crate) fn extend<Id>(
         &mut self,
         new_id: Id,
+        new_actor: PublicKey,
         new_author: Option<Oid>,
         new_resource: Oid,
         new_contents: Contents,
@@ -136,6 +140,7 @@ impl History {
         let new_id = new_id.into();
         let new_entry = Entry::new(
             new_id,
+            new_actor,
             new_author,
             new_resource,
             std::iter::empty::<git2::Oid>(),

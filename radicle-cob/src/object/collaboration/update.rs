@@ -67,9 +67,10 @@ where
         message,
     } = args;
 
-    let content = match author {
+    let author = match author {
         None => None,
         Some(author) => {
+            // TODO: Remove?
             if !author.is_delegate(signer.public_key()) {
                 return Err(error::Update::SignerIsNotAuthor);
             } else {
@@ -87,7 +88,7 @@ where
         .ok_or(error::Update::NoSuchObject)?;
 
     let change = storage.create(
-        content,
+        author,
         resource.content_id(),
         signer,
         change::Create {
@@ -98,10 +99,13 @@ where
             message,
         },
     )?;
-
-    object
-        .history
-        .extend(change.id, content, change.resource, changes);
+    object.history.extend(
+        change.id,
+        change.signature.key,
+        author,
+        change.resource,
+        changes,
+    );
     storage
         .update(identifier, typename, &object_id, &change)
         .map_err(|err| error::Update::Refs { err: Box::new(err) })?;
