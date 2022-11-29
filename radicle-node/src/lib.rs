@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate amplify;
+
 pub mod address;
 pub mod client;
 pub mod clock;
