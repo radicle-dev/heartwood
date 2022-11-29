@@ -8,13 +8,14 @@ use radicle::profile;
 use radicle_node::crypto::ssh::keystore::MemorySigner;
 use radicle_node::logger;
 use radicle_node::prelude::Address;
+use radicle_node::service::NodeAddr;
 use radicle_node::{client, control, service};
 
 type Reactor = nakamoto_net_poll::Reactor<net::TcpStream>;
 
 #[derive(Debug)]
 struct Options {
-    connect: Vec<Address>,
+    connect: Vec<NodeAddr>,
     external_addresses: Vec<Address>,
     limits: service::config::Limits,
     listen: Vec<net::SocketAddr>,
@@ -95,7 +96,11 @@ fn main() -> anyhow::Result<()> {
     let handle = client.handle();
     let config = client::Config {
         service: service::Config {
-            connect: options.connect,
+            connect: options
+                .connect
+                .into_iter()
+                .map(|addr| (*addr.id(), Address::from(addr.addr().clone())))
+                .collect(),
             external_addresses: options.external_addresses,
             limits: options.limits,
             ..service::Config::default()

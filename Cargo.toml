@@ -32,8 +32,13 @@ rev = "90cc3eac67aa5cfd5f42cf7cb1e2b155af3214fb"
 version = "0.3.0"
 
 [patch.crates-io.cyphernet]
-git = "https://github.com/internet2-wg/rust-cyphernet"
-rev = "dee03a95abe4c964e5d9f8532c7dc76998dfeea7"
+git = "https://github.com/Cyphernet-WG/rust-cyphernet"
+rev = "d42c66399dd48f6a757ba63c49d7a9fbaa52c027"
+version = "0.1.0"
+
+[patch.crates-io.poll-reactor]
+git = "https://github.com/Cyphernet-WG/rust-netservices"
+rev = "37acbf6eac18d51853912907f2383e6563efacbb"
 version = "0.1.0"
 
 [patch.crates-io.radicle-git-ext]

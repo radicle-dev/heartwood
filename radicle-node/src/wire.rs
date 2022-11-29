@@ -9,6 +9,7 @@ use std::string::FromUtf8Error;
 use std::{io, mem};
 
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
+use cyphernet::addr::{Addr as _, HostAddr};
 use nakamoto_net as nakamoto;
 use nakamoto_net::{Link, LocalTime};
 
@@ -23,7 +24,7 @@ use crate::node;
 use crate::prelude::*;
 use crate::service;
 use crate::service::reactor::Io;
-use crate::service::{filter, routing, session};
+use crate::service::{filter, routing, session, NodeId};
 use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
@@ -441,23 +442,28 @@ impl Decode for node::Features {
 pub struct Inbox<T: Transcode> {
     pub pipeline: Framer<T>,
     pub deserializer: Deserializer,
+    pub addr: net::SocketAddr,
 }
 
 #[derive(Debug)]
 pub struct Wire<R, S, W, G, H: Handshake> {
     handshakes: HashMap<net::SocketAddr, H>,
+    node_ids: HashMap<net::SocketAddr, NodeId>,
     inner_queue: VecDeque<nakamoto::Io<service::Event, service::DisconnectReason>>,
-    inboxes: HashMap<net::SocketAddr, Inbox<H::Transcoder>>,
+    inboxes: HashMap<NodeId, Inbox<H::Transcoder>>,
     inner: service::Service<R, S, W, G>,
+    rng: fastrand::Rng,
 }
 
 impl<R, S, W, G, H: Handshake> Wire<R, S, W, G, H> {
     pub fn new(inner: service::Service<R, S, W, G>) -> Self {
         Self {
             handshakes: HashMap::new(),
+            node_ids: HashMap::new(),
             inner_queue: Default::default(),
             inboxes: HashMap::new(),
             inner,
+            rng: fastrand::Rng::new(),
         }
     }
 }
@@ -504,15 +510,15 @@ where
         addr: &net::SocketAddr,
         reason: nakamoto::DisconnectReason<service::DisconnectReason>,
     ) {
+        let node_id = self.node_ids[addr];
+
         self.handshakes.remove(addr);
-        self.inboxes.remove(addr);
-        self.inner.disconnected(addr, &reason)
+        self.inboxes.remove(&node_id);
+        self.inner.disconnected(&node_id, &reason)
     }
 
     fn received_bytes(&mut self, addr: &net::SocketAddr, raw_bytes: &[u8]) {
         if let Some(handshake) = self.handshakes.remove(addr) {
-            debug_assert!(!self.inboxes.contains_key(addr));
-
             match handshake.step(raw_bytes) {
                 HandshakeResult::Next(handshake, reply) => {
                     self.handshakes.insert(*addr, handshake);
@@ -529,14 +535,23 @@ where
                             .push_back(nakamoto::Io::Write(*addr, reply));
                     }
                     let pipeline = Framer::new(transcoder);
+                    let node_id = NodeId::try_from(
+                        std::iter::repeat_with(|| self.rng.u8(..))
+                            .collect::<Vec<_>>()
+                            .as_slice(),
+                    )
+                    .unwrap();
+
                     self.inboxes.insert(
-                        *addr,
+                        node_id,
                         Inbox {
                             pipeline,
                             deserializer: Deserializer::new(256),
+                            addr: *addr,
                         },
                     );
-                    self.inner.connected(*addr, link);
+                    self.node_ids.insert(*addr, node_id);
+                    self.inner.connected(node_id, link);
                 }
                 HandshakeResult::Error(err) => {
                     log::error!("invalid handshake input. Details: {}", err);
@@ -554,7 +569,11 @@ where
         if let Some(Inbox {
             pipeline,
             deserializer,
-        }) = self.inboxes.get_mut(addr)
+            ..
+        }) = self
+            .node_ids
+            .get(addr)
+            .and_then(|id| self.inboxes.get_mut(id))
         {
             pipeline.input(raw_bytes);
             for frame in pipeline {
@@ -574,9 +593,10 @@ where
                 };
             }
 
+            let node_id = self.node_ids[addr];
             for message in deserializer {
                 match message {
-                    Ok(msg) => self.inner.received_message(addr, msg),
+                    Ok(msg) => self.inner.received_message(node_id, msg),
                     Err(err) => {
                         // TODO: Disconnect peer.
                         log::error!("Invalid message received from {}: {}", addr, err);
@@ -600,24 +620,33 @@ impl<R, S, W, G, H: Handshake> Iterator for Wire<R, S, W, G, H> {
         }
 
         match self.inner.next() {
-            Some(Io::Write(addr, msgs)) => {
+            Some(Io::Write(id, msgs)) => {
                 let mut buf = Vec::new();
                 for msg in msgs {
-                    log::debug!("Write {:?} to {}", &msg, addr.ip());
+                    log::debug!("Write {:?} to {}", &msg, id);
 
                     msg.encode(&mut buf)
                         .expect("writing to an in-memory buffer doesn't fail");
                 }
-                let Inbox { pipeline, .. } = self.inboxes.get_mut(&addr).expect(
+                let Inbox { pipeline, addr, .. } = self.inboxes.get_mut(&id).expect(
                     "broken handshake implementation: data sent before handshake was complete",
                 );
                 let data = pipeline.frame(buf).expect("oversized data for a frame");
                 let msg = MuxMsg { channel: 0, data };
-                Some(nakamoto::Io::Write(addr, msg.into()))
+                Some(nakamoto::Io::Write(*addr, msg.into()))
             }
             Some(Io::Event(e)) => Some(nakamoto::Io::Event(e)),
-            Some(Io::Connect(a)) => Some(nakamoto::Io::Connect(a)),
-            Some(Io::Disconnect(a, r)) => Some(nakamoto::Io::Disconnect(a, r)),
+            Some(Io::Connect(_id, addr)) => match addr.host {
+                HostAddr::Ip(ip) => Some(nakamoto::Io::Connect(net::SocketAddr::from((
+                    ip,
+                    addr.port(),
+                )))),
+                _ => todo!(),
+            },
+            Some(Io::Disconnect(id, r)) => self
+                .inboxes
+                .get(&id)
+                .map(|i| nakamoto::Io::Disconnect(i.addr, r)),
             Some(Io::Wakeup(d)) => Some(nakamoto::Io::Wakeup(d)),
 
             None => None,
