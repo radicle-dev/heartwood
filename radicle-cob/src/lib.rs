@@ -97,7 +97,7 @@ pub use history::{Contents, Entry, History, HistoryType};
 mod pruning_fold;
 
 pub mod signatures;
-use signatures::Signatures;
+use signatures::Signature;
 
 pub mod type_name;
 pub use type_name::TypeName;
@@ -134,7 +134,7 @@ where
             ObjectId = git_ext::Oid,
             Author = git_ext::Oid,
             Resource = git_ext::Oid,
-            Signatures = Signatures,
+            Signatures = Signature,
         >,
 {
 }

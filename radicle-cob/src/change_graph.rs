@@ -15,7 +15,7 @@ use petgraph::{
 };
 
 use crate::{
-    change, object, signatures::Signatures, Change, CollaborativeObject, ObjectId, TypeName,
+    change, object, signatures::Signature, Change, CollaborativeObject, ObjectId, TypeName,
 };
 
 mod evaluation;
@@ -37,7 +37,7 @@ impl ChangeGraph {
         oid: &ObjectId,
     ) -> Option<ChangeGraph>
     where
-        S: change::Storage<ObjectId = Oid, Author = Oid, Resource = Oid, Signatures = Signatures>,
+        S: change::Storage<ObjectId = Oid, Author = Oid, Resource = Oid, Signatures = Signature>,
     {
         log::info!("loading object '{}' '{}'", typename, oid);
         let mut builder = GraphBuilder::default();

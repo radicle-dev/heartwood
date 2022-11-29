@@ -24,6 +24,12 @@ pub struct Signature {
     sig: crypto::Signature,
 }
 
+impl Signature {
+    pub fn verify(&self, payload: &[u8]) -> bool {
+        self.key.verify(payload, &self.sig).is_ok()
+    }
+}
+
 impl From<Signature> for ExtendedSignature {
     fn from(sig: Signature) -> Self {
         Self::new(sig.key, sig.sig)

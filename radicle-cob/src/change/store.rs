@@ -54,14 +54,14 @@ pub struct Create<Id> {
 }
 
 #[derive(Clone, Debug)]
-pub struct Change<Author, Resource, Id, Signatures> {
+pub struct Change<Author, Resource, Id, Signature> {
     /// The content address of the `Change` itself.
     pub id: Id,
     /// The content address of the tree of the `Change`.
     pub revision: Id,
-    /// The cryptographic signatures and their public keys of the
+    /// The cryptographic signature(s) and their public keys of the
     /// authors.
-    pub signatures: Signatures,
+    pub signature: Signature,
     /// The author of this change. The `Author` is expected to be a
     /// content address to look up the identity of the author.
     pub author: Option<Author>,
@@ -111,9 +111,18 @@ where
     Id: AsRef<[u8]>,
 {
     pub fn valid_signatures(&self) -> bool {
-        self.signatures
+        self.signature
             .iter()
             .all(|(key, sig)| key.verify(self.revision.as_ref(), sig).is_ok())
+    }
+}
+
+impl<A, R, Id> Change<A, R, Id, signatures::Signature>
+where
+    Id: AsRef<[u8]>,
+{
+    pub fn valid_signatures(&self) -> bool {
+        self.signature.verify(self.revision.as_ref())
     }
 }
 

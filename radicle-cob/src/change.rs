@@ -8,9 +8,9 @@ use git_ext::Oid;
 pub mod store;
 pub use store::{Create, Storage};
 
-use crate::signatures::Signatures;
+use crate::signatures::Signature;
 
 /// A single change in the change graph. The layout of changes in the repository
 /// is specified in the RFC (docs/rfc/0662-collaborative-objects.adoc)
 /// under "Change Commits".
-pub type Change = store::Change<Oid, Oid, Oid, Signatures>;
+pub type Change = store::Change<Oid, Oid, Oid, Signature>;

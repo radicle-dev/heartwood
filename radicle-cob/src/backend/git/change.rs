@@ -64,6 +64,10 @@ pub mod error {
         NoChange(Oid),
         #[error("the 'change' found at '{0}' was not a blob")]
         ChangeNotBlob(Oid),
+        #[error("the 'change' found at '{0}' was not signed")]
+        ChangeNotSigned(Oid),
+        #[error("the 'change' found at '{0}' has more than one signature")]
+        TooManySignatures(Oid),
         #[error(transparent)]
         AuthorTrailer(#[from] trailers::error::InvalidAuthorTrailer),
         #[error(transparent)]
@@ -82,7 +86,7 @@ impl change::Storage for git2::Repository {
     type ObjectId = Oid;
     type Author = Oid;
     type Resource = Oid;
-    type Signatures = Signatures;
+    type Signatures = Signature;
 
     fn create<Signer>(
         &self,
@@ -127,7 +131,7 @@ impl change::Storage for git2::Repository {
         Ok(Change {
             id,
             revision: revision.into(),
-            signatures: signature.into(),
+            signature,
             author,
             resource,
             manifest,
@@ -138,7 +142,15 @@ impl change::Storage for git2::Repository {
     fn load(&self, id: Self::ObjectId) -> Result<Change, Self::LoadError> {
         let commit = Commit::read(self, id.into())?;
         let (author, resource) = parse_trailers(commit.trailers())?;
-        let signatures = Signatures::try_from(&commit)?;
+        let mut signatures = Signatures::try_from(&commit)?
+            .into_iter()
+            .collect::<Vec<_>>();
+        let Some(signature) = signatures.pop() else {
+            return Err(error::Load::ChangeNotSigned(id));
+        };
+        if !signatures.is_empty() {
+            return Err(error::Load::TooManySignatures(id));
+        }
 
         let tree = self.find_tree(commit.tree())?;
         let manifest = load_manifest(self, &tree)?;
@@ -147,7 +159,7 @@ impl change::Storage for git2::Repository {
         Ok(Change {
             id,
             revision: tree.id().into(),
-            signatures,
+            signature: signature.into(),
             author,
             resource,
             manifest,
