@@ -1,5 +1,7 @@
-use axum::http;
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
+use serde_json::json;
 
 /// Errors relating to the HTTP backend.
 #[derive(Debug, thiserror::Error)]
@@ -73,16 +75,29 @@ pub enum Error {
     StorageRef(#[from] radicle::storage::refs::Error),
 }
 
-impl Error {
-    pub fn status(&self) -> http::StatusCode {
-        http::StatusCode::INTERNAL_SERVER_ERROR
-    }
-}
-
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        tracing::error!("{}", self);
+        let (status, msg) = match &self {
+            Error::NotFound => (StatusCode::NOT_FOUND, None),
+            Error::Auth(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
+            Error::SiweParse(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
+            Error::SiweVerification(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
+            Error::Git2(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Some(e.message().to_owned()),
+            ),
+            _ => {
+                tracing::error!("Error: {:?}", &self);
 
-        self.status().into_response()
+                (StatusCode::INTERNAL_SERVER_ERROR, None)
+            }
+        };
+
+        let body = Json(json!({
+            "error": msg.or_else(|| status.canonical_reason().map(|r| r.to_string())),
+            "code": status.as_u16()
+        }));
+
+        (status, body).into_response()
     }
 }
