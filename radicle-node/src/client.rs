@@ -9,7 +9,6 @@ use radicle::crypto::Signer;
 use crate::clock::RefClock;
 use crate::profile::Profile;
 use crate::service::routing;
-use crate::wire::transcode::NoHandshake;
 use crate::wire::Wire;
 use crate::{address, service};
 
@@ -132,7 +131,7 @@ impl<R: Reactor> Client<R> {
 
         self.reactor.run(
             &config.listen,
-            Wire::<_, _, _, _, NoHandshake>::new(service),
+            Wire::<_, _, _, _>::new(service),
             self.events,
             self.commands,
         )?;

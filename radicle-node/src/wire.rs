@@ -1,5 +1,4 @@
 pub mod message;
-pub mod transcode;
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::convert::TryFrom;
@@ -24,11 +23,10 @@ use crate::node;
 use crate::prelude::*;
 use crate::service;
 use crate::service::reactor::Io;
-use crate::service::{filter, routing, session, NodeId};
+use crate::service::{filter, routing, NodeId};
 use crate::storage::refs::Refs;
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteStorage;
-use crate::wire::transcode::{Framer, Handshake, HandshakeResult, MuxMsg, Transcode};
 
 /// The default type we use to represent sizes on the wire.
 ///
@@ -439,26 +437,23 @@ impl Decode for node::Features {
 }
 
 #[derive(Debug)]
-pub struct Inbox<T: Transcode> {
-    pub pipeline: Framer<T>,
+pub struct Inbox {
     pub deserializer: Deserializer,
     pub addr: net::SocketAddr,
 }
 
 #[derive(Debug)]
-pub struct Wire<R, S, W, G, H: Handshake> {
-    handshakes: HashMap<net::SocketAddr, H>,
+pub struct Wire<R, S, W, G> {
     node_ids: HashMap<net::SocketAddr, NodeId>,
     inner_queue: VecDeque<nakamoto::Io<service::Event, service::DisconnectReason>>,
-    inboxes: HashMap<NodeId, Inbox<H::Transcoder>>,
+    inboxes: HashMap<NodeId, Inbox>,
     inner: service::Service<R, S, W, G>,
     rng: fastrand::Rng,
 }
 
-impl<R, S, W, G, H: Handshake> Wire<R, S, W, G, H> {
+impl<R, S, W, G> Wire<R, S, W, G> {
     pub fn new(inner: service::Service<R, S, W, G>) -> Self {
         Self {
-            handshakes: HashMap::new(),
             node_ids: HashMap::new(),
             inner_queue: Default::default(),
             inboxes: HashMap::new(),
@@ -468,13 +463,12 @@ impl<R, S, W, G, H: Handshake> Wire<R, S, W, G, H> {
     }
 }
 
-impl<R, S, W, G, H> nakamoto::Protocol for Wire<R, S, W, G, H>
+impl<R, S, W, G> nakamoto::Protocol for Wire<R, S, W, G>
 where
     R: routing::Store,
     S: address::Store,
     W: WriteStorage + 'static,
     G: Signer,
-    H: Handshake,
 {
     type Event = service::Event;
     type Command = service::Command;
@@ -501,7 +495,6 @@ where
     }
 
     fn connected(&mut self, addr: net::SocketAddr, local_addr: &net::SocketAddr, link: Link) {
-        self.handshakes.insert(addr, H::new(link));
         self.inner.connecting(addr, local_addr, link)
     }
 
@@ -512,88 +505,18 @@ where
     ) {
         let node_id = self.node_ids[addr];
 
-        self.handshakes.remove(addr);
         self.inboxes.remove(&node_id);
         self.inner.disconnected(&node_id, &reason)
     }
 
     fn received_bytes(&mut self, addr: &net::SocketAddr, raw_bytes: &[u8]) {
-        if let Some(handshake) = self.handshakes.remove(addr) {
-            match handshake.step(raw_bytes) {
-                HandshakeResult::Next(handshake, reply) => {
-                    self.handshakes.insert(*addr, handshake);
-                    if !reply.is_empty() {
-                        self.inner_queue
-                            .push_back(nakamoto::Io::Write(*addr, reply));
-                    }
-                    return;
-                }
-                HandshakeResult::Complete(transcoder, reply, link) => {
-                    log::debug!("handshake with peer {} is complete", addr);
-                    if !reply.is_empty() {
-                        self.inner_queue
-                            .push_back(nakamoto::Io::Write(*addr, reply));
-                    }
-                    let pipeline = Framer::new(transcoder);
-                    let node_id = NodeId::try_from(
-                        std::iter::repeat_with(|| self.rng.u8(..))
-                            .collect::<Vec<_>>()
-                            .as_slice(),
-                    )
-                    .unwrap();
-
-                    self.inboxes.insert(
-                        node_id,
-                        Inbox {
-                            pipeline,
-                            deserializer: Deserializer::new(256),
-                            addr: *addr,
-                        },
-                    );
-                    self.node_ids.insert(*addr, node_id);
-                    self.inner.connected(node_id, link);
-                }
-                HandshakeResult::Error(err) => {
-                    log::error!("invalid handshake input. Details: {}", err);
-                    self.inner_queue.push_back(nakamoto::Io::Disconnect(
-                        *addr,
-                        service::DisconnectReason::Error(session::Error::Handshake(
-                            err.to_string(),
-                        )),
-                    ));
-                    return;
-                }
-            }
-        }
-
-        if let Some(Inbox {
-            pipeline,
-            deserializer,
-            ..
-        }) = self
+        if let Some(Inbox { deserializer, .. }) = self
             .node_ids
             .get(addr)
             .and_then(|id| self.inboxes.get_mut(id))
         {
-            pipeline.input(raw_bytes);
-            for frame in pipeline {
-                let Ok(msg) = MuxMsg::try_from(frame) else {
-                    // TODO: Disconnect peer.
-                    log::error!("Message frame with invalid channel structure from {}", addr);
-                    return;
-                };
-                match msg.channel {
-                    0 => deserializer.input(&msg.data),
-                    1 => { /* TODO: Send to git worker */ }
-                    wrong_channel => {
-                        // TODO: Disconnect peer.
-                        log::error!("Wrong message channel {} from peer {}", wrong_channel, addr);
-                        return;
-                    }
-                };
-            }
-
             let node_id = self.node_ids[addr];
+            deserializer.input(&raw_bytes);
             for message in deserializer {
                 match message {
                     Ok(msg) => self.inner.received_message(node_id, msg),
@@ -611,7 +534,7 @@ where
     }
 }
 
-impl<R, S, W, G, H: Handshake> Iterator for Wire<R, S, W, G, H> {
+impl<R, S, W, G> Iterator for Wire<R, S, W, G> {
     type Item = nakamoto::Io<service::Event, service::DisconnectReason>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -628,12 +551,10 @@ impl<R, S, W, G, H: Handshake> Iterator for Wire<R, S, W, G, H> {
                     msg.encode(&mut buf)
                         .expect("writing to an in-memory buffer doesn't fail");
                 }
-                let Inbox { pipeline, addr, .. } = self.inboxes.get_mut(&id).expect(
+                let Inbox { addr, .. } = self.inboxes.get(&id).expect(
                     "broken handshake implementation: data sent before handshake was complete",
                 );
-                let data = pipeline.frame(buf).expect("oversized data for a frame");
-                let msg = MuxMsg { channel: 0, data };
-                Some(nakamoto::Io::Write(*addr, msg.into()))
+                Some(nakamoto::Io::Write(*addr, buf))
             }
             Some(Io::Event(e)) => Some(nakamoto::Io::Event(e)),
             Some(Io::Connect(_id, addr)) => match addr.host {
