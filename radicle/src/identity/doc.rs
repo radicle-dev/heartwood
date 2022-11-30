@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::fmt::Write as _;
 use std::marker::PhantomData;
-use std::ops::Deref;
+use std::ops::{Deref, Not};
 use std::path::Path;
 
 use nonempty::NonEmpty;
@@ -150,6 +150,10 @@ impl<V> Doc<V> {
         repo.blob_at(commit, Path::new(&*PATH))
             .map_err(DocError::from)
     }
+
+    pub fn is_delegate(&self, key: &crypto::PublicKey) -> bool {
+        self.delegates.contains(&key.into())
+    }
 }
 
 impl Doc<Verified> {
@@ -165,13 +169,31 @@ impl Doc<Verified> {
     }
 
     /// Attempt to add a new delegate to the document. Returns `true` if it wasn't there before.
-    pub fn delegate(&mut self, key: crypto::PublicKey) -> bool {
+    pub fn delegate(&mut self, key: &crypto::PublicKey) -> bool {
         let delegate = Did::from(key);
         if self.delegates.iter().all(|id| id != &delegate) {
             self.delegates.push(delegate);
             return true;
         }
         false
+    }
+
+    pub fn rescind(&mut self, key: &crypto::PublicKey) -> Result<Option<Did>, DocError> {
+        let delegate = Did::from(key);
+        let (matches, delegates) = self.delegates.iter().partition(|d| **d == delegate);
+        match NonEmpty::from_vec(delegates) {
+            Some(delegates) => {
+                self.delegates = delegates;
+                if self.threshold > self.delegates.len() {
+                    return Err(DocError::Threshold(
+                        self.threshold,
+                        "the thresholds exceeds the new delegate count after removal",
+                    ));
+                }
+                Ok(matches.is_empty().not().then_some(delegate))
+            }
+            None => Err(DocError::Delegates("cannot remove the last delegate")),
+        }
     }
 
     /// Get the project payload, if it exists and is valid, out of this document.

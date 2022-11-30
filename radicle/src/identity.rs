@@ -213,7 +213,7 @@ mod test {
             .unwrap();
 
         // Add Bob as a delegate, and sign it.
-        doc.delegate(*bob.public_key());
+        doc.delegate(bob.public_key());
         doc.threshold = 2;
         doc.sign(&alice)
             .and_then(|(_, sig)| {
@@ -227,7 +227,7 @@ mod test {
             .unwrap();
 
         // Add Eve as a delegate, and sign it.
-        doc.delegate(*eve.public_key());
+        doc.delegate(eve.public_key());
         doc.sign(&alice)
             .and_then(|(_, alice_sig)| {
                 doc.sign(&bob).and_then(|(_, bob_sig)| {

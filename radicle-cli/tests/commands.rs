@@ -72,3 +72,18 @@ fn rad_init() {
 
     test("examples/rad-init.md", Some(&profile)).unwrap();
 }
+
+#[test]
+fn rad_delegate() {
+    let home = tempfile::tempdir().unwrap();
+    let working = tempfile::tempdir().unwrap();
+    let profile = profile(home.path());
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+    // Navigate to repository.
+    env::set_current_dir(working.path()).unwrap();
+
+    test("examples/rad-init.md", Some(&profile)).unwrap();
+    test("examples/rad-delegate.md", Some(&profile)).unwrap();
+}
