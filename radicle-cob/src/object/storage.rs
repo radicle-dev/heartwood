@@ -61,6 +61,7 @@ pub trait Storage {
     type ObjectsError: Error + Send + Sync + 'static;
     type TypesError: Error + Send + Sync + 'static;
     type UpdateError: Error + Send + Sync + 'static;
+    type RemoveError: Error + Send + Sync + 'static;
 
     type Identifier;
 
@@ -84,6 +85,14 @@ pub trait Storage {
         object_id: &ObjectId,
         change: &Change,
     ) -> Result<(), Self::UpdateError>;
+
+    /// Remove a ref to a particular collaborative object
+    fn remove(
+        &self,
+        identifier: &Self::Identifier,
+        typename: &TypeName,
+        object_id: &ObjectId,
+    ) -> Result<(), Self::RemoveError>;
 }
 
 pub mod convert {

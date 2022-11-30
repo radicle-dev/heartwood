@@ -705,6 +705,7 @@ impl cob::object::Storage for Repository {
     type ObjectsError = CobObjectsError;
     type TypesError = CobTypesError;
     type UpdateError = git2::Error;
+    type RemoveError = git2::Error;
 
     type Identifier = RemoteId;
 
@@ -779,6 +780,19 @@ impl cob::object::Storage for Repository {
         )?;
 
         Ok(())
+    }
+
+    fn remove(
+        &self,
+        identifier: &Self::Identifier,
+        typename: &cob::TypeName,
+        object_id: &cob::ObjectId,
+    ) -> Result<(), Self::RemoveError> {
+        let mut reference = self
+            .backend
+            .find_reference(git::refs::storage::cob(identifier, typename, object_id).as_str())?;
+
+        reference.delete().map_err(Self::RemoveError::from)
     }
 }
 

@@ -25,6 +25,13 @@ pub enum Create {
 }
 
 #[derive(Debug, Error)]
+#[error("failed to remove object: {err}")]
+pub struct Remove {
+    #[source]
+    pub(crate) err: Box<dyn std::error::Error + Send + Sync + 'static>,
+}
+
+#[derive(Debug, Error)]
 pub enum Retrieve {
     #[error(transparent)]
     Git(#[from] git2::Error),

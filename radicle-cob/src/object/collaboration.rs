@@ -23,6 +23,9 @@ pub mod info;
 mod list;
 pub use list::list;
 
+mod remove;
+pub use remove::remove;
+
 mod update;
 pub use update::{update, Update};
 

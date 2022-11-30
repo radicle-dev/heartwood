@@ -96,6 +96,7 @@ impl object::Storage for Storage {
     type ObjectsError = error::Objects;
     type TypesError = error::Objects;
     type UpdateError = git2::Error;
+    type RemoveError = git2::Error;
 
     type Identifier = Urn;
 
@@ -155,6 +156,23 @@ impl object::Storage for Storage {
         );
         let id = *change.id();
         self.raw.reference(&name, id.into(), true, "new change")?;
+        Ok(())
+    }
+
+    fn remove(
+        &self,
+        identifier: &Self::Identifier,
+        typename: &crate::TypeName,
+        object_id: &ObjectId,
+    ) -> Result<(), Self::RemoveError> {
+        let name = format!(
+            "refs/rad/{}/cobs/{}/{}",
+            identifier.to_path(),
+            typename,
+            object_id
+        );
+        self.raw.find_reference(&name)?.delete()?;
+
         Ok(())
     }
 }
