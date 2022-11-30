@@ -10,6 +10,9 @@ use crate::serde_ext;
 
 pub use crypto::PublicKey;
 
+/// Radicle identifier prefix.
+pub const RAD_PREFIX: &str = "rad:";
+
 #[derive(Error, Debug)]
 pub enum IdError {
     #[error("invalid git object id: {0}")]
@@ -18,6 +21,7 @@ pub enum IdError {
     Multibase(#[from] multibase::Error),
 }
 
+/// A radicle identifier. Commonly used to uniquely identify radicle projects.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(git::Oid);
 
@@ -34,11 +38,22 @@ impl fmt::Debug for Id {
 }
 
 impl Id {
+    /// Format the identifier in a human-readable way.
+    ///
+    /// Eg. `rad:z3XncAdkZjeK9mQS5Sdc4qhw98BUX`.
+    ///
     pub fn to_human(&self) -> String {
-        multibase::encode(multibase::Base::Base58Btc, self.0.as_bytes())
+        format!(
+            "{RAD_PREFIX}{}",
+            multibase::encode(multibase::Base::Base58Btc, self.0.as_bytes())
+        )
     }
 
+    /// Parse an identifier from the human-readable format.
+    /// Accepts strings without the radicle prefix as well,
+    /// for convenience.
     pub fn from_human(s: &str) -> Result<Self, IdError> {
+        let s = s.strip_prefix(RAD_PREFIX).unwrap_or(s);
         let (_, bytes) = multibase::decode(s)?;
         let array: git::Oid = bytes.as_slice().try_into()?;
 
