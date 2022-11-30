@@ -681,13 +681,11 @@ impl change::Storage for Repository {
     type LoadError = <git2::Repository as change::Storage>::LoadError;
 
     type ObjectId = <git2::Repository as change::Storage>::ObjectId;
-    type Author = <git2::Repository as change::Storage>::Author;
     type Resource = <git2::Repository as change::Storage>::Resource;
     type Signatures = <git2::Repository as change::Storage>::Signatures;
 
     fn create<Signer>(
         &self,
-        author: Option<Self::Author>,
         authority: Self::Resource,
         signer: &Signer,
         spec: change::Create<Self::ObjectId>,
@@ -695,7 +693,7 @@ impl change::Storage for Repository {
     where
         Signer: crypto::Signer,
     {
-        self.backend.create(author, authority, signer, spec)
+        self.backend.create(authority, signer, spec)
     }
 
     fn load(&self, id: Self::ObjectId) -> Result<cob::Change, Self::LoadError> {

@@ -28,7 +28,6 @@ pub mod error {
     use thiserror::Error;
 
     use crate::signatures::error::Signatures;
-    use crate::trailers;
 
     #[derive(Debug, Error)]
     pub enum Create {
@@ -69,8 +68,6 @@ pub mod error {
         #[error("the 'change' found at '{0}' has more than one signature")]
         TooManySignatures(Oid),
         #[error(transparent)]
-        AuthorTrailer(#[from] trailers::error::InvalidAuthorTrailer),
-        #[error(transparent)]
         ResourceTrailer(#[from] super::trailers::error::InvalidResourceTrailer),
         #[error("non utf-8 characters in commit message")]
         Utf8(#[from] FromUtf8Error),
@@ -84,13 +81,11 @@ impl change::Storage for git2::Repository {
     type LoadError = error::Load;
 
     type ObjectId = Oid;
-    type Author = Oid;
     type Resource = Oid;
     type Signatures = Signature;
 
     fn create<Signer>(
         &self,
-        author: Option<Self::Author>,
         resource: Self::Resource,
         signer: &Signer,
         spec: store::Create<Self::ObjectId>,
@@ -119,20 +114,11 @@ impl change::Storage for git2::Repository {
             Signature::from((*key, sig))
         };
 
-        let id = write_commit(
-            self,
-            author,
-            resource,
-            tips,
-            message,
-            signature.clone(),
-            tree,
-        )?;
+        let id = write_commit(self, resource, tips, message, signature.clone(), tree)?;
         Ok(Change {
             id,
             revision: revision.into(),
             signature,
-            author,
             resource,
             manifest,
             contents,
@@ -141,7 +127,7 @@ impl change::Storage for git2::Repository {
 
     fn load(&self, id: Self::ObjectId) -> Result<Change, Self::LoadError> {
         let commit = Commit::read(self, id.into())?;
-        let (author, resource) = parse_trailers(commit.trailers())?;
+        let resource = parse_resource_trailer(commit.trailers())?;
         let mut signatures = Signatures::try_from(&commit)?
             .into_iter()
             .collect::<Vec<_>>();
@@ -160,7 +146,6 @@ impl change::Storage for git2::Repository {
             id,
             revision: tree.id().into(),
             signature: signature.into(),
-            author,
             resource,
             manifest,
             contents,
@@ -168,26 +153,21 @@ impl change::Storage for git2::Repository {
     }
 }
 
-fn parse_trailers<'a>(
-    mut trailers: impl Iterator<Item = &'a OwnedTrailer>,
-) -> Result<(Option<Oid>, Oid), error::Load> {
-    let (author, resource) = trailers.try_fold((None, None), |(author, resource), trailer| {
-        match trailers::AuthorCommitTrailer::try_from(trailer) {
-            Ok(trailer) => Ok((Some(trailer.oid().into()), resource)),
-            Err(err) => match err {
-                trailers::error::InvalidAuthorTrailer::NoTrailer
-                | trailers::error::InvalidAuthorTrailer::NoValue => Ok((author, resource)),
-                trailers::error::InvalidAuthorTrailer::WrongToken => {
-                    let resource = trailers::ResourceCommitTrailer::try_from(trailer)?;
-                    Ok((author, Some(resource.oid().into())))
-                }
-                err => Err(error::Load::from(err)),
-            },
+fn parse_resource_trailer<'a>(
+    trailers: impl Iterator<Item = &'a OwnedTrailer>,
+) -> Result<Oid, error::Load> {
+    for trailer in trailers {
+        match trailers::ResourceCommitTrailer::try_from(trailer) {
+            Err(trailers::error::InvalidResourceTrailer::WrongToken) => {
+                continue;
+            }
+            Err(err) => return Err(err.into()),
+            Ok(resource) => return Ok(resource.oid().into()),
         }
-    })?;
-    let resource = resource
-        .ok_or_else(|| error::Load::from(trailers::error::InvalidResourceTrailer::NoTrailer))?;
-    Ok((author, resource))
+    }
+    Err(error::Load::from(
+        trailers::error::InvalidResourceTrailer::NoTrailer,
+    ))
 }
 
 fn load_manifest(
@@ -223,7 +203,6 @@ fn load_contents(
 
 fn write_commit<O>(
     repo: &git2::Repository,
-    author: Option<O>,
     resource: O,
     tips: Vec<O>,
     message: String,
@@ -233,16 +212,12 @@ fn write_commit<O>(
 where
     O: AsRef<git2::Oid>,
 {
-    let author = author.map(|author| *author.as_ref());
     let resource = *resource.as_ref();
 
     let mut parents = tips.iter().map(|o| *o.as_ref()).collect::<Vec<_>>();
     parents.push(resource);
-    parents.extend(author);
 
-    let mut trailers: Vec<OwnedTrailer> =
-        vec![trailers::ResourceCommitTrailer::from(resource).into()];
-    trailers.extend(author.map(|author| trailers::AuthorCommitTrailer::from(author).into()));
+    let trailers: Vec<OwnedTrailer> = vec![trailers::ResourceCommitTrailer::from(resource).into()];
 
     {
         let author = repo.signature()?;

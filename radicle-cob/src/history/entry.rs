@@ -45,9 +45,6 @@ pub struct Entry {
     pub(super) id: EntryId,
     /// The actor that authored this entry.
     pub(super) actor: PublicKey,
-    /// The content-address for this entry's author.
-    /// TODO: This shouldn't be here?
-    pub(super) author: Option<Oid>,
     /// The content-address for the resource this entry lives under.
     pub(super) resource: Oid,
     /// The child entries for this entry.
@@ -60,7 +57,6 @@ impl Entry {
     pub fn new<Id1, Id2, ChildIds>(
         id: Id1,
         actor: PublicKey,
-        author: Option<Oid>,
         resource: Oid,
         children: ChildIds,
         contents: Contents,
@@ -73,7 +69,6 @@ impl Entry {
         Self {
             id: id.into(),
             actor,
-            author,
             resource,
             children: children.into_iter().map(|id| id.into()).collect(),
             contents,
@@ -93,11 +88,6 @@ impl Entry {
     /// The public key of the actor.
     pub fn actor(&self) -> &PublicKey {
         &self.actor
-    }
-
-    /// The `Oid` of the author that made this change.
-    pub fn author(&self) -> Option<&Oid> {
-        self.author.as_ref()
     }
 
     /// The contents of this change

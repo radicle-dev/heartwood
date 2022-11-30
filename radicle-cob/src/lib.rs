@@ -61,11 +61,11 @@
 //! automerge document and deserialize into an application defined
 //! object.
 //!
-//! This traversal is also the point at which the [`Entry::author`]
+//! This traversal is also the point at which the [`Entry::actor`]
 //! and [`Entry::resource`] can be retrieved to apply any kind of
-//! filtering logic. For example, a specific `author`'s change may be
+//! filtering logic. For example, a specific `actor`'s change may be
 //! egregious, spouting terrible libel about Radicle. It is at this
-//! point that the `author`'s change can be filtered out from the
+//! point that the `actor`'s change can be filtered out from the
 //! final product of the traversal.
 //!
 //! [automerge]: https://automerge.org
@@ -132,7 +132,6 @@ where
             CreateError = git::change::error::Create,
             LoadError = git::change::error::Load,
             ObjectId = git_ext::Oid,
-            Author = git_ext::Oid,
             Resource = git_ext::Oid,
             Signatures = Signature,
         >,

@@ -11,9 +11,7 @@ use crate::{
 use super::error;
 
 /// The data required to update an object
-pub struct Update<Author> {
-    /// The identity of the author for the update of this object.
-    pub author: Option<Author>,
+pub struct Update {
     /// The type of history that will be used for this object.
     pub history_type: String,
     /// The CRDT changes to add to the object.
@@ -44,40 +42,25 @@ pub struct Update<Author> {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]
 /// udpate. See [`Update`] for further information.
-pub fn update<S, G, Resource, Author>(
+pub fn update<S, G, Resource>(
     storage: &S,
     signer: &G,
     resource: &Resource,
     identifier: &S::Identifier,
-    args: Update<Author>,
+    args: Update,
 ) -> Result<CollaborativeObject, error::Update>
 where
     S: Store,
     G: crypto::Signer,
-    Author: Identity,
-    Author::Identifier: Clone + PartialEq,
     Resource: Identity,
 {
     let Update {
-        author,
         ref typename,
         object_id,
         history_type,
         changes,
         message,
     } = args;
-
-    let author = match author {
-        None => None,
-        Some(author) => {
-            // TODO: Remove?
-            if !author.is_delegate(signer.public_key()) {
-                return Err(error::Update::SignerIsNotAuthor);
-            } else {
-                Some(author.content_id())
-            }
-        }
-    };
 
     let existing_refs = storage
         .objects(typename, &object_id)
@@ -88,7 +71,6 @@ where
         .ok_or(error::Update::NoSuchObject)?;
 
     let change = storage.create(
-        author,
         resource.content_id(),
         signer,
         change::Create {
@@ -99,13 +81,9 @@ where
             message,
         },
     )?;
-    object.history.extend(
-        change.id,
-        change.signature.key,
-        author,
-        change.resource,
-        changes,
-    );
+    object
+        .history
+        .extend(change.id, change.signature.key, change.resource, changes);
     storage
         .update(identifier, typename, &object_id, &change)
         .map_err(|err| error::Update::Refs { err: Box::new(err) })?;

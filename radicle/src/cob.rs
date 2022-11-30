@@ -13,48 +13,7 @@ pub use common::*;
 use radicle_cob as cob;
 use radicle_git_ext::Oid;
 
-use crate::{
-    identity::{project::Identity, Did},
-    node::NodeId,
-    storage::git::Repository,
-};
-
-/// The `Author` of a [`create`] or [`update`].
-///
-/// **Note**: `Author` implements [`identity::Identity`], but since it
-/// is not content-addressed, the [`identity::Identity::content_id`]
-/// returns [`git2::Oid::zero`]. This means that if the `author` is
-/// set in the updates the history entries for those changes will
-/// contain the zero `Oid` for the `author` field.
-pub struct Author {
-    did: Did,
-}
-
-impl From<Did> for Author {
-    fn from(did: Did) -> Self {
-        Self { did }
-    }
-}
-
-impl From<NodeId> for Author {
-    fn from(node_id: NodeId) -> Self {
-        Self {
-            did: Did::from(node_id),
-        }
-    }
-}
-
-impl identity::Identity for Author {
-    type Identifier = String;
-
-    fn is_delegate(&self, delegation: &crypto::PublicKey) -> bool {
-        *self.did == *delegation
-    }
-
-    fn content_id(&self) -> Oid {
-        git2::Oid::zero().into()
-    }
-}
+use crate::{identity::project::Identity, storage::git::Repository};
 
 /// Create a new [`CollaborativeObject`].
 ///
@@ -62,8 +21,7 @@ impl identity::Identity for Author {
 /// stored under.
 ///
 /// The `signer` is used to cryptographically sign the changes made
-/// for this update. **Note** that the public key for the signer must
-/// match the key of the `Author` -- if it is set.
+/// for this update.
 ///
 /// The `project` is used to store its content-address in the history
 /// of changes for the collaborative object.
@@ -74,7 +32,7 @@ pub fn create<G>(
     repository: &Repository,
     signer: &G,
     project: &Identity<Oid>,
-    args: Create<Author>,
+    args: Create,
 ) -> Result<CollaborativeObject, error::Create>
 where
     G: crypto::Signer,
@@ -118,8 +76,7 @@ pub fn list(
 /// stored under.
 ///
 /// The `signer` is used to cryptographically sign the changes made
-/// for this update. **Note** that the public key for the signer must
-/// match the key of the `Author` -- if it is set.
+/// for this update.
 ///
 /// The `project` is used to store its content-address in the history
 /// of changes for the collaborative object.
@@ -130,7 +87,7 @@ pub fn update<G>(
     repository: &Repository,
     signer: &G,
     project: &Identity<Oid>,
-    args: Update<Author>,
+    args: Update,
 ) -> Result<CollaborativeObject, error::Update>
 where
     G: crypto::Signer,

@@ -8,9 +8,7 @@ use crate::Store;
 use super::*;
 
 /// The metadata required for creating a new [`CollaborativeObject`].
-pub struct Create<Author> {
-    /// The identity of the author for this object's first change.
-    pub author: Option<Author>,
+pub struct Create {
     /// The type of history that will be used for this object.
     pub history_type: String,
     /// The CRDT history to initialize this object with.
@@ -21,7 +19,7 @@ pub struct Create<Author> {
     pub message: String,
 }
 
-impl<Author> Create<Author> {
+impl Create {
     fn create_spec(&self) -> change::Create<git_ext::Oid> {
         change::Create {
             typename: self.typename.clone(),
@@ -51,46 +49,31 @@ impl<Author> Create<Author> {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]. See
 /// [`Create`] for further information.
-pub fn create<S, G, Author, Resource>(
+pub fn create<S, G, Resource>(
     storage: &S,
     signer: &G,
     resource: &Resource,
     identifier: &S::Identifier,
-    args: Create<Author>,
+    args: Create,
 ) -> Result<CollaborativeObject, error::Create>
 where
     S: Store,
     G: crypto::Signer,
-    Author: Identity,
-    Author::Identifier: Clone + PartialEq,
     Resource: Identity,
 {
     let Create {
-        author,
         ref contents,
         ref typename,
         ..
     } = &args;
 
-    let content = match author {
-        None => None,
-        Some(author) => {
-            if !author.is_delegate(signer.public_key()) {
-                return Err(error::Create::SignerIsNotAuthor);
-            } else {
-                Some(author.content_id())
-            }
-        }
-    };
-
     let init_change = storage
-        .create(content, resource.content_id(), signer, args.create_spec())
+        .create(resource.content_id(), signer, args.create_spec())
         .map_err(error::Create::from)?;
 
     let history = History::new_from_root(
         *init_change.id(),
         init_change.signature.key,
-        content,
         resource.content_id(),
         contents.clone(),
     );

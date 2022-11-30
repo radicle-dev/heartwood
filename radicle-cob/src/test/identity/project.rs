@@ -70,55 +70,13 @@ impl Project {
         })
     }
 
-    pub fn delegates(&self) -> &BTreeSet<crypto::PublicKey> {
-        &self.payload.delegates
-    }
-
-    pub fn delegate_check(&self, person: &test::Person) -> bool {
-        self.payload.delegates.contains(&person.key())
-    }
-
     pub fn name(&self) -> &Name {
         &self.payload.name
     }
-
-    pub fn find_by_oid(
-        repo: &git2::Repository,
-        id: Oid,
-    ) -> Result<Option<Self>, storage::error::Identity> {
-        match repo.find_commit(id.into()) {
-            Ok(commit) => from_commit(repo, commit),
-            Err(err) if err.code() == git2::ErrorCode::NotFound => Ok(None),
-            Err(err) => Err(err.into()),
-        }
-    }
-}
-
-fn from_commit(
-    repo: &git2::Repository,
-    commit: git2::Commit,
-) -> Result<Option<Project>, storage::error::Identity> {
-    let tree = commit.tree()?;
-    let entry = tree
-        .get_name("identity")
-        .ok_or_else(|| storage::error::Identity::NotFound(tree.id().into()))?;
-    let blob = match entry.to_object(repo)?.into_blob() {
-        Ok(blob) => blob,
-        Err(other) => return Err(storage::error::Identity::NotBlob(other.kind())),
-    };
-    let payload = serde_json::de::from_slice(blob.content())?;
-    Ok(Some(Project {
-        payload,
-        content_id: commit.id().into(),
-    }))
 }
 
 impl Identity for RemoteProject {
     type Identifier = Urn;
-
-    fn is_delegate(&self, delegation: &crypto::PublicKey) -> bool {
-        self.project.delegates().contains(delegation)
-    }
 
     fn content_id(&self) -> Oid {
         self.project.content_id

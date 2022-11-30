@@ -42,7 +42,6 @@ impl History {
     pub(crate) fn new_from_root<Id>(
         id: Id,
         actor: PublicKey,
-        author: Option<Oid>,
         resource: Oid,
         contents: Contents,
     ) -> Self
@@ -53,7 +52,6 @@ impl History {
         let root_entry = Entry {
             id,
             actor,
-            author,
             resource,
             children: vec![],
             contents,
@@ -120,7 +118,6 @@ impl History {
         &mut self,
         new_id: Id,
         new_actor: PublicKey,
-        new_author: Option<Oid>,
         new_resource: Oid,
         new_contents: Contents,
     ) where
@@ -131,7 +128,6 @@ impl History {
         let new_entry = Entry::new(
             new_id,
             new_actor,
-            new_author,
             new_resource,
             std::iter::empty::<git2::Oid>(),
             new_contents,

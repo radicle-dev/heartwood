@@ -103,7 +103,6 @@ where
             signer,
             &self.project,
             Update {
-                author: Some(cob::Author::from(*signer.public_key())),
                 object_id,
                 history_type: HISTORY_TYPE.to_owned(),
                 typename: T::type_name().clone(),
@@ -127,7 +126,6 @@ where
             signer,
             &self.project,
             Create {
-                author: Some(cob::Author::from(*signer.public_key())),
                 history_type: HISTORY_TYPE.to_owned(),
                 typename: T::type_name().clone(),
                 message: message.to_owned(),

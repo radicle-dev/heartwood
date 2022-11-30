@@ -3,20 +3,14 @@
 // This file is part of radicle-link, distributed under the GPLv3 with Radicle
 // Linking Exception. For full terms see the included LICENSE file.
 
-mod author_commit {
-    super::oid_trailer! {AuthorCommitTrailer, "Rad-Author"}
-}
 mod resource_identity {
     super::oid_trailer! {ResourceCommitTrailer, "Rad-Resource"}
 }
 
 pub mod error {
-    pub use super::author_commit::Error as InvalidAuthorTrailer;
-
     pub use super::resource_identity::Error as InvalidResourceTrailer;
 }
 
-pub use author_commit::AuthorCommitTrailer;
 pub use resource_identity::ResourceCommitTrailer;
 
 /// A macro for generating boilerplate From and TryFrom impls for trailers which

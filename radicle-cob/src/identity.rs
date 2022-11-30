@@ -8,16 +8,9 @@ use git_ext::Oid;
 /// An [`Identity`] represents a content addressed identity
 /// (i.e. expected to be stored in a git backend).
 ///
-/// It should have:
-///   * A delegate system
-///   * A content addressable identifier
-///   * A unique, stable identifier
+/// It should have a unique, stable, content addressable identifier.
 pub trait Identity {
     type Identifier;
-
-    /// Confirm that the given [`crypto::PublicKey`] is a delegate for
-    /// the identity.
-    fn is_delegate(&self, delegation: &crypto::PublicKey) -> bool;
 
     /// Provide the content address for the given identity. This is
     /// expected to be the latest address for the identity at the time

@@ -21,10 +21,6 @@ pub mod error {
         Json(#[from] serde_json::Error),
         #[error(transparent)]
         Git(#[from] git2::Error),
-        #[error("'identity' was not a blob, found '{0:?}'")]
-        NotBlob(Option<git2::ObjectType>),
-        #[error("could not find 'identity' in the tree '{0}'")]
-        NotFound(git_ext::Oid),
     }
 
     #[derive(Debug, Error)]
@@ -67,31 +63,29 @@ impl change::Storage for Storage {
     type LoadError = <git2::Repository as change::Storage>::LoadError;
 
     type ObjectId = <git2::Repository as change::Storage>::ObjectId;
-    type Author = <git2::Repository as change::Storage>::Author;
     type Resource = <git2::Repository as change::Storage>::Resource;
     type Signatures = <git2::Repository as change::Storage>::Signatures;
 
     fn create<Signer>(
         &self,
-        author: Option<Self::Author>,
         authority: Self::Resource,
         signer: &Signer,
         spec: change::Create<Self::ObjectId>,
     ) -> Result<
-        change::store::Change<Self::Author, Self::Resource, Self::ObjectId, Self::Signatures>,
+        change::store::Change<Self::Resource, Self::ObjectId, Self::Signatures>,
         Self::CreateError,
     >
     where
         Signer: crypto::Signer,
     {
-        self.as_raw().create(author, authority, signer, spec)
+        self.as_raw().create(authority, signer, spec)
     }
 
     fn load(
         &self,
         id: Self::ObjectId,
     ) -> Result<
-        change::store::Change<Self::Author, Self::Resource, Self::ObjectId, Self::Signatures>,
+        change::store::Change<Self::Resource, Self::ObjectId, Self::Signatures>,
         Self::LoadError,
     > {
         self.as_raw().load(id)

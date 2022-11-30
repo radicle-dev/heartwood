@@ -13,4 +13,4 @@ use crate::signatures::Signature;
 /// A single change in the change graph. The layout of changes in the repository
 /// is specified in the RFC (docs/rfc/0662-collaborative-objects.adoc)
 /// under "Change Commits".
-pub type Change = store::Change<Oid, Oid, Oid, Signature>;
+pub type Change = store::Change<Oid, Oid, Signature>;

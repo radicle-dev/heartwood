@@ -37,7 +37,7 @@ impl ChangeGraph {
         oid: &ObjectId,
     ) -> Option<ChangeGraph>
     where
-        S: change::Storage<ObjectId = Oid, Author = Oid, Resource = Oid, Signatures = Signature>,
+        S: change::Storage<ObjectId = Oid, Resource = Oid, Signatures = Signature>,
     {
         log::info!("loading object '{}' '{}'", typename, oid);
         let mut builder = GraphBuilder::default();
@@ -170,7 +170,6 @@ impl GraphBuilder {
         commit: object::Commit,
         change: Change,
     ) -> impl Iterator<Item = (object::Commit, Oid)> + '_ {
-        let author_commit = *change.author();
         let resource_commit = *change.resource();
         let commit_id = commit.id;
         if let Entry::Vacant(e) = self.node_indices.entry(commit_id) {
@@ -178,10 +177,7 @@ impl GraphBuilder {
             e.insert(ix);
         }
         commit.parents.into_iter().filter_map(move |parent| {
-            if Some(parent.id) != author_commit
-                && parent.id != resource_commit
-                && !self.has_edge(parent.id, commit_id)
-            {
+            if parent.id != resource_commit && !self.has_edge(parent.id, commit_id) {
                 Some((parent, commit_id))
             } else {
                 None

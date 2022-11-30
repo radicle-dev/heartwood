@@ -19,7 +19,7 @@ fn roundtrip() {
     let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
     let proj = test::RemoteProject {
         project: proj,
-        person: terry.clone(),
+        person: terry,
     };
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
     let cob = create(
@@ -28,7 +28,6 @@ fn roundtrip() {
         &proj,
         &proj.identifier(),
         Create {
-            author: Some(terry),
             history_type: "test".to_string(),
             contents: Vec::new(),
             typename: typename.clone(),
@@ -52,7 +51,7 @@ fn list_cobs() {
     let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
     let proj = test::RemoteProject {
         project: proj,
-        person: terry.clone(),
+        person: terry,
     };
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
     let issue_1 = create(
@@ -61,7 +60,6 @@ fn list_cobs() {
         &proj,
         &proj.identifier(),
         Create {
-            author: Some(terry.clone()),
             history_type: "test".to_string(),
             contents: b"issue 1".to_vec(),
             typename: typename.clone(),
@@ -76,7 +74,6 @@ fn list_cobs() {
         &proj,
         &proj.identifier(),
         Create {
-            author: Some(terry),
             history_type: "test".to_string(),
             contents: b"issue 2".to_vec(),
             typename: typename.clone(),
@@ -102,7 +99,7 @@ fn update_cob() {
     let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
     let proj = test::RemoteProject {
         project: proj,
-        person: terry.clone(),
+        person: terry,
     };
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
     let cob = create(
@@ -111,7 +108,6 @@ fn update_cob() {
         &proj,
         &proj.identifier(),
         Create {
-            author: Some(terry.clone()),
             history_type: "test".to_string(),
             contents: Vec::new(),
             typename: typename.clone(),
@@ -130,7 +126,6 @@ fn update_cob() {
         &proj,
         &proj.identifier(),
         Update {
-            author: Some(terry),
             changes: b"issue 1".to_vec(),
             history_type: "test".to_string(),
             object_id: *cob.id(),
@@ -158,11 +153,11 @@ fn traverse_cobs() {
     let proj = test::Project::new(&storage, "discworld", *terry_signer.public_key()).unwrap();
     let terry_proj = test::RemoteProject {
         project: proj.clone(),
-        person: terry.clone(),
+        person: terry,
     };
     let neil_proj = test::RemoteProject {
         project: proj,
-        person: neil.clone(),
+        person: neil,
     };
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
     let cob = create(
@@ -171,7 +166,6 @@ fn traverse_cobs() {
         &terry_proj,
         &terry_proj.identifier(),
         Create {
-            author: Some(terry),
             contents: b"issue 1".to_vec(),
             history_type: "test".to_string(),
             typename: typename.clone(),
@@ -194,7 +188,6 @@ fn traverse_cobs() {
         &neil_proj,
         &neil_proj.identifier(),
         Update {
-            author: Some(neil),
             changes: b"issue 2".to_vec(),
             history_type: "test".to_string(),
             object_id: *cob.id(),
@@ -206,16 +199,8 @@ fn traverse_cobs() {
 
     // traverse over the history and filter by changes that were only authorized by terry
     let contents = updated.history().traverse(Vec::new(), |mut acc, entry| {
-        let author = match entry.author() {
-            Some(author) => test::Person::find_by_oid(storage.as_raw(), *author).unwrap(),
-            None => None,
-        };
-        let project = test::Project::find_by_oid(storage.as_raw(), entry.resource()).unwrap();
-
-        if let (Some(author), Some(project)) = (author, project) {
-            if project.delegate_check(&author) {
-                acc.push(entry.contents().to_vec())
-            }
+        if entry.actor() == terry_signer.public_key() {
+            acc.push(entry.contents().to_vec());
         }
         ControlFlow::Continue(acc)
     });

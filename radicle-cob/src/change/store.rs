@@ -14,21 +14,16 @@ pub trait Storage {
     type LoadError: Error + Send + Sync + 'static;
 
     type ObjectId;
-    type Author;
     type Resource;
     type Signatures;
 
     #[allow(clippy::type_complexity)]
     fn create<Signer>(
         &self,
-        author: Option<Self::Author>,
         authority: Self::Resource,
         signer: &Signer,
         spec: Create<Self::ObjectId>,
-    ) -> Result<
-        Change<Self::Author, Self::Resource, Self::ObjectId, Self::Signatures>,
-        Self::CreateError,
-    >
+    ) -> Result<Change<Self::Resource, Self::ObjectId, Self::Signatures>, Self::CreateError>
     where
         Signer: crypto::Signer;
 
@@ -36,10 +31,7 @@ pub trait Storage {
     fn load(
         &self,
         id: Self::ObjectId,
-    ) -> Result<
-        Change<Self::Author, Self::Resource, Self::ObjectId, Self::Signatures>,
-        Self::LoadError,
-    >;
+    ) -> Result<Change<Self::Resource, Self::ObjectId, Self::Signatures>, Self::LoadError>;
 }
 
 pub struct Create<Id> {
@@ -51,7 +43,7 @@ pub struct Create<Id> {
 }
 
 #[derive(Clone, Debug)]
-pub struct Change<Author, Resource, Id, Signature> {
+pub struct Change<Resource, Id, Signature> {
     /// The content address of the `Change` itself.
     pub id: Id,
     /// The content address of the tree of the `Change`.
@@ -59,9 +51,6 @@ pub struct Change<Author, Resource, Id, Signature> {
     /// The cryptographic signature(s) and their public keys of the
     /// authors.
     pub signature: Signature,
-    /// The author of this change. The `Author` is expected to be a
-    /// content address to look up the identity of the author.
-    pub author: Option<Author>,
     /// The parent resource that this change lives under. For example,
     /// this change could be for a patch of a project.
     pub resource: Resource,
@@ -72,7 +61,7 @@ pub struct Change<Author, Resource, Id, Signature> {
     pub contents: Contents,
 }
 
-impl<Author, Resource, Id, S> fmt::Display for Change<Author, Resource, Id, S>
+impl<Resource, Id, S> fmt::Display for Change<Resource, Id, S>
 where
     Id: fmt::Display,
 {
@@ -81,13 +70,9 @@ where
     }
 }
 
-impl<Author, Resource, Id, Signatures> Change<Author, Resource, Id, Signatures> {
+impl<Resource, Id, Signatures> Change<Resource, Id, Signatures> {
     pub fn id(&self) -> &Id {
         &self.id
-    }
-
-    pub fn author(&self) -> &Option<Author> {
-        &self.author
     }
 
     pub fn typename(&self) -> &TypeName {
@@ -103,7 +88,7 @@ impl<Author, Resource, Id, Signatures> Change<Author, Resource, Id, Signatures> 
     }
 }
 
-impl<A, R, Id> Change<A, R, Id, signatures::Signatures>
+impl<R, Id> Change<R, Id, signatures::Signatures>
 where
     Id: AsRef<[u8]>,
 {
@@ -114,7 +99,7 @@ where
     }
 }
 
-impl<A, R, Id> Change<A, R, Id, signatures::Signature>
+impl<R, Id> Change<R, Id, signatures::Signature>
 where
     Id: AsRef<[u8]>,
 {
