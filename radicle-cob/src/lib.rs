@@ -92,7 +92,7 @@ pub use change::Change;
 pub mod identity;
 
 pub mod history;
-pub use history::{Contents, Entry, History, HistoryType};
+pub use history::{Contents, Entry, History};
 
 mod pruning_fold;
 

@@ -102,9 +102,9 @@ impl ChangeGraph {
         // This is okay because we check that the graph has a root node in
         // GraphBuilder::build
         let root = roots.first().unwrap();
-        let typename = {
+        let manifest = {
             let first_node = &self.graph[*root];
-            first_node.typename().clone()
+            first_node.manifest.clone()
         };
         let topo = Topo::new(&self.graph);
         let items = topo.iter(&self.graph).map(|idx| {
@@ -121,7 +121,7 @@ impl ChangeGraph {
             evaluate(*root_change.id(), &self.graph, items)
         };
         CollaborativeObject {
-            typename,
+            manifest,
             history,
             id: self.object_id,
         }

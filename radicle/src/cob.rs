@@ -6,7 +6,7 @@ pub mod thread;
 
 pub use cob::{
     identity, object::collaboration::error, CollaborativeObject, Contents, Create, Entry, History,
-    HistoryType, ObjectId, TypeName, Update,
+    ObjectId, TypeName, Update,
 };
 pub use common::*;
 

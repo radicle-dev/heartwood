@@ -17,16 +17,6 @@ use crate::pruning_fold;
 pub mod entry;
 pub use entry::{Clock, Contents, Entry, EntryId, EntryWithClock};
 
-#[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
-)]
-#[serde(rename_all = "lowercase")]
-pub enum HistoryType {
-    #[default]
-    Radicle,
-    Automerge,
-}
-
 /// The DAG of changes making up the history of a collaborative object.
 #[derive(Clone, Debug)]
 pub struct History {

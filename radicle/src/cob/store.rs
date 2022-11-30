@@ -8,12 +8,15 @@ use serde::Serialize;
 use crate::cob;
 use crate::cob::common::Author;
 use crate::cob::CollaborativeObject;
-use crate::cob::{Create, History, HistoryType, ObjectId, TypeName, Update};
+use crate::cob::{Create, History, ObjectId, TypeName, Update};
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::project;
 use crate::prelude::*;
 use crate::storage::git as storage;
+
+/// History type for standard radicle COBs.
+pub const HISTORY_TYPE: &str = "radicle";
 
 /// A type that can be materialized from an event history.
 /// All collaborative objects implement this trait.
@@ -102,7 +105,7 @@ where
             Update {
                 author: Some(cob::Author::from(*signer.public_key())),
                 object_id,
-                history_type: HistoryType::default(),
+                history_type: HISTORY_TYPE.to_owned(),
                 typename: T::type_name().clone(),
                 message: message.to_owned(),
                 changes,
@@ -125,7 +128,7 @@ where
             &self.project,
             Create {
                 author: Some(cob::Author::from(*signer.public_key())),
-                history_type: HistoryType::default(),
+                history_type: HISTORY_TYPE.to_owned(),
                 typename: T::type_name().clone(),
                 message: message.to_owned(),
                 contents,
@@ -141,6 +144,9 @@ where
         let cob = cob::get(self.raw, T::type_name(), id)?;
 
         if let Some(cob) = cob {
+            if cob.manifest().history_type != HISTORY_TYPE {
+                panic!();
+            }
             let (obj, clock) = T::from_history(cob.history())?;
             Ok(Some((obj, clock)))
         } else {

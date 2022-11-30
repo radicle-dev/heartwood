@@ -6,8 +6,7 @@ use quickcheck::Arbitrary;
 use radicle_crypto::Signer;
 
 use crate::{
-    create, get, list, object, test::arbitrary::Invalid, update, Create, HistoryType, ObjectId,
-    TypeName, Update,
+    create, get, list, object, test::arbitrary::Invalid, update, Create, ObjectId, TypeName, Update,
 };
 
 use super::test;
@@ -30,7 +29,7 @@ fn roundtrip() {
         &proj.identifier(),
         Create {
             author: Some(terry),
-            history_type: HistoryType::Automerge,
+            history_type: "test".to_string(),
             contents: Vec::new(),
             typename: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
@@ -63,7 +62,7 @@ fn list_cobs() {
         &proj.identifier(),
         Create {
             author: Some(terry.clone()),
-            history_type: HistoryType::Automerge,
+            history_type: "test".to_string(),
             contents: b"issue 1".to_vec(),
             typename: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
@@ -78,7 +77,7 @@ fn list_cobs() {
         &proj.identifier(),
         Create {
             author: Some(terry),
-            history_type: HistoryType::Automerge,
+            history_type: "test".to_string(),
             contents: b"issue 2".to_vec(),
             typename: typename.clone(),
             message: "commenting xyz.rad.issue".to_string(),
@@ -113,7 +112,7 @@ fn update_cob() {
         &proj.identifier(),
         Create {
             author: Some(terry.clone()),
-            history_type: HistoryType::Automerge,
+            history_type: "test".to_string(),
             contents: Vec::new(),
             typename: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
@@ -133,7 +132,7 @@ fn update_cob() {
         Update {
             author: Some(terry),
             changes: b"issue 1".to_vec(),
-            history_type: HistoryType::Automerge,
+            history_type: "test".to_string(),
             object_id: *cob.id(),
             typename: typename.clone(),
             message: "commenting xyz.rad.issue".to_string(),
@@ -174,7 +173,7 @@ fn traverse_cobs() {
         Create {
             author: Some(terry),
             contents: b"issue 1".to_vec(),
-            history_type: HistoryType::Automerge,
+            history_type: "test".to_string(),
             typename: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
         },
@@ -197,7 +196,7 @@ fn traverse_cobs() {
         Update {
             author: Some(neil),
             changes: b"issue 2".to_vec(),
-            history_type: HistoryType::Automerge,
+            history_type: "test".to_string(),
             object_id: *cob.id(),
             typename,
             message: "commenting on xyz.rad.issue".to_string(),

@@ -4,8 +4,8 @@
 // Linking Exception. For full terms see the included LICENSE file.
 
 use crate::{
-    change, change_graph::ChangeGraph, identity::Identity, CollaborativeObject, Contents,
-    HistoryType, ObjectId, Store, TypeName,
+    change, change_graph::ChangeGraph, identity::Identity, CollaborativeObject, Contents, ObjectId,
+    Store, TypeName,
 };
 
 use super::error;
@@ -15,7 +15,7 @@ pub struct Update<Author> {
     /// The identity of the author for the update of this object.
     pub author: Option<Author>,
     /// The type of history that will be used for this object.
-    pub history_type: HistoryType,
+    pub history_type: String,
     /// The CRDT changes to add to the object.
     pub changes: Contents,
     /// The object ID of the object to be updated.

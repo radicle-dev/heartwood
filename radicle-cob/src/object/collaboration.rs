@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 
 use git_ext::Oid;
 
+use crate::change::store::Manifest;
 use crate::{change, identity::Identity, Contents, History, ObjectId, TypeName};
 
 pub mod error;
@@ -28,8 +29,8 @@ pub use update::{update, Update};
 /// A collaborative object
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CollaborativeObject {
-    /// The typename of this object
-    pub(crate) typename: TypeName,
+    /// The manifest of this object
+    pub(crate) manifest: Manifest,
     /// The CRDT history we know about for this object
     pub(crate) history: History,
     /// The id of the object
@@ -46,7 +47,11 @@ impl CollaborativeObject {
     }
 
     pub fn typename(&self) -> &TypeName {
-        &self.typename
+        &self.manifest.typename
+    }
+
+    pub fn manifest(&self) -> &Manifest {
+        &self.manifest
     }
 
     fn tips(&self) -> BTreeSet<Oid> {

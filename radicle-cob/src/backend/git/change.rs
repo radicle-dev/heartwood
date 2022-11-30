@@ -13,7 +13,7 @@ use crate::{
     change::{self, store, Change},
     history::entry,
     signatures::{Signature, Signatures},
-    trailers, HistoryType,
+    trailers,
 };
 
 const MANIFEST_BLOB_NAME: &str = "manifest";
@@ -154,7 +154,7 @@ impl change::Storage for git2::Repository {
 
         let tree = self.find_tree(commit.tree())?;
         let manifest = load_manifest(self, &tree)?;
-        let contents = load_contents(self, &tree, &manifest)?;
+        let contents = load_contents(self, &tree)?;
 
         Ok(Change {
             id,
@@ -210,20 +210,15 @@ fn load_manifest(
 fn load_contents(
     repo: &git2::Repository,
     tree: &git2::Tree,
-    manifest: &store::Manifest,
 ) -> Result<entry::Contents, error::Load> {
-    Ok(match manifest.history_type {
-        HistoryType::Radicle | HistoryType::Automerge => {
-            let contents_tree_entry = tree
-                .get_name(CHANGE_BLOB_NAME)
-                .ok_or_else(|| error::Load::NoChange(tree.id().into()))?;
-            let contents_object = contents_tree_entry.to_object(repo)?;
-            let contents_blob = contents_object
-                .as_blob()
-                .ok_or_else(|| error::Load::ChangeNotBlob(tree.id().into()))?;
-            contents_blob.content().to_owned()
-        }
-    })
+    let contents_tree_entry = tree
+        .get_name(CHANGE_BLOB_NAME)
+        .ok_or_else(|| error::Load::NoChange(tree.id().into()))?;
+    let contents_object = contents_tree_entry.to_object(repo)?;
+    let contents_blob = contents_object
+        .as_blob()
+        .ok_or_else(|| error::Load::ChangeNotBlob(tree.id().into()))?;
+    Ok(contents_blob.content().to_owned())
 }
 
 fn write_commit<O>(

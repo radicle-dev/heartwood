@@ -7,10 +7,7 @@ use std::{error::Error, fmt};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    history::{Contents, HistoryType},
-    signatures, TypeName,
-};
+use crate::{history::Contents, signatures, TypeName};
 
 pub trait Storage {
     type CreateError: Error + Send + Sync + 'static;
@@ -47,7 +44,7 @@ pub trait Storage {
 
 pub struct Create<Id> {
     pub typename: TypeName,
-    pub history_type: HistoryType,
+    pub history_type: String,
     pub tips: Vec<Id>,
     pub message: String,
     pub contents: Contents,
@@ -126,10 +123,10 @@ where
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Manifest {
     /// The name given to the type of collaborative object.
     pub typename: TypeName,
     /// The type of history for the collaborative oject.
-    pub history_type: HistoryType,
+    pub history_type: String,
 }
