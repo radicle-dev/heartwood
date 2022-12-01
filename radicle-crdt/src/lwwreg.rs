@@ -66,7 +66,7 @@ impl<T: Default, C: Default + Bounded> Default for LWWReg<T, C> {
 
 impl<T, C> Semilattice for LWWReg<T, C>
 where
-    T: PartialOrd + Semilattice,
+    T: Semilattice,
     C: PartialOrd,
 {
     fn merge(&mut self, other: Self) {

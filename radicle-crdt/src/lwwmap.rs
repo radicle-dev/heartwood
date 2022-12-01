@@ -1,6 +1,4 @@
-use std::collections::btree_map::Entry;
-use std::collections::BTreeMap;
-
+use crate::gmap::GMap;
 use crate::lwwreg::LWWReg;
 use crate::{clock, Semilattice};
 
@@ -10,13 +8,13 @@ use crate::{clock, Semilattice};
 /// the "add" takes precedence over the "remove".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LWWMap<K, V, C = clock::Lamport> {
-    inner: BTreeMap<K, LWWReg<Option<V>, C>>,
+    inner: GMap<K, LWWReg<Option<V>, C>>,
 }
 
 impl<K: Ord, V: Semilattice, C: PartialOrd + Ord> LWWMap<K, V, C> {
     pub fn singleton(key: K, value: V, clock: C) -> Self {
         Self {
-            inner: BTreeMap::from_iter([(key, LWWReg::new(Some(value), clock))]),
+            inner: GMap::singleton(key, LWWReg::new(Some(value), clock)),
         }
     }
 
@@ -29,25 +27,11 @@ impl<K: Ord, V: Semilattice, C: PartialOrd + Ord> LWWMap<K, V, C> {
     }
 
     pub fn insert(&mut self, key: K, value: V, clock: C) {
-        match self.inner.entry(key) {
-            Entry::Occupied(mut e) => {
-                e.get_mut().set(Some(value), clock);
-            }
-            Entry::Vacant(e) => {
-                e.insert(LWWReg::new(Some(value), clock));
-            }
-        }
+        self.inner.insert(key, LWWReg::new(Some(value), clock));
     }
 
     pub fn remove(&mut self, key: K, clock: C) {
-        match self.inner.entry(key) {
-            Entry::Occupied(mut e) => {
-                e.get_mut().set(None, clock);
-            }
-            Entry::Vacant(e) => {
-                e.insert(LWWReg::new(None, clock));
-            }
-        }
+        self.inner.insert(key, LWWReg::new(None, clock));
     }
 
     pub fn contains_key(&self, key: &K) -> bool {
@@ -76,12 +60,12 @@ impl<K: Ord, V: Semilattice, C: PartialOrd + Ord> LWWMap<K, V, C> {
 impl<K, V, C> Default for LWWMap<K, V, C> {
     fn default() -> Self {
         Self {
-            inner: BTreeMap::default(),
+            inner: GMap::default(),
         }
     }
 }
 
-impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Ord> FromIterator<(K, V, C)> for LWWMap<K, V, C> {
+impl<K: Ord, V: Semilattice, C: Ord> FromIterator<(K, V, C)> for LWWMap<K, V, C> {
     fn from_iter<I: IntoIterator<Item = (K, V, C)>>(iter: I) -> Self {
         let mut map = LWWMap::default();
         for (k, v, c) in iter.into_iter() {
@@ -91,7 +75,7 @@ impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Ord> FromIterator<(K, V, C)> f
     }
 }
 
-impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Ord> Extend<(K, V, C)> for LWWMap<K, V, C> {
+impl<K: Ord, V: Semilattice, C: Ord> Extend<(K, V, C)> for LWWMap<K, V, C> {
     fn extend<I: IntoIterator<Item = (K, V, C)>>(&mut self, iter: I) {
         for (k, v, c) in iter.into_iter() {
             self.insert(k, v, c);
@@ -102,20 +86,11 @@ impl<K: Ord, V: Semilattice + PartialOrd + Eq, C: Ord> Extend<(K, V, C)> for LWW
 impl<K, V, C> Semilattice for LWWMap<K, V, C>
 where
     K: Ord,
-    V: Semilattice + PartialOrd + Eq,
-    C: Ord + Default,
+    V: Semilattice,
+    C: Ord,
 {
     fn merge(&mut self, other: Self) {
-        for (k, v) in other.inner.into_iter() {
-            match self.inner.entry(k) {
-                Entry::Occupied(mut e) => {
-                    e.get_mut().merge(v);
-                }
-                Entry::Vacant(e) => {
-                    e.insert(v);
-                }
-            }
-        }
+        self.inner.merge(other.inner);
     }
 }
 
