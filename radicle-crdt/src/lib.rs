@@ -4,6 +4,7 @@
 #![allow(clippy::type_complexity)]
 pub mod change;
 pub mod clock;
+pub mod gmap;
 pub mod lwwmap;
 pub mod lwwreg;
 pub mod lwwset;
@@ -17,6 +18,7 @@ pub mod test;
 
 pub use change::*;
 pub use clock::Lamport;
+pub use gmap::GMap;
 pub use lwwmap::LWWMap;
 pub use lwwreg::LWWReg;
 pub use lwwset::LWWSet;
