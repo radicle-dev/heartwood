@@ -1,10 +1,9 @@
 use std::collections::BTreeMap;
 
+use radicle_crdt::clock;
+use radicle_crdt::clock::Lamport;
 use radicle_crypto::{PublicKey, Signer};
 use serde::{Deserialize, Serialize};
-
-use crate::clock;
-use crate::clock::Lamport;
 
 /// Identifies a change.
 pub type ChangeId = (Lamport, ActorId);
@@ -30,19 +29,6 @@ impl<A> Change<A> {
     /// Get the change id.
     pub fn id(&self) -> ChangeId {
         (self.clock, self.author)
-    }
-}
-
-impl<A: Serialize> Change<A> {
-    /// Serialize the change into a byte string.
-    pub fn encode(&self) -> Vec<u8> {
-        let mut buf = Vec::new();
-        let mut serializer =
-            serde_json::Serializer::with_formatter(&mut buf, olpc_cjson::CanonicalFormatter::new());
-
-        self.serialize(&mut serializer).unwrap();
-
-        buf
     }
 }
 

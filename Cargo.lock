@@ -2249,12 +2249,10 @@ version = "0.1.0"
 dependencies = [
  "fastrand",
  "num-traits",
- "olpc-cjson",
  "quickcheck",
  "quickcheck_macros",
  "radicle-crypto",
  "serde",
- "serde_json",
  "tempfile",
 ]
 

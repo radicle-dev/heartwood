@@ -2,20 +2,21 @@ use std::ops::{ControlFlow, Deref};
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
-use radicle_crdt as crdt;
 use radicle_crdt::clock;
-use radicle_crdt::{ChangeId, LWWReg, LWWSet, Max, Semilattice};
+use radicle_crdt::{LWWReg, LWWSet, Max, Semilattice};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::cob;
 use crate::cob::common::{Author, Reaction, Tag};
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
-use crate::cob::{store, ObjectId, TypeName};
+use crate::cob::{store, ChangeId, ObjectId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::storage::git as storage;
 
-pub type Change = crdt::Change<Action>;
+/// Issue change.
+pub type Change = crate::cob::Change<Action>;
 
 /// Type name of an issue.
 pub static TYPENAME: Lazy<TypeName> =
@@ -175,7 +176,7 @@ impl Issue {
                 }
             }
             Action::Thread { action } => {
-                self.thread.apply([crdt::Change {
+                self.thread.apply([cob::Change {
                     action,
                     author: change.author,
                     clock: change.clock,

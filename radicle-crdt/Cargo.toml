@@ -9,10 +9,8 @@ test = ["fastrand", "quickcheck"]
 [dependencies]
 fastrand = { version = "1.8.0", optional = true }
 num-traits = { version = "0.2.15", default-features = false, features = ["std"] }
-olpc-cjson = { version = "0.1.1" }
 quickcheck = { version = "1", optional = true }
 serde = { version = "1" }
-serde_json = { version = "1" }
 
 [dependencies.radicle-crypto]
 path = "../radicle-crypto"

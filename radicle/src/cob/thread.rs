@@ -8,15 +8,16 @@ use once_cell::sync::Lazy;
 use radicle_crdt as crdt;
 use serde::{Deserialize, Serialize};
 
+use crate::cob;
 use crate::cob::common::{Reaction, Timestamp};
 use crate::cob::store;
-use crate::cob::{History, TypeName};
+use crate::cob::{ActorId, Change, ChangeId, History, TypeName};
 use crate::crypto::Signer;
 
 use crdt::clock::Lamport;
 use crdt::lwwset::LWWSet;
 use crdt::redactable::Redactable;
-use crdt::{ActorId, Change, ChangeId, Semilattice};
+use crdt::Semilattice;
 
 /// Type name of a thread.
 pub static TYPENAME: Lazy<TypeName> =
@@ -244,13 +245,13 @@ impl Thread {
 
 /// An object that can be used to create and sign changes.
 pub struct Actor<G> {
-    inner: crdt::Actor<G, Action>,
+    inner: cob::Actor<G, Action>,
 }
 
 impl<G: Default + Signer> Default for Actor<G> {
     fn default() -> Self {
         Self {
-            inner: crdt::Actor::new(G::default()),
+            inner: cob::Actor::new(G::default()),
         }
     }
 }
@@ -258,7 +259,7 @@ impl<G: Default + Signer> Default for Actor<G> {
 impl<G: Signer> Actor<G> {
     pub fn new(signer: G) -> Self {
         Self {
-            inner: crdt::Actor::new(signer),
+            inner: cob::Actor::new(signer),
         }
     }
 
@@ -282,7 +283,7 @@ impl<G: Signer> Actor<G> {
 }
 
 impl<G> Deref for Actor<G> {
-    type Target = crdt::Actor<G, Action>;
+    type Target = cob::Actor<G, Action>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner

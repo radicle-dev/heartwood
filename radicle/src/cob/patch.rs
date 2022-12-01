@@ -6,17 +6,17 @@ use std::ops::Range;
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
-use radicle_crdt as crdt;
 use radicle_crdt::clock;
-use radicle_crdt::{ActorId, ChangeId, GMap, LWWReg, LWWSet, Max, Redactable, Semilattice};
+use radicle_crdt::{GMap, LWWReg, LWWSet, Max, Redactable, Semilattice};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::cob;
 use crate::cob::common::{Author, Tag, Timestamp};
 use crate::cob::thread;
 use crate::cob::thread::CommentId;
 use crate::cob::thread::Thread;
-use crate::cob::{store, ObjectId, TypeName};
+use crate::cob::{store, ActorId, ChangeId, ObjectId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
 use crate::prelude::*;
@@ -30,7 +30,7 @@ pub static TYPENAME: Lazy<TypeName> =
     Lazy::new(|| FromStr::from_str("xyz.radicle.patch").expect("type name is valid"));
 
 /// Patch change.
-pub type Change = crdt::Change<Action>;
+pub type Change = crate::cob::Change<Action>;
 
 /// Identifier for a patch.
 pub type PatchId = ObjectId;
@@ -306,7 +306,7 @@ impl Patch {
                 // TODO(cloudhead): Make sure we can deal with redacted revisions which are added
                 // to out of order, like in the `Merge` case.
                 if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                    revision.discussion.apply([crdt::Change {
+                    revision.discussion.apply([cob::Change {
                         action,
                         author: change.author,
                         clock: change.clock,
@@ -786,13 +786,13 @@ mod test {
     use std::str::FromStr;
     use std::{array, iter};
 
-    use crdt::test::{assert_laws, WeightedGenerator};
-    use crdt::{Actor, ActorId};
+    use radicle_crdt::test::{assert_laws, WeightedGenerator};
 
     use pretty_assertions::assert_eq;
     use quickcheck::{Arbitrary, TestResult};
 
     use super::*;
+    use crate::cob::change::{Actor, ActorId};
     use crate::crypto::test::signer::MockSigner;
     use crate::test;
 

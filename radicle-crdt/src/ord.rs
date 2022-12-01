@@ -68,6 +68,7 @@ impl<T: Bounded> Bounded for Max<T> {
 
 #[allow(clippy::derive_ord_xor_partial_ord)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Min<T>(pub T);
 
 impl<T> Default for Min<T>
