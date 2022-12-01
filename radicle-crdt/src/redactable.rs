@@ -47,10 +47,7 @@ impl<T> From<Redactable<T>> for Option<T> {
 
 impl<'a, T> From<&'a Redactable<T>> for Option<&'a T> {
     fn from(redactable: &'a Redactable<T>) -> Self {
-        match redactable {
-            Redactable::Present(v) => Some(v),
-            Redactable::Redacted => None,
-        }
+        redactable.get()
     }
 }
 
