@@ -1,4 +1,5 @@
 #![allow(clippy::too_many_arguments)]
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::ControlFlow;
@@ -261,10 +262,16 @@ impl Patch {
                 }
             }
             Action::Revision { base, oid } => {
-                self.revisions.insert(
-                    id,
-                    Redactable::Present(Revision::new(author, base, oid, timestamp)),
-                );
+                let revision = Redactable::Present(Revision::new(author, base, oid, timestamp));
+
+                match self.revisions.entry(id) {
+                    Entry::Vacant(e) => {
+                        e.insert(revision);
+                    }
+                    Entry::Occupied(mut e) => {
+                        e.get_mut().merge(revision);
+                    }
+                }
             }
             Action::Redact { revision } => {
                 if let Some(revision) = self.revisions.get_mut(&revision) {
@@ -859,6 +866,14 @@ mod test {
 
                     Some((clock.tick(), Action::Merge { revision, commit }))
                 })
+                .variant(1, |(clock, revisions, _), rng| {
+                    if revisions.is_empty() {
+                        return None;
+                    }
+                    let revision = revisions[rng.usize(..revisions.len())];
+
+                    Some((clock.tick(), Action::Redact { revision }))
+                })
                 .variant(1, |(clock, _, tags), rng| {
                     let add = iter::repeat_with(|| rng.alphabetic())
                         .take(rng.usize(0..=3))
@@ -878,8 +893,9 @@ mod test {
                     let oid = oids[rng.usize(..oids.len())];
                     let base = oids[rng.usize(..oids.len())];
 
-                    revisions.push((clock.tick(), author));
-
+                    if rng.bool() {
+                        revisions.push((clock.tick(), author));
+                    }
                     Some((*clock, Action::Revision { base, oid }))
                 });
 
@@ -1084,6 +1100,23 @@ mod test {
 
         patch.apply([a3]).unwrap_err();
         patch.apply([a4]).unwrap_err();
+    }
+
+    #[test]
+    fn test_revision_redacted_reinsert() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let mut alice = Actor::<_, Action>::new(MockSigner::default());
+        let mut p1 = Patch::default();
+        let mut p2 = Patch::default();
+
+        let a1 = alice.change(Action::Revision { base, oid });
+        let a2 = alice.change(Action::Redact { revision: a1.id() });
+
+        p1.apply([a1.clone(), a2.clone(), a1.clone()]).unwrap();
+        p2.apply([a1.clone(), a1, a2]).unwrap();
+
+        assert_eq!(p1, p2);
     }
 
     #[test]
