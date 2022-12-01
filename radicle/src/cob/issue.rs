@@ -4,7 +4,7 @@ use std::str::FromStr;
 use once_cell::sync::Lazy;
 use radicle_crdt as crdt;
 use radicle_crdt::clock;
-use radicle_crdt::{ChangeId, LWWReg, Max, Semilattice};
+use radicle_crdt::{ChangeId, LWWReg, LWWSet, Max, Semilattice};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -76,6 +76,7 @@ pub struct Issue {
     // TODO(cloudhead): Title should bias towards shorter strings.
     title: LWWReg<Max<String>, clock::Lamport>,
     status: LWWReg<Max<Status>, clock::Lamport>,
+    tags: LWWSet<Tag>,
     thread: Thread,
 }
 
@@ -92,6 +93,7 @@ impl Default for Issue {
         Self {
             title: Max::from(String::default()).into(),
             status: Max::from(Status::default()).into(),
+            tags: LWWSet::default(),
             thread: Thread::default(),
         }
     }
@@ -138,7 +140,7 @@ impl Issue {
     }
 
     pub fn tags(&self) -> impl Iterator<Item = &Tag> {
-        self.thread.tags()
+        self.tags.iter()
     }
 
     pub fn author(&self) -> Option<Author> {
@@ -163,6 +165,14 @@ impl Issue {
             }
             Action::Lifecycle { status } => {
                 self.status.set(status, change.clock);
+            }
+            Action::Tag { add, remove } => {
+                for tag in add {
+                    self.tags.insert(tag, change.clock);
+                }
+                for tag in remove {
+                    self.tags.remove(tag, change.clock);
+                }
             }
             Action::Thread { action } => {
                 self.thread.apply([crdt::Change {
@@ -221,13 +231,14 @@ impl<'a, 'g> IssueMut<'a, 'g> {
     /// Tag an issue.
     pub fn tag<G: Signer>(
         &mut self,
-        tags: impl IntoIterator<Item = Tag>,
+        add: impl IntoIterator<Item = Tag>,
+        remove: impl IntoIterator<Item = Tag>,
         signer: &G,
     ) -> Result<ChangeId, Error> {
-        let tags = tags.into_iter().collect::<Vec<_>>();
-        let action = Action::Thread {
-            action: thread::Action::Tag { tags },
-        };
+        let add = add.into_iter().collect::<Vec<_>>();
+        let remove = remove.into_iter().collect::<Vec<_>>();
+        let action = Action::Tag { add, remove };
+
         self.apply("Tag", action, signer)
     }
 
@@ -362,7 +373,7 @@ impl<'a> Issues<'a> {
         };
 
         issue.comment(description, signer)?;
-        issue.tag(tags.to_owned(), signer)?;
+        issue.tag(tags.to_owned(), [], signer)?;
 
         Ok(issue)
     }
@@ -378,6 +389,7 @@ impl<'a> Issues<'a> {
 pub enum Action {
     Title { title: String },
     Lifecycle { status: Status },
+    Tag { add: Vec<Tag>, remove: Vec<Tag> },
     Thread { action: thread::Action },
 }
 
@@ -519,8 +531,8 @@ mod test {
         let bug_tag = Tag::new("bug").unwrap();
         let wontfix_tag = Tag::new("wontfix").unwrap();
 
-        issue.tag([bug_tag.clone()], &signer).unwrap();
-        issue.tag([wontfix_tag.clone()], &signer).unwrap();
+        issue.tag([bug_tag.clone()], [], &signer).unwrap();
+        issue.tag([wontfix_tag.clone()], [], &signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();

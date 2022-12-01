@@ -823,7 +823,7 @@ mod test {
 
     impl<const N: usize> Arbitrary for Changes<N> {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            type State = (clock::Lamport, Vec<ChangeId>);
+            type State = (clock::Lamport, Vec<ChangeId>, Vec<Tag>);
 
             let author = ActorId::from([0; 32]);
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
@@ -840,7 +840,7 @@ mod test {
             .collect::<Vec<_>>();
 
             let gen = WeightedGenerator::<(clock::Lamport, Action), State>::new(rng.clone())
-                .variant(1, |(clock, _), rng| {
+                .variant(1, |(clock, _, _), rng| {
                     Some((
                         clock.tick(),
                         Action::Edit {
@@ -850,7 +850,7 @@ mod test {
                         },
                     ))
                 })
-                .variant(1, |(clock, revisions), rng| {
+                .variant(1, |(clock, revisions, _), rng| {
                     if revisions.is_empty() {
                         return None;
                     }
@@ -859,7 +859,22 @@ mod test {
 
                     Some((clock.tick(), Action::Merge { revision, commit }))
                 })
-                .variant(1, |(clock, revisions), rng| {
+                .variant(1, |(clock, _, tags), rng| {
+                    let add = iter::repeat_with(|| rng.alphabetic())
+                        .take(rng.usize(0..=3))
+                        .map(|c| Tag::new(c).unwrap())
+                        .collect::<Vec<_>>();
+                    let remove = tags
+                        .iter()
+                        .take(rng.usize(0..=tags.len()))
+                        .cloned()
+                        .collect();
+                    for tag in &add {
+                        tags.push(tag.clone());
+                    }
+                    Some((clock.tick(), Action::Tag { add, remove }))
+                })
+                .variant(1, |(clock, revisions, _), rng| {
                     let oid = oids[rng.usize(..oids.len())];
                     let base = oids[rng.usize(..oids.len())];
 

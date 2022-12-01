@@ -8,13 +8,12 @@ use once_cell::sync::Lazy;
 use radicle_crdt as crdt;
 use serde::{Deserialize, Serialize};
 
-use crate::cob::common::{Reaction, Tag, Timestamp};
+use crate::cob::common::{Reaction, Timestamp};
 use crate::cob::store;
 use crate::cob::{History, TypeName};
 use crate::crypto::Signer;
 
 use crdt::clock::Lamport;
-use crdt::lwwreg::LWWReg;
 use crdt::lwwset::LWWSet;
 use crdt::redactable::Redactable;
 use crdt::{ActorId, Change, ChangeId, Semilattice};
@@ -70,10 +69,6 @@ pub enum Action {
     },
     /// Redact a change. Not all changes can be redacted.
     Redact { id: ChangeId },
-    /// Add tags to the thread.
-    Tag { tags: Vec<Tag> },
-    /// Remove tags from the thread.
-    Untag { tags: Vec<Tag> },
     /// React to a change.
     React {
         to: ChangeId,
@@ -94,8 +89,6 @@ impl Action {
 pub struct Thread {
     /// The comments under the thread.
     comments: BTreeMap<CommentId, Redactable<Comment>>,
-    /// Associated tags.
-    tags: BTreeMap<Tag, LWWReg<bool, Lamport>>,
     /// Reactions to changes.
     reactions: BTreeMap<CommentId, LWWSet<(ActorId, Reaction), Lamport>>,
 }
@@ -128,7 +121,6 @@ impl store::FromHistory for Thread {
 impl Semilattice for Thread {
     fn merge(&mut self, other: Self) {
         self.comments.merge(other.comments);
-        self.tags.merge(other.tags);
         self.reactions.merge(other.reactions);
     }
 }
@@ -211,22 +203,6 @@ impl Thread {
                         .and_modify(|e| e.merge(Redactable::Redacted))
                         .or_insert(Redactable::Redacted);
                 }
-                Action::Tag { tags } => {
-                    for tag in tags {
-                        self.tags
-                            .entry(tag)
-                            .and_modify(|r| r.set(true, change.clock))
-                            .or_insert_with(|| LWWReg::new(true, change.clock));
-                    }
-                }
-                Action::Untag { tags } => {
-                    for tag in tags {
-                        self.tags
-                            .entry(tag)
-                            .and_modify(|r| r.set(false, change.clock))
-                            .or_insert_with(|| LWWReg::new(false, change.clock));
-                    }
-                }
                 Action::React {
                     to,
                     reaction,
@@ -264,12 +240,6 @@ impl Thread {
             }
         })
     }
-
-    pub fn tags(&self) -> impl Iterator<Item = &Tag> + '_ {
-        self.tags
-            .iter()
-            .filter_map(|(tag, r)| if *r.get() { Some(tag) } else { None })
-    }
 }
 
 /// An object that can be used to create and sign changes.
@@ -303,16 +273,6 @@ impl<G: Signer> Actor<G> {
             body: String::from(body),
             reply_to,
         })
-    }
-
-    /// Add a tag.
-    pub fn tag(&mut self, tag: Tag) -> Change<Action> {
-        self.change(Action::Tag { tags: vec![tag] })
-    }
-
-    /// Remove a tag.
-    pub fn untag(&mut self, tag: Tag) -> Change<Action> {
-        self.change(Action::Untag { tags: vec![tag] })
     }
 
     /// Create a new redaction.
@@ -371,67 +331,41 @@ mod tests {
             let author = ActorId::from([0; 32]);
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
             let gen =
-                WeightedGenerator::<(Lamport, Action), (Lamport, Vec<Tag>, Vec<ChangeId>)>::new(
-                    rng.clone(),
-                )
-                .variant(3, |(clock, _, changes), rng| {
-                    changes.push((clock.tick(), author));
+                WeightedGenerator::<(Lamport, Action), (Lamport, Vec<ChangeId>)>::new(rng.clone())
+                    .variant(3, |(clock, changes), rng| {
+                        changes.push((clock.tick(), author));
 
-                    Some((
-                        *clock,
-                        Action::Comment {
-                            body: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
-                            reply_to: None,
-                        },
-                    ))
-                })
-                .variant(2, |(clock, _, changes), rng| {
-                    if changes.is_empty() {
-                        return None;
-                    }
-                    let to = changes[rng.usize(..changes.len())];
+                        Some((
+                            *clock,
+                            Action::Comment {
+                                body: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
+                                reply_to: None,
+                            },
+                        ))
+                    })
+                    .variant(2, |(clock, changes), rng| {
+                        if changes.is_empty() {
+                            return None;
+                        }
+                        let to = changes[rng.usize(..changes.len())];
 
-                    Some((
-                        clock.tick(),
-                        Action::React {
-                            to,
-                            reaction: Reaction::new('✨').unwrap(),
-                            active: rng.bool(),
-                        },
-                    ))
-                })
-                .variant(2, |(clock, _, changes), rng| {
-                    if changes.is_empty() {
-                        return None;
-                    }
-                    let id = changes[rng.usize(..changes.len())];
+                        Some((
+                            clock.tick(),
+                            Action::React {
+                                to,
+                                reaction: Reaction::new('✨').unwrap(),
+                                active: rng.bool(),
+                            },
+                        ))
+                    })
+                    .variant(2, |(clock, changes), rng| {
+                        if changes.is_empty() {
+                            return None;
+                        }
+                        let id = changes[rng.usize(..changes.len())];
 
-                    Some((clock.tick(), Action::Redact { id }))
-                })
-                .variant(2, |(clock, tags, _), rng| {
-                    let tag = if tags.is_empty() || rng.bool() {
-                        let tag = iter::repeat_with(|| rng.alphabetic())
-                            .take(8)
-                            .collect::<String>();
-                        let tag = Tag::new(tag).unwrap();
-
-                        tags.push(tag.clone());
-                        tag
-                    } else {
-                        tags[rng.usize(..tags.len())].clone()
-                    };
-
-                    Some((clock.tick(), Action::Tag { tags: vec![tag] }))
-                })
-                .variant(2, |(clock, tags, _), rng| {
-                    if tags.is_empty() {
-                        return None;
-                    }
-                    let tag = tags[rng.usize(..tags.len())].clone();
-                    clock.tick();
-
-                    Some((clock.tick(), Action::Untag { tags: vec![tag] }))
-                });
+                        Some((clock.tick(), Action::Redact { id }))
+                    });
 
             let mut changes = Vec::new();
             let mut permutations: [Vec<Change<Action>>; N] = array::from_fn(|_| Vec::new());
