@@ -51,7 +51,7 @@ impl Args for Options {
         let mut verbose = false;
         let mut force = false;
         let mut all = false;
-        let mut sync = false;
+        let mut sync = None;
         let mut set_upstream = false;
 
         while let Some(arg) = parser.next()? {
@@ -69,10 +69,14 @@ impl Args for Options {
                     set_upstream = true;
                 }
                 Long("sync") => {
-                    sync = true;
+                    // Falls back to `--no-sync` in case of ambiguity.
+                    // eg. `rad push --no-sync --sync`
+                    if sync.is_none() {
+                        sync = Some(true);
+                    }
                 }
                 Long("no-sync") => {
-                    sync = false;
+                    sync = Some(false);
                 }
                 Long("force") | Short('f') => {
                     force = true;
@@ -88,7 +92,7 @@ impl Args for Options {
                 force,
                 all,
                 set_upstream,
-                sync,
+                sync: sync.unwrap_or_default(),
                 verbose,
             },
             vec![],

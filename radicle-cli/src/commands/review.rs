@@ -80,14 +80,16 @@ impl Args for Options {
                     revision = Some(id);
                 }
                 Long("sync") => {
-                    sync = true;
+                    // Skipping due the `no-sync` flag precedence.
                 }
                 Long("no-sync") => {
                     sync = false;
                 }
                 Long("message") | Short('m') => {
-                    let txt: String = parser.value()?.to_string_lossy().into();
-                    message.append(&txt);
+                    if message != Comment::Blank {
+                        let txt: String = parser.value()?.to_string_lossy().into();
+                        message.append(&txt);
+                    }
                 }
                 Long("no-message") => {
                     message = Comment::Blank;

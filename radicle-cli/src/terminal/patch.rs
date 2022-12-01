@@ -3,7 +3,7 @@ use radicle::git;
 use crate::terminal as term;
 
 /// How a comment is to be supplied by the user for a patch or issue on the terminal.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Comment {
     /// Prompt user to write comment in editor.
     Edit,

@@ -98,20 +98,25 @@ impl Args for Options {
 
                 // Options.
                 Long("message") | Short('m') => {
-                    let txt: String = parser.value()?.to_string_lossy().into();
-                    message.append(&txt);
+                    if message != Comment::Blank {
+                        // We skip this code when `no-message` is specified.
+                        let txt: String = parser.value()?.to_string_lossy().into();
+                        message.append(&txt);
+                    }
                 }
                 Long("no-message") => {
                     message = Comment::Blank;
                 }
                 Long("sync") => {
-                    sync = true;
+                    // By default it is already true, so
+                    // the only case where this is false,
+                    // is the case where `no-sync` is specified.
                 }
                 Long("no-sync") => {
                     sync = false;
                 }
                 Long("push") => {
-                    push = true;
+                    // Skip for the same reason as `sync`.
                 }
                 Long("no-push") => {
                     push = false;
