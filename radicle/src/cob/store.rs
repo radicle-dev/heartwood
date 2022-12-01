@@ -38,6 +38,8 @@ pub enum Error {
     Update(#[from] cob::error::Update),
     #[error("retrieve error: {0}")]
     Retrieve(#[from] cob::error::Retrieve),
+    #[error("remove error: {0}")]
+    Remove(#[from] cob::error::Remove),
     #[error(transparent)]
     Identity(#[from] project::IdentityError),
     #[error(transparent)]
@@ -173,8 +175,9 @@ where
         Ok(raw.len())
     }
 
-    pub fn remove(&self, _id: &ObjectId) -> Result<(), Error> {
-        todo!();
+    /// Remove an object.
+    pub fn remove(&self, id: &ObjectId) -> Result<(), Error> {
+        cob::remove(self.raw, &self.whoami, T::type_name(), id).map_err(Error::from)
     }
 }
 

@@ -103,7 +103,9 @@ pub mod type_name;
 pub use type_name::TypeName;
 
 pub mod object;
-pub use object::{create, get, info, list, update, CollaborativeObject, Create, ObjectId, Update};
+pub use object::{
+    create, get, info, list, remove, update, CollaborativeObject, Create, ObjectId, Update,
+};
 
 #[cfg(test)]
 mod test;

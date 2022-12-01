@@ -12,7 +12,7 @@ use thiserror::Error;
 
 pub mod collaboration;
 pub use collaboration::{
-    create, get, info, list, parse_refstr, update, CollaborativeObject, Create, Update,
+    create, get, info, list, parse_refstr, remove, update, CollaborativeObject, Create, Update,
 };
 
 pub mod storage;
