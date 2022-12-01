@@ -13,7 +13,7 @@ use super::error;
 /// [`crate::Change`]s at content-addressable locations. Please see
 /// [`Store`] for further information.
 ///
-/// The `typename` is the type of objects to listed.
+/// The `typename` is the type of objects to be listed.
 pub fn list<S>(
     storage: &S,
     typename: &TypeName,

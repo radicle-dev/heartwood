@@ -102,6 +102,7 @@ where
             self.raw,
             signer,
             &self.project,
+            signer.public_key(),
             Update {
                 object_id,
                 history_type: HISTORY_TYPE.to_owned(),
@@ -125,6 +126,7 @@ where
             self.raw,
             signer,
             &self.project,
+            signer.public_key(),
             Create {
                 history_type: HISTORY_TYPE.to_owned(),
                 typename: T::type_name().clone(),
