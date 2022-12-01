@@ -1,3 +1,4 @@
+use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
 use crate::ord::Max;
@@ -41,5 +42,15 @@ impl From<u64> for Lamport {
         Self {
             counter: Max::from(counter),
         }
+    }
+}
+
+impl Bounded for Lamport {
+    fn min_value() -> Self {
+        Self::from(u64::min_value())
+    }
+
+    fn max_value() -> Self {
+        Self::from(u64::max_value())
     }
 }

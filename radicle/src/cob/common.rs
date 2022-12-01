@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;
@@ -53,6 +54,20 @@ impl std::ops::Add<u64> for Timestamp {
     fn add(self, rhs: u64) -> Self::Output {
         Self {
             seconds: self.seconds + rhs,
+        }
+    }
+}
+
+impl Bounded for Timestamp {
+    fn min_value() -> Self {
+        Self {
+            seconds: u64::min_value(),
+        }
+    }
+
+    fn max_value() -> Self {
+        Self {
+            seconds: u64::max_value(),
         }
     }
 }

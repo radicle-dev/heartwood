@@ -56,6 +56,16 @@ impl<T: PartialOrd> Semilattice for Max<T> {
     }
 }
 
+impl<T: Bounded> Bounded for Max<T> {
+    fn min_value() -> Self {
+        Self::from(T::min_value())
+    }
+
+    fn max_value() -> Self {
+        Self::from(T::max_value())
+    }
+}
+
 #[allow(clippy::derive_ord_xor_partial_ord)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, Serialize, Deserialize)]
 pub struct Min<T>(pub T);

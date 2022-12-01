@@ -64,6 +64,10 @@ impl<K: Ord, V: Semilattice, C: PartialOrd + Ord> LWWMap<K, V, C> {
             .filter_map(|(k, v)| v.get().as_ref().map(|v| (k, v)))
     }
 
+    pub fn len(&self) -> usize {
+        self.iter().count()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.iter().next().is_none()
     }

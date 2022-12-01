@@ -9,7 +9,7 @@ use std::str::FromStr;
 use once_cell::sync::Lazy;
 use radicle_crdt as crdt;
 use radicle_crdt::clock;
-use radicle_crdt::{ActorId, ChangeId, LWWMap, LWWReg, LWWSet, Max, Redactable, Semilattice};
+use radicle_crdt::{ActorId, ChangeId, LWWReg, LWWSet, Max, Redactable, Semilattice};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -271,14 +271,17 @@ impl Patch {
                 ref inline,
             } => {
                 // TODO(cloudhead): Test review on redacted revision.
-                // TODO(cloudhead): Test that updating a review only requires the fields that we
-                // want to update.
                 if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                    revision.reviews.insert(
-                        change.author,
-                        Review::new(verdict, comment.to_owned(), inline.to_owned(), timestamp),
-                        change.clock,
-                    );
+                    revision
+                        .reviews
+                        .entry(change.author)
+                        .or_default()
+                        .merge(Review::new(
+                            verdict,
+                            comment.to_owned(),
+                            inline.to_owned(),
+                            timestamp,
+                        ));
                 } else {
                     return Err(ApplyError::Missing(revision));
                 }
@@ -360,7 +363,7 @@ pub struct Revision {
     /// Merges of this revision into other repositories.
     pub merges: LWWSet<Max<Merge>>,
     /// Reviews of this revision's changes (one per actor).
-    pub reviews: LWWMap<ActorId, Review>,
+    pub reviews: BTreeMap<ActorId, Review>,
     /// When this revision was created.
     pub timestamp: Timestamp,
 }
@@ -373,7 +376,7 @@ impl Revision {
             oid,
             discussion: Thread::default(),
             merges: LWWSet::default(),
-            reviews: LWWMap::default(),
+            reviews: BTreeMap::default(),
             timestamp,
         }
     }
@@ -470,7 +473,7 @@ pub struct CodeComment {
 }
 
 /// A patch review on a revision.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Review {
     /// Review verdict.
     pub verdict: LWWReg<Option<Verdict>>,
@@ -1019,11 +1022,64 @@ mod test {
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();
         let (_, revision) = patch.latest().unwrap();
-        assert_eq!(revision.reviews.iter().count(), 1);
+        assert_eq!(revision.reviews.len(), 1);
 
         let review = revision.reviews.get(signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Accept));
         assert_eq!(review.comment(), Some("LGTM"));
+    }
+
+    #[test]
+    fn test_patch_review_edit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                base,
+                oid,
+                &[],
+                &signer,
+            )
+            .unwrap();
+
+        let (rid, _) = patch.latest().unwrap();
+        let rid = *rid;
+
+        patch
+            .review(
+                rid,
+                Some(Verdict::Accept),
+                Some("LGTM".to_owned()),
+                vec![],
+                &signer,
+            )
+            .unwrap();
+        patch
+            .review(rid, Some(Verdict::Reject), None, vec![], &signer)
+            .unwrap(); // Overwrite the verdict.
+
+        let id = patch.id;
+        let mut patch = patches.get_mut(&id).unwrap();
+        let (_, revision) = patch.latest().unwrap();
+        assert_eq!(revision.reviews.len(), 1, "the reviews were merged");
+
+        let review = revision.reviews.get(signer.public_key()).unwrap();
+        assert_eq!(review.verdict(), Some(Verdict::Reject));
+        assert_eq!(review.comment(), Some("LGTM"));
+
+        patch
+            .review(rid, None, Some("Whoops!".to_owned()), vec![], &signer)
+            .unwrap(); // Overwrite the comment.
+        let (_, revision) = patch.latest().unwrap();
+        let review = revision.reviews.get(signer.public_key()).unwrap();
+        assert_eq!(review.verdict(), Some(Verdict::Reject));
+        assert_eq!(review.comment(), Some("Whoops!"));
     }
 
     #[test]

@@ -2176,6 +2176,7 @@ dependencies = [
  "log",
  "multibase",
  "nonempty 0.8.0",
+ "num-traits",
  "olpc-cjson",
  "once_cell",
  "pretty_assertions",
