@@ -1,11 +1,11 @@
 use std::fmt;
 use std::str::FromStr;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;
+
+pub use radicle_crdt::clock::Physical as Timestamp;
 
 /// Author.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -20,55 +20,6 @@ impl Author {
 
     pub fn id(&self) -> &NodeId {
         &self.id
-    }
-}
-
-#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq, Ord, Eq, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct Timestamp {
-    seconds: u64,
-}
-
-impl Timestamp {
-    pub fn new(seconds: u64) -> Self {
-        Self { seconds }
-    }
-
-    pub fn now() -> Self {
-        #[allow(clippy::unwrap_used)] // Safe because Unix was already invented!
-        let duration = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-
-        Self {
-            seconds: duration.as_secs(),
-        }
-    }
-
-    pub fn as_secs(&self) -> u64 {
-        self.seconds
-    }
-}
-
-impl std::ops::Add<u64> for Timestamp {
-    type Output = Self;
-
-    fn add(self, rhs: u64) -> Self::Output {
-        Self {
-            seconds: self.seconds + rhs,
-        }
-    }
-}
-
-impl Bounded for Timestamp {
-    fn min_value() -> Self {
-        Self {
-            seconds: u64::min_value(),
-        }
-    }
-
-    fn max_value() -> Self {
-        Self {
-            seconds: u64::max_value(),
-        }
     }
 }
 

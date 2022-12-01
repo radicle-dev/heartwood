@@ -89,7 +89,7 @@ impl History {
 
     /// Get the current history timestamp.
     /// This is the latest timestamp of any tip.
-    pub fn timestamp(&self) -> Clock {
+    pub fn timestamp(&self) -> Timestamp {
         self.graph
             .externals(petgraph::Direction::Outgoing)
             .map(|n| self.graph[n].timestamp())

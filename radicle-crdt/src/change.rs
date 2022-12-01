@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use radicle_crypto::{PublicKey, Signature, Signer};
 use serde::{Deserialize, Serialize};
 
+use crate::clock;
 use crate::clock::Lamport;
 
 /// Identifies a change.
@@ -21,6 +22,8 @@ pub struct Change<A> {
     pub author: ActorId,
     /// Lamport clock.
     pub clock: Lamport,
+    /// Timestamp of this change.
+    pub timestamp: clock::Physical,
 }
 
 impl<A> Change<A> {
@@ -101,10 +104,12 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
     pub fn change(&mut self, action: A) -> Change<A> {
         let author = *self.signer.public_key();
         let clock = self.clock;
+        let timestamp = clock::Physical::now();
         let change = Change {
             action,
             author,
             clock,
+            timestamp,
         };
         self.changes.insert((self.clock, author), change.clone());
         self.clock.tick();

@@ -1,3 +1,6 @@
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
+
 use num_traits::Bounded;
 use serde::{Deserialize, Serialize};
 
@@ -52,5 +55,61 @@ impl Bounded for Lamport {
 
     fn max_value() -> Self {
         Self::from(u64::max_value())
+    }
+}
+
+/// Physical clock. Tracks real-time by the second.
+#[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq, Ord, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Physical {
+    seconds: u64,
+}
+
+impl Physical {
+    pub fn new(seconds: u64) -> Self {
+        Self { seconds }
+    }
+
+    pub fn now() -> Self {
+        #[allow(clippy::unwrap_used)] // Safe because Unix was already invented!
+        let duration = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+
+        Self {
+            seconds: duration.as_secs(),
+        }
+    }
+
+    pub fn as_secs(&self) -> u64 {
+        self.seconds
+    }
+}
+
+impl From<u64> for Physical {
+    fn from(seconds: u64) -> Self {
+        Self { seconds }
+    }
+}
+
+impl std::ops::Add<u64> for Physical {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self::Output {
+        Self {
+            seconds: self.seconds + rhs,
+        }
+    }
+}
+
+impl Bounded for Physical {
+    fn min_value() -> Self {
+        Self {
+            seconds: u64::min_value(),
+        }
+    }
+
+    fn max_value() -> Self {
+        Self {
+            seconds: u64::max_value(),
+        }
     }
 }

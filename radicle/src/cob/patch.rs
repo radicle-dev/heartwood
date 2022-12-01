@@ -13,11 +13,10 @@ use radicle_crdt::{ActorId, ChangeId, LWWReg, LWWSet, Max, Redactable, Semilatti
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::cob::common::{Author, Tag};
+use crate::cob::common::{Author, Tag, Timestamp};
 use crate::cob::thread;
 use crate::cob::thread::CommentId;
 use crate::cob::thread::Thread;
-use crate::cob::Timestamp;
 use crate::cob::{store, ObjectId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
@@ -31,6 +30,7 @@ pub use clock::Lamport as Clock;
 pub static TYPENAME: Lazy<TypeName> =
     Lazy::new(|| FromStr::from_str("xyz.radicle.patch").expect("type name is valid"));
 
+/// Patch change.
 pub type Change = crdt::Change<Action>;
 
 /// Identifier for a patch.
@@ -240,8 +240,7 @@ impl Patch {
     pub fn apply_one(&mut self, change: Change) -> Result<(), ApplyError> {
         let id = change.id();
         let author = Author::new(change.author);
-        // FIXME(cloudhead): Use commit timestamp.
-        let timestamp = Timestamp::default();
+        let timestamp = change.timestamp;
 
         match change.action {
             Action::Edit {
@@ -318,6 +317,7 @@ impl Patch {
                         action,
                         author: change.author,
                         clock: change.clock,
+                        timestamp,
                     }]);
                 } else {
                     return Err(ApplyError::Missing(revision));
@@ -344,6 +344,7 @@ impl store::FromHistory for Patch {
                     action,
                     author: *entry.actor(),
                     clock: entry.clock().into(),
+                    timestamp: entry.timestamp().into(),
                 }]) {
                     log::warn!("Error applying change to patch state: {err}");
                     return ControlFlow::Break(acc);
@@ -669,20 +670,21 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         action: Action,
         signer: &G,
     ) -> Result<ChangeId, Error> {
-        let change = Change {
-            author: *signer.public_key(),
-            action: action.clone(),
-            clock: self.clock.tick(),
-        };
-        self.patch.apply([change])?;
-
         let cob = self
             .store
-            .update(self.id, msg, action, signer)
+            .update(self.id, msg, action.clone(), signer)
             .map_err(Error::Store)?;
-        let clock = cob.history().clock();
+        let clock = cob.history().clock().into();
+        let timestamp = cob.history().timestamp().into();
+        let change = Change {
+            action,
+            author: *signer.public_key(),
+            clock,
+            timestamp,
+        };
+        self.patch.apply_one(change)?;
 
-        Ok((clock.into(), *signer.public_key()))
+        Ok((clock, *signer.public_key()))
     }
 }
 
@@ -868,12 +870,14 @@ mod test {
 
             let mut changes = Vec::new();
             let mut permutations: [Vec<Change>; N] = array::from_fn(|_| Vec::new());
+            let timestamp = Timestamp::now() + rng.u64(..60);
 
             for (clock, action) in gen.take(g.size()) {
                 changes.push(Change {
                     action,
                     author,
                     clock,
+                    timestamp,
                 });
             }
 

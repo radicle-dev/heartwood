@@ -4,6 +4,8 @@ pub mod patch;
 pub mod store;
 pub mod thread;
 
+pub use radicle_crdt::clock::Physical as Timestamp;
+
 pub use cob::{
     identity, object::collaboration::error, CollaborativeObject, Contents, Create, Entry, History,
     ObjectId, TypeName, Update,

@@ -113,6 +113,7 @@ impl store::FromHistory for Issue {
                     action,
                     author: *entry.actor(),
                     clock: entry.clock().into(),
+                    timestamp: entry.timestamp().into(),
                 }) {
                     log::warn!("Error applying change to issue state: {err}");
                     return ControlFlow::Break(acc);
@@ -168,6 +169,7 @@ impl Issue {
                     action,
                     author: change.author,
                     clock: change.clock,
+                    timestamp: change.timestamp,
                 }]);
             }
         }
@@ -275,16 +277,17 @@ impl<'a, 'g> IssueMut<'a, 'g> {
             .store
             .update(self.id, msg, action.clone(), signer)
             .map_err(Error::Store)?;
-        let clock = cob.history().clock();
-
+        let clock = cob.history().clock().into();
+        let timestamp = cob.history().timestamp().into();
         let change = Change {
-            author: *signer.public_key(),
             action,
-            clock: clock.into(),
+            author: *signer.public_key(),
+            clock,
+            timestamp,
         };
         self.issue.apply(change)?;
 
-        Ok((clock.into(), *signer.public_key()))
+        Ok((clock, *signer.public_key()))
     }
 }
 

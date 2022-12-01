@@ -2,10 +2,9 @@ use std::{fmt, time};
 
 pub use dialoguer::console::style;
 
-use radicle::cob::Timestamp;
+use radicle::cob::{ObjectId, Timestamp};
 use radicle::node::NodeId;
 use radicle::profile::Profile;
-use radicle_cob::ObjectId;
 
 use crate::terminal as term;
 

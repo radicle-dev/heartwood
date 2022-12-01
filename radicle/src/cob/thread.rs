@@ -8,9 +8,9 @@ use once_cell::sync::Lazy;
 use radicle_crdt as crdt;
 use serde::{Deserialize, Serialize};
 
-use crate::cob::common::{Reaction, Tag};
+use crate::cob::common::{Reaction, Tag, Timestamp};
 use crate::cob::store;
-use crate::cob::{History, Timestamp, TypeName};
+use crate::cob::{History, TypeName};
 use crate::crypto::Signer;
 
 use crdt::clock::Lamport;
@@ -114,6 +114,7 @@ impl store::FromHistory for Thread {
                     action,
                     author: *entry.actor(),
                     clock: entry.clock().into(),
+                    timestamp: entry.timestamp().into(),
                 }]);
                 ControlFlow::Continue(acc)
             } else {
@@ -187,15 +188,13 @@ impl Thread {
     }
 
     pub fn apply(&mut self, changes: impl IntoIterator<Item = Change<Action>>) {
-        // FIXME(cloudhead): Use commit timestamp.
-        let timestamp = Timestamp::default();
-
         for change in changes.into_iter() {
             let id = change.id();
 
             match change.action {
                 Action::Comment { body, reply_to } => {
-                    let present = Redactable::Present(Comment::new(body, reply_to, timestamp));
+                    let present =
+                        Redactable::Present(Comment::new(body, reply_to, change.timestamp));
 
                     match self.comments.entry(id) {
                         Entry::Vacant(e) => {
@@ -436,12 +435,14 @@ mod tests {
 
             let mut changes = Vec::new();
             let mut permutations: [Vec<Change<Action>>; N] = array::from_fn(|_| Vec::new());
+            let timestamp = Timestamp::now() + rng.u64(..60);
 
             for (clock, action) in gen.take(g.size().min(8)) {
                 changes.push(Change {
                     action,
                     author,
                     clock,
+                    timestamp,
                 });
             }
 
