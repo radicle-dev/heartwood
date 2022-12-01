@@ -44,6 +44,8 @@ pub enum Error {
     Identity(#[from] project::IdentityError),
     #[error(transparent)]
     Serialize(#[from] serde_json::Error),
+    #[error("unexpected history type '{0}'")]
+    HistoryType(String),
     #[error("object `{1}` of type `{0}` was not found")]
     NotFound(TypeName, ObjectId),
 }
@@ -147,9 +149,10 @@ where
 
         if let Some(cob) = cob {
             if cob.manifest().history_type != HISTORY_TYPE {
-                panic!();
+                return Err(Error::HistoryType(cob.manifest().history_type.clone()));
             }
             let (obj, clock) = T::from_history(cob.history())?;
+
             Ok(Some((obj, clock)))
         } else {
             Ok(None)
