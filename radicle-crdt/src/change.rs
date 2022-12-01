@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use radicle_crypto::{PublicKey, Signature, Signer};
+use radicle_crypto::{PublicKey, Signer};
 use serde::{Deserialize, Serialize};
 
 use crate::clock;
@@ -51,15 +51,6 @@ impl<'de, A: Deserialize<'de>> Change<A> {
     pub fn decode(bytes: &'de [u8]) -> Result<Self, serde_json::Error> {
         serde_json::from_slice(bytes)
     }
-}
-
-/// Change envelope. Carries signed changes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Envelope {
-    /// Changes included in this envelope, serialized as JSON.
-    pub changes: Vec<u8>,
-    /// Signature over the change, by the change author.
-    pub signature: Signature,
 }
 
 /// An object that can be used to create and sign changes.
@@ -115,24 +106,5 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
         self.clock.tick();
 
         change
-    }
-
-    pub fn sign(&self, changes: impl IntoIterator<Item = Change<A>>) -> Envelope {
-        let changes = changes.into_iter().collect::<Vec<_>>();
-        let json = serde_json::to_value(changes).unwrap();
-
-        let mut buffer = Vec::new();
-        let mut serializer = serde_json::Serializer::with_formatter(
-            &mut buffer,
-            olpc_cjson::CanonicalFormatter::new(),
-        );
-        json.serialize(&mut serializer).unwrap();
-
-        let signature = self.signer.sign(&buffer);
-
-        Envelope {
-            changes: buffer,
-            signature,
-        }
     }
 }
