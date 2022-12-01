@@ -16,27 +16,27 @@ use crate::cob::common::{Author, Tag, Timestamp};
 use crate::cob::thread;
 use crate::cob::thread::CommentId;
 use crate::cob::thread::Thread;
-use crate::cob::{store, ActorId, ChangeId, ObjectId, TypeName};
+use crate::cob::{store, ActorId, ObjectId, OpId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
 use crate::prelude::*;
 use crate::storage::git as storage;
 
-/// The logical clock we use to order changes to patches.
+/// The logical clock we use to order operations to patches.
 pub use clock::Lamport as Clock;
 
 /// Type name of a patch.
 pub static TYPENAME: Lazy<TypeName> =
     Lazy::new(|| FromStr::from_str("xyz.radicle.patch").expect("type name is valid"));
 
-/// Patch change.
-pub type Change = crate::cob::Change<Action>;
+/// Patch operation.
+pub type Op = crate::cob::Op<Action>;
 
 /// Identifier for a patch.
 pub type PatchId = ObjectId;
 
 /// Unique identifier for a patch revision.
-pub type RevisionId = ChangeId;
+pub type RevisionId = OpId;
 
 /// Index of a revision in the revisions list.
 pub type RevisionIx = usize;
@@ -49,10 +49,10 @@ pub enum ApplyError {
     /// This error indicates that the operations are not being applied
     /// in causal order, which is a requirement for this CRDT.
     ///
-    /// For example, this can occur if a change references another change
+    /// For example, this can occur if an operation references anothern operation
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
-    Missing(ChangeId),
+    Missing(OpId),
 }
 
 /// Error updating or creating patches.
@@ -221,36 +221,36 @@ impl Patch {
         matches!(self.status.get().get(), &Status::Archived)
     }
 
-    /// Apply a list of changes to the state.
-    pub fn apply(&mut self, changes: impl IntoIterator<Item = Change>) -> Result<(), ApplyError> {
-        for change in changes {
-            self.apply_one(change)?;
+    /// Apply a list of operations to the state.
+    pub fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), ApplyError> {
+        for op in ops {
+            self.apply_one(op)?;
         }
         Ok(())
     }
 
-    /// Apply a single change to the state.
-    pub fn apply_one(&mut self, change: Change) -> Result<(), ApplyError> {
-        let id = change.id();
-        let author = Author::new(change.author);
-        let timestamp = change.timestamp;
+    /// Apply a single op to the state.
+    pub fn apply_one(&mut self, op: Op) -> Result<(), ApplyError> {
+        let id = op.id();
+        let author = Author::new(op.author);
+        let timestamp = op.timestamp;
 
-        match change.action {
+        match op.action {
             Action::Edit {
                 title,
                 description,
                 target,
             } => {
-                self.title.set(title, change.clock);
-                self.description.set(description, change.clock);
-                self.target.set(target, change.clock);
+                self.title.set(title, op.clock);
+                self.description.set(description, op.clock);
+                self.target.set(target, op.clock);
             }
             Action::Tag { add, remove } => {
                 for tag in add {
-                    self.tags.insert(tag, change.clock);
+                    self.tags.insert(tag, op.clock);
                 }
                 for tag in remove {
-                    self.tags.remove(tag, change.clock);
+                    self.tags.remove(tag, op.clock);
                 }
             }
             Action::Revision { base, oid } => {
@@ -274,7 +274,7 @@ impl Patch {
             } => {
                 if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
                     revision.reviews.insert(
-                        change.author,
+                        op.author,
                         Review::new(verdict, comment.to_owned(), inline.to_owned(), timestamp),
                     );
                 } else {
@@ -285,12 +285,12 @@ impl Patch {
                 if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
                     revision.merges.insert(
                         Merge {
-                            node: change.author,
+                            node: op.author,
                             commit,
                             timestamp,
                         }
                         .into(),
-                        change.clock,
+                        op.clock,
                     );
                 } else {
                     return Err(ApplyError::Missing(revision));
@@ -300,10 +300,10 @@ impl Patch {
                 // TODO(cloudhead): Make sure we can deal with redacted revisions which are added
                 // to out of order, like in the `Merge` case.
                 if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                    revision.discussion.apply([cob::Change {
+                    revision.discussion.apply([cob::Op {
                         action,
-                        author: change.author,
-                        clock: change.clock,
+                        author: op.author,
+                        clock: op.clock,
                         timestamp,
                     }]);
                 } else {
@@ -326,9 +326,9 @@ impl store::FromHistory for Patch {
         history: &radicle_cob::History,
     ) -> Result<(Self, clock::Lamport), store::Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(change) = Change::try_from(entry) {
-                if let Err(err) = acc.apply([change]) {
-                    log::warn!("Error applying change to patch state: {err}");
+            if let Ok(op) = Op::try_from(entry) {
+                if let Err(err) = acc.apply([op]) {
+                    log::warn!("Error applying op to patch state: {err}");
                     return ControlFlow::Break(acc);
                 }
             } else {
@@ -554,7 +554,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         description: String,
         target: MergeTarget,
         signer: &G,
-    ) -> Result<ChangeId, Error> {
+    ) -> Result<OpId, Error> {
         let action = Action::Edit {
             title,
             description,
@@ -589,7 +589,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         comment: Option<String>,
         inline: Vec<CodeComment>,
         signer: &G,
-    ) -> Result<ChangeId, Error> {
+    ) -> Result<OpId, Error> {
         let action = Action::Review {
             revision,
             comment,
@@ -605,7 +605,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         revision: RevisionId,
         commit: git::Oid,
         signer: &G,
-    ) -> Result<ChangeId, Error> {
+    ) -> Result<OpId, Error> {
         let action = Action::Merge { revision, commit };
         self.apply("Merge revision", action, signer)
     }
@@ -617,7 +617,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         signer: &G,
-    ) -> Result<ChangeId, Error> {
+    ) -> Result<OpId, Error> {
         let description = description.into();
         let base = base.into();
         let oid = oid.into();
@@ -637,7 +637,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         add: impl IntoIterator<Item = Tag>,
         remove: impl IntoIterator<Item = Tag>,
         signer: &G,
-    ) -> Result<ChangeId, Error> {
+    ) -> Result<OpId, Error> {
         let add = add.into_iter().collect::<Vec<_>>();
         let remove = remove.into_iter().collect::<Vec<_>>();
         let action = Action::Tag { add, remove };
@@ -645,26 +645,26 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         self.apply("Tag", action, signer)
     }
 
-    /// Apply a change to the patch.
+    /// Apply an operation to the patch.
     pub fn apply<G: Signer>(
         &mut self,
         msg: &'static str,
         action: Action,
         signer: &G,
-    ) -> Result<ChangeId, Error> {
+    ) -> Result<OpId, Error> {
         let cob = self
             .store
             .update(self.id, msg, action.clone(), signer)
             .map_err(Error::Store)?;
         let clock = cob.history().clock().into();
         let timestamp = cob.history().timestamp().into();
-        let change = Change {
+        let op = Op {
             action,
             author: *signer.public_key(),
             clock,
             timestamp,
         };
-        self.patch.apply_one(change)?;
+        self.patch.apply_one(op)?;
 
         Ok((clock, *signer.public_key()))
     }
@@ -781,13 +781,13 @@ mod test {
     use quickcheck::{Arbitrary, TestResult};
 
     use super::*;
-    use crate::cob::change::{Actor, ActorId};
+    use crate::cob::op::{Actor, ActorId};
     use crate::crypto::test::signer::MockSigner;
     use crate::test;
 
     #[derive(Clone)]
     struct Changes<const N: usize> {
-        permutations: [Vec<Change>; N],
+        permutations: [Vec<Op>; N],
     }
 
     impl<const N: usize> std::fmt::Debug for Changes<N> {
@@ -805,7 +805,7 @@ mod test {
 
     impl<const N: usize> Arbitrary for Changes<N> {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            type State = (clock::Lamport, Vec<ChangeId>, Vec<Tag>);
+            type State = (clock::Lamport, Vec<OpId>, Vec<Tag>);
 
             let author = ActorId::from([0; 32]);
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
@@ -875,11 +875,11 @@ mod test {
                 });
 
             let mut changes = Vec::new();
-            let mut permutations: [Vec<Change>; N] = array::from_fn(|_| Vec::new());
+            let mut permutations: [Vec<Op>; N] = array::from_fn(|_| Vec::new());
             let timestamp = Timestamp::now() + rng.u64(..60);
 
             for (clock, action) in gen.take(g.size()) {
-                changes.push(Change {
+                changes.push(Op {
                     action,
                     author,
                     clock,
@@ -1054,15 +1054,15 @@ mod test {
         let mut alice = Actor::<_, Action>::new(MockSigner::default());
         let mut patch = Patch::default();
 
-        let a1 = alice.change(Action::Revision { base, oid });
-        let a2 = alice.change(Action::Redact { revision: a1.id() });
-        let a3 = alice.change(Action::Review {
+        let a1 = alice.op(Action::Revision { base, oid });
+        let a2 = alice.op(Action::Redact { revision: a1.id() });
+        let a3 = alice.op(Action::Review {
             revision: a1.id(),
             comment: None,
             verdict: Some(Verdict::Accept),
             inline: vec![],
         });
-        let a4 = alice.change(Action::Merge {
+        let a4 = alice.op(Action::Merge {
             revision: a1.id(),
             commit: oid,
         });
@@ -1085,8 +1085,8 @@ mod test {
         let mut p1 = Patch::default();
         let mut p2 = Patch::default();
 
-        let a1 = alice.change(Action::Revision { base, oid });
-        let a2 = alice.change(Action::Redact { revision: a1.id() });
+        let a1 = alice.op(Action::Revision { base, oid });
+        let a2 = alice.op(Action::Redact { revision: a1.id() });
 
         p1.apply([a1.clone(), a2.clone(), a1.clone()]).unwrap();
         p2.apply([a1.clone(), a1, a2]).unwrap();

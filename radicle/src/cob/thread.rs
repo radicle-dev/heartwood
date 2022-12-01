@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::cob;
 use crate::cob::common::{Reaction, Timestamp};
 use crate::cob::store;
-use crate::cob::{ActorId, Change, ChangeId, History, TypeName};
+use crate::cob::{ActorId, History, Op, OpId, TypeName};
 use crate::crypto::Signer;
 
 use crdt::clock::Lamport;
@@ -24,7 +24,7 @@ pub static TYPENAME: Lazy<TypeName> =
     Lazy::new(|| FromStr::from_str("xyz.radicle.thread").expect("type name is valid"));
 
 /// Identifies a comment.
-pub type CommentId = ChangeId;
+pub type CommentId = OpId;
 
 /// A comment on a discussion thread.
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,14 +32,14 @@ pub struct Comment {
     /// The comment body.
     pub body: String,
     /// Thread or comment this is a reply to.
-    pub reply_to: Option<ChangeId>,
+    pub reply_to: Option<OpId>,
     /// When the comment was authored.
     pub timestamp: Timestamp,
 }
 
 impl Comment {
     /// Create a new comment.
-    pub fn new(body: String, reply_to: Option<ChangeId>, timestamp: Timestamp) -> Self {
+    pub fn new(body: String, reply_to: Option<OpId>, timestamp: Timestamp) -> Self {
         Self {
             body,
             reply_to,
@@ -66,13 +66,13 @@ pub enum Action {
         /// Comment body.
         body: String,
         /// Another comment this is a reply to.
-        reply_to: Option<ChangeId>,
+        reply_to: Option<OpId>,
     },
     /// Redact a change. Not all changes can be redacted.
-    Redact { id: ChangeId },
+    Redact { id: OpId },
     /// React to a change.
     React {
-        to: ChangeId,
+        to: OpId,
         reaction: Reaction,
         active: bool,
     },
@@ -96,7 +96,7 @@ impl store::FromHistory for Thread {
 
     fn from_history(history: &History) -> Result<(Self, Lamport), store::Error> {
         let obj = history.traverse(Thread::default(), |mut acc, entry| {
-            if let Ok(change) = Change::try_from(entry) {
+            if let Ok(change) = Op::try_from(entry) {
                 acc.apply([change]);
                 ControlFlow::Continue(acc)
             } else {
@@ -168,7 +168,7 @@ impl Thread {
             .map(|(a, r)| (a, r))
     }
 
-    pub fn apply(&mut self, changes: impl IntoIterator<Item = Change<Action>>) {
+    pub fn apply(&mut self, changes: impl IntoIterator<Item = Op<Action>>) {
         for change in changes.into_iter() {
             let id = change.id();
 
@@ -257,16 +257,16 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Create a new comment.
-    pub fn comment(&mut self, body: &str, reply_to: Option<ChangeId>) -> Change<Action> {
-        self.change(Action::Comment {
+    pub fn comment(&mut self, body: &str, reply_to: Option<OpId>) -> Op<Action> {
+        self.op(Action::Comment {
             body: String::from(body),
             reply_to,
         })
     }
 
     /// Create a new redaction.
-    pub fn redact(&mut self, id: ChangeId) -> Change<Action> {
-        self.change(Action::Redact { id })
+    pub fn redact(&mut self, id: OpId) -> Op<Action> {
+        self.op(Action::Redact { id })
     }
 }
 
@@ -299,7 +299,7 @@ mod tests {
 
     #[derive(Clone)]
     struct Changes<const N: usize> {
-        permutations: [Vec<Change<Action>>; N],
+        permutations: [Vec<Op<Action>>; N],
     }
 
     impl<const N: usize> std::fmt::Debug for Changes<N> {
@@ -320,7 +320,7 @@ mod tests {
             let author = ActorId::from([0; 32]);
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
             let gen =
-                WeightedGenerator::<(Lamport, Action), (Lamport, Vec<ChangeId>)>::new(rng.clone())
+                WeightedGenerator::<(Lamport, Action), (Lamport, Vec<OpId>)>::new(rng.clone())
                     .variant(3, |(clock, changes), rng| {
                         changes.push((clock.tick(), author));
 
@@ -357,11 +357,11 @@ mod tests {
                     });
 
             let mut changes = Vec::new();
-            let mut permutations: [Vec<Change<Action>>; N] = array::from_fn(|_| Vec::new());
+            let mut permutations: [Vec<Op<Action>>; N] = array::from_fn(|_| Vec::new());
             let timestamp = Timestamp::now() + rng.u64(..60);
 
             for (clock, action) in gen.take(g.size().min(8)) {
-                changes.push(Change {
+                changes.push(Op {
                     action,
                     author,
                     clock,
@@ -493,9 +493,9 @@ mod tests {
         eve.receive([a2.clone()]);
         bob.receive([a2.clone()]);
 
-        assert_eq!(alice.changes.len(), 7);
-        assert_eq!(bob.changes.len(), 7);
-        assert_eq!(eve.changes.len(), 7);
+        assert_eq!(alice.ops.len(), 7);
+        assert_eq!(bob.ops.len(), 7);
+        assert_eq!(eve.ops.len(), 7);
 
         assert_eq!(
             bob.timeline().collect::<Vec<_>>(),

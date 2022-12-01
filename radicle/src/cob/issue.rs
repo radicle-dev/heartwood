@@ -11,12 +11,12 @@ use crate::cob;
 use crate::cob::common::{Author, Reaction, Tag};
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
-use crate::cob::{store, ChangeId, ObjectId, TypeName};
+use crate::cob::{store, ObjectId, OpId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::storage::git as storage;
 
-/// Issue change.
-pub type Change = crate::cob::Change<Action>;
+/// Issue operation.
+pub type Op = crate::cob::Op<Action>;
 
 /// Type name of an issue.
 pub static TYPENAME: Lazy<TypeName> =
@@ -111,9 +111,9 @@ impl store::FromHistory for Issue {
         history: &radicle_cob::History,
     ) -> Result<(Self, clock::Lamport), store::Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(change) = Change::try_from(entry) {
-                if let Err(err) = acc.apply(change) {
-                    log::warn!("Error applying change to issue state: {err}");
+            if let Ok(op) = Op::try_from(entry) {
+                if let Err(err) = acc.apply(op) {
+                    log::warn!("Error applying op to issue state: {err}");
                     return ControlFlow::Break(acc);
                 }
             } else {
@@ -154,28 +154,28 @@ impl Issue {
         self.thread.comments().map(|(id, comment)| (id, comment))
     }
 
-    pub fn apply(&mut self, change: Change) -> Result<(), Error> {
-        match change.action {
+    pub fn apply(&mut self, op: Op) -> Result<(), Error> {
+        match op.action {
             Action::Title { title } => {
-                self.title.set(title, change.clock);
+                self.title.set(title, op.clock);
             }
             Action::Lifecycle { status } => {
-                self.status.set(status, change.clock);
+                self.status.set(status, op.clock);
             }
             Action::Tag { add, remove } => {
                 for tag in add {
-                    self.tags.insert(tag, change.clock);
+                    self.tags.insert(tag, op.clock);
                 }
                 for tag in remove {
-                    self.tags.remove(tag, change.clock);
+                    self.tags.remove(tag, op.clock);
                 }
             }
             Action::Thread { action } => {
-                self.thread.apply([cob::Change {
+                self.thread.apply([cob::Op {
                     action,
-                    author: change.author,
-                    clock: change.clock,
-                    timestamp: change.timestamp,
+                    author: op.author,
+                    clock: op.clock,
+                    timestamp: op.timestamp,
                 }]);
             }
         }
@@ -205,7 +205,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
     }
 
     /// Lifecycle an issue.
-    pub fn lifecycle<G: Signer>(&mut self, status: Status, signer: &G) -> Result<ChangeId, Error> {
+    pub fn lifecycle<G: Signer>(&mut self, status: Status, signer: &G) -> Result<OpId, Error> {
         let action = Action::Lifecycle { status };
         self.apply("Lifecycle", action, signer)
     }
@@ -230,7 +230,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         add: impl IntoIterator<Item = Tag>,
         remove: impl IntoIterator<Item = Tag>,
         signer: &G,
-    ) -> Result<ChangeId, Error> {
+    ) -> Result<OpId, Error> {
         let add = add.into_iter().collect::<Vec<_>>();
         let remove = remove.into_iter().collect::<Vec<_>>();
         let action = Action::Tag { add, remove };
@@ -244,7 +244,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         parent: CommentId,
         body: S,
         signer: &G,
-    ) -> Result<ChangeId, Error> {
+    ) -> Result<OpId, Error> {
         let body = body.into();
 
         assert!(self.thread.comment(&parent).is_some());
@@ -262,7 +262,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         to: CommentId,
         reaction: Reaction,
         signer: &G,
-    ) -> Result<ChangeId, Error> {
+    ) -> Result<OpId, Error> {
         let action = Action::Thread {
             action: thread::Action::React {
                 to,
@@ -273,26 +273,26 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         self.apply("React", action, signer)
     }
 
-    /// Apply a change to the issue.
+    /// Apply an op to the issue.
     pub fn apply<G: Signer>(
         &mut self,
         msg: &'static str,
         action: Action,
         signer: &G,
-    ) -> Result<ChangeId, Error> {
+    ) -> Result<OpId, Error> {
         let cob = self
             .store
             .update(self.id, msg, action.clone(), signer)
             .map_err(Error::Store)?;
         let clock = cob.history().clock().into();
         let timestamp = cob.history().timestamp().into();
-        let change = Change {
+        let op = Op {
             action,
             author: *signer.public_key(),
             clock,
             timestamp,
         };
-        self.issue.apply(change)?;
+        self.issue.apply(op)?;
 
         Ok((clock, *signer.public_key()))
     }

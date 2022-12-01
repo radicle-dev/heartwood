@@ -8,40 +8,41 @@ use radicle_crdt::clock;
 use radicle_crdt::clock::Lamport;
 use radicle_crypto::{PublicKey, Signer};
 
-/// Identifies a change.
-pub type ChangeId = (Lamport, ActorId);
-/// The author of a change.
+/// Identifies an [`Op`].
+pub type OpId = (Lamport, ActorId);
+/// The author of an [`Op`].
 pub type ActorId = PublicKey;
 
-/// Error decoding a change from an entry.
+/// Error decoding an operation from an entry.
 #[derive(Error, Debug)]
-pub enum ChangeDecodeError {
+pub enum OpDecodeError {
     #[error("deserialization from json failed: {0}")]
     Deserialize(#[from] serde_json::Error),
 }
 
-/// The `Change` is the unit of replication.
-/// Everything that can be done in the system is represented by a `Change` object.
-/// Changes are applied to an accumulator to yield a final state.
+/// The `Op` is the operation that is applied onto a state to form a CRDT.
+///
+/// Everything that can be done in the system is represented by an `Op`.
+/// Operations are applied to an accumulator to yield a final state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Change<A> {
-    /// The action carried out by this change.
+pub struct Op<A> {
+    /// The action carried out by this operation.
     pub action: A,
-    /// The author of the change.
+    /// The author of the operation.
     pub author: ActorId,
     /// Lamport clock.
     pub clock: Lamport,
-    /// Timestamp of this change.
+    /// Timestamp of this operation.
     pub timestamp: clock::Physical,
 }
 
-impl<'a: 'de, 'de, A: serde::Deserialize<'de>> TryFrom<&'a EntryWithClock> for Change<A> {
-    type Error = ChangeDecodeError;
+impl<'a: 'de, 'de, A: serde::Deserialize<'de>> TryFrom<&'a EntryWithClock> for Op<A> {
+    type Error = OpDecodeError;
 
     fn try_from(entry: &'a EntryWithClock) -> Result<Self, Self::Error> {
         let action = serde_json::from_slice(entry.contents())?;
 
-        Ok(Change {
+        Ok(Op {
             action,
             author: *entry.actor(),
             clock: entry.clock().into(),
@@ -50,26 +51,20 @@ impl<'a: 'de, 'de, A: serde::Deserialize<'de>> TryFrom<&'a EntryWithClock> for C
     }
 }
 
-impl<A> Change<A> {
-    /// Get the change id.
-    pub fn id(&self) -> ChangeId {
+impl<A> Op<A> {
+    /// Get the op id.
+    /// This uniquely identifies each operation in the CRDT.
+    pub fn id(&self) -> OpId {
         (self.clock, self.author)
     }
 }
 
-impl<'de, A: Deserialize<'de>> Change<A> {
-    /// Deserialize a change from a byte string.
-    pub fn decode(bytes: &'de [u8]) -> Result<Self, serde_json::Error> {
-        serde_json::from_slice(bytes)
-    }
-}
-
-/// An object that can be used to create and sign changes.
+/// An object that can be used to create and sign operations.
 #[derive(Default)]
 pub struct Actor<G, A> {
     pub signer: G,
     pub clock: Lamport,
-    pub changes: BTreeMap<(Lamport, PublicKey), Change<A>>,
+    pub ops: BTreeMap<(Lamport, PublicKey), Op<A>>,
 }
 
 impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
@@ -77,15 +72,15 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
         Self {
             signer,
             clock: Lamport::default(),
-            changes: BTreeMap::default(),
+            ops: BTreeMap::default(),
         }
     }
 
-    pub fn receive(&mut self, changes: impl IntoIterator<Item = Change<A>>) -> Lamport {
-        for change in changes {
-            let clock = change.clock;
+    pub fn receive(&mut self, ops: impl IntoIterator<Item = Op<A>>) -> Lamport {
+        for op in ops {
+            let clock = op.clock;
 
-            self.changes.insert((clock, change.author), change);
+            self.ops.insert((clock, op.author), op);
             self.clock.merge(clock);
         }
         self.clock
@@ -93,29 +88,29 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
 
     /// Reset actor state to initial state.
     pub fn reset(&mut self) {
-        self.changes.clear();
+        self.ops.clear();
         self.clock = Lamport::default();
     }
 
     /// Returned an ordered list of events.
-    pub fn timeline(&self) -> impl Iterator<Item = &Change<A>> {
-        self.changes.values()
+    pub fn timeline(&self) -> impl Iterator<Item = &Op<A>> {
+        self.ops.values()
     }
 
-    /// Create a new change.
-    pub fn change(&mut self, action: A) -> Change<A> {
+    /// Create a new operation.
+    pub fn op(&mut self, action: A) -> Op<A> {
         let author = *self.signer.public_key();
         let clock = self.clock;
         let timestamp = clock::Physical::now();
-        let change = Change {
+        let op = Op {
             action,
             author,
             clock,
             timestamp,
         };
-        self.changes.insert((self.clock, author), change.clone());
+        self.ops.insert((self.clock, author), op.clone());
         self.clock.tick();
 
-        change
+        op
     }
 }
