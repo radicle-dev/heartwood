@@ -78,13 +78,6 @@ pub enum Action {
     },
 }
 
-impl Action {
-    /// Deserialize an action from a byte string.
-    pub fn decode(bytes: &[u8]) -> Result<Self, serde_json::Error> {
-        serde_json::from_slice(bytes)
-    }
-}
-
 /// A discussion thread.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Thread {
@@ -103,13 +96,8 @@ impl store::FromHistory for Thread {
 
     fn from_history(history: &History) -> Result<(Self, Lamport), store::Error> {
         let obj = history.traverse(Thread::default(), |mut acc, entry| {
-            if let Ok(action) = Action::decode(entry.contents()) {
-                acc.apply([Change {
-                    action,
-                    author: *entry.actor(),
-                    clock: entry.clock().into(),
-                    timestamp: entry.timestamp().into(),
-                }]);
+            if let Ok(change) = Change::try_from(entry) {
+                acc.apply([change]);
                 ControlFlow::Continue(acc)
             } else {
                 ControlFlow::Break(acc)

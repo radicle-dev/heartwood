@@ -1,14 +1,24 @@
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use radicle_cob::history::EntryWithClock;
 use radicle_crdt::clock;
 use radicle_crdt::clock::Lamport;
 use radicle_crypto::{PublicKey, Signer};
-use serde::{Deserialize, Serialize};
 
 /// Identifies a change.
 pub type ChangeId = (Lamport, ActorId);
 /// The author of a change.
 pub type ActorId = PublicKey;
+
+/// Error decoding a change from an entry.
+#[derive(Error, Debug)]
+pub enum ChangeDecodeError {
+    #[error("deserialization from json failed: {0}")]
+    Deserialize(#[from] serde_json::Error),
+}
 
 /// The `Change` is the unit of replication.
 /// Everything that can be done in the system is represented by a `Change` object.
@@ -23,6 +33,21 @@ pub struct Change<A> {
     pub clock: Lamport,
     /// Timestamp of this change.
     pub timestamp: clock::Physical,
+}
+
+impl<'a: 'de, 'de, A: serde::Deserialize<'de>> TryFrom<&'a EntryWithClock> for Change<A> {
+    type Error = ChangeDecodeError;
+
+    fn try_from(entry: &'a EntryWithClock) -> Result<Self, Self::Error> {
+        let action = serde_json::from_slice(entry.contents())?;
+
+        Ok(Change {
+            action,
+            author: *entry.actor(),
+            clock: entry.clock().into(),
+            timestamp: entry.timestamp().into(),
+        })
+    }
 }
 
 impl<A> Change<A> {

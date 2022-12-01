@@ -111,13 +111,8 @@ impl store::FromHistory for Issue {
         history: &radicle_cob::History,
     ) -> Result<(Self, clock::Lamport), store::Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(action) = Action::decode(entry.contents()) {
-                if let Err(err) = acc.apply(Change {
-                    action,
-                    author: *entry.actor(),
-                    clock: entry.clock().into(),
-                    timestamp: entry.timestamp().into(),
-                }) {
+            if let Ok(change) = Change::try_from(entry) {
+                if let Err(err) = acc.apply(change) {
                     log::warn!("Error applying change to issue state: {err}");
                     return ControlFlow::Break(acc);
                 }
@@ -392,12 +387,6 @@ pub enum Action {
     Lifecycle { status: Status },
     Tag { add: Vec<Tag>, remove: Vec<Tag> },
     Thread { action: thread::Action },
-}
-
-impl Action {
-    pub fn decode(bytes: &[u8]) -> Result<Self, serde_json::Error> {
-        serde_json::from_slice(bytes)
-    }
 }
 
 impl From<thread::Action> for Action {

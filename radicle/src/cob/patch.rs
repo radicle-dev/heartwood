@@ -99,12 +99,6 @@ pub enum Action {
     },
 }
 
-impl Action {
-    pub fn decode(bytes: &[u8]) -> Result<Self, serde_json::Error> {
-        serde_json::from_slice(bytes)
-    }
-}
-
 /// Where a patch is intended to be merged.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -332,13 +326,8 @@ impl store::FromHistory for Patch {
         history: &radicle_cob::History,
     ) -> Result<(Self, clock::Lamport), store::Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(action) = Action::decode(entry.contents()) {
-                if let Err(err) = acc.apply([Change {
-                    action,
-                    author: *entry.actor(),
-                    clock: entry.clock().into(),
-                    timestamp: entry.timestamp().into(),
-                }]) {
+            if let Ok(change) = Change::try_from(entry) {
+                if let Err(err) = acc.apply([change]) {
                     log::warn!("Error applying change to patch state: {err}");
                     return ControlFlow::Break(acc);
                 }
