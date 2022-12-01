@@ -19,6 +19,10 @@ impl<K: Ord, V: Semilattice> GMap<K, V> {
         }
     }
 
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        self.inner.get_mut(key)
+    }
+
     pub fn insert(&mut self, key: K, value: V) {
         match self.inner.entry(key) {
             Entry::Occupied(mut e) => {

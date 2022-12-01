@@ -1,6 +1,4 @@
 #![allow(clippy::too_many_arguments)]
-use std::collections::btree_map::Entry;
-use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::ControlFlow;
 use std::ops::Deref;
@@ -10,7 +8,7 @@ use std::str::FromStr;
 use once_cell::sync::Lazy;
 use radicle_crdt as crdt;
 use radicle_crdt::clock;
-use radicle_crdt::{ActorId, ChangeId, LWWReg, LWWSet, Max, Redactable, Semilattice};
+use radicle_crdt::{ActorId, ChangeId, GMap, LWWReg, LWWSet, Max, Redactable, Semilattice};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -133,7 +131,7 @@ pub struct Patch {
     pub tags: LWWSet<Tag>,
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
-    pub revisions: BTreeMap<RevisionId, Redactable<Revision>>,
+    pub revisions: GMap<RevisionId, Redactable<Revision>>,
 }
 
 impl Semilattice for Patch {
@@ -155,7 +153,7 @@ impl Default for Patch {
             status: Max::from(Status::default()).into(),
             target: Max::from(MergeTarget::default()).into(),
             tags: LWWSet::default(),
-            revisions: BTreeMap::default(),
+            revisions: GMap::default(),
         }
     }
 }
@@ -262,16 +260,10 @@ impl Patch {
                 }
             }
             Action::Revision { base, oid } => {
-                let revision = Redactable::Present(Revision::new(author, base, oid, timestamp));
-
-                match self.revisions.entry(id) {
-                    Entry::Vacant(e) => {
-                        e.insert(revision);
-                    }
-                    Entry::Occupied(mut e) => {
-                        e.get_mut().merge(revision);
-                    }
-                }
+                self.revisions.insert(
+                    id,
+                    Redactable::Present(Revision::new(author, base, oid, timestamp)),
+                );
             }
             Action::Redact { revision } => {
                 if let Some(revision) = self.revisions.get_mut(&revision) {
@@ -287,16 +279,10 @@ impl Patch {
                 ref inline,
             } => {
                 if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                    revision
-                        .reviews
-                        .entry(change.author)
-                        .or_default()
-                        .merge(Review::new(
-                            verdict,
-                            comment.to_owned(),
-                            inline.to_owned(),
-                            timestamp,
-                        ));
+                    revision.reviews.insert(
+                        change.author,
+                        Review::new(verdict, comment.to_owned(), inline.to_owned(), timestamp),
+                    );
                 } else {
                     return Err(ApplyError::Missing(revision));
                 }
@@ -380,7 +366,7 @@ pub struct Revision {
     /// Merges of this revision into other repositories.
     pub merges: LWWSet<Max<Merge>>,
     /// Reviews of this revision's changes (one per actor).
-    pub reviews: BTreeMap<ActorId, Review>,
+    pub reviews: GMap<ActorId, Review>,
     /// When this revision was created.
     pub timestamp: Timestamp,
 }
@@ -393,7 +379,7 @@ impl Revision {
             oid,
             discussion: Thread::default(),
             merges: LWWSet::default(),
-            reviews: BTreeMap::default(),
+            reviews: GMap::default(),
             timestamp,
         }
     }
