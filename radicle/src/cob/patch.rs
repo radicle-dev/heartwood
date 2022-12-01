@@ -81,6 +81,9 @@ pub enum Action {
         base: git::Oid,
         oid: git::Oid,
     },
+    Redact {
+        revision: RevisionId,
+    },
     Review {
         revision: RevisionId,
         comment: Option<String>,
@@ -264,13 +267,19 @@ impl Patch {
                     Redactable::Present(Revision::new(author, base, oid, timestamp)),
                 );
             }
+            Action::Redact { revision } => {
+                if let Some(revision) = self.revisions.get_mut(&revision) {
+                    revision.merge(Redactable::Redacted);
+                } else {
+                    return Err(ApplyError::Missing(revision));
+                }
+            }
             Action::Review {
                 revision,
                 ref comment,
                 verdict,
                 ref inline,
             } => {
-                // TODO(cloudhead): Test review on redacted revision.
                 if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
                     revision
                         .reviews
@@ -783,12 +792,13 @@ mod test {
     use std::{array, iter};
 
     use crdt::test::{assert_laws, WeightedGenerator};
-    use crdt::ActorId;
+    use crdt::{Actor, ActorId};
 
     use pretty_assertions::assert_eq;
     use quickcheck::{Arbitrary, TestResult};
 
     use super::*;
+    use crate::crypto::test::signer::MockSigner;
     use crate::test;
 
     #[derive(Clone)]
@@ -875,8 +885,6 @@ mod test {
             Changes { permutations }
         }
     }
-
-    // TODO: Test merging of redacted revision
 
     #[test]
     fn prop_invariants() {
@@ -1027,6 +1035,36 @@ mod test {
         let review = revision.reviews.get(signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Accept));
         assert_eq!(review.comment(), Some("LGTM"));
+    }
+
+    #[test]
+    fn test_revision_redacted() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let mut alice = Actor::<_, Action>::new(MockSigner::default());
+        let mut patch = Patch::default();
+
+        let a1 = alice.change(Action::Revision { base, oid });
+        let a2 = alice.change(Action::Redact { revision: a1.id() });
+        let a3 = alice.change(Action::Review {
+            revision: a1.id(),
+            comment: None,
+            verdict: Some(Verdict::Accept),
+            inline: vec![],
+        });
+        let a4 = alice.change(Action::Merge {
+            revision: a1.id(),
+            commit: oid,
+        });
+
+        patch.apply([a1]).unwrap();
+        assert!(patch.revisions().next().is_some());
+
+        patch.apply([a2]).unwrap();
+        assert!(patch.revisions().next().is_none());
+
+        patch.apply([a3]).unwrap_err();
+        patch.apply([a4]).unwrap_err();
     }
 
     #[test]
