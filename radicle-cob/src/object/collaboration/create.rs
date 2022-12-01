@@ -76,6 +76,7 @@ where
         init_change.signature.key,
         resource.content_id(),
         contents.clone(),
+        init_change.timestamp,
     );
 
     let object_id = init_change.id().into();

@@ -15,7 +15,7 @@ use radicle_crypto::PublicKey;
 use crate::pruning_fold;
 
 pub mod entry;
-pub use entry::{Clock, Contents, Entry, EntryId, EntryWithClock};
+pub use entry::{Clock, Contents, Entry, EntryId, EntryWithClock, Timestamp};
 
 /// The DAG of changes making up the history of a collaborative object.
 #[derive(Clone, Debug)]
@@ -44,6 +44,7 @@ impl History {
         actor: PublicKey,
         resource: Oid,
         contents: Contents,
+        timestamp: Timestamp,
     ) -> Self
     where
         Id: Into<EntryId>,
@@ -55,6 +56,7 @@ impl History {
             resource,
             children: vec![],
             contents,
+            timestamp,
         };
         let mut entries = HashMap::new();
         entries.insert(id, EntryWithClock::from(root_entry));
@@ -81,6 +83,16 @@ impl History {
         self.graph
             .externals(petgraph::Direction::Outgoing)
             .map(|n| self.graph[n].clock)
+            .max()
+            .unwrap_or_default()
+    }
+
+    /// Get the current history timestamp.
+    /// This is the latest timestamp of any tip.
+    pub fn timestamp(&self) -> Clock {
+        self.graph
+            .externals(petgraph::Direction::Outgoing)
+            .map(|n| self.graph[n].timestamp())
             .max()
             .unwrap_or_default()
     }
@@ -120,6 +132,7 @@ impl History {
         new_actor: PublicKey,
         new_resource: Oid,
         new_contents: Contents,
+        new_timestamp: Timestamp,
     ) where
         Id: Into<EntryId>,
     {
@@ -131,6 +144,7 @@ impl History {
             new_resource,
             std::iter::empty::<git2::Oid>(),
             new_contents,
+            new_timestamp,
         );
         let new_ix = self.graph.add_node(EntryWithClock {
             entry: new_entry,

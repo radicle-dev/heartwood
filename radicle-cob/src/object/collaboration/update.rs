@@ -81,9 +81,13 @@ where
             message,
         },
     )?;
-    object
-        .history
-        .extend(change.id, change.signature.key, change.resource, changes);
+    object.history.extend(
+        change.id,
+        change.signature.key,
+        change.resource,
+        changes,
+        change.timestamp,
+    );
     storage
         .update(identifier, typename, &object_id, &change)
         .map_err(|err| error::Update::Refs { err: Box::new(err) })?;

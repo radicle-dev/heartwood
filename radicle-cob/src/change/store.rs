@@ -7,7 +7,10 @@ use std::{error::Error, fmt};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{history::Contents, signatures, TypeName};
+use crate::{
+    history::{Contents, Timestamp},
+    signatures, TypeName,
+};
 
 pub trait Storage {
     type CreateError: Error + Send + Sync + 'static;
@@ -59,6 +62,8 @@ pub struct Change<Resource, Id, Signature> {
     pub manifest: Manifest,
     /// The contents that describe `Change`.
     pub contents: Contents,
+    /// Timestamp of change.
+    pub timestamp: Timestamp,
 }
 
 impl<Resource, Id, S> fmt::Display for Change<Resource, Id, S>

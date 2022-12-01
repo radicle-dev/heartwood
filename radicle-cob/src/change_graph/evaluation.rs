@@ -70,6 +70,7 @@ fn evaluate_change(
         change.resource,
         child_commits.iter().cloned(),
         change.contents().clone(),
+        change.timestamp,
     ))
 }
 

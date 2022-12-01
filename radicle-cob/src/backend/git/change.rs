@@ -9,6 +9,7 @@ use git_commit::{self as commit, Commit};
 use git_ext::Oid;
 use git_trailers::OwnedTrailer;
 
+use crate::history::entry::Timestamp;
 use crate::{
     change::{self, store, Change},
     history::entry,
@@ -114,7 +115,7 @@ impl change::Storage for git2::Repository {
             Signature::from((*key, sig))
         };
 
-        let id = write_commit(self, resource, tips, message, signature.clone(), tree)?;
+        let (id, timestamp) = write_commit(self, resource, tips, message, signature.clone(), tree)?;
         Ok(Change {
             id,
             revision: revision.into(),
@@ -122,11 +123,13 @@ impl change::Storage for git2::Repository {
             resource,
             manifest,
             contents,
+            timestamp,
         })
     }
 
     fn load(&self, id: Self::ObjectId) -> Result<Change, Self::LoadError> {
         let commit = Commit::read(self, id.into())?;
+        let timestamp = git2::Time::from(commit.committer().time).seconds() as u64;
         let resource = parse_resource_trailer(commit.trailers())?;
         let mut signatures = Signatures::try_from(&commit)?
             .into_iter()
@@ -149,6 +152,7 @@ impl change::Storage for git2::Repository {
             resource,
             manifest,
             contents,
+            timestamp,
         })
     }
 }
@@ -208,7 +212,7 @@ fn write_commit<O>(
     message: String,
     signature: Signature,
     tree: git2::Tree,
-) -> Result<Oid, error::Create>
+) -> Result<(Oid, Timestamp), error::Create>
 where
     O: AsRef<git2::Oid>,
 {
@@ -221,14 +225,14 @@ where
 
     {
         let author = repo.signature()?;
+        let timestamp = author.when().seconds() as Timestamp;
         let mut headers = commit::Headers::new();
         headers.push(
             "gpgsig",
             &String::from_utf8(crypto::ssh::ExtendedSignature::from(signature).to_armored())?,
         );
         let author = commit::Author::try_from(&author)?;
-
-        let commit = Commit::new(
+        let oid = Commit::new(
             tree.id(),
             parents,
             author.clone(),
@@ -236,11 +240,10 @@ where
             headers,
             message,
             trailers,
-        );
-        commit
-            .write(repo)
-            .map(Oid::from)
-            .map_err(error::Create::from)
+        )
+        .write(repo)?;
+
+        Ok((Oid::from(oid), timestamp))
     }
 }
 

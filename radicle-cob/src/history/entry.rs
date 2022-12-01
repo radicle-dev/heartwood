@@ -16,6 +16,9 @@ pub type Contents = Vec<u8>;
 /// Logical clock used to track causality in change graph.
 pub type Clock = u64;
 
+/// Local time in seconds since epoch.
+pub type Timestamp = u64;
+
 /// A unique identifier for a history entry.
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq, PartialOrd, Ord)]
 pub struct EntryId(Oid);
@@ -51,6 +54,8 @@ pub struct Entry {
     pub(super) children: Vec<EntryId>,
     /// The contents of this entry.
     pub(super) contents: Contents,
+    /// The entry timestamp, as seconds since epoch.
+    pub(super) timestamp: Timestamp,
 }
 
 impl Entry {
@@ -60,6 +65,7 @@ impl Entry {
         resource: Oid,
         children: ChildIds,
         contents: Contents,
+        timestamp: Timestamp,
     ) -> Self
     where
         Id1: Into<EntryId>,
@@ -72,6 +78,7 @@ impl Entry {
             resource,
             children: children.into_iter().map(|id| id.into()).collect(),
             contents,
+            timestamp,
         }
     }
 
@@ -88,6 +95,11 @@ impl Entry {
     /// The public key of the actor.
     pub fn actor(&self) -> &PublicKey {
         &self.actor
+    }
+
+    /// The entry timestamp.
+    pub fn timestamp(&self) -> Timestamp {
+        self.timestamp
     }
 
     /// The contents of this change
