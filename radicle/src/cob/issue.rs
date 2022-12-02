@@ -36,7 +36,7 @@ pub enum Error {
 
 /// Reason why an issue was closed.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum CloseReason {
     Other,
     Solved,
@@ -44,7 +44,7 @@ pub enum CloseReason {
 
 /// Issue state.
 #[derive(Debug, Default, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase", tag = "status")]
+#[serde(rename_all = "camelCase", tag = "status")]
 pub enum Status {
     /// The issue is closed.
     Closed { reason: CloseReason },
@@ -74,7 +74,6 @@ impl Status {
 /// Issue state. Accumulates [`Action`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Issue {
-    // TODO(cloudhead): Title should bias towards shorter strings.
     title: LWWReg<Max<String>, clock::Lamport>,
     status: LWWReg<Max<Status>, clock::Lamport>,
     tags: LWWSet<Tag>,
@@ -382,6 +381,7 @@ impl<'a> Issues<'a> {
 
 /// Issue operation.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum Action {
     Title { title: String },
     Lifecycle { status: Status },

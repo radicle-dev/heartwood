@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use radicle_cob::history::EntryWithClock;
@@ -24,7 +23,7 @@ pub enum OpDecodeError {
 ///
 /// Everything that can be done in the system is represented by an `Op`.
 /// Operations are applied to an accumulator to yield a final state.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Op<A> {
     /// The action carried out by this operation.
     pub action: A,
@@ -67,7 +66,7 @@ pub struct Actor<G, A> {
     pub ops: BTreeMap<(Lamport, PublicKey), Op<A>>,
 }
 
-impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
+impl<G: Signer, A: Clone> Actor<G, A> {
     pub fn new(signer: G) -> Self {
         Self {
             signer,

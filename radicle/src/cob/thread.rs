@@ -60,6 +60,7 @@ impl PartialOrd for Comment {
 
 /// An action that can be carried out in a change.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum Action {
     /// Comment on a thread.
     Comment {

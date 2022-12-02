@@ -66,6 +66,7 @@ pub enum Error {
 
 /// Patch operation.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum Action {
     Edit {
         title: String,
@@ -379,7 +380,7 @@ impl Revision {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum Status {
     #[default]
     Proposed,
@@ -389,6 +390,7 @@ pub enum Status {
 
 /// A merged patch revision.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
 pub struct Merge {
     /// Owner of repository that this patch was merged into.
     pub node: NodeId,
@@ -400,7 +402,7 @@ pub struct Merge {
 
 /// A patch review verdict.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum Verdict {
     /// Accept patch.
     Accept,
@@ -427,6 +429,7 @@ impl fmt::Display for Verdict {
 
 /// Code location, used for attaching comments.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CodeLocation {
     /// File being commented on.
     pub blob: git::Oid,
@@ -455,6 +458,7 @@ impl Ord for CodeLocation {
 
 /// Comment on code.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CodeComment {
     /// Code location of the comment.
     pub location: CodeLocation,
@@ -931,6 +935,18 @@ mod test {
             .min_tests_passed(100)
             .gen(qcheck::Gen::new(8))
             .quickcheck(property as fn(Changes<3>) -> TestResult);
+    }
+
+    #[test]
+    fn test_json_serialization() {
+        let edit = Action::Tag {
+            add: vec![],
+            remove: vec![],
+        };
+        assert_eq!(
+            serde_json::to_string(&edit).unwrap(),
+            String::from(r#"{"type":"tag","add":[],"remove":[]}"#)
+        );
     }
 
     #[test]
