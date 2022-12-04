@@ -367,7 +367,7 @@ pub mod canonical {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     #[quickcheck]
     fn prop_canonical_roundtrip(refs: Refs) {

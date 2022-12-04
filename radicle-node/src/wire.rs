@@ -628,11 +628,11 @@ impl<R, S, W, G, H: Handshake> Iterator for Wire<R, S, W, G, H> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     use crate::crypto::Unverified;
     use crate::storage::refs::SignedRefs;
-    use crate::test::{arbitrary, assert_matches};
+    use crate::test::assert_matches;
 
     #[quickcheck]
     fn prop_u8(input: u8) {
@@ -655,13 +655,13 @@ mod tests {
     }
 
     #[quickcheck]
-    fn prop_string(input: String) -> quickcheck::TestResult {
+    fn prop_string(input: String) -> qcheck::TestResult {
         if input.len() > u8::MAX as usize {
-            return quickcheck::TestResult::discard();
+            return qcheck::TestResult::discard();
         }
         assert_eq!(deserialize::<String>(&serialize(&input)).unwrap(), input);
 
-        quickcheck::TestResult::passed()
+        qcheck::TestResult::passed()
     }
 
     #[quickcheck]
@@ -701,8 +701,8 @@ mod tests {
     }
 
     #[quickcheck]
-    fn prop_signature(input: arbitrary::ByteArray<64>) {
-        let signature = Signature::from(input.into_inner());
+    fn prop_signature(input: [u8; 64]) {
+        let signature = Signature::from(input);
 
         assert_eq!(
             deserialize::<Signature>(&serialize(&signature)).unwrap(),
@@ -711,8 +711,8 @@ mod tests {
     }
 
     #[quickcheck]
-    fn prop_oid(input: arbitrary::ByteArray<20>) {
-        let oid = git::Oid::try_from(input.into_inner().as_slice()).unwrap();
+    fn prop_oid(input: [u8; 20]) {
+        let oid = git::Oid::try_from(input.as_slice()).unwrap();
 
         assert_eq!(deserialize::<git::Oid>(&serialize(&oid)).unwrap(), oid);
     }

@@ -1,7 +1,7 @@
 use std::net;
 
 use bloomy::BloomFilter;
-use quickcheck::Arbitrary;
+use qcheck::Arbitrary;
 
 use crate::crypto;
 use crate::prelude::{BoundedVec, Id, NodeId, Refs, Timestamp};
@@ -15,7 +15,7 @@ use crate::wire::message::MessageType;
 pub use radicle::test::arbitrary::*;
 
 impl Arbitrary for Filter {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let size = *g
             .choose(&[FILTER_SIZE_S, FILTER_SIZE_M, FILTER_SIZE_L])
             .unwrap();
@@ -29,7 +29,7 @@ impl Arbitrary for Filter {
 }
 
 impl Arbitrary for Message {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let type_id = g
             .choose(&[
                 MessageType::InventoryAnnouncement,
@@ -49,7 +49,7 @@ impl Arbitrary for Message {
                     timestamp: Timestamp::arbitrary(g),
                 }
                 .into(),
-                signature: crypto::Signature::from(ByteArray::<64>::arbitrary(g).into_inner()),
+                signature: crypto::Signature::from(<[u8; 64]>::arbitrary(g)),
             }
             .into(),
             MessageType::RefsAnnouncement => Announcement {
@@ -60,20 +60,20 @@ impl Arbitrary for Message {
                     timestamp: Timestamp::arbitrary(g),
                 }
                 .into(),
-                signature: crypto::Signature::from(ByteArray::<64>::arbitrary(g).into_inner()),
+                signature: crypto::Signature::from(<[u8; 64]>::arbitrary(g)),
             }
             .into(),
             MessageType::NodeAnnouncement => {
                 let message = NodeAnnouncement {
                     features: u64::arbitrary(g).into(),
                     timestamp: Timestamp::arbitrary(g),
-                    alias: ByteArray::<32>::arbitrary(g).into_inner(),
+                    alias: <[u8; 32]>::arbitrary(g),
                     addresses: Arbitrary::arbitrary(g),
                     nonce: u64::arbitrary(g),
                 }
                 .into();
-                let bytes: ByteArray<64> = Arbitrary::arbitrary(g);
-                let signature = crypto::Signature::from(bytes.into_inner());
+                let bytes: [u8; 64] = Arbitrary::arbitrary(g);
+                let signature = crypto::Signature::from(bytes);
 
                 Announcement {
                     node: NodeId::arbitrary(g),
@@ -101,14 +101,14 @@ impl Arbitrary for Message {
 }
 
 impl Arbitrary for Address {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         if bool::arbitrary(g) {
             Address::Ipv4 {
                 ip: net::Ipv4Addr::from(u32::arbitrary(g)),
                 port: u16::arbitrary(g),
             }
         } else {
-            let octets: [u8; 16] = ByteArray::<16>::arbitrary(g).into_inner();
+            let octets: [u8; 16] = Arbitrary::arbitrary(g);
 
             Address::Ipv6 {
                 ip: net::Ipv6Addr::from(octets),
@@ -119,7 +119,7 @@ impl Arbitrary for Address {
 }
 
 impl Arbitrary for ZeroBytes {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         ZeroBytes::new(u16::arbitrary(g))
     }
 }
@@ -128,7 +128,7 @@ impl<T, const N: usize> Arbitrary for BoundedVec<T, N>
 where
     T: Arbitrary + Eq,
 {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let mut v: Vec<T> = Arbitrary::arbitrary(g);
         v.truncate(N);
         v.try_into().expect("size within bounds")

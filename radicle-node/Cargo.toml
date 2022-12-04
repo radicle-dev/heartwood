@@ -6,7 +6,7 @@ authors = ["Alexis Sellier <alexis@radicle.xyz>"]
 edition = "2021"
 
 [features]
-test = ["radicle/test", "radicle-crypto/test", "quickcheck"]
+test = ["radicle/test", "radicle-crypto/test", "qcheck"]
 
 [dependencies]
 anyhow = { version = "1" }
@@ -22,7 +22,7 @@ log = { version = "0.4.17", features = ["std"] }
 nakamoto-net = { version = "0.3.0" }
 nakamoto-net-poll = { version = "0.3.0" }
 nonempty = { version = "0.8.0", features = ["serialize"] }
-quickcheck = { version = "1", default-features = false, optional = true }
+qcheck = { version = "1", default-features = false, optional = true }
 sqlite = { version = "0.28.1" }
 sqlite3-src = { version = "0.4.0", features = ["bundled"] } # Ensures static linking
 scrypt = { version = "0.10.0", default-features = false }
@@ -39,5 +39,5 @@ features = ["sql"]
 [dev-dependencies]
 radicle = { path = "../radicle", version = "*", features = ["test"] }
 radicle-crypto = { path = "../radicle-crypto", version = "*", features = ["test"] }
-quickcheck = { version = "1", default-features = false }
-quickcheck_macros = { version = "1", default-features = false }
+qcheck = { version = "1", default-features = false }
+qcheck-macros = { version = "1", default-features = false }

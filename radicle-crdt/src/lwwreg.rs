@@ -76,7 +76,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     use super::*;
     use crate::Min;

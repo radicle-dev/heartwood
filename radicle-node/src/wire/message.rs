@@ -359,7 +359,7 @@ impl wire::Decode for ZeroBytes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     use crate::deserializer::Deserializer;
     use crate::wire::{self, Encode};
@@ -423,8 +423,8 @@ mod tests {
             }
         }
 
-        quickcheck::QuickCheck::new()
-            .gen(quickcheck::Gen::new(16))
+        qcheck::QuickCheck::new()
+            .gen(qcheck::Gen::new(16))
             .quickcheck(property as fn(items: Vec<Message>));
     }
 

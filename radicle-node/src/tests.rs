@@ -973,7 +973,7 @@ fn prop_inventory_exchange_dense() {
             }
         }
     }
-    quickcheck::QuickCheck::new()
-        .gen(quickcheck::Gen::new(8))
+    qcheck::QuickCheck::new()
+        .gen(qcheck::Gen::new(8))
         .quickcheck(property as fn(MockStorage, MockStorage, MockStorage));
 }

@@ -290,8 +290,8 @@ mod tests {
 
     use crate::crypto::test::signer::MockSigner;
     use pretty_assertions::assert_eq;
-    use quickcheck::Arbitrary;
-    use quickcheck_macros::quickcheck;
+    use qcheck::Arbitrary;
+    use qcheck_macros::quickcheck;
 
     use super::*;
     use crate as radicle;
@@ -316,7 +316,7 @@ mod tests {
     }
 
     impl<const N: usize> Arbitrary for Changes<N> {
-        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        fn arbitrary(g: &mut qcheck::Gen) -> Self {
             let author = ActorId::from([0; 32]);
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
             let gen =

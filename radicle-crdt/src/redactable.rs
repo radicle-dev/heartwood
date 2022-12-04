@@ -69,7 +69,7 @@ impl<T: PartialEq> Semilattice for Redactable<T> {
 
 #[cfg(test)]
 mod test {
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     use super::*;
     use crate::test;

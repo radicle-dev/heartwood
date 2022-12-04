@@ -504,7 +504,7 @@ mod test {
     use crate::test::fixtures;
 
     use super::*;
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     #[test]
     fn test_not_found() {

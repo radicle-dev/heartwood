@@ -768,16 +768,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
 
 [[package]]
-name = "env_logger"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
-dependencies = [
- "log",
- "regex",
-]
-
-[[package]]
 name = "errno"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2131,21 +2121,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "quickcheck"
-version = "1.0.3"
+name = "qcheck"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "588f6378e4dd99458b60ec275b4477add41ce4fa9f64dcba6f15adccb19b50d6"
+checksum = "b439bd4242da51d62d18c95e6a6add749346756b0d1a587dfd0cc22fa6b5f3f0"
 dependencies = [
- "env_logger",
- "log",
  "rand 0.8.5",
 ]
 
 [[package]]
-name = "quickcheck_macros"
+name = "qcheck-macros"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b22a693222d716a9587786f37ac3f6b4faedb5b80c23914e7303ff5a1d8016e9"
+checksum = "2742b9af5a690615904b18f11983f4db9ea7ad1c7e6ed3fb4b2402cdaaf5b1b5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2180,8 +2168,8 @@ dependencies = [
  "olpc-cjson",
  "once_cell",
  "pretty_assertions",
- "quickcheck",
- "quickcheck_macros",
+ "qcheck",
+ "qcheck-macros",
  "radicle-cob",
  "radicle-crdt",
  "radicle-crypto",
@@ -2233,8 +2221,8 @@ dependencies = [
  "git2",
  "log",
  "petgraph",
- "quickcheck",
- "quickcheck_macros",
+ "qcheck",
+ "qcheck-macros",
  "radicle-crypto",
  "radicle-git-ext",
  "serde",
@@ -2249,8 +2237,8 @@ version = "0.1.0"
 dependencies = [
  "fastrand",
  "num-traits",
- "quickcheck",
- "quickcheck_macros",
+ "qcheck",
+ "qcheck-macros",
  "radicle-crypto",
  "serde",
  "tempfile",
@@ -2266,8 +2254,8 @@ dependencies = [
  "fastrand",
  "git-ref-format 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "multibase",
- "quickcheck",
- "quickcheck_macros",
+ "qcheck",
+ "qcheck-macros",
  "radicle-ssh",
  "serde",
  "sha2 0.10.6",
@@ -2335,8 +2323,8 @@ dependencies = [
  "nakamoto-net",
  "nakamoto-net-poll",
  "nonempty 0.8.0",
- "quickcheck",
- "quickcheck_macros",
+ "qcheck",
+ "qcheck-macros",
  "radicle",
  "radicle-crypto",
  "scrypt",

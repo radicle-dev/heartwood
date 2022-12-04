@@ -1,6 +1,6 @@
 use std::{iter, marker::PhantomData};
 
-use quickcheck::Arbitrary;
+use qcheck::Arbitrary;
 
 use crate::{ObjectId, TypeName};
 
@@ -11,7 +11,7 @@ pub struct Invalid<T> {
 }
 
 impl Arbitrary for TypeName {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let mut name: Vec<String> = Vec::new();
         for _ in 0..rng.usize(1..5) {
@@ -28,7 +28,7 @@ impl Arbitrary for TypeName {
 }
 
 impl Arbitrary for ObjectId {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let bytes = iter::repeat_with(|| rng.u8(..))
             .take(20)
@@ -38,7 +38,7 @@ impl Arbitrary for ObjectId {
 }
 
 impl Arbitrary for Invalid<ObjectId> {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let value = iter::repeat_with(|| rng.alphanumeric())
             .take(rng.usize(21..50))

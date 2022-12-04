@@ -72,10 +72,10 @@
 //! [RFC-0662]: https://github.com/radicle-dev/radicle-link/blob/master/docs/rfc/0662-collaborative-objects.adoc
 
 #[cfg(test)]
-extern crate quickcheck;
+extern crate qcheck;
 #[cfg(test)]
 #[macro_use(quickcheck)]
-extern crate quickcheck_macros;
+extern crate qcheck_macros;
 
 extern crate radicle_crypto as crypto;
 extern crate radicle_git_ext as git_ext;

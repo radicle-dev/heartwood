@@ -322,11 +322,10 @@ impl ExtendedSignature {
 mod test {
     use std::sync::{Arc, Mutex};
 
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     use super::{fmt, ExtendedSignature};
     use crate as crypto;
-    use crate::test::arbitrary::ByteArray;
     use crate::{PublicKey, SecretKey};
     use radicle_ssh::agent::client::{AgentClient, ClientStream, Error};
     use radicle_ssh::encoding::*;
@@ -352,9 +351,9 @@ mod test {
     }
 
     #[quickcheck]
-    fn prop_encode_decode_sk(input: ByteArray<64>) {
+    fn prop_encode_decode_sk(input: [u8; 64]) {
         let mut buf = Buffer::default();
-        let sk = crypto::SecretKey::from(input.into_inner());
+        let sk = crypto::SecretKey::from(input);
         sk.write(&mut buf);
 
         let mut cursor = buf.reader(0);

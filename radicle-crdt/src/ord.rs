@@ -115,14 +115,14 @@ impl<T: PartialOrd> Semilattice for Min<T> {
 mod arbitrary {
     use super::*;
 
-    impl<T: quickcheck::Arbitrary> quickcheck::Arbitrary for Max<T> {
-        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    impl<T: qcheck::Arbitrary> qcheck::Arbitrary for Max<T> {
+        fn arbitrary(g: &mut qcheck::Gen) -> Self {
             Self::from(T::arbitrary(g))
         }
     }
 
-    impl<T: quickcheck::Arbitrary> quickcheck::Arbitrary for Min<T> {
-        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    impl<T: qcheck::Arbitrary> qcheck::Arbitrary for Min<T> {
+        fn arbitrary(g: &mut qcheck::Gen) -> Self {
             Self::from(T::arbitrary(g))
         }
     }

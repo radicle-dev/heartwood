@@ -116,7 +116,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{test, Max, Min, Semilattice};
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     #[quickcheck]
     fn prop_option_laws(a: Max<u8>, b: Max<u8>, c: Max<u8>) {

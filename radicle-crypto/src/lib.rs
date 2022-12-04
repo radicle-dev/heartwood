@@ -395,7 +395,7 @@ pub mod keypair {
 #[cfg(test)]
 mod tests {
     use crate::PublicKey;
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
     use std::str::FromStr;
 
     #[quickcheck]

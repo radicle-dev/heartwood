@@ -7,7 +7,7 @@ edition = "2021"
 
 [features]
 default = []
-test = ["quickcheck", "radicle-crypto/test"]
+test = ["qcheck", "radicle-crypto/test"]
 sql = ["sqlite"]
 
 [dependencies]
@@ -56,15 +56,15 @@ path = "../radicle-ssh"
 version = "0"
 default-features = false
 
-[dependencies.quickcheck]
+[dependencies.qcheck]
 version = "1"
 default-features = false
 optional = true
 
 [dev-dependencies]
 pretty_assertions = { version = "1.3.0" }
-quickcheck_macros = { version = "1", default-features = false }
-quickcheck = { version = "1", default-features = false }
+qcheck-macros = { version = "1", default-features = false }
+qcheck = { version = "1", default-features = false }
 
 [dev-dependencies.radicle-crypto]
 path = "../radicle-crypto"

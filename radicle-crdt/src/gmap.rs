@@ -88,7 +88,7 @@ impl<K, V> Deref for GMap<K, V> {
 
 #[cfg(test)]
 mod tests {
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     use super::*;
     use crate::ord::Max;

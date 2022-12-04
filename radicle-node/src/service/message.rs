@@ -508,7 +508,7 @@ mod tests {
 
     use crate::crypto::test::signer::MockSigner;
     use crate::test::arbitrary;
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     #[test]
     fn test_inventory_limit() {

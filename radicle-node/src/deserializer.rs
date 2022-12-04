@@ -76,7 +76,7 @@ impl<D: wire::Decode> Iterator for Deserializer<D> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
 
     const MSG_HELLO: &[u8] = &[5, b'h', b'e', b'l', b'l', b'o'];
     const MSG_BYE: &[u8] = &[3, b'b', b'y', b'e'];

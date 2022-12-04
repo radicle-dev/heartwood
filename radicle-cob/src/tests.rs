@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 
 use crypto::test::signer::MockSigner;
 use git_ref_format::{refname, Component, RefString};
-use quickcheck::Arbitrary;
+use qcheck::Arbitrary;
 use radicle_crypto::Signer;
 
 use crate::{
@@ -280,7 +280,7 @@ fn invalid_parse_refstr(oid: Invalid<ObjectId>, typename: TypeName) {
 }
 
 fn gen<T: Arbitrary>(size: usize) -> T {
-    let mut gen = quickcheck::Gen::new(size);
+    let mut gen = qcheck::Gen::new(size);
 
     T::arbitrary(&mut gen)
 }

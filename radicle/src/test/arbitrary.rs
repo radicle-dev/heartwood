@@ -6,7 +6,7 @@ use std::ops::RangeBounds;
 use crypto::test::signer::MockSigner;
 use crypto::{PublicKey, Signer, Unverified, Verified};
 use nonempty::NonEmpty;
-use quickcheck::Arbitrary;
+use qcheck::Arbitrary;
 
 use crate::collections::HashMap;
 use crate::git;
@@ -18,7 +18,7 @@ use crate::test::storage::MockStorage;
 pub fn set<T: Eq + Hash + Arbitrary>(range: impl RangeBounds<usize>) -> HashSet<T> {
     let size = fastrand::usize(range);
     let mut set = HashSet::with_capacity(size);
-    let mut g = quickcheck::Gen::new(size);
+    let mut g = qcheck::Gen::new(size);
 
     while set.len() < size {
         set.insert(T::arbitrary(&mut g));
@@ -28,7 +28,7 @@ pub fn set<T: Eq + Hash + Arbitrary>(range: impl RangeBounds<usize>) -> HashSet<
 
 pub fn vec<T: Eq + Arbitrary>(size: usize) -> Vec<T> {
     let mut vec = Vec::with_capacity(size);
-    let mut g = quickcheck::Gen::new(size);
+    let mut g = qcheck::Gen::new(size);
 
     for _ in 0..vec.capacity() {
         vec.push(T::arbitrary(&mut g));
@@ -37,36 +37,13 @@ pub fn vec<T: Eq + Arbitrary>(size: usize) -> Vec<T> {
 }
 
 pub fn gen<T: Arbitrary>(size: usize) -> T {
-    let mut gen = quickcheck::Gen::new(size);
+    let mut gen = qcheck::Gen::new(size);
 
     T::arbitrary(&mut gen)
 }
 
-#[derive(Clone, Debug)]
-pub struct ByteArray<const N: usize>([u8; N]);
-
-impl<const N: usize> ByteArray<N> {
-    pub fn into_inner(self) -> [u8; N] {
-        self.0
-    }
-
-    pub fn as_slice(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-}
-
-impl<const N: usize> Arbitrary for ByteArray<N> {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let mut bytes: [u8; N] = [0; N];
-        for byte in &mut bytes {
-            *byte = u8::arbitrary(g);
-        }
-        Self(bytes)
-    }
-}
-
 impl Arbitrary for storage::Remotes<crypto::Verified> {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let remotes: HashMap<storage::RemoteId, storage::Remote<crypto::Verified>> =
             Arbitrary::arbitrary(g);
 
@@ -75,13 +52,13 @@ impl Arbitrary for storage::Remotes<crypto::Verified> {
 }
 
 impl Arbitrary for Did {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         Self::from(PublicKey::arbitrary(g))
     }
 }
 
 impl Arbitrary for Delegate {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         Self {
             name: String::arbitrary(g),
             id: Did::arbitrary(g),
@@ -90,7 +67,7 @@ impl Arbitrary for Delegate {
 }
 
 impl Arbitrary for Doc<Unverified> {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let name = String::arbitrary(g);
         let description = String::arbitrary(g);
         let default_branch = git::RefString::try_from(String::arbitrary(g)).unwrap();
@@ -101,7 +78,7 @@ impl Arbitrary for Doc<Unverified> {
 }
 
 impl Arbitrary for Doc<Verified> {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let name = iter::repeat_with(|| rng.alphanumeric())
             .take(rng.usize(1..16))
@@ -133,9 +110,9 @@ impl Arbitrary for Doc<Verified> {
 }
 
 impl Arbitrary for SignedRefs<Unverified> {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let bytes: ByteArray<64> = Arbitrary::arbitrary(g);
-        let signature = crypto::Signature::from(bytes.into_inner());
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let bytes: [u8; 64] = Arbitrary::arbitrary(g);
+        let signature = crypto::Signature::from(bytes);
         let refs = Refs::arbitrary(g);
 
         Self::new(refs, signature)
@@ -143,7 +120,7 @@ impl Arbitrary for SignedRefs<Unverified> {
 }
 
 impl Arbitrary for Refs {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let mut refs: BTreeMap<git::RefString, storage::Oid> = BTreeMap::new();
         let mut bytes: [u8; 20] = [0; 20];
         let names = &[
@@ -173,14 +150,14 @@ impl Arbitrary for Refs {
 }
 
 impl Arbitrary for MockStorage {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let inventory = Arbitrary::arbitrary(g);
         MockStorage::new(inventory)
     }
 }
 
 impl Arbitrary for storage::Remote<crypto::Verified> {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let refs = Refs::arbitrary(g);
         let signer = MockSigner::arbitrary(g);
         let signed = refs.signed(&signer).unwrap();
@@ -190,8 +167,8 @@ impl Arbitrary for storage::Remote<crypto::Verified> {
 }
 
 impl Arbitrary for Id {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let bytes = ByteArray::<20>::arbitrary(g);
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let bytes = <[u8; 20]>::arbitrary(g);
         let oid = git::Oid::try_from(bytes.as_slice()).unwrap();
 
         Id::from(oid)

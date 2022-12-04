@@ -9,7 +9,7 @@ authors = [
 edition = "2021"
 
 [features]
-test = ["fastrand", "quickcheck"]
+test = ["fastrand", "qcheck"]
 ssh = ["base64", "radicle-ssh", "ssh-key"]
 
 [dependencies]
@@ -37,7 +37,7 @@ default-features = false
 features = ["std", "encryption", "rand_core", "getrandom"]
 optional = true
 
-[dependencies.quickcheck]
+[dependencies.qcheck]
 version = "1"
 default-features = false
 optional = true
@@ -54,6 +54,6 @@ optional = true
 
 [dev-dependencies]
 fastrand = { version = "1.8.0", default-features = false }
-quickcheck_macros = { version = "1", default-features = false }
-quickcheck = { version = "1", default-features = false }
+qcheck-macros = { version = "1", default-features = false }
+qcheck = { version = "1", default-features = false }
 tempfile = { version = "3.3.0" }

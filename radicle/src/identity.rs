@@ -83,7 +83,7 @@ impl Deref for Did {
 mod test {
     use super::*;
     use crate::crypto::PublicKey;
-    use quickcheck_macros::quickcheck;
+    use qcheck_macros::quickcheck;
     use std::collections::HashSet;
 
     #[quickcheck]

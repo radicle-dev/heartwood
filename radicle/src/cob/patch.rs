@@ -778,7 +778,7 @@ mod test {
     use radicle_crdt::test::{assert_laws, WeightedGenerator};
 
     use pretty_assertions::assert_eq;
-    use quickcheck::{Arbitrary, TestResult};
+    use qcheck::{Arbitrary, TestResult};
 
     use super::*;
     use crate::cob::op::{Actor, ActorId};
@@ -804,7 +804,7 @@ mod test {
     }
 
     impl<const N: usize> Arbitrary for Changes<N> {
-        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        fn arbitrary(g: &mut qcheck::Gen) -> Self {
             type State = (clock::Lamport, Vec<OpId>, Vec<Tag>);
 
             let author = ActorId::from([0; 32]);
@@ -927,9 +927,9 @@ mod test {
             TestResult::passed()
         }
 
-        quickcheck::QuickCheck::new()
+        qcheck::QuickCheck::new()
             .min_tests_passed(100)
-            .gen(quickcheck::Gen::new(8))
+            .gen(qcheck::Gen::new(8))
             .quickcheck(property as fn(Changes<3>) -> TestResult);
     }
 
