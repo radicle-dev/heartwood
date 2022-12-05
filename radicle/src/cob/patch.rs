@@ -25,6 +25,8 @@ use crate::storage::git as storage;
 /// The logical clock we use to order operations to patches.
 pub use clock::Lamport as Clock;
 
+use super::op::Ops;
+
 /// Type name of a patch.
 pub static TYPENAME: Lazy<TypeName> =
     Lazy::new(|| FromStr::from_str("xyz.radicle.patch").expect("type name is valid"));
@@ -327,8 +329,8 @@ impl store::FromHistory for Patch {
         history: &radicle_cob::History,
     ) -> Result<(Self, clock::Lamport), store::Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(op) = Op::try_from(entry) {
-                if let Err(err) = acc.apply([op]) {
+            if let Ok(Ops(changes)) = Ops::try_from(entry) {
+                if let Err(err) = acc.apply(changes) {
                     log::warn!("Error applying op to patch state: {err}");
                     return ControlFlow::Break(acc);
                 }

@@ -2,6 +2,7 @@
 #![allow(clippy::large_enum_variant)]
 use std::marker::PhantomData;
 
+use nonempty::NonEmpty;
 use radicle_crdt::Lamport;
 use serde::Serialize;
 
@@ -21,6 +22,7 @@ pub const HISTORY_TYPE: &str = "radicle";
 /// A type that can be materialized from an event history.
 /// All collaborative objects implement this trait.
 pub trait FromHistory: Sized {
+    // TODO(finto): Action not being used smells fishy to me
     type Action;
 
     /// The object type name.
@@ -100,7 +102,7 @@ where
         action: T::Action,
         signer: &G,
     ) -> Result<CollaborativeObject, Error> {
-        let changes = encoding::encode(&action)?;
+        let changes = NonEmpty::new(encoding::encode(&action)?);
 
         cob::update(
             self.raw,
@@ -125,7 +127,7 @@ where
         action: T::Action,
         signer: &G,
     ) -> Result<(ObjectId, T, Lamport), Error> {
-        let contents = encoding::encode(&action)?;
+        let contents = NonEmpty::new(encoding::encode(&action)?);
         let cob = cob::create(
             self.raw,
             signer,

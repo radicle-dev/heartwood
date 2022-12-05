@@ -17,6 +17,7 @@ git-commit = { version = "0.2" }
 git-ref-format = { version = "0.1" }
 git-trailers = { version = "0.1" }
 log = { version = "0.4.17" }
+nonempty = { version = "0.8.1", features = ["serialize"] }
 petgraph = { version = "0.5" }
 radicle-git-ext = { version = "0.2" }
 serde_json = { version = "1.0" }

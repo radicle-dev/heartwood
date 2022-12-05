@@ -21,7 +21,7 @@ lexopt = { version = "0.2.1" }
 log = { version = "0.4.17", features = ["std"] }
 nakamoto-net = { version = "0.3.0" }
 nakamoto-net-poll = { version = "0.3.0" }
-nonempty = { version = "0.8.0", features = ["serialize"] }
+nonempty = { version = "0.8.1", features = ["serialize"] }
 qcheck = { version = "1", default-features = false, optional = true }
 sqlite = { version = "0.30.3" }
 sqlite3-src = { version = "0.4.0", features = ["bundled"] } # Ensures static linking

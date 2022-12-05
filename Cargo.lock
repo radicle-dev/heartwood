@@ -1659,9 +1659,9 @@ checksum = "9ff7ac1e5ea23db6d61ad103e91864675049644bf47c35912336352fa4e9c109"
 
 [[package]]
 name = "nonempty"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09f1f8e5676e1a1f2ee8b21f38238e1243c827531c9435624c7bfb305102cee4"
+checksum = "aeaf4ad7403de93e699c191202f017118df734d3850b01e13a3a8b2e6953d3c9"
 dependencies = [
  "serde",
 ]
@@ -2079,7 +2079,7 @@ dependencies = [
  "git2",
  "log",
  "multibase",
- "nonempty 0.8.0",
+ "nonempty 0.8.1",
  "num-traits",
  "olpc-cjson",
  "once_cell",
@@ -2138,6 +2138,7 @@ dependencies = [
  "git-trailers",
  "git2",
  "log",
+ "nonempty 0.8.1",
  "petgraph",
  "qcheck",
  "qcheck-macros",
@@ -2240,7 +2241,7 @@ dependencies = [
  "log",
  "nakamoto-net",
  "nakamoto-net-poll",
- "nonempty 0.8.0",
+ "nonempty 0.8.1",
  "qcheck",
  "qcheck-macros",
  "radicle",

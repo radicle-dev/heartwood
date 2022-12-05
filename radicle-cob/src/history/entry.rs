@@ -4,14 +4,14 @@
 // Linking Exception. For full terms see the included LICENSE file.
 
 use git_ext::Oid;
-
+use nonempty::NonEmpty;
 use radicle_crypto::PublicKey;
 
 use crate::pruning_fold;
 
 /// Entry contents.
 /// This is the change payload.
-pub type Contents = Vec<u8>;
+pub type Contents = NonEmpty<Vec<u8>>;
 
 /// Logical clock used to track causality in change graph.
 pub type Clock = u64;

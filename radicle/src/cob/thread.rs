@@ -19,6 +19,8 @@ use crdt::lwwset::LWWSet;
 use crdt::redactable::Redactable;
 use crdt::Semilattice;
 
+use super::op::Ops;
+
 /// Type name of a thread.
 pub static TYPENAME: Lazy<TypeName> =
     Lazy::new(|| FromStr::from_str("xyz.radicle.thread").expect("type name is valid"));
@@ -97,8 +99,8 @@ impl store::FromHistory for Thread {
 
     fn from_history(history: &History) -> Result<(Self, Lamport), store::Error> {
         let obj = history.traverse(Thread::default(), |mut acc, entry| {
-            if let Ok(change) = Op::try_from(entry) {
-                acc.apply([change]);
+            if let Ok(Ops(changes)) = Ops::try_from(entry) {
+                acc.apply(changes);
                 ControlFlow::Continue(acc)
             } else {
                 ControlFlow::Break(acc)

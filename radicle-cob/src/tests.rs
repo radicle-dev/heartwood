@@ -2,6 +2,7 @@ use std::ops::ControlFlow;
 
 use crypto::test::signer::MockSigner;
 use git_ref_format::{refname, Component, RefString};
+use nonempty::nonempty;
 use qcheck::Arbitrary;
 use radicle_crypto::Signer;
 
@@ -29,7 +30,7 @@ fn roundtrip() {
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
-            contents: Vec::new(),
+            contents: nonempty!(Vec::new()),
             typename: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
         },
@@ -61,7 +62,7 @@ fn list_cobs() {
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
-            contents: b"issue 1".to_vec(),
+            contents: nonempty!(b"issue 1".to_vec()),
             typename: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
         },
@@ -75,7 +76,7 @@ fn list_cobs() {
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
-            contents: b"issue 2".to_vec(),
+            contents: nonempty!(b"issue 2".to_vec()),
             typename: typename.clone(),
             message: "commenting xyz.rad.issue".to_string(),
         },
@@ -109,7 +110,7 @@ fn update_cob() {
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
-            contents: Vec::new(),
+            contents: nonempty!(Vec::new()),
             typename: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
         },
@@ -126,7 +127,7 @@ fn update_cob() {
         &proj,
         &proj.identifier(),
         Update {
-            changes: b"issue 1".to_vec(),
+            changes: nonempty!(b"issue 1".to_vec()),
             history_type: "test".to_string(),
             object_id: *cob.id(),
             typename: typename.clone(),
@@ -166,7 +167,7 @@ fn traverse_cobs() {
         &terry_proj,
         &terry_proj.identifier(),
         Create {
-            contents: b"issue 1".to_vec(),
+            contents: nonempty!(b"issue 1".to_vec()),
             history_type: "test".to_string(),
             typename: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
@@ -188,7 +189,7 @@ fn traverse_cobs() {
         &neil_proj,
         &neil_proj.identifier(),
         Update {
-            changes: b"issue 2".to_vec(),
+            changes: nonempty!(b"issue 2".to_vec()),
             history_type: "test".to_string(),
             object_id: *cob.id(),
             typename,
@@ -200,7 +201,7 @@ fn traverse_cobs() {
     // traverse over the history and filter by changes that were only authorized by terry
     let contents = updated.history().traverse(Vec::new(), |mut acc, entry| {
         if entry.actor() == terry_signer.public_key() {
-            acc.push(entry.contents().to_vec());
+            acc.push(entry.contents().head.to_vec());
         }
         ControlFlow::Continue(acc)
     });
@@ -209,7 +210,7 @@ fn traverse_cobs() {
 
     // traverse over the history and filter by changes that were only authorized by neil
     let contents = updated.history().traverse(Vec::new(), |mut acc, entry| {
-        acc.push(entry.contents().to_vec());
+        acc.push(entry.contents().head.to_vec());
         ControlFlow::Continue(acc)
     });
 

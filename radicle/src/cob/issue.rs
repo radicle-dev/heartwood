@@ -15,6 +15,8 @@ use crate::cob::{store, ObjectId, OpId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::storage::git as storage;
 
+use super::op::Ops;
+
 /// Issue operation.
 pub type Op = crate::cob::Op<Action>;
 
@@ -110,8 +112,8 @@ impl store::FromHistory for Issue {
         history: &radicle_cob::History,
     ) -> Result<(Self, clock::Lamport), store::Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(op) = Op::try_from(entry) {
-                if let Err(err) = acc.apply(op) {
+            if let Ok(Ops(changes)) = Ops::try_from(entry) {
+                if let Err(err) = acc.apply(changes) {
                     log::warn!("Error applying op to issue state: {err}");
                     return ControlFlow::Break(acc);
                 }
@@ -153,29 +155,31 @@ impl Issue {
         self.thread.comments().map(|(id, comment)| (id, comment))
     }
 
-    pub fn apply(&mut self, op: Op) -> Result<(), Error> {
-        match op.action {
-            Action::Title { title } => {
-                self.title.set(title, op.clock);
-            }
-            Action::Lifecycle { status } => {
-                self.status.set(status, op.clock);
-            }
-            Action::Tag { add, remove } => {
-                for tag in add {
-                    self.tags.insert(tag, op.clock);
+    pub fn apply(&mut self, changes: impl IntoIterator<Item = Op>) -> Result<(), Error> {
+        for change in changes {
+            match change.action {
+                Action::Title { title } => {
+                    self.title.set(title, change.clock);
                 }
-                for tag in remove {
-                    self.tags.remove(tag, op.clock);
+                Action::Lifecycle { status } => {
+                    self.status.set(status, change.clock);
                 }
-            }
-            Action::Thread { action } => {
-                self.thread.apply([cob::Op {
-                    action,
-                    author: op.author,
-                    clock: op.clock,
-                    timestamp: op.timestamp,
-                }]);
+                Action::Tag { add, remove } => {
+                    for tag in add {
+                        self.tags.insert(tag, change.clock);
+                    }
+                    for tag in remove {
+                        self.tags.remove(tag, change.clock);
+                    }
+                }
+                Action::Thread { action } => {
+                    self.thread.apply([cob::Op {
+                        action,
+                        author: change.author,
+                        clock: change.clock,
+                        timestamp: change.timestamp,
+                    }]);
+                }
             }
         }
         Ok(())
@@ -291,7 +295,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
             clock,
             timestamp,
         };
-        self.issue.apply(op)?;
+        self.issue.apply([op])?;
 
         Ok((clock, *signer.public_key()))
     }
