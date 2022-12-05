@@ -4,7 +4,8 @@ use std::path::Path;
 use radicle::profile::Profile;
 use radicle::test::fixtures;
 
-use crate::testing::TestFormula;
+mod framework;
+use framework::TestFormula;
 
 /// Run a CLI test file.
 fn test(

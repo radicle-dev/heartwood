@@ -5,7 +5,3 @@ pub mod commands;
 pub mod git;
 pub mod project;
 pub mod terminal;
-#[cfg(test)]
-mod testing;
-#[cfg(test)]
-mod tests;
