@@ -254,12 +254,11 @@ pub fn commit<'a>(
     parent: &'a git2::Commit,
     target: &RefStr,
     message: &str,
-    user: &str,
+    sig: &git2::Signature,
 ) -> Result<git2::Commit<'a>, git2::Error> {
-    let sig = git2::Signature::now(user, "anonymous@radicle.xyz")?;
     let tree_id = repo.index()?.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
-    let oid = repo.commit(Some(target.as_str()), &sig, &sig, message, &tree, &[parent])?;
+    let oid = repo.commit(Some(target.as_str()), sig, sig, message, &tree, &[parent])?;
     let commit = repo.find_commit(oid)?;
 
     Ok(commit)

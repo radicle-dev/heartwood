@@ -15,12 +15,11 @@ ok Project acme created
 }
 
 
-Your project id is [..]. You can show it any time by running:
+Your project id is rad:z4EXAgDJk11uFThfVir5FivKhiAeK. You can show it any time by running:
    rad .
 
 To publish your project to the network, run:
    rad push
-
 
 ```
 
@@ -28,6 +27,5 @@ Projects can be listed with the `ls` command:
 
 ```
 $ rad ls
-acme [..] [..] Acme's repository
-
+acme rad:z4EXAgDJk11uFThfVir5FivKhiAeK cdf76ce Acme's repository
 ```

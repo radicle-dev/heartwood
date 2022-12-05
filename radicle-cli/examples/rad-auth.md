@@ -1,4 +1,3 @@
-
 Initializing a new identity with `rad-auth`.
 The example below is run with `RAD_PASSPHRASE` set.
 
@@ -13,7 +12,6 @@ ok Profile z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi created.
 Your radicle Node ID is z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi. This identifies your device.
 
 => To create a radicle project, run `rad init` from a git repository.
-
 ```
 
 You can get the above information at all times using the `self` command:
@@ -26,5 +24,4 @@ Key (full)     AAAAC3NzaC1lZDI1NTE5AAAAIHahWSBEpuT1ESZbynOmBNkLBSnR32Ar4woZqSV2Y
 Storage (git)  [..]/storage
 Storage (keys) [..]/keys
 Node (socket)  [..]/node/radicle.sock
-
 ```

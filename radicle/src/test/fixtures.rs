@@ -8,6 +8,9 @@ use crate::storage::git::transport;
 use crate::storage::git::Storage;
 use crate::storage::refs::SignedRefs;
 
+/// The birth of the radicle project, January 1st, 2018.
+const RADICLE_EPOCH: i64 = 1514817556;
+
 /// Create a new storage with a project.
 pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage, rad::InitError> {
     let path = path.as_ref();
@@ -52,14 +55,19 @@ pub fn project<P: AsRef<Path>, G: Signer>(
 /// Creates a regular repository at the given path with a couple of commits.
 pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
     let repo = git2::Repository::init(path).unwrap();
-    let sig = git2::Signature::now("anonymous", "anonymous@radicle.xyz").unwrap();
+    let sig = git2::Signature::new(
+        "anonymous",
+        "anonymous@radicle.xyz",
+        &git2::Time::new(RADICLE_EPOCH, 0),
+    )
+    .unwrap();
     let head = git::initial_commit(&repo, &sig).unwrap();
     let oid = git::commit(
         &repo,
         &head,
         git::refname!("refs/heads/master").as_refstr(),
         "Second commit",
-        "anonymous",
+        &sig,
     )
     .unwrap()
     .id();
