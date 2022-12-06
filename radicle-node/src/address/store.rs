@@ -62,24 +62,24 @@ impl Store for Book {
             .db
             .prepare("SELECT features, alias, timestamp FROM nodes WHERE id = ?")?;
 
-        stmt.bind(1, node)?;
+        stmt.bind((1, node))?;
 
-        if let Some(Ok(row)) = stmt.into_cursor().next() {
-            let features = row.get::<node::Features, _>("features");
-            let alias = row.get::<String, _>("alias");
-            let timestamp = row.get::<i64, _>("timestamp") as Timestamp;
+        if let Some(Ok(row)) = stmt.into_iter().next() {
+            let features = row.read::<node::Features, _>("features");
+            let alias = row.read::<&str, _>("alias").to_owned();
+            let timestamp = row.read::<i64, _>("timestamp") as Timestamp;
             let mut addrs = Vec::new();
 
             let mut stmt = self
                 .db
                 .prepare("SELECT type, value, source FROM addresses WHERE node = ?")?;
-            stmt.bind(1, node)?;
+            stmt.bind((1, node))?;
 
-            for row in stmt.into_cursor() {
+            for row in stmt.into_iter() {
                 let row = row?;
-                let _typ = row.get::<AddressType, _>("type");
-                let addr = row.get::<Address, _>("value");
-                let source = row.get::<Source, _>("source");
+                let _typ = row.read::<AddressType, _>("type");
+                let addr = row.read::<Address, _>("value");
+                let source = row.read::<Source, _>("source");
 
                 addrs.push(KnownAddress {
                     addr,
@@ -104,11 +104,11 @@ impl Store for Book {
         let row = self
             .db
             .prepare("SELECT COUNT(*) FROM addresses")?
-            .into_cursor()
+            .into_iter()
             .next()
             .unwrap()
             .unwrap();
-        let count = row.get::<i64, _>(0) as usize;
+        let count = row.read::<i64, _>(0) as usize;
 
         Ok(count)
     }
@@ -130,10 +130,10 @@ impl Store for Book {
                  WHERE timestamp < ?4",
             )?;
 
-            stmt.bind(1, node)?;
-            stmt.bind(2, features)?;
-            stmt.bind(3, alias)?;
-            stmt.bind(4, timestamp as i64)?;
+            stmt.bind((1, node))?;
+            stmt.bind((2, features))?;
+            stmt.bind((3, alias))?;
+            stmt.bind((4, timestamp as i64))?;
             stmt.next()?;
 
             for addr in addrs {
@@ -144,11 +144,11 @@ impl Store for Book {
                      SET timestamp = ?5
                      WHERE timestamp < ?5",
                 )?;
-                stmt.bind(1, node)?;
-                stmt.bind(2, AddressType::from(&addr.addr))?;
-                stmt.bind(3, addr.addr)?;
-                stmt.bind(4, addr.source)?;
-                stmt.bind(5, timestamp as i64)?;
+                stmt.bind((1, node))?;
+                stmt.bind((2, AddressType::from(&addr.addr)))?;
+                stmt.bind((3, addr.addr))?;
+                stmt.bind((4, addr.source))?;
+                stmt.bind((5, timestamp as i64))?;
                 stmt.next()?;
             }
             Ok(db.change_count() > 0)
@@ -159,13 +159,13 @@ impl Store for Book {
     fn remove(&mut self, node: &NodeId) -> Result<bool, Error> {
         transaction(&self.db, move |db| {
             db.prepare("DELETE FROM nodes WHERE id = ?")?
-                .into_cursor()
-                .bind(&[(*node).into()])?
+                .into_iter()
+                .bind(&[node][..])?
                 .next();
 
             db.prepare("DELETE FROM addresses WHERE node = ?")?
-                .into_cursor()
-                .bind(&[(*node).into()])?
+                .into_iter()
+                .bind(&[node][..])?
                 .next();
 
             Ok(db.change_count() > 0)
@@ -177,14 +177,14 @@ impl Store for Book {
         let mut stmt = self
             .db
             .prepare("SELECT node, type, value, source FROM addresses ORDER BY node")?
-            .into_cursor();
+            .into_iter();
         let mut entries = Vec::new();
 
         while let Some(Ok(row)) = stmt.next() {
-            let node = row.get("node");
-            let _typ = row.get::<AddressType, _>("type");
-            let addr = row.get::<Address, _>("value");
-            let source = row.get::<Source, _>("source");
+            let node = row.read::<NodeId, _>("node");
+            let _typ = row.read::<AddressType, _>("type");
+            let addr = row.read::<Address, _>("value");
+            let source = row.read::<Source, _>("source");
 
             entries.push((
                 node,
@@ -229,37 +229,53 @@ pub trait Store {
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error>;
 }
 
-impl sql::ValueInto for Address {
-    fn into(value: &sql::Value) -> Option<Self> {
+impl TryFrom<&sql::Value> for Address {
+    type Error = sql::Error;
+
+    fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
         match value {
-            sql::Value::String(s) => Address::from_str(s.as_str()).ok(),
-            _ => None,
+            sql::Value::String(s) => Address::from_str(s.as_str()).map_err(|_| sql::Error {
+                code: None,
+                message: None,
+            }),
+            _ => Err(sql::Error {
+                code: None,
+                message: None,
+            }),
         }
     }
 }
 
-impl sql::Bindable for Address {
-    fn bind(self, stmt: &mut sql::Statement<'_>, i: usize) -> sql::Result<()> {
+impl sql::BindableWithIndex for Address {
+    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
         self.to_string().bind(stmt, i)
     }
 }
 
-impl sql::ValueInto for Source {
-    fn into(value: &sql::Value) -> Option<Self> {
+impl TryFrom<&sql::Value> for Source {
+    type Error = sql::Error;
+
+    fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
         match value {
             sql::Value::String(s) => match s.as_str() {
-                "dns" => Some(Source::Dns),
-                "peer" => Some(Source::Peer),
-                "imported" => Some(Source::Imported),
-                _ => None,
+                "dns" => Ok(Source::Dns),
+                "peer" => Ok(Source::Peer),
+                "imported" => Ok(Source::Imported),
+                _ => Err(sql::Error {
+                    code: None,
+                    message: None,
+                }),
             },
-            _ => None,
+            _ => Err(sql::Error {
+                code: None,
+                message: None,
+            }),
         }
     }
 }
 
-impl sql::Bindable for Source {
-    fn bind(self, stmt: &mut sql::Statement<'_>, i: usize) -> sql::Result<()> {
+impl sql::BindableWithIndex for Source {
+    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
         match self {
             Self::Dns => "dns".bind(stmt, i),
             Self::Peer => "peer".bind(stmt, i),
@@ -268,23 +284,31 @@ impl sql::Bindable for Source {
     }
 }
 
-impl sql::ValueInto for AddressType {
-    fn into(value: &sql::Value) -> Option<Self> {
+impl TryFrom<&sql::Value> for AddressType {
+    type Error = sql::Error;
+
+    fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
         match value {
             sql::Value::String(s) => match s.as_str() {
-                "ipv4" => Some(AddressType::Ipv4),
-                "ipv6" => Some(AddressType::Ipv6),
-                "hostname" => Some(AddressType::Hostname),
-                "onion" => Some(AddressType::Onion),
-                _ => None,
+                "ipv4" => Ok(AddressType::Ipv4),
+                "ipv6" => Ok(AddressType::Ipv6),
+                "hostname" => Ok(AddressType::Hostname),
+                "onion" => Ok(AddressType::Onion),
+                _ => Err(sql::Error {
+                    code: None,
+                    message: None,
+                }),
             },
-            _ => None,
+            _ => Err(sql::Error {
+                code: None,
+                message: None,
+            }),
         }
     }
 }
 
-impl sql::Bindable for AddressType {
-    fn bind(self, stmt: &mut sql::Statement<'_>, i: usize) -> sql::Result<()> {
+impl sql::BindableWithIndex for AddressType {
+    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
         match self {
             Self::Ipv4 => "ipv4".bind(stmt, i),
             Self::Ipv6 => "ipv6".bind(stmt, i),

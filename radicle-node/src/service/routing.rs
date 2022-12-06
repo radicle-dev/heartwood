@@ -82,11 +82,11 @@ impl Store for Table {
         let mut stmt = self
             .db
             .prepare("SELECT (node) FROM routing WHERE resource = ?")?;
-        stmt.bind(1, id)?;
+        stmt.bind((1, id))?;
 
         let mut nodes = HashSet::new();
-        for row in stmt.into_cursor() {
-            nodes.insert(row?.get::<NodeId, _>("node"));
+        for row in stmt.into_iter() {
+            nodes.insert(row?.read::<NodeId, _>("node"));
         }
         Ok(nodes)
     }
@@ -95,11 +95,11 @@ impl Store for Table {
         let mut stmt = self
             .db
             .prepare("SELECT resource FROM routing WHERE node = ?")?;
-        stmt.bind(1, node)?;
+        stmt.bind((1, node))?;
 
         let mut resources = HashSet::new();
-        for row in stmt.into_cursor() {
-            resources.insert(row?.get::<Id, _>("resource"));
+        for row in stmt.into_iter() {
+            resources.insert(row?.read::<Id, _>("resource"));
         }
         Ok(resources)
     }
@@ -109,11 +109,11 @@ impl Store for Table {
             .db
             .prepare("SELECT (time) FROM routing WHERE resource = ? AND node = ?")?;
 
-        stmt.bind(1, id)?;
-        stmt.bind(2, node)?;
+        stmt.bind((1, id))?;
+        stmt.bind((2, node))?;
 
-        if let Some(Ok(row)) = stmt.into_cursor().next() {
-            return Ok(Some(row.get::<i64, _>("time") as Timestamp));
+        if let Some(Ok(row)) = stmt.into_iter().next() {
+            return Ok(Some(row.read::<i64, _>("time") as Timestamp));
         }
         Ok(None)
     }
@@ -128,9 +128,9 @@ impl Store for Table {
              WHERE time < ?3",
         )?;
 
-        stmt.bind(1, &id)?;
-        stmt.bind(2, &node)?;
-        stmt.bind(3, time)?;
+        stmt.bind((1, &id))?;
+        stmt.bind((2, &node))?;
+        stmt.bind((3, time))?;
         stmt.next()?;
 
         Ok(self.db.change_count() > 0)
@@ -140,12 +140,12 @@ impl Store for Table {
         let mut stmt = self
             .db
             .prepare("SELECT resource, node FROM routing ORDER BY resource")?
-            .into_cursor();
+            .into_iter();
         let mut entries = Vec::new();
 
         while let Some(Ok(row)) = stmt.next() {
-            let id = row.get("resource");
-            let node = row.get("node");
+            let id = row.read("resource");
+            let node = row.read("node");
 
             entries.push((id, node));
         }
@@ -157,8 +157,8 @@ impl Store for Table {
             .db
             .prepare("DELETE FROM routing WHERE resource = ? AND node = ?")?;
 
-        stmt.bind(1, id)?;
-        stmt.bind(2, node)?;
+        stmt.bind((1, id))?;
+        stmt.bind((2, node))?;
         stmt.next()?;
 
         Ok(self.db.change_count() > 0)
@@ -167,10 +167,10 @@ impl Store for Table {
     fn len(&self) -> Result<usize, Error> {
         let stmt = self.db.prepare("SELECT COUNT(1) FROM routing")?;
         let count: i64 = stmt
-            .into_cursor()
+            .into_iter()
             .next()
             .expect("COUNT will always return a single row")?
-            .get(0);
+            .read(0);
         let count: usize = count.try_into().map_err(|_| Error::UnitOverflow)?;
         Ok(count)
     }
@@ -186,8 +186,8 @@ impl Store for Table {
             "DELETE FROM routing WHERE rowid IN
             (SELECT rowid FROM routing WHERE time < ? LIMIT ?)",
         )?;
-        stmt.bind(1, oldest)?;
-        stmt.bind(2, limit)?;
+        stmt.bind((1, oldest))?;
+        stmt.bind((2, limit))?;
         stmt.next()?;
 
         Ok(self.db.change_count())

@@ -351,27 +351,38 @@ impl<'a> From<&PublicKey> for git_ref_format::Component<'a> {
 }
 
 #[cfg(feature = "sqlite")]
-impl sqlite::ValueInto for PublicKey {
-    fn into(value: &sqlite::Value) -> Option<Self> {
-        use sqlite::Value;
-        match value {
-            Value::String(id) => PublicKey::from_str(id).ok(),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "sqlite")]
-impl From<PublicKey> for sqlite::Value {
-    fn from(pk: PublicKey) -> Self {
+impl From<&PublicKey> for sqlite::Value {
+    fn from(pk: &PublicKey) -> Self {
         sqlite::Value::String(pk.to_human())
     }
 }
 
 #[cfg(feature = "sqlite")]
-impl sqlite::Bindable for &PublicKey {
-    fn bind(self, stmt: &mut sqlite::Statement<'_>, i: usize) -> sqlite::Result<()> {
-        sqlite::Value::from(*self).bind(stmt, i)
+impl TryFrom<&sqlite::Value> for PublicKey {
+    type Error = sqlite::Error;
+
+    fn try_from(value: &sqlite::Value) -> Result<Self, Self::Error> {
+        match value {
+            sqlite::Value::String(s) => Self::from_str(s).map_err(|e| sqlite::Error {
+                code: None,
+                message: Some(e.to_string()),
+            }),
+            _ => Err(sqlite::Error {
+                code: None,
+                message: None,
+            }),
+        }
+    }
+}
+
+#[cfg(feature = "sqlite")]
+impl sqlite::BindableWithIndex for &PublicKey {
+    fn bind<I: sqlite::ParameterIndex>(
+        self,
+        stmt: &mut sqlite::Statement<'_>,
+        i: I,
+    ) -> sqlite::Result<()> {
+        sqlite::Value::from(self).bind(stmt, i)
     }
 }
 

@@ -23,7 +23,7 @@ nakamoto-net = { version = "0.3.0" }
 nakamoto-net-poll = { version = "0.3.0" }
 nonempty = { version = "0.8.0", features = ["serialize"] }
 qcheck = { version = "1", default-features = false, optional = true }
-sqlite = { version = "0.28.1" }
+sqlite = { version = "0.30.3" }
 sqlite3-src = { version = "0.4.0", features = ["bundled"] } # Ensures static linking
 scrypt = { version = "0.10.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
