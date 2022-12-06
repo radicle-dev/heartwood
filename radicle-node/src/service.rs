@@ -508,14 +508,6 @@ where
         // peer.attempted();
     }
 
-    pub fn connecting(
-        &mut self,
-        _addr: net::SocketAddr,
-        _local_addr: &net::SocketAddr,
-        _link: Link,
-    ) {
-    }
-
     pub fn connected(&mut self, id: NodeId, link: Link) {
         debug!("Connected to {} ({:?})", id, link);
 

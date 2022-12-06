@@ -83,13 +83,20 @@ pub struct Wire<R, S, W, G> {
     proxy: net::SocketAddr,
 }
 
-impl<R, S, W, G> Wire<R, S, W, G> {
+impl<R, S, W, G> Wire<R, S, W, G>
+where
+    R: routing::Store,
+    S: address::Store,
+    W: WriteStorage + 'static,
+    G: Signer,
+{
     pub fn new(
         mut inner: service::Service<R, S, W, G>,
         local_node: LocalNode<Ed25519>,
         proxy: net::SocketAddr,
+        clock: LocalTime,
     ) -> Self {
-        // TODO: inner.initialize(LocalTime::new());
+        inner.initialize(clock);
         Self {
             inner,
             local_node,
@@ -126,8 +133,7 @@ where
             ListenerEvent::Accepted(session) => {
                 let transport = NetTransport::<Session, Framer>::upgrade(session)
                     .expect("socket can't be configured");
-                self.inner
-                    .connecting(socket_addr, &transport.local_addr(), Link::Inbound);
+                self.inner.attempted(&socket_addr);
                 self.inner_queue
                     .push_back(reactor::Action::RegisterTransport(transport))
             }
@@ -242,15 +248,12 @@ where
                     _ => self.proxy,
                 };
 
-                self.inner.attempted(&socket_addr);
-
                 match NetTransport::<Session, Framer>::connect(
                     PeerAddr::new(id, socket_addr),
                     &self.local_node,
                 ) {
                     Ok(transport) => {
-                        self.inner
-                            .connecting(socket_addr, &transport.local_addr(), Link::Outbound);
+                        self.inner.attempted(&socket_addr);
                         Some(reactor::Action::RegisterTransport(transport))
                     }
                     Err(err) => {
@@ -260,10 +263,7 @@ where
                     }
                 }
             }
-            Some(Io::Disconnect(id, r)) => {
-                self.inner.disconnected(&id, &DisconnectReason::Protocol(r));
-                Some(reactor::Action::UnregisterTransport(id))
-            }
+            Some(Io::Disconnect(id, r)) => Some(reactor::Action::UnregisterTransport(id)),
 
             Some(Io::Wakeup(d)) => Some(reactor::Action::Wakeup(d.into())),
 
