@@ -56,15 +56,19 @@ pub enum Error {
 
     /// Surf commit error.
     #[error(transparent)]
-    SurfCommit(#[from] radicle_surf::commit::Error),
+    SurfCommit(#[from] radicle_surf::source::commit::Error),
 
     /// Surf object error.
     #[error(transparent)]
-    SurfObject(#[from] radicle_surf::object::Error),
+    SurfObject(#[from] radicle_surf::source::object::Error),
 
     /// Surf git error.
     #[error(transparent)]
     SurfGit(#[from] radicle_surf::git::Error),
+
+    /// Surf directory error.
+    #[error(transparent)]
+    SurfDir(#[from] radicle_surf::file_system::directory::error::Directory),
 
     /// Git2 error.
     #[error(transparent)]
