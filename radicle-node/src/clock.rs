@@ -1,5 +1,4 @@
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use crate::{LocalDuration, LocalTime};
 
@@ -8,10 +7,10 @@ pub type Timestamp = u64;
 
 /// Clock with interior mutability.
 #[derive(Debug, Clone)]
-pub struct RefClock(Rc<RefCell<LocalTime>>);
+pub struct RefClock(Arc<Mutex<LocalTime>>);
 
 impl std::ops::Deref for RefClock {
-    type Target = Rc<RefCell<LocalTime>>;
+    type Target = Arc<Mutex<LocalTime>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -21,15 +20,15 @@ impl std::ops::Deref for RefClock {
 impl RefClock {
     /// Elapse time.
     pub fn elapse(&self, duration: LocalDuration) {
-        self.borrow_mut().elapse(duration)
+        self.lock().unwrap().elapse(duration)
     }
 
     pub fn local_time(&self) -> LocalTime {
-        *self.borrow()
+        *self.lock().unwrap()
     }
 
     pub fn set(&mut self, time: LocalTime) {
-        *self.borrow_mut() = time;
+        *self.lock().unwrap() = time;
     }
 
     pub fn timestamp(&self) -> Timestamp {
@@ -39,6 +38,6 @@ impl RefClock {
 
 impl From<LocalTime> for RefClock {
     fn from(other: LocalTime) -> Self {
-        Self(Rc::new(RefCell::new(other)))
+        Self(Arc::new(Mutex::new(other)))
     }
 }
