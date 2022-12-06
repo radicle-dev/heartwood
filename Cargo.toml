@@ -43,8 +43,8 @@ version = "0.1.0"
 
 [patch.crates-io.radicle-git-ext]
 git = "https://github.com/radicle-dev/radicle-git"
-rev = "79a94721366490053e2d8ac1c1afa14fb0c25f09"
+rev = "016ece66474edf45d2d304141515152e6f7b37a3"
 
 [patch.crates-io.git-ref-format]
 git = "https://github.com/radicle-dev/radicle-git"
-rev = "79a94721366490053e2d8ac1c1afa14fb0c25f09"
+rev = "016ece66474edf45d2d304141515152e6f7b37a3"

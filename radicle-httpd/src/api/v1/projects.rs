@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
@@ -13,20 +13,15 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use radicle::cob::issue::Issues;
 use radicle::cob::thread::{self, CommentId};
 use radicle::cob::Timestamp;
-use radicle::git::Oid;
 use radicle::identity::{Id, PublicKey};
 use radicle::node::NodeId;
-use radicle::storage::git::paths;
-use radicle::storage::{ReadRepository, WriteStorage};
-use radicle_surf::git::{Glob, History, Repository};
-use radicle_surf::source;
-use radicle_surf::source::object::blob::Blob;
-use radicle_surf::source::object::tree::Tree;
+use radicle::storage::{git::paths, ReadRepository, WriteStorage};
+use radicle_surf::{Glob, Oid, Repository};
 
 use crate::api::axum_extra::{Path, Query};
 use crate::api::error::Error;
 use crate::api::project::Info;
-use crate::api::{Context, PaginationQuery};
+use crate::api::{self, Context, PaginationQuery};
 
 const CACHE_1_HOUR: &str = "public, max-age=3600, must-revalidate";
 
@@ -147,7 +142,7 @@ async fn history_handler(
     };
 
     let headers = repo
-        .history(sha)?
+        .history(&sha)?
         .filter(|q| {
             if let Ok(q) = q {
                 if let (Some(since), Some(until)) = (since, until) {
@@ -166,14 +161,23 @@ async fn history_handler(
         })
         .skip(page * per_page)
         .take(per_page)
-        .filter_map(|commit| {
-            if let Ok(commit) = commit {
-                source::commit(&repo, commit.id).ok()
-            } else {
-                None
-            }
+        .map(|r| {
+            r.and_then(|c| {
+                let glob = Glob::all_heads().branches().and(Glob::all_remotes());
+                let branches: Vec<String> = repo
+                    .revision_branches(c.id, glob)?
+                    .iter()
+                    .map(|b| b.refname().to_string())
+                    .collect();
+                let diff = repo.diff_commit(c.id)?;
+                Ok(json!({
+                    "header": api::json::commit(&c),
+                    "diff": diff,
+                    "branches": branches
+                }))
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
 
     let response = json!({
         "headers": headers,
@@ -195,9 +199,22 @@ async fn commit_handler(
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
-    let commit = source::commit(&repo, sha)?;
+    let commit = repo.commit(sha)?;
 
-    Ok::<_, Error>(Json(commit))
+    let diff = repo.diff_commit(commit.id)?;
+    let glob = Glob::all_heads().branches().and(Glob::all_remotes());
+    let branches: Vec<String> = repo
+        .revision_branches(commit.id, glob)?
+        .iter()
+        .map(|b| b.refname().to_string())
+        .collect();
+
+    let response = json!({
+      "header": api::json::commit(&commit),
+      "diff": diff,
+      "branches": branches
+    });
+    Ok::<_, Error>(Json(response))
 }
 
 /// Get project activity for the past year.
@@ -236,10 +253,9 @@ async fn tree_handler(
     let path = path.strip_prefix('/').ok_or(Error::NotFound)?.to_string();
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
-    let path = if path.is_empty() { None } else { Some(&path) };
-    let tree = Tree::new(&repo, &sha, path)?;
-    let mut response = json!(tree);
-    response["stats"] = json!(stats(&repo, sha)?);
+    let tree = repo.tree(sha, &path)?;
+    let stats = repo.stats_from(&sha)?;
+    let response = api::json::tree(&tree, &path, &stats);
 
     Ok::<_, Error>(Json(response))
 }
@@ -313,9 +329,10 @@ async fn blob_handler(
     let path = path.strip_prefix('/').ok_or(Error::NotFound)?;
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
-    let blob = Blob::new(&repo, &sha, &path)?;
+    let blob = repo.blob(sha, &path)?;
+    let response = api::json::blob(&blob, path);
 
-    Ok::<_, Error>(Json(blob))
+    Ok::<_, Error>(Json(response))
 }
 
 /// Get project readme.
@@ -336,8 +353,9 @@ async fn readme_handler(
     ];
 
     for path in paths {
-        if let Ok(blob) = Blob::new(&repo, &sha, &path) {
-            return Ok::<_, Error>(Json(blob));
+        if let Ok(blob) = repo.blob(sha, path) {
+            let response = api::json::blob(&blob, path);
+            return Ok::<_, Error>(Json(response));
         }
     }
 
@@ -437,35 +455,6 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
 
         Comments(comments)
     }
-}
-
-#[derive(Serialize)]
-struct Stats {
-    branches: usize,
-    commits: usize,
-    contributors: usize,
-}
-
-fn stats(repo: &Repository, head: Oid) -> Result<Stats, Error> {
-    let branches = repo.branches(Glob::all_heads())?.count();
-
-    let mut commits = 0;
-    let contributors = History::new(repo, head)?
-        .filter_map(|commit| {
-            commits += 1;
-            if let Ok(commit) = commit {
-                Some((commit.author.name, commit.author.email))
-            } else {
-                None
-            }
-        })
-        .collect::<HashSet<_>>();
-
-    Ok(Stats {
-        branches,
-        commits,
-        contributors: contributors.len(),
-    })
 }
 
 #[cfg(test)]
@@ -723,16 +712,16 @@ mod routes {
             json!({
                 "entries": [
                   {
-                    "path": "README",
-                    "name": "README",
-                    "lastCommit": null,
-                    "kind": "blob"
-                  },
-                  {
                     "path": "dir1",
                     "name": "dir1",
                     "lastCommit": null,
                     "kind": "tree"
+                  },
+                  {
+                    "path": "README",
+                    "name": "README",
+                    "lastCommit": null,
+                    "kind": "blob"
                   }
                 ],
                 "lastCommit": {
@@ -778,7 +767,20 @@ mod routes {
                   "kind": "blob"
                 }
               ],
-              "lastCommit": null,
+              "lastCommit": {
+                "sha1": HEAD,
+                "author": {
+                  "name": "Alice Liddell",
+                  "email": "alice@radicle.xyz"
+                },
+                "summary": "Add another folder",
+                "description": "",
+                "committer": {
+                  "name": "Alice Liddell",
+                  "email": "alice@radicle.xyz"
+                },
+                "committerTime": 1673001014
+              },
               "name": "dir1",
               "path": "dir1",
               "stats": {
@@ -837,6 +839,42 @@ mod routes {
         let response = request(
             &app,
             format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/blob/{HEAD}/README"),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json().await,
+            json!({
+                "binary": false,
+                "content": "Hello World!\n",
+                "lastCommit": {
+                    "sha1": HEAD_1,
+                    "author": {
+                        "name": "Alice Liddell",
+                        "email": "alice@radicle.xyz"
+                    },
+                    "summary": "Initial commit",
+                    "description": "",
+                    "committer": {
+                        "name": "Alice Liddell",
+                        "email": "alice@radicle.xyz"
+                    },
+                    "committerTime": 1673001014
+                },
+                "name": "README",
+                "path": "README"
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_readme() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(test::seed(tmp.path()));
+        let response = request(
+            &app,
+            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/readme/{HEAD}"),
         )
         .await;
 

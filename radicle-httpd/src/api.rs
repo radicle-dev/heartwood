@@ -20,6 +20,7 @@ use radicle::Profile;
 mod auth;
 mod axum_extra;
 mod error;
+mod json;
 #[cfg(test)]
 mod test;
 mod v1;
