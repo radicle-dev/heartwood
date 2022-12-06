@@ -321,7 +321,7 @@ fn test_inventory_pruning() {
                 Message::inventory(
                     InventoryAnnouncement {
                         inventory: test::arbitrary::vec::<Id>(num_projs).try_into().unwrap(),
-                        timestamp: bob.clock().timestamp(),
+                        timestamp: bob.local_time().as_secs(),
                     },
                     &MockSigner::default(),
                 ),
@@ -376,7 +376,7 @@ fn test_inventory_relay_bad_timestamp() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
     let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
     let two_hours = 3600 * 2;
-    let timestamp = alice.local_time.as_secs() + two_hours;
+    let timestamp = alice.timestamp() + two_hours;
 
     alice.connect_to(&bob);
     alice.receive(
@@ -465,8 +465,8 @@ fn test_announcement_rebroadcast_timestamp_filtered() {
 #[test]
 fn test_announcement_relay() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
-    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
-    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+    let mut bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+    let mut eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
 
     alice.connect_to(&bob);
     alice.connect_to(&eve);
@@ -483,7 +483,7 @@ fn test_announcement_relay() {
         "Another inventory with the same timestamp is ignored"
     );
 
-    bob.clock().elapse(LocalDuration::from_mins(1));
+    bob.elapse(LocalDuration::from_mins(1));
     alice.receive(&bob.addr(), bob.inventory_announcement());
     assert_matches!(
         alice.messages(&eve.addr()).next(),
@@ -512,7 +512,7 @@ fn test_announcement_relay() {
         "But not back to Eve"
     );
 
-    eve.clock().elapse(LocalDuration::from_mins(1));
+    eve.elapse(LocalDuration::from_mins(1));
     alice.receive(&bob.addr(), eve.node_announcement());
     assert!(
         alice.messages(&bob.addr()).next().is_none(),
@@ -880,7 +880,7 @@ fn test_push_and_pull() {
     // Alice announces her refs.
     // We now expect Eve to fetch Alice's project from Alice.
     // Then we expect Bob to fetch Alice's project from Eve.
-    alice.clock().elapse(LocalDuration::from_secs(1)); // Make sure our announcement is fresh.
+    alice.elapse(LocalDuration::from_secs(1)); // Make sure our announcement is fresh.
     alice.command(service::Command::AnnounceRefs(proj_id));
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 

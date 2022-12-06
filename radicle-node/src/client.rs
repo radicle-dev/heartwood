@@ -6,7 +6,6 @@ use thiserror::Error;
 
 use radicle::crypto::Signer;
 
-use crate::clock::RefClock;
 use crate::profile::Profile;
 use crate::service::{routing, tracking};
 use crate::wire::transcode::NoHandshake;
@@ -131,7 +130,7 @@ impl<R: Reactor> Client<R> {
 
         let service = service::Service::new(
             config.service,
-            RefClock::from(time),
+            time,
             routing,
             storage,
             addresses,

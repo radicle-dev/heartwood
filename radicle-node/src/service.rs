@@ -25,7 +25,7 @@ use radicle::storage::{Namespaces, ReadStorage};
 
 use crate::address;
 use crate::address::AddressBook;
-use crate::clock::{RefClock, Timestamp};
+use crate::clock::Timestamp;
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::git;
@@ -200,7 +200,7 @@ pub struct Service<R, A, S, G> {
     /// Keeps track of node states.
     nodes: BTreeMap<NodeId, Node>,
     /// Clock. Tells the time.
-    clock: RefClock,
+    clock: LocalTime,
     /// Interface to the I/O reactor.
     reactor: Reactor,
     /// Source of entropy.
@@ -232,7 +232,7 @@ where
 
     /// Get the local service time.
     pub fn local_time(&self) -> LocalTime {
-        self.clock.local_time()
+        self.clock
     }
 }
 
@@ -245,7 +245,7 @@ where
 {
     pub fn new(
         config: Config,
-        clock: RefClock,
+        clock: LocalTime,
         routing: R,
         storage: S,
         addresses: A,
@@ -384,11 +384,11 @@ where
     pub fn tick(&mut self, now: nakamoto::LocalTime) {
         trace!("Tick +{}", now - self.start_time);
 
-        self.clock.set(now);
+        self.clock = now;
     }
 
     pub fn wake(&mut self) {
-        let now = self.clock.local_time();
+        let now = self.clock;
 
         trace!("Wake +{}", now - self.start_time);
 
@@ -547,7 +547,7 @@ where
                     self.reactor.write_all(
                         addr,
                         gossip::handshake(
-                            self.clock.timestamp(),
+                            self.clock.as_secs(),
                             &self.storage,
                             &self.signer,
                             self.filter.clone(),
@@ -646,7 +646,7 @@ where
             message,
             ..
         } = announcement;
-        let now = self.clock.local_time();
+        let now = self.clock;
         let timestamp = message.timestamp();
         let relay = self.config.relay;
         let peer = self.nodes.entry(*announcer).or_insert_with(Node::default);
@@ -806,7 +806,7 @@ where
         let Some(peer) = self.sessions.get_mut(remote) else {
             return Err(session::Error::NotFound(*remote));
         };
-        peer.last_active = self.clock.local_time();
+        peer.last_active = self.clock;
 
         debug!("Received {:?} from {}", &message, peer.ip());
 
@@ -821,7 +821,7 @@ where
                     self.reactor.write_all(
                         peer.addr,
                         gossip::handshake(
-                            self.clock.timestamp(),
+                            self.clock.as_secs(),
                             &self.storage,
                             &self.signer,
                             self.filter.clone(),
@@ -834,7 +834,7 @@ where
                 // mean that messages received right after the handshake could be ignored.
                 peer.state = session::State::Negotiated {
                     id,
-                    since: self.clock.local_time(),
+                    since: self.clock,
                     addrs: addrs.unbound(),
                     ping: Default::default(),
                 };
@@ -944,7 +944,7 @@ where
         let remote = repo.remote(&node)?;
         let peers = self.sessions.negotiated().map(|(_, _, p)| p);
         let refs = remote.refs.into();
-        let timestamp = self.clock.timestamp();
+        let timestamp = self.clock.as_secs();
         let msg = AnnouncementMessage::from(RefsAnnouncement {
             id,
             refs,
@@ -965,7 +965,7 @@ where
     fn announce_inventory(&mut self) -> Result<(), storage::Error> {
         let inventory = self.storage().inventory()?;
         let inv = Message::inventory(
-            gossip::inventory(self.clock.timestamp(), inventory),
+            gossip::inventory(self.clock.as_secs(), inventory),
             &self.signer,
         );
 
@@ -1070,7 +1070,9 @@ pub trait ServiceState {
     /// Get a project from storage, using the local node's key.
     fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::ProjectError>;
     /// Get the clock.
-    fn clock(&self) -> &RefClock;
+    fn clock(&self) -> &LocalTime;
+    /// Get the clock mutably.
+    fn clock_mut(&mut self) -> &mut LocalTime;
     /// Get service configuration.
     fn config(&self) -> &Config;
     /// Get reference to routing table.
@@ -1095,8 +1097,12 @@ where
         self.storage.get(&self.node_id(), proj)
     }
 
-    fn clock(&self) -> &RefClock {
+    fn clock(&self) -> &LocalTime {
         &self.clock
+    }
+
+    fn clock_mut(&mut self) -> &mut LocalTime {
+        &mut self.clock
     }
 
     fn config(&self) -> &Config {

@@ -8,7 +8,7 @@ use log::*;
 
 use crate::address;
 use crate::address::Store;
-use crate::clock::{RefClock, Timestamp};
+use crate::clock::Timestamp;
 use crate::crypto::test::signer::MockSigner;
 use crate::crypto::Signer;
 use crate::identity::Id;
@@ -34,7 +34,6 @@ pub struct Peer<S, G> {
     pub service: Service<S, G>,
     pub ip: net::IpAddr,
     pub rng: fastrand::Rng,
-    pub local_time: LocalTime,
     pub local_addr: net::SocketAddr,
 
     initialized: bool,
@@ -96,12 +95,11 @@ where
         rng: fastrand::Rng,
     ) -> Self {
         let local_time = LocalTime::now();
-        let clock = RefClock::from(local_time);
         let routing = routing::Table::memory().unwrap();
         let tracking = tracking::Config::memory().unwrap();
         let service = Service::new(
             config,
-            clock,
+            local_time,
             routing,
             storage,
             addrs,
@@ -118,7 +116,6 @@ where
             ip,
             local_addr,
             rng,
-            local_time,
             initialized: false,
         }
     }
@@ -157,7 +154,7 @@ where
     }
 
     pub fn timestamp(&self) -> Timestamp {
-        self.service.clock().timestamp()
+        self.clock().as_secs()
     }
 
     pub fn git_url(&self, repo: Id, namespace: Option<RemoteId>) -> remote::Url {
@@ -280,7 +277,7 @@ where
     }
 
     pub fn elapse(&mut self, duration: LocalDuration) {
-        self.clock().elapse(duration);
+        self.clock_mut().elapse(duration);
         self.service.wake();
     }
 
