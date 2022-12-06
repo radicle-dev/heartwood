@@ -1,7 +1,7 @@
 use std::{io, mem, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
-use cyphernet::addr::{Addr as _, HostAddr, NetAddr};
+use cyphernet::addr::{HostAddr, NetAddr};
 
 use crate::prelude::*;
 use crate::service;
