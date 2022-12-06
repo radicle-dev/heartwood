@@ -98,7 +98,17 @@ where
         let local_time = LocalTime::now();
         let clock = RefClock::from(local_time);
         let routing = routing::Table::memory().unwrap();
-        let service = Service::new(config, clock, routing, storage, addrs, signer, rng.clone());
+        let tracking = tracking::Config::memory().unwrap();
+        let service = Service::new(
+            config,
+            clock,
+            routing,
+            storage,
+            addrs,
+            tracking,
+            signer,
+            rng.clone(),
+        );
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, rng.u16(..));
 

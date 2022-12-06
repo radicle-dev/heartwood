@@ -1,9 +1,11 @@
+#![allow(clippy::too_many_arguments)]
 pub mod config;
 pub mod filter;
 pub mod message;
 pub mod reactor;
 pub mod routing;
 pub mod session;
+pub mod tracking;
 
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -30,7 +32,6 @@ use crate::git;
 use crate::identity::{Doc, Id};
 use crate::node;
 use crate::prelude::*;
-use crate::service::config::ProjectTracking;
 use crate::service::message::{Address, Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::storage;
@@ -190,6 +191,8 @@ pub struct Service<R, A, S, G> {
     routing: R,
     /// Node address manager.
     addresses: A,
+    /// Tracking policy configuration.
+    tracking: tracking::Config,
     /// State relating to gossip.
     gossip: Gossip,
     /// Peer sessions, currently or recently connected.
@@ -204,6 +207,8 @@ pub struct Service<R, A, S, G> {
     rng: Rng,
     /// Whether our local inventory no long represents what we have announced to the network.
     out_of_sync: bool,
+    /// Current tracked repository bloom filter.
+    filter: Filter,
     /// Last time the service was idle.
     last_idle: LocalTime,
     /// Last time the service synced.
@@ -244,6 +249,7 @@ where
         routing: R,
         storage: S,
         addresses: A,
+        tracking: tracking::Config,
         signer: G,
         rng: Rng,
     ) -> Self {
@@ -253,6 +259,7 @@ where
             config,
             storage,
             addresses,
+            tracking,
             signer,
             rng,
             clock,
@@ -263,6 +270,7 @@ where
             reactor: Reactor::default(),
             sessions,
             out_of_sync: false,
+            filter: Filter::empty(),
             last_idle: LocalTime::default(),
             last_sync: LocalTime::default(),
             last_prune: LocalTime::default(),
@@ -282,34 +290,30 @@ where
         }
     }
 
-    pub fn tracked(&self) -> Result<Vec<Id>, storage::Error> {
-        let tracked = match &self.config.project_tracking {
-            ProjectTracking::All { blocked } => self
-                .storage
-                .inventory()?
-                .into_iter()
-                .filter(|id| !blocked.contains(id))
-                .collect(),
-
-            ProjectTracking::Allowed(projs) => projs.iter().cloned().collect(),
-        };
-
-        Ok(tracked)
-    }
-
     /// Track a project.
     /// Returns whether or not the tracking policy was updated.
-    pub fn track(&mut self, id: Id) -> bool {
-        self.out_of_sync = self.config.track(id);
-        self.out_of_sync
+    pub fn track(&mut self, id: &Id, scope: tracking::Scope) -> Result<bool, tracking::Error> {
+        self.out_of_sync = self.tracking.track_repo(id, scope)?;
+        self.filter.insert(id);
+
+        Ok(self.out_of_sync)
     }
 
     /// Untrack a project.
     /// Returns whether or not the tracking policy was updated.
     /// Note that when untracking, we don't announce anything to the network. This is because by
     /// simply not announcing it anymore, it will eventually be pruned by nodes.
-    pub fn untrack(&mut self, id: Id) -> bool {
-        self.config.untrack(id)
+    pub fn untrack(&mut self, id: &Id) -> Result<bool, tracking::Error> {
+        // Nb. This is potentially slow if we have lots of projects. We should probably
+        // only re-compute the filter when we've untracked a certain amount of projects
+        // and the filter is really out of date.
+        self.filter = Filter::new(self.tracking.repo_entries()?.map(|(e, _)| e));
+        self.tracking.untrack_repo(id)
+    }
+
+    /// Check whether we are tracking a certain repository.
+    pub fn is_tracking(&self, id: &Id) -> Result<bool, tracking::Error> {
+        self.tracking.is_repo_tracked(id)
     }
 
     /// Find the closest `n` peers by proximity in tracking graphs.
@@ -338,6 +342,11 @@ where
     /// Get the mutable storage instance.
     pub fn storage_mut(&mut self) -> &mut S {
         &mut self.storage
+    }
+
+    /// Get the tracking policy.
+    pub fn tracking(&self) -> &tracking::Config {
+        &self.tracking
     }
 
     /// Get the local signer.
@@ -425,7 +434,11 @@ where
         match cmd {
             Command::Connect(addr) => self.reactor.connect(addr),
             Command::Fetch(id, resp) => {
-                if !self.config.is_tracking(&id) {
+                if !self
+                    .tracking
+                    .is_repo_tracked(&id)
+                    .expect("Service::command: error accessing tracking configuration")
+                {
                     resp.send(FetchLookup::NotTracking).ok();
                     return;
                 }
@@ -479,10 +492,16 @@ where
                 }
             }
             Command::Track(id, resp) => {
-                resp.send(self.track(id)).ok();
+                let tracked = self
+                    .track(&id, tracking::Scope::All)
+                    .expect("Service::command: error tracking repository");
+                resp.send(tracked).ok();
             }
             Command::Untrack(id, resp) => {
-                resp.send(self.untrack(id)).ok();
+                let untracked = self
+                    .untrack(&id)
+                    .expect("Service::command: error untracking repository");
+                resp.send(untracked).ok();
             }
             Command::AnnounceRefs(id) => {
                 if let Err(err) = self.announce_refs(id) {
@@ -531,6 +550,7 @@ where
                             self.clock.timestamp(),
                             &self.storage,
                             &self.signer,
+                            self.filter.clone(),
                             &self.config,
                         ),
                     );
@@ -668,7 +688,11 @@ where
             AnnouncementMessage::Refs(message) => {
                 // TODO: Buffer/throttle fetches.
                 // TODO: Check that we're tracking this user as well.
-                if self.config.is_tracking(&message.id) {
+                if self
+                    .tracking
+                    .is_repo_tracked(&message.id)
+                    .expect("Service::handle_announcement: error accessing tracking configuration")
+                {
                     // Discard inventory messages we've already seen, otherwise update
                     // out last seen time.
                     if !peer.refs_announced(message.id, timestamp) {
@@ -705,6 +729,11 @@ where
                     if is_updated {
                         return Ok(relay);
                     }
+                } else {
+                    log::debug!(
+                        "Ignoring refs announcement from {announcer}: repository {} isn't tracked",
+                        message.id
+                    );
                 }
             }
             AnnouncementMessage::Node(
@@ -795,6 +824,7 @@ where
                             self.clock.timestamp(),
                             &self.storage,
                             &self.signer,
+                            self.filter.clone(),
                             &self.config,
                         ),
                     );
@@ -890,7 +920,11 @@ where
         let mut included = HashSet::new();
         for proj_id in inventory {
             included.insert(proj_id);
-            if self.routing.insert(*proj_id, from, *timestamp)? && self.config.is_tracking(proj_id)
+            if self.routing.insert(*proj_id, from, *timestamp)?
+                && self
+                    .tracking
+                    .is_repo_tracked(proj_id)
+                    .expect("Service::process_inventory: error accessing tracking configuration")
             {
                 log::info!("Routing table updated for {} with seed {}", proj_id, from);
             }
@@ -1264,6 +1298,7 @@ mod gossip {
         timestamp: Timestamp,
         storage: &S,
         signer: &G,
+        filter: Filter,
         config: &Config,
     ) -> Vec<Message> {
         let inventory = match storage.inventory() {
@@ -1286,7 +1321,7 @@ mod gossip {
                     .expect("external addresses are within the limit"),
             ),
             Message::inventory(gossip::inventory(timestamp, inventory), signer),
-            Message::subscribe(config.filter(), timestamp, Timestamp::MAX),
+            Message::subscribe(filter, timestamp, Timestamp::MAX),
         ];
         if let Some(m) = gossip::node(timestamp, config) {
             msgs.push(Message::node(m, signer));

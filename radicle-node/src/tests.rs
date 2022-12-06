@@ -343,10 +343,7 @@ fn test_inventory_pruning() {
 fn test_tracking() {
     let mut alice = Peer::config(
         "alice",
-        Config {
-            project_tracking: ProjectTracking::Allowed(HashSet::default()),
-            ..Config::default()
-        },
+        Config::default(),
         [7, 7, 7, 7],
         MockStorage::empty(),
         address::Book::memory().unwrap(),
@@ -362,7 +359,7 @@ fn test_tracking() {
         .map_err(client::handle::Error::from)
         .unwrap();
     assert!(policy_change);
-    assert!(alice.config().is_tracking(&proj_id));
+    assert!(alice.tracking().is_repo_tracked(&proj_id).unwrap());
 
     let (sender, receiver) = chan::bounded(1);
     alice.command(Command::Untrack(proj_id, sender));
@@ -371,7 +368,7 @@ fn test_tracking() {
         .map_err(client::handle::Error::from)
         .unwrap();
     assert!(policy_change);
-    assert!(!alice.config().is_tracking(&proj_id));
+    assert!(!alice.tracking().is_repo_tracked(&proj_id).unwrap());
 }
 
 #[test]
@@ -559,9 +556,9 @@ fn test_refs_announcement_relay() {
     };
     let bob_inv = bob.inventory().unwrap();
 
-    alice.track(bob_inv[0]);
-    alice.track(bob_inv[1]);
-    alice.track(bob_inv[2]);
+    alice.track(&bob_inv[0], tracking::Scope::All).unwrap();
+    alice.track(&bob_inv[1], tracking::Scope::All).unwrap();
+    alice.track(&bob_inv[2], tracking::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.connect_to(&eve);
     alice.receive(&eve.addr(), Message::Subscribe(Subscribe::all()));
@@ -601,7 +598,7 @@ fn test_refs_announcement_no_subscribe() {
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
     let id = arbitrary::gen(1);
 
-    alice.track(id);
+    alice.track(&id, tracking::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.connect_to(&eve);
     alice.receive(&bob.addr(), bob.refs_announcement(id));
@@ -847,16 +844,6 @@ fn test_push_and_pull() {
     alice.command(service::Command::Connect(eve.addr()));
     bob.command(service::Command::Connect(eve.addr()));
 
-    let mut sim = Simulation::new(
-        LocalTime::now(),
-        alice.rng.clone(),
-        simulator::Options::default(),
-    )
-    .initialize([&mut alice, &mut bob, &mut eve]);
-
-    // Here we expect Alice to connect to Eve.
-    sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
-
     // Alice creates a new project.
     let (proj_id, _, _) = rad::init(
         &repo,
@@ -876,7 +863,17 @@ fn test_push_and_pull() {
     let (sender, _) = chan::bounded(1);
     eve.command(service::Command::Track(proj_id, sender));
 
-    // Neither of them have it in the beginning.
+    let mut sim = Simulation::new(
+        LocalTime::now(),
+        alice.rng.clone(),
+        simulator::Options::default(),
+    )
+    .initialize([&mut alice, &mut bob, &mut eve]);
+
+    // Here we expect Alice to connect to Eve.
+    sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
+
+    // Neither Eve nor Bob have Alice's project for now.
     assert!(eve.get(proj_id).unwrap().is_none());
     assert!(bob.get(proj_id).unwrap().is_none());
 

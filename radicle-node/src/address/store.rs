@@ -31,7 +31,7 @@ pub struct Book {
 
 impl fmt::Debug for Book {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Cache(..)")
+        write!(f, "Book(..)")
     }
 }
 
@@ -234,13 +234,13 @@ impl TryFrom<&sql::Value> for Address {
 
     fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
         match value {
-            sql::Value::String(s) => Address::from_str(s.as_str()).map_err(|_| sql::Error {
+            sql::Value::String(s) => Address::from_str(s.as_str()).map_err(|e| sql::Error {
                 code: None,
-                message: None,
+                message: Some(e.to_string()),
             }),
             _ => Err(sql::Error {
                 code: None,
-                message: None,
+                message: Some("sql: invalid type for address".to_owned()),
             }),
         }
     }
@@ -256,20 +256,18 @@ impl TryFrom<&sql::Value> for Source {
     type Error = sql::Error;
 
     fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
+        let err = sql::Error {
+            code: None,
+            message: Some("sql: invalid source".to_owned()),
+        };
         match value {
             sql::Value::String(s) => match s.as_str() {
                 "dns" => Ok(Source::Dns),
                 "peer" => Ok(Source::Peer),
                 "imported" => Ok(Source::Imported),
-                _ => Err(sql::Error {
-                    code: None,
-                    message: None,
-                }),
+                _ => Err(err),
             },
-            _ => Err(sql::Error {
-                code: None,
-                message: None,
-            }),
+            _ => Err(err),
         }
     }
 }
@@ -288,21 +286,19 @@ impl TryFrom<&sql::Value> for AddressType {
     type Error = sql::Error;
 
     fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
+        let err = sql::Error {
+            code: None,
+            message: Some("sql: invalid address type".to_owned()),
+        };
         match value {
             sql::Value::String(s) => match s.as_str() {
                 "ipv4" => Ok(AddressType::Ipv4),
                 "ipv6" => Ok(AddressType::Ipv6),
                 "hostname" => Ok(AddressType::Hostname),
                 "onion" => Ok(AddressType::Onion),
-                _ => Err(sql::Error {
-                    code: None,
-                    message: None,
-                }),
+                _ => Err(err),
             },
-            _ => Err(sql::Error {
-                code: None,
-                message: None,
-            }),
+            _ => Err(err),
         }
     }
 }

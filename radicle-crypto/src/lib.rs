@@ -369,7 +369,7 @@ impl TryFrom<&sqlite::Value> for PublicKey {
             }),
             _ => Err(sqlite::Error {
                 code: None,
-                message: None,
+                message: Some("sql: invalid type for public key".to_owned()),
             }),
         }
     }

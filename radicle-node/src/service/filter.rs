@@ -40,7 +40,7 @@ impl Filter {
     /// Create a new filter with the given items.
     ///
     /// Uses the iterator's size hint to determine the size of the filter.
-    pub fn new<'a>(ids: impl IntoIterator<Item = &'a Id>) -> Self {
+    pub fn new(ids: impl IntoIterator<Item = Id>) -> Self {
         let iterator = ids.into_iter();
         let (min, _) = iterator.size_hint();
         let size = bloomy::bloom::optimal_bits(min, FILTER_FP_RATE) / 8;
@@ -54,9 +54,14 @@ impl Filter {
         let mut bloom = BloomFilter::with_size(size);
 
         for id in iterator {
-            bloom.insert(id);
+            bloom.insert(&id);
         }
         Self(bloom)
+    }
+
+    /// Empty filter with nothing set.
+    pub fn empty() -> Self {
+        Self(BloomFilter::from(vec![0x0; FILTER_SIZE_S]))
     }
 
     /// Size in bytes.
@@ -132,13 +137,13 @@ mod test {
     #[test]
     fn test_sizes() {
         let ids = arbitrary::vec::<Id>(3420);
-        let f = Filter::new(ids.iter().take(10));
+        let f = Filter::new(ids.iter().cloned().take(10));
         assert_eq!(f.size(), FILTER_SIZE_S);
 
-        let f = Filter::new(ids.iter().take(1000));
+        let f = Filter::new(ids.iter().cloned().take(1000));
         assert_eq!(f.size(), FILTER_SIZE_M);
 
-        let f = Filter::new(ids.iter());
+        let f = Filter::new(ids.iter().cloned());
         assert_eq!(f.size(), FILTER_SIZE_L);
 
         // Just checking that iterators over hash sets give correct size hints.

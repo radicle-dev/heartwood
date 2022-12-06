@@ -18,7 +18,7 @@ impl TryFrom<&Value> for Id {
             }),
             _ => Err(sql::Error {
                 code: None,
-                message: None,
+                message: Some("sql: invalid type for id".to_owned()),
             }),
         }
     }
@@ -44,7 +44,7 @@ impl TryFrom<&Value> for node::Features {
             Value::Integer(bits) => Ok(node::Features::from(*bits as u64)),
             _ => Err(sql::Error {
                 code: None,
-                message: None,
+                message: Some("sql: invalid type for node features".to_owned()),
             }),
         }
     }
