@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 use std::collections::BTreeMap;
 use std::iter;
 use std::net;
@@ -32,6 +33,7 @@ pub type Service<S, G> = service::Service<routing::Table, address::Book, S, G>;
 pub struct Peer<S, G> {
     pub name: &'static str,
     pub service: Service<S, G>,
+    pub id: NodeId,
     pub ip: net::IpAddr,
     pub rng: fastrand::Rng,
     pub local_time: LocalTime,
@@ -77,7 +79,8 @@ where
         let signer = MockSigner::new(&mut rng);
 
         let addrs = address::Book::memory().unwrap();
-        Self::config(name, Config::default(), ip, storage, addrs, signer, rng)
+        let id = signer.public_key().clone();
+        Self::config(name, Config::default(), id, ip, storage, addrs, signer, rng)
     }
 }
 
@@ -89,6 +92,7 @@ where
     pub fn config(
         name: &'static str,
         config: Config,
+        id: NodeId,
         ip: impl Into<net::IpAddr>,
         storage: S,
         addrs: address::Book,
@@ -105,6 +109,7 @@ where
         Self {
             name,
             service,
+            id,
             ip,
             local_addr,
             rng,
@@ -162,7 +167,7 @@ where
         self.service.node_id()
     }
 
-    pub fn receive(&mut self, peer: &net::SocketAddr, msg: Message) {
+    pub fn receive(&mut self, peer: NodeId, msg: Message) {
         self.service.received_message(peer, msg);
     }
 
@@ -208,17 +213,17 @@ where
 
     pub fn connect_from(&mut self, peer: &Self) {
         let remote = simulator::Peer::<S, G>::addr(peer);
-        let local = net::SocketAddr::new(self.ip, self.rng.u16(..));
+        let node_id = *self.signer().public_key();
 
         self.initialize();
-        self.service.connecting(remote, &local, Link::Inbound);
-        self.service.connected(remote, Link::Inbound);
+        self.service.attempted(&remote);
+        self.service.connected(node_id, Link::Inbound);
         self.receive(
-            &remote,
+            node_id,
             Message::init(peer.node_id(), Some(Address::from(remote)).into()),
         );
 
-        let mut msgs = self.messages(&remote);
+        let mut msgs = self.messages(node_id);
         msgs.find(|m| matches!(m, Message::Initialize { .. }))
             .expect("`initialize` is sent");
         msgs.find(|m| {
@@ -235,14 +240,13 @@ where
 
     pub fn connect_to(&mut self, peer: &Self) {
         let remote = simulator::Peer::<S, G>::addr(peer);
+        let node_id = *self.signer().public_key();
 
         self.initialize();
         self.service.attempted(&remote);
-        self.service
-            .connecting(remote, &self.local_addr, Link::Outbound);
-        self.service.connected(remote, Link::Outbound);
+        self.service.connected(node_id, Link::Outbound);
 
-        let mut msgs = self.messages(&remote);
+        let mut msgs = self.messages(node_id);
         msgs.find(|m| matches!(m, Message::Initialize { .. }))
             .expect("`initialize` is sent");
         msgs.find(|m| {
@@ -257,7 +261,7 @@ where
         .expect("`inventory-announcement` is sent");
 
         self.receive(
-            &remote,
+            node_id,
             Message::init(
                 peer.node_id(),
                 peer.config()
@@ -275,11 +279,11 @@ where
     }
 
     /// Drain outgoing messages sent from this peer to the remote address.
-    pub fn messages(&mut self, remote: &net::SocketAddr) -> impl Iterator<Item = Message> {
+    pub fn messages(&mut self, remote: NodeId) -> impl Iterator<Item = Message> {
         let mut msgs = Vec::new();
 
         self.service.reactor().outbox().retain(|o| match o {
-            Io::Write(a, messages) if a == remote => {
+            Io::Write(a, messages) if *a == remote => {
                 msgs.extend(messages.clone());
                 false
             }
