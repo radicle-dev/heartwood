@@ -1072,6 +1072,7 @@ where
 pub enum DisconnectReason {
     User,
     Peer,
+    RepeatedConnection,
     Error(session::Error),
 }
 
