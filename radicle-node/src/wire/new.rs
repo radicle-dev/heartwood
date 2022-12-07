@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::io::{self, Read, Write};
+use std::io::{Read, Write};
 use std::net;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
@@ -10,7 +10,7 @@ use cyphernet::addr::{HostAddr, LocalNode, NetAddr, PeerAddr};
 use nakamoto_net::{DisconnectReason, Link, LocalTime};
 use netservices::noise::NoiseXk;
 use netservices::wire::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
-use netservices::{Marshall, NetSession};
+use netservices::{Frame, NetSession};
 use radicle::collections::HashMap;
 use radicle::crypto::Ed25519;
 use radicle::node::NodeId;
@@ -19,69 +19,30 @@ use radicle::storage::WriteStorage;
 use crate::crypto::Signer;
 use crate::service::reactor::Io;
 use crate::service::{routing, session, Message};
-use crate::wire::{Decode, Encode, Error};
+use crate::wire::{Decode, Encode};
 use crate::{address, service, wire};
 
 pub type Session = NoiseXk<Ed25519>;
 
-#[derive(Clone, Debug, Default)]
-pub struct Framer {
-    read_queue: VecDeque<u8>,
-    write_queue: VecDeque<u8>,
-}
-
-impl Marshall for Framer {
-    type Message = Message;
+impl Frame for Message {
     type Error = wire::Error;
 
-    fn push(&mut self, msg: Message) {
-        msg.encode(&mut self.write_queue)
-            .expect("writing to an in-memory buffer doesn't fail");
-    }
-
-    fn pop(&mut self) -> Result<Option<Message>, Self::Error> {
-        if self.read_queue.is_empty() {
-            return Ok(None);
+    fn unmarshall(mut reader: impl Read) -> Result<Option<Self>, Self::Error> {
+        match Message::decode(&mut reader) {
+            Ok(msg) => Ok(Some(msg)),
+            Err(wire::Error::Io(_)) => Ok(None),
+            Err(err) => Err(err),
         }
-        // If the message was not received in full we roll back
-        let mut cursor = io::Cursor::new(self.read_queue.make_contiguous());
-        Message::decode(&mut cursor)
-            .map(|msg| {
-                self.read_queue.drain(..cursor.position() as usize);
-                Some(msg)
-            })
-            .or_else(|err| match err {
-                Error::Io(_) => Ok(None),
-                // We don't roll back here since on the failed message the connection must be closed
-                err => Err(err),
-            })
     }
 
-    fn queue_len(&self) -> usize {
-        self.write_queue.len()
-    }
-}
-
-impl Read for Framer {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.write_queue.read(buf)
-    }
-}
-
-impl Write for Framer {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.read_queue.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        // Do nothing
-        Ok(())
+    fn marshall(&self, mut writer: impl Write) -> Result<usize, Self::Error> {
+        self.encode(&mut writer).map_err(wire::Error::from)
     }
 }
 
 pub struct Wire<R, S, W, G> {
     inner: service::Service<R, S, W, G>,
-    inner_queue: VecDeque<reactor::Action<NetAccept<Session>, NetTransport<Session, Framer>>>,
+    inner_queue: VecDeque<reactor::Action<NetAccept<Session>, NetTransport<Session, Message>>>,
     handshakes: HashMap<RawFd, Link>,
     sessions: HashMap<RawFd, NodeId>,
     // We use vec and not set since the same node may have multiple `N` sessions and has to
@@ -136,7 +97,7 @@ where
     G: Signer,
 {
     type Listener = NetAccept<Session>;
-    type Transport = NetTransport<Session, Framer>;
+    type Transport = NetTransport<Session, Message>;
     type Command = service::Command;
 
     fn handle_wakeup(&mut self) {
@@ -158,7 +119,7 @@ where
                     session.transition_addr()
                 );
                 self.handshakes.insert(session.as_raw_fd(), Link::Inbound);
-                let transport = NetTransport::<Session, Framer>::upgrade(session)
+                let transport = NetTransport::<Session, Message>::upgrade(session)
                     .expect("socket failed configuration");
                 self.inner.attempted(&socket_addr);
                 self.inner_queue
@@ -174,7 +135,7 @@ where
     fn handle_transport_event(
         &mut self,
         fd: RawFd,
-        event: SessionEvent<Session, Framer>,
+        event: SessionEvent<Session, Message>,
         duration: Duration,
     ) {
         self.inner.tick(LocalTime::from_secs(duration.as_secs()));
@@ -271,7 +232,7 @@ where
     W: WriteStorage + 'static,
     G: Signer,
 {
-    type Item = reactor::Action<NetAccept<Session>, NetTransport<Session, Framer>>;
+    type Item = reactor::Action<NetAccept<Session>, NetTransport<Session, Message>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(event) = self.inner_queue.pop_front() {
@@ -308,7 +269,7 @@ where
                         break;
                     }
 
-                    match NetTransport::<Session, Framer>::connect(
+                    match NetTransport::<Session, Message>::connect(
                         PeerAddr::new(node_id, socket_addr),
                         &self.local_node,
                     ) {
