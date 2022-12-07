@@ -101,7 +101,7 @@ pub fn clone(id: Id, _interactive: Interactive, ctx: impl term::Context) -> anyh
     let delegates = doc
         .delegates
         .iter()
-        .map(|d| *d.id)
+        .map(|d| **d)
         .filter(|id| id != profile.id())
         .collect::<Vec<_>>();
     let default_branch = doc.payload.default_branch.clone();

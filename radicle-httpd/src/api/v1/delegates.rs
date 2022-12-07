@@ -40,7 +40,7 @@ async fn delegates_projects_handler(
             let Ok((_, head)) = repo.head() else { return None };
             let Ok(Doc { payload, delegates, .. }) = repo.project_of(ctx.profile.id()) else { return None };
 
-            if !delegates.iter().any(|d| d.id == delegate) {
+            if !delegates.iter().any(|d| *d == delegate) {
                 return None;
             }
 

@@ -500,7 +500,7 @@ impl ReadRepository for Repository {
 
         let mut heads = Vec::new();
         for delegate in project.delegates.iter() {
-            let r = self.reference_oid(&delegate.id, &branch_ref)?.into();
+            let r = self.reference_oid(delegate, &branch_ref)?.into();
 
             heads.push(r);
         }

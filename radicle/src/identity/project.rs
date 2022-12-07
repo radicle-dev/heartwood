@@ -68,24 +68,6 @@ impl DocError {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Delegate {
-    pub name: String,
-    pub id: Did,
-}
-
-impl Delegate {
-    fn matches(&self, key: &PublicKey) -> bool {
-        &self.id.0 == key
-    }
-}
-
-impl From<Delegate> for PublicKey {
-    fn from(delegate: Delegate) -> Self {
-        delegate.id.0
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Payload {
@@ -105,7 +87,7 @@ pub struct Doc<V> {
     pub payload: Payload,
     #[serde(flatten)]
     pub extensions: BTreeMap<Namespace, serde_json::Value>,
-    pub delegates: NonEmpty<Delegate>,
+    pub delegates: NonEmpty<Did>,
     pub threshold: usize,
 
     #[serde(skip)]
@@ -125,13 +107,9 @@ impl Doc<Verified> {
     }
 
     /// Attempt to add a new delegate to the document. Returns `true` if it wasn't there before.
-    pub fn delegate(&mut self, name: String, key: crypto::PublicKey) -> bool {
-        let delegate = Delegate {
-            name,
-            id: Did::from(key),
-        };
-
-        if self.delegates.iter().all(|d| d.id != delegate.id) {
+    pub fn delegate(&mut self, key: crypto::PublicKey) -> bool {
+        let delegate = Did::from(key);
+        if self.delegates.iter().all(|id| id != &delegate) {
             self.delegates.push(delegate);
             return true;
         }
@@ -233,7 +211,7 @@ impl Doc<Unverified> {
         name: String,
         description: String,
         default_branch: BranchName,
-        delegate: Delegate,
+        delegate: Did,
     ) -> Self {
         Self {
             payload: Payload {
@@ -252,7 +230,7 @@ impl Doc<Unverified> {
         name: String,
         description: String,
         default_branch: BranchName,
-        delegates: NonEmpty<Delegate>,
+        delegates: NonEmpty<Did>,
         threshold: usize,
     ) -> Self {
         Self {
@@ -287,15 +265,6 @@ impl Doc<Unverified> {
         if self.delegates.len() > MAX_DELEGATES {
             return Err(VerificationError::Delegates(
                 "number of delegates cannot exceed 255",
-            ));
-        }
-        if self
-            .delegates
-            .iter()
-            .any(|d| d.name.is_empty() || d.name.len() > MAX_STRING_LENGTH)
-        {
-            return Err(VerificationError::Delegates(
-                "delegate name must not be empty and must not exceed 255 bytes",
             ));
         }
         if self.delegates.is_empty() {
@@ -471,7 +440,7 @@ impl Identity<Untrusted> {
             // Check that enough delegates signed this next version.
             let quorum = signatures
                 .iter()
-                .filter(|(key, _)| trusted.delegates.iter().any(|d| d.matches(key)))
+                .filter(|(key, _)| trusted.delegates.iter().any(|d| &**d == key))
                 .count();
             if quorum < trusted.threshold {
                 return Err(IdentityError::QuorumNotReached(quorum, trusted.threshold));
@@ -498,6 +467,7 @@ mod test {
     use radicle_crypto::Signer as _;
 
     use crate::rad;
+    use crate::storage::git::transport;
     use crate::storage::git::Storage;
     use crate::storage::{ReadStorage, WriteStorage};
     use crate::test::arbitrary;
@@ -505,6 +475,35 @@ mod test {
 
     use super::*;
     use qcheck_macros::quickcheck;
+
+    #[test]
+    fn test_canonical_example() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+
+        transport::local::register(storage.clone());
+
+        let delegate = MockSigner::from_seed([0xff; 32]);
+        let (repo, _) = fixtures::repository(tempdir.path().join("working"));
+        let (id, _, _) = rad::init(
+            &repo,
+            "heartwood",
+            "Radicle Heartwood Protocol & Stack",
+            git::refname!("master"),
+            &delegate,
+            &storage,
+        )
+        .unwrap();
+
+        assert_eq!(
+            delegate.public_key().to_human(),
+            String::from("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi")
+        );
+        assert_eq!(
+            id.to_human(),
+            String::from("rad:zb2rNRYmmz7SLZ7xMjM7dddswC3K")
+        );
+    }
 
     #[test]
     fn test_not_found() {
@@ -559,7 +558,7 @@ mod test {
             .unwrap();
 
         // Add Bob as a delegate, and sign it.
-        proj.delegate("bob".to_owned(), *bob.public_key());
+        proj.delegate(*bob.public_key());
         proj.threshold = 2;
         proj.sign(&alice)
             .and_then(|(_, sig)| {
@@ -573,7 +572,7 @@ mod test {
             .unwrap();
 
         // Add Eve as a delegate, and sign it.
-        proj.delegate("eve".to_owned(), *eve.public_key());
+        proj.delegate(*eve.public_key());
         proj.sign(&alice)
             .and_then(|(_, alice_sig)| {
                 proj.sign(&bob).and_then(|(_, bob_sig)| {

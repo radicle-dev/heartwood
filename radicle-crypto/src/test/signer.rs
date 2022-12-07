@@ -8,12 +8,16 @@ pub struct MockSigner {
 
 impl MockSigner {
     pub fn new(rng: &mut fastrand::Rng) -> Self {
-        let mut bytes: [u8; 32] = [0; 32];
+        let mut seed: [u8; 32] = [0; 32];
 
-        for byte in &mut bytes {
+        for byte in &mut seed {
             *byte = rng.u8(..);
         }
-        let seed = Seed::new(bytes);
+        Self::from_seed(seed)
+    }
+
+    pub fn from_seed(seed: [u8; 32]) -> Self {
+        let seed = Seed::new(seed);
         let keypair = KeyPair::from_seed(seed);
 
         Self::from(SecretKey::from(keypair.sk))

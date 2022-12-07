@@ -9,7 +9,7 @@ use thiserror::Error;
 use crate::crypto;
 
 pub use crypto::PublicKey;
-pub use project::{Delegate, Doc, Id, IdError};
+pub use project::{Doc, Id, IdError};
 
 #[derive(Error, Debug)]
 pub enum DidError {

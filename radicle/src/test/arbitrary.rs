@@ -10,7 +10,7 @@ use qcheck::Arbitrary;
 
 use crate::collections::HashMap;
 use crate::git;
-use crate::identity::{project::Delegate, project::Doc, Did, Id};
+use crate::identity::{project::Doc, Did, Id};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::storage::MockStorage;
@@ -57,21 +57,12 @@ impl Arbitrary for Did {
     }
 }
 
-impl Arbitrary for Delegate {
-    fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        Self {
-            name: String::arbitrary(g),
-            id: Did::arbitrary(g),
-        }
-    }
-}
-
 impl Arbitrary for Doc<Unverified> {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let name = String::arbitrary(g);
         let description = String::arbitrary(g);
         let default_branch = git::RefString::try_from(String::arbitrary(g)).unwrap();
-        let delegate = Delegate::arbitrary(g);
+        let delegate = Did::arbitrary(g);
 
         Self::initial(name, description, default_branch, delegate)
     }
@@ -91,16 +82,11 @@ impl Arbitrary for Doc<Verified> {
             .collect::<String>()
             .try_into()
             .unwrap();
-        let delegates: NonEmpty<_> = iter::repeat_with(|| Delegate {
-            name: iter::repeat_with(|| rng.alphanumeric())
-                .take(rng.usize(1..16))
-                .collect(),
-            id: Did::arbitrary(g),
-        })
-        .take(rng.usize(1..6))
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
+        let delegates: NonEmpty<_> = iter::repeat_with(|| Did::arbitrary(g))
+            .take(rng.usize(1..6))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
         let threshold = delegates.len() / 2 + 1;
         let doc: Doc<Unverified> =
             Doc::new(name, description, default_branch, delegates, threshold);

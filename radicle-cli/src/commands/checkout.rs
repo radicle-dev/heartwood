@@ -110,8 +110,8 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     spinner.finish();
 
     let remotes = delegates
-        .iter()
-        .map(|d| *d.id)
+        .into_iter()
+        .map(|did| *did)
         .filter(|id| id != profile.id())
         .collect::<Vec<_>>();
 
