@@ -10,7 +10,7 @@ use framework::TestFormula;
 /// Run a CLI test file.
 fn test(
     path: impl AsRef<Path>,
-    profile: Option<Profile>,
+    profile: Option<&Profile>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let base = Path::new(env!("CARGO_MANIFEST_DIR"));
     let tmp = tempfile::tempdir().unwrap();
@@ -44,6 +44,22 @@ fn rad_auth() {
 }
 
 #[test]
+fn rad_issue() {
+    let home = tempfile::tempdir().unwrap();
+    let working = tempfile::tempdir().unwrap();
+    let profile = profile(home.path());
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+    // Navigate to repository.
+    env::set_current_dir(working.path()).unwrap();
+    env::set_var(radicle_cob::git::RAD_COMMIT_TIME, "1671125284");
+
+    test("examples/rad-init.md", Some(&profile)).unwrap();
+    test("examples/rad-issue.md", Some(&profile)).unwrap();
+}
+
+#[test]
 fn rad_init() {
     let home = tempfile::tempdir().unwrap();
     let working = tempfile::tempdir().unwrap();
@@ -54,5 +70,5 @@ fn rad_init() {
     // Navigate to repository.
     env::set_current_dir(working.path()).unwrap();
 
-    test("examples/rad-init.md", Some(profile)).unwrap();
+    test("examples/rad-init.md", Some(&profile)).unwrap();
 }

@@ -235,7 +235,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::List => {
             for result in issues.all()? {
                 let (id, issue, _) = result?;
-                println!("{} {}", id, issue.title());
+
+                let assigned: String = issue
+                    .assigned()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if assigned.is_empty() {
+                    println!("{} \"{}\"", id, issue.title().escape_default());
+                } else {
+                    println!("{} {:?} {}", id, issue.title().escape_default(), &assigned,);
+                }
             }
         }
         Operation::Delete { id } => {

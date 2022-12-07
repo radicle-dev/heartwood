@@ -13,7 +13,7 @@ use crate::cob::common::{Author, Reaction, Tag};
 use crate::cob::store::Transaction;
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
-use crate::cob::{store, ObjectId, OpId, TypeName};
+use crate::cob::{store, ActorId, ObjectId, OpId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::storage::git as storage;
 
@@ -80,6 +80,7 @@ impl State {
 /// Issue state. Accumulates [`Action`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Issue {
+    assignees: LWWSet<ActorId>,
     title: LWWReg<Max<String>, clock::Lamport>,
     state: LWWReg<Max<State>, clock::Lamport>,
     tags: LWWSet<Tag>,
@@ -88,6 +89,7 @@ pub struct Issue {
 
 impl Semilattice for Issue {
     fn merge(&mut self, other: Self) {
+        self.assignees.merge(other.assignees);
         self.title.merge(other.title);
         self.state.merge(other.state);
         self.thread.merge(other.thread);
@@ -97,6 +99,7 @@ impl Semilattice for Issue {
 impl Default for Issue {
     fn default() -> Self {
         Self {
+            assignees: LWWSet::default(),
             title: Max::from(String::default()).into(),
             state: Max::from(State::default()).into(),
             tags: LWWSet::default(),
@@ -132,6 +135,10 @@ impl store::FromHistory for Issue {
 }
 
 impl Issue {
+    pub fn assigned(&self) -> impl Iterator<Item = &ActorId> {
+        self.assignees.iter()
+    }
+
     pub fn title(&self) -> &str {
         self.title.get().as_str()
     }
@@ -162,6 +169,14 @@ impl Issue {
     pub fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), Error> {
         for op in ops {
             match op.action {
+                Action::Assign { add, remove } => {
+                    for assignee in add {
+                        self.assignees.insert(assignee, op.clock);
+                    }
+                    for assignee in remove {
+                        self.assignees.remove(assignee, op.clock);
+                    }
+                }
                 Action::Edit { title } => {
                     self.title.set(title, op.clock);
                 }
@@ -199,6 +214,13 @@ impl Deref for Issue {
 }
 
 impl store::Transaction<Issue> {
+    pub fn assign(&mut self, add: Vec<ActorId>, remove: Vec<ActorId>) -> OpId {
+        let add = add.into_iter().collect::<Vec<_>>();
+        let remove = remove.into_iter().collect::<Vec<_>>();
+
+        self.push(Action::Assign { add, remove })
+    }
+
     /// Set the issue title.
     pub fn edit(&mut self, title: impl ToString) -> OpId {
         self.push(Action::Edit {
@@ -264,6 +286,15 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         &self.clock
     }
 
+    /// Assign one or more actors to an issue.
+    pub fn assign<G: Signer>(
+        &mut self,
+        assignees: Vec<ActorId>,
+        signer: &G,
+    ) -> Result<OpId, Error> {
+        self.transaction("Assign", signer, |tx| tx.assign(assignees, vec![]))
+    }
+
     /// Lifecycle an issue.
     pub fn lifecycle<G: Signer>(&mut self, state: State, signer: &G) -> Result<OpId, Error> {
         self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
@@ -307,6 +338,15 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         signer: &G,
     ) -> Result<OpId, Error> {
         self.transaction("React", signer, |tx| tx.react(to, reaction))
+    }
+
+    /// Unassign one or more actors from an issue.
+    pub fn unassign<G: Signer>(
+        &mut self,
+        assignees: Vec<ActorId>,
+        signer: &G,
+    ) -> Result<OpId, Error> {
+        self.transaction("Unassign", signer, |tx| tx.assign(vec![], assignees))
     }
 
     pub fn transaction<G, F, T>(
@@ -416,10 +456,23 @@ impl<'a> Issues<'a> {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Action {
-    Edit { title: String },
-    Lifecycle { state: State },
-    Tag { add: Vec<Tag>, remove: Vec<Tag> },
-    Thread { action: thread::Action },
+    Assign {
+        add: Vec<ActorId>,
+        remove: Vec<ActorId>,
+    },
+    Edit {
+        title: String,
+    },
+    Lifecycle {
+        state: State,
+    },
+    Tag {
+        add: Vec<Tag>,
+        remove: Vec<Tag>,
+    },
+    Thread {
+        action: thread::Action,
+    },
 }
 
 impl From<thread::Action> for Action {
@@ -435,6 +488,7 @@ mod test {
     use super::*;
     use crate::cob::Reaction;
     use crate::test;
+    use crate::test::arbitrary;
 
     #[test]
     fn test_ordering() {
@@ -445,6 +499,49 @@ mod test {
                     reason: CloseReason::Solved
                 }
         );
+    }
+
+    #[test]
+    fn test_issue_create_and_assign() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+
+        let assignee: ActorId = arbitrary::gen(1);
+        let assignee_two: ActorId = arbitrary::gen(1);
+        let mut issue = issues
+            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .unwrap();
+
+        issue.assign(vec![assignee, assignee_two], &signer).unwrap();
+
+        let id = issue.id;
+        let issue = issues.get(&id).unwrap().unwrap();
+        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        assert_eq!(2, assignees.len());
+        assert!(assignees.contains(&assignee));
+        assert!(assignees.contains(&assignee_two));
+    }
+
+    #[test]
+    fn test_issue_create_and_reassign() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+
+        let assignee: ActorId = arbitrary::gen(1);
+        let mut issue = issues
+            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .unwrap();
+
+        issue.assign(vec![assignee], &signer).unwrap();
+        issue.assign(vec![assignee], &signer).unwrap();
+
+        let id = issue.id;
+        let issue = issues.get(&id).unwrap().unwrap();
+        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        assert_eq!(1, assignees.len());
+        assert!(assignees.contains(&assignee));
     }
 
     #[test]
@@ -496,6 +593,28 @@ mod test {
         issue.lifecycle(State::Open, &signer).unwrap();
         let issue = issues.get(&id).unwrap().unwrap();
         assert_eq!(*issue.state(), State::Open);
+    }
+
+    #[test]
+    fn test_issue_create_and_unassign() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+
+        let assignee: ActorId = arbitrary::gen(1);
+        let assignee_two: ActorId = arbitrary::gen(1);
+        let mut issue = issues
+            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .unwrap();
+
+        issue.assign(vec![assignee, assignee_two], &signer).unwrap();
+        issue.unassign(vec![assignee], &signer).unwrap();
+
+        let id = issue.id;
+        let issue = issues.get(&id).unwrap().unwrap();
+        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        assert_eq!(1, assignees.len());
+        assert!(assignees.contains(&assignee_two));
     }
 
     #[test]

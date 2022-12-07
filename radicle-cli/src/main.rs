@@ -102,6 +102,14 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
 
 fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
     match exe {
+        "assign" => {
+            term::run_command_args::<rad_assign::Options, _>(
+                rad_assign::HELP,
+                "Assign",
+                rad_assign::run,
+                args.to_vec(),
+            );
+        }
         "auth" => {
             term::run_command_args::<rad_auth::Options, _>(
                 rad_auth::HELP,
@@ -235,6 +243,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 rad_track::HELP,
                 "Track",
                 rad_track::run,
+                args.to_vec(),
+            );
+        }
+        "unassign" => {
+            term::run_command_args::<rad_unassign::Options, _>(
+                rad_unassign::HELP,
+                "Unassign",
+                rad_unassign::run,
                 args.to_vec(),
             );
         }
