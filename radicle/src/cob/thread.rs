@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::str::FromStr;
@@ -15,6 +14,7 @@ use crate::cob::{ActorId, History, Op, OpId, TypeName};
 use crate::crypto::Signer;
 
 use crdt::clock::Lamport;
+use crdt::gmap::GMap;
 use crdt::lwwset::LWWSet;
 use crdt::redactable::Redactable;
 use crdt::Semilattice;
@@ -85,9 +85,9 @@ pub enum Action {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Thread {
     /// The comments under the thread.
-    comments: BTreeMap<CommentId, Redactable<Comment>>,
+    comments: GMap<CommentId, Redactable<Comment>>,
     /// Reactions to changes.
-    reactions: BTreeMap<CommentId, LWWSet<(ActorId, Reaction), Lamport>>,
+    reactions: GMap<CommentId, LWWSet<(ActorId, Reaction), Lamport>>,
 }
 
 impl store::FromHistory for Thread {
@@ -126,10 +126,6 @@ impl Deref for Thread {
 }
 
 impl Thread {
-    pub fn clear(&mut self) {
-        self.comments.clear();
-    }
-
     pub fn comment(&self, id: &CommentId) -> Option<&Comment> {
         if let Some(Redactable::Present(comment)) = self.comments.get(id) {
             Some(comment)
@@ -179,45 +175,25 @@ impl Thread {
                 Action::Comment { body, reply_to } => {
                     let present =
                         Redactable::Present(Comment::new(body, reply_to, change.timestamp));
-
-                    match self.comments.entry(id) {
-                        Entry::Vacant(e) => {
-                            e.insert(present);
-                        }
-                        Entry::Occupied(mut e) => {
-                            e.get_mut().merge(present);
-                        }
-                    }
+                    self.comments.insert(id, present);
                 }
                 Action::Redact { id } => {
-                    self.comments
-                        .entry(id)
-                        .and_modify(|e| e.merge(Redactable::Redacted))
-                        .or_insert(Redactable::Redacted);
+                    self.comments.insert(id, Redactable::Redacted);
                 }
                 Action::React {
                     to,
                     reaction,
                     active,
                 } => {
-                    self.reactions
-                        .entry(to)
-                        .and_modify(|reactions| {
-                            if active {
-                                reactions.insert((change.author, reaction), change.clock);
-                            } else {
-                                reactions.remove((change.author, reaction), change.clock);
-                            }
-                        })
-                        .or_insert_with(|| {
-                            if active {
-                                LWWSet::singleton((change.author, reaction), change.clock)
-                            } else {
-                                let mut set = LWWSet::default();
-                                set.remove((change.author, reaction), change.clock);
-                                set
-                            }
-                        });
+                    let key = (change.author, reaction);
+                    let reactions = if active {
+                        LWWSet::singleton(key, change.clock)
+                    } else {
+                        let mut set = LWWSet::default();
+                        set.remove(key, change.clock);
+                        set
+                    };
+                    self.reactions.insert(to, reactions);
                 }
             }
         }

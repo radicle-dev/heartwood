@@ -25,9 +25,6 @@ pub use redactable::Redactable;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-use std::collections::{BTreeMap, HashMap};
-use std::hash::Hash;
-
 /// A join-semilattice.
 pub trait Semilattice: Sized {
     /// Merge an other semilattice into this one.
@@ -40,40 +37,6 @@ pub trait Semilattice: Sized {
     fn join(mut self, other: Self) -> Self {
         self.merge(other);
         self
-    }
-}
-
-impl<K: Ord, V: Semilattice> Semilattice for BTreeMap<K, V> {
-    fn merge(&mut self, other: Self) {
-        use std::collections::btree_map::Entry;
-
-        for (k, v) in other {
-            match self.entry(k) {
-                Entry::Occupied(mut e) => {
-                    e.get_mut().merge(v);
-                }
-                Entry::Vacant(e) => {
-                    e.insert(v);
-                }
-            }
-        }
-    }
-}
-
-impl<K: Hash + PartialEq + Eq, V: Semilattice> Semilattice for HashMap<K, V> {
-    fn merge(&mut self, other: Self) {
-        use std::collections::hash_map::Entry;
-
-        for (k, v) in other {
-            match self.entry(k) {
-                Entry::Occupied(mut e) => {
-                    e.get_mut().merge(v);
-                }
-                Entry::Vacant(e) => {
-                    e.insert(v);
-                }
-            }
-        }
     }
 }
 
