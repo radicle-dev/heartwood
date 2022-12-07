@@ -150,9 +150,13 @@ pub enum Command {
     /// Fetch the given project from the network.
     Fetch(Id, chan::Sender<FetchLookup>),
     /// Track the given project.
-    Track(Id, chan::Sender<bool>),
+    TrackRepo(Id, chan::Sender<bool>),
     /// Untrack the given project.
-    Untrack(Id, chan::Sender<bool>),
+    UntrackRepo(Id, chan::Sender<bool>),
+    /// Track the given node.
+    TrackNode(NodeId, Option<String>, chan::Sender<bool>),
+    /// Untrack the given node.
+    UntrackNode(NodeId, chan::Sender<bool>),
     /// Query the internal service state.
     QueryState(Arc<QueryState>, chan::Sender<Result<(), CommandError>>),
 }
@@ -163,8 +167,10 @@ impl fmt::Debug for Command {
             Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({})", id),
             Self::Connect(addr) => write!(f, "Connect({})", addr),
             Self::Fetch(id, _) => write!(f, "Fetch({})", id),
-            Self::Track(id, _) => write!(f, "Track({})", id),
-            Self::Untrack(id, _) => write!(f, "Untrack({})", id),
+            Self::TrackRepo(id, _) => write!(f, "TrackRepo({})", id),
+            Self::UntrackRepo(id, _) => write!(f, "UntrackRepo({})", id),
+            Self::TrackNode(id, _, _) => write!(f, "TrackNode({})", id),
+            Self::UntrackNode(id, _) => write!(f, "UntrackNode({})", id),
             Self::QueryState { .. } => write!(f, "QueryState(..)"),
         }
     }
@@ -290,20 +296,20 @@ where
         }
     }
 
-    /// Track a project.
+    /// Track a repository.
     /// Returns whether or not the tracking policy was updated.
-    pub fn track(&mut self, id: &Id, scope: tracking::Scope) -> Result<bool, tracking::Error> {
+    pub fn track_repo(&mut self, id: &Id, scope: tracking::Scope) -> Result<bool, tracking::Error> {
         self.out_of_sync = self.tracking.track_repo(id, scope)?;
         self.filter.insert(id);
 
         Ok(self.out_of_sync)
     }
 
-    /// Untrack a project.
+    /// Untrack a repository.
     /// Returns whether or not the tracking policy was updated.
     /// Note that when untracking, we don't announce anything to the network. This is because by
     /// simply not announcing it anymore, it will eventually be pruned by nodes.
-    pub fn untrack(&mut self, id: &Id) -> Result<bool, tracking::Error> {
+    pub fn untrack_repo(&mut self, id: &Id) -> Result<bool, tracking::Error> {
         // Nb. This is potentially slow if we have lots of projects. We should probably
         // only re-compute the filter when we've untracked a certain amount of projects
         // and the filter is really out of date.
@@ -491,16 +497,30 @@ where
                     }
                 }
             }
-            Command::Track(id, resp) => {
+            Command::TrackRepo(id, resp) => {
                 let tracked = self
-                    .track(&id, tracking::Scope::All)
+                    .track_repo(&id, tracking::Scope::All)
                     .expect("Service::command: error tracking repository");
                 resp.send(tracked).ok();
             }
-            Command::Untrack(id, resp) => {
+            Command::UntrackRepo(id, resp) => {
                 let untracked = self
-                    .untrack(&id)
+                    .untrack_repo(&id)
                     .expect("Service::command: error untracking repository");
+                resp.send(untracked).ok();
+            }
+            Command::TrackNode(id, alias, resp) => {
+                let tracked = self
+                    .tracking
+                    .track_node(&id, alias.as_deref())
+                    .expect("Service::command: error tracking node");
+                resp.send(tracked).ok();
+            }
+            Command::UntrackNode(id, resp) => {
+                let untracked = self
+                    .tracking
+                    .untrack_node(&id)
+                    .expect("Service::command: error untracking node");
                 resp.send(untracked).ok();
             }
             Command::AnnounceRefs(id) => {

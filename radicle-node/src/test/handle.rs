@@ -8,11 +8,13 @@ use crate::client::handle::Error;
 use crate::identity::Id;
 use crate::service;
 use crate::service::FetchLookup;
+use crate::service::NodeId;
 
 #[derive(Default, Clone)]
 pub struct Handle {
     pub updates: Arc<Mutex<Vec<Id>>>,
-    pub tracking: HashSet<Id>,
+    pub tracking_repos: HashSet<Id>,
+    pub tracking_nodes: HashSet<NodeId>,
 }
 
 impl traits::Handle for Handle {
@@ -24,12 +26,20 @@ impl traits::Handle for Handle {
         Ok(FetchLookup::NotFound)
     }
 
-    fn track(&mut self, id: Id) -> Result<bool, Error> {
-        Ok(self.tracking.insert(id))
+    fn track_repo(&mut self, id: Id) -> Result<bool, Error> {
+        Ok(self.tracking_repos.insert(id))
     }
 
-    fn untrack(&mut self, id: Id) -> Result<bool, Error> {
-        Ok(self.tracking.remove(&id))
+    fn untrack_repo(&mut self, id: Id) -> Result<bool, Error> {
+        Ok(self.tracking_repos.remove(&id))
+    }
+
+    fn track_node(&mut self, id: NodeId, _alias: Option<String>) -> Result<bool, Error> {
+        Ok(self.tracking_nodes.insert(id))
+    }
+
+    fn untrack_node(&mut self, id: NodeId) -> Result<bool, Error> {
+        Ok(self.tracking_nodes.remove(&id))
     }
 
     fn announce_refs(&mut self, id: Id) -> Result<(), Error> {

@@ -84,7 +84,7 @@ pub fn clone(id: Id, _interactive: Interactive, ctx: impl term::Context) -> anyh
     let signer = term::signer(&profile)?;
 
     // Track & fetch project.
-    node.track(&id).context("track")?;
+    node.track_repo(&id).context("track")?;
     node.fetch(&id).context("fetch")?;
 
     // Create a local fork of the project, under our own id.

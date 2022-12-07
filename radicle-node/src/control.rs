@@ -83,9 +83,9 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &mut H) -> Result<(), DrainErro
                     return Err(DrainError::InvalidCommandArg(arg.to_owned()));
                 }
             }
-            Some(("track", arg)) => {
+            Some(("track-repo", arg)) => {
                 if let Ok(id) = arg.parse() {
-                    match handle.track(id) {
+                    match handle.track_repo(id) {
                         Ok(updated) => {
                             if updated {
                                 writeln!(writer, "{}", node::RESPONSE_OK)?;
@@ -101,9 +101,50 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &mut H) -> Result<(), DrainErro
                     return Err(DrainError::InvalidCommandArg(arg.to_owned()));
                 }
             }
-            Some(("untrack", arg)) => {
+            Some(("untrack-repo", arg)) => {
                 if let Ok(id) = arg.parse() {
-                    match handle.untrack(id) {
+                    match handle.untrack_repo(id) {
+                        Ok(updated) => {
+                            if updated {
+                                writeln!(writer, "{}", node::RESPONSE_OK)?;
+                            } else {
+                                writeln!(writer, "{}", node::RESPONSE_NOOP)?;
+                            }
+                        }
+                        Err(e) => {
+                            return Err(DrainError::Client(e));
+                        }
+                    }
+                } else {
+                    return Err(DrainError::InvalidCommandArg(arg.to_owned()));
+                }
+            }
+            Some(("track-node", args)) => {
+                let (peer, alias) = if let Some((peer, alias)) = args.split_once(' ') {
+                    (peer, Some(alias.to_owned()))
+                } else {
+                    (args, None)
+                };
+                if let Ok(id) = peer.parse() {
+                    match handle.track_node(id, alias) {
+                        Ok(updated) => {
+                            if updated {
+                                writeln!(writer, "{}", node::RESPONSE_OK)?;
+                            } else {
+                                writeln!(writer, "{}", node::RESPONSE_NOOP)?;
+                            }
+                        }
+                        Err(e) => {
+                            return Err(DrainError::Client(e));
+                        }
+                    }
+                } else {
+                    return Err(DrainError::InvalidCommandArg(args.to_owned()));
+                }
+            }
+            Some(("untrack-node", arg)) => {
+                if let Ok(id) = arg.parse() {
+                    match handle.untrack_node(id) {
                         Ok(updated) => {
                             if updated {
                                 writeln!(writer, "{}", node::RESPONSE_OK)?;
@@ -214,7 +255,7 @@ mod tests {
     use super::*;
     use crate::identity::Id;
     use crate::node::Handle;
-    use crate::node::Node;
+    use crate::node::{Node, NodeId};
     use crate::test;
 
     #[test]
@@ -255,6 +296,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let socket = tmp.path().join("node.sock");
         let proj = test::arbitrary::gen::<Id>(1);
+        let peer = test::arbitrary::gen::<NodeId>(1);
 
         thread::spawn({
             let socket = socket.clone();
@@ -269,9 +311,14 @@ mod tests {
             }
         };
 
-        assert!(handle.track(&proj).unwrap());
-        assert!(!handle.track(&proj).unwrap());
-        assert!(handle.untrack(&proj).unwrap());
-        assert!(!handle.untrack(&proj).unwrap());
+        assert!(handle.track_repo(&proj).unwrap());
+        assert!(!handle.track_repo(&proj).unwrap());
+        assert!(handle.untrack_repo(&proj).unwrap());
+        assert!(!handle.untrack_repo(&proj).unwrap());
+
+        assert!(handle.track_node(&peer, Some("alice")).unwrap());
+        assert!(!handle.track_node(&peer, Some("alice")).unwrap());
+        assert!(handle.untrack_node(&peer).unwrap());
+        assert!(!handle.untrack_node(&peer).unwrap());
     }
 }

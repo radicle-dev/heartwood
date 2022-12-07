@@ -66,15 +66,31 @@ impl<W: Waker> traits::Handle for Handle<W> {
         receiver.recv().map_err(Error::from)
     }
 
-    fn track(&mut self, id: Id) -> Result<bool, Error> {
+    fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.commands.send(service::Command::Track(id, sender))?;
+        self.commands
+            .send(service::Command::TrackNode(id, alias, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
-    fn untrack(&mut self, id: Id) -> Result<bool, Error> {
+    fn untrack_node(&mut self, id: NodeId) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.commands.send(service::Command::Untrack(id, sender))?;
+        self.commands
+            .send(service::Command::UntrackNode(id, sender))?;
+        receiver.recv().map_err(Error::from)
+    }
+
+    fn track_repo(&mut self, id: Id) -> Result<bool, Error> {
+        let (sender, receiver) = chan::bounded(1);
+        self.commands
+            .send(service::Command::TrackRepo(id, sender))?;
+        receiver.recv().map_err(Error::from)
+    }
+
+    fn untrack_repo(&mut self, id: Id) -> Result<bool, Error> {
+        let (sender, receiver) = chan::bounded(1);
+        self.commands
+            .send(service::Command::UntrackRepo(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
 
@@ -146,9 +162,13 @@ pub mod traits {
         fn fetch(&mut self, id: Id) -> Result<FetchLookup, Error>;
         /// Start tracking the given project. Doesn't do anything if the project is already
         /// tracked.
-        fn track(&mut self, id: Id) -> Result<bool, Error>;
+        fn track_repo(&mut self, id: Id) -> Result<bool, Error>;
+        /// Start tracking the given node.
+        fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error>;
         /// Untrack the given project and delete it from storage.
-        fn untrack(&mut self, id: Id) -> Result<bool, Error>;
+        fn untrack_repo(&mut self, id: Id) -> Result<bool, Error>;
+        /// Untrack the given node.
+        fn untrack_node(&mut self, id: NodeId) -> Result<bool, Error>;
         /// Notify the client that a project has been updated.
         fn announce_refs(&mut self, id: Id) -> Result<(), Error>;
         /// Send a command to the command channel, and wake up the event loop.

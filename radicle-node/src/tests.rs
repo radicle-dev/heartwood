@@ -353,7 +353,7 @@ fn test_tracking() {
     let proj_id: identity::Id = test::arbitrary::gen(1);
 
     let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::Track(proj_id, sender));
+    alice.command(Command::TrackRepo(proj_id, sender));
     let policy_change = receiver
         .recv()
         .map_err(client::handle::Error::from)
@@ -362,7 +362,7 @@ fn test_tracking() {
     assert!(alice.tracking().is_repo_tracked(&proj_id).unwrap());
 
     let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::Untrack(proj_id, sender));
+    alice.command(Command::UntrackRepo(proj_id, sender));
     let policy_change = receiver
         .recv()
         .map_err(client::handle::Error::from)
@@ -556,9 +556,9 @@ fn test_refs_announcement_relay() {
     };
     let bob_inv = bob.inventory().unwrap();
 
-    alice.track(&bob_inv[0], tracking::Scope::All).unwrap();
-    alice.track(&bob_inv[1], tracking::Scope::All).unwrap();
-    alice.track(&bob_inv[2], tracking::Scope::All).unwrap();
+    alice.track_repo(&bob_inv[0], tracking::Scope::All).unwrap();
+    alice.track_repo(&bob_inv[1], tracking::Scope::All).unwrap();
+    alice.track_repo(&bob_inv[2], tracking::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.connect_to(&eve);
     alice.receive(&eve.addr(), Message::Subscribe(Subscribe::all()));
@@ -598,7 +598,7 @@ fn test_refs_announcement_no_subscribe() {
     let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
     let id = arbitrary::gen(1);
 
-    alice.track(&id, tracking::Scope::All).unwrap();
+    alice.track_repo(&id, tracking::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.connect_to(&eve);
     alice.receive(&bob.addr(), bob.refs_announcement(id));
@@ -857,11 +857,11 @@ fn test_push_and_pull() {
 
     // Bob tracks Alice's project.
     let (sender, _) = chan::bounded(1);
-    bob.command(service::Command::Track(proj_id, sender));
+    bob.command(service::Command::TrackRepo(proj_id, sender));
 
     // Eve tracks Alice's project.
     let (sender, _) = chan::bounded(1);
-    eve.command(service::Command::Track(proj_id, sender));
+    eve.command(service::Command::TrackRepo(proj_id, sender));
 
     let mut sim = Simulation::new(
         LocalTime::now(),

@@ -1,6 +1,5 @@
 mod features;
 
-use std::fmt;
 use std::io;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
@@ -31,11 +30,15 @@ pub enum Error {
 pub trait Handle {
     /// Fetch a project from the network. Fails if the project isn't tracked.
     fn fetch(&self, id: &Id) -> Result<(), Error>;
-    /// Start tracking the given project. Doesn't do anything if the project is already
-    /// tracked.
-    fn track(&self, id: &Id) -> Result<bool, Error>;
-    /// Untrack the given project and delete it from storage.
-    fn untrack(&self, id: &Id) -> Result<bool, Error>;
+    /// Start tracking the given node. If the node is already tracked,
+    /// updates the alias if necessary.
+    fn track_node(&self, id: &NodeId, alias: Option<&str>) -> Result<bool, Error>;
+    /// Start tracking the given repository.
+    fn track_repo(&self, id: &Id) -> Result<bool, Error>;
+    /// Untrack the given node.
+    fn untrack_node(&self, id: &NodeId) -> Result<bool, Error>;
+    /// Untrack the given repository and delete it from storage.
+    fn untrack_repo(&self, id: &Id) -> Result<bool, Error>;
     /// Notify the network that we have new refs.
     fn announce_refs(&self, id: &Id) -> Result<(), Error>;
     /// Ask the node to shutdown.
@@ -60,12 +63,17 @@ impl Node {
     }
 
     /// Call a command on the node.
-    pub fn call<A: fmt::Display>(
+    pub fn call<A: ToString>(
         &self,
         cmd: &str,
-        arg: &A,
+        args: &[A],
     ) -> Result<impl Iterator<Item = Result<String, io::Error>> + '_, io::Error> {
-        writeln!(&self.stream, "{cmd} {arg}")?;
+        let args = args
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" ");
+        writeln!(&self.stream, "{cmd} {args}")?;
 
         Ok(BufReader::new(&self.stream).lines())
     }
@@ -73,16 +81,23 @@ impl Node {
 
 impl Handle for Node {
     fn fetch(&self, id: &Id) -> Result<(), Error> {
-        for line in self.call("fetch", id)? {
+        for line in self.call("fetch", &[id])? {
             let line = line?;
             log::debug!("node: {}", line);
         }
         Ok(())
     }
 
-    fn track(&self, id: &Id) -> Result<bool, Error> {
-        let mut line = self.call("track", id)?;
-        let line = line.next().ok_or(Error::EmptyResponse { cmd: "track" })??;
+    fn track_node(&self, id: &NodeId, alias: Option<&str>) -> Result<bool, Error> {
+        let id = id.to_human();
+        let mut line = if let Some(alias) = alias {
+            self.call("track-node", &[id.as_str(), alias])
+        } else {
+            self.call("track-node", &[id.as_str()])
+        }?;
+        let line = line
+            .next()
+            .ok_or(Error::EmptyResponse { cmd: "track-node" })??;
 
         log::debug!("node: {}", line);
 
@@ -90,17 +105,17 @@ impl Handle for Node {
             RESPONSE_OK => Ok(true),
             RESPONSE_NOOP => Ok(false),
             _ => Err(Error::InvalidResponse {
-                cmd: "track",
+                cmd: "track-node",
                 response: line,
             }),
         }
     }
 
-    fn untrack(&self, id: &Id) -> Result<bool, Error> {
-        let mut line = self.call("untrack", id)?;
+    fn track_repo(&self, id: &Id) -> Result<bool, Error> {
+        let mut line = self.call("track-repo", &[id])?;
         let line = line
             .next()
-            .ok_or(Error::EmptyResponse { cmd: "untrack" })??;
+            .ok_or(Error::EmptyResponse { cmd: "track-repo" })??;
 
         log::debug!("node: {}", line);
 
@@ -108,14 +123,50 @@ impl Handle for Node {
             RESPONSE_OK => Ok(true),
             RESPONSE_NOOP => Ok(false),
             _ => Err(Error::InvalidResponse {
-                cmd: "untrack",
+                cmd: "track-repo",
+                response: line,
+            }),
+        }
+    }
+
+    fn untrack_node(&self, id: &NodeId) -> Result<bool, Error> {
+        let mut line = self.call("untrack-node", &[id])?;
+        let line = line.next().ok_or(Error::EmptyResponse {
+            cmd: "untrack-node",
+        })??;
+
+        log::debug!("node: {}", line);
+
+        match line.as_str() {
+            RESPONSE_OK => Ok(true),
+            RESPONSE_NOOP => Ok(false),
+            _ => Err(Error::InvalidResponse {
+                cmd: "untrack-node",
+                response: line,
+            }),
+        }
+    }
+
+    fn untrack_repo(&self, id: &Id) -> Result<bool, Error> {
+        let mut line = self.call("untrack-repo", &[id])?;
+        let line = line.next().ok_or(Error::EmptyResponse {
+            cmd: "untrack-repo",
+        })??;
+
+        log::debug!("node: {}", line);
+
+        match line.as_str() {
+            RESPONSE_OK => Ok(true),
+            RESPONSE_NOOP => Ok(false),
+            _ => Err(Error::InvalidResponse {
+                cmd: "untrack-repo",
                 response: line,
             }),
         }
     }
 
     fn announce_refs(&self, id: &Id) -> Result<(), Error> {
-        for line in self.call("announce-refs", id)? {
+        for line in self.call("announce-refs", &[id])? {
             let line = line?;
             log::debug!("node: {}", line);
         }
