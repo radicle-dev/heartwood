@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use crossbeam_channel as chan;
 
-use crate::client::handle::traits;
 use crate::client::handle::Error;
 use crate::identity::Id;
 use crate::service;
@@ -17,7 +16,11 @@ pub struct Handle {
     pub tracking_nodes: HashSet<NodeId>,
 }
 
-impl traits::Handle for Handle {
+impl radicle::node::Handle for Handle {
+    type Error = Error;
+    type Session = service::Session;
+    type FetchLookup = FetchLookup;
+
     fn listening(&self) -> Result<std::net::SocketAddr, Error> {
         unimplemented!()
     }
@@ -45,10 +48,6 @@ impl traits::Handle for Handle {
     fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
         self.updates.lock().unwrap().push(id);
 
-        Ok(())
-    }
-
-    fn command(&self, _cmd: service::Command) -> Result<(), Error> {
         Ok(())
     }
 

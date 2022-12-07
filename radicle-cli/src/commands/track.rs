@@ -95,7 +95,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let (_, rid) = radicle::rad::cwd().context("this command must be run within a project")?;
     let Doc { payload, .. } = storage.repository(rid)?.project_of(profile.id())?;
-    let node = radicle::node::connect(&profile.node())?;
+    let mut node = radicle::node::connect(&profile.node())?;
 
     term::info!(
         "Establishing 🌱 tracking relationship for {}",
@@ -103,7 +103,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     );
     term::blank();
 
-    let tracked = node.track_node(&peer, options.alias.as_deref())?;
+    let tracked = node.track_node(peer, options.alias.clone())?;
     let outcome = if tracked { "established" } else { "exists" };
 
     if let Some(alias) = options.alias {
@@ -118,7 +118,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     if options.fetch {
-        node.fetch(&rid)?;
+        node.fetch(rid)?;
     }
 
     Ok(())

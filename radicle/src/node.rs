@@ -1,12 +1,13 @@
 mod features;
 
-use std::io;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use std::{io, net};
 
 use crate::crypto::PublicKey;
 use crate::identity::Id;
+use crossbeam_channel as chan;
 
 pub use features::Features;
 
@@ -27,22 +28,38 @@ pub enum Error {
     EmptyResponse { cmd: &'static str },
 }
 
+/// A handle to send commands to the node or request information.
 pub trait Handle {
-    /// Fetch a project from the network. Fails if the project isn't tracked.
-    fn fetch(&self, id: &Id) -> Result<(), Error>;
-    /// Start tracking the given node. If the node is already tracked,
-    /// updates the alias if necessary.
-    fn track_node(&self, id: &NodeId, alias: Option<&str>) -> Result<bool, Error>;
-    /// Start tracking the given repository.
-    fn track_repo(&self, id: &Id) -> Result<bool, Error>;
+    /// The result of a fetch request.
+    type FetchLookup;
+    /// The peer session type.
+    type Session;
+    /// The error returned by all methods.
+    type Error: std::error::Error;
+
+    /// Wait for the node's listening socket to be bound.
+    fn listening(&self) -> Result<net::SocketAddr, Self::Error>;
+    /// Retrieve or update the project from network.
+    fn fetch(&mut self, id: Id) -> Result<Self::FetchLookup, Self::Error>;
+    /// Start tracking the given project. Doesn't do anything if the project is already
+    /// tracked.
+    fn track_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
+    /// Start tracking the given node.
+    fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Self::Error>;
+    /// Untrack the given project and delete it from storage.
+    fn untrack_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
     /// Untrack the given node.
-    fn untrack_node(&self, id: &NodeId) -> Result<bool, Error>;
-    /// Untrack the given repository and delete it from storage.
-    fn untrack_repo(&self, id: &Id) -> Result<bool, Error>;
-    /// Notify the network that we have new refs.
-    fn announce_refs(&self, id: &Id) -> Result<(), Error>;
-    /// Ask the node to shutdown.
-    fn shutdown(self) -> Result<(), Error>;
+    fn untrack_node(&mut self, id: NodeId) -> Result<bool, Self::Error>;
+    /// Notify the client that a project has been updated.
+    fn announce_refs(&mut self, id: Id) -> Result<(), Self::Error>;
+    /// Ask the client to shutdown.
+    fn shutdown(self) -> Result<(), Self::Error>;
+    /// Query the routing table entries.
+    fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Self::Error>;
+    /// Query the peer session state.
+    fn sessions(&self) -> Result<chan::Receiver<(NodeId, Self::Session)>, Self::Error>;
+    /// Query the inventory.
+    fn inventory(&self) -> Result<chan::Receiver<Id>, Self::Error>;
 }
 
 /// Public node & device identifier.
@@ -80,7 +97,11 @@ impl Node {
 }
 
 impl Handle for Node {
-    fn fetch(&self, id: &Id) -> Result<(), Error> {
+    type Session = ();
+    type FetchLookup = ();
+    type Error = Error;
+
+    fn fetch(&mut self, id: Id) -> Result<(), Error> {
         for line in self.call("fetch", &[id])? {
             let line = line?;
             log::debug!("node: {}", line);
@@ -88,9 +109,9 @@ impl Handle for Node {
         Ok(())
     }
 
-    fn track_node(&self, id: &NodeId, alias: Option<&str>) -> Result<bool, Error> {
+    fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {
         let id = id.to_human();
-        let mut line = if let Some(alias) = alias {
+        let mut line = if let Some(alias) = alias.as_deref() {
             self.call("track-node", &[id.as_str(), alias])
         } else {
             self.call("track-node", &[id.as_str()])
@@ -111,7 +132,7 @@ impl Handle for Node {
         }
     }
 
-    fn track_repo(&self, id: &Id) -> Result<bool, Error> {
+    fn track_repo(&mut self, id: Id) -> Result<bool, Error> {
         let mut line = self.call("track-repo", &[id])?;
         let line = line
             .next()
@@ -129,7 +150,7 @@ impl Handle for Node {
         }
     }
 
-    fn untrack_node(&self, id: &NodeId) -> Result<bool, Error> {
+    fn untrack_node(&mut self, id: NodeId) -> Result<bool, Error> {
         let mut line = self.call("untrack-node", &[id])?;
         let line = line.next().ok_or(Error::EmptyResponse {
             cmd: "untrack-node",
@@ -147,7 +168,7 @@ impl Handle for Node {
         }
     }
 
-    fn untrack_repo(&self, id: &Id) -> Result<bool, Error> {
+    fn untrack_repo(&mut self, id: Id) -> Result<bool, Error> {
         let mut line = self.call("untrack-repo", &[id])?;
         let line = line.next().ok_or(Error::EmptyResponse {
             cmd: "untrack-repo",
@@ -165,12 +186,28 @@ impl Handle for Node {
         }
     }
 
-    fn announce_refs(&self, id: &Id) -> Result<(), Error> {
+    fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
         for line in self.call("announce-refs", &[id])? {
             let line = line?;
             log::debug!("node: {}", line);
         }
         Ok(())
+    }
+
+    fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Error> {
+        todo!();
+    }
+
+    fn sessions(&self) -> Result<chan::Receiver<(NodeId, Self::Session)>, Error> {
+        todo!();
+    }
+
+    fn listening(&self) -> Result<net::SocketAddr, Error> {
+        todo!();
+    }
+
+    fn inventory(&self) -> Result<chan::Receiver<Id>, Error> {
+        todo!();
     }
 
     fn shutdown(self) -> Result<(), Error> {

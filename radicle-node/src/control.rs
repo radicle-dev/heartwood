@@ -7,8 +7,9 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::{fs, io, net};
 
+use radicle::node::Handle;
+
 use crate::client;
-use crate::client::handle::traits::Handle;
 use crate::identity::Id;
 use crate::node;
 use crate::service::FetchLookup;
@@ -23,7 +24,13 @@ pub enum Error {
 }
 
 /// Listen for commands on the control socket, and process them.
-pub fn listen<P: AsRef<Path>, H: Handle>(path: P, mut handle: H) -> Result<(), Error> {
+pub fn listen<
+    P: AsRef<Path>,
+    H: Handle<Error = client::handle::Error, FetchLookup = FetchLookup>,
+>(
+    path: P,
+    mut handle: H,
+) -> Result<(), Error> {
     // Remove the socket file on startup before rebinding.
     fs::remove_file(&path).ok();
     fs::create_dir_all(
@@ -69,7 +76,10 @@ enum DrainError {
     Io(#[from] io::Error),
 }
 
-fn drain<H: Handle>(stream: &UnixStream, handle: &mut H) -> Result<(), DrainError> {
+fn drain<H: Handle<Error = client::handle::Error, FetchLookup = FetchLookup>>(
+    stream: &UnixStream,
+    handle: &mut H,
+) -> Result<(), DrainError> {
     let mut reader = BufReader::new(stream);
     let mut writer = LineWriter::new(stream);
 
@@ -198,7 +208,11 @@ fn drain<H: Handle>(stream: &UnixStream, handle: &mut H) -> Result<(), DrainErro
     Ok(())
 }
 
-fn fetch<W: Write, H: Handle>(id: Id, mut writer: W, handle: &mut H) -> Result<(), DrainError> {
+fn fetch<W: Write, H: Handle<Error = client::handle::Error, FetchLookup = FetchLookup>>(
+    id: Id,
+    mut writer: W,
+    handle: &mut H,
+) -> Result<(), DrainError> {
     match handle.fetch(id) {
         Err(e) => {
             return Err(DrainError::Client(e));
@@ -305,20 +319,24 @@ mod tests {
             move || crate::control::listen(socket, handle)
         });
 
-        let handle = loop {
+        let mut handle = loop {
             if let Ok(conn) = Node::connect(&socket) {
                 break conn;
             }
         };
 
-        assert!(handle.track_repo(&proj).unwrap());
-        assert!(!handle.track_repo(&proj).unwrap());
-        assert!(handle.untrack_repo(&proj).unwrap());
-        assert!(!handle.untrack_repo(&proj).unwrap());
+        assert!(handle.track_repo(proj).unwrap());
+        assert!(!handle.track_repo(proj).unwrap());
+        assert!(handle.untrack_repo(proj).unwrap());
+        assert!(!handle.untrack_repo(proj).unwrap());
 
-        assert!(handle.track_node(&peer, Some("alice")).unwrap());
-        assert!(!handle.track_node(&peer, Some("alice")).unwrap());
-        assert!(handle.untrack_node(&peer).unwrap());
-        assert!(!handle.untrack_node(&peer).unwrap());
+        assert!(handle
+            .track_node(peer, Some(String::from("alice")))
+            .unwrap());
+        assert!(!handle
+            .track_node(peer, Some(String::from("alice")))
+            .unwrap());
+        assert!(handle.untrack_node(peer).unwrap());
+        assert!(!handle.untrack_node(peer).unwrap());
     }
 }
