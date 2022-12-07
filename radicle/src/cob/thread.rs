@@ -167,14 +167,13 @@ impl Thread {
             .map(|(a, r)| (a, r))
     }
 
-    pub fn apply(&mut self, changes: impl IntoIterator<Item = Op<Action>>) {
-        for change in changes.into_iter() {
-            let id = change.id();
+    pub fn apply(&mut self, ops: impl IntoIterator<Item = Op<Action>>) {
+        for op in ops.into_iter() {
+            let id = op.id();
 
-            match change.action {
+            match op.action {
                 Action::Comment { body, reply_to } => {
-                    let present =
-                        Redactable::Present(Comment::new(body, reply_to, change.timestamp));
+                    let present = Redactable::Present(Comment::new(body, reply_to, op.timestamp));
                     self.comments.insert(id, present);
                 }
                 Action::Redact { id } => {
@@ -185,12 +184,12 @@ impl Thread {
                     reaction,
                     active,
                 } => {
-                    let key = (change.author, reaction);
+                    let key = (op.author, reaction);
                     let reactions = if active {
-                        LWWSet::singleton(key, change.clock)
+                        LWWSet::singleton(key, op.clock)
                     } else {
                         let mut set = LWWSet::default();
-                        set.remove(key, change.clock);
+                        set.remove(key, op.clock);
                         set
                     };
                     self.reactions.insert(to, reactions);

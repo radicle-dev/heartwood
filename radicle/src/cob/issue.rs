@@ -112,8 +112,8 @@ impl store::FromHistory for Issue {
         history: &radicle_cob::History,
     ) -> Result<(Self, clock::Lamport), store::Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(Ops(changes)) = Ops::try_from(entry) {
-                if let Err(err) = acc.apply(changes) {
+            if let Ok(Ops(ops)) = Ops::try_from(entry) {
+                if let Err(err) = acc.apply(ops) {
                     log::warn!("Error applying op to issue state: {err}");
                     return ControlFlow::Break(acc);
                 }
@@ -155,29 +155,29 @@ impl Issue {
         self.thread.comments().map(|(id, comment)| (id, comment))
     }
 
-    pub fn apply(&mut self, changes: impl IntoIterator<Item = Op>) -> Result<(), Error> {
-        for change in changes {
-            match change.action {
+    pub fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), Error> {
+        for op in ops {
+            match op.action {
                 Action::Title { title } => {
-                    self.title.set(title, change.clock);
+                    self.title.set(title, op.clock);
                 }
                 Action::Lifecycle { status } => {
-                    self.status.set(status, change.clock);
+                    self.status.set(status, op.clock);
                 }
                 Action::Tag { add, remove } => {
                     for tag in add {
-                        self.tags.insert(tag, change.clock);
+                        self.tags.insert(tag, op.clock);
                     }
                     for tag in remove {
-                        self.tags.remove(tag, change.clock);
+                        self.tags.remove(tag, op.clock);
                     }
                 }
                 Action::Thread { action } => {
                     self.thread.apply([cob::Op {
                         action,
-                        author: change.author,
-                        clock: change.clock,
-                        timestamp: change.timestamp,
+                        author: op.author,
+                        clock: op.clock,
+                        timestamp: op.timestamp,
                     }]);
                 }
             }

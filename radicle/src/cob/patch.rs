@@ -329,8 +329,8 @@ impl store::FromHistory for Patch {
         history: &radicle_cob::History,
     ) -> Result<(Self, clock::Lamport), store::Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(Ops(changes)) = Ops::try_from(entry) {
-                if let Err(err) = acc.apply(changes) {
+            if let Ok(Ops(ops)) = Ops::try_from(entry) {
+                if let Err(err) = acc.apply(ops) {
                     log::warn!("Error applying op to patch state: {err}");
                     return ControlFlow::Break(acc);
                 }
