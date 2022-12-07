@@ -69,11 +69,11 @@ impl DocError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct Payload {
     pub name: String,
-    pub description: String,            // TODO: Make optional.
-    pub default_branch: git::RefString, // TODO: Make optional.
+    pub description: String,
+    pub default_branch: git::RefString,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -82,6 +82,7 @@ pub struct Payload {
 pub struct Namespace(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Doc<V> {
     #[serde(rename = "xyz.radicle.project")]
     pub payload: Payload,
@@ -501,7 +502,7 @@ mod test {
         );
         assert_eq!(
             id.to_human(),
-            String::from("rad:zb2rNRYmmz7SLZ7xMjM7dddswC3K")
+            String::from("rad:z2TBtGrJKGsremYAPec6vN4n77Ba7")
         );
     }
 
