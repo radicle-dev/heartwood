@@ -1,0 +1,59 @@
+version: "3.7"
+services:
+  radicle-node:
+    image: gcr.io/radicle-services/radicle-node:${RADICLE_IMAGE_TAG:-latest}
+    build:
+      dockerfile: ./radicle-node/Dockerfile
+      context: .
+    environment:
+      RUST_LOG: debug
+    init: true
+    container_name: radicle-node
+    restart: unless-stopped
+    networks:
+      - radicle-services
+    deploy:
+      resources:
+        limits:
+          memory: 6gb
+  radicle-httpd:
+    image: gcr.io/radicle-services/radicle-httpd:${RADICLE_IMAGE_TAG:-latest}
+    build:
+      dockerfile: ./radicle-httpd/Dockerfile
+      context: .
+    environment:
+      RUST_LOG: debug
+    init: true
+    container_name: radicle-httpd
+    restart: unless-stopped
+    networks:
+      - radicle-services
+    deploy:
+      resources:
+        limits:
+          memory: 6gb
+  caddy:
+    image: caddy:2.4.5
+    entrypoint:
+      - sh
+      - -euc
+      - |
+        cat <<EOF >/etc/caddy/Caddyfile
+        {$RADICLE_DOMAIN} {
+            reverse_proxy radicle-httpd:8778
+        }
+        EOF
+        caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      RADICLE_DOMAIN: $RADICLE_DOMAIN
+    container_name: caddy
+    restart: unless-stopped
+    networks:
+      - radicle-services
+
+networks:
+  radicle-services:
+    name: radicle-services
