@@ -26,6 +26,9 @@ pub struct Verified;
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Unverified;
 
+/// Output of a Diffie-Hellman key exchange.
+pub type SharedSecret = [u8; 32];
+
 /// Error returned if signing fails, eg. due to an HSM or KMS.
 #[derive(Debug, Error)]
 #[error(transparent)]
@@ -67,6 +70,13 @@ where
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
         self.deref().try_sign(msg)
     }
+}
+
+/// A signer that can perform Elliptic-curve Diffie–Hellman.
+pub trait Ecdh: Signer {
+    /// Perform an ECDH key exchange. Takes the counter-party's public key,
+    /// and returns a computed shared secret.
+    fn ecdh(&self, other: &PublicKey) -> Result<SharedSecret, Error>;
 }
 
 /// Cryptographic signature.
