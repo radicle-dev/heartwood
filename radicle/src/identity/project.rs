@@ -2,7 +2,6 @@ mod id;
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{self, Write as _};
-use std::io;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::Path;
@@ -42,27 +41,18 @@ pub const MAX_DELEGATES: usize = 255;
 pub enum DocError {
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("i/o: {0}")]
-    Io(#[from] io::Error),
-    #[error("verification: {0}")]
-    Verification(#[from] VerificationError),
-    #[error("payload: {0}")]
-    Payload(#[from] PayloadError),
     #[error("git: {0}")]
     Git(#[from] git::Error),
     #[error("git: {0}")]
     RawGit(#[from] git2::Error),
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
-    #[error("git: reference `{0}` was not found")]
-    NotFound(git::RefString),
 }
 
 impl DocError {
     /// Whether this error is caused by the document not being found.
     pub fn is_not_found(&self) -> bool {
         match self {
-            Self::NotFound(_) => true,
             Self::Git(git::Error::NotFound(_)) => true,
             Self::Git(git::Error::Git(e)) if git::is_not_found_err(e) => true,
             _ => false,

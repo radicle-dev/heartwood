@@ -11,7 +11,7 @@ use radicle_cob::{self as cob, change};
 
 use crate::git;
 use crate::identity;
-use crate::identity::project::{Identity, IdentityError, Project};
+use crate::identity::project::{Identity, IdentityError, Project, VerificationError};
 use crate::identity::{Doc, Id};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
@@ -43,8 +43,8 @@ pub enum ProjectError {
     Doc(#[from] identity::project::DocError),
     #[error("payload error: {0}")]
     Payload(#[from] identity::project::PayloadError),
-    #[error("identity verification error: {0}")]
-    Verify(#[from] identity::project::VerificationError),
+    #[error("verification error: {0}")]
+    Verification(#[from] VerificationError),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("git: {0}")]
@@ -176,12 +176,8 @@ pub enum VerifyError {
     InvalidRemote(RemoteId),
     #[error("invalid target `{2}` for reference `{1}` of remote `{0}`")]
     InvalidRefTarget(RemoteId, RefString, git2::Oid),
-    #[error("invalid reference")]
-    InvalidRef,
     #[error("invalid identity: {0}")]
     InvalidIdentity(#[from] IdentityError),
-    #[error("ref error: {0}")]
-    Ref(#[from] git::RefError),
     #[error("refs error: {0}")]
     Refs(#[from] refs::Error),
     #[error("unknown reference `{1}` in remote `{0}`")]
