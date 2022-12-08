@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
@@ -426,7 +426,7 @@ fn stats<R: WriteRepository>(repo: &R) -> Result<Stats, Error> {
                 None
             }
         })
-        .collect::<BTreeSet<_>>();
+        .collect::<HashSet<_>>();
 
     Ok(Stats {
         branches,
