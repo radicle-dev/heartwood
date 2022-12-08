@@ -30,9 +30,9 @@ dependencies = [
 
 [[package]]
 name = "amplify"
-version = "4.0.0-beta.4"
+version = "4.0.0-beta.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62c3b7fe483c11f7a434ec6923a68749b3415c1328857f1a8e37bb2c792a25c0"
+checksum = "4ff4d466b0cb5124991d3a2085c28f2aed6d86264c3c0bdbd7d1b64a49b4726b"
 dependencies = [
  "amplify_derive",
  "amplify_num",
@@ -543,9 +543,9 @@ dependencies = [
 
 [[package]]
 name = "cxx"
-version = "1.0.82"
+version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4a41a86530d0fe7f5d9ea779916b7cadd2d4f9add748b99c2c029cbbdfaf453"
+checksum = "bdf07d07d6531bfcdbe9b8b739b104610c6508dcc4d63b410585faf338241daf"
 dependencies = [
  "cc",
  "cxxbridge-flags",
@@ -555,9 +555,9 @@ dependencies = [
 
 [[package]]
 name = "cxx-build"
-version = "1.0.82"
+version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06416d667ff3e3ad2df1cd8cd8afae5da26cf9cec4d0825040f88b5ca659a2f0"
+checksum = "d2eb5b96ecdc99f72657332953d4d9c50135af1bac34277801cc3937906ebd39"
 dependencies = [
  "cc",
  "codespan-reporting",
@@ -570,15 +570,15 @@ dependencies = [
 
 [[package]]
 name = "cxxbridge-flags"
-version = "1.0.82"
+version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "820a9a2af1669deeef27cb271f476ffd196a2c4b6731336011e0ba63e2c7cf71"
+checksum = "ac040a39517fd1674e0f32177648334b0f4074625b5588a64519804ba0553b12"
 
 [[package]]
 name = "cxxbridge-macro"
-version = "1.0.82"
+version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a08a6e2fcc370a089ad3b4aaf54db3b1b4cee38ddabce5896b33eb693275f470"
+checksum = "1362b0ddcfc4eb0a1f57b68bd77dd99f0e826958a96abd0ae9bd092e114ffed6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -597,9 +597,9 @@ dependencies = [
 
 [[package]]
 name = "data-encoding"
-version = "2.3.2"
+version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ee2393c4a91429dffb4bedf19f4d6abf27d8a732c8ce4980305d782e5426d57"
+checksum = "23d8666cb01533c39dde32bcbab8e227b4ed6679b2c925eba05feabea39508fb"
 
 [[package]]
 name = "data-encoding-macro"
@@ -623,9 +623,9 @@ dependencies = [
 
 [[package]]
 name = "der"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13dd2ae565c0a381dde7fade45fce95984c568bdcb4700a4fdbe3175e0380b2f"
+checksum = "f1a467a65c5e759bce6e65eaf91cc29f466cdc57cb65777bd646872a8a1fd4de"
 dependencies = [
  "const-oid",
  "pem-rfc7468",
@@ -704,9 +704,9 @@ dependencies = [
 
 [[package]]
 name = "ed25519-compact"
-version = "2.0.2"
+version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f2d21333b679bbbac680b3eb45c86937e42f69277028f4e97b599b80b86c253"
+checksum = "6a3d382e8464107391c8706b4c14b087808ecb909f6c15c34114bc42e53a9e4c"
 dependencies = [
  "ct-codecs",
  "getrandom 0.2.8",
@@ -873,9 +873,9 @@ dependencies = [
 
 [[package]]
 name = "filetime"
-version = "0.2.18"
+version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b9663d381d07ae25dc88dbdf27df458faa83a9b25336bcac83d5e452b5fc9d3"
+checksum = "4e884668cd0c7480504233e951174ddc3b382f7c2666e3b7310b5c4e7b0c37f9"
 dependencies = [
  "cfg-if",
  "libc",
@@ -1023,10 +1023,28 @@ dependencies = [
 [[package]]
 name = "git-ref-format"
 version = "0.1.0"
+source = "git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481#39ce2f934915a563f9420ac9c85480df8a591481"
+dependencies = [
+ "git-ref-format-core 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481)",
+ "git-ref-format-macro 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481)",
+]
+
+[[package]]
+name = "git-ref-format"
+version = "0.1.0"
 source = "git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d#d3115a22158c8395705babefdc89049f7510d32d"
 dependencies = [
- "git-ref-format-core",
- "git-ref-format-macro",
+ "git-ref-format-core 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d)",
+ "git-ref-format-macro 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d)",
+]
+
+[[package]]
+name = "git-ref-format-core"
+version = "0.1.0"
+source = "git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481#39ce2f934915a563f9420ac9c85480df8a591481"
+dependencies = [
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -1041,9 +1059,20 @@ dependencies = [
 [[package]]
 name = "git-ref-format-macro"
 version = "0.1.0"
+source = "git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481#39ce2f934915a563f9420ac9c85480df8a591481"
+dependencies = [
+ "git-ref-format-core 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481)",
+ "proc-macro-error",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "git-ref-format-macro"
+version = "0.1.0"
 source = "git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d#d3115a22158c8395705babefdc89049f7510d32d"
 dependencies = [
- "git-ref-format-core",
+ "git-ref-format-core 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d)",
  "proc-macro-error",
  "quote",
  "syn",
@@ -1467,9 +1496,9 @@ checksum = "478ee9e62aaeaf5b140bd4138753d1f109765488581444218d3ddda43234f3e8"
 
 [[package]]
 name = "libc"
-version = "0.2.137"
+version = "0.2.138"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
+checksum = "db6d7e329c562c5dfab7a46a2afabc8b987ab9a4834c9d1ca04dc54c1546cef8"
 
 [[package]]
 name = "libgit2-sys"
@@ -2067,7 +2096,7 @@ dependencies = [
  "cyphernet",
  "ed25519-compact",
  "fastrand",
- "git-ref-format",
+ "git-ref-format 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481)",
  "git2",
  "log",
  "multibase",
@@ -2126,7 +2155,7 @@ dependencies = [
  "ed25519-compact",
  "fastrand",
  "git-commit",
- "git-ref-format",
+ "git-ref-format 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481)",
  "git-trailers",
  "git2",
  "log",
@@ -2164,7 +2193,7 @@ dependencies = [
  "cyphernet",
  "ed25519-compact",
  "fastrand",
- "git-ref-format",
+ "git-ref-format 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481)",
  "multibase",
  "qcheck",
  "qcheck-macros",
@@ -2183,7 +2212,7 @@ name = "radicle-git-ext"
 version = "0.2.0"
 source = "git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d#d3115a22158c8395705babefdc89049f7510d32d"
 dependencies = [
- "git-ref-format",
+ "git-ref-format 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d)",
  "git2",
  "percent-encoding",
  "radicle-std-ext",
@@ -2229,7 +2258,7 @@ dependencies = [
  "colored",
  "crossbeam-channel",
  "fastrand",
- "git-ref-format",
+ "git-ref-format 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481)",
  "lexopt",
  "log",
  "nakamoto-net",
@@ -2281,7 +2310,7 @@ dependencies = [
  "base64",
  "either",
  "flate2",
- "git-ref-format",
+ "git-ref-format 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d)",
  "git2",
  "nom 6.1.2",
  "nonempty 0.5.0",
@@ -2297,7 +2326,7 @@ name = "radicle-tools"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "git-ref-format",
+ "git-ref-format 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=39ce2f934915a563f9420ac9c85480df8a591481)",
  "radicle",
 ]
 
@@ -2489,9 +2518,9 @@ checksum = "3e75f6a532d0fd9f7f13144f392b6ad56a32696bfcd9c78f797f16bbb6f072d6"
 
 [[package]]
 name = "rustix"
-version = "0.36.4"
+version = "0.36.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb93e85278e08bb5788653183213d3a60fc242b10cb9be96586f5a73dcb67c23"
+checksum = "a3807b5d10909833d3e9acd1eb5fb988f79376ff10fce42937de71a449c4c588"
 dependencies = [
  "bitflags",
  "errno",
@@ -2524,9 +2553,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info"
-version = "2.3.0"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88d8a765117b237ef233705cc2cc4c6a27fccd46eea6ef0c8c6dae5f3ef407f8"
+checksum = "001cf62ece89779fd16105b5f515ad0e5cedcd5440d3dd806bb067978e7c3608"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -2536,9 +2565,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info-derive"
-version = "2.3.0"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdcd47b380d8c4541044e341dcd9475f55ba37ddc50c908d945fc036a8642496"
+checksum = "303959cf613a6f6efd19ed4b4ad5bf79966a13352716299ad532cfb115f4205c"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2580,18 +2609,18 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.148"
+version = "1.0.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e53f64bb4ba0191d6d0676e1b141ca55047d83b74f5607e6d8eb88126c52c2dc"
+checksum = "256b9932320c590e707b94576e3cc1f7c9024d0ee6612dfbcf1cb106cbe8e055"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.148"
+version = "1.0.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a55492425aa53521babf6137309e7d34c20bbfbbfcfe2c7f3a047fd1f6b92c0c"
+checksum = "b4eae9b04cbffdfd550eb462ed33bc6a1b68c935127d008b27444d08380f94e4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2901,9 +2930,9 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "syn"
-version = "1.0.104"
+version = "1.0.105"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ae548ec36cf198c0ef7710d3c230987c2d6d7bd98ad6edc0274462724c585ce"
+checksum = "60b9b43d45702de4c839cb9b51d9f529c5dd26a4aff255b42b1ebc03e88ee908"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3077,9 +3106,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.22.0"
+version = "1.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d76ce4a75fb488c605c54bf610f221cea8b0dafb53333c1a67e8ee199dcd2ae3"
+checksum = "eab6d665857cc6ca78d6e80303a02cea7a7851e85dfbd77cbdc09bd129f1ef46"
 dependencies = [
  "autocfg",
  "bytes",
@@ -3090,7 +3119,7 @@ dependencies = [
  "pin-project-lite",
  "socket2",
  "tokio-macros",
- "winapi",
+ "windows-sys",
 ]
 
 [[package]]
@@ -3145,9 +3174,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.3.4"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c530c8675c1dbf98facee631536fa116b5fb6382d7dd6dc1b118d970eafe3ba"
+checksum = "f873044bf02dd1e8239e9c1293ea39dad76dc594ec16185d0a1bf31d8dc8d858"
 dependencies = [
  "bitflags",
  "bytes",
@@ -3258,9 +3287,9 @@ checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 
 [[package]]
 name = "typenum"
-version = "1.15.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcf81ac59edc17cc8697ff311e8f5ef2d99fcbd9817b34cec66f90b6c3dfd987"
+checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
 
 [[package]]
 name = "uint"
@@ -3556,9 +3585,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize_derive"
-version = "1.3.2"
+version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f8f187641dad4f680d25c4bfc4225b418165984179f26ca76ec4fb6441d3a17"
+checksum = "44bf07cb3e50ea2003396695d58bf46bc9887a1f362260446fad6bc4e79bd36c"
 dependencies = [
  "proc-macro2",
  "quote",

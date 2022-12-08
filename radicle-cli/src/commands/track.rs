@@ -3,8 +3,7 @@ use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
 
-use radicle::node::Handle;
-use radicle::prelude::*;
+use radicle::node::{Handle, NodeId};
 use radicle::storage::WriteStorage;
 
 use crate::terminal as term;
@@ -94,12 +93,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let (_, rid) = radicle::rad::cwd().context("this command must be run within a project")?;
-    let Doc { payload, .. } = storage.repository(rid)?.project_of(profile.id())?;
+    let project = storage.repository(rid)?.project_of(profile.id())?;
     let mut node = radicle::node::connect(&profile.node())?;
 
     term::info!(
         "Establishing 🌱 tracking relationship for {}",
-        term::format::highlight(&payload.name)
+        term::format::highlight(&project.name)
     );
     term::blank();
 

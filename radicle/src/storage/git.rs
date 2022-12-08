@@ -11,7 +11,7 @@ use radicle_cob::{self as cob, change};
 
 use crate::git;
 use crate::identity;
-use crate::identity::project::{Identity, IdentityError};
+use crate::identity::project::{Identity, IdentityError, Project};
 use crate::identity::{Doc, Id};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
@@ -41,6 +41,8 @@ pub enum ProjectError {
     Storage(#[from] Error),
     #[error("identity document error: {0}")]
     Doc(#[from] identity::project::DocError),
+    #[error("payload error: {0}")]
+    Payload(#[from] identity::project::PayloadError),
     #[error("identity verification error: {0}")]
     Verify(#[from] identity::project::VerificationError),
     #[error("git: {0}")]
@@ -96,7 +98,7 @@ impl ReadStorage for Storage {
     fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, ProjectError> {
         // TODO: Don't create a repo here if it doesn't exist?
         // Perhaps for checking we could have a `contains` method?
-        match self.repository(proj)?.project_of(remote) {
+        match self.repository(proj)?.identity_of(remote) {
             Ok(doc) => Ok(Some(doc)),
 
             Err(err) if err.is_not_found() => Ok(None),
@@ -271,7 +273,14 @@ impl Repository {
         Identity::load(remote, self)
     }
 
-    pub fn project_of(&self, remote: &RemoteId) -> Result<identity::Doc<Verified>, ProjectError> {
+    pub fn project_of(&self, remote: &RemoteId) -> Result<Project, ProjectError> {
+        let doc = self.identity_of(remote)?;
+        let proj = doc.project()?;
+
+        Ok(proj)
+    }
+
+    pub fn identity_of(&self, remote: &RemoteId) -> Result<Doc<Verified>, ProjectError> {
         let (doc, _) = identity::Doc::load(remote, self)?;
         let verified = doc.verified()?;
 
@@ -279,7 +288,7 @@ impl Repository {
     }
 
     /// Return the canonical identity [`git::Oid`] and document.
-    pub fn project(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError> {
+    pub fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError> {
         let mut heads = Vec::new();
         for remote in self.remote_ids()? {
             let remote = remote?;
@@ -478,7 +487,7 @@ impl ReadRepository for Repository {
     }
 
     fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError> {
-        Repository::project(self)
+        Repository::identity_doc(self)
     }
 
     fn head(&self) -> Result<(Qualified, Oid), ProjectError> {
@@ -494,12 +503,14 @@ impl ReadRepository for Repository {
     fn canonical_head(&self) -> Result<(Qualified, Oid), ProjectError> {
         // TODO: In the `fork` function for example, we call Repository::project_identity again,
         // This should only be necessary once.
-        let (_, project) = self.project_identity()?;
+        let (_, doc) = self.project_identity()?;
+        let doc = doc.verified()?;
+        let project = doc.project()?;
         let branch_ref = Qualified::from(lit::refs_heads(&project.default_branch));
         let raw = self.raw();
 
         let mut heads = Vec::new();
-        for delegate in project.delegates.iter() {
+        for delegate in doc.delegates.iter() {
             let r = self.reference_oid(delegate, &branch_ref)?.into();
 
             heads.push(r);

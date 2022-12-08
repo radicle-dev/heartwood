@@ -15,7 +15,7 @@ ok Project heartwood created
 }
 
 
-Your project id is rad:z2TBtGrJKGsremYAPec6vN4n77Ba7. You can show it any time by running:
+Your project id is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji. You can show it any time by running:
    rad .
 
 To publish your project to the network, run:
@@ -27,5 +27,5 @@ Projects can be listed with the `ls` command:
 
 ```
 $ rad ls
-heartwood rad:z2TBtGrJKGsremYAPec6vN4n77Ba7 cdf76ce Radicle Heartwood Protocol & Stack
+heartwood rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji cdf76ce Radicle Heartwood Protocol & Stack
 ```

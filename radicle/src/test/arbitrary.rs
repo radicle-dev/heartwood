@@ -10,7 +10,7 @@ use qcheck::Arbitrary;
 
 use crate::collections::HashMap;
 use crate::git;
-use crate::identity::{project::Doc, Did, Id};
+use crate::identity::{project::Doc, project::Project, Did, Id};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::storage::MockStorage;
@@ -74,18 +74,7 @@ impl Arbitrary for Did {
     }
 }
 
-impl Arbitrary for Doc<Unverified> {
-    fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let name = String::arbitrary(g);
-        let description = String::arbitrary(g);
-        let default_branch = git::RefString::try_from(String::arbitrary(g)).unwrap();
-        let delegate = Did::arbitrary(g);
-
-        Self::initial(name, description, default_branch, delegate)
-    }
-}
-
-impl Arbitrary for Doc<Verified> {
+impl Arbitrary for Project {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let name = iter::repeat_with(|| rng.alphanumeric())
@@ -99,14 +88,35 @@ impl Arbitrary for Doc<Verified> {
             .collect::<String>()
             .try_into()
             .unwrap();
+
+        Project {
+            name,
+            description,
+            default_branch,
+        }
+    }
+}
+
+impl Arbitrary for Doc<Unverified> {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let proj = Project::arbitrary(g);
+        let delegate = Did::arbitrary(g);
+
+        Self::initial(proj, delegate)
+    }
+}
+
+impl Arbitrary for Doc<Verified> {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+        let project = Project::arbitrary(g);
         let delegates: NonEmpty<_> = iter::repeat_with(|| Did::arbitrary(g))
             .take(rng.usize(1..6))
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
         let threshold = delegates.len() / 2 + 1;
-        let doc: Doc<Unverified> =
-            Doc::new(name, description, default_branch, delegates, threshold);
+        let doc: Doc<Unverified> = Doc::new(project, delegates, threshold);
 
         doc.verified().unwrap()
     }

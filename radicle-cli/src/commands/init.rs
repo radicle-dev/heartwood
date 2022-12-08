@@ -201,24 +201,26 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         &profile.storage,
     ) {
         Ok((id, doc, _)) => {
+            let proj = doc.project()?;
+
             spinner.message(format!(
                 "Project {} created",
-                term::format::highlight(&doc.name)
+                term::format::highlight(&proj.name)
             ));
             spinner.finish();
 
             if interactive.no() {
-                term::blob(json::to_string_pretty(&doc.payload)?);
+                term::blob(json::to_string_pretty(&proj)?);
                 term::blank();
             }
 
-            if options.set_upstream || git::branch_remote(&repo, &doc.default_branch).is_err() {
+            if options.set_upstream || git::branch_remote(&repo, &proj.default_branch).is_err() {
                 // Setup eg. `master` -> `rad/master`
                 radicle::git::set_upstream(
                     &repo,
                     &radicle::rad::REMOTE_NAME,
-                    &doc.default_branch,
-                    &radicle::git::refs::workdir::branch(&doc.default_branch),
+                    &proj.default_branch,
+                    &radicle::git::refs::workdir::branch(&proj.default_branch),
                 )?;
             }
 

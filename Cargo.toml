@@ -42,4 +42,4 @@ rev = "d3115a22158c8395705babefdc89049f7510d32d"
 
 [patch.crates-io.git-ref-format]
 git = "https://github.com/radicle-dev/radicle-git"
-rev = "d3115a22158c8395705babefdc89049f7510d32d"
+rev = "39ce2f934915a563f9420ac9c85480df8a591481"

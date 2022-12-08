@@ -1,7 +1,7 @@
 mod id;
 
 use std::collections::{BTreeMap, HashMap};
-use std::fmt::Write as _;
+use std::fmt::{self, Write as _};
 use std::io;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -46,6 +46,8 @@ pub enum DocError {
     Io(#[from] io::Error),
     #[error("verification: {0}")]
     Verification(#[from] VerificationError),
+    #[error("payload: {0}")]
+    Payload(#[from] PayloadError),
     #[error("git: {0}")]
     Git(#[from] git::Error),
     #[error("git: {0}")]
@@ -68,26 +70,120 @@ impl DocError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Payload {
-    pub name: String,
-    pub description: String,
-    pub default_branch: git::RefString,
+#[derive(Debug, Error)]
+pub enum ProjectError {
+    #[error("invalid name: {0}")]
+    Name(&'static str),
+    #[error("invalid description: {0}")]
+    Description(&'static str),
+    #[error("invalid default branch: {0}")]
+    DefaultBranch(&'static str),
+    #[error("json: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("project payload not found in identity document")]
+    NotFound,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Project {
+    pub name: String,
+    pub description: String,
+    pub default_branch: BranchName,
+}
+
+impl From<Project> for Payload {
+    fn from(proj: Project) -> Self {
+        let value = serde_json::to_value(proj)
+            .expect("Payload::from: could not convert project into value");
+
+        Self { value }
+    }
+}
+
+impl Project {
+    /// Validate the project data.
+    pub fn validate(&self) -> Result<(), ProjectError> {
+        if self.name.is_empty() {
+            return Err(ProjectError::Name("name cannot be empty"));
+        }
+        if self.name.len() > MAX_STRING_LENGTH {
+            return Err(ProjectError::Name("name cannot exceed 255 bytes"));
+        }
+        if self.description.len() > MAX_STRING_LENGTH {
+            return Err(ProjectError::Description(
+                "description cannot exceed 255 bytes",
+            ));
+        }
+        if self.default_branch.is_empty() {
+            return Err(ProjectError::DefaultBranch(
+                "default branch cannot be empty",
+            ));
+        }
+        if self.default_branch.len() > MAX_STRING_LENGTH {
+            return Err(ProjectError::DefaultBranch(
+                "default branch cannot exceed 255 bytes",
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum PayloadError {
+    #[error("json: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("payload '{0}' not found in identity document")]
+    NotFound(PayloadId),
+}
+
+/// Identifies an identity document payload type.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 // TODO: Restrict values.
-pub struct Namespace(String);
+pub struct PayloadId(String);
+
+impl fmt::Display for PayloadId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl PayloadId
+where
+    PayloadId: Clone,
+{
+    /// Project payload type.
+    pub fn project() -> Self {
+        Self(String::from("xyz.radicle.project"))
+    }
+}
+
+/// Payload value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Payload {
+    value: serde_json::Value,
+}
+
+impl From<serde_json::Value> for Payload {
+    fn from(value: serde_json::Value) -> Self {
+        Self { value }
+    }
+}
+
+impl Deref for Payload {
+    type Target = serde_json::Value;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Doc<V> {
-    #[serde(rename = "xyz.radicle.project")]
-    pub payload: Payload,
-    #[serde(flatten)]
-    pub extensions: BTreeMap<Namespace, serde_json::Value>,
+    pub payload: BTreeMap<PayloadId, Payload>,
     pub delegates: NonEmpty<Did>,
     pub threshold: usize,
 
@@ -115,6 +211,17 @@ impl Doc<Verified> {
             return true;
         }
         false
+    }
+
+    /// Get the project payload, if it exists and is valid, out of this document.
+    pub fn project(&self) -> Result<Project, PayloadError> {
+        let value = self
+            .payload
+            .get(&PayloadId::project())
+            .ok_or_else(|| PayloadError::NotFound(PayloadId::project()))?;
+        let proj: Project = serde_json::from_value((**value).clone())?;
+
+        Ok(proj)
     }
 
     pub fn sign<G: crypto::Signer>(&self, signer: &G) -> Result<(git::Oid, Signature), DocError> {
@@ -181,66 +288,27 @@ impl Doc<Verified> {
     }
 }
 
-impl<V> Deref for Doc<V> {
-    type Target = Payload;
-
-    fn deref(&self) -> &Self::Target {
-        &self.payload
-    }
-}
-
 #[derive(Error, Debug)]
 pub enum VerificationError {
-    #[error("invalid name: {0}")]
-    Name(&'static str),
-    #[error("invalid description: {0}")]
-    Description(&'static str),
-    #[error("invalid default branch: {0}")]
-    DefaultBranch(&'static str),
     #[error("invalid delegates: {0}")]
     Delegates(&'static str),
     #[error("invalid version `{0}`")]
     Version(u32),
-    #[error("invalid parent: {0}")]
-    Parent(&'static str),
     #[error("invalid threshold `{0}`: {1}")]
     Threshold(usize, &'static str),
 }
 
 impl Doc<Unverified> {
-    pub fn initial(
-        name: String,
-        description: String,
-        default_branch: BranchName,
-        delegate: Did,
-    ) -> Self {
-        Self {
-            payload: Payload {
-                name,
-                description,
-                default_branch,
-            },
-            extensions: BTreeMap::new(),
-            delegates: NonEmpty::new(delegate),
-            threshold: 1,
-            verified: PhantomData,
-        }
+    pub fn initial(project: Project, delegate: Did) -> Self {
+        Self::new(project, NonEmpty::new(delegate), 1)
     }
 
-    pub fn new(
-        name: String,
-        description: String,
-        default_branch: BranchName,
-        delegates: NonEmpty<Did>,
-        threshold: usize,
-    ) -> Self {
+    pub fn new(project: Project, delegates: NonEmpty<Did>, threshold: usize) -> Self {
+        let project =
+            serde_json::to_value(project).expect("Doc::initial: payload must be serializable");
+
         Self {
-            payload: Payload {
-                name,
-                description,
-                default_branch,
-            },
-            extensions: BTreeMap::new(),
+            payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
             delegates,
             threshold,
             verified: PhantomData,
@@ -252,17 +320,6 @@ impl Doc<Unverified> {
     }
 
     pub fn verified(self) -> Result<Doc<Verified>, VerificationError> {
-        if self.name.is_empty() {
-            return Err(VerificationError::Name("name cannot be empty"));
-        }
-        if self.name.len() > MAX_STRING_LENGTH {
-            return Err(VerificationError::Name("name cannot exceed 255 bytes"));
-        }
-        if self.description.len() > MAX_STRING_LENGTH {
-            return Err(VerificationError::Description(
-                "description cannot exceed 255 bytes",
-            ));
-        }
         if self.delegates.len() > MAX_DELEGATES {
             return Err(VerificationError::Delegates(
                 "number of delegates cannot exceed 255",
@@ -271,16 +328,6 @@ impl Doc<Unverified> {
         if self.delegates.is_empty() {
             return Err(VerificationError::Delegates(
                 "delegate list cannot be empty",
-            ));
-        }
-        if self.default_branch.is_empty() {
-            return Err(VerificationError::DefaultBranch(
-                "default branch cannot be empty",
-            ));
-        }
-        if self.default_branch.len() > MAX_STRING_LENGTH {
-            return Err(VerificationError::DefaultBranch(
-                "default branch cannot exceed 255 bytes",
             ));
         }
         if self.threshold > self.delegates.len() {
@@ -298,7 +345,6 @@ impl Doc<Unverified> {
 
         Ok(Doc {
             payload: self.payload,
-            extensions: self.extensions,
             delegates: self.delegates,
             threshold: self.threshold,
             verified: PhantomData,
@@ -501,8 +547,12 @@ mod test {
             String::from("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi")
         );
         assert_eq!(
+            (*id).to_string(),
+            "d96f425412c9f8ad5d9a9a05c9831d0728e2338d"
+        );
+        assert_eq!(
             id.to_human(),
-            String::from("rad:z2TBtGrJKGsremYAPec6vN4n77Ba7")
+            String::from("rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji")
         );
     }
 
@@ -542,14 +592,16 @@ mod test {
         // TODO: In some cases we want to get the repo and the project, but don't
         // want to have to create a repository object twice. Perhaps there should
         // be a way of getting a project from a repo.
-        let mut proj = storage.get(alice.public_key(), id).unwrap().unwrap();
+        let mut doc = storage.get(alice.public_key(), id).unwrap().unwrap();
+        let mut prj = doc.project().unwrap();
         let repo = storage.repository(id).unwrap();
 
         // Make a change to the description and sign it.
-        proj.payload.description += "!";
-        proj.sign(&alice)
+        prj.description += "!";
+        doc.payload.insert(PayloadId::project(), prj.clone().into());
+        doc.sign(&alice)
             .and_then(|(_, sig)| {
-                proj.update(
+                doc.update(
                     alice.public_key(),
                     "Update description",
                     &[(alice.public_key(), sig)],
@@ -559,11 +611,11 @@ mod test {
             .unwrap();
 
         // Add Bob as a delegate, and sign it.
-        proj.delegate(*bob.public_key());
-        proj.threshold = 2;
-        proj.sign(&alice)
+        doc.delegate(*bob.public_key());
+        doc.threshold = 2;
+        doc.sign(&alice)
             .and_then(|(_, sig)| {
-                proj.update(
+                doc.update(
                     alice.public_key(),
                     "Add bob",
                     &[(alice.public_key(), sig)],
@@ -573,11 +625,11 @@ mod test {
             .unwrap();
 
         // Add Eve as a delegate, and sign it.
-        proj.delegate(*eve.public_key());
-        proj.sign(&alice)
+        doc.delegate(*eve.public_key());
+        doc.sign(&alice)
             .and_then(|(_, alice_sig)| {
-                proj.sign(&bob).and_then(|(_, bob_sig)| {
-                    proj.update(
+                doc.sign(&bob).and_then(|(_, bob_sig)| {
+                    doc.update(
                         alice.public_key(),
                         "Add eve",
                         &[(alice.public_key(), alice_sig), (bob.public_key(), bob_sig)],
@@ -588,12 +640,13 @@ mod test {
             .unwrap();
 
         // Update description again with signatures by Eve and Bob.
-        proj.payload.description += "?";
-        let (current, head) = proj
+        prj.description += "?";
+        doc.payload.insert(PayloadId::project(), prj.into());
+        let (current, head) = doc
             .sign(&bob)
             .and_then(|(_, bob_sig)| {
-                proj.sign(&eve).and_then(|(blob_id, eve_sig)| {
-                    proj.update(
+                doc.sign(&eve).and_then(|(blob_id, eve_sig)| {
+                    doc.update(
                         alice.public_key(),
                         "Update description",
                         &[(bob.public_key(), bob_sig), (eve.public_key(), eve_sig)],
@@ -614,10 +667,10 @@ mod test {
         assert_eq!(identity.root, id);
         assert_eq!(identity.current, current);
         assert_eq!(identity.head, head);
-        assert_eq!(identity.doc, proj);
+        assert_eq!(identity.doc, doc);
 
-        let proj = storage.get(alice.public_key(), id).unwrap().unwrap();
-        assert_eq!(proj.description, "Acme's repository!?");
+        let doc = storage.get(alice.public_key(), id).unwrap().unwrap();
+        assert_eq!(doc.project().unwrap().description, "Acme's repository!?");
     }
 
     #[quickcheck]

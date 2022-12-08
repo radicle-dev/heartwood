@@ -17,7 +17,7 @@ use tower_http::trace::TraceLayer;
 use tracing::Span;
 
 use radicle::cob::issue::Issues;
-use radicle::identity::{Doc, Id};
+use radicle::identity::Id;
 use radicle::storage::{ReadRepository, WriteStorage};
 use radicle::Profile;
 
@@ -49,7 +49,7 @@ impl Context {
         let storage = &self.profile.storage;
         let repo = storage.repository(id)?;
         let (_, head) = repo.head()?;
-        let Doc { payload, .. } = repo.project_of(self.profile.id())?;
+        let payload = repo.project_of(self.profile.id())?;
         let issues = (Issues::open(self.profile.public_key, &repo)?).count()?;
 
         Ok(project::Info {
@@ -142,7 +142,7 @@ pub struct PaginationQuery {
 
 mod project {
     use radicle::git::Oid;
-    use radicle::identity::project::Payload;
+    use radicle::identity::project::Project;
     use radicle::identity::Id;
     use serde::Serialize;
 
@@ -152,7 +152,7 @@ mod project {
     pub struct Info {
         /// Project metadata.
         #[serde(flatten)]
-        pub payload: Payload,
+        pub payload: Project,
         pub head: Oid,
         pub patches: usize,
         pub issues: usize,

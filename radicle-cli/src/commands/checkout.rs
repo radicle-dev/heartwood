@@ -79,12 +79,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     let id = options.id;
     let storage = &profile.storage;
-    let Doc {
-        payload, delegates, ..
-    } = storage
+    let doc = storage
         .repository(id)?
-        .project_of(profile.id())
+        .identity_of(profile.id())
         .context("project could not be found in local storage")?;
+    let payload = doc.project()?;
     let path = PathBuf::from(payload.name.clone());
 
     if path.exists() {
@@ -109,7 +108,8 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     };
     spinner.finish();
 
-    let remotes = delegates
+    let remotes = doc
+        .delegates
         .into_iter()
         .map(|did| *did)
         .filter(|id| id != profile.id())

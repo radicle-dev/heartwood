@@ -50,13 +50,13 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     storage.projects()?.into_iter().for_each(|id| {
         let Ok(repo) = storage.repository(id) else { return };
         let Ok((_, head)) = repo.head() else { return };
-        let Ok(Doc { payload, .. }) = repo.project_of(profile.id()) else { return };
+        let Ok(Project { name, description, .. }) = repo.project_of(profile.id()) else { return };
         let head = term::format::oid(head);
         table.push([
-            term::format::bold(payload.name),
+            term::format::bold(name),
             term::format::tertiary(id),
             term::format::secondary(head),
-            term::format::italic(payload.description),
+            term::format::italic(description),
         ]);
     });
     table.render();

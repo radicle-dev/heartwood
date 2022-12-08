@@ -3,7 +3,7 @@ use axum::routing::get;
 use axum::{Extension, Json, Router};
 
 use radicle::cob::issue::Issues;
-use radicle::identity::{Did, Doc};
+use radicle::identity::Did;
 use radicle::storage::{ReadRepository, WriteStorage};
 
 use crate::api::axum_extra::{Path, Query};
@@ -38,9 +38,10 @@ async fn delegates_projects_handler(
         .filter_map(|id| {
             let Ok(repo) = storage.repository(id) else { return None };
             let Ok((_, head)) = repo.head() else { return None };
-            let Ok(Doc { payload, delegates, .. }) = repo.project_of(ctx.profile.id()) else { return None };
+            let Ok(doc) = repo.identity_of(ctx.profile.id()) else { return None };
+            let Ok(payload) = doc.project() else { return None };
 
-            if !delegates.iter().any(|d| *d == delegate) {
+            if !doc.delegates.iter().any(|d| *d == delegate) {
                 return None;
             }
 

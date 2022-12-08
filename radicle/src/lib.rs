@@ -26,7 +26,7 @@ pub mod prelude {
     use super::*;
 
     pub use crypto::{PublicKey, Signer, Verified};
-    pub use identity::{Did, Doc, Id};
+    pub use identity::{project::Project, Did, Doc, Id};
     pub use node::NodeId;
     pub use profile::Profile;
     pub use storage::{BranchName, ReadRepository, ReadStorage, WriteRepository, WriteStorage};

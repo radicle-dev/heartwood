@@ -14,7 +14,7 @@ use radicle::cob::issue::Issues;
 use radicle::cob::thread::{self, CommentId};
 use radicle::cob::Timestamp;
 use radicle::git::raw::BranchType;
-use radicle::identity::{Doc, Id, PublicKey};
+use radicle::identity::{Id, PublicKey};
 use radicle::node::NodeId;
 use radicle::storage::{Oid, ReadRepository, WriteRepository, WriteStorage};
 use radicle_surf::git::History;
@@ -68,7 +68,7 @@ async fn project_root_handler(
         .filter_map(|id| {
             let Ok(repo) = storage.repository(id) else { return None };
             let Ok((_, head)) = repo.head() else { return None };
-            let Ok(Doc { payload, .. }) = repo.project_of(ctx.profile.id()) else { return None };
+            let Ok(payload) = repo.project_of(ctx.profile.id()) else { return None };
             let Ok(issues) = Issues::open(ctx.profile.public_key, &repo) else { return None };
             let Ok(issues) = (*issues).count() else { return None };
 

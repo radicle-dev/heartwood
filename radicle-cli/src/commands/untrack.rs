@@ -68,18 +68,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .context("current directory is not a git repository; please supply an `<id>`")?;
     let profile = ctx.profile()?;
     let storage = &profile.storage;
-    let Doc { payload, .. } = storage.repository(id)?.project_of(profile.id())?;
+    let project = storage.repository(id)?.project_of(profile.id())?;
 
     if untrack(id, &profile)? {
         term::success!(
             "Tracking relationships for {} ({}) removed",
-            term::format::highlight(payload.name),
+            term::format::highlight(project.name),
             &id.to_human()
         );
     } else {
         term::info!(
             "Tracking relationships for {} ({}) doesn't exist",
-            term::format::highlight(payload.name),
+            term::format::highlight(project.name),
             &id.to_human()
         );
     }

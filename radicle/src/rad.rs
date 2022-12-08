@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::crypto::{Signer, Verified};
 use crate::git;
-use crate::identity::project::DocError;
+use crate::identity::project::{self, DocError, Project};
 use crate::identity::Id;
 use crate::node;
 use crate::node::NodeId;
@@ -60,13 +60,12 @@ pub fn init<G: Signer>(
     // TODO: Better error when project id already exists in storage, but remote doesn't.
     let pk = signer.public_key();
     let delegate = identity::Did::from(*pk);
-    let doc = identity::Doc::initial(
-        name.to_owned(),
-        description.to_owned(),
-        default_branch.clone(),
-        delegate,
-    )
-    .verified()?;
+    let proj = Project {
+        name: name.to_owned(),
+        description: description.to_owned(),
+        default_branch: default_branch.clone(),
+    };
+    let doc = identity::Doc::initial(proj, delegate).verified()?;
 
     let (id, _, project) = doc.create(pk, "Initialize Radicle\n", storage)?;
     let url = git::Url::from(id).with_namespace(*pk);
@@ -96,6 +95,8 @@ pub enum ForkError {
     Git(#[from] git::Error),
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
+    #[error("payload: {0}")]
+    Payload(#[from] project::PayloadError),
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
     #[error("project identity error: {0}")]
@@ -123,9 +124,10 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     // refs/namespaces/<pk>/refs/tags/*
 
     let me = signer.public_key();
-    let project = storage
+    let doc = storage
         .get(remote, proj)?
         .ok_or(ForkError::NotFound(proj))?;
+    let project = doc.project()?;
     let repository = storage.repository(proj)?;
 
     let raw = repository.raw();
@@ -247,6 +249,8 @@ pub enum CheckoutError {
     Git(#[from] git2::Error),
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
+    #[error("payload: {0}")]
+    Payload(#[from] project::PayloadError),
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
     #[error("project error: {0}")]
@@ -263,9 +267,10 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
 ) -> Result<git2::Repository, CheckoutError> {
     // TODO: Decide on whether we can use `clone_local`
     // TODO: Look into sharing object databases.
-    let project = storage
+    let doc = storage
         .get(remote, proj)?
         .ok_or(CheckoutError::NotFound(proj))?;
+    let project = doc.project()?;
 
     let mut opts = git2::RepositoryInitOptions::new();
     opts.no_reinit(true).description(&project.description);
@@ -375,7 +380,8 @@ mod tests {
         )
         .unwrap();
 
-        let project = storage.get(&public_key, proj).unwrap().unwrap();
+        let doc = storage.get(&public_key, proj).unwrap().unwrap();
+        let project = doc.project().unwrap();
         let remotes: HashMap<_, _> = storage
             .repository(proj)
             .unwrap()
@@ -402,7 +408,7 @@ mod tests {
         assert_eq!(project.name, "acme");
         assert_eq!(project.description, "Acme's repo");
         assert_eq!(project.default_branch, git::refname!("master"));
-        assert_eq!(project.delegates.first(), &Did::from(public_key));
+        assert_eq!(doc.delegates.first(), &Did::from(public_key));
     }
 
     #[test]
