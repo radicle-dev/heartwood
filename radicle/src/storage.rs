@@ -17,6 +17,7 @@ use crate::collections::HashMap;
 use crate::git::ext as git_ext;
 use crate::git::{Qualified, RefError, RefString};
 use crate::identity;
+use crate::identity::doc::DocError;
 use crate::identity::{Id, IdError};
 use crate::storage::refs::Refs;
 
@@ -46,6 +47,8 @@ impl From<PublicKey> for Namespaces {
 pub enum Error {
     #[error("invalid git reference")]
     InvalidRef,
+    #[error("identity doc: {0}")]
+    Doc(#[from] DocError),
     #[error("git reference error: {0}")]
     Ref(#[from] RefError),
     #[error(transparent)]

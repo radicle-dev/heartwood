@@ -4,7 +4,7 @@ use std::str::FromStr;
 use anyhow::{anyhow, Context as _};
 
 use radicle::identity::Id;
-use radicle::storage::{ReadStorage, WriteStorage};
+use radicle::storage::{ReadStorage, WriteRepository, WriteStorage};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -86,7 +86,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     signer.public_key(),
                     "Updated payload",
                     &[(signer.public_key(), sig)],
-                    &repo,
+                    repo.raw(),
                 )
             })?;
         }

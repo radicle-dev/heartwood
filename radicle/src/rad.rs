@@ -14,7 +14,7 @@ use crate::identity::project::Project;
 use crate::node;
 use crate::node::NodeId;
 use crate::storage::git::transport::{self, remote};
-use crate::storage::git::{ProjectError, Storage};
+use crate::storage::git::{ProjectError, Repository, Storage};
 use crate::storage::refs::SignedRefs;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId, WriteRepository as _};
 use crate::{identity, storage};
@@ -65,9 +65,8 @@ pub fn init<G: Signer>(
         default_branch: default_branch.clone(),
     };
     let doc = identity::Doc::initial(proj, delegate).verified()?;
-
-    let (id, _, project) = doc.create(pk, "Initialize Radicle\n", storage)?;
-    let url = git::Url::from(id).with_namespace(*pk);
+    let (project, _) = Repository::init(&doc, pk, storage)?;
+    let url = git::Url::from(project.id).with_namespace(*pk);
 
     git::configure_remote(repo, &REMOTE_NAME, &url)?;
     git::push(
@@ -81,7 +80,7 @@ pub fn init<G: Signer>(
     let signed = project.sign_refs(signer)?;
     let _head = project.set_head()?;
 
-    Ok((id, doc, signed))
+    Ok((project.id, doc, signed))
 }
 
 #[derive(Error, Debug)]

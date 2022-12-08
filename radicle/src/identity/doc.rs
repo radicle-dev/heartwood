@@ -17,9 +17,8 @@ use crate::crypto;
 use crate::crypto::{Signature, Unverified, Verified};
 use crate::git;
 use crate::identity::{project::Project, Did};
-use crate::storage;
 use crate::storage::git::trailers;
-use crate::storage::{ReadRepository, RemoteId, WriteRepository, WriteStorage};
+use crate::storage::{ReadRepository, RemoteId};
 
 pub use crypto::PublicKey;
 pub use id::*;
@@ -45,8 +44,6 @@ pub enum DocError {
     Git(#[from] git::Error),
     #[error("git: {0}")]
     RawGit(#[from] git2::Error),
-    #[error("storage: {0}")]
-    Storage(#[from] storage::Error),
 }
 
 impl DocError {
@@ -166,41 +163,35 @@ impl Doc<Verified> {
         Ok((oid, sig))
     }
 
-    pub fn create<S: WriteStorage>(
-        &self,
+    pub fn init(
+        doc: &[u8],
         remote: &RemoteId,
-        msg: &str,
-        storage: &S,
-    ) -> Result<(Id, git::Oid, S::Repository), DocError> {
-        let (doc_oid, doc) = self.encode()?;
-        let id = Id::from(doc_oid);
-        let repo = storage.repository(id)?;
-        let tree = git::write_tree(*PATH, doc.as_slice(), repo.raw())?;
-        let oid = Doc::commit(remote, &tree, msg, &[], repo.raw())?;
+        repo: &git2::Repository,
+    ) -> Result<git::Oid, DocError> {
+        let tree = git::write_tree(*PATH, doc, repo)?;
+        let oid = Doc::commit(remote, &tree, "Initialize Radicle\n", &[], repo)?;
 
-        drop(tree);
-
-        Ok((id, oid, repo))
+        Ok(oid)
     }
 
-    pub fn update<R: WriteRepository>(
+    pub fn update(
         &self,
         remote: &RemoteId,
         msg: &str,
         signatures: &[(&PublicKey, Signature)],
-        repo: &R,
+        repo: &git2::Repository,
     ) -> Result<git::Oid, DocError> {
-        let mut msg = format!("{msg}\n\n");
+        let mut msg = format!("{}\n\n", msg.trim());
         for (key, sig) in signatures {
             writeln!(&mut msg, "{}: {key} {sig}", trailers::SIGNATURE_TRAILER)
                 .expect("in-memory writes don't fail");
         }
 
         let (_, doc) = self.encode()?;
-        let tree = git::write_tree(*PATH, doc.as_slice(), repo.raw())?;
+        let tree = git::write_tree(*PATH, doc.as_slice(), repo)?;
         let id_ref = git::refs::storage::id(remote);
-        let head = repo.raw().find_reference(&id_ref)?.peel_to_commit()?;
-        let oid = Doc::commit(remote, &tree, &msg, &[&head], repo.raw())?;
+        let head = repo.find_reference(&id_ref)?.peel_to_commit()?;
+        let oid = Doc::commit(remote, &tree, &msg, &[&head], repo)?;
 
         Ok(oid)
     }

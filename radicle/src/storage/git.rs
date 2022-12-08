@@ -212,6 +212,20 @@ impl Repository {
         Ok(Self { id, backend })
     }
 
+    /// Create the repository's identity branch.
+    pub fn init(
+        doc: &Doc<Verified>,
+        remote: &RemoteId,
+        storage: &Storage,
+    ) -> Result<(Self, git::Oid), Error> {
+        let (doc_oid, doc) = doc.encode()?;
+        let id = Id::from(doc_oid);
+        let repo = Self::open(paths::repository(storage, &id), id)?;
+        let oid = Doc::init(doc.as_slice(), remote, repo.raw())?;
+
+        Ok((repo, oid))
+    }
+
     /// Verify all references in the repository, checking that they are signed
     /// as part of 'sigrefs'. Also verify that no signed reference is missing
     /// from the repository.

@@ -162,7 +162,7 @@ mod test {
     use crate::crypto::PublicKey;
     use crate::rad;
     use crate::storage::git::Storage;
-    use crate::storage::{ReadStorage, WriteStorage};
+    use crate::storage::{ReadStorage, WriteRepository, WriteStorage};
     use crate::test::fixtures;
 
     use super::did::Did;
@@ -214,7 +214,7 @@ mod test {
                     alice.public_key(),
                     "Update description",
                     &[(alice.public_key(), sig)],
-                    &repo,
+                    repo.raw(),
                 )
             })
             .unwrap();
@@ -228,7 +228,7 @@ mod test {
                     alice.public_key(),
                     "Add bob",
                     &[(alice.public_key(), sig)],
-                    &repo,
+                    repo.raw(),
                 )
             })
             .unwrap();
@@ -242,7 +242,7 @@ mod test {
                         alice.public_key(),
                         "Add eve",
                         &[(alice.public_key(), alice_sig), (bob.public_key(), bob_sig)],
-                        &repo,
+                        repo.raw(),
                     )
                 })
             })
@@ -259,7 +259,7 @@ mod test {
                         alice.public_key(),
                         "Update description",
                         &[(bob.public_key(), bob_sig), (eve.public_key(), eve_sig)],
-                        &repo,
+                        repo.raw(),
                     )
                     .map(|head| (blob_id, head))
                 })
