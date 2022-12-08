@@ -41,17 +41,18 @@ pub enum DocError {
     #[error("invalid threshold `{0}`: {1}")]
     Threshold(usize, &'static str),
     #[error("git: {0}")]
-    Git(#[from] git::Error),
+    GitExt(#[from] git::Error),
     #[error("git: {0}")]
-    RawGit(#[from] git2::Error),
+    Git(#[from] git2::Error),
 }
 
 impl DocError {
     /// Whether this error is caused by the document not being found.
     pub fn is_not_found(&self) -> bool {
         match self {
-            Self::Git(git::Error::NotFound(_)) => true,
-            Self::Git(git::Error::Git(e)) if git::is_not_found_err(e) => true,
+            Self::GitExt(git::Error::NotFound(_)) => true,
+            Self::GitExt(git::Error::Git(e)) if git::is_not_found_err(e) => true,
+            Self::Git(err) if git::is_not_found_err(err) => true,
             _ => false,
         }
     }

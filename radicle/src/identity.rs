@@ -28,11 +28,13 @@ pub struct Trusted;
 #[derive(Error, Debug)]
 pub enum IdentityError {
     #[error("git: {0}")]
-    GitRaw(#[from] git2::Error),
+    Git(#[from] git2::Error),
     #[error("git: {0}")]
-    Git(#[from] git::Error),
+    GitExt(#[from] git::Error),
     #[error("root hash `{0}` does not match project")]
     MismatchedRoot(Oid),
+    #[error("the document root is missing")]
+    MissingRoot,
     #[error("commit signature for {0} is invalid: {1}")]
     InvalidSignature(PublicKey, crypto::Error),
     #[error("commit message for {0} is invalid")]
@@ -43,8 +45,6 @@ pub enum IdentityError {
     QuorumNotReached(usize, usize),
     #[error("identity document error: {0}")]
     Doc(#[from] doc::DocError),
-    #[error("the document root is missing")]
-    MissingRoot,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

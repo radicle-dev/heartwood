@@ -88,9 +88,9 @@ pub enum ForkError {
     #[error("ref string: {0}")]
     RefString(#[from] git::fmt::Error),
     #[error("git: {0}")]
-    GitRaw(#[from] git2::Error),
+    Git(#[from] git2::Error),
     #[error("git: {0}")]
-    Git(#[from] git::Error),
+    GitExt(#[from] git::Error),
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
     #[error("payload: {0}")]
