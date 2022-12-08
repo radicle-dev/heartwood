@@ -8,8 +8,9 @@ use thiserror::Error;
 
 use crate::crypto::{Signer, Verified};
 use crate::git;
-use crate::identity::project::{self, DocError, Project};
-use crate::identity::Id;
+use crate::identity::doc;
+use crate::identity::doc::{DocError, Id};
+use crate::identity::project::Project;
 use crate::node;
 use crate::node::NodeId;
 use crate::storage::git::transport::{self, remote};
@@ -29,11 +30,9 @@ pub fn peer_remote(peer: &NodeId) -> String {
 #[derive(Error, Debug)]
 pub enum InitError {
     #[error("doc: {0}")]
-    Doc(#[from] identity::project::DocError),
+    Doc(#[from] DocError),
     #[error("project: {0}")]
     Project(#[from] storage::git::ProjectError),
-    #[error("doc: {0}")]
-    DocVerification(#[from] identity::project::VerificationError),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("i/o: {0}")]
@@ -96,7 +95,7 @@ pub enum ForkError {
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
     #[error("payload: {0}")]
-    Payload(#[from] project::PayloadError),
+    Payload(#[from] doc::PayloadError),
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
     #[error("project identity error: {0}")]
@@ -250,7 +249,7 @@ pub enum CheckoutError {
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
     #[error("payload: {0}")]
-    Payload(#[from] project::PayloadError),
+    Payload(#[from] doc::PayloadError),
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
     #[error("project error: {0}")]

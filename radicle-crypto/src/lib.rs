@@ -432,4 +432,18 @@ mod tests {
 
         assert_eq!(key.to_string(), input);
     }
+
+    #[quickcheck]
+    fn prop_key_equality(a: PublicKey, b: PublicKey) {
+        use std::collections::HashSet;
+
+        assert_ne!(a, b);
+
+        let mut hm = HashSet::new();
+
+        assert!(hm.insert(a));
+        assert!(hm.insert(b));
+        assert!(!hm.insert(a));
+        assert!(!hm.insert(b));
+    }
 }

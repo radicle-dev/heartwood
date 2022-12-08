@@ -123,3 +123,17 @@ impl From<&Id> for Component<'_> {
         Component::from_refstr(refstr).expect("project id's are valid refname components")
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use qcheck_macros::quickcheck;
+
+    #[quickcheck]
+    fn prop_from_str(input: Id) {
+        let encoded = input.to_string();
+        let decoded = Id::from_str(&encoded).unwrap();
+
+        assert_eq!(input, decoded);
+    }
+}

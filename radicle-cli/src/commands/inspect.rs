@@ -8,8 +8,8 @@ use anyhow::{anyhow, Context as _};
 use chrono::prelude::*;
 use json_color::{Color, Colorizer};
 
-use radicle::identity::project::{Doc, Untrusted};
-use radicle::identity::Id;
+use radicle::identity::Untrusted;
+use radicle::identity::{Doc, Id};
 use radicle::storage::{ReadRepository, ReadStorage, WriteStorage};
 
 use crate::terminal as term;

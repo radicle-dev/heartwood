@@ -10,7 +10,11 @@ use qcheck::Arbitrary;
 
 use crate::collections::HashMap;
 use crate::git;
-use crate::identity::{project::Doc, project::Project, Did, Id};
+use crate::identity::{
+    doc::{Doc, Id},
+    project::Project,
+    Did,
+};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::storage::MockStorage;

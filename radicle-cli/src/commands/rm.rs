@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 
-use radicle::identity::project::Id;
+use radicle::identity::Id;
 use radicle::storage::ReadStorage;
 
 use crate::commands::rad_untrack;

@@ -2,7 +2,7 @@ use std::ffi::OsString;
 
 use anyhow::{anyhow, Context as _};
 
-use radicle::identity::project::Id;
+use radicle::identity::Id;
 use radicle::node::Handle;
 use radicle::prelude::*;
 use radicle::storage::WriteStorage;

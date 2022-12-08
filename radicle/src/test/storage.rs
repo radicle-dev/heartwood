@@ -5,8 +5,7 @@ use git_ref_format as fmt;
 use radicle_git_ext as git_ext;
 
 use crate::crypto::{Signer, Verified};
-use crate::identity::project::Doc;
-use crate::identity::Id;
+use crate::identity::doc::{Doc, Id};
 
 pub use crate::storage::*;
 

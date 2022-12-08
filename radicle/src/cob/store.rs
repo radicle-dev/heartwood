@@ -12,7 +12,8 @@ use crate::cob::CollaborativeObject;
 use crate::cob::{Create, History, ObjectId, TypeName, Update};
 use crate::crypto::PublicKey;
 use crate::git;
-use crate::identity::project;
+use crate::identity;
+use crate::identity::Identity;
 use crate::prelude::*;
 use crate::storage::git as storage;
 
@@ -43,7 +44,7 @@ pub enum Error {
     #[error("remove error: {0}")]
     Remove(#[from] cob::error::Remove),
     #[error(transparent)]
-    Identity(#[from] project::IdentityError),
+    Identity(#[from] identity::IdentityError),
     #[error(transparent)]
     Serialize(#[from] serde_json::Error),
     #[error("unexpected history type '{0}'")]
@@ -52,10 +53,10 @@ pub enum Error {
     NotFound(TypeName, ObjectId),
 }
 
-/// Storage for collaborative objects of a specific type `T` in a single project.
+/// Storage for collaborative objects of a specific type `T` in a single repository.
 pub struct Store<'a, T> {
     whoami: PublicKey,
-    project: project::Identity<git::Oid>,
+    identity: Identity<git::Oid>,
     raw: &'a storage::Repository,
     witness: PhantomData<T>,
 }
@@ -69,10 +70,10 @@ impl<'a, T> AsRef<storage::Repository> for Store<'a, T> {
 impl<'a, T> Store<'a, T> {
     /// Open a new generic store.
     pub fn open(whoami: PublicKey, store: &'a storage::Repository) -> Result<Self, Error> {
-        let project = project::Identity::load(&whoami, store)?;
+        let identity = Identity::load(&whoami, store)?;
 
         Ok(Self {
-            project,
+            identity,
             whoami,
             raw: store,
             witness: PhantomData,
@@ -107,7 +108,7 @@ where
         cob::update(
             self.raw,
             signer,
-            &self.project,
+            &self.identity,
             signer.public_key(),
             Update {
                 object_id,
@@ -131,7 +132,7 @@ where
         let cob = cob::create(
             self.raw,
             signer,
-            &self.project,
+            &self.identity,
             signer.public_key(),
             Create {
                 history_type: HISTORY_TYPE.to_owned(),

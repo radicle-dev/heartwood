@@ -11,8 +11,8 @@ use radicle_cob::{self as cob, change};
 
 use crate::git;
 use crate::identity;
-use crate::identity::project::{Identity, IdentityError, Project, VerificationError};
-use crate::identity::{Doc, Id};
+use crate::identity::{doc, Doc, Id};
+use crate::identity::{Identity, IdentityError, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
@@ -40,11 +40,9 @@ pub enum ProjectError {
     #[error("storage error: {0}")]
     Storage(#[from] Error),
     #[error("identity document error: {0}")]
-    Doc(#[from] identity::project::DocError),
+    Doc(#[from] doc::DocError),
     #[error("payload error: {0}")]
-    Payload(#[from] identity::project::PayloadError),
-    #[error("verification error: {0}")]
-    Verification(#[from] VerificationError),
+    Payload(#[from] doc::PayloadError),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("git: {0}")]

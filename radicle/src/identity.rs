@@ -1,110 +1,173 @@
+pub mod did;
+pub mod doc;
 pub mod project;
 
-use std::ops::Deref;
-use std::{fmt, str::FromStr};
+use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use radicle_git_ext::Oid;
 use thiserror::Error;
 
 use crate::crypto;
+use crate::crypto::{Signature, Verified};
+use crate::git;
+use crate::storage::git::trailers;
+use crate::storage::{ReadRepository, RemoteId};
 
 pub use crypto::PublicKey;
-pub use project::{Doc, Id, IdError};
+pub use did::Did;
+pub use doc::{Doc, Id, IdError};
+pub use project::Project;
+
+/// Untrusted, well-formed input.
+#[derive(Clone, Copy, Debug)]
+pub struct Untrusted;
+/// Signed by quorum of the previous delegation.
+#[derive(Clone, Copy, Debug)]
+pub struct Trusted;
 
 #[derive(Error, Debug)]
-pub enum DidError {
-    #[error("invalid did: {0}")]
-    Did(String),
-    #[error("invalid public key: {0}")]
-    PublicKey(#[from] crypto::PublicKeyError),
+pub enum IdentityError {
+    #[error("git: {0}")]
+    GitRaw(#[from] git2::Error),
+    #[error("git: {0}")]
+    Git(#[from] git::Error),
+    #[error("root hash `{0}` does not match project")]
+    MismatchedRoot(Oid),
+    #[error("commit signature for {0} is invalid: {1}")]
+    InvalidSignature(PublicKey, crypto::Error),
+    #[error("commit message for {0} is invalid")]
+    InvalidCommitMessage(Oid),
+    #[error("commit trailers for {0} are invalid: {1}")]
+    InvalidCommitTrailers(Oid, trailers::Error),
+    #[error("quorum not reached: {0} signatures for a threshold of {1}")]
+    QuorumNotReached(usize, usize),
+    #[error("identity document error: {0}")]
+    Doc(#[from] doc::DocError),
+    #[error("the document root is missing")]
+    MissingRoot,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
-#[serde(into = "String", try_from = "String")]
-pub struct Did(crypto::PublicKey);
-
-impl Did {
-    pub fn encode(&self) -> String {
-        format!("did:key:{}", self.0.to_human())
-    }
-
-    pub fn decode(input: &str) -> Result<Self, DidError> {
-        let key = input
-            .strip_prefix("did:key:")
-            .ok_or_else(|| DidError::Did(input.to_owned()))?;
-
-        crypto::PublicKey::from_str(key)
-            .map(Did)
-            .map_err(DidError::from)
-    }
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Identity<I> {
+    /// The head of the identity branch. This points to a commit that
+    /// contains the current document blob.
+    pub head: Oid,
+    /// The canonical identifier for this identity.
+    /// This is the object id of the initial document blob.
+    pub root: I,
+    /// The object id of the current document blob.
+    pub current: Oid,
+    /// Revision number. The initial document has a revision of `0`.
+    pub revision: u32,
+    /// The current document.
+    pub doc: Doc<Verified>,
+    /// Signatures over this identity.
+    pub signatures: HashMap<PublicKey, Signature>,
 }
 
-impl From<crypto::PublicKey> for Did {
-    fn from(key: crypto::PublicKey) -> Self {
-        Self(key)
-    }
-}
+impl radicle_cob::identity::Identity for Identity<Oid> {
+    type Identifier = Oid;
 
-impl From<Did> for String {
-    fn from(other: Did) -> Self {
-        other.encode()
-    }
-}
-
-impl TryFrom<String> for Did {
-    type Error = DidError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::decode(&value)
-    }
-}
-
-impl fmt::Display for Did {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.encode())
+    fn content_id(&self) -> Oid {
+        self.current
     }
 }
 
-impl fmt::Debug for Did {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Did({:?})", self.to_string())
+impl Identity<Oid> {
+    pub fn verified(self, id: doc::Id) -> Result<Identity<doc::Id>, IdentityError> {
+        // The root hash must be equal to the id.
+        if self.root != *id {
+            return Err(IdentityError::MismatchedRoot(self.root));
+        }
+
+        Ok(Identity {
+            root: id,
+            head: self.head,
+            current: self.current,
+            revision: self.revision,
+            doc: self.doc,
+            signatures: self.signatures,
+        })
     }
 }
 
-impl Deref for Did {
-    type Target = PublicKey;
+impl Identity<Untrusted> {
+    pub fn load<R: ReadRepository>(
+        remote: &RemoteId,
+        repo: &R,
+    ) -> Result<Identity<Oid>, IdentityError> {
+        let head = Doc::<Untrusted>::head(remote, repo)?;
+        let mut history = repo.revwalk(head)?.collect::<Vec<_>>();
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+        // Retrieve root document.
+        let root_oid = history.pop().ok_or(IdentityError::MissingRoot)??.into();
+        let root_blob = Doc::blob_at(root_oid, repo)?;
+        let root: git::Oid = root_blob.id().into();
+        let trusted = Doc::from_json(root_blob.content())?;
+        let revision = history.len() as u32;
+
+        let mut trusted = trusted.verified()?;
+        let mut current = root;
+        let mut signatures = Vec::new();
+
+        // Traverse the history chronologically.
+        for oid in history.into_iter().rev() {
+            let oid = oid?;
+            let blob = Doc::blob_at(oid.into(), repo)?;
+            let untrusted = Doc::from_json(blob.content()).map_err(doc::DocError::from)?;
+            let untrusted = untrusted.verified()?;
+            let commit = repo.commit(oid.into())?;
+            let msg = commit
+                .message_raw()
+                .ok_or_else(|| IdentityError::InvalidCommitMessage(oid.into()))?;
+
+            // Keys that signed the *current* document version.
+            signatures = trailers::parse_signatures(msg)
+                .map_err(|e| IdentityError::InvalidCommitTrailers(oid.into(), e))?;
+            for (pk, sig) in &signatures {
+                if let Err(err) = pk.verify(blob.content(), sig) {
+                    return Err(IdentityError::InvalidSignature(*pk, err));
+                }
+            }
+
+            // Check that enough delegates signed this next version.
+            let quorum = signatures
+                .iter()
+                .filter(|(key, _)| trusted.delegates.iter().any(|d| &**d == key))
+                .count();
+            if quorum < trusted.threshold {
+                return Err(IdentityError::QuorumNotReached(quorum, trusted.threshold));
+            }
+
+            trusted = untrusted;
+            current = blob.id().into();
+        }
+
+        Ok(Identity {
+            root,
+            head,
+            current,
+            revision,
+            doc: trusted,
+            signatures: signatures.into_iter().collect(),
+        })
     }
 }
-
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::crypto::PublicKey;
     use qcheck_macros::quickcheck;
-    use std::collections::HashSet;
+    use radicle_crypto::test::signer::MockSigner;
+    use radicle_crypto::Signer as _;
 
-    #[quickcheck]
-    fn prop_key_equality(a: PublicKey, b: PublicKey) {
-        assert_ne!(a, b);
+    use crate::crypto::PublicKey;
+    use crate::rad;
+    use crate::storage::git::Storage;
+    use crate::storage::{ReadStorage, WriteStorage};
+    use crate::test::fixtures;
 
-        let mut hm = HashSet::new();
-
-        assert!(hm.insert(a));
-        assert!(hm.insert(b));
-        assert!(!hm.insert(a));
-        assert!(!hm.insert(b));
-    }
-
-    #[quickcheck]
-    fn prop_from_str(input: Id) {
-        let encoded = input.to_string();
-        let decoded = Id::from_str(&encoded).unwrap();
-
-        assert_eq!(input, decoded);
-    }
+    use super::did::Did;
+    use super::doc::PayloadId;
+    use super::*;
 
     #[quickcheck]
     fn prop_json_eq_str(pk: PublicKey, proj: Id, did: Did) {
@@ -119,17 +182,103 @@ mod test {
     }
 
     #[test]
-    fn test_did_encode_decode() {
-        let input = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
-        let Did(key) = Did::decode(input).unwrap();
+    fn test_valid_identity() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let mut rng = fastrand::Rng::new();
 
-        assert_eq!(Did::from(key).encode(), input);
-    }
+        let alice = MockSigner::new(&mut rng);
+        let bob = MockSigner::new(&mut rng);
+        let eve = MockSigner::new(&mut rng);
 
-    #[test]
-    fn test_did_vectors() {
-        Did::decode("did:key:z6MkiTBz1ymuepAQ4HEHYSF1H8quG5GLVVQR3djdX3mDooWp").unwrap();
-        Did::decode("did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG").unwrap();
-        Did::decode("did:key:z6MknGc3ocHs3zdPiJbnaaqDi58NGb4pk1Sp9WxWufuXSdxf").unwrap();
+        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        let (id, _, _, _) =
+            fixtures::project(tempdir.path().join("copy"), &storage, &alice).unwrap();
+
+        // Bob and Eve fork the project from Alice.
+        rad::fork_remote(id, alice.public_key(), &bob, &storage).unwrap();
+        rad::fork_remote(id, alice.public_key(), &eve, &storage).unwrap();
+
+        // TODO: In some cases we want to get the repo and the project, but don't
+        // want to have to create a repository object twice. Perhaps there should
+        // be a way of getting a project from a repo.
+        let mut doc = storage.get(alice.public_key(), id).unwrap().unwrap();
+        let mut prj = doc.project().unwrap();
+        let repo = storage.repository(id).unwrap();
+
+        // Make a change to the description and sign it.
+        prj.description += "!";
+        doc.payload.insert(PayloadId::project(), prj.clone().into());
+        doc.sign(&alice)
+            .and_then(|(_, sig)| {
+                doc.update(
+                    alice.public_key(),
+                    "Update description",
+                    &[(alice.public_key(), sig)],
+                    &repo,
+                )
+            })
+            .unwrap();
+
+        // Add Bob as a delegate, and sign it.
+        doc.delegate(*bob.public_key());
+        doc.threshold = 2;
+        doc.sign(&alice)
+            .and_then(|(_, sig)| {
+                doc.update(
+                    alice.public_key(),
+                    "Add bob",
+                    &[(alice.public_key(), sig)],
+                    &repo,
+                )
+            })
+            .unwrap();
+
+        // Add Eve as a delegate, and sign it.
+        doc.delegate(*eve.public_key());
+        doc.sign(&alice)
+            .and_then(|(_, alice_sig)| {
+                doc.sign(&bob).and_then(|(_, bob_sig)| {
+                    doc.update(
+                        alice.public_key(),
+                        "Add eve",
+                        &[(alice.public_key(), alice_sig), (bob.public_key(), bob_sig)],
+                        &repo,
+                    )
+                })
+            })
+            .unwrap();
+
+        // Update description again with signatures by Eve and Bob.
+        prj.description += "?";
+        doc.payload.insert(PayloadId::project(), prj.into());
+        let (current, head) = doc
+            .sign(&bob)
+            .and_then(|(_, bob_sig)| {
+                doc.sign(&eve).and_then(|(blob_id, eve_sig)| {
+                    doc.update(
+                        alice.public_key(),
+                        "Update description",
+                        &[(bob.public_key(), bob_sig), (eve.public_key(), eve_sig)],
+                        &repo,
+                    )
+                    .map(|head| (blob_id, head))
+                })
+            })
+            .unwrap();
+
+        let identity: Identity<Id> = Identity::load(alice.public_key(), &repo)
+            .unwrap()
+            .verified(id)
+            .unwrap();
+
+        assert_eq!(identity.signatures.len(), 2);
+        assert_eq!(identity.revision, 4);
+        assert_eq!(identity.root, id);
+        assert_eq!(identity.current, current);
+        assert_eq!(identity.head, head);
+        assert_eq!(identity.doc, doc);
+
+        let doc = storage.get(alice.public_key(), id).unwrap().unwrap();
+        assert_eq!(doc.project().unwrap().description, "Acme's repository!?");
     }
 }
