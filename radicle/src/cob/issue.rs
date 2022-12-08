@@ -152,7 +152,7 @@ impl Issue {
     }
 
     pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment)> {
-        self.thread.comments().map(|(id, comment)| (id, comment))
+        self.thread.comments()
     }
 
     pub fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), Error> {
