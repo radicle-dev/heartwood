@@ -1,10 +1,10 @@
+use std::default::*;
 use std::io;
 use std::sync::Arc;
 
 use crossbeam_channel as chan;
 use nakamoto_net as nakamoto;
 
-use crate::address;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto::test::signer::MockSigner;
 use crate::identity::Id;
@@ -24,6 +24,7 @@ use crate::test::assert_matches;
 use crate::test::fixtures;
 #[allow(unused)]
 use crate::test::logger;
+use crate::test::peer;
 use crate::test::peer::Peer;
 use crate::test::simulator;
 use crate::test::simulator::{Peer as _, Simulation};
@@ -57,9 +58,9 @@ fn test_inventory_decode() {
 
 #[test]
 fn test_ping_response() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8], MockStorage::empty());
-    let bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
-    let eve = Peer::new("eve", [7, 7, 7, 7], MockStorage::empty());
+    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
+    let bob = Peer::new("bob", [9, 9, 9, 9]);
+    let eve = Peer::new("eve", [7, 7, 7, 7]);
 
     alice.connect_to(&bob);
     alice.receive(
@@ -92,8 +93,8 @@ fn test_ping_response() {
 
 #[test]
 fn test_disconnecting_unresponsive_peer() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8], MockStorage::empty());
-    let bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
+    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
+    let bob = Peer::new("bob", [9, 9, 9, 9]);
 
     alice.connect_to(&bob);
     assert_eq!(1, alice.sessions().negotiated().count(), "bob connects");
@@ -106,8 +107,8 @@ fn test_disconnecting_unresponsive_peer() {
 
 #[test]
 fn test_connection_kept_alive() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8], MockStorage::empty());
-    let mut bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
+    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
+    let mut bob = Peer::new("bob", [9, 9, 9, 9]);
 
     let mut sim = Simulation::new(
         LocalTime::now(),
@@ -136,9 +137,9 @@ fn test_connection_kept_alive() {
 
 #[test]
 fn test_outbound_connection() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8], MockStorage::empty());
-    let bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
-    let eve = Peer::new("eve", [7, 7, 7, 7], MockStorage::empty());
+    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
+    let bob = Peer::new("bob", [9, 9, 9, 9]);
+    let eve = Peer::new("eve", [7, 7, 7, 7]);
 
     alice.connect_to(&bob);
     alice.connect_to(&eve);
@@ -156,9 +157,9 @@ fn test_outbound_connection() {
 
 #[test]
 fn test_inbound_connection() {
-    let mut alice = Peer::new("alice", [8, 8, 8, 8], MockStorage::empty());
-    let bob = Peer::new("bob", [9, 9, 9, 9], MockStorage::empty());
-    let eve = Peer::new("eve", [7, 7, 7, 7], MockStorage::empty());
+    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
+    let bob = Peer::new("bob", [9, 9, 9, 9]);
+    let eve = Peer::new("eve", [7, 7, 7, 7]);
 
     alice.connect_from(&bob);
     alice.connect_from(&eve);
@@ -176,21 +177,19 @@ fn test_inbound_connection() {
 
 #[test]
 fn test_persistent_peer_connect() {
-    let mut rng = fastrand::Rng::new();
-    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
-    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
-    let config = Config {
-        connect: vec![bob.address(), eve.address()],
-        ..Config::default()
-    };
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
     let mut alice = Peer::config(
         "alice",
-        config,
         [7, 7, 7, 7],
         MockStorage::empty(),
-        address::Book::memory().unwrap(),
-        MockSigner::new(&mut rng),
-        rng,
+        peer::Config {
+            config: Config {
+                connect: vec![bob.address(), eve.address()],
+                ..Config::default()
+            },
+            ..peer::Config::default()
+        },
     );
 
     alice.initialize();
@@ -216,14 +215,15 @@ fn test_wrong_peer_magic() {
 #[test]
 fn test_inventory_sync() {
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Peer::new(
+    let mut alice = Peer::config(
         "alice",
         [7, 7, 7, 7],
         Storage::open(tmp.path().join("alice")).unwrap(),
+        peer::Config::default(),
     );
     let bob_signer = MockSigner::default();
     let bob_storage = fixtures::storage(tmp.path().join("bob"), &bob_signer).unwrap();
-    let bob = Peer::new("bob", [8, 8, 8, 8], bob_storage);
+    let bob = Peer::config("bob", [8, 8, 8, 8], bob_storage, peer::Config::default());
     let now = LocalTime::now().as_secs();
     let projs = bob.storage().inventory().unwrap();
 
@@ -300,18 +300,26 @@ fn test_inventory_pruning() {
     for test in tests {
         let mut alice = Peer::config(
             "alice",
-            Config {
-                limits: test.limits,
-                ..Config::default()
-            },
             [7, 7, 7, 7],
             MockStorage::empty(),
-            address::Book::memory().unwrap(),
-            MockSigner::default(),
-            fastrand::Rng::new(),
+            peer::Config {
+                config: Config {
+                    limits: test.limits,
+                    ..Config::default()
+                },
+                ..peer::Config::default()
+            },
         );
 
-        let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+        let bob = Peer::config(
+            "bob",
+            [8, 8, 8, 8],
+            MockStorage::empty(),
+            peer::Config {
+                local_time: alice.local_time(),
+                ..peer::Config::default()
+            },
+        );
 
         // Tell Alice about the amazing projects available
         alice.connect_to(&bob);
@@ -341,15 +349,7 @@ fn test_inventory_pruning() {
 
 #[test]
 fn test_tracking() {
-    let mut alice = Peer::config(
-        "alice",
-        Config::default(),
-        [7, 7, 7, 7],
-        MockStorage::empty(),
-        address::Book::memory().unwrap(),
-        MockSigner::default(),
-        fastrand::Rng::new(),
-    );
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let proj_id: identity::Id = test::arbitrary::gen(1);
 
     let (sender, receiver) = chan::bounded(1);
@@ -373,8 +373,8 @@ fn test_tracking() {
 
 #[test]
 fn test_inventory_relay_bad_timestamp() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
-    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
     let two_hours = 3600 * 2;
     let timestamp = alice.timestamp() + two_hours;
 
@@ -398,9 +398,9 @@ fn test_inventory_relay_bad_timestamp() {
 
 #[test]
 fn test_announcement_rebroadcast() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
-    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
-    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
 
     alice.connect_to(&bob);
 
@@ -425,9 +425,9 @@ fn test_announcement_rebroadcast() {
 
 #[test]
 fn test_announcement_rebroadcast_timestamp_filtered() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
-    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
-    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
 
     alice.connect_to(&bob);
 
@@ -464,9 +464,9 @@ fn test_announcement_rebroadcast_timestamp_filtered() {
 
 #[test]
 fn test_announcement_relay() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
-    let mut bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
-    let mut eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let mut bob = Peer::new("bob", [8, 8, 8, 8]);
+    let mut eve = Peer::new("eve", [9, 9, 9, 9]);
 
     alice.connect_to(&bob);
     alice.connect_to(&eve);
@@ -527,31 +527,33 @@ fn test_announcement_relay() {
 #[test]
 fn test_refs_announcement_relay() {
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Peer::new(
+    let mut alice = Peer::config(
         "alice",
         [7, 7, 7, 7],
         Storage::open(tmp.path().join("alice")).unwrap(),
+        peer::Config::default(),
     );
-    let eve = Peer::new(
+    let eve = Peer::config(
         "eve",
         [8, 8, 8, 8],
         Storage::open(tmp.path().join("eve")).unwrap(),
+        peer::Config::default(),
     );
 
     let bob = {
         let mut rng = fastrand::Rng::new();
-        let addresses = address::Book::memory().unwrap();
         let signer = MockSigner::new(&mut rng);
         let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
 
         Peer::config(
             "bob",
-            Config::default(),
             [9, 9, 9, 9],
             storage,
-            addresses,
-            signer,
-            rng,
+            peer::Config {
+                signer,
+                rng,
+                ..peer::Config::default()
+            },
         )
     };
     let bob_inv = bob.inventory().unwrap();
@@ -593,9 +595,9 @@ fn test_refs_announcement_relay() {
 
 #[test]
 fn test_refs_announcement_no_subscribe() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
-    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
-    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
     let id = arbitrary::gen(1);
 
     alice.track_repo(&id, tracking::Scope::All).unwrap();
@@ -609,9 +611,9 @@ fn test_refs_announcement_no_subscribe() {
 #[test]
 fn test_inventory_relay() {
     // Topology is eve <-> alice <-> bob
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
-    let bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
-    let eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
     let inv = BoundedVec::new();
     let now = LocalTime::now().as_secs();
 
@@ -704,19 +706,19 @@ fn test_inventory_relay() {
 
 #[test]
 fn test_persistent_peer_reconnect() {
-    let mut bob = Peer::new("bob", [8, 8, 8, 8], MockStorage::empty());
-    let mut eve = Peer::new("eve", [9, 9, 9, 9], MockStorage::empty());
+    let mut bob = Peer::new("bob", [8, 8, 8, 8]);
+    let mut eve = Peer::new("eve", [9, 9, 9, 9]);
     let mut alice = Peer::config(
         "alice",
-        Config {
-            connect: vec![bob.address(), eve.address()],
-            ..Config::default()
-        },
         [7, 7, 7, 7],
         MockStorage::empty(),
-        address::Book::memory().unwrap(),
-        MockSigner::default(),
-        fastrand::Rng::new(),
+        peer::Config {
+            config: Config {
+                connect: vec![bob.address(), eve.address()],
+                ..Config::default()
+            },
+            ..peer::Config::default()
+        },
     );
 
     let mut sim = Simulation::new(
@@ -774,18 +776,18 @@ fn test_persistent_peer_reconnect() {
 fn test_maintain_connections() {
     // Peers alice starts out connected to.
     let connected = vec![
-        Peer::new("connected", [8, 8, 8, 1], MockStorage::empty()),
-        Peer::new("connected", [8, 8, 8, 2], MockStorage::empty()),
-        Peer::new("connected", [8, 8, 8, 3], MockStorage::empty()),
+        Peer::new("connected", [8, 8, 8, 1]),
+        Peer::new("connected", [8, 8, 8, 2]),
+        Peer::new("connected", [8, 8, 8, 3]),
     ];
     // Peers alice will connect to once the others disconnect.
     let mut unconnected = vec![
-        Peer::new("unconnected", [9, 9, 9, 1], MockStorage::empty()),
-        Peer::new("unconnected", [9, 9, 9, 2], MockStorage::empty()),
-        Peer::new("unconnected", [9, 9, 9, 3], MockStorage::empty()),
+        Peer::new("unconnected", [9, 9, 9, 1]),
+        Peer::new("unconnected", [9, 9, 9, 2]),
+        Peer::new("unconnected", [9, 9, 9, 3]),
     ];
 
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], MockStorage::empty());
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     alice.import_addresses(&unconnected);
 
     for peer in connected.iter() {
@@ -827,13 +829,18 @@ fn test_push_and_pull() {
 
     let storage_alice = Storage::open(tempdir.path().join("alice").join("storage")).unwrap();
     let (repo, _) = fixtures::repository(tempdir.path().join("working"));
-    let mut alice = Peer::new("alice", [7, 7, 7, 7], storage_alice);
+    let mut alice = Peer::config(
+        "alice",
+        [7, 7, 7, 7],
+        storage_alice,
+        peer::Config::default(),
+    );
 
     let storage_bob = Storage::open(tempdir.path().join("bob").join("storage")).unwrap();
-    let mut bob = Peer::new("bob", [8, 8, 8, 8], storage_bob);
+    let mut bob = Peer::config("bob", [8, 8, 8, 8], storage_bob, peer::Config::default());
 
     let storage_eve = Storage::open(tempdir.path().join("eve").join("storage")).unwrap();
-    let mut eve = Peer::new("eve", [9, 9, 9, 9], storage_eve);
+    let mut eve = Peer::config("eve", [9, 9, 9, 9], storage_eve, peer::Config::default());
 
     remote::mock::register(&alice.node_id(), alice.storage().path());
     remote::mock::register(&eve.node_id(), eve.storage().path());
@@ -906,9 +913,24 @@ fn test_push_and_pull() {
 fn prop_inventory_exchange_dense() {
     fn property(alice_inv: MockStorage, bob_inv: MockStorage, eve_inv: MockStorage) {
         let rng = fastrand::Rng::new();
-        let alice = Peer::new("alice", [7, 7, 7, 7], alice_inv.clone());
-        let mut bob = Peer::new("bob", [8, 8, 8, 8], bob_inv.clone());
-        let mut eve = Peer::new("eve", [9, 9, 9, 9], eve_inv.clone());
+        let alice = Peer::config(
+            "alice",
+            [7, 7, 7, 7],
+            alice_inv.clone(),
+            peer::Config::default(),
+        );
+        let mut bob = Peer::config(
+            "bob",
+            [8, 8, 8, 8],
+            bob_inv.clone(),
+            peer::Config::default(),
+        );
+        let mut eve = Peer::config(
+            "eve",
+            [9, 9, 9, 9],
+            eve_inv.clone(),
+            peer::Config::default(),
+        );
         let mut routing = HashMap::with_hasher(rng.clone().into());
 
         for (inv, peer) in &[

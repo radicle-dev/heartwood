@@ -15,7 +15,6 @@ use crate::identity::Id;
 use crate::node;
 use crate::prelude::NodeId;
 use crate::service;
-use crate::service::config::*;
 use crate::service::message::*;
 use crate::service::reactor::Io;
 use crate::service::*;
@@ -23,6 +22,7 @@ use crate::storage::git::transport::remote;
 use crate::storage::{RemoteId, WriteStorage};
 use crate::test::arbitrary;
 use crate::test::simulator;
+use crate::test::storage::MockStorage;
 use crate::{Link, LocalDuration, LocalTime};
 
 /// Service instantiation used for testing.
@@ -67,16 +67,32 @@ impl<S, G> DerefMut for Peer<S, G> {
     }
 }
 
-impl<S> Peer<S, MockSigner>
-where
-    S: WriteStorage + 'static,
-{
-    pub fn new(name: &'static str, ip: impl Into<net::IpAddr>, storage: S) -> Self {
+impl Peer<MockStorage, MockSigner> {
+    pub fn new(name: &'static str, ip: impl Into<net::IpAddr>) -> Self {
+        Self::config(name, ip, MockStorage::empty(), Config::default())
+    }
+}
+
+pub struct Config<G: Signer + 'static> {
+    pub config: service::Config,
+    pub addrs: address::Book,
+    pub local_time: LocalTime,
+    pub signer: G,
+    pub rng: fastrand::Rng,
+}
+
+impl Default for Config<MockSigner> {
+    fn default() -> Self {
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
 
-        let addrs = address::Book::memory().unwrap();
-        Self::config(name, Config::default(), ip, storage, addrs, signer, rng)
+        Config {
+            config: service::Config::default(),
+            addrs: address::Book::memory().unwrap(),
+            local_time: LocalTime::now(),
+            signer,
+            rng,
+        }
     }
 }
 
@@ -87,35 +103,31 @@ where
 {
     pub fn config(
         name: &'static str,
-        config: Config,
         ip: impl Into<net::IpAddr>,
         storage: S,
-        addrs: address::Book,
-        signer: G,
-        rng: fastrand::Rng,
+        config: Config<G>,
     ) -> Self {
-        let local_time = LocalTime::now();
         let routing = routing::Table::memory().unwrap();
         let tracking = tracking::Config::memory().unwrap();
         let service = Service::new(
-            config,
-            local_time,
+            config.config,
+            config.local_time,
             routing,
             storage,
-            addrs,
+            config.addrs,
             tracking,
-            signer,
-            rng.clone(),
+            config.signer,
+            config.rng.clone(),
         );
         let ip = ip.into();
-        let local_addr = net::SocketAddr::new(ip, rng.u16(..));
+        let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
 
         Self {
             name,
             service,
             ip,
             local_addr,
-            rng,
+            rng: config.rng,
             initialized: false,
         }
     }
