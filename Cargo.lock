@@ -29,16 +29,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "amplify_derive"
-version = "2.11.3"
+name = "amplify"
+version = "4.0.0-beta.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c3de270e75f27a4468a7c344070109046656e85cb522141f7d40ab4b83803ac"
+checksum = "62c3b7fe483c11f7a434ec6923a68749b3415c1328857f1a8e37bb2c792a25c0"
+dependencies = [
+ "amplify_derive",
+ "amplify_num",
+ "ascii",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "amplify_derive"
+version = "4.0.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a258501c851f9dec1549e046d551b645b8b970e30aca85dbec2d6e36cda8e91"
 dependencies = [
  "amplify_syn",
  "proc-macro2",
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "amplify_num"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f27d3d00d3d115395a7a8a4dc045feb7aa82b641e485f7e15f4e67ac16f4f56d"
 
 [[package]]
 name = "amplify_syn"
@@ -77,6 +95,12 @@ name = "arrayvec"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
+
+[[package]]
+name = "ascii"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d92bec98840b8f03a5ff5413de5293bfcd8bf96467cf5452609f939ec6f5de16"
 
 [[package]]
 name = "async-trait"
@@ -564,9 +588,9 @@ dependencies = [
 [[package]]
 name = "cyphernet"
 version = "0.1.0"
-source = "git+https://github.com/internet2-wg/rust-cyphernet?rev=dee03a95abe4c964e5d9f8532c7dc76998dfeea7#dee03a95abe4c964e5d9f8532c7dc76998dfeea7"
+source = "git+https://github.com/cyphernet-wg/rust-cyphernet#762f48e1175f9490c635996c0c1bd07ff1287cfc"
 dependencies = [
- "amplify_derive",
+ "amplify",
  "multibase",
  "socks",
 ]
@@ -2167,6 +2191,7 @@ dependencies = [
 name = "radicle-crypto"
 version = "0.1.0"
 dependencies = [
+ "amplify",
  "base64",
  "cyphernet",
  "ed25519-compact",
