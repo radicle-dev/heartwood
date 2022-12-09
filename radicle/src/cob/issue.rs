@@ -47,7 +47,7 @@ pub enum CloseReason {
 /// Issue state.
 #[derive(Debug, Default, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
-pub enum Status {
+pub enum State {
     /// The issue is closed.
     Closed { reason: CloseReason },
     /// The issue is open.
@@ -55,7 +55,7 @@ pub enum Status {
     Open,
 }
 
-impl std::fmt::Display for Status {
+impl std::fmt::Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Closed { .. } => write!(f, "closed"),
@@ -64,11 +64,11 @@ impl std::fmt::Display for Status {
     }
 }
 
-impl Status {
+impl State {
     pub fn lifecycle_message(self) -> String {
         match self {
-            Status::Open => "Open issue".to_owned(),
-            Status::Closed { .. } => "Close issue".to_owned(),
+            State::Open => "Open issue".to_owned(),
+            State::Closed { .. } => "Close issue".to_owned(),
         }
     }
 }
@@ -77,7 +77,7 @@ impl Status {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Issue {
     title: LWWReg<Max<String>, clock::Lamport>,
-    status: LWWReg<Max<Status>, clock::Lamport>,
+    state: LWWReg<Max<State>, clock::Lamport>,
     tags: LWWSet<Tag>,
     thread: Thread,
 }
@@ -85,7 +85,7 @@ pub struct Issue {
 impl Semilattice for Issue {
     fn merge(&mut self, other: Self) {
         self.title.merge(other.title);
-        self.status.merge(other.status);
+        self.state.merge(other.state);
         self.thread.merge(other.thread);
     }
 }
@@ -94,7 +94,7 @@ impl Default for Issue {
     fn default() -> Self {
         Self {
             title: Max::from(String::default()).into(),
-            status: Max::from(Status::default()).into(),
+            state: Max::from(State::default()).into(),
             tags: LWWSet::default(),
             thread: Thread::default(),
         }
@@ -132,8 +132,8 @@ impl Issue {
         self.title.get().as_str()
     }
 
-    pub fn status(&self) -> &Status {
-        self.status.get()
+    pub fn state(&self) -> &State {
+        self.state.get()
     }
 
     pub fn tags(&self) -> impl Iterator<Item = &Tag> {
@@ -161,8 +161,8 @@ impl Issue {
                 Action::Title { title } => {
                     self.title.set(title, op.clock);
                 }
-                Action::Lifecycle { status } => {
-                    self.status.set(status, op.clock);
+                Action::Lifecycle { state } => {
+                    self.state.set(state, op.clock);
                 }
                 Action::Tag { add, remove } => {
                     for tag in add {
@@ -208,8 +208,8 @@ impl<'a, 'g> IssueMut<'a, 'g> {
     }
 
     /// Lifecycle an issue.
-    pub fn lifecycle<G: Signer>(&mut self, status: Status, signer: &G) -> Result<OpId, Error> {
-        let action = Action::Lifecycle { status };
+    pub fn lifecycle<G: Signer>(&mut self, state: State, signer: &G) -> Result<OpId, Error> {
+        let action = Action::Lifecycle { state };
         self.apply("Lifecycle", action, signer)
     }
 
@@ -388,7 +388,7 @@ impl<'a> Issues<'a> {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Action {
     Title { title: String },
-    Lifecycle { status: Status },
+    Lifecycle { state: State },
     Tag { add: Vec<Tag>, remove: Vec<Tag> },
     Thread { action: thread::Action },
 }
@@ -411,8 +411,8 @@ mod test {
     fn test_ordering() {
         assert!(CloseReason::Solved > CloseReason::Other);
         assert!(
-            Status::Open
-                > Status::Closed {
+            State::Open
+                > State::Closed {
                     reason: CloseReason::Solved
                 }
         );
@@ -434,7 +434,7 @@ mod test {
         assert_eq!(issue.author(), Some(issues.author()));
         assert_eq!(issue.description(), Some("Blah blah blah."));
         assert_eq!(issue.comments().count(), 1);
-        assert_eq!(issue.status(), &Status::Open);
+        assert_eq!(issue.state(), &State::Open);
     }
 
     #[test]
@@ -448,7 +448,7 @@ mod test {
 
         issue
             .lifecycle(
-                Status::Closed {
+                State::Closed {
                     reason: CloseReason::Other,
                 },
                 &signer,
@@ -458,15 +458,15 @@ mod test {
         let id = issue.id;
         let mut issue = issues.get_mut(&id).unwrap();
         assert_eq!(
-            *issue.status(),
-            Status::Closed {
+            *issue.state(),
+            State::Closed {
                 reason: CloseReason::Other
             }
         );
 
-        issue.lifecycle(Status::Open, &signer).unwrap();
+        issue.lifecycle(State::Open, &signer).unwrap();
         let issue = issues.get(&id).unwrap().unwrap();
-        assert_eq!(*issue.status(), Status::Open);
+        assert_eq!(*issue.state(), State::Open);
     }
 
     #[test]
@@ -566,12 +566,12 @@ mod test {
     #[test]
     fn test_issue_state_serde() {
         assert_eq!(
-            serde_json::to_value(Status::Open).unwrap(),
+            serde_json::to_value(State::Open).unwrap(),
             serde_json::json!({ "status": "open" })
         );
 
         assert_eq!(
-            serde_json::to_value(Status::Closed {
+            serde_json::to_value(State::Closed {
                 reason: CloseReason::Solved
             })
             .unwrap(),

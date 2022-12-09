@@ -333,7 +333,7 @@ async fn issues_handler(
                 "id": id,
                 "author": issue.author(),
                 "title": issue.title(),
-                "status": issue.status(),
+                "status": issue.state(),
                 "discussion": issue.comments().collect::<Vec<_>>(),
                 "tags": issue.tags().collect::<Vec<_>>(),
             })
@@ -360,7 +360,7 @@ async fn issue_handler(
         "id": issue_id,
         "author": issue.author(),
         "title": issue.title(),
-        "status": issue.status(),
+        "status": issue.state(),
         "discussion": issue.comments().collect::<Vec<_>>(),
         "tags": issue.tags().collect::<Vec<_>>(),
     });

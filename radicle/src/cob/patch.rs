@@ -120,8 +120,8 @@ pub struct Patch {
     pub title: LWWReg<Max<String>>,
     /// Patch description.
     pub description: LWWReg<Max<String>>,
-    /// Current status of the patch.
-    pub status: LWWReg<Max<Status>>,
+    /// Current state of the patch.
+    pub state: LWWReg<Max<State>>,
     /// Target this patch is meant to be merged in.
     pub target: LWWReg<Max<MergeTarget>>,
     /// Associated tags.
@@ -135,7 +135,7 @@ impl Semilattice for Patch {
     fn merge(&mut self, other: Self) {
         self.title.merge(other.title);
         self.description.merge(other.description);
-        self.status.merge(other.status);
+        self.state.merge(other.state);
         self.target.merge(other.target);
         self.tags.merge(other.tags);
         self.revisions.merge(other.revisions);
@@ -147,7 +147,7 @@ impl Default for Patch {
         Self {
             title: Max::from(String::default()).into(),
             description: Max::from(String::default()).into(),
-            status: Max::from(Status::default()).into(),
+            state: Max::from(State::default()).into(),
             target: Max::from(MergeTarget::default()).into(),
             tags: LWWSet::default(),
             revisions: GMap::default(),
@@ -160,8 +160,8 @@ impl Patch {
         self.title.get().get()
     }
 
-    pub fn status(&self) -> Status {
-        *self.status.get().get()
+    pub fn state(&self) -> State {
+        *self.state.get().get()
     }
 
     pub fn target(&self) -> MergeTarget {
@@ -217,11 +217,11 @@ impl Patch {
     }
 
     pub fn is_proposed(&self) -> bool {
-        matches!(self.status.get().get(), Status::Proposed)
+        matches!(self.state.get().get(), State::Proposed)
     }
 
     pub fn is_archived(&self) -> bool {
-        matches!(self.status.get().get(), &Status::Archived)
+        matches!(self.state.get().get(), &State::Archived)
     }
 
     /// Apply a list of operations to the state.
@@ -383,7 +383,7 @@ impl Revision {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum Status {
+pub enum State {
     #[default]
     Proposed,
     Draft,
@@ -978,7 +978,7 @@ mod test {
         assert_eq!(patch.title(), "My first patch");
         assert_eq!(patch.description(), Some("Blah blah blah."));
         assert_eq!(patch.author().id(), &author);
-        assert_eq!(patch.status(), Status::Proposed);
+        assert_eq!(patch.state(), State::Proposed);
         assert_eq!(patch.target(), target);
         assert_eq!(patch.version(), 0);
 
