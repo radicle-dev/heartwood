@@ -354,7 +354,7 @@ impl<'a> From<&PublicKey> for git_ref_format::Component<'a> {
         use git_ref_format::{Component, RefString};
         let refstr =
             RefString::try_from(id.to_string()).expect("encoded public keys are valid ref strings");
-        Component::from_refstring(refstr).expect("encoded public keys are valid refname components")
+        Component::from_refstr(refstr).expect("encoded public keys are valid refname components")
     }
 }
 

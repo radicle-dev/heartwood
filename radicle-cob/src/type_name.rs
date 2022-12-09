@@ -64,7 +64,7 @@ impl From<&TypeName> for Component<'_> {
     fn from(name: &TypeName) -> Self {
         let refstr = RefString::try_from(name.0.to_string())
             .expect("collaborative object type names are valid ref strings");
-        Component::from_refstring(refstr)
+        Component::from_refstr(refstr)
             .expect("collaborative object type names are valid refname components")
     }
 }

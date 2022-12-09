@@ -1023,30 +1023,10 @@ dependencies = [
 [[package]]
 name = "git-ref-format"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d819e0a29c3201eb3373f9371be2bf821437979791ff07fe23a40ed8adadcfc3"
-dependencies = [
- "git-ref-format-core 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "git-ref-format-macro 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "git-ref-format"
-version = "0.1.0"
 source = "git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d#d3115a22158c8395705babefdc89049f7510d32d"
 dependencies = [
- "git-ref-format-core 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d)",
- "git-ref-format-macro 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d)",
-]
-
-[[package]]
-name = "git-ref-format-core"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6937508983bd6ed558a64caa8b3ca6bd46fdff8be1389a961f9ddf7e0baddee5"
-dependencies = [
- "serde",
- "thiserror",
+ "git-ref-format-core",
+ "git-ref-format-macro",
 ]
 
 [[package]]
@@ -1061,21 +1041,9 @@ dependencies = [
 [[package]]
 name = "git-ref-format-macro"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66434445c9d45a85a9186a76770b1f80a44fdf8ed34fb6d4e3d12c5b9fc942ef"
-dependencies = [
- "git-ref-format-core 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "proc-macro-error",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "git-ref-format-macro"
-version = "0.1.0"
 source = "git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d#d3115a22158c8395705babefdc89049f7510d32d"
 dependencies = [
- "git-ref-format-core 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d)",
+ "git-ref-format-core",
  "proc-macro-error",
  "quote",
  "syn",
@@ -2099,7 +2067,7 @@ dependencies = [
  "cyphernet",
  "ed25519-compact",
  "fastrand",
- "git-ref-format 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "git-ref-format",
  "git2",
  "log",
  "multibase",
@@ -2158,7 +2126,7 @@ dependencies = [
  "ed25519-compact",
  "fastrand",
  "git-commit",
- "git-ref-format 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "git-ref-format",
  "git-trailers",
  "git2",
  "log",
@@ -2196,7 +2164,7 @@ dependencies = [
  "cyphernet",
  "ed25519-compact",
  "fastrand",
- "git-ref-format 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "git-ref-format",
  "multibase",
  "qcheck",
  "qcheck-macros",
@@ -2215,7 +2183,7 @@ name = "radicle-git-ext"
 version = "0.2.0"
 source = "git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d#d3115a22158c8395705babefdc89049f7510d32d"
 dependencies = [
- "git-ref-format 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d)",
+ "git-ref-format",
  "git2",
  "percent-encoding",
  "radicle-std-ext",
@@ -2261,7 +2229,7 @@ dependencies = [
  "colored",
  "crossbeam-channel",
  "fastrand",
- "git-ref-format 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "git-ref-format",
  "lexopt",
  "log",
  "nakamoto-net",
@@ -2313,7 +2281,7 @@ dependencies = [
  "base64",
  "either",
  "flate2",
- "git-ref-format 0.1.0 (git+https://github.com/radicle-dev/radicle-git?rev=d3115a22158c8395705babefdc89049f7510d32d)",
+ "git-ref-format",
  "git2",
  "nom 6.1.2",
  "nonempty 0.5.0",
@@ -2329,7 +2297,7 @@ name = "radicle-tools"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "git-ref-format 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "git-ref-format",
  "radicle",
 ]
 

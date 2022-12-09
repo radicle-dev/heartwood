@@ -91,7 +91,7 @@ impl From<&ObjectId> for Component<'_> {
     fn from(id: &ObjectId) -> Self {
         let refstr = RefString::try_from(id.0.to_string())
             .expect("collaborative object id's are valid ref strings");
-        Component::from_refstring(refstr)
+        Component::from_refstr(refstr)
             .expect("collaborative object id's are valid refname components")
     }
 }

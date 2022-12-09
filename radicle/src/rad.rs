@@ -346,7 +346,7 @@ mod tests {
 
     use radicle_crypto::test::signer::MockSigner;
 
-    use crate::git::{name::component, qualified, Qualified};
+    use crate::git::{name::component, qualified};
     use crate::identity::Did;
     use crate::storage::git::transport;
     use crate::storage::git::Storage;

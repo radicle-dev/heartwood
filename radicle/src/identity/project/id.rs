@@ -120,6 +120,6 @@ impl From<&Id> for Component<'_> {
     fn from(id: &Id) -> Self {
         let refstr =
             RefString::try_from(id.0.to_string()).expect("project id's are valid ref strings");
-        Component::from_refstring(refstr).expect("project id's are valid refname components")
+        Component::from_refstr(refstr).expect("project id's are valid refname components")
     }
 }
