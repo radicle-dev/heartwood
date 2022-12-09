@@ -22,6 +22,11 @@ default-members = [
   "radicle-remote-helper",
 ]
 
+[profile.container]
+inherits = "release"
+debug = true
+incremental = false
+
 [patch.crates-io.nakamoto-net]
 git = "https://github.com/cloudhead/nakamoto"
 rev = "90cc3eac67aa5cfd5f42cf7cb1e2b155af3214fb"
