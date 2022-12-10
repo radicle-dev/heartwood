@@ -4,7 +4,7 @@ use crossbeam_channel as chan;
 use nakamoto_net::{LocalTime, Reactor};
 use thiserror::Error;
 
-use radicle::crypto::{Ecdh, Signer};
+use radicle::crypto::{Negotiator, Signer};
 
 use crate::profile::Profile;
 use crate::service::{routing, tracking};
@@ -101,11 +101,12 @@ impl<R: Reactor> Client<R> {
         })
     }
 
-    pub fn run<G: Signer + Ecdh + Clone>(
+    pub fn run<G: Signer, N: Negotiator>(
         mut self,
         config: Config,
         profile: Profile,
         signer: G,
+        ecdh: N,
     ) -> Result<(), Error> {
         let network = config.service.network;
         let rng = fastrand::Rng::new();
@@ -127,6 +128,9 @@ impl<R: Reactor> Client<R> {
 
         log::info!("Initializing client ({:?})..", network);
 
+        let socks5_proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
+        let clock = LocalTime::now();
+
         let service = service::Service::new(
             config.service,
             time,
@@ -140,7 +144,7 @@ impl<R: Reactor> Client<R> {
 
         self.reactor.run(
             &config.listen,
-            Wire::<_, _, _, _>::new(service),
+            Wire::<_, _, _, _, _>::new(service, ecdh, socks5_proxy, clock),
             self.events,
             self.commands,
         )?;

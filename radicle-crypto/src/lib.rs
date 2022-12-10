@@ -1,3 +1,4 @@
+use cyphernet::crypto::Ecdh;
 use std::cmp::Ordering;
 use std::{fmt, ops::Deref, str::FromStr};
 
@@ -13,9 +14,6 @@ pub mod test;
 pub mod hash;
 #[cfg(feature = "ssh")]
 pub mod ssh;
-
-#[cfg(feature = "cyphernet")]
-mod cyphernet;
 
 /// Verified (used as type witness).
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize)]
@@ -43,6 +41,11 @@ impl SignerError {
     }
 }
 
+pub trait Negotiator:
+    Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = ed25519_compact::Error> + Clone
+{
+}
+
 pub trait Signer: Send + Sync {
     /// Return this signer's public/verification key.
     fn public_key(&self) -> &PublicKey;
@@ -68,13 +71,6 @@ where
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
         self.deref().try_sign(msg)
     }
-}
-
-/// A signer that can perform Elliptic-curve Diffie–Hellman.
-pub trait Ecdh: Signer {
-    /// Perform an ECDH key exchange. Takes the counter-party's public key,
-    /// and returns a computed shared secret.
-    fn ecdh(&self, other: &PublicKey) -> Result<SharedSecret, Error>;
 }
 
 /// Cryptographic signature.
