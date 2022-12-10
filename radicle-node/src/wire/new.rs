@@ -126,7 +126,7 @@ where
                 self.handshakes.insert(session.as_raw_fd(), Link::Inbound);
                 let transport = NetTransport::<Session<N>, Message>::upgrade(session)
                     .expect("socket failed configuration");
-                self.inner.attempted(None, socket_addr);
+                self.inner.attempted(None, &socket_addr.into());
                 self.inner_queue
                     .push_back(reactor::Action::RegisterTransport(transport))
             }
@@ -280,7 +280,7 @@ where
                         &self.ecdh,
                     ) {
                         Ok(transport) => {
-                            self.inner.attempted(Some(node_id), socket_addr);
+                            self.inner.attempted(Some(node_id), &socket_addr.into());
                             self.handshakes
                                 .insert(transport.as_raw_fd(), Link::Outbound);
                             return Some(reactor::Action::RegisterTransport(transport));

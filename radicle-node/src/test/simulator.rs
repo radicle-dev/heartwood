@@ -366,7 +366,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 match input {
                     Input::Connecting { id, addr } => {
                         if self.attempts.insert((node, id)) {
-                            p.attempted(id, &addr);
+                            p.attempted(Some(id), &addr);
                         }
                     }
                     Input::Connected { id, link } => {
