@@ -30,11 +30,11 @@ dependencies = [
 
 [[package]]
 name = "amplify"
-version = "4.0.0-beta.1"
+version = "4.0.0-beta.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d9bf71f7c341022e54a81b61ec8184282cc2e542a99d1fcb1a7de5b76ae9949"
+checksum = "4ff4d466b0cb5124991d3a2085c28f2aed6d86264c3c0bdbd7d1b64a49b4726b"
 dependencies = [
- "amplify_derive 4.0.0-alpha.1",
+ "amplify_derive",
  "amplify_num",
  "ascii",
  "wasm-bindgen",
@@ -42,21 +42,9 @@ dependencies = [
 
 [[package]]
 name = "amplify_derive"
-version = "2.11.3"
+version = "4.0.0-alpha.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c3de270e75f27a4468a7c344070109046656e85cb522141f7d40ab4b83803ac"
-dependencies = [
- "amplify_syn",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "amplify_derive"
-version = "4.0.0-alpha.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6471f510180b7c9e0efd62108f604704c914ab20d5892299636b863955539a39"
+checksum = "2a258501c851f9dec1549e046d551b645b8b970e30aca85dbec2d6e36cda8e91"
 dependencies = [
  "amplify_syn",
  "proc-macro2",
@@ -663,9 +651,9 @@ dependencies = [
 [[package]]
 name = "cyphernet"
 version = "0.1.0"
-source = "git+https://github.com/Cyphernet-WG/rust-cyphernet#3e4a9fca7d542afa2ffadd8c7dc0fceb6dd7ff60"
+source = "git+https://github.com/Cyphernet-WG/rust-cyphernet#370bcf67d0ea1f33a8e0114b77a2b6af55fcd5cb"
 dependencies = [
- "amplify_derive 2.11.3",
+ "amplify",
  "ed25519-compact",
  "multibase",
  "serde",
@@ -1786,7 +1774,7 @@ dependencies = [
 [[package]]
 name = "netservices"
 version = "0.1.0"
-source = "git+https://github.com/Cyphernet-WG/rust-netservices#1e60f5e36b8f2b8ebd3330bdfa53e47794e6a583"
+source = "git+https://github.com/Cyphernet-WG/rust-netservices#220d531e9c625026c91a0817ddadbb38aeb92064"
 dependencies = [
  "amplify",
  "cyphernet",
@@ -2131,7 +2119,7 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 [[package]]
 name = "poll-reactor"
 version = "0.1.0"
-source = "git+https://github.com/Cyphernet-WG/rust-netservices#1e60f5e36b8f2b8ebd3330bdfa53e47794e6a583"
+source = "git+https://github.com/Cyphernet-WG/rust-netservices#220d531e9c625026c91a0817ddadbb38aeb92064"
 dependencies = [
  "amplify",
  "crossbeam-channel",

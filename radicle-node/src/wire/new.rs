@@ -6,13 +6,14 @@ use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
 use std::time::Duration;
 
-use cyphernet::addr::{HostAddr, LocalNode, NetAddr, PeerAddr};
+use cyphernet::addr::{HostAddr, NetAddr, PeerAddr};
 use nakamoto_net::{DisconnectReason, Link, LocalTime};
 use netservices::noise::NoiseXk;
 use netservices::wire::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
 use netservices::{Frame, NetSession};
 use radicle::collections::HashMap;
-use radicle::crypto::Ed25519;
+use radicle::crypto::ssh::keystore::MemorySigner;
+use radicle::crypto::Ecdh;
 use radicle::node::NodeId;
 use radicle::storage::WriteStorage;
 
@@ -22,7 +23,7 @@ use crate::service::{routing, session, Message};
 use crate::wire::{Decode, Encode};
 use crate::{address, service, wire};
 
-pub type Session = NoiseXk<Ed25519>;
+pub type Session = NoiseXk<MemorySigner>;
 
 impl Frame for Message {
     type Error = wire::Error;
@@ -48,7 +49,7 @@ pub struct Wire<R, S, W, G> {
     // We use vec and not set since the same node may have multiple `N` sessions and has to
     // disconnect N-1 times (instead of disconnecting a single session)
     hangups: HashMap<RawFd, Option<DisconnectReason<service::DisconnectReason>>>,
-    local_node: LocalNode<Ed25519>,
+    signer: G,
     proxy: net::SocketAddr,
 }
 
@@ -57,18 +58,18 @@ where
     R: routing::Store,
     S: address::Store,
     W: WriteStorage + 'static,
-    G: Signer,
+    G: Ecdh + Clone,
 {
     pub fn new(
         mut inner: service::Service<R, S, W, G>,
-        local_node: LocalNode<Ed25519>,
+        signer: G,
         proxy: net::SocketAddr,
         clock: LocalTime,
     ) -> Self {
         inner.initialize(clock);
         Self {
             inner,
-            local_node,
+            signer,
             proxy,
             inner_queue: empty!(),
             handshakes: empty!(),
@@ -94,7 +95,7 @@ where
     R: routing::Store + Send,
     S: address::Store + Send,
     W: WriteStorage + Send + 'static,
-    G: Signer,
+    G: Ecdh,
 {
     type Listener = NetAccept<Session>;
     type Transport = NetTransport<Session, Message>;
