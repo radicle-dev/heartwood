@@ -7,13 +7,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use cyphernet::addr::{HostAddr, NetAddr, PeerAddr};
+use cyphernet::crypto::Ecdh;
 use nakamoto_net::{DisconnectReason, Link, LocalTime};
 use netservices::noise::NoiseXk;
 use netservices::wire::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
 use netservices::{Frame, NetSession};
 use radicle::collections::HashMap;
-use radicle::crypto::ssh::keystore::MemorySigner;
-use radicle::crypto::Ecdh;
+use radicle::crypto::Negotiator;
 use radicle::node::NodeId;
 use radicle::storage::WriteStorage;
 
@@ -23,7 +23,7 @@ use crate::service::{routing, session, Message};
 use crate::wire::{Decode, Encode};
 use crate::{address, service, wire};
 
-pub type Session = NoiseXk<MemorySigner>;
+pub type Session<N: Negotiator> = NoiseXk<N>;
 
 impl Frame for Message {
     type Error = wire::Error;
@@ -41,35 +41,37 @@ impl Frame for Message {
     }
 }
 
-pub struct Wire<R, S, W, G> {
+pub struct Wire<R, S, W, G, N: Negotiator> {
     inner: service::Service<R, S, W, G>,
-    inner_queue: VecDeque<reactor::Action<NetAccept<Session>, NetTransport<Session, Message>>>,
+    inner_queue:
+        VecDeque<reactor::Action<NetAccept<Session<N>>, NetTransport<Session<N>, Message>>>,
     handshakes: HashMap<RawFd, Link>,
     sessions: HashMap<RawFd, NodeId>,
     // We use vec and not set since the same node may have multiple `N` sessions and has to
     // disconnect N-1 times (instead of disconnecting a single session)
     hangups: HashMap<RawFd, Option<DisconnectReason<service::DisconnectReason>>>,
-    signer: G,
+    ecdh: N,
     proxy: net::SocketAddr,
 }
 
-impl<R, S, W, G> Wire<R, S, W, G>
+impl<R, S, W, G, N> Wire<R, S, W, G, N>
 where
     R: routing::Store,
     S: address::Store,
     W: WriteStorage + 'static,
-    G: Ecdh + Clone,
+    G: Signer,
+    N: Negotiator,
 {
     pub fn new(
         mut inner: service::Service<R, S, W, G>,
-        signer: G,
+        ecdh: N,
         proxy: net::SocketAddr,
         clock: LocalTime,
     ) -> Self {
         inner.initialize(clock);
         Self {
             inner,
-            signer,
+            ecdh,
             proxy,
             inner_queue: empty!(),
             handshakes: empty!(),
@@ -90,15 +92,17 @@ where
     }
 }
 
-impl<R, S, W, G> reactor::Handler for Wire<R, S, W, G>
+impl<R, S, W, G, N> reactor::Handler for Wire<R, S, W, G, N>
 where
     R: routing::Store + Send,
     S: address::Store + Send,
     W: WriteStorage + Send + 'static,
-    G: Ecdh + Clone,
+    G: Signer + Send,
+    N: Negotiator + Send,
+    <N as Ecdh>::Pk: Send,
 {
-    type Listener = NetAccept<Session>;
-    type Transport = NetTransport<Session, Message>;
+    type Listener = NetAccept<Session<N>>;
+    type Transport = NetTransport<Session<N>, Message>;
     type Command = service::Command;
 
     fn handle_wakeup(&mut self) {
@@ -108,7 +112,7 @@ where
     fn handle_listener_event(
         &mut self,
         socket_addr: net::SocketAddr,
-        event: ListenerEvent<Session>,
+        event: ListenerEvent<Session<N>>,
         duration: Duration,
     ) {
         self.inner.tick(LocalTime::from_secs(duration.as_secs()));
@@ -120,7 +124,7 @@ where
                     session.transition_addr()
                 );
                 self.handshakes.insert(session.as_raw_fd(), Link::Inbound);
-                let transport = NetTransport::<Session, Message>::upgrade(session)
+                let transport = NetTransport::<Session<N>, Message>::upgrade(session)
                     .expect("socket failed configuration");
                 self.inner.attempted(&socket_addr);
                 self.inner_queue
@@ -136,7 +140,7 @@ where
     fn handle_transport_event(
         &mut self,
         fd: RawFd,
-        event: SessionEvent<Session, Message>,
+        event: SessionEvent<Session<N>, Message>,
         duration: Duration,
     ) {
         self.inner.tick(LocalTime::from_secs(duration.as_secs()));
@@ -226,14 +230,15 @@ where
     }
 }
 
-impl<R, S, W, G> Iterator for Wire<R, S, W, G>
+impl<R, S, W, G, N> Iterator for Wire<R, S, W, G, N>
 where
     R: routing::Store,
     S: address::Store,
     W: WriteStorage + 'static,
     G: Signer,
+    N: Negotiator,
 {
-    type Item = reactor::Action<NetAccept<Session>, NetTransport<Session, Message>>;
+    type Item = reactor::Action<NetAccept<Session<N>>, NetTransport<Session<N>, Message>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(event) = self.inner_queue.pop_front() {
@@ -270,9 +275,9 @@ where
                         break;
                     }
 
-                    match NetTransport::<Session, Message>::connect(
+                    match NetTransport::<Session<N>, Message>::connect(
                         PeerAddr::new(node_id, socket_addr),
-                        &self.local_node,
+                        &self.ecdh,
                     ) {
                         Ok(transport) => {
                             self.inner.attempted(&socket_addr);

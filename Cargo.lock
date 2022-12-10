@@ -1668,7 +1668,7 @@ dependencies = [
 [[package]]
 name = "netservices"
 version = "0.1.0"
-source = "git+https://github.com/cyphernet-wg/rust-netservices#220d531e9c625026c91a0817ddadbb38aeb92064"
+source = "git+https://github.com/cyphernet-wg/rust-netservices#dcf92c725ad5ef90d86ed4fbd431149f8fd285a9"
 dependencies = [
  "amplify",
  "cyphernet",
@@ -2003,7 +2003,7 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 [[package]]
 name = "poll-reactor"
 version = "0.1.0"
-source = "git+https://github.com/cyphernet-wg/rust-netservices#220d531e9c625026c91a0817ddadbb38aeb92064"
+source = "git+https://github.com/cyphernet-wg/rust-netservices#dcf92c725ad5ef90d86ed4fbd431149f8fd285a9"
 dependencies = [
  "amplify",
  "crossbeam-channel",
