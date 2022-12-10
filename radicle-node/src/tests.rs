@@ -148,7 +148,7 @@ fn test_outbound_connection() {
         .service
         .sessions()
         .negotiated()
-        .map(|(ip, _, _)| *ip)
+        .map(|(id, _)| *id)
         .collect::<Vec<_>>();
 
     assert!(peers.contains(&eve.id()));
@@ -168,7 +168,7 @@ fn test_inbound_connection() {
         .service
         .sessions()
         .negotiated()
-        .map(|(ip, _, _)| *ip)
+        .map(|(id, _)| *id)
         .collect::<Vec<_>>();
 
     assert!(peers.contains(&eve.id()));
@@ -733,7 +733,7 @@ fn test_persistent_peer_reconnect() {
     let ips = alice
         .sessions()
         .negotiated()
-        .map(|(ip, _, _)| *ip)
+        .map(|(id, _)| *id)
         .collect::<Vec<_>>();
     assert!(ips.contains(&bob.id()));
     assert!(ips.contains(&eve.id()));
