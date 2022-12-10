@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};
 use std::rc::Rc;
-use std::{fmt, io, net};
+use std::{fmt, io};
 
 use log::*;
 use nakamoto_net as nakamoto;

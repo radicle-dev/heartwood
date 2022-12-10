@@ -537,7 +537,11 @@ where
         }
     }
 
-    pub fn attempted(&mut self, id: NodeId, addr: &Address) {
+    pub fn attempted(
+        &mut self,
+        id: Option<NodeId>, /* We do not have node id for incoming connections */
+        addr: &Address,
+    ) {
         todo!();
         // let address = Address::from(*addr);
         // let persistent = self.config.is_persistent(&address);

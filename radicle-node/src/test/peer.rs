@@ -263,7 +263,7 @@ where
         let node_id = *self.signer().public_key();
 
         self.initialize();
-        self.service.attempted(remote_id, &remote_addr);
+        self.service.attempted(Some(remote_id), &remote_addr);
         self.service.connected(node_id, Link::Outbound);
 
         let mut msgs = self.messages(node_id);

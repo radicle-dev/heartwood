@@ -126,7 +126,7 @@ where
                 self.handshakes.insert(session.as_raw_fd(), Link::Inbound);
                 let transport = NetTransport::<Session<N>, Message>::upgrade(session)
                     .expect("socket failed configuration");
-                self.inner.attempted(&socket_addr);
+                self.inner.attempted(None, socket_addr);
                 self.inner_queue
                     .push_back(reactor::Action::RegisterTransport(transport))
             }
@@ -222,7 +222,7 @@ where
         let fd = transport.as_raw_fd();
         if let Some(reason) = self.hangups.get(&fd) {
             if let Some(reason) = reason {
-                self.inner.disconnected(&transport.expect_peer_id(), reason);
+                self.inner.disconnected(transport.expect_peer_id(), reason);
             }
         } else {
             todo!("send transport to the worker")
@@ -280,16 +280,14 @@ where
                         &self.ecdh,
                     ) {
                         Ok(transport) => {
-                            self.inner.attempted(&socket_addr);
+                            self.inner.attempted(Some(node_id), socket_addr);
                             self.handshakes
                                 .insert(transport.as_raw_fd(), Link::Outbound);
                             return Some(reactor::Action::RegisterTransport(transport));
                         }
                         Err(err) => {
-                            self.inner.disconnected(
-                                &node_id,
-                                &DisconnectReason::DialError(Arc::new(err)),
-                            );
+                            self.inner
+                                .disconnected(node_id, &DisconnectReason::DialError(Arc::new(err)));
                             break;
                         }
                     }
