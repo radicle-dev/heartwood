@@ -579,7 +579,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         Scheduled {
                             node,
                             // The remote is not applicable for this type of output.
-                            remote: ([0, 0, 0, 0], 0).into(),
+                            remote: [0; 32].into(),
                             input: Input::Wake,
                         },
                     );
