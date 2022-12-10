@@ -48,8 +48,8 @@ where
         self.initialize()
     }
 
-    fn addr(&self) -> net::SocketAddr {
-        net::SocketAddr::new(self.ip, DEFAULT_PORT)
+    fn addr(&self) -> Address {
+        self.address()
     }
 
     fn id(&self) -> NodeId {
@@ -236,7 +236,6 @@ where
         let node_id = *self.signer().public_key();
 
         self.initialize();
-        self.service.attempted(&remote);
         self.service.connected(node_id, Link::Inbound);
         self.receive(
             node_id,
@@ -259,11 +258,12 @@ where
     }
 
     pub fn connect_to(&mut self, peer: &Self) {
-        let remote = simulator::Peer::<S, G>::addr(peer);
+        let remote_id = simulator::Peer::<S, G>::id(peer);
+        let remote_addr = simulator::Peer::<S, G>::addr(peer);
         let node_id = *self.signer().public_key();
 
         self.initialize();
-        self.service.attempted(&remote);
+        self.service.attempted(remote_id, &remote_addr);
         self.service.connected(node_id, Link::Outbound);
 
         let mut msgs = self.messages(node_id);

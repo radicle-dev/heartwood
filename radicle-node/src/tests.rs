@@ -185,7 +185,9 @@ fn test_persistent_peer_connect() {
         MockStorage::empty(),
         peer::Config {
             config: Config {
-                connect: vec![bob.address(), eve.address()],
+                connect: HashMap::from_iter(
+                    [(bob.id(), bob.address()), (eve.id(), eve.address())].into_iter(),
+                ),
                 ..Config::default()
             },
             ..peer::Config::default()
@@ -714,7 +716,9 @@ fn test_persistent_peer_reconnect() {
         MockStorage::empty(),
         peer::Config {
             config: Config {
-                connect: vec![bob.address(), eve.address()],
+                connect: HashMap::from_iter(
+                    [(bob.id(), bob.address()), (eve.id(), eve.address())].into_iter(),
+                ),
                 ..Config::default()
             },
             ..peer::Config::default()
@@ -807,15 +811,15 @@ fn test_maintain_connections() {
             &nakamoto::DisconnectReason::ConnectionError(error.clone()),
         );
 
-        let addr = alice
+        let id = alice
             .outbox()
             .find_map(|o| match o {
-                Io::Connect(addr) => Some(addr),
+                Io::Connect(id, _) => Some(id),
                 _ => None,
             })
             .expect("Alice connects to a new peer");
-        assert!(addr != peer.id());
-        unconnected.retain(|p| p.id() != addr);
+        assert!(id != peer.id());
+        unconnected.retain(|p| p.id() != id);
     }
     assert!(
         unconnected.is_empty(),

@@ -32,7 +32,7 @@ pub trait Peer<S, G>:
     /// current time.
     fn init(&mut self);
     /// Get the peer address.
-    fn addr(&self) -> net::SocketAddr;
+    fn addr(&self) -> Address;
     /// Get the peer id.
     fn id(&self) -> NodeId;
 }
