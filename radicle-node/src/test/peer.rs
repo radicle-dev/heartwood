@@ -51,6 +51,10 @@ where
     fn addr(&self) -> net::SocketAddr {
         net::SocketAddr::new(self.ip, DEFAULT_PORT)
     }
+
+    fn id(&self) -> NodeId {
+        self.id
+    }
 }
 
 impl<S, G> Deref for Peer<S, G> {

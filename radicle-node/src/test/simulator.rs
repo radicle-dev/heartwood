@@ -14,7 +14,7 @@ use nakamoto_net::{Link, LocalDuration, LocalTime};
 
 use crate::crypto::Signer;
 use crate::service::reactor::Io;
-use crate::service::{DisconnectReason, Event, Message};
+use crate::service::{DisconnectReason, Event, Message, NodeId};
 use crate::storage::WriteStorage;
 use crate::test::peer::Service;
 
@@ -22,10 +22,6 @@ use crate::test::peer::Service;
 pub const MIN_LATENCY: LocalDuration = LocalDuration::from_millis(1);
 /// Maximum number of events buffered per peer.
 pub const MAX_EVENTS: usize = 2048;
-
-/// Identifier for a simulated node/peer.
-/// The simulator requires each peer to have a distinct IP address.
-type NodeId = std::net::IpAddr;
 
 /// A simulated peer. Service instances have to be wrapped in this type to be simulated.
 pub trait Peer<S, G>:
@@ -36,6 +32,8 @@ pub trait Peer<S, G>:
     fn init(&mut self);
     /// Get the peer address.
     fn addr(&self) -> net::SocketAddr;
+    /// Get the peer id.
+    fn id(&self) -> NodeId;
 }
 
 /// Simulated service input.

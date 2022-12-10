@@ -587,18 +587,18 @@ where
     // TODO: Pass NodeId and reason by value
     pub fn disconnected(
         &mut self,
-        id: &NodeId,
+        id: NodeId,
         reason: &nakamoto::DisconnectReason<DisconnectReason>,
     ) {
         let since = self.local_time();
 
         debug!("Disconnected from {} ({})", id, reason);
 
-        if let Some(session) = self.sessions.get_mut(id) {
+        if let Some(session) = self.sessions.get_mut(&id) {
             session.state = session::State::Disconnected { since };
 
             // Attempt to re-connect to persistent peers.
-            if let Some(address) = self.config.connect.get(id) {
+            if let Some(address) = self.config.connect.get(&id) {
                 if session.attempts() < MAX_CONNECTION_ATTEMPTS {
                     if reason.is_dial_err() {
                         return;
@@ -619,10 +619,10 @@ where
                     // TODO: Try to reconnect only if the peer was attempted. A disconnect without
                     // even a successful attempt means that we're unlikely to be able to reconnect.
 
-                    self.reactor.connect(*id, address.clone());
+                    self.reactor.connect(id, address.clone());
                 }
             } else {
-                self.sessions.remove(id);
+                self.sessions.remove(&id);
                 self.maintain_connections();
             }
         }
