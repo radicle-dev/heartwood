@@ -761,7 +761,7 @@ fn test_persistent_peer_reconnect() {
         assert_matches!(alice.outbox().next(), Some(Io::Connect(a, _)) if a == bob.id());
         assert_matches!(alice.outbox().next(), None);
 
-        alice.attempted(&bob.addr());
+        alice.attempted(bob.id(), &bob.address());
     }
 
     // After the max connection attempts, a disconnect doesn't trigger a reconnect.

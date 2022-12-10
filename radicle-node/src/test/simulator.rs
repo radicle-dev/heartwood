@@ -13,6 +13,7 @@ use nakamoto_net as nakamoto;
 use nakamoto_net::{Link, LocalDuration, LocalTime};
 
 use crate::crypto::Signer;
+use crate::prelude::Address;
 use crate::service::reactor::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
 use crate::storage::WriteStorage;
@@ -43,13 +44,13 @@ pub enum Input {
     Connecting {
         /// Remote peer id.
         id: NodeId,
+        /// Address used to connect.
+        addr: Address,
     },
     /// New connection with a peer.
     Connected {
         /// Remote peer id.
         id: NodeId,
-        /// Local peer id.
-        local_addr: net::SocketAddr,
         /// Link direction.
         link: Link,
     },
@@ -84,18 +85,16 @@ impl fmt::Display for Scheduled {
             }
             Input::Connected {
                 id: addr,
-                local_addr,
                 link: Link::Inbound,
                 ..
-            } => write!(f, "{} <== {}: Connected", local_addr, addr),
+            } => write!(f, "{} <== {}: Connected", self.node, addr),
             Input::Connected {
-                local_addr,
                 id: addr,
                 link: Link::Outbound,
                 ..
-            } => write!(f, "{} ==> {}: Connected", local_addr, addr),
-            Input::Connecting { id: addr } => {
-                write!(f, "{} => {}: Connecting", self.node, addr)
+            } => write!(f, "{} ==> {}: Connected", self.node, addr),
+            Input::Connecting { id, .. } => {
+                write!(f, "{} => {}: Connecting", self.node, id)
             }
             Input::Disconnected(addr, reason) => {
                 write!(f, "{} =/= {}: Disconnected: {}", self.node, addr, reason)
@@ -174,7 +173,7 @@ pub struct Simulation<S, G> {
     /// Network partitions between two nodes.
     partitions: BTreeSet<(NodeId, NodeId)>,
     /// Set of existing connections between nodes.
-    connections: BTreeMap<(NodeId, NodeId), u16>,
+    connections: BTreeSet<(NodeId, NodeId)>,
     /// Set of connection attempts.
     attempts: BTreeSet<(NodeId, NodeId)>,
     /// Simulation options.
@@ -202,7 +201,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
             priority: VecDeque::new(),
             partitions: BTreeSet::new(),
             latencies: BTreeMap::new(),
-            connections: BTreeMap::new(),
+            connections: BTreeSet::new(),
             attempts: BTreeSet::new(),
             opts,
             start_time: time,
@@ -365,22 +364,17 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 p.tick(time);
 
                 match input {
-                    Input::Connecting { id } => {
+                    Input::Connecting { id, addr } => {
                         if self.attempts.insert((node, id)) {
-                            p.attempted(&id);
+                            p.attempted(id, &addr);
                         }
                     }
-                    Input::Connected {
-                        id,
-                        local_addr,
-                        link,
-                    } => {
+                    Input::Connected { id, link } => {
                         let conn = (node, id);
 
                         let attempted = link.is_outbound() && self.attempts.remove(&conn);
                         if attempted || link.is_inbound() {
-                            if self.connections.insert(conn, local_addr.port()).is_none() {
-                                p.connecting(id, &local_addr, link);
+                            if self.connections.insert(conn) {
                                 p.connected(id, link);
                             }
                         }
@@ -388,7 +382,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     Input::Disconnected(id, reason) => {
                         let conn = (node, id);
                         let attempt = self.attempts.remove(&conn);
-                        let connection = self.connections.remove(&conn).is_some();
+                        let connection = self.connections.remove(&conn);
 
                         // Can't be both attempting and connected.
                         assert!(!(attempt && connection));
@@ -483,7 +477,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     Scheduled {
                         node,
                         remote,
-                        input: Input::Connecting { id: remote },
+                        input: Input::Connecting { id: remote, addr },
                     },
                 );
 
@@ -518,7 +512,6 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         remote: node,
                         input: Input::Connected {
                             id: node,
-                            local_addr: remote,
                             link: Link::Inbound,
                         },
                     },
@@ -531,7 +524,6 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         node,
                         input: Input::Connected {
                             id: remote,
-                            local_addr,
                             link: Link::Outbound,
                         },
                     },

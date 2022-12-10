@@ -11,7 +11,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::{fmt, net, str};
+use std::{fmt, str};
 
 use crossbeam_channel as chan;
 use cyphernet::addr::{NetAddr, PeerAddr};
@@ -537,8 +537,8 @@ where
         }
     }
 
-    // TODO: Use `Address` here
-    pub fn attempted(&mut self, _addr: &net::SocketAddr) {
+    pub fn attempted(&mut self, id: NodeId, addr: &Address) {
+        todo!();
         // let address = Address::from(*addr);
         // let persistent = self.config.is_persistent(&address);
         // let peer = self
