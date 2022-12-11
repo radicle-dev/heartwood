@@ -82,7 +82,10 @@ impl History {
     pub fn clock(&self) -> Clock {
         self.graph
             .externals(petgraph::Direction::Outgoing)
-            .map(|n| self.graph[n].clock)
+            .map(|n| {
+                let node = &self.graph[n];
+                node.clock + node.entry.contents.len() as Clock - 1
+            })
             .max()
             .unwrap_or_default()
     }

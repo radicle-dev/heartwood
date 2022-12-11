@@ -9,6 +9,7 @@ use git_ext::Oid;
 use petgraph::{visit::EdgeRef, EdgeDirection};
 
 use crate::history::entry::{EntryId, EntryWithClock};
+use crate::history::Clock;
 use crate::{change::Change, history, pruning_fold};
 
 /// # Panics
@@ -39,7 +40,12 @@ pub fn evaluate<'b>(
                 let incoming = graph.edges_directed(c.idx, EdgeDirection::Incoming);
                 let clock = incoming
                     .into_iter()
-                    .map(|e| entries[&graph[e.source()].id.into()].clock())
+                    .map(|e| {
+                        let entry = &entries[&graph[e.source()].id.into()];
+                        let clock = entry.clock();
+
+                        clock + entry.contents().len() as Clock - 1
+                    })
                     .max()
                     .map(|n| n + 1)
                     .unwrap_or_default();
