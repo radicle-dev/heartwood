@@ -160,7 +160,7 @@ impl Issue {
     pub fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), Error> {
         for op in ops {
             match op.action {
-                Action::Title { title } => {
+                Action::Edit { title } => {
                     self.title.set(title, op.clock);
                 }
                 Action::Lifecycle { state } => {
@@ -198,8 +198,8 @@ impl Deref for Issue {
 
 impl store::Transaction<Issue> {
     /// Set the issue title.
-    pub fn title(&mut self, title: impl ToString) -> OpId {
-        self.push(Action::Title {
+    pub fn edit(&mut self, title: impl ToString) -> OpId {
+        self.push(Action::Edit {
             title: title.to_string(),
         })
     }
@@ -391,7 +391,7 @@ impl<'a> Issues<'a> {
     ) -> Result<IssueMut<'a, 'g>, Error> {
         let (id, issue, clock) =
             Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
-                tx.title(title);
+                tx.edit(title);
                 tx.comment(description);
                 tx.tag(tags.to_owned(), []);
             })?;
@@ -416,7 +416,7 @@ impl<'a> Issues<'a> {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Action {
-    Title { title: String },
+    Edit { title: String },
     Lifecycle { state: State },
     Tag { add: Vec<Tag>, remove: Vec<Tag> },
     Thread { action: thread::Action },
