@@ -228,90 +228,84 @@ impl Patch {
     /// Apply a list of operations to the state.
     pub fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), ApplyError> {
         for op in ops {
-            self.apply_one(op)?;
-        }
-        Ok(())
-    }
+            let id = op.id();
+            let author = Author::new(op.author);
+            let timestamp = op.timestamp;
 
-    /// Apply a single op to the state.
-    pub fn apply_one(&mut self, op: Op) -> Result<(), ApplyError> {
-        let id = op.id();
-        let author = Author::new(op.author);
-        let timestamp = op.timestamp;
-
-        match op.action {
-            Action::Edit {
-                title,
-                description,
-                target,
-            } => {
-                self.title.set(title, op.clock);
-                self.description.set(description, op.clock);
-                self.target.set(target, op.clock);
-            }
-            Action::Tag { add, remove } => {
-                for tag in add {
-                    self.tags.insert(tag, op.clock);
+            match op.action {
+                Action::Edit {
+                    title,
+                    description,
+                    target,
+                } => {
+                    self.title.set(title, op.clock);
+                    self.description.set(description, op.clock);
+                    self.target.set(target, op.clock);
                 }
-                for tag in remove {
-                    self.tags.remove(tag, op.clock);
+                Action::Tag { add, remove } => {
+                    for tag in add {
+                        self.tags.insert(tag, op.clock);
+                    }
+                    for tag in remove {
+                        self.tags.remove(tag, op.clock);
+                    }
                 }
-            }
-            Action::Revision { base, oid } => {
-                self.revisions.insert(
-                    id,
-                    Redactable::Present(Revision::new(author, base, oid, timestamp)),
-                );
-            }
-            Action::Redact { revision } => {
-                if let Some(revision) = self.revisions.get_mut(&revision) {
-                    revision.merge(Redactable::Redacted);
-                } else {
-                    return Err(ApplyError::Missing(revision));
-                }
-            }
-            Action::Review {
-                revision,
-                ref comment,
-                verdict,
-                ref inline,
-            } => {
-                if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                    revision.reviews.insert(
-                        op.author,
-                        Review::new(verdict, comment.to_owned(), inline.to_owned(), timestamp),
+                Action::Revision { base, oid } => {
+                    self.revisions.insert(
+                        id,
+                        Redactable::Present(Revision::new(author, base, oid, timestamp)),
                     );
-                } else {
-                    return Err(ApplyError::Missing(revision));
                 }
-            }
-            Action::Merge { revision, commit } => {
-                if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                    revision.merges.insert(
-                        Merge {
-                            node: op.author,
-                            commit,
+                Action::Redact { revision } => {
+                    if let Some(revision) = self.revisions.get_mut(&revision) {
+                        revision.merge(Redactable::Redacted);
+                    } else {
+                        return Err(ApplyError::Missing(revision));
+                    }
+                }
+                Action::Review {
+                    revision,
+                    ref comment,
+                    verdict,
+                    ref inline,
+                } => {
+                    if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
+                        revision.reviews.insert(
+                            op.author,
+                            Review::new(verdict, comment.to_owned(), inline.to_owned(), timestamp),
+                        );
+                    } else {
+                        return Err(ApplyError::Missing(revision));
+                    }
+                }
+                Action::Merge { revision, commit } => {
+                    if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
+                        revision.merges.insert(
+                            Merge {
+                                node: op.author,
+                                commit,
+                                timestamp,
+                            }
+                            .into(),
+                            op.clock,
+                        );
+                    } else {
+                        return Err(ApplyError::Missing(revision));
+                    }
+                }
+                Action::Thread { revision, action } => {
+                    // TODO(cloudhead): Make sure we can deal with redacted revisions which are added
+                    // to out of order, like in the `Merge` case.
+                    if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
+                        revision.discussion.apply([cob::Op {
+                            action,
+                            author: op.author,
+                            clock: op.clock,
                             timestamp,
-                        }
-                        .into(),
-                        op.clock,
-                    );
-                } else {
-                    return Err(ApplyError::Missing(revision));
-                }
-            }
-            Action::Thread { revision, action } => {
-                // TODO(cloudhead): Make sure we can deal with redacted revisions which are added
-                // to out of order, like in the `Merge` case.
-                if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                    revision.discussion.apply([cob::Op {
-                        action,
-                        author: op.author,
-                        clock: op.clock,
-                        timestamp,
-                    }]);
-                } else {
-                    return Err(ApplyError::Missing(revision));
+                        }]);
+                    } else {
+                        return Err(ApplyError::Missing(revision));
+                    }
                 }
             }
         }
