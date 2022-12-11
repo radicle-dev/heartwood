@@ -1,11 +1,13 @@
 use std::ops::{ControlFlow, Deref};
 use std::str::FromStr;
 
+use nonempty::NonEmpty;
 use once_cell::sync::Lazy;
-use radicle_crdt::clock;
-use radicle_crdt::{LWWReg, LWWSet, Max, Semilattice};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use radicle_crdt::clock;
+use radicle_crdt::{LWWReg, LWWSet, Max, Semilattice};
 
 use crate::cob;
 use crate::cob::common::{Author, Reaction, Tag};
@@ -285,7 +287,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
     ) -> Result<OpId, Error> {
         let cob = self
             .store
-            .update(self.id, msg, action.clone(), signer)
+            .update(self.id, msg, NonEmpty::new(action.clone()), signer)
             .map_err(Error::Store)?;
         let clock = cob.history().clock().into();
         let timestamp = cob.history().timestamp().into();
@@ -363,7 +365,9 @@ impl<'a> Issues<'a> {
         let title = title.into();
         let description = description.into();
         let action = Action::Title { title };
-        let (id, issue, clock) = self.raw.create("Create issue", action, signer)?;
+        let (id, issue, clock) = self
+            .raw
+            .create("Create issue", NonEmpty::new(action), signer)?;
         let mut issue = IssueMut {
             id,
             clock,

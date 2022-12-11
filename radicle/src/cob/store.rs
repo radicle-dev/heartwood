@@ -99,11 +99,17 @@ where
     pub fn update<G: Signer>(
         &self,
         object_id: ObjectId,
-        message: &'static str,
-        action: T::Action,
+        message: &str,
+        actions: impl Into<NonEmpty<T::Action>>,
         signer: &G,
     ) -> Result<CollaborativeObject, Error> {
-        let changes = NonEmpty::new(encoding::encode(&action)?);
+        let changes = actions
+            .into()
+            .iter()
+            .map(encoding::encode)
+            .collect::<Result<Vec<_>, _>>()?
+            .try_into()
+            .expect("the collection is always non-empty");
 
         cob::update(
             self.raw,
@@ -125,10 +131,16 @@ where
     pub fn create<G: Signer>(
         &self,
         message: &'static str,
-        action: T::Action,
+        actions: impl Into<NonEmpty<T::Action>>,
         signer: &G,
     ) -> Result<(ObjectId, T, Lamport), Error> {
-        let contents = NonEmpty::new(encoding::encode(&action)?);
+        let contents = actions
+            .into()
+            .iter()
+            .map(encoding::encode)
+            .collect::<Result<Vec<_>, _>>()?
+            .try_into()
+            .expect("the collection is always non-empty");
         let cob = cob::create(
             self.raw,
             signer,

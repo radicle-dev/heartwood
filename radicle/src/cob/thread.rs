@@ -81,6 +81,12 @@ pub enum Action {
     },
 }
 
+impl From<Action> for nonempty::NonEmpty<Action> {
+    fn from(action: Action) -> Self {
+        Self::new(action)
+    }
+}
+
 /// A discussion thread.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Thread {
