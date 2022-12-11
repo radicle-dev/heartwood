@@ -544,6 +544,20 @@ impl Transaction {
         }
     }
 
+    /// Create a new transaction to be used as the initial set of operations for a COB.
+    pub fn initial(actor: ActorId) -> Self {
+        Self {
+            actions: Vec::new(),
+            clock: clock::Lamport::default(),
+            actor,
+        }
+    }
+
+    /// Consume this transaction, returning the underlying actions.
+    pub fn actions(self) -> Vec<Action> {
+        self.actions
+    }
+
     /// Add an operation to this transaction.
     pub fn push(&mut self, action: Action) -> OpId {
         self.actions.push(action);
@@ -553,10 +567,15 @@ impl Transaction {
     }
 
     /// Edit patch metadata.
-    pub fn edit(&mut self, title: String, description: String, target: MergeTarget) -> OpId {
+    pub fn edit(
+        &mut self,
+        title: impl ToString,
+        description: impl ToString,
+        target: MergeTarget,
+    ) -> OpId {
         self.push(Action::Edit {
-            title,
-            description,
+            title: title.to_string(),
+            description: description.to_string(),
             target,
         })
     }
@@ -813,33 +832,25 @@ impl<'a> Patches<'a> {
     /// Create a patch.
     pub fn create<'g, G: Signer>(
         &'g mut self,
-        title: impl Into<String>,
-        description: impl Into<String>,
+        title: impl ToString,
+        description: impl ToString,
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         tags: &[Tag],
         signer: &G,
     ) -> Result<PatchMut<'a, 'g>, Error> {
-        let title = title.into();
-        let description = description.into();
-        let action = Action::Revision {
-            base: base.into(),
-            oid: oid.into(),
-        };
-        let (id, patch, clock) = self
-            .raw
-            .create("Create patch", NonEmpty::new(action), signer)?;
-        let mut patch = PatchMut::new(id, patch, clock, self);
-        assert_eq!(patch.clock, clock::Lamport::from(0));
+        let mut tx = Transaction::initial(*self.public_key());
 
-        patch.edit(title, description, target, signer)?;
-        assert_eq!(patch.clock, clock::Lamport::from(1));
+        tx.revision(base, oid);
+        tx.edit(title, description, target);
+        tx.tag(tags.to_owned(), []);
 
-        patch.tag(tags.to_owned(), [], signer)?;
-        assert_eq!(patch.clock, clock::Lamport::from(2));
+        #[allow(clippy::unwrap_used)]
+        let actions: NonEmpty<_> = tx.actions().try_into().unwrap(); // SAFETY: The transaction is not empty.
+        let (id, patch, clock) = self.raw.create("Create patch", actions, signer)?;
 
-        Ok(patch)
+        Ok(PatchMut::new(id, patch, clock, self))
     }
 
     /// Get an issue.
@@ -1080,6 +1091,8 @@ mod test {
                 &signer,
             )
             .unwrap();
+
+        assert_eq!(patch.clock, clock::Lamport::from(2));
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();
