@@ -5,7 +5,6 @@ use std::ops::Deref;
 use std::ops::Range;
 use std::str::FromStr;
 
-use nonempty::NonEmpty;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -16,6 +15,7 @@ use radicle_crdt::{GMap, LWWReg, LWWSet, Max, Redactable, Semilattice};
 use crate::cob;
 use crate::cob::common::{Author, Tag, Timestamp};
 use crate::cob::op::Ops;
+use crate::cob::store::Transaction;
 use crate::cob::thread;
 use crate::cob::thread::CommentId;
 use crate::cob::thread::Thread;
@@ -526,47 +526,7 @@ impl Review {
     }
 }
 
-/// Allows operations to be batched atomically.
-#[derive(Debug)]
-pub struct Transaction {
-    actor: ActorId,
-    clock: clock::Lamport,
-    actions: Vec<Action>,
-}
-
-impl Transaction {
-    /// Create a new transaction.
-    pub fn new(actor: ActorId, clock: clock::Lamport) -> Self {
-        Self {
-            actions: Vec::new(),
-            clock,
-            actor,
-        }
-    }
-
-    /// Create a new transaction to be used as the initial set of operations for a COB.
-    pub fn initial(actor: ActorId) -> Self {
-        Self {
-            actions: Vec::new(),
-            clock: clock::Lamport::default(),
-            actor,
-        }
-    }
-
-    /// Consume this transaction, returning the underlying actions.
-    pub fn actions(self) -> Vec<Action> {
-        self.actions
-    }
-
-    /// Add an operation to this transaction.
-    pub fn push(&mut self, action: Action) -> OpId {
-        self.actions.push(action);
-        self.clock.tick();
-
-        (self.clock, self.actor)
-    }
-
-    /// Edit patch metadata.
+impl store::Transaction<Patch> {
     pub fn edit(
         &mut self,
         title: impl ToString,
@@ -677,12 +637,14 @@ impl<'a, 'g> PatchMut<'a, 'g> {
     ) -> Result<T, Error>
     where
         G: Signer,
-        F: FnOnce(&mut Transaction) -> T,
+        F: FnOnce(&mut Transaction<Patch>) -> T,
     {
         let mut tx = Transaction::new(*signer.public_key(), self.clock);
         let output = operations(&mut tx);
+        let (ops, clock) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
-        self.commit(message, tx, signer)?;
+        self.patch.apply(ops)?;
+        self.clock = clock;
 
         Ok(output)
     }
@@ -762,40 +724,6 @@ impl<'a, 'g> PatchMut<'a, 'g> {
     ) -> Result<OpId, Error> {
         self.transaction("Tag", signer, |tx| tx.tag(add, remove))
     }
-
-    /// Commit transaction.
-    pub fn commit<G: Signer>(
-        &mut self,
-        msg: &str,
-        tx: Transaction,
-        signer: &G,
-    ) -> Result<(), Error> {
-        let actions = NonEmpty::from_vec(tx.actions)
-            .expect("PatchMut::commit: transaction must not be empty");
-        let cob = self
-            .store
-            .update(self.id, msg, actions.clone(), signer)
-            .map_err(Error::Store)?;
-        let author = tx.actor;
-        let timestamp = cob.history().timestamp().into();
-
-        // The history clock should be in sync with the tx clock.
-        assert_eq!(cob.history().clock(), tx.clock.get());
-
-        for action in actions {
-            let clock = self.clock.tick();
-            self.patch.apply_one(Op {
-                action,
-                author,
-                clock,
-                timestamp,
-            })?;
-        }
-        // After applying all ops, our clock should also be in sync with the tx clock.
-        assert_eq!(self.clock, tx.clock);
-
-        Ok(())
-    }
 }
 
 impl<'a, 'g> Deref for PatchMut<'a, 'g> {
@@ -840,15 +768,14 @@ impl<'a> Patches<'a> {
         tags: &[Tag],
         signer: &G,
     ) -> Result<PatchMut<'a, 'g>, Error> {
-        let mut tx = Transaction::initial(*self.public_key());
-
-        tx.revision(base, oid);
-        tx.edit(title, description, target);
-        tx.tag(tags.to_owned(), []);
-
-        #[allow(clippy::unwrap_used)]
-        let actions: NonEmpty<_> = tx.actions().try_into().unwrap(); // SAFETY: The transaction is not empty.
-        let (id, patch, clock) = self.raw.create("Create patch", actions, signer)?;
+        let (id, patch, clock) =
+            Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
+                tx.revision(base, oid);
+                tx.edit(title, description, target);
+                tx.tag(tags.to_owned(), []);
+            })?;
+        // Just a sanity check that our clock is advancing as expected.
+        assert_eq!(clock.get(), 2);
 
         Ok(PatchMut::new(id, patch, clock, self))
     }
@@ -1307,12 +1234,15 @@ mod test {
             )
             .unwrap();
 
+        assert_eq!(patch.clock.get(), 2);
         assert_eq!(patch.description(), Some("Blah blah blah."));
         assert_eq!(patch.version(), 0);
 
-        let _rev1_id = patch
+        let ((c1, _), (c2, _)) = patch
             .update("I've made changes.", base, rev1_oid, &signer)
             .unwrap();
+        assert_eq!(c1.get(), 3);
+        assert_eq!(c2.get(), 4);
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();

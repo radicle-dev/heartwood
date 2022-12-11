@@ -20,6 +20,11 @@ impl Lamport {
         *self.counter.get()
     }
 
+    /// The initial value of the clock.
+    pub fn initial() -> Self {
+        Self::default()
+    }
+
     /// Increment clock and return new value.
     /// Must be called before sending a message.
     pub fn tick(&mut self) -> Self {

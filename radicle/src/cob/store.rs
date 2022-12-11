@@ -1,5 +1,6 @@
 //! Generic COB storage.
 #![allow(clippy::large_enum_variant)]
+#![allow(clippy::type_complexity)]
 use std::marker::PhantomData;
 
 use nonempty::NonEmpty;
@@ -9,7 +10,7 @@ use serde::Serialize;
 use crate::cob;
 use crate::cob::common::Author;
 use crate::cob::CollaborativeObject;
-use crate::cob::{Create, History, ObjectId, TypeName, Update};
+use crate::cob::{ActorId, Create, History, ObjectId, TypeName, Update};
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity;
@@ -130,7 +131,7 @@ where
     /// Create an object.
     pub fn create<G: Signer>(
         &self,
-        message: &'static str,
+        message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
         signer: &G,
     ) -> Result<(ObjectId, T, Lamport), Error> {
@@ -196,6 +197,114 @@ where
     /// Remove an object.
     pub fn remove(&self, id: &ObjectId) -> Result<(), Error> {
         cob::remove(self.raw, &self.whoami, T::type_name(), id).map_err(Error::from)
+    }
+}
+
+/// Allows operations to be batched atomically.
+#[derive(Debug)]
+pub struct Transaction<T: FromHistory> {
+    actor: ActorId,
+    start: Lamport,
+    clock: Option<Lamport>,
+    actions: Vec<T::Action>,
+}
+
+impl<T: FromHistory> Transaction<T> {
+    /// Create a new transaction.
+    pub fn new(actor: ActorId, clock: Lamport) -> Self {
+        Self {
+            actor,
+            start: clock,
+            clock: Some(clock),
+            actions: Vec::new(),
+        }
+    }
+
+    /// Create a new transaction to be used as the initial set of operations for a COB.
+    pub fn initial<G, F>(
+        message: &str,
+        store: &mut Store<T>,
+        signer: &G,
+        operations: F,
+    ) -> Result<(ObjectId, T, Lamport), Error>
+    where
+        G: Signer,
+        F: FnOnce(&mut Self),
+        T::Action: Serialize + Clone,
+    {
+        let actor = *signer.public_key();
+        let mut tx = Transaction {
+            actor,
+            start: Lamport::initial(),
+            clock: None,
+            actions: Vec::new(),
+        };
+        operations(&mut tx);
+
+        let actions = NonEmpty::from_vec(tx.actions)
+            .expect("Transaction::initial: transaction must contain at least one operation");
+        let (id, cob, clock) = store.create(message, actions, signer)?;
+
+        // The history clock should be in sync with the tx clock.
+        assert_eq!(Some(clock), tx.clock);
+
+        Ok((id, cob, clock))
+    }
+
+    /// Add an operation to this transaction.
+    pub fn push(&mut self, action: T::Action) -> cob::OpId {
+        self.actions.push(action);
+
+        // If our clock already had a value, it means this isn't the first operation
+        // of this COB. In that case we 'tick' the clock and return the new clock
+        // value.
+        //
+        // Otherwise, it means it was the first operation of our COB. In that case
+        // we set our clock to the initial clock value (0), and return that.
+        if let Some(ref mut clock) = self.clock {
+            (clock.tick(), self.actor)
+        } else {
+            self.clock = Some(Lamport::initial());
+
+            (Lamport::initial(), self.actor)
+        }
+    }
+
+    /// Commit transaction.
+    ///
+    /// Returns a list of operations that can be applied onto an in-memory CRDT.
+    pub fn commit<G: Signer>(
+        self,
+        msg: &str,
+        id: ObjectId,
+        store: &mut Store<T>,
+        signer: &G,
+    ) -> Result<(Vec<cob::Op<T::Action>>, Lamport), Error>
+    where
+        T::Action: Serialize + Clone,
+    {
+        let actions = NonEmpty::from_vec(self.actions)
+            .expect("Transaction::commit: transaction must not be empty");
+        let cob = store.update(id, msg, actions.clone(), signer)?;
+        let author = self.actor;
+        let timestamp = cob.history().timestamp().into();
+
+        // The history clock should be in sync with the tx clock.
+        assert_eq!(Some(cob.history().clock()), self.clock.map(|c| c.get()));
+
+        // Start the clock from where the transcation clock started.
+        let mut clock = self.start;
+        let ops = actions
+            .into_iter()
+            .map(|action| cob::Op {
+                action,
+                author,
+                clock: clock.tick(),
+                timestamp,
+            })
+            .collect();
+
+        Ok((ops, clock))
     }
 }
 
