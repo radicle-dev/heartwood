@@ -1,7 +1,6 @@
 use std::ops::{ControlFlow, Deref};
 use std::str::FromStr;
 
-use nonempty::NonEmpty;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -11,6 +10,7 @@ use radicle_crdt::{LWWReg, LWWSet, Max, Semilattice};
 
 use crate::cob;
 use crate::cob::common::{Author, Reaction, Tag};
+use crate::cob::store::Transaction;
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
 use crate::cob::{store, ObjectId, OpId, TypeName};
@@ -196,6 +196,61 @@ impl Deref for Issue {
     }
 }
 
+impl store::Transaction<Issue> {
+    /// Set the issue title.
+    pub fn title(&mut self, title: impl ToString) -> OpId {
+        self.push(Action::Title {
+            title: title.to_string(),
+        })
+    }
+
+    /// Lifecycle an issue.
+    pub fn lifecycle(&mut self, state: State) -> OpId {
+        self.push(Action::Lifecycle { state })
+    }
+
+    /// Comment on an issue.
+    pub fn comment<S: ToString>(&mut self, body: S) -> CommentId {
+        self.push(Action::from(thread::Action::Comment {
+            body: body.to_string(),
+            reply_to: None,
+        }))
+    }
+
+    /// Tag an issue.
+    pub fn tag(
+        &mut self,
+        add: impl IntoIterator<Item = Tag>,
+        remove: impl IntoIterator<Item = Tag>,
+    ) -> OpId {
+        let add = add.into_iter().collect::<Vec<_>>();
+        let remove = remove.into_iter().collect::<Vec<_>>();
+
+        self.push(Action::Tag { add, remove })
+    }
+
+    /// Reply to on an issue comment.
+    pub fn reply<S: ToString>(&mut self, parent: CommentId, body: S) -> OpId {
+        let body = body.to_string();
+
+        self.push(Action::from(thread::Action::Comment {
+            body,
+            reply_to: Some(parent),
+        }))
+    }
+
+    /// React to an issue comment.
+    pub fn react(&mut self, to: CommentId, reaction: Reaction) -> OpId {
+        self.push(Action::Thread {
+            action: thread::Action::React {
+                to,
+                reaction,
+                active: true,
+            },
+        })
+    }
+}
+
 pub struct IssueMut<'a, 'g> {
     id: ObjectId,
     clock: clock::Lamport,
@@ -211,22 +266,16 @@ impl<'a, 'g> IssueMut<'a, 'g> {
 
     /// Lifecycle an issue.
     pub fn lifecycle<G: Signer>(&mut self, state: State, signer: &G) -> Result<OpId, Error> {
-        let action = Action::Lifecycle { state };
-        self.apply("Lifecycle", action, signer)
+        self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
     }
 
     /// Comment on an issue.
-    pub fn comment<G: Signer, S: Into<String>>(
+    pub fn comment<G: Signer, S: ToString>(
         &mut self,
         body: S,
         signer: &G,
     ) -> Result<CommentId, Error> {
-        let body = body.into();
-        let action = Action::from(thread::Action::Comment {
-            body,
-            reply_to: None,
-        });
-        self.apply("Comment", action, signer)
+        self.transaction("Comment", signer, |tx| tx.comment(body))
     }
 
     /// Tag an issue.
@@ -236,29 +285,18 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         remove: impl IntoIterator<Item = Tag>,
         signer: &G,
     ) -> Result<OpId, Error> {
-        let add = add.into_iter().collect::<Vec<_>>();
-        let remove = remove.into_iter().collect::<Vec<_>>();
-        let action = Action::Tag { add, remove };
-
-        self.apply("Tag", action, signer)
+        self.transaction("Tag", signer, |tx| tx.tag(add, remove))
     }
 
     /// Reply to on an issue comment.
-    pub fn reply<G: Signer, S: Into<String>>(
+    pub fn reply<G: Signer, S: ToString>(
         &mut self,
         parent: CommentId,
         body: S,
         signer: &G,
     ) -> Result<OpId, Error> {
-        let body = body.into();
-
         assert!(self.thread.comment(&parent).is_some());
-
-        let action = Action::from(thread::Action::Comment {
-            body,
-            reply_to: Some(parent),
-        });
-        self.apply("Reply", action, signer)
+        self.transaction("Reply", signer, |tx| tx.reply(parent, body))
     }
 
     /// React to an issue comment.
@@ -268,38 +306,27 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         reaction: Reaction,
         signer: &G,
     ) -> Result<OpId, Error> {
-        let action = Action::Thread {
-            action: thread::Action::React {
-                to,
-                reaction,
-                active: true,
-            },
-        };
-        self.apply("React", action, signer)
+        self.transaction("React", signer, |tx| tx.react(to, reaction))
     }
 
-    /// Apply an op to the issue.
-    pub fn apply<G: Signer>(
+    pub fn transaction<G, F, T>(
         &mut self,
-        msg: &'static str,
-        action: Action,
+        message: &str,
         signer: &G,
-    ) -> Result<OpId, Error> {
-        let cob = self
-            .store
-            .update(self.id, msg, NonEmpty::new(action.clone()), signer)
-            .map_err(Error::Store)?;
-        let clock = cob.history().clock().into();
-        let timestamp = cob.history().timestamp().into();
-        let op = Op {
-            action,
-            author: *signer.public_key(),
-            clock,
-            timestamp,
-        };
-        self.issue.apply([op])?;
+        operations: F,
+    ) -> Result<T, Error>
+    where
+        G: Signer,
+        F: FnOnce(&mut Transaction<Issue>) -> T,
+    {
+        let mut tx = Transaction::new(*signer.public_key(), self.clock);
+        let output = operations(&mut tx);
+        let (ops, clock) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
-        Ok((clock, *signer.public_key()))
+        self.issue.apply(ops)?;
+        self.clock = clock;
+
+        Ok(output)
     }
 }
 
@@ -357,28 +384,26 @@ impl<'a> Issues<'a> {
     /// Create a new issue.
     pub fn create<'g, G: Signer>(
         &'g mut self,
-        title: impl Into<String>,
-        description: impl Into<String>,
+        title: impl ToString,
+        description: impl ToString,
         tags: &[Tag],
         signer: &G,
     ) -> Result<IssueMut<'a, 'g>, Error> {
-        let title = title.into();
-        let description = description.into();
-        let action = Action::Title { title };
-        let (id, issue, clock) = self
-            .raw
-            .create("Create issue", NonEmpty::new(action), signer)?;
-        let mut issue = IssueMut {
+        let (id, issue, clock) =
+            Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
+                tx.title(title);
+                tx.comment(description);
+                tx.tag(tags.to_owned(), []);
+            })?;
+        // Just a sanity check that our clock is advancing as expected.
+        assert_eq!(clock.get(), 2);
+
+        Ok(IssueMut {
             id,
             clock,
             issue,
             store: self,
-        };
-
-        issue.comment(description, signer)?;
-        issue.tag(tags.to_owned(), [], signer)?;
-
-        Ok(issue)
+        })
     }
 
     /// Remove an issue.
