@@ -65,7 +65,7 @@ pub fn init<G: Signer>(
         default_branch: default_branch.clone(),
     };
     let doc = identity::Doc::initial(proj, delegate).verified()?;
-    let (project, _) = Repository::init(&doc, pk, storage)?;
+    let (project, _) = Repository::init(&doc, pk, storage, signer)?;
     let url = git::Url::from(project.id).with_namespace(*pk);
 
     git::configure_remote(repo, &REMOTE_NAME, &url)?;

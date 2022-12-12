@@ -35,14 +35,16 @@ pub enum IdentityError {
     MismatchedRoot(Oid),
     #[error("the document root is missing")]
     MissingRoot,
+    #[error("root commit is missing one or more delegate signatures")]
+    MissingRootSignatures,
     #[error("commit signature for {0} is invalid: {1}")]
     InvalidSignature(PublicKey, crypto::Error),
     #[error("commit message for {0} is invalid")]
     InvalidCommitMessage(Oid),
     #[error("commit trailers for {0} are invalid: {1}")]
     InvalidCommitTrailers(Oid, trailers::Error),
-    #[error("quorum not reached: {0} signatures for a threshold of {1}")]
-    QuorumNotReached(usize, usize),
+    #[error("threshold not reached: {0} signatures for a threshold of {1}")]
+    ThresholdNotReached(usize, usize),
     #[error("identity document error: {0}")]
     Doc(#[from] doc::DocError),
 }
@@ -106,6 +108,27 @@ impl Identity<Untrusted> {
         let trusted = Doc::from_json(root_blob.content())?;
         let revision = history.len() as u32;
 
+        {
+            let root_commit = repo.commit(root_oid)?;
+            let root_msg = root_commit
+                .message_raw()
+                .ok_or(IdentityError::InvalidCommitMessage(root_oid))?;
+            let root_sigs = trailers::parse_signatures(root_msg)
+                .map_err(|e| IdentityError::InvalidCommitTrailers(root_oid, e))?;
+
+            for (pk, sig) in &root_sigs {
+                if let Err(err) = pk.verify(root_blob.content(), sig) {
+                    return Err(IdentityError::InvalidSignature(*pk, err));
+                }
+            }
+            // Every identity founder must have signed the root document.
+            for founder in &trusted.delegates {
+                if !root_sigs.iter().any(|(k, _)| k == &**founder) {
+                    return Err(IdentityError::MissingRootSignatures);
+                }
+            }
+        }
+
         let mut trusted = trusted.verified()?;
         let mut current = root;
         let mut signatures = Vec::new();
@@ -136,7 +159,10 @@ impl Identity<Untrusted> {
                 .filter(|(key, _)| trusted.delegates.iter().any(|d| &**d == key))
                 .count();
             if quorum < trusted.threshold {
-                return Err(IdentityError::QuorumNotReached(quorum, trusted.threshold));
+                return Err(IdentityError::ThresholdNotReached(
+                    quorum,
+                    trusted.threshold,
+                ));
             }
 
             trusted = untrusted;

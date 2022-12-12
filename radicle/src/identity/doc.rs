@@ -167,10 +167,11 @@ impl Doc<Verified> {
     pub fn init(
         doc: &[u8],
         remote: &RemoteId,
+        signatures: &[(&PublicKey, Signature)],
         repo: &git2::Repository,
     ) -> Result<git::Oid, DocError> {
         let tree = git::write_tree(*PATH, doc, repo)?;
-        let oid = Doc::commit(remote, &tree, "Initialize Radicle\n", &[], repo)?;
+        let oid = Doc::commit(remote, &tree, "Initialize Radicle\n", &[], signatures, repo)?;
 
         Ok(oid)
     }
@@ -182,17 +183,11 @@ impl Doc<Verified> {
         signatures: &[(&PublicKey, Signature)],
         repo: &git2::Repository,
     ) -> Result<git::Oid, DocError> {
-        let mut msg = format!("{}\n\n", msg.trim());
-        for (key, sig) in signatures {
-            writeln!(&mut msg, "{}: {key} {sig}", trailers::SIGNATURE_TRAILER)
-                .expect("in-memory writes don't fail");
-        }
-
         let (_, doc) = self.encode()?;
         let tree = git::write_tree(*PATH, doc.as_slice(), repo)?;
         let id_ref = git::refs::storage::id(remote);
         let head = repo.find_reference(&id_ref)?.peel_to_commit()?;
-        let oid = Doc::commit(remote, &tree, &msg, &[&head], repo)?;
+        let oid = Doc::commit(remote, &tree, msg, &[&head], signatures, repo)?;
 
         Ok(oid)
     }
@@ -202,14 +197,21 @@ impl Doc<Verified> {
         tree: &git2::Tree,
         msg: &str,
         parents: &[&git2::Commit],
+        signatures: &[(&PublicKey, Signature)],
         repo: &git2::Repository,
     ) -> Result<git::Oid, DocError> {
         let sig = repo
             .signature()
             .or_else(|_| git2::Signature::now("radicle", remote.to_string().as_str()))?;
 
+        let mut msg = format!("{}\n\n", msg.trim());
+        for (key, sig) in signatures {
+            writeln!(&mut msg, "{}: {key} {sig}", trailers::SIGNATURE_TRAILER)
+                .expect("in-memory writes don't fail");
+        }
+
         let id_ref = git::refs::storage::id(remote);
-        let oid = repo.commit(Some(&id_ref), &sig, &sig, msg, tree, parents)?;
+        let oid = repo.commit(Some(&id_ref), &sig, &sig, &msg, tree, parents)?;
 
         Ok(oid.into())
     }
