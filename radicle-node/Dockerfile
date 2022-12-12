@@ -19,4 +19,4 @@ COPY --from=build /workdir/target/x86_64-unknown-linux-musl/container/radicle-no
 
 WORKDIR /app
 
-ENTRYPOINT ["/usr/local/bin/radicle-node"]
+ENTRYPOINT ["/usr/local/bin/radicle-node", "--listen", "0.0.0.0:8776"]

@@ -7,6 +7,9 @@ services:
       context: .
     environment:
       RUST_LOG: debug
+      RAD_PASSPHRASE: seed
+    volumes:
+      - /var/opt/radicle:/root/.radicle
     init: true
     container_name: radicle-node
     restart: unless-stopped
@@ -16,6 +19,8 @@ services:
       resources:
         limits:
           memory: 6gb
+    ports:
+      - 8776:8776
   radicle-httpd:
     image: gcr.io/radicle-services/radicle-httpd:${RADICLE_IMAGE_TAG:-latest}
     build:
@@ -23,6 +28,8 @@ services:
       context: .
     environment:
       RUST_LOG: debug
+    volumes:
+      - /var/opt/radicle:/root/.radicle
     init: true
     container_name: radicle-httpd
     restart: unless-stopped
@@ -40,7 +47,7 @@ services:
       - |
         cat <<EOF >/etc/caddy/Caddyfile
         {$RADICLE_DOMAIN} {
-            reverse_proxy radicle-httpd:8778
+            reverse_proxy radicle-httpd:8080
         }
         EOF
         caddy run --config /etc/caddy/Caddyfile --adapter caddyfile

@@ -18,4 +18,4 @@ COPY --from=build /workdir/target/x86_64-unknown-linux-musl/container/radicle-ht
 
 WORKDIR /app
 
-ENTRYPOINT ["/usr/local/bin/radicle-httpd"]
+ENTRYPOINT ["/usr/local/bin/radicle-httpd", "--listen", "0.0.0.0:8080"]
