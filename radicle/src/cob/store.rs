@@ -104,13 +104,7 @@ where
         actions: impl Into<NonEmpty<T::Action>>,
         signer: &G,
     ) -> Result<CollaborativeObject, Error> {
-        let changes = actions
-            .into()
-            .iter()
-            .map(encoding::encode)
-            .collect::<Result<Vec<_>, _>>()?
-            .try_into()
-            .expect("the collection is always non-empty");
+        let changes = actions.into().try_map(|e| encoding::encode(&e))?;
 
         cob::update(
             self.raw,
@@ -135,13 +129,7 @@ where
         actions: impl Into<NonEmpty<T::Action>>,
         signer: &G,
     ) -> Result<(ObjectId, T, Lamport), Error> {
-        let contents = actions
-            .into()
-            .iter()
-            .map(encoding::encode)
-            .collect::<Result<Vec<_>, _>>()?
-            .try_into()
-            .expect("the collection is always non-empty");
+        let contents = actions.into().try_map(|e| encoding::encode(&e))?;
         let cob = cob::create(
             self.raw,
             signer,

@@ -396,7 +396,7 @@ impl<'a> Issues<'a> {
                 tx.tag(tags.to_owned(), []);
             })?;
         // Just a sanity check that our clock is advancing as expected.
-        assert_eq!(clock.get(), 2);
+        debug_assert_eq!(clock.get(), 2);
 
         Ok(IssueMut {
             id,
