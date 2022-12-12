@@ -10,7 +10,6 @@ use thiserror::Error;
 use crate::crypto;
 use crate::crypto::{Signature, Verified};
 use crate::git;
-use crate::storage::git::trailers;
 use crate::storage::{ReadRepository, RemoteId};
 
 pub use crypto::PublicKey;
@@ -39,10 +38,6 @@ pub enum IdentityError {
     MissingRootSignatures,
     #[error("commit signature for {0} is invalid: {1}")]
     InvalidSignature(PublicKey, crypto::Error),
-    #[error("commit message for {0} is invalid")]
-    InvalidCommitMessage(Oid),
-    #[error("commit trailers for {0} are invalid: {1}")]
-    InvalidCommitTrailers(Oid, trailers::Error),
     #[error("threshold not reached: {0} signatures for a threshold of {1}")]
     ThresholdNotReached(usize, usize),
     #[error("identity document error: {0}")]
@@ -103,58 +98,28 @@ impl Identity<Untrusted> {
 
         // Retrieve root document.
         let root_oid = history.pop().ok_or(IdentityError::MissingRoot)??.into();
-        let root_blob = Doc::blob_at(root_oid, repo)?;
-        let root: git::Oid = root_blob.id().into();
-        let trusted = Doc::from_json(root_blob.content())?;
+        let root = Doc::<Verified>::load_at(root_oid, repo)?;
         let revision = history.len() as u32;
 
-        {
-            let root_commit = repo.commit(root_oid)?;
-            let root_msg = root_commit
-                .message_raw()
-                .ok_or(IdentityError::InvalidCommitMessage(root_oid))?;
-            let root_sigs = trailers::parse_signatures(root_msg)
-                .map_err(|e| IdentityError::InvalidCommitTrailers(root_oid, e))?;
-
-            for (pk, sig) in &root_sigs {
-                if let Err(err) = pk.verify(root_blob.content(), sig) {
-                    return Err(IdentityError::InvalidSignature(*pk, err));
-                }
-            }
-            // Every identity founder must have signed the root document.
-            for founder in &trusted.delegates {
-                if !root_sigs.iter().any(|(k, _)| k == &**founder) {
-                    return Err(IdentityError::MissingRootSignatures);
-                }
+        // Every identity founder must have signed the root document.
+        for founder in &root.doc.delegates {
+            if !root.sigs.iter().any(|(k, _)| k == &**founder) {
+                return Err(IdentityError::MissingRootSignatures);
             }
         }
 
-        let mut trusted = trusted.verified()?;
-        let mut current = root;
-        let mut signatures = Vec::new();
+        let mut current = root.blob;
+        let mut trusted = root.doc;
+        let mut signatures = root.sigs;
 
         // Traverse the history chronologically.
         for oid in history.into_iter().rev() {
             let oid = oid?;
-            let blob = Doc::blob_at(oid.into(), repo)?;
-            let untrusted = Doc::from_json(blob.content()).map_err(doc::DocError::from)?;
-            let untrusted = untrusted.verified()?;
-            let commit = repo.commit(oid.into())?;
-            let msg = commit
-                .message_raw()
-                .ok_or_else(|| IdentityError::InvalidCommitMessage(oid.into()))?;
-
-            // Keys that signed the *current* document version.
-            signatures = trailers::parse_signatures(msg)
-                .map_err(|e| IdentityError::InvalidCommitTrailers(oid.into(), e))?;
-            for (pk, sig) in &signatures {
-                if let Err(err) = pk.verify(blob.content(), sig) {
-                    return Err(IdentityError::InvalidSignature(*pk, err));
-                }
-            }
+            let untrusted = Doc::<Verified>::load_at(oid.into(), repo)?;
 
             // Check that enough delegates signed this next version.
-            let quorum = signatures
+            let quorum = untrusted
+                .sigs
                 .iter()
                 .filter(|(key, _)| trusted.delegates.iter().any(|d| &**d == key))
                 .count();
@@ -165,12 +130,13 @@ impl Identity<Untrusted> {
                 ));
             }
 
-            trusted = untrusted;
-            current = blob.id().into();
+            current = untrusted.blob;
+            trusted = untrusted.doc;
+            signatures = untrusted.sigs;
         }
 
         Ok(Identity {
-            root,
+            root: root.blob,
             head,
             current,
             revision,

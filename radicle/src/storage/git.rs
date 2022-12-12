@@ -347,7 +347,7 @@ impl Repository {
             }
         }
 
-        Doc::load_at(longest.into(), self)
+        Doc::<Unverified>::load_at(longest.into(), self)
             .map(|(doc, _)| (longest.into(), doc))
             .map_err(ProjectError::from)
     }

@@ -32,10 +32,16 @@ pub const MAX_DELEGATES: usize = 255;
 
 #[derive(Error, Debug)]
 pub enum DocError {
+    #[error("invalid commit: {0}")]
+    Commit(&'static str),
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
     #[error("invalid delegates: {0}")]
     Delegates(&'static str),
+    #[error("invalid signature for {0}: {1}")]
+    Signature(PublicKey, crypto::Error),
+    #[error("invalid commit trailers: {0}")]
+    Trailers(#[from] trailers::Error),
     #[error("invalid version `{0}`")]
     Version(u32),
     #[error("invalid threshold `{0}`: {1}")]
@@ -106,11 +112,28 @@ impl Deref for Payload {
     }
 }
 
+/// A verified identity document at a specific commit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocAt {
+    /// The commit at which this document exists.
+    pub commit: Oid,
+    /// The document blob at this commit.
+    pub blob: Oid,
+    /// The parsed document.
+    pub doc: Doc<Verified>,
+    /// The validated commit signatures.
+    pub sigs: Vec<(PublicKey, Signature)>,
+}
+
+/// An identity document.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Doc<V> {
+    /// The payload section.
     pub payload: BTreeMap<PayloadId, Payload>,
+    /// The delegates section.
     pub delegates: NonEmpty<Did>,
+    /// The signature threshold.
     pub threshold: usize,
 
     #[serde(skip)]
@@ -120,6 +143,11 @@ pub struct Doc<V> {
 impl<V> Doc<V> {
     pub fn head<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<Oid, DocError> {
         repo.reference_oid(remote, &git::refs::storage::IDENTITY_BRANCH)
+            .map_err(DocError::from)
+    }
+
+    pub fn blob_at<R: ReadRepository>(commit: Oid, repo: &R) -> Result<git2::Blob, DocError> {
+        repo.blob_at(commit, Path::new(&*PATH))
             .map_err(DocError::from)
     }
 }
@@ -162,6 +190,28 @@ impl Doc<Verified> {
         let sig = signer.sign(&bytes);
 
         Ok((oid, sig))
+    }
+
+    pub fn load_at<R: ReadRepository>(oid: Oid, repo: &R) -> Result<DocAt, DocError> {
+        let blob = Self::blob_at(oid, repo)?;
+        let doc = Doc::from_json(blob.content())?.verified()?;
+        let commit = repo.commit(oid)?;
+        let msg = commit
+            .message_raw()
+            .ok_or(DocError::Commit("commit message is not UTF-8"))?;
+        let sigs = trailers::parse_signatures(msg)?;
+
+        for (pk, sig) in &sigs {
+            if let Err(err) = pk.verify(blob.content(), sig) {
+                return Err(DocError::Signature(*pk, err));
+            }
+        }
+        Ok(DocAt {
+            commit: oid,
+            doc,
+            blob: blob.id().into(),
+            sigs,
+        })
     }
 
     pub fn init(
@@ -266,11 +316,6 @@ impl Doc<Unverified> {
         })
     }
 
-    pub fn blob_at<R: ReadRepository>(commit: Oid, repo: &R) -> Result<git2::Blob, DocError> {
-        repo.blob_at(commit, Path::new(&*PATH))
-            .map_err(DocError::from)
-    }
-
     pub fn load_at<R: ReadRepository>(commit: Oid, repo: &R) -> Result<(Self, Oid), DocError> {
         let blob = Self::blob_at(commit, repo)?;
         let doc = Doc::from_json(blob.content())?;
@@ -345,7 +390,7 @@ mod test {
         let err = Doc::<Unverified>::head(&remote, &repo).unwrap_err();
         assert!(err.is_not_found());
 
-        let err = Doc::load_at(oid.into(), &repo).unwrap_err();
+        let err = Doc::<Unverified>::load_at(oid.into(), &repo).unwrap_err();
         assert!(err.is_not_found());
     }
 

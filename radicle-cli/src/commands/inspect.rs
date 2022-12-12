@@ -8,6 +8,7 @@ use anyhow::{anyhow, Context as _};
 use chrono::prelude::*;
 use json_color::{Color, Colorizer};
 
+use radicle::crypto::Unverified;
 use radicle::identity::Untrusted;
 use radicle::identity::{Doc, Id};
 use radicle::storage::{ReadRepository, ReadStorage, WriteStorage};
@@ -154,7 +155,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         for (counter, oid) in history.into_iter().rev().enumerate() {
             let oid = oid?.into();
             let tip = repo.commit(oid)?;
-            let blob = Doc::blob_at(oid, &repo)?;
+            let blob = Doc::<Unverified>::blob_at(oid, &repo)?;
             let content: serde_json::Value = serde_json::from_slice(blob.content())?;
             let timezone = if tip.time().sign() == '+' {
                 #[allow(deprecated)]
