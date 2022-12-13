@@ -209,11 +209,19 @@ impl store::Transaction<Issue> {
         self.push(Action::Lifecycle { state })
     }
 
-    /// Comment on an issue.
-    pub fn comment<S: ToString>(&mut self, body: S) -> CommentId {
+    /// Create the issue thread.
+    pub fn thread<S: ToString>(&mut self, body: S) -> CommentId {
         self.push(Action::from(thread::Action::Comment {
             body: body.to_string(),
             reply_to: None,
+        }))
+    }
+
+    /// Comment on an issue.
+    pub fn comment<S: ToString>(&mut self, body: S, reply_to: CommentId) -> CommentId {
+        self.push(Action::from(thread::Action::Comment {
+            body: body.to_string(),
+            reply_to: Some(reply_to),
         }))
     }
 
@@ -227,16 +235,6 @@ impl store::Transaction<Issue> {
         let remove = remove.into_iter().collect::<Vec<_>>();
 
         self.push(Action::Tag { add, remove })
-    }
-
-    /// Reply to on an issue comment.
-    pub fn reply<S: ToString>(&mut self, parent: CommentId, body: S) -> OpId {
-        let body = body.to_string();
-
-        self.push(Action::from(thread::Action::Comment {
-            body,
-            reply_to: Some(parent),
-        }))
     }
 
     /// React to an issue comment.
@@ -269,13 +267,24 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
     }
 
-    /// Comment on an issue.
-    pub fn comment<G: Signer, S: ToString>(
+    /// Create the issue thread.
+    pub fn thread<G: Signer, S: ToString>(
         &mut self,
         body: S,
         signer: &G,
     ) -> Result<CommentId, Error> {
-        self.transaction("Comment", signer, |tx| tx.comment(body))
+        self.transaction("Create thread", signer, |tx| tx.thread(body))
+    }
+
+    /// Comment on an issue.
+    pub fn comment<G: Signer, S: ToString>(
+        &mut self,
+        body: S,
+        reply_to: CommentId,
+        signer: &G,
+    ) -> Result<CommentId, Error> {
+        assert!(self.thread.comment(&reply_to).is_some());
+        self.transaction("Comment", signer, |tx| tx.comment(body, reply_to))
     }
 
     /// Tag an issue.
@@ -286,17 +295,6 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         signer: &G,
     ) -> Result<OpId, Error> {
         self.transaction("Tag", signer, |tx| tx.tag(add, remove))
-    }
-
-    /// Reply to on an issue comment.
-    pub fn reply<G: Signer, S: ToString>(
-        &mut self,
-        parent: CommentId,
-        body: S,
-        signer: &G,
-    ) -> Result<OpId, Error> {
-        assert!(self.thread.comment(&parent).is_some());
-        self.transaction("Reply", signer, |tx| tx.reply(parent, body))
     }
 
     /// React to an issue comment.
@@ -391,8 +389,8 @@ impl<'a> Issues<'a> {
     ) -> Result<IssueMut<'a, 'g>, Error> {
         let (id, issue, clock) =
             Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
+                tx.thread(description);
                 tx.edit(title);
-                tx.comment(description);
                 tx.tag(tags.to_owned(), []);
             })?;
         // Just a sanity check that our clock is advancing as expected.
@@ -524,22 +522,37 @@ mod test {
     fn test_issue_reply() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
+        let author = *signer.public_key();
         let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &signer)
             .unwrap();
-        let comment = issue.comment("Ho ho ho.", &signer).unwrap();
+        let root = (clock::Lamport::default(), author);
 
-        issue.reply(comment, "Hi hi hi.", &signer).unwrap();
-        issue.reply(comment, "Ha ha ha.", &signer).unwrap();
+        let c1 = issue.comment("Hi hi hi.", root, &signer).unwrap();
+        let c2 = issue.comment("Ha ha ha.", root, &signer).unwrap();
 
         let id = issue.id;
-        let issue = issues.get(&id).unwrap().unwrap();
-        let (_, reply1) = &issue.replies(&comment).nth(0).unwrap();
-        let (_, reply2) = &issue.replies(&comment).nth(1).unwrap();
+        let mut issue = issues.get_mut(&id).unwrap();
+        let (_, reply1) = &issue.replies(&root).nth(0).unwrap();
+        let (_, reply2) = &issue.replies(&root).nth(1).unwrap();
 
         assert_eq!(reply1.body, "Hi hi hi.");
         assert_eq!(reply2.body, "Ha ha ha.");
+
+        issue.comment("Re: Hi.", c1, &signer).unwrap();
+        issue.comment("Re: Ha.", c2, &signer).unwrap();
+        issue.comment("Re: Ha. Ha.", c2, &signer).unwrap();
+        issue.comment("Re: Ha. Ha. Ha.", c2, &signer).unwrap();
+
+        let issue = issues.get(&id).unwrap().unwrap();
+        assert_eq!(&issue.replies(&c1).nth(0).unwrap().1.body, "Re: Hi.");
+        assert_eq!(&issue.replies(&c2).nth(0).unwrap().1.body, "Re: Ha.");
+        assert_eq!(&issue.replies(&c2).nth(1).unwrap().1.body, "Re: Ha. Ha.");
+        assert_eq!(
+            &issue.replies(&c2).nth(2).unwrap().1.body,
+            "Re: Ha. Ha. Ha."
+        );
     }
 
     #[test]
@@ -575,8 +588,11 @@ mod test {
             .create("My first issue", "Blah blah blah.", &[], &signer)
             .unwrap();
 
-        issue.comment("Ho ho ho.", &signer).unwrap();
-        issue.comment("Ha ha ha.", &signer).unwrap();
+        // The initial thread op id is always the same.
+        let c0 = (clock::Lamport::initial(), author);
+
+        issue.comment("Ho ho ho.", c0, &signer).unwrap();
+        issue.comment("Ha ha ha.", c0, &signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();

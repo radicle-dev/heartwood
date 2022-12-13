@@ -372,7 +372,8 @@ impl Revision {
     }
 
     pub fn description(&self) -> Option<&str> {
-        self.discussion.first()
+        let (_, comment) = self.discussion.root()?;
+        Some(comment.body.as_str())
     }
 }
 
@@ -534,13 +535,29 @@ impl store::Transaction<Patch> {
         })
     }
 
-    /// Comment on a patch revision.
-    pub fn comment<S: ToString>(&mut self, revision: RevisionId, body: S) -> OpId {
+    /// Start a patch revision discussion.
+    pub fn thread<S: ToString>(&mut self, revision: RevisionId, body: S) -> OpId {
         self.push(Action::Thread {
             revision,
             action: thread::Action::Comment {
                 body: body.to_string(),
                 reply_to: None,
+            },
+        })
+    }
+
+    /// Comment on a patch revision.
+    pub fn comment<S: ToString>(
+        &mut self,
+        revision: RevisionId,
+        body: S,
+        reply_to: CommentId,
+    ) -> OpId {
+        self.push(Action::Thread {
+            revision,
+            action: thread::Action::Comment {
+                body: body.to_string(),
+                reply_to: Some(reply_to),
             },
         })
     }
@@ -582,7 +599,7 @@ impl store::Transaction<Patch> {
         oid: impl Into<git::Oid>,
     ) -> (OpId, OpId) {
         let revision = self.revision(base, oid);
-        let comment = self.comment(revision, description);
+        let comment = self.thread(revision, description);
 
         (revision, comment)
     }
@@ -664,9 +681,10 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         &mut self,
         revision: RevisionId,
         body: S,
+        reply_to: CommentId,
         signer: &G,
     ) -> Result<CommentId, Error> {
-        self.transaction("Comment", signer, |tx| tx.comment(revision, body))
+        self.transaction("Comment", signer, |tx| tx.comment(revision, body, reply_to))
     }
 
     /// Review a patch revision.
@@ -703,7 +721,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
     ) -> Result<(OpId, OpId), Error> {
         self.transaction("Add revision", signer, |tx| {
             let r = tx.revision(base, oid);
-            let c = tx.comment(r, description);
+            let c = tx.thread(r, description);
 
             (r, c)
         })
@@ -950,21 +968,18 @@ mod test {
             let [p1, p2, p3] = log.permutations;
 
             let mut t1 = t.clone();
-            match t1.apply(p1) {
-                Ok(()) => {}
-                Err(ApplyError::Missing(_)) => return TestResult::discard(),
+            if t1.apply(p1).is_err() {
+                return TestResult::discard();
             }
 
             let mut t2 = t.clone();
-            match t2.apply(p2) {
-                Ok(()) => {}
-                Err(ApplyError::Missing(_)) => return TestResult::discard(),
+            if t2.apply(p2).is_err() {
+                return TestResult::discard();
             }
 
             let mut t3 = t;
-            match t3.apply(p3) {
-                Ok(()) => {}
-                Err(ApplyError::Missing(_)) => return TestResult::discard(),
+            if t3.apply(p3).is_err() {
+                return TestResult::discard();
             }
 
             assert_eq!(t1, t2);
@@ -976,7 +991,7 @@ mod test {
 
         qcheck::QuickCheck::new()
             .min_tests_passed(100)
-            .gen(qcheck::Gen::new(8))
+            .gen(qcheck::Gen::new(7))
             .quickcheck(property as fn(Changes<3>) -> TestResult);
     }
 

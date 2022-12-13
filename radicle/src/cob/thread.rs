@@ -29,19 +29,20 @@ pub static TYPENAME: Lazy<TypeName> =
 pub type CommentId = OpId;
 
 /// A comment on a discussion thread.
-#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Comment {
     /// The comment body.
     pub body: String,
-    /// Thread or comment this is a reply to.
-    pub reply_to: Option<OpId>,
+    /// Comment this is a reply to.
+    /// Should always be set, except for the root comment.
+    pub reply_to: Option<CommentId>,
     /// When the comment was authored.
     pub timestamp: Timestamp,
 }
 
 impl Comment {
     /// Create a new comment.
-    pub fn new(body: String, reply_to: Option<OpId>, timestamp: Timestamp) -> Self {
+    pub fn new(body: String, reply_to: Option<CommentId>, timestamp: Timestamp) -> Self {
         Self {
             body,
             reply_to,
@@ -68,7 +69,9 @@ pub enum Action {
     Comment {
         /// Comment body.
         body: String,
-        /// Another comment this is a reply to.
+        /// Comment this is a reply to.
+        /// Should be [`None`] if it's the top-level comment.
+        /// Should be the root [`CommentId`] if it's a top-level comment.
         reply_to: Option<OpId>,
     },
     /// Redact a change. Not all changes can be redacted.
@@ -105,8 +108,8 @@ impl store::FromHistory for Thread {
 
     fn from_history(history: &History) -> Result<(Self, Lamport), store::Error> {
         let obj = history.traverse(Thread::default(), |mut acc, entry| {
-            if let Ok(Ops(changes)) = Ops::try_from(entry) {
-                acc.apply(changes);
+            if let Ok(Ops(ops)) = Ops::try_from(entry) {
+                acc.apply(ops);
                 ControlFlow::Continue(acc)
             } else {
                 ControlFlow::Break(acc)
@@ -132,6 +135,10 @@ impl Deref for Thread {
 }
 
 impl Thread {
+    pub fn is_initialized(&self) -> bool {
+        !self.comments.is_empty()
+    }
+
     pub fn comment(&self, id: &CommentId) -> Option<&Comment> {
         if let Some(Redactable::Present(comment)) = self.comments.get(id) {
             Some(comment)
@@ -140,11 +147,10 @@ impl Thread {
         }
     }
 
-    pub fn first(&self) -> Option<&str> {
+    pub fn root(&self) -> Option<(&CommentId, &Comment)> {
         self.comments
-            .values()
-            .filter_map(|r| r.get())
-            .map(|c| c.body.as_str())
+            .iter()
+            .filter_map(|(id, r)| r.get().map(|comment| (id, comment)))
             .next()
     }
 
@@ -153,8 +159,8 @@ impl Thread {
         to: &'a CommentId,
     ) -> impl Iterator<Item = (&CommentId, &Comment)> {
         self.comments().filter_map(move |(id, c)| {
-            if let Some(parent) = &c.reply_to {
-                if parent == to {
+            if let Some(reply_to) = c.reply_to {
+                if &reply_to == to {
                     return Some((id, c));
                 }
             }
@@ -179,8 +185,10 @@ impl Thread {
 
             match op.action {
                 Action::Comment { body, reply_to } => {
-                    let present = Redactable::Present(Comment::new(body, reply_to, op.timestamp));
-                    self.comments.insert(id, present);
+                    self.comments.insert(
+                        id,
+                        Redactable::Present(Comment::new(body, reply_to, op.timestamp)),
+                    );
                 }
                 Action::Redact { id } => {
                     self.comments.insert(id, Redactable::Redacted);
@@ -273,9 +281,9 @@ mod tests {
     use std::{array, iter};
 
     use crate::crypto::test::signer::MockSigner;
+    use nonempty::NonEmpty;
     use pretty_assertions::assert_eq;
-    use qcheck::Arbitrary;
-    use qcheck_macros::quickcheck;
+    use qcheck::{Arbitrary, TestResult};
 
     use super::*;
     use crate as radicle;
@@ -303,6 +311,7 @@ mod tests {
         fn arbitrary(g: &mut qcheck::Gen) -> Self {
             let author = ActorId::from([0; 32]);
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+            let root = (Lamport::initial(), author);
             let gen =
                 WeightedGenerator::<(Lamport, Action), (Lamport, Vec<OpId>)>::new(rng.clone())
                     .variant(3, |(clock, changes), rng| {
@@ -312,7 +321,7 @@ mod tests {
                             *clock,
                             Action::Comment {
                                 body: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
-                                reply_to: None,
+                                reply_to: Some(root),
                             },
                         ))
                     })
@@ -340,11 +349,19 @@ mod tests {
                         Some((clock.tick(), Action::Redact { id }))
                     });
 
-            let mut changes = Vec::new();
+            let mut changes = vec![Op {
+                action: Action::Comment {
+                    body: String::default(),
+                    reply_to: None,
+                },
+                author,
+                clock: Lamport::initial(),
+                timestamp: Timestamp::now(),
+            }];
             let mut permutations: [Vec<Op<Action>>; N] = array::from_fn(|_| Vec::new());
-            let timestamp = Timestamp::now() + rng.u64(..60);
 
-            for (clock, action) in gen.take(g.size().min(8)) {
+            for (clock, action) in gen.take(g.size()) {
+                let timestamp = Timestamp::now() + rng.u64(..60);
                 changes.push(Op {
                     action,
                     author,
@@ -370,23 +387,24 @@ mod tests {
             radicle::cob::store::Store::<Thread>::open(*signer.public_key(), &repository).unwrap();
         let mut alice = Actor::new(signer);
 
-        let a1 = alice.comment("First comment", None);
-        let a2 = alice.comment("Second comment", None);
-        let a3 = alice.comment("Third comment", None);
+        let a0 = alice.comment("First comment", None);
+        let a1 = alice.comment("Second comment", Some(a0.id()));
+        let a2 = alice.comment("Third comment", Some(a0.id()));
 
         let (id, _, _) = store
-            .create("Thread created", a1.action, &alice.signer)
+            .create("Thread created", a0.action, &alice.signer)
             .unwrap();
-        let second = store
+        let comment = store
+            .update(id, "Thread updated", a1.action, &alice.signer)
+            .unwrap();
+        store
             .update(id, "Thread updated", a2.action, &alice.signer)
             .unwrap();
-        store
-            .update(id, "Thread updated", a3.action, &alice.signer)
-            .unwrap();
 
-        let a4 = alice.redact((second.history().clock().into(), *alice.signer.public_key()));
+        // Redact the second comment.
+        let a3 = alice.redact((comment.history().clock().into(), *alice.signer.public_key()));
         store
-            .update(id, "Comment redacted", a4.action, &alice.signer)
+            .update(id, "Comment redacted", a3.action, &alice.signer)
             .unwrap();
 
         let (thread, _) = store.get(&id).unwrap().unwrap();
@@ -407,17 +425,20 @@ mod tests {
 
         let mut alice = Actor::new(signer);
 
-        let a1 = alice.comment("First comment", None);
-        let a2 = alice.comment("Second comment", None);
+        let a0 = alice.comment("Thread root", None);
+        let a1 = alice.comment("First comment", Some(a0.id()));
+        let a2 = alice.comment("Second comment", Some(a0.id()));
 
         let mut expected = Thread::default();
-        expected.apply([a1.clone(), a2.clone()]);
+        expected.apply([a0.clone(), a1.clone(), a2.clone()]);
 
         let (id, _, _) = store
-            .create("Thread created", a1.action, &alice.signer)
+            .create("Thread created", a0.action, &alice.signer)
             .unwrap();
+
+        let actions = NonEmpty::from_vec(vec![a1.action, a2.action]).unwrap();
         store
-            .update(id, "Thread updated", a2.action, &alice.signer)
+            .update(id, "Thread updated", actions, &alice.signer)
             .unwrap();
 
         let (actual, _) = store.get(&id).unwrap().unwrap();
@@ -430,18 +451,19 @@ mod tests {
         let mut alice = Actor::<MockSigner>::default();
         let mut bob = Actor::<MockSigner>::default();
 
-        let a1 = alice.comment("First comment", None);
-        let a2 = alice.comment("Second comment", None);
+        let a0 = alice.comment("Thread root", None);
+        let a1 = alice.comment("First comment", Some(a0.id()));
+        let a2 = alice.comment("Second comment", Some(a0.id()));
 
-        bob.receive([a1.clone(), a2.clone()]);
+        bob.receive([a0.clone(), a1.clone(), a2.clone()]);
         assert_eq!(
             bob.timeline().collect::<Vec<_>>(),
             alice.timeline().collect::<Vec<_>>()
         );
-        assert_eq!(alice.timeline().collect::<Vec<_>>(), vec![&a1, &a2]);
+        assert_eq!(alice.timeline().collect::<Vec<_>>(), vec![&a0, &a1, &a2]);
 
         bob.reset();
-        bob.receive([a2, a1]);
+        bob.receive([a0, a2, a1]);
         assert_eq!(
             bob.timeline().collect::<Vec<_>>(),
             alice.timeline().collect::<Vec<_>>()
@@ -454,32 +476,33 @@ mod tests {
         let mut bob = Actor::<MockSigner>::default();
         let mut eve = Actor::<MockSigner>::default();
 
-        let a1 = alice.comment("First comment", None);
+        let a0 = alice.comment("Thread root", None);
+        let a1 = alice.comment("First comment", Some(a0.id()));
 
-        bob.receive([a1.clone()]);
+        bob.receive([a0.clone(), a1.clone()]);
 
-        let b0 = bob.comment("Bob's first reply to Alice", None);
-        let b1 = bob.comment("Bob's second reply to Alice", None);
+        let b0 = bob.comment("Bob's first reply to Alice", Some(a0.id()));
+        let b1 = bob.comment("Bob's second reply to Alice", Some(a0.id()));
 
-        eve.receive([b1.clone(), b0.clone()]);
-        let e0 = eve.comment("Eve's first reply to Alice", None);
+        eve.receive([a0.clone(), b1.clone(), b0.clone()]);
+        let e0 = eve.comment("Eve's first reply to Alice", Some(a0.id()));
 
         bob.receive([e0.clone()]);
-        let b2 = bob.comment("Bob's third reply to Alice", None);
+        let b2 = bob.comment("Bob's third reply to Alice", Some(a0.id()));
 
         eve.receive([b2.clone(), a1.clone()]);
-        let e1 = eve.comment("Eve's second reply to Alice", None);
+        let e1 = eve.comment("Eve's second reply to Alice", Some(a0.id()));
 
         alice.receive([b0.clone(), b1.clone(), b2.clone(), e0.clone(), e1.clone()]);
         bob.receive([e1.clone()]);
 
-        let a2 = alice.comment("Second comment", None);
+        let a2 = alice.comment("Second comment", Some(a0.id()));
         eve.receive([a2.clone()]);
         bob.receive([a2.clone()]);
 
-        assert_eq!(alice.ops.len(), 7);
-        assert_eq!(bob.ops.len(), 7);
-        assert_eq!(eve.ops.len(), 7);
+        assert_eq!(alice.ops.len(), 8);
+        assert_eq!(bob.ops.len(), 8);
+        assert_eq!(eve.ops.len(), 8);
 
         assert_eq!(
             bob.timeline().collect::<Vec<_>>(),
@@ -490,27 +513,36 @@ mod tests {
             alice.timeline().collect::<Vec<_>>()
         );
         assert_eq!(
-            vec![&a1, &b0, &b1, &e0, &b2, &e1, &a2],
+            vec![&a0, &a1, &b0, &b1, &e0, &b2, &e1, &a2],
             alice.timeline().collect::<Vec<_>>(),
         );
     }
 
-    #[quickcheck]
-    fn prop_invariants(log: Changes<3>) {
-        let t = Thread::default();
-        let [p1, p2, p3] = log.permutations;
+    #[test]
+    fn prop_invariants() {
+        fn property(log: Changes<3>) -> TestResult {
+            let t = Thread::default();
+            let [p1, p2, p3] = log.permutations;
 
-        let mut t1 = t.clone();
-        t1.apply(p1);
+            let mut t1 = t.clone();
+            t1.apply(p1);
 
-        let mut t2 = t.clone();
-        t2.apply(p2);
+            let mut t2 = t.clone();
+            t2.apply(p2);
 
-        let mut t3 = t;
-        t3.apply(p3);
+            let mut t3 = t;
+            t3.apply(p3);
 
-        assert_eq!(t1, t2);
-        assert_eq!(t2, t3);
-        assert_laws(&t1, &t2, &t3);
+            assert_eq!(t1, t2);
+            assert_eq!(t2, t3);
+            assert_laws(&t1, &t2, &t3);
+
+            TestResult::passed()
+        }
+        qcheck::QuickCheck::new()
+            .min_tests_passed(100)
+            .max_tests(10000)
+            .gen(qcheck::Gen::new(7))
+            .quickcheck(property as fn(Changes<3>) -> TestResult);
     }
 }
