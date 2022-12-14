@@ -23,7 +23,12 @@ Let's assign ourselves to this one.
 
 ```
 $ rad assign de81d97d7fe07a80bfb339200c6af862d4526b6a z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-$ rad issue list
+```
+
+It will now show in the list of issues assigned to us.
+
+```
+$ rad issue
 de81d97d7fe07a80bfb339200c6af862d4526b6a "flux capacitor underpowered" z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 

@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context as _};
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
+use radicle::cob;
 use radicle::cob::common::{Reaction, Tag};
 use radicle::cob::issue::{CloseReason, IssueId, Issues, State};
 use radicle::storage::WriteStorage;
@@ -18,11 +19,12 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
+    rad issue
     rad issue new [--title <title>] [--description <text>]
     rad issue state <id> [--closed | --open | --solved]
     rad issue delete <id>
     rad issue react <id> [--emoji <char>]
-    rad issue list
+    rad issue list [<assignee>]
 
 Options
 
@@ -39,6 +41,7 @@ pub struct Metadata {
 #[derive(Debug, PartialEq, Eq)]
 pub enum OperationName {
     Create,
+    Default,
     State,
     React,
     Delete,
@@ -47,16 +50,17 @@ pub enum OperationName {
 
 impl Default for OperationName {
     fn default() -> Self {
-        Self::List
+        Self::Default
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Operation {
     Create {
         title: Option<String>,
         description: Option<String>,
     },
+    Default,
     State {
         id: IssueId,
         state: State,
@@ -68,7 +72,9 @@ pub enum Operation {
         id: IssueId,
         reaction: Reaction,
     },
-    List,
+    List {
+        assignee: Option<cob::ActorId>,
+    },
 }
 
 #[derive(Debug)]
@@ -83,6 +89,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut id: Option<IssueId> = None;
+        let mut assignee: Option<cob::ActorId> = None;
         let mut title: Option<String> = None;
         let mut reaction: Option<Reaction> = None;
         let mut description: Option<String> = None;
@@ -127,6 +134,14 @@ impl Args for Options {
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
+                Value(val) if op == Some(OperationName::List) && assignee.is_none() => {
+                    let val = val.to_string_lossy();
+                    let Ok(val) = cob::ActorId::from_str(&val) else {
+                            return Err(anyhow!("invalid peer ID '{}'", val));
+                    };
+
+                    assignee = Some(val)
+                }
                 Value(val) if op.is_some() => {
                     let val = val
                         .to_str()
@@ -145,6 +160,7 @@ impl Args for Options {
 
         let op = match op.unwrap_or_default() {
             OperationName::Create => Operation::Create { title, description },
+            OperationName::Default => Operation::Default,
             OperationName::State => Operation::State {
                 id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
                 state: state.ok_or_else(|| anyhow!("a state operation must be provided"))?,
@@ -156,7 +172,7 @@ impl Args for Options {
             OperationName::Delete => Operation::Delete {
                 id: id.ok_or_else(|| anyhow!("an issue id to remove must be provided"))?,
             },
-            OperationName::List => Operation::List,
+            OperationName::List => Operation::List { assignee },
         };
 
         Ok((Options { op }, vec![]))
@@ -171,7 +187,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repo = storage.repository(id)?;
     let mut issues = Issues::open(*signer.public_key(), &repo)?;
 
-    match options.op {
+    let op = match options.op {
+        Operation::Default => Operation::List {
+            assignee: Some(*profile.id()),
+        },
+        _ => options.op,
+    };
+
+    match op {
         Operation::Create {
             title: Some(title),
             description: Some(description),
@@ -232,13 +255,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 )?;
             }
         }
-        Operation::List => {
+        Operation::Default => panic!("default should be set earlier"),
+        Operation::List { assignee } => {
             let mut t = term::Table::new(term::table::TableOptions::default());
             for result in issues.all()? {
                 let (id, issue, _) = result?;
+                let assigned: Vec<_> = issue.assigned().collect();
 
-                let assigned: String = issue
-                    .assigned()
+                if Some(true) == assignee.map(|a| !assigned.contains(&&a)) {
+                    continue;
+                }
+
+                let assigned: String = assigned
+                    .iter()
                     .map(|p| p.to_string())
                     .collect::<Vec<_>>()
                     .join(", ");
