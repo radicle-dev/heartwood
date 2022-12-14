@@ -1,16 +1,13 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::ops::{ControlFlow, Deref, DerefMut};
-use std::str::FromStr;
+use std::ops::{Deref, DerefMut};
 
-use once_cell::sync::Lazy;
 use radicle_crdt as crdt;
 use serde::{Deserialize, Serialize};
 
 use crate::cob;
 use crate::cob::common::{Reaction, Timestamp};
-use crate::cob::store;
-use crate::cob::{ActorId, History, Op, OpId, TypeName};
+use crate::cob::{ActorId, Op, OpId};
 use crate::crypto::Signer;
 
 use crdt::clock::Lamport;
@@ -18,12 +15,6 @@ use crdt::gmap::GMap;
 use crdt::lwwset::LWWSet;
 use crdt::redactable::Redactable;
 use crdt::Semilattice;
-
-use super::op::Ops;
-
-/// Type name of a thread.
-pub static TYPENAME: Lazy<TypeName> =
-    Lazy::new(|| FromStr::from_str("xyz.radicle.thread").expect("type name is valid"));
 
 /// Identifies a comment.
 pub type CommentId = OpId;
@@ -97,26 +88,6 @@ pub struct Thread {
     comments: GMap<CommentId, Redactable<Comment>>,
     /// Reactions to changes.
     reactions: GMap<CommentId, LWWSet<(ActorId, Reaction), Lamport>>,
-}
-
-impl store::FromHistory for Thread {
-    type Action = Action;
-
-    fn type_name() -> &'static radicle_cob::TypeName {
-        &*TYPENAME
-    }
-
-    fn from_history(history: &History) -> Result<(Self, Lamport), store::Error> {
-        let obj = history.traverse(Thread::default(), |mut acc, entry| {
-            if let Ok(Ops(ops)) = Ops::try_from(entry) {
-                acc.apply(ops);
-                ControlFlow::Continue(acc)
-            } else {
-                ControlFlow::Break(acc)
-            }
-        });
-        Ok((obj, history.clock().into()))
-    }
 }
 
 impl Semilattice for Thread {
@@ -278,16 +249,45 @@ impl<G> DerefMut for Actor<G> {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::ControlFlow;
+    use std::str::FromStr;
     use std::{array, iter};
 
-    use crate::crypto::test::signer::MockSigner;
+    use cob::op::Ops;
     use nonempty::NonEmpty;
+    use once_cell::sync::Lazy;
     use pretty_assertions::assert_eq;
     use qcheck::{Arbitrary, TestResult};
 
+    use crdt::test::{assert_laws, WeightedGenerator};
+
     use super::*;
     use crate as radicle;
-    use crdt::test::{assert_laws, WeightedGenerator};
+    use crate::crypto::test::signer::MockSigner;
+
+    /// Type name of a thread.
+    pub static TYPENAME: Lazy<cob::TypeName> =
+        Lazy::new(|| FromStr::from_str("xyz.radicle.thread").expect("type name is valid"));
+
+    impl cob::store::FromHistory for Thread {
+        type Action = Action;
+
+        fn type_name() -> &'static radicle_cob::TypeName {
+            &*TYPENAME
+        }
+
+        fn from_history(history: &cob::History) -> Result<(Self, Lamport), cob::store::Error> {
+            let obj = history.traverse(Thread::default(), |mut acc, entry| {
+                if let Ok(Ops(ops)) = Ops::try_from(entry) {
+                    acc.apply(ops);
+                    ControlFlow::Continue(acc)
+                } else {
+                    ControlFlow::Break(acc)
+                }
+            });
+            Ok((obj, history.clock().into()))
+        }
+    }
 
     #[derive(Clone)]
     struct Changes<const N: usize> {
