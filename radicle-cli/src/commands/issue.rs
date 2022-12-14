@@ -9,6 +9,7 @@ use crate::terminal::args::{Args, Error, Help};
 
 use radicle::cob;
 use radicle::cob::common::{Reaction, Tag};
+use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, IssueId, Issues, State};
 use radicle::storage::WriteStorage;
 
@@ -21,6 +22,7 @@ Usage
 
     rad issue
     rad issue new [--title <title>] [--description <text>]
+    rad issue show <id>
     rad issue state <id> [--closed | --open | --solved]
     rad issue delete <id>
     rad issue react <id> [--emoji <char>]
@@ -42,6 +44,7 @@ pub struct Metadata {
 pub enum OperationName {
     Create,
     Default,
+    Show,
     State,
     React,
     Delete,
@@ -61,6 +64,9 @@ pub enum Operation {
         description: Option<String>,
     },
     Default,
+    Show {
+        id: IssueId,
+    },
     State {
         id: IssueId,
         state: State,
@@ -127,6 +133,7 @@ impl Args for Options {
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "n" | "new" => op = Some(OperationName::Create),
+                    "c" | "show" => op = Some(OperationName::Show),
                     "s" | "state" => op = Some(OperationName::State),
                     "d" | "delete" => op = Some(OperationName::Delete),
                     "l" | "list" => op = Some(OperationName::List),
@@ -161,6 +168,9 @@ impl Args for Options {
         let op = match op.unwrap_or_default() {
             OperationName::Create => Operation::Create { title, description },
             OperationName::Default => Operation::Default,
+            OperationName::Show => Operation::Show {
+                id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
+            },
             OperationName::State => Operation::State {
                 id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
                 state: state.ok_or_else(|| anyhow!("a state operation must be provided"))?,
@@ -200,6 +210,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             description: Some(description),
         } => {
             issues.create(title, description, &[], &signer)?;
+        }
+        Operation::Show { id } => {
+            let issue = issues
+                .get(&id)?
+                .context("No issue with the given ID exists")?;
+            show_issue(&issue)?;
         }
         Operation::State { id, state } => {
             let mut issue = issues.get_mut(&id)?;
@@ -284,5 +300,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn show_issue(issue: &issue::Issue) -> anyhow::Result<()> {
+    term::info!("title: {}", issue.title());
+    term::info!("state: {}", issue.state());
+
+    let tags: Vec<String> = issue.tags().cloned().map(|t| t.into()).collect();
+    term::info!("tags: {}", tags.join(", "));
+
+    let assignees: Vec<String> = issue.assigned().map(|a| a.to_string()).collect();
+    term::info!("assignees: {}", assignees.join(", "));
+
+    term::info!("{}", issue.description().unwrap_or(""));
     Ok(())
 }
