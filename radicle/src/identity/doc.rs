@@ -1,6 +1,6 @@
 mod id;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::fmt::Write as _;
 use std::marker::PhantomData;
@@ -122,7 +122,7 @@ pub struct DocAt {
     /// The parsed document.
     pub doc: Doc<Verified>,
     /// The validated commit signatures.
-    pub sigs: Vec<(PublicKey, Signature)>,
+    pub sigs: HashMap<PublicKey, Signature>,
 }
 
 /// An identity document.

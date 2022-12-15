@@ -121,7 +121,7 @@ impl Identity<Untrusted> {
             let quorum = untrusted
                 .sigs
                 .iter()
-                .filter(|(key, _)| trusted.delegates.iter().any(|d| &**d == key))
+                .filter(|(key, _)| trusted.delegates.iter().any(|d| **d == **key))
                 .count();
             if quorum < trusted.threshold {
                 return Err(IdentityError::ThresholdNotReached(

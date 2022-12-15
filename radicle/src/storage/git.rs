@@ -840,10 +840,10 @@ pub mod trailers {
         Signature(#[from] SignatureError),
     }
 
-    pub fn parse_signatures(msg: &str) -> Result<Vec<(PublicKey, Signature)>, Error> {
+    pub fn parse_signatures(msg: &str) -> Result<HashMap<PublicKey, Signature>, Error> {
         let trailers =
             git2::message_trailers_strs(msg).map_err(|_| Error::SignatureTrailerFormat)?;
-        let mut signatures = Vec::with_capacity(trailers.len());
+        let mut signatures = HashMap::with_capacity(trailers.len());
 
         for (key, val) in trailers.iter() {
             if key == SIGNATURE_TRAILER {
@@ -851,7 +851,7 @@ pub mod trailers {
                     let pk = PublicKey::from_str(pk)?;
                     let sig = Signature::from_str(sig)?;
 
-                    signatures.push((pk, sig));
+                    signatures.insert(pk, sig);
                 } else {
                     return Err(Error::SignatureTrailerFormat);
                 }
