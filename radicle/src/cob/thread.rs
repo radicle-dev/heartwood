@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 
 use radicle_crdt as crdt;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::cob;
 use crate::cob::common::{Reaction, Timestamp};
@@ -11,34 +11,90 @@ use crate::cob::{ActorId, Op, OpId};
 use crate::crypto::Signer;
 
 use crdt::clock::Lamport;
-use crdt::gmap::GMap;
-use crdt::lwwset::LWWSet;
-use crdt::redactable::Redactable;
-use crdt::Semilattice;
+use crdt::{GMap, LWWSet, Max, Redactable, Semilattice};
+
+/// Error applying an operation onto a state.
+#[derive(Error, Debug)]
+pub enum OpError {
+    /// Causal dependency missing.
+    ///
+    /// This error indicates that the operations are not being applied
+    /// in causal order, which is a requirement for this CRDT.
+    ///
+    /// For example, this can occur if an operation references anothern operation
+    /// that hasn't happened yet.
+    #[error("causal dependency {0:?} missing")]
+    Missing(OpId),
+}
 
 /// Identifies a comment.
 pub type CommentId = OpId;
 
+/// A comment edit is just some text and an edit time.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Edit {
+    /// When the edit was made.
+    pub timestamp: Timestamp,
+    /// Edit contents. Replaces previous edits.
+    pub body: String,
+}
+
 /// A comment on a discussion thread.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Comment {
     /// The comment body.
-    pub body: String,
+    edits: GMap<Lamport, Max<Edit>>,
     /// Comment this is a reply to.
     /// Should always be set, except for the root comment.
-    pub reply_to: Option<CommentId>,
-    /// When the comment was authored.
-    pub timestamp: Timestamp,
+    reply_to: Option<CommentId>,
 }
 
 impl Comment {
     /// Create a new comment.
     pub fn new(body: String, reply_to: Option<CommentId>, timestamp: Timestamp) -> Self {
+        let edit = Edit { body, timestamp };
+
         Self {
-            body,
+            edits: GMap::singleton(Lamport::initial(), Max::from(edit)),
             reply_to,
-            timestamp,
         }
+    }
+
+    /// Get the comment body. If there are multiple edits, gets the value at the latest edit.
+    pub fn body(&self) -> &str {
+        // SAFETY: There is always at least one edit. This is guaranteed by the [`Comment`]
+        // constructor.
+        #[allow(clippy::unwrap_used)]
+        self.edits.values().last().unwrap().get().body.as_str()
+    }
+
+    /// Get the comment timestamp, which is the time of the *original* edit. To get the timestamp
+    /// of the latest edit, use the [`Comment::edits`] function.
+    pub fn timestamp(&self) -> Timestamp {
+        // SAFETY: There is always at least one edit. This is guaranteed by the [`Comment`]
+        // constructor.
+        #[allow(clippy::unwrap_used)]
+        self.edits
+            .first_key_value()
+            .map(|(_, v)| v)
+            .unwrap()
+            .get()
+            .timestamp
+    }
+
+    /// Return the comment this is a reply to. Returns nothing if this is the root comment.
+    pub fn reply_to(&self) -> Option<CommentId> {
+        self.reply_to
+    }
+
+    /// Return the ordered list of edits for this comment, including the original version.
+    pub fn edits(&self) -> impl Iterator<Item = &Edit> {
+        self.edits.values().map(Max::get)
+    }
+
+    /// Add an edit.
+    pub fn edit(&mut self, clock: Lamport, body: String, timestamp: Timestamp) {
+        self.edits.insert(clock, Edit { body, timestamp }.into())
     }
 }
 
@@ -65,11 +121,13 @@ pub enum Action {
         /// Should be the root [`CommentId`] if it's a top-level comment.
         reply_to: Option<OpId>,
     },
+    /// Edit a comment.
+    Edit { id: CommentId, body: String },
     /// Redact a change. Not all changes can be redacted.
-    Redact { id: OpId },
+    Redact { id: CommentId },
     /// React to a change.
     React {
-        to: OpId,
+        to: CommentId,
         reaction: Reaction,
         active: bool,
     },
@@ -97,17 +155,17 @@ impl Semilattice for Thread {
     }
 }
 
-impl Deref for Thread {
-    type Target = BTreeMap<CommentId, Redactable<Comment>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.comments
-    }
-}
-
 impl Thread {
     pub fn is_initialized(&self) -> bool {
         !self.comments.is_empty()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.comments.len()
     }
 
     pub fn comment(&self, id: &CommentId) -> Option<&Comment> {
@@ -150,7 +208,7 @@ impl Thread {
             .map(|(a, r)| (a, r))
     }
 
-    pub fn apply(&mut self, ops: impl IntoIterator<Item = Op<Action>>) {
+    pub fn apply(&mut self, ops: impl IntoIterator<Item = Op<Action>>) -> Result<(), OpError> {
         for op in ops.into_iter() {
             let id = op.id();
 
@@ -160,6 +218,13 @@ impl Thread {
                         id,
                         Redactable::Present(Comment::new(body, reply_to, op.timestamp)),
                     );
+                }
+                Action::Edit { id, body } => {
+                    if let Some(Redactable::Present(comment)) = self.comments.get_mut(&id) {
+                        comment.edit(op.clock, body, op.timestamp);
+                    } else {
+                        return Err(OpError::Missing(id));
+                    }
                 }
                 Action::Redact { id } => {
                     self.comments.insert(id, Redactable::Redacted);
@@ -181,6 +246,7 @@ impl Thread {
                 }
             }
         }
+        Ok(())
     }
 
     pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &Comment)> + '_ {
@@ -279,11 +345,13 @@ mod tests {
         fn from_history(history: &cob::History) -> Result<(Self, Lamport), cob::store::Error> {
             let obj = history.traverse(Thread::default(), |mut acc, entry| {
                 if let Ok(Ops(ops)) = Ops::try_from(entry) {
-                    acc.apply(ops);
-                    ControlFlow::Continue(acc)
+                    if acc.apply(ops).is_err() {
+                        return ControlFlow::Break(acc);
+                    }
                 } else {
-                    ControlFlow::Break(acc)
+                    return ControlFlow::Break(acc);
                 }
+                ControlFlow::Continue(acc)
             });
             Ok((obj, history.clock().into()))
         }
@@ -412,8 +480,8 @@ mod tests {
         let (_, comment1) = thread.comments().nth(1).unwrap();
 
         assert_eq!(thread.comments().count(), 2);
-        assert_eq!(comment0.body, "First comment");
-        assert_eq!(comment1.body, "Third comment"); // Second comment was redacted.
+        assert_eq!(comment0.body(), "First comment");
+        assert_eq!(comment1.body(), "Third comment"); // Second comment was redacted.
     }
 
     #[test]
@@ -430,7 +498,9 @@ mod tests {
         let a2 = alice.comment("Second comment", Some(a0.id()));
 
         let mut expected = Thread::default();
-        expected.apply([a0.clone(), a1.clone(), a2.clone()]);
+        expected
+            .apply([a0.clone(), a1.clone(), a2.clone()])
+            .unwrap();
 
         let (id, _, _) = store
             .create("Thread created", a0.action, &alice.signer)
@@ -525,13 +595,13 @@ mod tests {
             let [p1, p2, p3] = log.permutations;
 
             let mut t1 = t.clone();
-            t1.apply(p1);
+            t1.apply(p1).unwrap();
 
             let mut t2 = t.clone();
-            t2.apply(p2);
+            t2.apply(p2).unwrap();
 
             let mut t3 = t;
-            t3.apply(p3);
+            t3.apply(p3).unwrap();
 
             assert_eq!(t1, t2);
             assert_eq!(t2, t3);

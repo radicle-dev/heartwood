@@ -382,7 +382,7 @@ pub fn comment_select(issue: &Issue) -> Option<CommentId> {
         .items(
             &issue
                 .comments()
-                .map(|(_, i)| i.body.clone())
+                .map(|(_, i)| i.body().to_owned())
                 .collect::<Vec<_>>(),
         )
         .default(0)

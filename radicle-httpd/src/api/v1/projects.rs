@@ -395,10 +395,10 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
         for (comment_id, comment) in iter {
             comments.push(Comment {
                 author: Author { id: comment_id.1 },
-                body: comment.body.to_owned(),
+                body: comment.body().to_owned(),
                 reactions: [],
-                timestamp: comment.timestamp,
-                reply_to: comment.reply_to,
+                timestamp: comment.timestamp(),
+                reply_to: comment.reply_to(),
             });
         }
 

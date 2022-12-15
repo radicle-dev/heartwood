@@ -56,6 +56,9 @@ pub enum ApplyError {
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
     Missing(OpId),
+    /// Error applying an op to the patch thread.
+    #[error("thread apply failed: {0}")]
+    Thread(#[from] thread::OpError),
 }
 
 /// Error updating or creating patches.
@@ -302,7 +305,7 @@ impl Patch {
                             author: op.author,
                             clock: op.clock,
                             timestamp,
-                        }]);
+                        }])?;
                     } else {
                         return Err(ApplyError::Missing(revision));
                     }
@@ -373,7 +376,7 @@ impl Revision {
 
     pub fn description(&self) -> Option<&str> {
         let (_, comment) = self.discussion.root()?;
-        Some(comment.body.as_str())
+        Some(comment.body())
     }
 }
 

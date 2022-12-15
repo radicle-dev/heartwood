@@ -34,6 +34,8 @@ pub type IssueId = ObjectId;
 pub enum Error {
     #[error("apply failed")]
     Apply,
+    #[error("thread apply failed: {0}")]
+    Thread(#[from] thread::OpError),
     #[error("store: {0}")]
     Store(#[from] store::Error),
 }
@@ -150,7 +152,7 @@ impl Issue {
     }
 
     pub fn description(&self) -> Option<&str> {
-        self.thread.comments().next().map(|(_, c)| c.body.as_str())
+        self.thread.comments().next().map(|(_, c)| c.body())
     }
 
     pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment)> {
@@ -180,7 +182,7 @@ impl Issue {
                         author: op.author,
                         clock: op.clock,
                         timestamp: op.timestamp,
-                    }]);
+                    }])?;
                 }
             }
         }
@@ -537,8 +539,8 @@ mod test {
         let (_, reply1) = &issue.replies(&root).nth(0).unwrap();
         let (_, reply2) = &issue.replies(&root).nth(1).unwrap();
 
-        assert_eq!(reply1.body, "Hi hi hi.");
-        assert_eq!(reply2.body, "Ha ha ha.");
+        assert_eq!(reply1.body(), "Hi hi hi.");
+        assert_eq!(reply2.body(), "Ha ha ha.");
 
         issue.comment("Re: Hi.", c1, &signer).unwrap();
         issue.comment("Re: Ha.", c2, &signer).unwrap();
@@ -546,11 +548,11 @@ mod test {
         issue.comment("Re: Ha. Ha. Ha.", c2, &signer).unwrap();
 
         let issue = issues.get(&id).unwrap().unwrap();
-        assert_eq!(&issue.replies(&c1).nth(0).unwrap().1.body, "Re: Hi.");
-        assert_eq!(&issue.replies(&c2).nth(0).unwrap().1.body, "Re: Ha.");
-        assert_eq!(&issue.replies(&c2).nth(1).unwrap().1.body, "Re: Ha. Ha.");
+        assert_eq!(issue.replies(&c1).nth(0).unwrap().1.body(), "Re: Hi.");
+        assert_eq!(issue.replies(&c2).nth(0).unwrap().1.body(), "Re: Ha.");
+        assert_eq!(issue.replies(&c2).nth(1).unwrap().1.body(), "Re: Ha. Ha.");
         assert_eq!(
-            &issue.replies(&c2).nth(2).unwrap().1.body,
+            issue.replies(&c2).nth(2).unwrap().1.body(),
             "Re: Ha. Ha. Ha."
         );
     }
@@ -600,11 +602,11 @@ mod test {
         let ((_, a1), c1) = &issue.comments().nth(1).unwrap();
         let ((_, a2), c2) = &issue.comments().nth(2).unwrap();
 
-        assert_eq!(&c0.body, "Blah blah blah.");
+        assert_eq!(c0.body(), "Blah blah blah.");
         assert_eq!(a0, &author);
-        assert_eq!(&c1.body, "Ho ho ho.");
+        assert_eq!(c1.body(), "Ho ho ho.");
         assert_eq!(a1, &author);
-        assert_eq!(&c2.body, "Ha ha ha.");
+        assert_eq!(c2.body(), "Ha ha ha.");
         assert_eq!(a2, &author);
     }
 
