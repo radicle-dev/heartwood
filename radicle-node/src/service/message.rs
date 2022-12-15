@@ -294,7 +294,7 @@ impl Announcement {
     /// Verify this announcement's signature.
     pub fn verify(&self) -> bool {
         let msg = wire::serialize(&self.message);
-        self.node.verify(&msg, &self.signature).is_ok()
+        self.node.verify(msg, &self.signature).is_ok()
     }
 
     pub fn matches(&self, filter: &Filter) -> bool {

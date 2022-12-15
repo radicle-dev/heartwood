@@ -122,10 +122,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
     args.push("rad"); // Push to "rad" remote.
 
-    term::subcommand(&format!("git {}", args.join(" ")));
+    term::subcommand(format!("git {}", args.join(" ")));
 
     // Push to storage.
-    match git::run::<_, _, &str, &str>(&cwd, args, []) {
+    match git::run::<_, _, &str, &str>(cwd, args, []) {
         Ok(output) => term::blob(output),
         Err(err) => return Err(err.into()),
     }

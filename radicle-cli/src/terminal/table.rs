@@ -14,20 +14,22 @@ pub struct Table<const W: usize> {
     opts: TableOptions,
 }
 
+impl<const W: usize> Default for Table<W> {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            widths: [0; W],
+            opts: TableOptions::default(),
+        }
+    }
+}
+
 impl<const W: usize> Table<W> {
     pub fn new(opts: TableOptions) -> Self {
         Self {
             rows: Vec::new(),
             widths: [0; W],
             opts,
-        }
-    }
-
-    pub fn default() -> Self {
-        Self {
-            rows: Vec::new(),
-            widths: [0; W],
-            opts: TableOptions::default(),
         }
     }
 

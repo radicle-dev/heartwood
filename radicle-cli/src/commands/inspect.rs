@@ -150,7 +150,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         let repo = storage.repository(id)?;
         let head = Doc::<Untrusted>::head(signer.public_key(), &repo)?;
         let history = repo.revwalk(head)?.collect::<Vec<_>>();
-        let revision = history.len() as usize;
+        let revision = history.len();
 
         for (counter, oid) in history.into_iter().rev().enumerate() {
             let oid = oid?.into();

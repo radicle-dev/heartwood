@@ -392,7 +392,7 @@ mod tests {
         let (_, head) = project_repo.head().unwrap();
 
         // Test canonical refs.
-        assert_eq!(refs.head(&component!("master")).unwrap(), head);
+        assert_eq!(refs.head(component!("master")).unwrap(), head);
         assert_eq!(project_repo.raw().refname_to_id("HEAD").unwrap(), *head);
         assert_eq!(
             project_repo

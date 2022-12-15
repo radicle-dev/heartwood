@@ -326,7 +326,7 @@ mod test {
     fn test_empty() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("cache");
-        let cache = Book::open(&path).unwrap();
+        let cache = Book::open(path).unwrap();
 
         assert!(cache.is_empty().unwrap());
     }

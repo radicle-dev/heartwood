@@ -1059,7 +1059,7 @@ mod tests {
         let addr = socket.local_addr().unwrap();
         let source_path = tmp.path().join("source");
         let target_path = tmp.path().join("target");
-        let (source, _) = fixtures::repository(&source_path);
+        let (source, _) = fixtures::repository(source_path);
 
         transport::local::register(storage.clone());
 

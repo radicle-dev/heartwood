@@ -59,7 +59,7 @@ pub struct Profile {
 impl Profile {
     pub fn init(home: impl AsRef<Path>, passphrase: &str) -> Result<Self, Error> {
         let home = home.as_ref().to_path_buf();
-        let storage = Storage::open(&home.join("storage"))?;
+        let storage = Storage::open(home.join("storage"))?;
         let keystore = Keystore::new(&home.join("keys"));
         let public_key = keystore.init("radicle", passphrase)?;
 
@@ -75,7 +75,7 @@ impl Profile {
 
     pub fn load() -> Result<Self, Error> {
         let home = self::home()?;
-        let storage = Storage::open(&home.join("storage"))?;
+        let storage = Storage::open(home.join("storage"))?;
         let keystore = Keystore::new(&home.join("keys"));
         let public_key = keystore
             .public_key()?

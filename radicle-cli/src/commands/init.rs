@@ -155,7 +155,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         if path == cwd {
             term::format::highlight(".")
         } else {
-            term::format::highlight(&path.display())
+            term::format::highlight(path.display())
         }
     ));
 
@@ -271,7 +271,7 @@ pub fn setup_signing(
         ));
         true
     } else if interactive.yes() {
-        term::confirm(&format!(
+        term::confirm(format!(
             "Configure 🌱 signing key {} in local checkout?",
             term::format::tertiary(key),
         ))
@@ -296,7 +296,7 @@ pub fn setup_signing(
 
                 if ssh_keys.contains(&ssh_key) {
                     term::success!("Signing key is already in {} file", gitsigners);
-                } else if term::confirm(&format!("Add signing key to {}?", gitsigners)) {
+                } else if term::confirm(format!("Add signing key to {}?", gitsigners)) {
                     git::add_gitsigners(repo, [node_id])?;
                 }
             }

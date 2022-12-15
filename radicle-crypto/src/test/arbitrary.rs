@@ -25,6 +25,6 @@ impl Arbitrary for PublicKey {
 impl Arbitrary for hash::Digest {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let bytes: Vec<u8> = Arbitrary::arbitrary(g);
-        hash::Digest::new(&bytes)
+        hash::Digest::new(bytes)
     }
 }

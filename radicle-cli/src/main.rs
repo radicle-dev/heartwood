@@ -23,7 +23,7 @@ fn main() {
         Ok(_) => process::exit(0),
         Err(err) => {
             if let Some(err) = err {
-                term::error(&format!("Error: rad: {}", err));
+                term::error(format!("Error: rad: {}", err));
             }
             process::exit(1);
         }

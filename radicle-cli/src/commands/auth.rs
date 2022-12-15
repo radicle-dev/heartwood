@@ -85,13 +85,13 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 
     term::success!(
         "Profile {} created.",
-        term::format::highlight(&profile.id().to_string())
+        term::format::highlight(profile.id().to_string())
     );
 
     term::blank();
     term::info!(
         "Your radicle Node ID is {}. This identifies your device.",
-        term::format::highlight(&profile.id().to_string())
+        term::format::highlight(profile.id().to_string())
     );
 
     term::blank();

@@ -76,7 +76,7 @@ impl Refs {
         let refs = self;
         let msg = refs.canonical();
 
-        match signer.verify(&msg, &signature) {
+        match signer.verify(msg, &signature) {
             Ok(()) => Ok(SignedRefs {
                 refs,
                 signature,
@@ -230,7 +230,7 @@ impl SignedRefs<Unverified> {
     pub fn verify(&self, signer: &PublicKey) -> Result<(), crypto::Error> {
         let canonical = self.refs.canonical();
 
-        match signer.verify(&canonical, &self.signature) {
+        match signer.verify(canonical, &self.signature) {
             Ok(()) => Ok(()),
             Err(e) => Err(e),
         }

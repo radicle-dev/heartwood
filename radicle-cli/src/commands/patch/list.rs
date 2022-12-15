@@ -39,11 +39,11 @@ pub fn run(
         }
     }
     term::blank();
-    term::print(&term::format::badge_positive("YOU PROPOSED"));
+    term::print(term::format::badge_positive("YOU PROPOSED"));
 
     if own.is_empty() {
         term::blank();
-        term::print(&term::format::italic("Nothing to show."));
+        term::print(term::format::italic("Nothing to show."));
     } else {
         for (id, patch) in &mut own {
             term::blank();
@@ -52,11 +52,11 @@ pub fn run(
         }
     }
     term::blank();
-    term::print(&term::format::badge_secondary("OTHERS PROPOSED"));
+    term::print(term::format::badge_secondary("OTHERS PROPOSED"));
 
     if other.is_empty() {
         term::blank();
-        term::print(&term::format::italic("Nothing to show."));
+        term::print(term::format::italic("Nothing to show."));
     } else {
         for (id, patch) in &mut other {
             term::blank();

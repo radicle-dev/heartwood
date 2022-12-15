@@ -139,7 +139,7 @@ pub fn setup_remotes(setup: project::SetupRemote, remotes: &[NodeId]) -> anyhow:
             term::success!("Remote {} set", term::format::highlight(remote));
             term::success!(
                 "Remote-tracking branch {} created for {}",
-                term::format::highlight(&branch),
+                term::format::highlight(branch),
                 term::format::tertiary(term::format::node(remote_id))
             );
         }

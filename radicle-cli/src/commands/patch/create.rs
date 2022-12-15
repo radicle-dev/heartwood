@@ -177,11 +177,11 @@ pub fn run(
     term::info!(
         "{}/{} ({}) <- {}/{} ({})",
         term::format::dim(target_peer.id),
-        term::format::highlight(&project.default_branch.to_string()),
-        term::format::secondary(&term::format::oid(*target_oid)),
+        term::format::highlight(project.default_branch.to_string()),
+        term::format::secondary(term::format::oid(*target_oid)),
         term::format::dim(term::format::node(patches.public_key())),
-        term::format::highlight(&head_branch.to_string()),
-        term::format::secondary(&term::format::oid(head_oid)),
+        term::format::highlight(head_branch.to_string()),
+        term::format::secondary(term::format::oid(head_oid)),
     );
 
     // TODO: Test case where the target branch has been re-written passed the merge-base, since the fork was created
@@ -223,7 +223,7 @@ pub fn run(
     }
 
     term::blank();
-    term::print(&term::format::dim(format!(
+    term::print(term::format::dim(format!(
         "╰{}",
         "─".repeat(term::text_width(title_pretty) - 1)
     )));
