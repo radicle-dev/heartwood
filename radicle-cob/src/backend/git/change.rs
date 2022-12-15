@@ -11,6 +11,7 @@ use git_ext::Oid;
 use git_trailers::OwnedTrailer;
 use nonempty::NonEmpty;
 
+use crate::git;
 use crate::history::entry::Timestamp;
 use crate::{
     change::{self, store, Change},
@@ -235,13 +236,23 @@ where
 
     {
         let author = repo.signature()?;
-        let timestamp = author.when().seconds() as Timestamp;
+        let mut timestamp = author.when().seconds();
+
         let mut headers = commit::Headers::new();
         headers.push(
             "gpgsig",
             &String::from_utf8(crypto::ssh::ExtendedSignature::from(signature).to_armored())?,
         );
-        let author = commit::Author::try_from(&author)?;
+        let mut author = commit::Author::try_from(&author)?;
+
+        #[cfg(debug_assertions)]
+        if let Ok(s) = std::env::var(git::RAD_COMMIT_TIME) {
+            if let Ok(v) = s.trim().parse::<i64>() {
+                author.time = git_commit::author::Time::new(v, 0);
+                timestamp = v;
+            }
+        }
+
         let oid = Commit::new(
             tree.id(),
             parents,
@@ -253,7 +264,7 @@ where
         )
         .write(repo)?;
 
-        Ok((Oid::from(oid), timestamp))
+        Ok((Oid::from(oid), timestamp as u64))
     }
 }
 
