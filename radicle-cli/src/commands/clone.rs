@@ -97,7 +97,7 @@ pub fn clone(id: Id, _interactive: Interactive, ctx: impl term::Context) -> anyh
         .map_err(|_e| anyhow!("couldn't load project {} from local state", id))?;
     let proj = doc.project()?;
 
-    let path = Path::new(&proj.name);
+    let path = Path::new(proj.name());
     let repo = rad::checkout(id, profile.id(), path, &profile.storage)?;
     let delegates = doc
         .delegates
@@ -105,7 +105,7 @@ pub fn clone(id: Id, _interactive: Interactive, ctx: impl term::Context) -> anyh
         .map(|d| **d)
         .filter(|id| id != profile.id())
         .collect::<Vec<_>>();
-    let default_branch = proj.default_branch.clone();
+    let default_branch = proj.default_branch().clone();
 
     // Setup tracking for project delegates.
     setup_remotes(

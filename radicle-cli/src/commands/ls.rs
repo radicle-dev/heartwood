@@ -3,7 +3,6 @@ use std::ffi::OsString;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
-use radicle::prelude::*;
 use radicle::storage::{ReadRepository, WriteStorage};
 
 pub const HELP: Help = Help {
@@ -50,13 +49,13 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     storage.projects()?.into_iter().for_each(|id| {
         let Ok(repo) = storage.repository(id) else { return };
         let Ok((_, head)) = repo.head() else { return };
-        let Ok(Project { name, description, .. }) = repo.project_of(profile.id()) else { return };
+        let Ok(proj) = repo.project_of(profile.id()) else { return };
         let head = term::format::oid(head);
         table.push([
-            term::format::bold(name),
+            term::format::bold(proj.name()),
             term::format::tertiary(id),
             term::format::secondary(head),
-            term::format::italic(description),
+            term::format::italic(proj.description()),
         ]);
     });
     table.render();

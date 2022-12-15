@@ -194,11 +194,12 @@ mod test {
         // want to have to create a repository object twice. Perhaps there should
         // be a way of getting a project from a repo.
         let mut doc = storage.get(alice.public_key(), id).unwrap().unwrap();
-        let mut prj = doc.project().unwrap();
+        let prj = doc.project().unwrap();
         let repo = storage.repository(id).unwrap();
 
         // Make a change to the description and sign it.
-        prj.description += "!";
+        let desc = prj.description().to_owned() + "!";
+        let prj = prj.update(None, desc, None).unwrap();
         doc.payload.insert(PayloadId::project(), prj.clone().into());
         doc.sign(&alice)
             .and_then(|(_, sig)| {
@@ -241,7 +242,8 @@ mod test {
             .unwrap();
 
         // Update description again with signatures by Eve and Bob.
-        prj.description += "?";
+        let desc = prj.description().to_owned() + "?";
+        let prj = prj.update(None, desc, None).unwrap();
         doc.payload.insert(PayloadId::project(), prj.into());
         let (current, head) = doc
             .sign(&bob)
@@ -271,6 +273,6 @@ mod test {
         assert_eq!(identity.doc, doc);
 
         let doc = storage.get(alice.public_key(), id).unwrap().unwrap();
-        assert_eq!(doc.project().unwrap().description, "Acme's repository!?");
+        assert_eq!(doc.project().unwrap().description(), "Acme's repository!?");
     }
 }

@@ -93,11 +93,7 @@ impl Arbitrary for Project {
             .try_into()
             .unwrap();
 
-        Project {
-            name,
-            description,
-            default_branch,
-        }
+        Project::new(name, description, default_branch).unwrap()
     }
 }
 

@@ -73,13 +73,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     if untrack(id, &profile)? {
         term::success!(
             "Tracking relationships for {} ({}) removed",
-            term::format::highlight(project.name),
+            term::format::highlight(project.name()),
             &id.to_human()
         );
     } else {
         term::info!(
             "Tracking relationships for {} ({}) doesn't exist",
-            term::format::highlight(project.name),
+            term::format::highlight(project.name()),
             &id.to_human()
         );
     }

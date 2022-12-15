@@ -47,7 +47,7 @@ pub fn run(
 
     term::headline(&format!(
         "🌱 Creating patch for {}",
-        term::format::highlight(&project.name)
+        term::format::highlight(project.name())
     ));
 
     let signer = term::signer(profile)?;
@@ -92,7 +92,7 @@ pub fn run(
     // branch, as well as your own (eg. `rad/master`).
     let mut spinner = term::spinner("Analyzing remotes...");
     let targets =
-        common::find_merge_targets(&head_oid, project.default_branch.as_refstr(), storage)?;
+        common::find_merge_targets(&head_oid, project.default_branch().as_refstr(), storage)?;
 
     // eg. `refs/namespaces/<peer>/refs/heads/master`
     let (target_peer, target_oid) = match targets.not_merged.as_slice() {
@@ -177,7 +177,7 @@ pub fn run(
     term::info!(
         "{}/{} ({}) <- {}/{} ({})",
         term::format::dim(target_peer.id),
-        term::format::highlight(project.default_branch.to_string()),
+        term::format::highlight(project.default_branch().to_string()),
         term::format::secondary(term::format::oid(*target_oid)),
         term::format::dim(term::format::node(patches.public_key())),
         term::format::highlight(head_branch.to_string()),

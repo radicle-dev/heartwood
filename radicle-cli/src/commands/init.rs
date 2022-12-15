@@ -205,7 +205,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
 
             spinner.message(format!(
                 "Project {} created",
-                term::format::highlight(&proj.name)
+                term::format::highlight(proj.name())
             ));
             spinner.finish();
 
@@ -214,13 +214,13 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 term::blank();
             }
 
-            if options.set_upstream || git::branch_remote(&repo, &proj.default_branch).is_err() {
+            if options.set_upstream || git::branch_remote(&repo, proj.default_branch()).is_err() {
                 // Setup eg. `master` -> `rad/master`
                 radicle::git::set_upstream(
                     &repo,
                     &radicle::rad::REMOTE_NAME,
-                    &proj.default_branch,
-                    &radicle::git::refs::workdir::branch(&proj.default_branch),
+                    proj.default_branch(),
+                    &radicle::git::refs::workdir::branch(proj.default_branch()),
                 )?;
             }
 

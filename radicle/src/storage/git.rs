@@ -520,7 +520,7 @@ impl ReadRepository for Repository {
         let (_, doc) = self.project_identity()?;
         let doc = doc.verified()?;
         let project = doc.project()?;
-        let branch_ref = Qualified::from(lit::refs_heads(&project.default_branch));
+        let branch_ref = Qualified::from(lit::refs_heads(&project.default_branch()));
         let raw = self.raw();
 
         let mut heads = Vec::new();

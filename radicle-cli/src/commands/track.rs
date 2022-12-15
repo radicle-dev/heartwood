@@ -98,7 +98,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     term::info!(
         "Establishing 🌱 tracking relationship for {}",
-        term::format::highlight(project.name)
+        term::format::highlight(project.name())
     );
     term::blank();
 

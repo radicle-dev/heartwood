@@ -33,6 +33,8 @@ pub enum InitError {
     Doc(#[from] DocError),
     #[error("project: {0}")]
     Project(#[from] storage::git::ProjectError),
+    #[error("project payload: {0}")]
+    ProjectPayload(String),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("i/o: {0}")]
@@ -59,11 +61,19 @@ pub fn init<G: Signer>(
     // TODO: Better error when project id already exists in storage, but remote doesn't.
     let pk = signer.public_key();
     let delegate = identity::Did::from(*pk);
-    let proj = Project {
-        name: name.to_owned(),
-        description: description.to_owned(),
-        default_branch: default_branch.clone(),
-    };
+    let proj = Project::new(
+        name.to_owned(),
+        description.to_owned(),
+        default_branch.clone(),
+    )
+    .map_err(|errs| {
+        InitError::ProjectPayload(
+            errs.into_iter()
+                .map(|err| err.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+        )
+    })?;
     let doc = identity::Doc::initial(proj, delegate).verified()?;
     let (project, _) = Repository::init(&doc, pk, storage, signer)?;
     let url = git::Url::from(project.id).with_namespace(*pk);
@@ -129,10 +139,12 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     let repository = storage.repository(proj)?;
 
     let raw = repository.raw();
-    let remote_head =
-        raw.refname_to_id(&git::refs::storage::branch(remote, &project.default_branch))?;
+    let remote_head = raw.refname_to_id(&git::refs::storage::branch(
+        remote,
+        project.default_branch(),
+    ))?;
     raw.reference(
-        &git::refs::storage::branch(me, &project.default_branch),
+        &git::refs::storage::branch(me, project.default_branch()),
         remote_head,
         false,
         &format!("creating default branch for {me}"),
@@ -271,9 +283,9 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     let project = doc.project()?;
 
     let mut opts = git2::RepositoryInitOptions::new();
-    opts.no_reinit(true).description(&project.description);
+    opts.no_reinit(true).description(project.description());
 
-    let repo = git2::Repository::init_opts(path.as_ref().join(&project.name), &opts)?;
+    let repo = git2::Repository::init_opts(path.as_ref().join(project.name()), &opts)?;
     let url = git::Url::from(proj).with_namespace(*remote);
 
     // Configure and fetch all refs from remote.
@@ -283,17 +295,17 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     {
         // Setup default branch.
         let remote_head_ref =
-            git::refs::workdir::remote_branch(&REMOTE_NAME, &project.default_branch);
+            git::refs::workdir::remote_branch(&REMOTE_NAME, project.default_branch());
 
         let remote_head_commit = repo.find_reference(&remote_head_ref)?.peel_to_commit()?;
-        let _ = repo.branch(&project.default_branch, &remote_head_commit, true)?;
+        let _ = repo.branch(project.default_branch(), &remote_head_commit, true)?;
 
         // Setup remote tracking for default branch.
         git::set_upstream(
             &repo,
             &REMOTE_NAME,
-            &project.default_branch,
-            &git::refs::workdir::branch(&project.default_branch),
+            project.default_branch(),
+            &git::refs::workdir::branch(project.default_branch()),
         )?;
     }
 
@@ -403,9 +415,9 @@ mod tests {
         );
 
         assert_eq!(remotes[&public_key].refs, refs);
-        assert_eq!(project.name, "acme");
-        assert_eq!(project.description, "Acme's repo");
-        assert_eq!(project.default_branch, git::refname!("master"));
+        assert_eq!(project.name(), "acme");
+        assert_eq!(project.description(), "Acme's repo");
+        assert_eq!(project.default_branch(), &git::refname!("master"));
         assert_eq!(doc.delegates.first(), &Did::from(public_key));
     }
 

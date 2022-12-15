@@ -84,7 +84,7 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
         .identity_of(profile.id())
         .context("project could not be found in local storage")?;
     let payload = doc.project()?;
-    let path = PathBuf::from(payload.name.clone());
+    let path = PathBuf::from(payload.name().clone());
 
     if path.exists() {
         anyhow::bail!("the local path {:?} already exists", path.as_path());
@@ -93,7 +93,7 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     term::headline(&format!(
         "Initializing local checkout for 🌱 {} ({})",
         term::format::highlight(options.id),
-        payload.name,
+        payload.name(),
     ));
 
     let spinner = term::spinner("Performing checkout...");
@@ -119,7 +119,7 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     setup_remotes(
         project::SetupRemote {
             project: id,
-            default_branch: payload.default_branch,
+            default_branch: payload.default_branch().clone(),
             repo: &repo,
             fetch: true,
             tracking: true,
