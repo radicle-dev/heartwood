@@ -315,6 +315,7 @@ impl<G> DerefMut for Actor<G> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::ops::ControlFlow;
     use std::str::FromStr;
     use std::{array, iter};
@@ -381,9 +382,9 @@ mod tests {
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
             let root = (Lamport::initial(), author);
             let gen =
-                WeightedGenerator::<(Lamport, Action), (Lamport, Vec<OpId>)>::new(rng.clone())
-                    .variant(3, |(clock, changes), rng| {
-                        changes.push((clock.tick(), author));
+                WeightedGenerator::<(Lamport, Action), (Lamport, BTreeSet<OpId>)>::new(rng.clone())
+                    .variant(3, |(clock, comments), rng| {
+                        comments.insert((clock.tick(), author));
 
                         Some((
                             *clock,
@@ -393,11 +394,25 @@ mod tests {
                             },
                         ))
                     })
-                    .variant(2, |(clock, changes), rng| {
-                        if changes.is_empty() {
+                    .variant(2, |(clock, comments), rng| {
+                        if comments.is_empty() {
                             return None;
                         }
-                        let to = changes[rng.usize(..changes.len())];
+                        let id = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
+
+                        Some((
+                            *clock,
+                            Action::Edit {
+                                id,
+                                body: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
+                            },
+                        ))
+                    })
+                    .variant(2, |(clock, comments), rng| {
+                        if comments.is_empty() {
+                            return None;
+                        }
+                        let to = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
 
                         Some((
                             clock.tick(),
@@ -408,16 +423,17 @@ mod tests {
                             },
                         ))
                     })
-                    .variant(2, |(clock, changes), rng| {
-                        if changes.is_empty() {
+                    .variant(2, |(clock, comments), rng| {
+                        if comments.is_empty() {
                             return None;
                         }
-                        let id = changes[rng.usize(..changes.len())];
+                        let id = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
+                        comments.remove(&id);
 
                         Some((clock.tick(), Action::Redact { id }))
                     });
 
-            let mut changes = vec![Op {
+            let mut ops = vec![Op {
                 action: Action::Comment {
                     body: String::default(),
                     reply_to: None,
@@ -430,7 +446,7 @@ mod tests {
 
             for (clock, action) in gen.take(g.size()) {
                 let timestamp = Timestamp::now() + rng.u64(..60);
-                changes.push(Op {
+                ops.push(Op {
                     action,
                     author,
                     clock,
@@ -439,8 +455,8 @@ mod tests {
             }
 
             for p in &mut permutations {
-                *p = changes.clone();
-                rng.shuffle(&mut changes);
+                *p = ops.clone();
+                rng.shuffle(&mut ops);
             }
 
             Changes { permutations }
@@ -595,13 +611,19 @@ mod tests {
             let [p1, p2, p3] = log.permutations;
 
             let mut t1 = t.clone();
-            t1.apply(p1).unwrap();
+            if t1.apply(p1).is_err() {
+                return TestResult::discard();
+            }
 
             let mut t2 = t.clone();
-            t2.apply(p2).unwrap();
+            if t2.apply(p2).is_err() {
+                return TestResult::discard();
+            }
 
             let mut t3 = t;
-            t3.apply(p3).unwrap();
+            if t3.apply(p3).is_err() {
+                return TestResult::discard();
+            }
 
             assert_eq!(t1, t2);
             assert_eq!(t2, t3);
