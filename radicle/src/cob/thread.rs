@@ -297,6 +297,14 @@ impl<G: Signer> Actor<G> {
     pub fn redact(&mut self, id: OpId) -> Op<Action> {
         self.op(Action::Redact { id })
     }
+
+    /// Edit a comment.
+    pub fn edit(&mut self, id: OpId, body: &str) -> Op<Action> {
+        self.op(Action::Edit {
+            id,
+            body: body.to_owned(),
+        })
+    }
 }
 
 impl<G> Deref for Actor<G> {
@@ -463,12 +471,24 @@ mod tests {
         }
     }
 
+    mod setup {
+        use super::*;
+        use crate::storage::git as storage;
+        use cob::store::Store;
+
+        pub fn store<'a, G: Signer>(
+            signer: &G,
+            repo: &'a storage::Repository,
+        ) -> Store<'a, Thread> {
+            Store::<Thread>::open(*signer.public_key(), repo).unwrap()
+        }
+    }
+
     #[test]
     fn test_redact_comment() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, repository) = radicle::test::setup::context(&tmp);
-        let store =
-            radicle::cob::store::Store::<Thread>::open(*signer.public_key(), &repository).unwrap();
+        let store = setup::store(&signer, &repository);
         let mut alice = Actor::new(signer);
 
         let a0 = alice.comment("First comment", None);
@@ -501,11 +521,35 @@ mod tests {
     }
 
     #[test]
+    fn test_edit_comment() {
+        let mut alice = Actor::<MockSigner>::default();
+
+        let c0 = alice.comment("Hello world!", None);
+        let c1 = alice.edit(c0.id(), "Goodbye world.");
+        let c2 = alice.edit(c0.id(), "Goodbye world!");
+
+        let mut t1 = Thread::default();
+        t1.apply([c0.clone(), c1.clone(), c2.clone()]).unwrap();
+
+        let comment = t1.comment(&c0.id());
+        let edits = comment.unwrap().edits().collect::<Vec<_>>();
+
+        assert_eq!(edits[0].body.as_str(), "Hello world!");
+        assert_eq!(edits[1].body.as_str(), "Goodbye world.");
+        assert_eq!(edits[2].body.as_str(), "Goodbye world!");
+        assert_eq!(t1.comment(&c0.id()).unwrap().body(), "Goodbye world!");
+
+        let mut t2 = Thread::default();
+        t2.apply([c0, c2, c1]).unwrap(); // Apply in different order.
+
+        assert_eq!(t1, t2);
+    }
+
+    #[test]
     fn test_storage() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, repository) = radicle::test::setup::context(&tmp);
-        let store =
-            radicle::cob::store::Store::<Thread>::open(*signer.public_key(), &repository).unwrap();
+        let store = setup::store(&signer, &repository);
 
         let mut alice = Actor::new(signer);
 
