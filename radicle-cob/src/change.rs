@@ -6,7 +6,7 @@
 use git_ext::Oid;
 
 pub mod store;
-pub use store::{Create, Storage};
+pub use store::{Storage, Template};
 
 use crate::signatures::Signature;
 

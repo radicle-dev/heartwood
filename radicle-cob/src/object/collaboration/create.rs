@@ -20,8 +20,8 @@ pub struct Create {
 }
 
 impl Create {
-    fn create_spec(&self) -> change::Create<git_ext::Oid> {
-        change::Create {
+    fn template(&self) -> change::Template<git_ext::Oid> {
+        change::Template {
             typename: self.typename.clone(),
             history_type: self.history_type.clone(),
             tips: Vec::new(),
@@ -68,7 +68,7 @@ where
     } = &args;
 
     let init_change = storage
-        .create(resource.content_id(), signer, args.create_spec())
+        .store(resource.content_id(), signer, args.template())
         .map_err(error::Create::from)?;
 
     let history = History::new_from_root(

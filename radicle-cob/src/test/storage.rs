@@ -59,26 +59,26 @@ impl Storage {
 impl Store for Storage {}
 
 impl change::Storage for Storage {
-    type CreateError = <git2::Repository as change::Storage>::CreateError;
+    type StoreError = <git2::Repository as change::Storage>::StoreError;
     type LoadError = <git2::Repository as change::Storage>::LoadError;
 
     type ObjectId = <git2::Repository as change::Storage>::ObjectId;
     type Resource = <git2::Repository as change::Storage>::Resource;
     type Signatures = <git2::Repository as change::Storage>::Signatures;
 
-    fn create<Signer>(
+    fn store<Signer>(
         &self,
         authority: Self::Resource,
         signer: &Signer,
-        spec: change::Create<Self::ObjectId>,
+        spec: change::Template<Self::ObjectId>,
     ) -> Result<
         change::store::Change<Self::Resource, Self::ObjectId, Self::Signatures>,
-        Self::CreateError,
+        Self::StoreError,
     >
     where
         Signer: crypto::Signer,
     {
-        self.as_raw().create(authority, signer, spec)
+        self.as_raw().store(authority, signer, spec)
     }
 
     fn load(

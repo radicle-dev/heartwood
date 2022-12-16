@@ -12,24 +12,27 @@ use crate::{
     signatures, TypeName,
 };
 
+/// Change storage.
 pub trait Storage {
-    type CreateError: Error + Send + Sync + 'static;
+    type StoreError: Error + Send + Sync + 'static;
     type LoadError: Error + Send + Sync + 'static;
 
     type ObjectId;
     type Resource;
     type Signatures;
 
+    /// Store a new change.
     #[allow(clippy::type_complexity)]
-    fn create<Signer>(
+    fn store<G>(
         &self,
         authority: Self::Resource,
-        signer: &Signer,
-        spec: Create<Self::ObjectId>,
-    ) -> Result<Change<Self::Resource, Self::ObjectId, Self::Signatures>, Self::CreateError>
+        signer: &G,
+        template: Template<Self::ObjectId>,
+    ) -> Result<Change<Self::Resource, Self::ObjectId, Self::Signatures>, Self::StoreError>
     where
-        Signer: crypto::Signer;
+        G: crypto::Signer;
 
+    /// Load a change.
     #[allow(clippy::type_complexity)]
     fn load(
         &self,
@@ -37,7 +40,8 @@ pub trait Storage {
     ) -> Result<Change<Self::Resource, Self::ObjectId, Self::Signatures>, Self::LoadError>;
 }
 
-pub struct Create<Id> {
+/// Change template, used to create a new change.
+pub struct Template<Id> {
     pub typename: TypeName,
     pub history_type: String,
     pub tips: Vec<Id>,

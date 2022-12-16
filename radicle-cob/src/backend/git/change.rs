@@ -80,23 +80,23 @@ pub mod error {
 }
 
 impl change::Storage for git2::Repository {
-    type CreateError = error::Create;
+    type StoreError = error::Create;
     type LoadError = error::Load;
 
     type ObjectId = Oid;
     type Resource = Oid;
     type Signatures = Signature;
 
-    fn create<Signer>(
+    fn store<Signer>(
         &self,
         resource: Self::Resource,
         signer: &Signer,
-        spec: store::Create<Self::ObjectId>,
-    ) -> Result<Change, Self::CreateError>
+        spec: store::Template<Self::ObjectId>,
+    ) -> Result<Change, Self::StoreError>
     where
         Signer: crypto::Signer,
     {
-        let change::Create {
+        let change::Template {
             typename,
             history_type,
             tips,

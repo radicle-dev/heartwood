@@ -131,7 +131,7 @@ pub trait Store
 where
     Self: object::Storage
         + change::Storage<
-            CreateError = git::change::error::Create,
+            StoreError = git::change::error::Create,
             LoadError = git::change::error::Load,
             ObjectId = git_ext::Oid,
             Resource = git_ext::Oid,

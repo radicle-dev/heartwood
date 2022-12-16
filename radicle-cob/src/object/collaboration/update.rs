@@ -70,10 +70,10 @@ where
         .map(|graph| graph.evaluate())
         .ok_or(error::Update::NoSuchObject)?;
 
-    let change = storage.create(
+    let change = storage.store(
         resource.content_id(),
         signer,
-        change::Create {
+        change::Template {
             tips: object.tips().iter().cloned().collect(),
             history_type,
             contents: changes.clone(),
