@@ -233,6 +233,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::List => {
+            let mut t = term::Table::new(term::table::TableOptions::default());
             for result in issues.all()? {
                 let (id, issue, _) = result?;
 
@@ -241,12 +242,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     .map(|p| p.to_string())
                     .collect::<Vec<_>>()
                     .join(", ");
-                if assigned.is_empty() {
-                    println!("{} \"{}\"", id, issue.title().escape_default());
-                } else {
-                    println!("{} {:?} {}", id, issue.title().escape_default(), &assigned,);
-                }
+                t.push([
+                    id.to_string(),
+                    format!("{:?}", issue.title()),
+                    assigned.to_string(),
+                ]);
             }
+            t.render();
         }
         Operation::Delete { id } => {
             issues.remove(&id)?;

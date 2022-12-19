@@ -59,10 +59,12 @@ impl<const W: usize> Table<W> {
                     .ok();
                 }
             }
+
+            let output = output.trim_end();
             println!(
                 "{}",
                 if let Some(width) = width {
-                    console::truncate_str(&output, width - 1, "…")
+                    console::truncate_str(output, width - 1, "…")
                 } else {
                     output.into()
                 }
