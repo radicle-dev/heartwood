@@ -1,0 +1,126 @@
+name: Release
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  release-x86_64-linux-binaries:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+      - name: Configure build cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            !target/debian
+          key: cargo-x86_64-linux-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build the binaries
+        uses: addnab/docker-run-action@v3
+        with:
+            image: registry.gitlab.com/rust_musl_docker/image:stable-latest
+            options: -v ${{ github.workspace }}:/workdir -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
+            run: |
+              rustup target add x86_64-unknown-linux-musl
+              cd radicle-cli
+              cargo build --release --target=x86_64-unknown-linux-musl
+              chmod --recursive go+r /root/.cargo/registry
+      - name: Build deb package
+        uses: addnab/docker-run-action@v3
+        with:
+            image: registry.gitlab.com/rust_musl_docker/image:stable-latest
+            options: -v ${{ github.workspace }}:/workdir -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
+            run: |
+              cargo install cargo-deb
+              cargo deb --target x86_64-unknown-linux-musl --no-build --package radicle-cli
+              chmod --recursive go+r /root/.cargo/registry
+      - shell: bash
+        run: |
+          staging="radicle-cli-x86_64-unknown-linux-musl"
+          mkdir -p "$staging"
+          cp target/x86_64-unknown-linux-musl/release/rad "$staging"/
+          tar czf "$staging.tar.gz" "$staging"
+      - uses: softprops/action-gh-release@v1
+        with:
+          fail_on_unmatched_files: true
+          files: |
+            radicle-cli-x86_64-unknown-linux-musl.tar.gz
+            target/x86_64-unknown-linux-musl/debian/*.deb
+
+
+  release-aarch64-linux-binaries:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+      - name: Configure build cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            !target/debian
+          key: cargo-aarch64-linux-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build the binaries
+        uses: addnab/docker-run-action@v3
+        with:
+            image: messense/rust-musl-cross:aarch64-musl
+            options: -v ${{ github.workspace }}:/home/rust/src -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
+            run: |
+              rustup target add aarch64-unknown-linux-musl
+              cd radicle-cli
+              cargo build --release
+      - shell: bash
+        run: |
+          staging="radicle-cli-aarch64-unknown-linux-musl"
+          mkdir -p "$staging"
+          cp target/aarch64-unknown-linux-musl/release/rad "$staging"/
+          tar czf "$staging.tar.gz" "$staging"
+      - uses: softprops/action-gh-release@v1
+        with:
+          fail_on_unmatched_files: true
+          files: radicle-cli-aarch64-unknown-linux-musl.tar.gz
+
+  release-macos-binaries:
+    runs-on: macos-11
+    strategy:
+      matrix:
+        target:
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+    steps:
+      - run: brew install asciidoctor
+      - uses: actions/checkout@v3
+      - name: Configure build cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            !target/debian
+          key: cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          target: ${{ matrix.target }}
+      - name: Build the release binaries
+        run: |
+          cd radicle-cli
+          env LIBUSB_STATIC=1 cargo build --release --target ${{ matrix.target }}
+      - name: Build the release archive
+        shell: bash
+        run: |
+          staging="radicle-cli-${{ matrix.target }}"
+          mkdir -p "$staging"
+          cp target/${{ matrix.target }}/release/rad "$staging"/
+          tar czf "$staging.tar.gz" "$staging"
+      - uses: softprops/action-gh-release@v1
+        with:
+          fail_on_unmatched_files: true
+          files: radicle-cli-${{ matrix.target }}.tar.gz
