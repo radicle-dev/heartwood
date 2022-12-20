@@ -247,10 +247,8 @@ where
 
         #[cfg(debug_assertions)]
         if let Ok(s) = std::env::var(git::RAD_COMMIT_TIME) {
-            if let Ok(v) = s.trim().parse::<i64>() {
-                author.time = git_commit::author::Time::new(v, 0);
-                timestamp = v;
-            }
+            timestamp = s.trim().parse::<i64>().unwrap();
+            author.time = git_commit::author::Time::new(timestamp, 0);
         }
 
         let oid = Commit::new(
