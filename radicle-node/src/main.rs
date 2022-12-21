@@ -80,6 +80,7 @@ impl Options {
     }
 }
 
+// TODO: UPGRADE REACTOR DEPENDENCY
 fn main() -> anyhow::Result<()> {
     logger::init(log::Level::Debug)?;
 

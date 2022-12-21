@@ -1,7 +1,7 @@
 use crate::service::message;
 use crate::service::message::Message;
 use crate::service::storage;
-use crate::service::{Link, LocalTime, NodeId, Reactor, Rng};
+use crate::service::{Id, Link, LocalTime, NodeId, Reactor, Rng};
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub enum PingState {
@@ -14,19 +14,31 @@ pub enum PingState {
     Ok,
 }
 
-#[derive(Debug, Default, Clone)]
+/// Session protocol.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Protocol {
+    /// The default message-based gossip protocol.
+    #[default]
+    Gossip,
+    /// Git smart protocol. Used for fetching repository data.
+    /// This protocol is used after a connection upgrade via the
+    /// [`Message::Upgrade`] message.
+    Git,
+}
+
+#[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum State {
-    /// Pre-handshake state.
-    /// TODO(cloudhead): Remove once noise handshake is implemented.
-    #[default]
-    Initial,
-    /// State after successful handshake.
-    Negotiated {
-        /// The peer's unique identifier.
-        id: NodeId,
+    /// Initial state after handshake protocol hand-off.
+    Connected {
+        /// Whether this session was initialized with a [`Message::Initial`].
+        initialized: bool,
+        /// Connected since this time.
         since: LocalTime,
+        /// Ping state.
         ping: PingState,
+        /// Session protocol.
+        protocol: Protocol,
     },
     /// When a peer is disconnected.
     Disconnected { since: LocalTime },
@@ -77,10 +89,15 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(id: NodeId, link: Link, persistent: bool, rng: Rng) -> Self {
+    pub fn new(id: NodeId, link: Link, persistent: bool, rng: Rng, time: LocalTime) -> Self {
         Self {
             id,
-            state: State::Initial,
+            state: State::Connected {
+                initialized: false,
+                since: time,
+                ping: PingState::default(),
+                protocol: Protocol::default(),
+            },
             link,
             subscribe: None,
             persistent,
@@ -90,8 +107,8 @@ impl Session {
         }
     }
 
-    pub fn is_negotiated(&self) -> bool {
-        matches!(self.state, State::Negotiated { .. })
+    pub fn is_connected(&self) -> bool {
+        matches!(self.state, State::Connected { .. })
     }
 
     pub fn attempts(&self) -> usize {
@@ -102,24 +119,32 @@ impl Session {
         self.attempts += 1;
     }
 
+    pub fn upgrade(&mut self, repo: Id) -> Option<Message> {
+        if let State::Connected { protocol, .. } = &mut self.state {
+            if *protocol == Protocol::Gossip {
+                *protocol = Protocol::Git;
+                return Some(Message::Upgrade { repo });
+            } else {
+                log::error!(
+                    "Attempted to upgrade protocol for {} which was already upgraded",
+                    self.id
+                );
+            }
+        }
+        None
+    }
+
     pub fn connected(&mut self, _link: Link) {
         self.attempts = 0;
     }
 
     pub fn ping(&mut self, reactor: &mut Reactor) -> Result<(), Error> {
-        if let State::Negotiated { ping, .. } = &mut self.state {
+        if let State::Connected { ping, .. } = &mut self.state {
             let msg = message::Ping::new(&mut self.rng);
             *ping = PingState::AwaitingResponse(msg.ponglen);
 
             reactor.write(self.id, Message::Ping(msg));
         }
         Ok(())
-    }
-
-    pub fn node_id(&self) -> Option<NodeId> {
-        if let State::Negotiated { id, .. } = &self.state {
-            return Some(*id);
-        }
-        None
     }
 }

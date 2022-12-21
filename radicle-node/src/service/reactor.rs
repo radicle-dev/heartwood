@@ -4,6 +4,7 @@ use log::*;
 
 use crate::prelude::*;
 use crate::service::session::Session;
+use crate::storage::{FetchError, Namespaces, RefUpdate};
 
 use super::message::{Announcement, AnnouncementMessage};
 
@@ -16,10 +17,33 @@ pub enum Io {
     Connect(NodeId, Address),
     /// Disconnect from a peer.
     Disconnect(NodeId, DisconnectReason),
+    /// Fetch repository data from a peer.
+    Fetch(NodeId, Fetch),
+    // TODO: Add `Unregister`
     /// Ask for a wakeup in a specified amount of time.
     Wakeup(LocalDuration),
     /// Emit an event.
     Event(Event),
+}
+
+/// Fetch job sent to worker thread.
+#[derive(Debug, Clone)]
+pub struct Fetch {
+    /// Repo to fetch.
+    repo: Id,
+    /// Namespaces to fetch.
+    namespaces: Namespaces,
+    // TODO: Needs session also.
+}
+
+/// Result of a fetch request from a specific seed.
+#[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
+pub enum FetchResult {
+    /// Successful fetch from a seed.
+    Fetched { updated: Vec<RefUpdate> },
+    /// Error fetching the resource from a seed.
+    Error { from: NodeId, error: FetchError },
 }
 
 /// Interface to the network reactor.
@@ -59,6 +83,13 @@ impl Reactor {
 
     pub fn wakeup(&mut self, after: LocalDuration) {
         self.io.push_back(Io::Wakeup(after));
+    }
+
+    pub fn fetch(&mut self, remote: NodeId, repo: Id, namespaces: Namespaces) {
+        debug!("Fetch {} from {}..", repo, remote);
+
+        self.io
+            .push_back(Io::Fetch(remote, Fetch { repo, namespaces }));
     }
 
     /// Broadcast a message to a list of peers.

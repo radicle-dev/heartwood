@@ -90,7 +90,7 @@ impl<R, S, W, G> Transport<R, S, W, G>
 where
     R: routing::Store,
     S: address::Store,
-    W: WriteStorage + 'static,
+    W: WriteStorage + Clone + 'static,
     G: Signer + Negotiator,
 {
     pub fn new(
@@ -147,7 +147,7 @@ impl<R, S, W, G> reactor::Handler for Transport<R, S, W, G>
 where
     R: routing::Store + Send,
     S: address::Store + Send,
-    W: WriteStorage + Send + 'static,
+    W: WriteStorage + Send + Clone + 'static,
     G: Signer + Negotiator + Send,
 {
     type Listener = NetAccept<Session<G>>;
@@ -312,7 +312,7 @@ impl<R, S, W, G> Iterator for Transport<R, S, W, G>
 where
     R: routing::Store,
     S: address::Store,
-    W: WriteStorage + 'static,
+    W: WriteStorage + Clone + 'static,
     G: Signer + Negotiator,
 {
     type Item = reactor::Action<NetAccept<Session<G>>, NetTransport<Session<G>, Message>>;
@@ -377,6 +377,7 @@ where
                     return self.actions.pop_back();
                 }
                 Io::Wakeup(d) => return Some(reactor::Action::Wakeup(d.into())),
+                Io::Fetch(_, _) => todo!(),
             }
         }
         None
