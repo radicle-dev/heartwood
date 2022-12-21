@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
@@ -13,12 +13,15 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use radicle::cob::issue::Issues;
 use radicle::cob::thread::{self, CommentId};
 use radicle::cob::Timestamp;
-use radicle::git::raw::BranchType;
+use radicle::git::Oid;
 use radicle::identity::{Id, PublicKey};
 use radicle::node::NodeId;
-use radicle::storage::{Oid, ReadRepository, WriteRepository, WriteStorage};
-use radicle_surf::git::History;
-use radicle_surf::Revision::Sha;
+use radicle::storage::git::paths;
+use radicle::storage::{ReadRepository, WriteStorage};
+use radicle_surf::git::{Glob, History, Repository};
+use radicle_surf::source;
+use radicle_surf::source::object::blob::Blob;
+use radicle_surf::source::object::tree::Tree;
 
 use crate::api::axum_extra::{Path, Query};
 use crate::api::error::Error;
@@ -133,7 +136,7 @@ async fn history_handler(
     };
 
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
+    let repo = Repository::open(paths::repository(storage, &project))?;
 
     // If a pagination is defined, we do not want to paginate the commits, and we return all of them on the first page.
     let page = page.unwrap_or(0);
@@ -143,7 +146,8 @@ async fn history_handler(
         per_page.unwrap_or(30)
     };
 
-    let headers = History::new(repo.raw().into(), sha.as_str())?
+    let headers = repo
+        .history(sha)?
         .filter(|q| {
             if let Ok(q) = q {
                 if let (Some(since), Some(until)) = (since, until) {
@@ -164,7 +168,7 @@ async fn history_handler(
         .take(per_page)
         .filter_map(|commit| {
             if let Ok(commit) = commit {
-                radicle_surf::commit(&repo.raw().into(), commit.id).ok()
+                source::commit(&repo, commit.id).ok()
             } else {
                 None
             }
@@ -173,7 +177,7 @@ async fn history_handler(
 
     let response = json!({
         "headers": headers,
-        "stats":  stats(&repo)?,
+        "stats":  repo.stats()?,
     });
 
     if fallback_to_head {
@@ -190,8 +194,8 @@ async fn commit_handler(
     Path((project, sha)): Path<(Id, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
-    let commit = radicle_surf::commit(&repo.raw().into(), sha)?;
+    let repo = Repository::open(paths::repository(storage, &project))?;
+    let commit = source::commit(&repo, sha)?;
 
     Ok::<_, Error>(Json(commit))
 }
@@ -205,9 +209,10 @@ async fn activity_handler(
     let current_date = chrono::Utc::now().timestamp();
     let one_year_ago = chrono::Duration::weeks(52);
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
-    let (_, head) = repo.head()?;
-    let timestamps = History::new(repo.raw().into(), head)?
+    let repo = Repository::open(paths::repository(storage, &project))?;
+    let head = repo.head()?;
+    let timestamps = repo
+        .history(head)?
         .filter_map(|a| {
             if let Ok(a) = a {
                 let seconds = a.committer.time.seconds();
@@ -230,14 +235,11 @@ async fn tree_handler(
 ) -> impl IntoResponse {
     let path = path.strip_prefix('/').ok_or(Error::NotFound)?.to_string();
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
-    let tree = radicle_surf::object::tree(&repo.raw().into(), Some(Sha { sha }), Some(path))?;
-    let response = json!({
-        "path": &tree.path,
-        "entries": &tree.entries,
-        "info": &tree.info,
-        "stats": stats(&repo)?,
-    });
+    let repo = Repository::open(paths::repository(storage, &project))?;
+    let path = if path.is_empty() { None } else { Some(&path) };
+    let tree = Tree::new(&repo, &sha, path)?;
+    let mut response = json!(tree);
+    response["stats"] = json!(stats(&repo, sha)?);
 
     Ok::<_, Error>(Json(response))
 }
@@ -253,6 +255,23 @@ async fn remotes_handler(
     let remotes = repo
         .remotes()?
         .filter_map(|r| r.map(|r| r.1).ok())
+        .map(|remote| {
+            let refs = remote
+                .refs
+                .iter()
+                .filter_map(|(r, oid)| {
+                    r.as_str()
+                        .strip_prefix("refs/heads/")
+                        .map(|head| (head.to_string(), oid))
+                })
+                .collect::<BTreeMap<String, &Oid>>();
+
+            json!({
+                "id": remote.id,
+                "heads": refs,
+                "delegate": remote.delegate,
+            })
+        })
         .collect::<Vec<_>>();
 
     Ok::<_, Error>(Json(remotes))
@@ -267,6 +286,20 @@ async fn remote_handler(
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
     let remote = repo.remote(&node_id)?;
+    let refs = remote
+        .refs
+        .iter()
+        .filter_map(|(r, oid)| {
+            r.as_str()
+                .strip_prefix("refs/heads/")
+                .map(|head| (head.to_string(), oid))
+        })
+        .collect::<BTreeMap<String, &Oid>>();
+    let remote = json!({
+        "id": remote.id,
+        "heads": refs,
+        "delegate": remote.delegate,
+    });
 
     Ok::<_, Error>(Json(remote))
 }
@@ -279,8 +312,8 @@ async fn blob_handler(
 ) -> impl IntoResponse {
     let path = path.strip_prefix('/').ok_or(Error::NotFound)?;
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
-    let blob = radicle_surf::blob::blob(&repo.raw().into(), Some(Sha { sha }), path)?;
+    let repo = Repository::open(paths::repository(storage, &project))?;
+    let blob = Blob::new(&repo, &sha, &path)?;
 
     Ok::<_, Error>(Json(blob))
 }
@@ -292,7 +325,7 @@ async fn readme_handler(
     Path((project, sha)): Path<(Id, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
+    let repo = Repository::open(paths::repository(storage, &project))?;
     let paths = &[
         "README",
         "README.md",
@@ -303,14 +336,12 @@ async fn readme_handler(
     ];
 
     for path in paths {
-        if let Ok(blob) = radicle_surf::blob::blob(&repo.raw().into(), Some(Sha { sha }), path) {
+        if let Ok(blob) = Blob::new(&repo, &sha, &path) {
             return Ok::<_, Error>(Json(blob));
         }
     }
 
-    Err(radicle_surf::object::Error::PathNotFound(
-        radicle_surf::file_system::Path::try_from("README").unwrap(),
-    ))?
+    Err(Error::NotFound)
 }
 
 /// Get project issues list.
@@ -413,11 +444,11 @@ struct Stats {
     contributors: usize,
 }
 
-fn stats<R: WriteRepository>(repo: &R) -> Result<Stats, Error> {
-    let branches = repo.raw().branches(Some(BranchType::Local))?.count();
-    let (_, head) = repo.head()?;
+fn stats(repo: &Repository, head: Oid) -> Result<Stats, Error> {
+    let branches = repo.branches(Glob::all_heads())?.count();
+
     let mut commits = 0;
-    let contributors = History::new(repo.raw().into(), head)?
+    let contributors = History::new(repo, head)?
         .filter_map(|commit| {
             commits += 1;
             if let Ok(commit) = commit {

@@ -18,22 +18,6 @@ pub enum Error {
     #[error(transparent)]
     Env(#[from] std::env::VarError),
 
-    /// I/O error.
-    #[error("i/o error: {0}")]
-    Io(#[from] std::io::Error),
-
-    /// Invalid identifier.
-    #[error("invalid radicle identifier: {0}")]
-    Id(#[from] radicle::identity::IdError),
-
-    /// HeaderName error.
-    #[error(transparent)]
-    InvalidHeaderName(#[from] axum::http::header::InvalidHeaderName),
-
-    /// HeaderValue error.
-    #[error(transparent)]
-    InvalidHeaderValue(#[from] axum::http::header::InvalidHeaderValue),
-
     /// An error occurred while verifying the siwe message.
     #[error(transparent)]
     SiweVerification(#[from] siwe::VerificationError),
@@ -56,11 +40,11 @@ pub enum Error {
 
     /// Surf commit error.
     #[error(transparent)]
-    SurfCommit(#[from] radicle_surf::commit::Error),
+    SurfCommit(#[from] radicle_surf::source::commit::Error),
 
     /// Surf object error.
     #[error(transparent)]
-    SurfObject(#[from] radicle_surf::object::Error),
+    SurfObject(#[from] radicle_surf::source::object::Error),
 
     /// Surf git error.
     #[error(transparent)]
