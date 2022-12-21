@@ -1,3 +1,19 @@
+//! Print column-aligned text to the console.
+//!
+//! Example:
+//! ```
+//! use radicle_cli::terminal::table::*;
+//!
+//! let mut t = Table::new(TableOptions::default());
+//! t.push(["pest".to_string(), "biological control".to_string()]);
+//! t.push(["aphid".to_string(), "lacewing".to_string()]);
+//! t.push(["spider mite".to_string(), "ladybug".to_string()]);
+//! t.render();
+//! // pest        biological control
+//! // aphid       lacewing
+//! // spider mite ladybug
+//! ```
+
 use std::fmt::Write;
 
 use crate::terminal as term;
