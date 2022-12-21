@@ -5,13 +5,13 @@
 //! use radicle_cli::terminal::table::*;
 //!
 //! let mut t = Table::new(TableOptions::default());
-//! t.push(["pest".to_string(), "biological control".to_string()]);
-//! t.push(["aphid".to_string(), "lacewing".to_string()]);
-//! t.push(["spider mite".to_string(), "ladybug".to_string()]);
+//! t.push(["pest", "biological control"]);
+//! t.push(["aphid", "lacewing"]);
+//! t.push(["spider mite", "ladybug"]);
 //! t.render();
 //! // pest        biological control
-//! // aphid       lacewing
-//! // spider mite ladybug
+//! // aphid       ladybug
+//! // spider mite persimilis
 //! ```
 
 use std::fmt::Write;
@@ -49,7 +49,8 @@ impl<const W: usize> Table<W> {
         }
     }
 
-    pub fn push(&mut self, row: [String; W]) {
+    pub fn push(&mut self, row: [impl ToString; W]) {
+        let row = row.map(|s| s.to_string());
         for (i, cell) in row.iter().enumerate() {
             self.widths[i] = self.widths[i].max(console::measure_text_width(cell));
         }

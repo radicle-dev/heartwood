@@ -78,33 +78,30 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
     let mut table = term::Table::default();
 
     let node_id = profile.id();
-    table.push([String::from("ID"), term::format::tertiary(node_id)]);
+    table.push(["ID", &term::format::tertiary(node_id)]);
 
     let ssh_short = ssh::fmt::fingerprint(node_id);
-    table.push([
-        String::from("Key (hash)"),
-        term::format::tertiary(ssh_short),
-    ]);
+    table.push(["Key (hash)", &term::format::tertiary(ssh_short)]);
 
     let ssh_long = ssh::fmt::key(node_id);
-    table.push([String::from("Key (full)"), term::format::tertiary(ssh_long)]);
+    table.push(["Key (full)", &term::format::tertiary(ssh_long)]);
 
     let storage_path = profile.paths().storage();
     table.push([
-        String::from("Storage (git)"),
-        term::format::tertiary(storage_path.display()),
+        "Storage (git)",
+        &term::format::tertiary(storage_path.display()),
     ]);
 
     let keys_path = profile.paths().keys();
     table.push([
-        String::from("Storage (keys)"),
-        term::format::tertiary(keys_path.display()),
+        "Storage (keys)",
+        &term::format::tertiary(keys_path.display()),
     ]);
 
     let node_path = profile.paths().node();
     table.push([
-        String::from("Node (socket)"),
-        term::format::tertiary(node_path.join("radicle.sock").display()),
+        "Node (socket)",
+        &term::format::tertiary(node_path.join("radicle.sock").display()),
     ]);
 
     table.render();
