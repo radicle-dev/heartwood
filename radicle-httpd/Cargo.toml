@@ -41,5 +41,5 @@ version = "0.2.0"
 
 [dependencies.radicle-surf]
 git = "https://github.com/radicle-dev/radicle-git"
-features = ["serialize"]
-rev = "d3115a22158c8395705babefdc89049f7510d32d"
+features = ["serde"]
+rev = "79a94721366490053e2d8ac1c1afa14fb0c25f09"
