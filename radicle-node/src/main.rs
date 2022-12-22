@@ -15,7 +15,7 @@ use radicle_node::client::{ADDRESS_DB_FILE, NODE_DIR, ROUTING_DB_FILE, TRACKING_
 use radicle_node::crypto::ssh::keystore::MemorySigner;
 use radicle_node::prelude::{Address, NodeId};
 use radicle_node::service::{routing, tracking, FetchResult};
-use radicle_node::wire::Transport;
+use radicle_node::wire::{Transport, WorkerReq, WorkerResp};
 use radicle_node::{address, control, logger, service};
 
 #[derive(Debug)]
@@ -126,15 +126,20 @@ fn main() -> anyhow::Result<()> {
         config, clock, routing, storage, addresses, tracking, signer, rng,
     );
 
-    let (to_worker_send, worker_recv) = crossbeam_channel::unbounded::<Id>();
+    let (to_worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<MemorySigner>>();
     let (worker_send, from_worker_recv) =
-        crossbeam_channel::unbounded::<Result<Repository, storage::Error>>();
+        crossbeam_channel::unbounded::<WorkerResp<MemorySigner>>();
     let worker_control = (to_worker_send, from_worker_recv);
     let workers = thread::spawn(move || {
         // TODO: Move storage clone here
-        while let Ok(repo_id) = worker_recv.recv() {
-            let res = worker_storage.repository(repo_id);
-            worker_send.send(res).expect("failed to respond");
+        while let Ok(req) = worker_recv.recv() {
+            let resp = match req {
+                WorkerReq::Fetch(proj, session) => match worker_storage.repository(proj) {
+                    Ok(_repo) => WorkerResp::Success(session),
+                    Err(err) => WorkerResp::Error(err, session),
+                },
+            };
+            worker_send.send(resp).expect("failed to respond");
         }
         unreachable!("Worker pool crashed")
     });
