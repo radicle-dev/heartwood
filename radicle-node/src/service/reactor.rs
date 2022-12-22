@@ -33,7 +33,8 @@ pub struct Fetch {
     repo: Id,
     /// Namespaces to fetch.
     namespaces: Namespaces,
-    // TODO: Needs session also.
+    /// Connection we are fetching from
+    remote: NodeId,
 }
 
 /// Result of a fetch request from a specific seed.
@@ -88,8 +89,14 @@ impl Reactor {
     pub fn fetch(&mut self, remote: NodeId, repo: Id, namespaces: Namespaces) {
         debug!("Fetch {} from {}..", repo, remote);
 
-        self.io
-            .push_back(Io::Fetch(remote, Fetch { repo, namespaces }));
+        self.io.push_back(Io::Fetch(
+            remote,
+            Fetch {
+                repo,
+                namespaces,
+                remote,
+            },
+        ));
     }
 
     /// Broadcast a message to a list of peers.
