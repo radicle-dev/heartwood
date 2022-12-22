@@ -1,4 +1,6 @@
-use crate::{KeyPair, PublicKey, SecretKey, Seed, Signature, Signer, SignerError};
+use crate::{KeyPair, PublicKey, SecretKey, Seed, SharedSecret, Signature, Signer, SignerError};
+use cyphernet::crypto::Ecdh;
+use ed25519_compact::Error;
 
 #[derive(Debug, Clone)]
 pub struct MockSigner {
@@ -69,5 +71,15 @@ impl Signer for MockSigner {
 
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
         Ok(self.sign(msg))
+    }
+}
+
+impl Ecdh for MockSigner {
+    type Pk = PublicKey;
+    type Secret = SharedSecret;
+    type Err = Error;
+
+    fn ecdh(&self, _: &Self::Pk) -> Result<Self::Secret, Self::Err> {
+        Ok([0u8; 32])
     }
 }

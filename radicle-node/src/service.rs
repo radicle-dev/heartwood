@@ -19,6 +19,8 @@ use log::*;
 use nakamoto::{LocalDuration, LocalTime};
 use nakamoto_net as nakamoto;
 use nakamoto_net::Link;
+use netservices::noise::NoiseXk;
+use netservices::wire::NetTransport;
 use radicle::node::Features;
 use radicle::storage::{Namespaces, ReadStorage};
 
@@ -26,7 +28,7 @@ use crate::address;
 use crate::address::AddressBook;
 use crate::clock::Timestamp;
 use crate::crypto;
-use crate::crypto::{Signer, Verified};
+use crate::crypto::{Negotiator, Signer, Verified};
 use crate::git;
 use crate::identity::{Doc, Id};
 use crate::node;
@@ -139,7 +141,7 @@ pub enum FetchResult {
 pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Send + Sync;
 
 /// Commands sent to the service by the operator.
-pub enum Command {
+pub enum Command<G: Negotiator> {
     /// Announce repository references for given project id to peers.
     AnnounceRefs(Id),
     /// Connect to node with the given address.
@@ -156,9 +158,13 @@ pub enum Command {
     UntrackNode(NodeId, chan::Sender<bool>),
     /// Query the internal service state.
     QueryState(Arc<QueryState>, chan::Sender<Result<(), CommandError>>),
+    /// Worker has completed fetch job
+    FetchCompleted(Id, NetTransport<NoiseXk<G>, Message>),
+    /// Worker has failed fetch job
+    FetchFailed(Id, storage::Error, NetTransport<NoiseXk<G>, Message>),
 }
 
-impl fmt::Debug for Command {
+impl<G: Negotiator> fmt::Debug for Command<G> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({})", id),
@@ -169,6 +175,8 @@ impl fmt::Debug for Command {
             Self::TrackNode(id, _, _) => write!(f, "TrackNode({})", id),
             Self::UntrackNode(id, _) => write!(f, "UntrackNode({})", id),
             Self::QueryState { .. } => write!(f, "QueryState(..)"),
+            Self::FetchCompleted(id, _) => write!(f, "FetchCompleted({},..)", id),
+            Self::FetchFailed(id, _, _) => write!(f, "FetchCompleted({},..)", id),
         }
     }
 }
@@ -244,7 +252,7 @@ where
     R: routing::Store,
     A: address::Store,
     S: WriteStorage + 'static,
-    G: crypto::Signer,
+    G: Signer + Negotiator,
 {
     pub fn new(
         config: Config,
@@ -420,7 +428,7 @@ where
         }
     }
 
-    pub fn command(&mut self, cmd: Command) {
+    pub fn command(&mut self, cmd: Command<G>) {
         debug!("Command {:?}", cmd);
 
         match cmd {
@@ -507,6 +515,12 @@ where
             }
             Command::QueryState(query, sender) => {
                 sender.send(query(self)).ok();
+            }
+            Command::FetchCompleted(repo, session) => {
+                todo!()
+            }
+            Command::FetchFailed(repo, err, session) => {
+                todo!()
             }
         }
     }

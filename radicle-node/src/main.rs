@@ -1,6 +1,7 @@
 use std::{env, net, process, thread};
 
 use anyhow::Context as _;
+use crossbeam_channel::RecvError;
 use cyphernet::addr::PeerAddr;
 use nakamoto_net::{LocalDuration, LocalTime};
 use radicle::prelude::Id;
@@ -14,7 +15,7 @@ use radicle_node::client::handle::Handle;
 use radicle_node::client::{ADDRESS_DB_FILE, NODE_DIR, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle_node::crypto::ssh::keystore::MemorySigner;
 use radicle_node::prelude::{Address, NodeId};
-use radicle_node::service::{routing, tracking, FetchResult};
+use radicle_node::service::{routing, tracking, Command, FetchResult};
 use radicle_node::wire::{Transport, WorkerReq, WorkerResp};
 use radicle_node::{address, control, logger, service};
 
@@ -131,12 +132,11 @@ fn main() -> anyhow::Result<()> {
         crossbeam_channel::unbounded::<WorkerResp<MemorySigner>>();
     let worker_control = (to_worker_send, from_worker_recv);
     let workers = thread::spawn(move || {
-        // TODO: Move storage clone here
         while let Ok(req) = worker_recv.recv() {
             let resp = match req {
                 WorkerReq::Fetch(proj, session) => match worker_storage.repository(proj) {
-                    Ok(_repo) => WorkerResp::Success(session),
-                    Err(err) => WorkerResp::Error(err, session),
+                    Ok(_repo) => WorkerResp::Success(proj, session),
+                    Err(err) => WorkerResp::Error(proj, err, session),
                 },
             };
             worker_send.send(resp).expect("failed to respond");
@@ -144,14 +144,27 @@ fn main() -> anyhow::Result<()> {
         unreachable!("Worker pool crashed")
     });
 
-    let wire = Transport::new(service, worker_control, negotiator, proxy_addr, clock);
+    let wire = Transport::new(
+        service,
+        worker_control.clone(),
+        negotiator,
+        proxy_addr,
+        clock,
+    );
     let reactor = Reactor::new(wire, popol::Poller::new());
     let handle = Handle::from(reactor.controller());
     let control = thread::spawn(move || control::listen(node, handle));
 
-    control.join().unwrap()?;
-    workers.join().unwrap();
-    reactor.join().unwrap();
-
-    Ok(())
+    loop {
+        match worker_control.1.recv().expect("worker pool failure") {
+            WorkerResp::Success(repo, transport) => reactor
+                .controller()
+                .send(Command::FetchCompleted(repo, transport))
+                .expect("broken reactor"),
+            WorkerResp::Error(repo, err, transport) => reactor
+                .controller()
+                .send(Command::FetchFailed(repo, err, transport))
+                .expect("broken reactor"),
+        }
+    }
 }

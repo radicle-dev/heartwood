@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crossbeam_channel as chan;
 use thiserror::Error;
 
+use crate::crypto::Negotiator;
 use crate::identity::Id;
 use crate::service;
 use crate::service::{CommandError, FetchLookup, QueryState};
@@ -46,25 +47,25 @@ impl<T> From<chan::SendError<T>> for Error {
     }
 }
 
-pub struct Handle {
-    pub(crate) controller: reactor::Controller<service::Command>,
+pub struct Handle<G: Negotiator> {
+    pub(crate) controller: reactor::Controller<service::Command<G>>,
 }
 
-impl From<reactor::Controller<service::Command>> for Handle {
-    fn from(controller: reactor::Controller<service::Command>) -> Handle {
+impl<G: Negotiator> From<reactor::Controller<service::Command<G>>> for Handle<G> {
+    fn from(controller: reactor::Controller<service::Command<G>>) -> Handle<G> {
         Handle { controller }
     }
 }
 
-impl Handle {
-    fn command(&self, cmd: service::Command) -> Result<(), Error> {
+impl<G: Negotiator> Handle<G> {
+    fn command(&self, cmd: service::Command<G>) -> Result<(), Error> {
         self.controller.send(cmd)?;
 
         Ok(())
     }
 }
 
-impl radicle::node::Handle for Handle {
+impl<G: Negotiator> radicle::node::Handle for Handle<G> {
     type Session = Session;
     type FetchLookup = FetchLookup;
     type Error = Error;

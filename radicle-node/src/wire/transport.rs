@@ -90,8 +90,8 @@ pub enum WorkerReq<G: Negotiator> {
     Fetch(Id, NetTransport<Session<G>, Message>),
 }
 pub enum WorkerResp<G: Negotiator> {
-    Success(NetTransport<Session<G>, Message>),
-    Error(storage::Error, NetTransport<Session<G>, Message>),
+    Success(Id, NetTransport<Session<G>, Message>),
+    Error(Id, storage::Error, NetTransport<Session<G>, Message>),
 }
 pub type WorkerCtrl<G> = (chan::Sender<WorkerReq<G>>, chan::Receiver<WorkerResp<G>>);
 
@@ -194,7 +194,7 @@ where
 {
     type Listener = NetAccept<Session<G>>;
     type Transport = NetTransport<Session<G>, Message>;
-    type Command = service::Command;
+    type Command = service::Command<G>;
 
     fn handle_wakeup(&mut self) {
         self.service.wake()
@@ -431,7 +431,7 @@ where
                 }
                 Io::Wakeup(d) => return Some(reactor::Action::Wakeup(d.into())),
                 Io::Fetch(fetch) => {
-                    // TODO: Check that the node_id is connected
+                    // TODO: Check that the node_id is connected, queue request otherwise
                     let fd = self.by_id(&fetch.remote);
                     self.fetch(fd, fetch)
                 }
