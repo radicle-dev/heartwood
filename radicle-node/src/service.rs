@@ -884,8 +884,9 @@ where
                     }
                 }
             }
-            (session::State::Connected { .. }, Message::Upgrade { .. }) => {
-                todo!();
+            (session::State::Connected { .. }, Message::Upgrade { repo }) => {
+                // All we need is to instruct the transport to handover to the worker
+                self.reactor.fetch(*remote, repo, Namespaces::default());
             }
             (session::State::Disconnected { .. }, msg) => {
                 debug!("Ignoring {:?} from disconnected peer {}", msg, peer.id);
