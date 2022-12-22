@@ -90,7 +90,7 @@ impl<R, S, W, G> Transport<R, S, W, G>
 where
     R: routing::Store,
     S: address::Store,
-    W: WriteStorage + Clone + 'static,
+    W: WriteStorage + 'static,
     G: Signer + Negotiator,
 {
     pub fn new(
@@ -147,7 +147,7 @@ impl<R, S, W, G> reactor::Handler for Transport<R, S, W, G>
 where
     R: routing::Store + Send,
     S: address::Store + Send,
-    W: WriteStorage + Send + Clone + 'static,
+    W: WriteStorage + Send + 'static,
     G: Signer + Negotiator + Send,
 {
     type Listener = NetAccept<Session<G>>;
@@ -312,7 +312,7 @@ impl<R, S, W, G> Iterator for Transport<R, S, W, G>
 where
     R: routing::Store,
     S: address::Store,
-    W: WriteStorage + Clone + 'static,
+    W: WriteStorage + 'static,
     G: Signer + Negotiator,
 {
     type Item = reactor::Action<NetAccept<Session<G>>, NetTransport<Session<G>, Message>>;

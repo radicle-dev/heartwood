@@ -243,7 +243,7 @@ impl<R, A, S, G> Service<R, A, S, G>
 where
     R: routing::Store,
     A: address::Store,
-    S: WriteStorage + Clone + 'static,
+    S: WriteStorage + 'static,
     G: crypto::Signer,
 {
     pub fn new(

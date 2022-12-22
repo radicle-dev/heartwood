@@ -592,6 +592,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     events.push_back(event);
                 }
             }
+            Io::Fetch(..) => todo!("I have no idea what to do here"),
         }
     }
 
