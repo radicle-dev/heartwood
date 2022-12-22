@@ -516,13 +516,15 @@ where
             Command::QueryState(query, sender) => {
                 sender.send(query(self)).ok();
             }
-            Command::FetchCompleted(repo, session) => {
-                todo!()
-            }
-            Command::FetchFailed(repo, err, session) => {
-                todo!()
+            Command::FetchCompleted(_, _) | Command::FetchFailed(..) => {
+                // We should do nothing here since this is handled by the transport
+                // and the service is notified via `fetch_complete()` method call
             }
         }
+    }
+
+    pub fn fetch_complete(&mut self, repo: Id, err: Option<storage::Error>) {
+        // TODO(cloudhead): handle completed job with service business logic
     }
 
     pub fn accepted(&mut self, _addr: net::SocketAddr) {

@@ -25,7 +25,7 @@ use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
 use crate::service::reactor::{Fetch, Io};
-use crate::service::{routing, session, Message, Service};
+use crate::service::{routing, session, Command, Message, Service};
 use crate::{address, service};
 
 /// The peer session type.
@@ -50,7 +50,17 @@ enum Peer {
     },
     /// The state once Fetch request was received and before reactor passed
     /// session object
-    Handover(Fetch),
+    Handover {
+        fetch: Fetch,
+        link: Link,
+        id: NodeId,
+    },
+    /// The state during the fetch request before the transport comeback
+    Fetch {
+        fetch: Fetch,
+        link: Link,
+        id: NodeId,
+    },
 }
 
 impl Peer {
@@ -77,11 +87,41 @@ impl Peer {
         }
     }
 
+    /// Switch to handover state
     fn handover(&mut self, fetch: Fetch) {
-        if let Self::Connected { id, .. } = self {
-            *self = Self::Handover(fetch);
+        if let Self::Connected { id, link } = self {
+            *self = Self::Handover {
+                fetch,
+                id: *id,
+                link: *link,
+            };
         } else {
             panic!("Peer::handover: session is not connected");
+        }
+    }
+
+    /// Switch to fetch state
+    fn fetch(&mut self) {
+        if let Self::Handover { fetch, id, link } = self {
+            *self = Self::Fetch {
+                fetch: fetch.clone(),
+                id: *id,
+                link: *link,
+            };
+        } else {
+            panic!("Peer::fetch: can't switch to fetch without handover");
+        }
+    }
+
+    /// Switch back from fetch to connected state
+    fn comeback(&mut self) {
+        if let Self::Fetch { id, link, .. } = self {
+            *self = Self::Connected {
+                id: *id,
+                link: *link,
+            };
+        } else {
+            panic!("Peer::comeback: can't switch to connected state");
         }
     }
 }
@@ -182,6 +222,22 @@ where
         peer.handover(fetch);
 
         self.actions.push_back(Action::UnregisterTransport(fd));
+    }
+
+    fn fetch_complete(&mut self, transport: NetTransport<Session<G>, Message>) {
+        let fd = transport.as_raw_fd();
+        let Some(peer) = self.peers.get_mut(&fd) else {
+            log::error!(target: "transport", "Peer with fd {fd} was not found");
+            return;
+        };
+        if let Peer::Disconnected { .. } = peer {
+            log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
+            return;
+        };
+        log::debug!(target: "transport", "Requesting reactor to take back transport");
+        peer.comeback();
+
+        self.actions.push_back(Action::RegisterTransport(transport));
     }
 }
 
@@ -313,7 +369,12 @@ where
     }
 
     fn handle_command(&mut self, cmd: Self::Command) {
-        self.service.command(cmd)
+        let (id, err, session) = match cmd {
+            Command::FetchCompleted(id, session) => (id, None, session),
+            Command::FetchFailed(id, err, session) => (id, Some(err), session),
+            cmd => return self.service.command(cmd),
+        };
+        self.service.fetch_complete(id, err);
     }
 
     fn handle_error(&mut self, err: reactor::Error<net::SocketAddr, RawFd>) {
@@ -346,11 +407,14 @@ where
 
                 self.service.disconnected(*id, reason);
             }
-            Some(Peer::Handover(fetch)) => self
-                .worker_ctrl
-                .0
-                .send(WorkerReq::Fetch(fetch.repo, transport))
-                .expect("worker pool is down"),
+            Some(Peer::Handover { fetch, .. }) => {
+                let fetch = fetch.clone();
+                self.fetch(transport.as_raw_fd(), fetch.clone());
+                self.worker_ctrl
+                    .0
+                    .send(WorkerReq::Fetch(fetch.repo, transport))
+                    .expect("worker pool is down")
+            }
             Some(_) => {
                 panic!("Unexpected peer handover from the reactor")
             }
