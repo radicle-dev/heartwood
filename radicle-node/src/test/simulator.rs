@@ -12,7 +12,7 @@ use log::*;
 use nakamoto_net as nakamoto;
 use nakamoto_net::{Link, LocalDuration, LocalTime};
 
-use crate::crypto::Signer;
+use crate::crypto::{Negotiator, Signer};
 use crate::prelude::Address;
 use crate::service::reactor::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
@@ -190,7 +190,7 @@ pub struct Simulation<S, G> {
     signer: PhantomData<G>,
 }
 
-impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
+impl<S: WriteStorage + 'static, G: Signer + Negotiator> Simulation<S, G> {
     /// Create a new simulation.
     pub fn new(time: LocalTime, rng: fastrand::Rng, opts: Options) -> Self {
         Self {
@@ -592,6 +592,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     events.push_back(event);
                 }
             }
+            Io::Fetch(..) => todo!("I have no idea what to do here"),
         }
     }
 

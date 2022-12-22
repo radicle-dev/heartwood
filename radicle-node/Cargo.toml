@@ -6,7 +6,7 @@ authors = ["Alexis Sellier <alexis@radicle.xyz>"]
 edition = "2021"
 
 [features]
-test = ["radicle/test", "radicle-crypto/test", "qcheck"]
+test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qcheck"]
 
 [dependencies]
 amplify = { version = "4.0.0-beta.1", default-features = false, features = ["std"] }
@@ -22,9 +22,9 @@ git-ref-format = { version = "0", features = ["serde", "macro"] }
 lexopt = { version = "0.2.1" }
 log = { version = "0.4.17", features = ["std"] }
 nakamoto-net = { version = "0.3.0" }
-netservices = { version = "0", features = ["poll-reactor", "socket2"] }
+netservices = { version = "0", features = ["io-reactor", "socket2"] }
 nonempty = { version = "0.8.1", features = ["serialize"] }
-poll-reactor = { version = "0", features = ["popol", "socket2"] }
+io-reactor = { version = "0", features = ["popol", "socket2"] }
 qcheck = { version = "1", default-features = false, optional = true }
 sqlite = { version = "0.30.3" }
 sqlite3-src = { version = "0.4.0", features = ["bundled"] } # Ensures static linking
@@ -41,6 +41,6 @@ features = ["sql"]
 
 [dev-dependencies]
 radicle = { path = "../radicle", version = "*", features = ["test"] }
-radicle-crypto = { path = "../radicle-crypto", version = "*", features = ["test"] }
+radicle-crypto = { path = "../radicle-crypto", version = "*", features = ["test", "cyphernet"] }
 qcheck = { version = "1", default-features = false }
 qcheck-macros = { version = "1", default-features = false }

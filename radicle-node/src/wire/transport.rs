@@ -6,9 +6,10 @@ use std::collections::VecDeque;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::Instant;
 use std::{io, net};
 
+use crossbeam_channel as chan;
 use cyphernet::addr::{Addr as _, HostAddr, PeerAddr};
 use nakamoto_net::{DisconnectReason, Link, LocalTime};
 use netservices::noise::NoiseXk;
@@ -21,19 +22,17 @@ use radicle::node::NodeId;
 use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
-use crate::service::reactor::Io;
+use crate::service::reactor::{Fetch, Io};
 use crate::service::{routing, session, Message, Service};
+use crate::worker::{WorkerReq, WorkerResp};
 use crate::{address, service};
 
-/// The peer session type.
-pub type Session<N> = NoiseXk<N>;
-
 /// Reactor action.
-type Action<G> = reactor::Action<NetAccept<Session<G>>, NetTransport<Session<G>, Message>>;
+type Action<G> = reactor::Action<NetAccept<NoiseXk<G>>, NetTransport<NoiseXk<G>, Message>>;
 
 /// Peer connection state machine.
 #[derive(Debug)]
-enum Peer {
+enum Peer<G: Negotiator> {
     /// The initial state before handshake is completed.
     Connecting { link: Link },
     /// The state after handshake is completed.
@@ -45,9 +44,22 @@ enum Peer {
         id: NodeId,
         reason: DisconnectReason<service::DisconnectReason>,
     },
+    /// The state after we've started the process of upgraded the peer for a fetch.
+    /// The request to handover the socket was made to the reactor.
+    Upgrading {
+        fetch: Fetch,
+        link: Link,
+        id: NodeId,
+    },
+    /// The peer is now upgraded and we are in control of the socket.
+    Upgraded {
+        link: Link,
+        id: NodeId,
+        response: chan::Receiver<WorkerResp<G>>,
+    },
 }
 
-impl Peer {
+impl<G: Negotiator> Peer<G> {
     /// Return a new connecting peer.
     fn connecting(link: Link) -> Self {
         Self::Connecting { link }
@@ -70,18 +82,61 @@ impl Peer {
             panic!("Peer::disconnected: session is not connected");
         }
     }
+
+    /// Switch to upgrading state.
+    fn upgrading(&mut self, fetch: Fetch) {
+        if let Self::Connected { id, link } = self {
+            *self = Self::Upgrading {
+                fetch,
+                id: *id,
+                link: *link,
+            };
+        } else {
+            panic!("Peer::upgrading: session is not connected");
+        }
+    }
+
+    /// Switch to upgraded state.
+    fn upgraded(&mut self, listener: chan::Receiver<WorkerResp<G>>) -> Fetch {
+        if let Self::Upgrading { fetch, id, link } = self {
+            let fetch = fetch.clone();
+
+            *self = Self::Upgraded {
+                id: *id,
+                link: *link,
+                response: listener,
+            };
+            fetch
+        } else {
+            panic!("Peer::upgraded: can't upgrade before handover");
+        }
+    }
+
+    /// Switch back from upgraded to connected state.
+    fn downgrade(&mut self) -> Link {
+        if let Self::Upgraded { id, link, .. } = self {
+            let link = *link;
+            *self = Self::Connected { id: *id, link };
+
+            link
+        } else {
+            panic!("Peer::downgrade: can't downgrade if not in upgraded state");
+        }
+    }
 }
 
 /// Transport protocol implementation for a set of peers.
 pub struct Transport<R, S, W, G: Negotiator> {
     /// Backing service instance.
     service: Service<R, S, W, G>,
+    /// Worker pool interface.
+    worker: chan::Sender<WorkerReq<G>>,
     /// Used to performs X25519 key exchange.
     keypair: G,
     /// Internal queue of actions to send to the reactor.
     actions: VecDeque<Action<G>>,
     /// Peer sessions.
-    peers: HashMap<RawFd, Peer>,
+    peers: HashMap<RawFd, Peer<G>>,
     /// SOCKS5 proxy address.
     proxy: net::SocketAddr,
 }
@@ -95,6 +150,7 @@ where
 {
     pub fn new(
         mut service: Service<R, S, W, G>,
+        worker: chan::Sender<WorkerReq<G>>,
         keypair: G,
         proxy: net::SocketAddr,
         clock: LocalTime,
@@ -103,6 +159,7 @@ where
 
         Self {
             service,
+            worker,
             keypair,
             proxy,
             actions: VecDeque::new(),
@@ -141,6 +198,70 @@ where
 
         self.actions.push_back(Action::UnregisterTransport(fd));
     }
+
+    fn upgrade(&mut self, fd: RawFd, fetch: Fetch) {
+        let Some(peer) = self.peers.get_mut(&fd) else {
+            log::error!(target: "transport", "Peer with fd {fd} was not found");
+            return;
+        };
+        if let Peer::Disconnected { .. } = peer {
+            log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
+            return;
+        };
+        log::debug!(target: "transport", "Requesting transport handover from reactor for fd {fd}");
+        peer.upgrading(fetch);
+
+        self.actions.push_back(Action::UnregisterTransport(fd));
+    }
+
+    fn upgraded(&mut self, transport: NetTransport<NoiseXk<G>, Message>) {
+        let fd = transport.as_raw_fd();
+        let Some(peer) = self.peers.get_mut(&fd) else {
+            log::error!(target: "transport", "Peer with fd {fd} was not found");
+            return;
+        };
+        let (send, recv) = chan::bounded::<WorkerResp<G>>(1);
+        let fetch = peer.upgraded(recv);
+        // Downgrade the transport to a simple session and the buffer of incoming data that is
+        // unprocessed. This buffer is provided as initial input to the worker.
+        let Ok((session, drain)) = transport.downgrade() else {
+            // This can happen in case the service attempts to send data to a peer after it has
+            // initiated an upgrade protocol.
+            panic!("Transport::upgraded: outgoing messages buffer is not empty");
+        };
+
+        if self
+            .worker
+            .send(WorkerReq {
+                fetch,
+                session,
+                drain,
+                channel: send,
+            })
+            .is_err()
+        {
+            log::error!(target: "transport", "Worker pool is disconnected; cannot send fetch request");
+        }
+    }
+
+    fn fetch_complete(&mut self, resp: WorkerResp<G>) {
+        let session = resp.session;
+        let fd = session.as_raw_fd();
+        let Some(peer) = self.peers.get_mut(&fd) else {
+            log::error!(target: "transport", "Peer with fd {fd} was not found");
+            return;
+        };
+        if let Peer::Disconnected { .. } = peer {
+            log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
+            return;
+        };
+        let link = peer.downgrade();
+        let transport = NetTransport::upgrade(session, link == Link::Inbound)
+            .expect("unable to set socket into non-blocking mode");
+
+        self.actions.push_back(Action::RegisterTransport(transport));
+        self.service.fetch_complete(resp.result);
+    }
 }
 
 impl<R, S, W, G> reactor::Handler for Transport<R, S, W, G>
@@ -150,9 +271,27 @@ where
     W: WriteStorage + Send + 'static,
     G: Signer + Negotiator + Send,
 {
-    type Listener = NetAccept<Session<G>>;
-    type Transport = NetTransport<Session<G>, Message>;
+    type Listener = NetAccept<NoiseXk<G>>;
+    type Transport = NetTransport<NoiseXk<G>, Message>;
     type Command = service::Command;
+
+    fn tick(&mut self, time: Instant) {
+        // FIXME: Ensure that the time correctly converted.
+        self.service
+            .tick(LocalTime::from_secs(time.elapsed().as_secs()));
+
+        let mut completed = Vec::new();
+        for peer in self.peers.values() {
+            if let Peer::Upgraded { response, .. } = peer {
+                if let Ok(resp) = response.try_recv() {
+                    completed.push(resp);
+                }
+            }
+        }
+        for resp in completed {
+            self.fetch_complete(resp);
+        }
+    }
 
     fn handle_wakeup(&mut self) {
         self.service.wake()
@@ -161,11 +300,9 @@ where
     fn handle_listener_event(
         &mut self,
         socket_addr: net::SocketAddr,
-        event: ListenerEvent<Session<G>>,
-        duration: Duration,
+        event: ListenerEvent<NoiseXk<G>>,
+        _: Instant,
     ) {
-        self.service.tick(LocalTime::from_secs(duration.as_secs()));
-
         match event {
             ListenerEvent::Accepted(session) => {
                 log::debug!(
@@ -176,7 +313,7 @@ where
                 self.peers
                     .insert(session.as_raw_fd(), Peer::connecting(Link::Inbound));
 
-                let transport = match NetTransport::<Session<G>, Message>::upgrade(session) {
+                let transport = match NetTransport::<NoiseXk<G>, Message>::upgrade(session, true) {
                     Ok(transport) => transport,
                     Err(err) => {
                         log::error!(target: "transport", "Failed to upgrade accepted peer socket: {err}");
@@ -196,11 +333,9 @@ where
     fn handle_transport_event(
         &mut self,
         fd: RawFd,
-        event: SessionEvent<Session<G>, Message>,
-        duration: Duration,
+        event: SessionEvent<NoiseXk<G>, Message>,
+        _: Instant,
     ) {
-        self.service.tick(LocalTime::from_secs(duration.as_secs()));
-
         match event {
             SessionEvent::SessionEstablished(node_id) => {
                 log::debug!(target: "transport", "Session established with {node_id}");
@@ -271,7 +406,7 @@ where
     }
 
     fn handle_command(&mut self, cmd: Self::Command) {
-        self.service.command(cmd)
+        self.service.command(cmd);
     }
 
     fn handle_error(&mut self, err: reactor::Error<net::SocketAddr, RawFd>) {
@@ -287,6 +422,9 @@ where
 
                 self.actions.push_back(Action::UnregisterTransport(fd));
             }
+            reactor::Error::Poll(err) => {
+                log::error!(target: "transport", "Can't poll connections: {}", err);
+            }
         }
     }
 
@@ -297,13 +435,22 @@ where
     fn handover_transport(&mut self, transport: Self::Transport) {
         let fd = transport.as_raw_fd();
 
-        if let Some(Peer::Disconnected { id, reason }) = self.peers.get(&fd) {
-            // Disconnect TCP stream.
-            drop(transport);
+        match self.peers.get(&fd) {
+            Some(Peer::Disconnected { id, reason }) => {
+                // Disconnect TCP stream.
+                drop(transport);
 
-            self.service.disconnected(*id, reason);
-        } else {
-            todo!("The handover protocol is not implemented");
+                self.service.disconnected(*id, reason);
+            }
+            Some(Peer::Upgrading { .. }) => {
+                self.upgraded(transport);
+            }
+            Some(_) => {
+                panic!("Transport::handover_transport: Unexpected peer with fd {fd} handed over from the reactor");
+            }
+            None => {
+                panic!("Transport::handover_transport: Unknown peer with fd {fd} handed over");
+            }
         }
     }
 }
@@ -315,7 +462,7 @@ where
     W: WriteStorage + 'static,
     G: Signer + Negotiator,
 {
-    type Item = reactor::Action<NetAccept<Session<G>>, NetTransport<Session<G>, Message>>;
+    type Item = reactor::Action<NetAccept<NoiseXk<G>>, NetTransport<NoiseXk<G>, Message>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(event) = self.actions.pop_front() {
@@ -352,7 +499,7 @@ where
                         break;
                     }
 
-                    match NetTransport::<Session<G>, Message>::connect(
+                    match NetTransport::<NoiseXk<G>, Message>::connect(
                         PeerAddr::new(node_id, socket_addr),
                         &self.keypair,
                     ) {
@@ -376,7 +523,12 @@ where
 
                     return self.actions.pop_back();
                 }
-                Io::Wakeup(d) => return Some(reactor::Action::Wakeup(d.into())),
+                Io::Wakeup(d) => return Some(reactor::Action::SetTimer(d.into())),
+                Io::Fetch(fetch) => {
+                    // TODO: Check that the node_id is connected, queue request otherwise.
+                    let fd = self.by_id(&fetch.remote);
+                    self.upgrade(fd, fetch);
+                }
             }
         }
         None

@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::sync::Arc;
 use std::{fmt, ops::Deref, str::FromStr};
 
 use ed25519_compact as ed25519;
@@ -26,28 +27,28 @@ pub type SharedSecret = [u8; 32];
 /// Trait alias used for Diffie–Hellman key exchange.
 #[cfg(feature = "cyphernet")]
 pub trait Negotiator:
-    cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone
+    cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone + Send
 {
 }
 
 #[cfg(feature = "cyphernet")]
 impl<T> Negotiator for T where
-    T: cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone
+    T: cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone + Send
 {
 }
 
 /// Error returned if signing fails, eg. due to an HSM or KMS.
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 #[error(transparent)]
 pub struct SignerError {
     #[from]
-    source: Box<dyn std::error::Error + Send + Sync>,
+    source: Arc<dyn std::error::Error + Send + Sync>,
 }
 
 impl SignerError {
     pub fn new(source: impl std::error::Error + Send + Sync + 'static) -> Self {
         Self {
-            source: Box::new(source),
+            source: Arc::new(source),
         }
     }
 }

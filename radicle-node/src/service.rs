@@ -27,7 +27,7 @@ use crate::address;
 use crate::address::AddressBook;
 use crate::clock::Timestamp;
 use crate::crypto;
-use crate::crypto::{Signer, Verified};
+use crate::crypto::{Negotiator, Signer, Verified};
 use crate::git;
 use crate::identity::{Doc, Id};
 use crate::node;
@@ -107,6 +107,7 @@ pub enum FetchError {
 }
 
 /// Result of looking up seeds in our routing table.
+/// This object is sent back to the caller who initiated the fetch.
 #[derive(Debug)]
 pub enum FetchLookup {
     /// Found seeds for the given project.
@@ -244,7 +245,7 @@ where
     R: routing::Store,
     A: address::Store,
     S: WriteStorage + 'static,
-    G: crypto::Signer,
+    G: Signer + Negotiator,
 {
     pub fn new(
         config: Config,
@@ -279,17 +280,6 @@ where
             last_prune: LocalTime::default(),
             last_announce: LocalTime::default(),
             start_time: LocalTime::default(),
-        }
-    }
-
-    pub fn seeds(&self, id: &Id) -> Vec<(NodeId, &Session)> {
-        if let Ok(seeds) = self.routing.get(id) {
-            seeds
-                .into_iter()
-                .filter_map(|id| self.sessions.by_id(&id).map(|p| (id, p)))
-                .collect()
-        } else {
-            vec![]
         }
     }
 
@@ -446,51 +436,36 @@ where
                     return;
                 }
 
-                let seeds = self.seeds(&id);
-                let Some(seeds) = NonEmpty::from_vec(seeds) else {
-                    log::error!("No seeds found for {}", id);
+                let Ok(seeds) = self.routing.get(&id) else {
+                    todo!();
+                };
+                let Some(seeds) = NonEmpty::from_vec(seeds.into_iter().collect()) else {
+                    log::warn!("No seeds found for {}", id);
                     resp.send(FetchLookup::NotFound).ok();
 
                     return;
                 };
                 log::debug!("Found {} seeds for {}", seeds.len(), id);
 
-                let mut repo = match self.storage.repository(id) {
-                    Ok(repo) => repo,
-                    Err(err) => {
-                        log::error!("Error opening repo for {}: {}", id, err);
-                        resp.send(FetchLookup::Error(err.into())).ok();
-
-                        return;
-                    }
-                };
-
-                let (results_, results) = chan::bounded(seeds.len());
+                // FIXME: Get results back to user.
+                let (_, results) = chan::bounded(seeds.len());
                 resp.send(FetchLookup::Found {
-                    seeds: seeds.clone().map(|(_, peer)| peer.id),
+                    seeds: seeds.clone(),
                     results,
                 })
                 .ok();
 
                 // TODO: Limit the number of seeds we fetch from? Randomize?
-                for (peer_id, peer) in seeds {
-                    match repo.fetch(&peer_id, Namespaces::default()) {
-                        Ok(updated) => {
-                            results_
-                                .send(FetchResult::Fetched {
-                                    from: peer.id,
-                                    updated,
-                                })
-                                .ok();
-                        }
-                        Err(err) => {
-                            results_
-                                .send(FetchResult::Error {
-                                    from: peer.id,
-                                    error: err.into(),
-                                })
-                                .ok();
-                        }
+                for seed in seeds {
+                    let session = self.sessions.get_mut(&seed).unwrap();
+                    if let Some(upgrade) = session.upgrade(id) {
+                        self.reactor.write(session.id, upgrade);
+                        self.reactor
+                            .fetch(session.id, id, Namespaces::default(), true);
+                    } else {
+                        // TODO: If we can't upgrade, it's because we're already fetching from
+                        // this peer. So we need to queue the request, or find another peer.
+                        todo!();
                     }
                 }
             }
@@ -531,17 +506,19 @@ where
         }
     }
 
+    pub fn fetch_complete(&mut self, _result: FetchResult) {
+        // TODO(cloudhead): handle completed job with service business logic
+    }
+
     pub fn accepted(&mut self, _addr: net::SocketAddr) {
         // Inbound connection attempt.
     }
 
     pub fn attempted(&mut self, id: NodeId, _addr: &Address) {
         let persistent = self.config.is_persistent(&id);
-        let peer = self
-            .sessions
-            .entry(id)
-            .or_insert_with(|| Session::new(id, Link::Outbound, persistent, self.rng.clone()));
-
+        let peer = self.sessions.entry(id).or_insert_with(|| {
+            Session::new(id, Link::Outbound, persistent, self.rng.clone(), self.clock)
+        });
         peer.attempted();
     }
 
@@ -575,6 +552,7 @@ where
                     Link::Inbound,
                     self.config.is_persistent(&remote),
                     self.rng.clone(),
+                    self.clock,
                 ),
             );
         }
@@ -823,9 +801,15 @@ where
         debug!("Received {:?} from {}", &message, peer.id);
 
         match (&mut peer.state, message) {
-            (session::State::Initial, Message::Initialize {}) => {
-                // Nb. This is a very primitive handshake. Eventually we should have anyhow
-                // extra "acknowledgment" message sent when the `Initialize` is well received.
+            (session::State::Connected { initialized, .. }, Message::Initialize {}) => {
+                // Already initialized!
+                if *initialized {
+                    debug!(
+                        "Disconnecting peer {} for sending us a message before initializing",
+                        peer.id
+                    );
+                    return Err(session::Error::Misbehavior);
+                }
                 if peer.link.is_inbound() {
                     self.reactor.write_all(
                         peer.id,
@@ -838,25 +822,14 @@ where
                         ),
                     );
                 }
+                *initialized = true;
                 // Nb. we don't set the peer timestamp here, since it is going to be
                 // set after the first message is received only. Setting it here would
                 // mean that messages received right after the handshake could be ignored.
-                peer.state = session::State::Negotiated {
-                    id: *remote,
-                    since: self.clock,
-                    ping: Default::default(),
-                };
-            }
-            (session::State::Initial, _) => {
-                debug!(
-                    "Disconnecting peer {} for sending us a message before handshake",
-                    peer.id
-                );
-                return Err(session::Error::Misbehavior);
             }
             // Process a peer announcement.
-            (session::State::Negotiated { id: relayer, .. }, Message::Announcement(ann)) => {
-                let relayer = *relayer;
+            (session::State::Connected { .. }, Message::Announcement(ann)) => {
+                let relayer = peer.id;
 
                 // Returning true here means that the message should be relayed.
                 if self.handle_announcement(&relayer, &ann)? {
@@ -875,7 +848,7 @@ where
                     return Ok(());
                 }
             }
-            (session::State::Negotiated { .. }, Message::Subscribe(subscribe)) => {
+            (session::State::Connected { .. }, Message::Subscribe(subscribe)) => {
                 for msg in self
                     .gossip
                     .filtered(&subscribe.filter, subscribe.since, subscribe.until)
@@ -884,14 +857,7 @@ where
                 }
                 peer.subscribe = Some(subscribe);
             }
-            (session::State::Negotiated { .. }, Message::Initialize { .. }) => {
-                debug!(
-                    "Disconnecting peer {} for sending us a redundant handshake message",
-                    peer.id
-                );
-                return Err(session::Error::Misbehavior);
-            }
-            (session::State::Negotiated { .. }, Message::Ping(Ping { ponglen, .. })) => {
+            (session::State::Connected { .. }, Message::Ping(Ping { ponglen, .. })) => {
                 // Ignore pings which ask for too much data.
                 if ponglen > Ping::MAX_PONG_ZEROES {
                     return Ok(());
@@ -903,12 +869,17 @@ where
                     },
                 );
             }
-            (session::State::Negotiated { ping, .. }, Message::Pong { zeroes }) => {
+            (session::State::Connected { ping, .. }, Message::Pong { zeroes }) => {
                 if let session::PingState::AwaitingResponse(ponglen) = *ping {
                     if (ponglen as usize) == zeroes.len() {
                         *ping = session::PingState::Ok;
                     }
                 }
+            }
+            (session::State::Connected { .. }, Message::Upgrade { repo }) => {
+                // All we need is to instruct the transport to handover to the worker
+                self.reactor
+                    .fetch(*remote, repo, Namespaces::default(), false);
             }
             (session::State::Disconnected { .. }, msg) => {
                 debug!("Ignoring {:?} from disconnected peer {}", msg, peer.id);
@@ -1030,28 +1001,14 @@ where
     }
 
     fn choose_addresses(&mut self) -> Vec<(NodeId, Address)> {
-        // TODO(cloudhead): Remove once noise is implemented.
-        let mut initializing: Vec<NodeId> = Vec::new();
-        let mut negotiated: HashMap<NodeId, &Session> = HashMap::new();
-        for s in self.sessions.values() {
-            if !s.link.is_outbound() {
-                continue;
-            }
-            match s.state {
-                // TODO(cloudhead): Remove when we have noise handshake.
-                session::State::Initial => {
-                    initializing.push(s.id);
-                }
-                session::State::Negotiated { id, .. } => {
-                    negotiated.insert(id, s);
-                }
-                session::State::Disconnected { .. } => {}
-            }
-        }
+        let sessions = self
+            .sessions
+            .values()
+            .filter(|s| s.is_connected() && s.link.is_outbound())
+            .map(|s| (s.id, s))
+            .collect::<HashMap<_, _>>();
 
-        let wanted = TARGET_OUTBOUND_PEERS
-            .saturating_sub(initializing.len())
-            .saturating_sub(negotiated.len());
+        let wanted = TARGET_OUTBOUND_PEERS.saturating_sub(sessions.len());
         if wanted == 0 {
             return Vec::new();
         }
@@ -1059,9 +1016,7 @@ where
         self.addresses
             .entries()
             .unwrap()
-            .filter(|(node_id, _)| {
-                !initializing.contains(node_id) && !negotiated.contains_key(node_id)
-            })
+            .filter(|(node_id, _)| !sessions.contains_key(node_id))
             .take(wanted)
             .map(|(n, s)| (n, s.addr))
             .collect()
@@ -1253,23 +1208,19 @@ impl Sessions {
         Self(AddressBook::new(rng))
     }
 
-    pub fn by_id(&self, id: &NodeId) -> Option<&Session> {
-        self.0.values().find(|p| p.node_id() == Some(*id))
-    }
-
     /// Iterator over fully negotiated peers.
     pub fn negotiated(&self) -> impl Iterator<Item = (&NodeId, &Session)> + Clone {
         self.0
             .iter()
-            .filter_map(move |(_, sess)| match &sess.state {
-                session::State::Negotiated { id, .. } => Some((id, sess)),
+            .filter_map(move |(id, sess)| match &sess.state {
+                session::State::Connected { .. } => Some((id, sess)),
                 _ => None,
             })
     }
 
     /// Iterator over mutable fully negotiated peers.
     pub fn negotiated_mut(&mut self) -> impl Iterator<Item = (&NodeId, &mut Session)> {
-        self.0.iter_mut().filter(move |(_, p)| p.is_negotiated())
+        self.0.iter_mut().filter(move |(_, p)| p.is_connected())
     }
 }
 

@@ -37,7 +37,7 @@ version = "0.3.0"
 git = "https://github.com/cyphernet-wg/rust-cyphernet"
 version = "0.1.0"
 
-[patch.crates-io.poll-reactor]
+[patch.crates-io.io-reactor]
 git = "https://github.com/cyphernet-wg/rust-netservices"
 version = "0.1.0"
 

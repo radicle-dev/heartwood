@@ -71,3 +71,14 @@ impl Signer for MockSigner {
         Ok(self.sign(msg))
     }
 }
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::crypto::Ecdh for MockSigner {
+    type Pk = PublicKey;
+    type Secret = crate::SharedSecret;
+    type Err = crate::Error;
+
+    fn ecdh(&self, _pk: &Self::Pk) -> Result<Self::Secret, Self::Err> {
+        Ok([0; 32])
+    }
+}

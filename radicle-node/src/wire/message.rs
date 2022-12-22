@@ -19,6 +19,7 @@ pub enum MessageType {
     Subscribe = 8,
     Ping = 10,
     Pong = 12,
+    Upgrade = 14,
 }
 
 impl From<MessageType> for u16 {
@@ -39,6 +40,7 @@ impl TryFrom<u16> for MessageType {
             8 => Ok(MessageType::Subscribe),
             10 => Ok(MessageType::Ping),
             12 => Ok(MessageType::Pong),
+            14 => Ok(MessageType::Upgrade),
             _ => Err(other),
         }
     }
@@ -60,6 +62,7 @@ impl Message {
             },
             Self::Ping { .. } => MessageType::Ping,
             Self::Pong { .. } => MessageType::Pong,
+            Self::Upgrade { .. } => MessageType::Upgrade,
         }
         .into()
     }
@@ -213,6 +216,9 @@ impl wire::Encode for Message {
             Self::Pong { zeroes } => {
                 n += zeroes.encode(writer)?;
             }
+            Self::Upgrade { repo } => {
+                n += repo.encode(writer)?;
+            }
         }
 
         if n > wire::Size::MAX as usize {
@@ -286,6 +292,10 @@ impl wire::Decode for Message {
             Ok(MessageType::Pong) => {
                 let zeroes = ZeroBytes::decode(reader)?;
                 Ok(Self::Pong { zeroes })
+            }
+            Ok(MessageType::Upgrade) => {
+                let repo = Id::decode(reader)?;
+                Ok(Self::Upgrade { repo })
             }
             Err(other) => Err(wire::Error::UnknownMessageType(other)),
         }

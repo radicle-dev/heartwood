@@ -331,6 +331,9 @@ pub enum Message {
         /// The pong payload.
         zeroes: ZeroBytes,
     },
+
+    /// Upgrade session to Git protocol for the given repository.
+    Upgrade { repo: Id },
 }
 
 impl Message {
@@ -416,6 +419,7 @@ impl fmt::Debug for Message {
             }
             Self::Ping(Ping { ponglen, zeroes }) => write!(f, "Ping({ponglen}, {:?})", zeroes),
             Self::Pong { zeroes } => write!(f, "Pong({:?})", zeroes),
+            Self::Upgrade { repo } => write!(f, "Upgrade({repo})"),
         }
     }
 }

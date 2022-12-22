@@ -9,7 +9,7 @@ use crate::address;
 use crate::address::Store;
 use crate::clock::Timestamp;
 use crate::crypto::test::signer::MockSigner;
-use crate::crypto::Signer;
+use crate::crypto::{Negotiator, Signer};
 use crate::identity::Id;
 use crate::node;
 use crate::prelude::*;
@@ -42,7 +42,7 @@ pub struct Peer<S, G> {
 impl<S, G> simulator::Peer<S, G> for Peer<S, G>
 where
     S: WriteStorage + 'static,
-    G: Signer + 'static,
+    G: Signer + Negotiator + 'static,
 {
     fn init(&mut self) {
         self.initialize()
@@ -103,7 +103,7 @@ impl Default for Config<MockSigner> {
 impl<S, G> Peer<S, G>
 where
     S: WriteStorage + 'static,
-    G: Signer + 'static,
+    G: Signer + Negotiator + 'static,
 {
     pub fn config(
         name: &'static str,
