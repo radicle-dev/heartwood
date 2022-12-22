@@ -18,7 +18,7 @@ pub enum Io {
     /// Disconnect from a peer.
     Disconnect(NodeId, DisconnectReason),
     /// Fetch repository data from a peer.
-    Fetch(NodeId, Fetch),
+    Fetch(Fetch),
     /// Ask for a wakeup in a specified amount of time.
     Wakeup(LocalDuration),
     /// Emit an event.
@@ -29,11 +29,11 @@ pub enum Io {
 #[derive(Debug, Clone)]
 pub struct Fetch {
     /// Repo to fetch.
-    repo: Id,
+    pub repo: Id,
     /// Namespaces to fetch.
-    namespaces: Namespaces,
+    pub namespaces: Namespaces,
     /// Connection we are fetching from
-    remote: NodeId,
+    pub remote: NodeId,
 }
 
 /// Result of a fetch request from a specific seed.
@@ -88,14 +88,11 @@ impl Reactor {
     pub fn fetch(&mut self, remote: NodeId, repo: Id, namespaces: Namespaces) {
         debug!("Fetch {} from {}..", repo, remote);
 
-        self.io.push_back(Io::Fetch(
+        self.io.push_back(Io::Fetch(Fetch {
+            repo,
+            namespaces,
             remote,
-            Fetch {
-                repo,
-                namespaces,
-                remote,
-            },
-        ));
+        }));
     }
 
     /// Broadcast a message to a list of peers.

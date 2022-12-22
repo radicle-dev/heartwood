@@ -24,7 +24,7 @@ use radicle::storage;
 use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
-use crate::service::reactor::Io;
+use crate::service::reactor::{Fetch, Io};
 use crate::service::{routing, session, Message, Service};
 use crate::{address, service};
 
@@ -48,6 +48,9 @@ enum Peer {
         id: NodeId,
         reason: DisconnectReason<service::DisconnectReason>,
     },
+    /// The state once Fetch request was received and before reactor passed
+    /// session object
+    Handover(Fetch),
 }
 
 impl Peer {
@@ -71,6 +74,14 @@ impl Peer {
             *self = Self::Disconnected { id: *id, reason };
         } else {
             panic!("Peer::disconnected: session is not connected");
+        }
+    }
+
+    fn handover(&mut self, fetch: Fetch) {
+        if let Self::Connected { id, .. } = self {
+            *self = Self::Handover(fetch);
+        } else {
+            panic!("Peer::handover: session is not connected");
         }
     }
 }
@@ -154,6 +165,21 @@ where
         };
         log::debug!(target: "transport", "Disconnecting peer with fd {} ({})..", fd, reason);
         peer.disconnected(reason);
+
+        self.actions.push_back(Action::UnregisterTransport(fd));
+    }
+
+    fn fetch(&mut self, fd: RawFd, fetch: Fetch) {
+        let Some(peer) = self.peers.get_mut(&fd) else {
+            log::error!(target: "transport", "Peer with fd {fd} was not found");
+            return;
+        };
+        if let Peer::Disconnected { .. } = peer {
+            log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
+            return;
+        };
+        log::debug!(target: "transport", "Requesting reactor to handover transport");
+        peer.handover(fetch);
 
         self.actions.push_back(Action::UnregisterTransport(fd));
     }
@@ -313,13 +339,24 @@ where
     fn handover_transport(&mut self, transport: Self::Transport) {
         let fd = transport.as_raw_fd();
 
-        if let Some(Peer::Disconnected { id, reason }) = self.peers.get(&fd) {
-            // Disconnect TCP stream.
-            drop(transport);
+        match self.peers.get(&fd) {
+            Some(Peer::Disconnected { id, reason }) => {
+                // Disconnect TCP stream.
+                drop(transport);
 
-            self.service.disconnected(*id, reason);
-        } else {
-            todo!("The handover protocol is not implemented");
+                self.service.disconnected(*id, reason);
+            }
+            Some(Peer::Handover(fetch)) => self
+                .worker_ctrl
+                .0
+                .send(WorkerReq::Fetch(fetch.repo, transport))
+                .expect("worker pool is down"),
+            Some(_) => {
+                panic!("Unexpected peer handover from the reactor")
+            }
+            None => {
+                panic!("Reactor tried to handover unknown peer")
+            }
         }
     }
 }
@@ -393,7 +430,11 @@ where
                     return self.actions.pop_back();
                 }
                 Io::Wakeup(d) => return Some(reactor::Action::Wakeup(d.into())),
-                Io::Fetch(_, _) => todo!(),
+                Io::Fetch(fetch) => {
+                    // TODO: Check that the node_id is connected
+                    let fd = self.by_id(&fetch.remote);
+                    self.fetch(fd, fetch)
+                }
             }
         }
         None
