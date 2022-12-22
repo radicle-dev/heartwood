@@ -3,15 +3,18 @@ use std::{env, net, process, thread};
 use anyhow::Context as _;
 use cyphernet::addr::PeerAddr;
 use nakamoto_net::{LocalDuration, LocalTime};
+use radicle::prelude::Id;
 use reactor::poller::popol;
 use reactor::Reactor;
 
-use radicle::profile;
+use radicle::storage::git::Repository;
+use radicle::storage::{Error, WriteStorage};
+use radicle::{profile, storage};
 use radicle_node::client::handle::Handle;
 use radicle_node::client::{ADDRESS_DB_FILE, NODE_DIR, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle_node::crypto::ssh::keystore::MemorySigner;
 use radicle_node::prelude::{Address, NodeId};
-use radicle_node::service::{routing, tracking};
+use radicle_node::service::{routing, tracking, FetchResult};
 use radicle_node::wire::Transport;
 use radicle_node::{address, control, logger, service};
 
@@ -118,16 +121,31 @@ fn main() -> anyhow::Result<()> {
     let tracking = tracking::Config::open(tracking_db)?;
 
     log::info!("Initializing service ({:?})..", network);
+    let worker_storage = storage.clone();
     let service = service::Service::new(
         config, clock, routing, storage, addresses, tracking, signer, rng,
     );
 
-    let wire = Transport::new(service, negotiator, proxy_addr, clock);
+    let (to_worker_send, worker_recv) = crossbeam_channel::unbounded::<Id>();
+    let (worker_send, from_worker_recv) =
+        crossbeam_channel::unbounded::<Result<Repository, storage::Error>>();
+    let worker_control = (to_worker_send, from_worker_recv);
+    let workers = thread::spawn(move || {
+        // TODO: Move storage clone here
+        while let Ok(repo_id) = worker_recv.recv() {
+            let res = worker_storage.repository(repo_id);
+            worker_send.send(res).expect("failed to respond");
+        }
+        unreachable!("Worker pool crashed")
+    });
+
+    let wire = Transport::new(service, worker_control, negotiator, proxy_addr, clock);
     let reactor = Reactor::new(wire, popol::Poller::new());
     let handle = Handle::from(reactor.controller());
     let control = thread::spawn(move || control::listen(node, handle));
 
     control.join().unwrap()?;
+    workers.join().unwrap();
     reactor.join().unwrap();
 
     Ok(())

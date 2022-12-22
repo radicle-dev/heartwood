@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{io, net};
 
+use crossbeam_channel as chan;
 use cyphernet::addr::{Addr as _, HostAddr, PeerAddr};
 use nakamoto_net::{DisconnectReason, Link, LocalTime};
 use netservices::noise::NoiseXk;
@@ -17,7 +18,10 @@ use netservices::NetSession;
 
 use radicle::collections::HashMap;
 use radicle::crypto::Negotiator;
+use radicle::identity::Id;
 use radicle::node::NodeId;
+use radicle::storage;
+use radicle::storage::git::Repository;
 use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
@@ -72,10 +76,16 @@ impl Peer {
     }
 }
 
+type WorkerReq = Id;
+type WorkerResp = Result<Repository, storage::Error>;
+type WorkerCtrl = (chan::Sender<WorkerReq>, chan::Receiver<WorkerResp>);
+
 /// Transport protocol implementation for a set of peers.
 pub struct Transport<R, S, W, G: Negotiator> {
     /// Backing service instance.
     service: Service<R, S, W, G>,
+    /// Worker pool interface
+    worker_ctrl: WorkerCtrl,
     /// Used to performs X25519 key exchange.
     keypair: G,
     /// Internal queue of actions to send to the reactor.
@@ -95,6 +105,7 @@ where
 {
     pub fn new(
         mut service: Service<R, S, W, G>,
+        worker_ctrl: WorkerCtrl,
         keypair: G,
         proxy: net::SocketAddr,
         clock: LocalTime,
@@ -103,6 +114,7 @@ where
 
         Self {
             service,
+            worker_ctrl,
             keypair,
             proxy,
             actions: VecDeque::new(),
