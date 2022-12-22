@@ -19,7 +19,6 @@ pub enum Io {
     Disconnect(NodeId, DisconnectReason),
     /// Fetch repository data from a peer.
     Fetch(NodeId, Fetch),
-    // TODO: Add `Unregister`
     /// Ask for a wakeup in a specified amount of time.
     Wakeup(LocalDuration),
     /// Emit an event.

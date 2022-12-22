@@ -456,17 +456,22 @@ where
                 .ok();
 
                 // TODO: Limit the number of seeds we fetch from? Randomize?
+                let mut seeds_found = 0usize;
                 for seed in seeds {
                     let session = self.sessions.get_mut(&seed).unwrap();
                     if let Some(upgrade) = session.upgrade(id) {
                         self.reactor.write(session.id, upgrade);
                         self.reactor.fetch(session.id, id, Namespaces::default());
+                        seeds_found += 1;
                     } else {
                         // TODO: Log error.
                         // TODO: Queue worker jobs, eg. trying to fetch multiple repos
                         // TODO: When node receives UPGRADE, it sends Io::Spawn
                         // TODO: WorkerOp { Fetch | Push }
                     }
+                }
+                if seeds_found == 0 {
+                    // TODO: Report back to the user that no seeds were found
                 }
             }
             Command::TrackRepo(id, resp) => {
