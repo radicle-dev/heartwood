@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
 use axum::response::IntoResponse;
@@ -13,12 +11,10 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use radicle::cob::issue::Issues;
 use radicle::cob::thread::{self, CommentId};
 use radicle::cob::Timestamp;
-use radicle::git::raw::BranchType;
 use radicle::identity::{Id, PublicKey};
 use radicle::node::NodeId;
-use radicle::storage::{Oid, ReadRepository, WriteRepository, WriteStorage};
-use radicle_surf::git::History;
-use radicle_surf::Revision::Sha;
+use radicle::storage::{git::paths, ReadRepository, WriteStorage};
+use radicle_surf::git::{Oid, Repository};
 
 use crate::api::axum_extra::{Path, Query};
 use crate::api::error::Error;
@@ -133,7 +129,7 @@ async fn history_handler(
     };
 
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
+    let repo = Repository::open(paths::repository(storage, &project))?;
 
     // If a pagination is defined, we do not want to paginate the commits, and we return all of them on the first page.
     let page = page.unwrap_or(0);
@@ -143,7 +139,8 @@ async fn history_handler(
         per_page.unwrap_or(30)
     };
 
-    let headers = History::new(repo.raw().into(), sha.as_str())?
+    let headers = repo
+        .history(&sha)?
         .filter(|q| {
             if let Ok(q) = q {
                 if let (Some(since), Some(until)) = (since, until) {
@@ -164,7 +161,7 @@ async fn history_handler(
         .take(per_page)
         .filter_map(|commit| {
             if let Ok(commit) = commit {
-                radicle_surf::commit(&repo.raw().into(), commit.id).ok()
+                radicle_surf::source::commit(&repo, commit.id).ok()
             } else {
                 None
             }
@@ -173,7 +170,7 @@ async fn history_handler(
 
     let response = json!({
         "headers": headers,
-        "stats":  stats(&repo)?,
+        "stats":  repo.stats()?,
     });
 
     if fallback_to_head {
@@ -187,11 +184,11 @@ async fn history_handler(
 /// `GET /projects/:project/commits/:sha`
 async fn commit_handler(
     Extension(ctx): Extension<Context>,
-    Path((project, sha)): Path<(Id, Oid)>,
+    Path((proj, sha)): Path<(Id, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
-    let commit = radicle_surf::commit(&repo.raw().into(), sha)?;
+    let repo = Repository::open(paths::repository(storage, &proj))?;
+    let commit = radicle_surf::source::commit(&repo, sha)?;
 
     Ok::<_, Error>(Json(commit))
 }
@@ -200,14 +197,15 @@ async fn commit_handler(
 /// `GET /projects/:project/activity`
 async fn activity_handler(
     Extension(ctx): Extension<Context>,
-    Path(project): Path<Id>,
+    Path(proj): Path<Id>,
 ) -> impl IntoResponse {
     let current_date = chrono::Utc::now().timestamp();
     let one_year_ago = chrono::Duration::weeks(52);
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
-    let (_, head) = repo.head()?;
-    let timestamps = History::new(repo.raw().into(), head)?
+    let repo = Repository::open(paths::repository(storage, &proj))?;
+    let head = repo.head()?;
+    let timestamps = repo
+        .history(head)?
         .filter_map(|a| {
             if let Ok(a) = a {
                 let seconds = a.committer.time.seconds();
@@ -226,17 +224,37 @@ async fn activity_handler(
 /// `GET /projects/:project/tree/:sha/*path`
 async fn tree_handler(
     Extension(ctx): Extension<Context>,
-    Path((project, sha, path)): Path<(Id, Oid, String)>,
+    Path((proj, sha, path)): Path<(Id, Oid, String)>,
 ) -> impl IntoResponse {
     let path = path.strip_prefix('/').ok_or(Error::NotFound)?.to_string();
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
-    let tree = radicle_surf::object::tree(&repo.raw().into(), Some(Sha { sha }), Some(path))?;
+    let repo = Repository::open(paths::repository(storage, &proj))?;
+    let tree = repo.tree(sha, &path)?;
+
+    #[derive(Serialize)]
+    struct EntryInfo<'a> {
+        name: &'a str,
+        path: std::path::PathBuf,
+        kind: &'a str,
+        last_commit: &'a radicle_surf::source::commit::Header,
+    }
+
+    let prefix = std::path::Path::new(&path);
+    let entries = tree
+        .entries()
+        .iter()
+        .map(|entry| EntryInfo {
+            name: entry.name(),
+            path: prefix.join(entry.name()),
+            kind: if entry.is_tree() { "tree" } else { "blob" },
+            last_commit: entry.commit(),
+        })
+        .collect::<Vec<EntryInfo>>();
+
     let response = json!({
-        "path": &tree.path,
-        "entries": &tree.entries,
-        "info": &tree.info,
-        "stats": stats(&repo)?,
+        "path": &path,
+        "entries": &entries,
+        "stats": repo.stats()?,
     });
 
     Ok::<_, Error>(Json(response))
@@ -275,24 +293,28 @@ async fn remote_handler(
 /// `GET /projects/:project/blob/:sha/*path`
 async fn blob_handler(
     Extension(ctx): Extension<Context>,
-    Path((project, sha, path)): Path<(Id, Oid, String)>,
+    Path((proj, sha, path)): Path<(Id, Oid, String)>,
 ) -> impl IntoResponse {
     let path = path.strip_prefix('/').ok_or(Error::NotFound)?;
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
-    let blob = radicle_surf::blob::blob(&repo.raw().into(), Some(Sha { sha }), path)?;
+    let repo = Repository::open(paths::repository(storage, &proj))?;
+    let blob = repo.blob(sha, &path)?;
+    let response = json!({
+        "path": &path,
+        "content": blob.content(),
+    });
 
-    Ok::<_, Error>(Json(blob))
+    Ok::<_, Error>(Json(response))
 }
 
 /// Get project readme.
 /// `GET /projects/:project/readme/:sha`
 async fn readme_handler(
     Extension(ctx): Extension<Context>,
-    Path((project, sha)): Path<(Id, Oid)>,
+    Path((proj, sha)): Path<(Id, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
-    let repo = storage.repository(project)?;
+    let repo = Repository::open(paths::repository(storage, &proj))?;
     let paths = &[
         "README",
         "README.md",
@@ -303,14 +325,16 @@ async fn readme_handler(
     ];
 
     for path in paths {
-        if let Ok(blob) = radicle_surf::blob::blob(&repo.raw().into(), Some(Sha { sha }), path) {
-            return Ok::<_, Error>(Json(blob));
+        if let Ok(blob) = repo.blob(sha, path) {
+            let response = json!({
+                "path": &path,
+                "readme": blob.content(),
+            });
+            return Ok::<_, Error>(Json(response));
         }
     }
 
-    Err(radicle_surf::object::Error::PathNotFound(
-        radicle_surf::file_system::Path::try_from("README").unwrap(),
-    ))?
+    Err(Error::NotFound)
 }
 
 /// Get project issues list.
@@ -404,33 +428,4 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
 
         Comments(comments)
     }
-}
-
-#[derive(Serialize)]
-struct Stats {
-    branches: usize,
-    commits: usize,
-    contributors: usize,
-}
-
-fn stats<R: WriteRepository>(repo: &R) -> Result<Stats, Error> {
-    let branches = repo.raw().branches(Some(BranchType::Local))?.count();
-    let (_, head) = repo.head()?;
-    let mut commits = 0;
-    let contributors = History::new(repo.raw().into(), head)?
-        .filter_map(|commit| {
-            commits += 1;
-            if let Ok(commit) = commit {
-                Some((commit.author.name, commit.author.email))
-            } else {
-                None
-            }
-        })
-        .collect::<HashSet<_>>();
-
-    Ok(Stats {
-        branches,
-        commits,
-        contributors: contributors.len(),
-    })
 }
