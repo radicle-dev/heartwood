@@ -43,17 +43,31 @@ pub struct Metadata {
 #[derive(Debug, PartialEq, Eq)]
 pub enum OperationName {
     Create,
-    Default,
-    Show,
-    State,
-    React,
     Delete,
     List,
+    None,
+    React,
+    Show,
+    State,
 }
 
 impl Default for OperationName {
     fn default() -> Self {
-        Self::Default
+        Self::None
+    }
+}
+
+/// Command line Peer argument.
+#[derive(Debug, PartialEq, Eq)]
+pub enum OptPeer {
+    Any,
+    CurrentUser,
+    Peer(cob::ActorId),
+}
+
+impl Default for OptPeer {
+    fn default() -> Self {
+        OptPeer::Any
     }
 }
 
@@ -63,7 +77,6 @@ pub enum Operation {
         title: Option<String>,
         description: Option<String>,
     },
-    Default,
     Show {
         id: IssueId,
     },
@@ -79,7 +92,7 @@ pub enum Operation {
         reaction: Reaction,
     },
     List {
-        assignee: Option<cob::ActorId>,
+        assignee: OptPeer,
     },
 }
 
@@ -95,7 +108,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut id: Option<IssueId> = None;
-        let mut assignee: Option<cob::ActorId> = None;
+        let mut assignee: OptPeer = OptPeer::default();
         let mut title: Option<String> = None;
         let mut reaction: Option<Reaction> = None;
         let mut description: Option<String> = None;
@@ -141,13 +154,13 @@ impl Args for Options {
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
-                Value(val) if op == Some(OperationName::List) && assignee.is_none() => {
+                Value(val) if op == Some(OperationName::List) && assignee == OptPeer::Any => {
                     let val = val.to_string_lossy();
                     let Ok(val) = cob::ActorId::from_str(&val) else {
                             return Err(anyhow!("invalid peer ID '{}'", val));
                     };
 
-                    assignee = Some(val)
+                    assignee = OptPeer::Peer(val)
                 }
                 Value(val) if op.is_some() => {
                     let val = val
@@ -166,8 +179,10 @@ impl Args for Options {
         }
 
         let op = match op.unwrap_or_default() {
+            OperationName::None => Operation::List {
+                assignee: OptPeer::CurrentUser,
+            },
             OperationName::Create => Operation::Create { title, description },
-            OperationName::Default => Operation::Default,
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
             },
@@ -197,14 +212,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repo = storage.repository(id)?;
     let mut issues = Issues::open(*signer.public_key(), &repo)?;
 
-    let op = match options.op {
-        Operation::Default => Operation::List {
-            assignee: Some(*profile.id()),
-        },
-        _ => options.op,
-    };
-
-    match op {
+    match options.op {
         Operation::Create {
             title: Some(title),
             description: Some(description),
@@ -271,8 +279,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 )?;
             }
         }
-        Operation::Default => panic!("default should be set earlier"),
         Operation::List { assignee } => {
+            let assignee = match assignee {
+                OptPeer::Any => None,
+                OptPeer::CurrentUser => Some(*profile.id()),
+                OptPeer::Peer(id) => Some(id),
+            };
+
             let mut t = term::Table::new(term::table::TableOptions::default());
             for result in issues.all()? {
                 let (id, issue, _) = result?;
