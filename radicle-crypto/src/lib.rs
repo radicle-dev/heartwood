@@ -401,12 +401,11 @@ impl sqlite::BindableWithIndex for &PublicKey {
 
 pub mod keypair {
     use super::*;
-    use std::env;
 
     /// Generate a new keypair using OS randomness.
     pub fn generate() -> KeyPair {
         #[cfg(debug_assertions)]
-        if env::var("RAD_DEBUG").is_ok() {
+        if std::env::var("RAD_DEBUG").is_ok() {
             // Generate a test keypair that is always the same.
             // This is useful for debugging and testing, since the
             // public key is known in advance.
