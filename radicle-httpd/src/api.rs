@@ -2,19 +2,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::body::{Body, BoxBody};
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::http::Method;
 use axum::response::{IntoResponse, Json};
 use axum::routing::get;
 use axum::{Extension, Router};
-use hyper::http::{Request, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
 use tower_http::cors::{self, CorsLayer};
-use tower_http::trace::TraceLayer;
-use tracing::Span;
 
 use radicle::cob::issue::Issues;
 use radicle::identity::Id;
@@ -76,26 +72,6 @@ pub fn router(ctx: Context) -> Router {
                 .allow_origin(cors::Any)
                 .allow_methods([Method::GET, Method::POST, Method::PUT])
                 .allow_headers([CONTENT_TYPE, AUTHORIZATION]),
-        )
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(|request: &Request<Body>| {
-                    tracing::info_span!(
-                        "request",
-                        method = %request.method(),
-                        uri = %request.uri(),
-                        status = tracing::field::Empty,
-                        latency = tracing::field::Empty,
-                    )
-                })
-                .on_response(
-                    |response: &Response<BoxBody>, latency: Duration, span: &Span| {
-                        span.record("status", &tracing::field::debug(response.status()));
-                        span.record("latency", &tracing::field::debug(latency));
-
-                        tracing::info!("Processed");
-                    },
-                ),
         )
 }
 

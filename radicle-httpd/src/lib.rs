@@ -55,7 +55,16 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
 
     let git_router = Router::new()
         .route("/:project/*request", any(git_handler))
-        .layer(Extension(profile.clone()))
+        .layer(Extension(profile.clone()));
+
+    let ctx = api::Context::new(profile);
+    let api_router = api::router(ctx);
+
+    tracing::info!("listening on http://{}", options.listen);
+
+    let app = Router::new()
+        .merge(git_router)
+        .nest("/api", api_router)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<Body>| {
@@ -75,16 +84,7 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
                         tracing::info!("Processed");
                     },
                 ),
-        );
-
-    let ctx = api::Context::new(profile);
-    let api_router = api::router(ctx);
-
-    tracing::info!("listening on http://{}", options.listen);
-
-    let app = Router::new()
-        .merge(git_router)
-        .nest("/api", api_router)
+        )
         .into_make_service_with_connect_info::<SocketAddr>();
 
     axum::Server::bind(&options.listen)
