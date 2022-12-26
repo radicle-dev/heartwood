@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::crypto::ssh::agent::{Agent, AgentSigner};
-use crate::crypto::ssh::keystore::Keystore;
+use crate::crypto::ssh::{Keystore, Passphrase};
 use crate::crypto::PublicKey;
 use crate::node;
 use crate::storage::git::transport;
@@ -57,7 +57,7 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn init(home: impl AsRef<Path>, passphrase: &str) -> Result<Self, Error> {
+    pub fn init(home: impl AsRef<Path>, passphrase: impl Into<Passphrase>) -> Result<Self, Error> {
         let home = home.as_ref().to_path_buf();
         let storage = Storage::open(home.join("storage"))?;
         let keystore = Keystore::new(&home.join("keys"));

@@ -220,6 +220,12 @@ impl From<ed25519::SecretKey> for SecretKey {
     }
 }
 
+impl From<SecretKey> for ed25519::SecretKey {
+    fn from(other: SecretKey) -> Self {
+        other.0
+    }
+}
+
 impl Deref for SecretKey {
     type Target = ed25519::SecretKey;
 

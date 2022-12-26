@@ -37,7 +37,7 @@ fn profile(home: &Path) -> Profile {
     // Set debug mode, to make test output more predictable.
     env::set_var("RAD_DEBUG", "1");
     // Setup a new user.
-    Profile::init(home, "radicle").unwrap()
+    Profile::init(home, "radicle".to_owned()).unwrap()
 }
 
 #[test]

@@ -5,7 +5,7 @@ use std::{fs, io};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
-use crate::{keypair, PublicKey, SecretKey, SharedSecret, Signature, Signer, SignerError};
+use crate::{keypair, KeyPair, PublicKey, SecretKey, SharedSecret, Signature, Signer, SignerError};
 
 /// A secret key passphrase.
 pub type Passphrase = Zeroizing<String>;
@@ -46,12 +46,25 @@ impl Keystore {
     ///
     /// The `comment` is associated with the private key.
     /// The `passphrase` is used to encrypt the private key.
-    pub fn init(&self, comment: &str, passphrase: &str) -> Result<PublicKey, Error> {
-        let pair = keypair::generate();
-        let ssh_pair = ssh_key::private::Ed25519Keypair::from_bytes(&pair)?;
+    pub fn init(
+        &self,
+        comment: &str,
+        passphrase: impl Into<Passphrase>,
+    ) -> Result<PublicKey, Error> {
+        self.store(keypair::generate(), comment, passphrase)
+    }
+
+    /// Store a keypair on disk. Returns an error if the key already exists.
+    pub fn store(
+        &self,
+        keypair: KeyPair,
+        comment: &str,
+        passphrase: impl Into<Passphrase>,
+    ) -> Result<PublicKey, Error> {
+        let ssh_pair = ssh_key::private::Ed25519Keypair::from_bytes(&keypair)?;
         let ssh_pair = ssh_key::private::KeypairData::Ed25519(ssh_pair);
         let secret = ssh_key::PrivateKey::new(ssh_pair, comment)?;
-        let secret = secret.encrypt(ssh_key::rand_core::OsRng, passphrase)?;
+        let secret = secret.encrypt(ssh_key::rand_core::OsRng, passphrase.into())?;
         let public = secret.public_key();
         let path = self.path.join("radicle");
 
@@ -67,7 +80,7 @@ impl Keystore {
         secret.write_openssh_file(&path, ssh_key::LineEnding::default())?;
         public.write_openssh_file(&path.with_extension("pub"))?;
 
-        Ok(pair.pk.into())
+        Ok(keypair.pk.into())
     }
 
     /// Load the public key from the store. Returns `None` if it wasn't found.
@@ -195,7 +208,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let store = Keystore::new(&tmp.path());
 
-        let public = store.init("test", "hunter").unwrap();
+        let public = store.init("test", "hunter".to_owned()).unwrap();
         assert_eq!(public, store.public_key().unwrap().unwrap());
 
         let secret = store
@@ -212,7 +225,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let store = Keystore::new(&tmp.path());
 
-        let public = store.init("test", "hunter").unwrap();
+        let public = store.init("test", "hunter".to_owned()).unwrap();
         let signer = MemorySigner::load(&store, "hunter".to_owned().into()).unwrap();
 
         assert_eq!(public, *signer.public_key());

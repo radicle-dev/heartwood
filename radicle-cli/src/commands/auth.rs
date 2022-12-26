@@ -80,7 +80,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     let home = profile::home()?;
     let passphrase = term::read_passphrase(options.stdin, true)?;
     let spinner = term::spinner("Creating your 🌱 Ed25519 keypair...");
-    let profile = Profile::init(home, passphrase.as_str())?;
+    let profile = Profile::init(home, passphrase)?;
     spinner.finish();
 
     term::success!(

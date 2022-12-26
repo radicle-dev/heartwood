@@ -13,6 +13,8 @@ use radicle_ssh::encoding::Reader;
 use crate as crypto;
 use crate::PublicKey;
 
+pub use keystore::{Keystore, Passphrase};
+
 pub mod fmt {
     use radicle_ssh::encoding::Encoding as _;
 
