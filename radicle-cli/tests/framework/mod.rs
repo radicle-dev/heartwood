@@ -139,6 +139,7 @@ impl TestFormula {
 
                 Command::new(program)
                     .envs(self.env.clone())
+                    .current_dir(&self.cwd)
                     .args(&assertion.args)
                     .with_assert(assert.clone())
                     .assert()

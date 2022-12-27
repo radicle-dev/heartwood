@@ -9,7 +9,8 @@ use framework::TestFormula;
 
 /// Run a CLI test file.
 fn test(
-    path: impl AsRef<Path>,
+    test: impl AsRef<Path>,
+    cwd: impl AsRef<Path>,
     profile: Option<&Profile>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let base = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -24,7 +25,8 @@ fn test(
         .env("RAD_PASSPHRASE", "radicle")
         .env("RAD_HOME", home.to_string_lossy())
         .env("RAD_DEBUG", "1")
-        .file(base.join(path))?
+        .cwd(cwd)
+        .file(base.join(test))?
         .run()?;
 
     Ok(())
@@ -40,7 +42,7 @@ fn profile(home: &Path) -> Profile {
 
 #[test]
 fn rad_auth() {
-    test("examples/rad-auth.md", None).unwrap();
+    test("examples/rad-auth.md", Path::new("."), None).unwrap();
 }
 
 #[test]
@@ -51,12 +53,11 @@ fn rad_issue() {
 
     // Setup a test repository.
     fixtures::repository(working.path());
-    // Navigate to repository.
-    env::set_current_dir(working.path()).unwrap();
+    // Set a fixed commit time.
     env::set_var(radicle_cob::git::RAD_COMMIT_TIME, "1671125284");
 
-    test("examples/rad-init.md", Some(&profile)).unwrap();
-    test("examples/rad-issue.md", Some(&profile)).unwrap();
+    test("examples/rad-init.md", working.path(), Some(&profile)).unwrap();
+    test("examples/rad-issue.md", working.path(), Some(&profile)).unwrap();
 }
 
 #[test]
@@ -67,10 +68,8 @@ fn rad_init() {
 
     // Setup a test repository.
     fixtures::repository(working.path());
-    // Navigate to repository.
-    env::set_current_dir(working.path()).unwrap();
 
-    test("examples/rad-init.md", Some(&profile)).unwrap();
+    test("examples/rad-init.md", working.path(), Some(&profile)).unwrap();
 }
 
 #[test]
@@ -81,9 +80,7 @@ fn rad_delegate() {
 
     // Setup a test repository.
     fixtures::repository(working.path());
-    // Navigate to repository.
-    env::set_current_dir(working.path()).unwrap();
 
-    test("examples/rad-init.md", Some(&profile)).unwrap();
-    test("examples/rad-delegate.md", Some(&profile)).unwrap();
+    test("examples/rad-init.md", working.path(), Some(&profile)).unwrap();
+    test("examples/rad-delegate.md", working.path(), Some(&profile)).unwrap();
 }
