@@ -5,7 +5,7 @@ use std::{fs, io};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
-use crate::{keypair, KeyPair, PublicKey, SecretKey, SharedSecret, Signature, Signer, SignerError};
+use crate::{keypair, KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
 
 /// A secret key passphrase.
 pub type Passphrase = Zeroizing<String>;
@@ -155,10 +155,10 @@ impl Signer for MemorySigner {
 #[cfg(feature = "cyphernet")]
 impl cyphernet::crypto::Ecdh for MemorySigner {
     type Pk = PublicKey;
-    type Secret = SharedSecret;
+    type Secret = crate::SharedSecret;
     type Err = ed25519_compact::Error;
 
-    fn ecdh(&self, other: &PublicKey) -> Result<SharedSecret, ed25519_compact::Error> {
+    fn ecdh(&self, other: &PublicKey) -> Result<crate::SharedSecret, ed25519_compact::Error> {
         let pk = ed25519_compact::x25519::PublicKey::from_ed25519(other)?;
         let sk = ed25519_compact::x25519::SecretKey::from_ed25519(&self.secret)?;
         let ss = pk.dh(&sk)?;
