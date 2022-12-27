@@ -60,8 +60,8 @@ impl History {
         };
         let mut entries = HashMap::new();
         entries.insert(id, EntryWithClock::from(root_entry));
-        let NewGraph { graph, indices } = create_petgraph(&id, &entries);
-        Self { graph, indices }
+
+        create_petgraph(&id, &entries)
     }
 
     pub fn new<Id>(root: Id, entries: HashMap<EntryId, EntryWithClock>) -> Result<Self, CreateError>
@@ -72,8 +72,7 @@ impl History {
         if !entries.contains_key(&root) {
             Err(CreateError::MissingRoot)
         } else {
-            let NewGraph { graph, indices } = create_petgraph(&root, &entries);
-            Ok(Self { graph, indices })
+            Ok(create_petgraph(&root, &entries))
         }
     }
 
@@ -160,15 +159,10 @@ impl History {
     }
 }
 
-struct NewGraph {
-    graph: petgraph::Graph<EntryWithClock, (), petgraph::Directed, u32>,
-    indices: HashMap<EntryId, petgraph::graph::NodeIndex<u32>>,
-}
-
 fn create_petgraph<'a>(
     root: &'a EntryId,
     entries: &'a HashMap<EntryId, EntryWithClock>,
-) -> NewGraph {
+) -> History {
     let mut graph = petgraph::Graph::new();
     let mut indices = HashMap::<EntryId, petgraph::graph::NodeIndex<u32>>::new();
     let root = entries.get(root).unwrap().clone();
@@ -185,5 +179,5 @@ fn create_petgraph<'a>(
             to_process.push(child.clone());
         }
     }
-    NewGraph { graph, indices }
+    History { graph, indices }
 }
