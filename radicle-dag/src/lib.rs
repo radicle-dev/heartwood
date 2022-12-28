@@ -17,6 +17,16 @@ pub struct Node<K: Eq + Hash, V> {
     pub dependents: HashSet<K>,
 }
 
+impl<K: Eq + Hash, V> Node<K, V> {
+    fn new(value: V) -> Self {
+        Self {
+            value,
+            dependencies: HashSet::new(),
+            dependents: HashSet::new(),
+        }
+    }
+}
+
 impl<K: Eq + Hash, V> Borrow<V> for &Node<K, V> {
     fn borrow(&self) -> &V {
         &self.value
@@ -46,6 +56,14 @@ impl<K: Eq + Copy + Hash, V> Dag<K, V> {
             graph: HashMap::new(),
             tips: HashSet::new(),
             roots: HashSet::new(),
+        }
+    }
+
+    pub fn root(key: K, value: V) -> Self {
+        Self {
+            graph: HashMap::from_iter([(key, Node::new(value))]),
+            tips: HashSet::from_iter([key]),
+            roots: HashSet::from_iter([key]),
         }
     }
 

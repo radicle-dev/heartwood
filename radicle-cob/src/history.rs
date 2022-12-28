@@ -21,7 +21,6 @@ pub use entry::{Clock, Contents, Entry, EntryId, EntryWithClock, Timestamp};
 #[derive(Clone, Debug)]
 pub struct History {
     graph: Dag<EntryId, EntryWithClock>,
-    indices: HashMap<EntryId, Oid>,
 }
 
 impl PartialEq for History {
@@ -150,30 +149,23 @@ impl History {
             },
         );
         for tip in tips {
-            let tip_ix = self.indices.get(&tip.into()).unwrap();
-            self.graph.dependency(new_id, (*tip_ix).into());
+            self.graph.dependency(new_id, (*tip).into());
         }
     }
 }
 
 fn create_dag<'a>(root: &'a EntryId, entries: &'a HashMap<EntryId, EntryWithClock>) -> History {
-    let mut graph: Dag<EntryId, EntryWithClock> = Dag::new();
-    let mut indices = HashMap::<EntryId, Oid>::new();
     let root_entry = entries.get(root).unwrap().clone();
-    graph.node(*root, root_entry.clone());
-    indices.insert(root_entry.id, (*root).into());
+    let mut graph: Dag<EntryId, EntryWithClock> = Dag::root(*root, root_entry.clone());
     let mut to_process = vec![root_entry];
 
     while let Some(entry) = to_process.pop() {
-        let entry_ix = indices[&entry.id];
-
         for child_id in entry.children() {
             let child = entries[child_id].clone();
             graph.node(*child_id, child.clone());
-            indices.insert(child.id, (*child_id).into());
-            graph.dependency(*child_id, entry_ix.into());
+            graph.dependency(*child_id, entry.id);
             to_process.push(child.clone());
         }
     }
-    History { graph, indices }
+    History { graph }
 }
