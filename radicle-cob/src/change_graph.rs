@@ -93,20 +93,7 @@ impl ChangeGraph {
         let (root, root_node) = roots.first().unwrap();
         let manifest = root_node.manifest.clone();
         let rng = fastrand::Rng::new();
-        let items = self.graph.sorted(rng).into_iter().map(|oid| {
-            let node = &self.graph[&oid];
-            let child_commits = node
-                .dependents
-                .iter()
-                .map(|e| *self.graph[e].id())
-                .collect::<Vec<_>>();
-
-            (&node.value, oid, child_commits)
-        });
-        let history = {
-            let root_change = &self.graph[*root];
-            evaluate(*root_change.id(), &self.graph, items)
-        };
+        let history = evaluate(*self.graph[*root].id(), &self.graph, rng);
 
         CollaborativeObject {
             manifest,

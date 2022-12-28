@@ -15,17 +15,18 @@ use crate::{change::Change, history, pruning_fold};
 /// # Panics
 ///
 /// If the change corresponding to the root OID is not in `items`
-pub fn evaluate<'b>(
-    root: Oid,
-    graph: &Dag<Oid, Change>,
-    items: impl Iterator<Item = (&'b Change, Oid, Vec<Oid>)>,
-) -> history::History {
+pub fn evaluate(root: Oid, graph: &Dag<Oid, Change>, rng: fastrand::Rng) -> history::History {
     let entries = pruning_fold::pruning_fold(
         HashMap::<EntryId, EntryWithClock>::new(),
-        items.map(|(change, idx, children)| ChangeWithChildren {
-            idx,
-            change,
-            child_commits: children,
+        graph.sorted(rng).into_iter().map(|oid| {
+            let node = &graph[&oid];
+            let child_commits = node.dependents.iter().copied().collect();
+
+            ChangeWithChildren {
+                oid,
+                change: &node.value,
+                child_commits,
+            }
         }),
         |mut entries, c| match evaluate_change(c.change, &c.child_commits) {
             Err(RejectionReason::InvalidSignatures) => {
@@ -37,11 +38,11 @@ pub fn evaluate<'b>(
             }
             Ok(entry) => {
                 // Get parent commits and calculate this node's clock based on theirs.
-                let clock = graph[&c.idx]
+                let clock = graph[&c.oid]
                     .dependencies
                     .iter()
                     .map(|e| {
-                        let entry = &entries[&graph[e].id.into()];
+                        let entry = &entries[&EntryId::from(*e)];
                         let clock = entry.clock();
 
                         clock + entry.contents().len() as Clock - 1
@@ -81,7 +82,7 @@ fn evaluate_change(
 }
 
 struct ChangeWithChildren<'a> {
-    idx: Oid,
+    oid: Oid,
     change: &'a Change,
     child_commits: Vec<Oid>,
 }

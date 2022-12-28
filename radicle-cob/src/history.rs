@@ -105,12 +105,12 @@ impl History {
     where
         F: for<'r> FnMut(A, &'r EntryWithClock) -> ControlFlow<A, A>,
     {
-        let sorted = self.graph.sorted(fastrand::Rng::new());
-        #[allow(clippy::let_and_return)]
-        let items = sorted.iter().map(|idx| {
-            let entry = &self.graph[idx];
-            entry
-        });
+        let items = self
+            .graph
+            .sorted(fastrand::Rng::new())
+            .into_iter()
+            .map(|idx| &self.graph[&idx]);
+
         pruning_fold::pruning_fold(init, items, f)
     }
 
