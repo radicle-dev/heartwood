@@ -9,8 +9,8 @@ use std::{
 };
 
 use git_ext::Oid;
-use petgraph::visit::Walker as _;
 use radicle_crypto::PublicKey;
+use radicle_dag::Dag;
 
 use crate::pruning_fold;
 
@@ -20,8 +20,8 @@ pub use entry::{Clock, Contents, Entry, EntryId, EntryWithClock, Timestamp};
 /// The DAG of changes making up the history of a collaborative object.
 #[derive(Clone, Debug)]
 pub struct History {
-    graph: petgraph::Graph<EntryWithClock, (), petgraph::Directed, u32>,
-    indices: HashMap<EntryId, petgraph::graph::NodeIndex<u32>>,
+    graph: Dag<EntryId, EntryWithClock>,
+    indices: HashMap<EntryId, Oid>,
 }
 
 impl PartialEq for History {
@@ -61,7 +61,7 @@ impl History {
         let mut entries = HashMap::new();
         entries.insert(id, EntryWithClock::from(root_entry));
 
-        create_petgraph(&id, &entries)
+        create_dag(&id, &entries)
     }
 
     pub fn new<Id>(root: Id, entries: HashMap<EntryId, EntryWithClock>) -> Result<Self, CreateError>
@@ -72,7 +72,7 @@ impl History {
         if !entries.contains_key(&root) {
             Err(CreateError::MissingRoot)
         } else {
-            Ok(create_petgraph(&root, &entries))
+            Ok(create_dag(&root, &entries))
         }
     }
 
@@ -80,11 +80,8 @@ impl History {
     /// This is the maximum value of all tips.
     pub fn clock(&self) -> Clock {
         self.graph
-            .externals(petgraph::Direction::Outgoing)
-            .map(|n| {
-                let node = &self.graph[n];
-                node.clock + node.entry.contents.len() as Clock - 1
-            })
+            .tips()
+            .map(|(_, node)| node.clock + node.entry.contents.len() as Clock - 1)
             .max()
             .unwrap_or_default()
     }
@@ -93,8 +90,8 @@ impl History {
     /// This is the latest timestamp of any tip.
     pub fn timestamp(&self) -> Timestamp {
         self.graph
-            .externals(petgraph::Direction::Outgoing)
-            .map(|n| self.graph[n].timestamp())
+            .tips()
+            .map(|(_, n)| n.timestamp())
             .max()
             .unwrap_or_default()
     }
@@ -109,9 +106,9 @@ impl History {
     where
         F: for<'r> FnMut(A, &'r EntryWithClock) -> ControlFlow<A, A>,
     {
-        let topo = petgraph::visit::Topo::new(&self.graph);
+        let sorted = self.graph.sorted(fastrand::Rng::new());
         #[allow(clippy::let_and_return)]
-        let items = topo.iter(&self.graph).map(|idx| {
+        let items = sorted.iter().map(|idx| {
             let entry = &self.graph[idx];
             entry
         });
@@ -120,11 +117,8 @@ impl History {
 
     pub(crate) fn tips(&self) -> BTreeSet<Oid> {
         self.graph
-            .externals(petgraph::Direction::Outgoing)
-            .map(|n| {
-                let entry = &self.graph[n];
-                (*entry.id()).into()
-            })
+            .tips()
+            .map(|(_, entry)| (*entry.id()).into())
             .collect()
     }
 
@@ -148,34 +142,36 @@ impl History {
             new_contents,
             new_timestamp,
         );
-        let new_ix = self.graph.add_node(EntryWithClock {
-            entry: new_entry,
-            clock: self.clock() + 1,
-        });
+        self.graph.node(
+            new_id,
+            EntryWithClock {
+                entry: new_entry,
+                clock: self.clock() + 1,
+            },
+        );
         for tip in tips {
             let tip_ix = self.indices.get(&tip.into()).unwrap();
-            self.graph.update_edge(*tip_ix, new_ix, ());
+            self.graph.dependency(new_id, (*tip_ix).into());
         }
     }
 }
 
-fn create_petgraph<'a>(
-    root: &'a EntryId,
-    entries: &'a HashMap<EntryId, EntryWithClock>,
-) -> History {
-    let mut graph = petgraph::Graph::new();
-    let mut indices = HashMap::<EntryId, petgraph::graph::NodeIndex<u32>>::new();
-    let root = entries.get(root).unwrap().clone();
-    let root_ix = graph.add_node(root.clone());
-    indices.insert(root.id, root_ix);
-    let mut to_process = vec![root];
+fn create_dag<'a>(root: &'a EntryId, entries: &'a HashMap<EntryId, EntryWithClock>) -> History {
+    let mut graph: Dag<EntryId, EntryWithClock> = Dag::new();
+    let mut indices = HashMap::<EntryId, Oid>::new();
+    let root_entry = entries.get(root).unwrap().clone();
+    graph.node(*root, root_entry.clone());
+    indices.insert(root_entry.id, (*root).into());
+    let mut to_process = vec![root_entry];
+
     while let Some(entry) = to_process.pop() {
         let entry_ix = indices[&entry.id];
+
         for child_id in entry.children() {
             let child = entries[child_id].clone();
-            let child_ix = graph.add_node(child.clone());
-            indices.insert(child.id, child_ix);
-            graph.update_edge(entry_ix, child_ix, ());
+            graph.node(*child_id, child.clone());
+            indices.insert(child.id, (*child_id).into());
+            graph.dependency(*child_id, entry_ix.into());
             to_process.push(child.clone());
         }
     }

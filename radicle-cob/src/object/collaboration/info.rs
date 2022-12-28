@@ -4,11 +4,8 @@
 // Linking Exception. For full terms see the included LICENSE file.
 
 //! [`ChangeGraphInfo`] provides a useful debugging structure for
-//! represnting a single [`crate::CollaborativeObject`]'s underlying
-//! change graph. This includes a [`ChangeGraphInfo::dotviz`] for
-//! describing the graph via [graphviz].
-//!
-//! [graphviz]: https://graphviz.org/
+//! representing a single [`crate::CollaborativeObject`]'s underlying
+//! change graph.
 
 use std::collections::BTreeSet;
 
@@ -22,8 +19,6 @@ use super::error;
 pub struct ChangeGraphInfo {
     /// The ID of the object
     pub object_id: ObjectId,
-    /// A graphviz description of the changegraph of the object
-    pub dotviz: String,
     /// The number of nodes in the change graph of the object
     pub number_of_nodes: u64,
     /// The "tips" of the change graph, i.e the object IDs pointed to by
@@ -54,7 +49,6 @@ where
     Ok(
         ChangeGraph::load(storage, tip_refs.iter(), typename, oid).map(|graph| ChangeGraphInfo {
             object_id: *oid,
-            dotviz: graph.graphviz(),
             number_of_nodes: graph.number_of_nodes(),
             tips: graph.tips(),
         }),

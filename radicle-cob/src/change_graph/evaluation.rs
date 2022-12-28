@@ -6,7 +6,7 @@
 use std::{collections::HashMap, ops::ControlFlow};
 
 use git_ext::Oid;
-use petgraph::{visit::EdgeRef, EdgeDirection};
+use radicle_dag::Dag;
 
 use crate::history::entry::{EntryId, EntryWithClock};
 use crate::history::Clock;
@@ -17,8 +17,8 @@ use crate::{change::Change, history, pruning_fold};
 /// If the change corresponding to the root OID is not in `items`
 pub fn evaluate<'b>(
     root: Oid,
-    graph: &petgraph::Graph<Change, ()>,
-    items: impl Iterator<Item = (&'b Change, petgraph::graph::NodeIndex<u32>, Vec<Oid>)>,
+    graph: &Dag<Oid, Change>,
+    items: impl Iterator<Item = (&'b Change, Oid, Vec<Oid>)>,
 ) -> history::History {
     let entries = pruning_fold::pruning_fold(
         HashMap::<EntryId, EntryWithClock>::new(),
@@ -37,11 +37,11 @@ pub fn evaluate<'b>(
             }
             Ok(entry) => {
                 // Get parent commits and calculate this node's clock based on theirs.
-                let incoming = graph.edges_directed(c.idx, EdgeDirection::Incoming);
-                let clock = incoming
-                    .into_iter()
+                let clock = graph[&c.idx]
+                    .dependencies
+                    .iter()
                     .map(|e| {
-                        let entry = &entries[&graph[e.source()].id.into()];
+                        let entry = &entries[&graph[e].id.into()];
                         let clock = entry.clock();
 
                         clock + entry.contents().len() as Clock - 1
@@ -81,7 +81,7 @@ fn evaluate_change(
 }
 
 struct ChangeWithChildren<'a> {
-    idx: petgraph::graph::NodeIndex<u32>,
+    idx: Oid,
     change: &'a Change,
     child_commits: Vec<Oid>,
 }

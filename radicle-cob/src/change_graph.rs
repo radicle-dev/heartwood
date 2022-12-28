@@ -9,10 +9,7 @@ use std::{
 };
 
 use git_ext::Oid;
-use petgraph::{
-    visit::{EdgeRef, Topo, Walker},
-    EdgeDirection,
-};
+use radicle_dag::{Dag, Node};
 
 use crate::{
     change, object, signatures::Signature, Change, CollaborativeObject, ObjectId, TypeName,
@@ -24,7 +21,7 @@ use evaluation::evaluate;
 /// The graph of changes for a particular collaborative object
 pub(super) struct ChangeGraph {
     object_id: ObjectId,
-    graph: petgraph::Graph<Change, ()>,
+    graph: Dag<Oid, Change>,
 }
 
 impl ChangeGraph {
@@ -94,27 +91,23 @@ impl ChangeGraph {
     /// or which do not have permission to make a change, or which make a
     /// change which invalidates the schema of the object
     pub(crate) fn evaluate(&self) -> CollaborativeObject {
-        let mut roots: Vec<petgraph::graph::NodeIndex<u32>> = self
-            .graph
-            .externals(petgraph::Direction::Incoming)
-            .collect();
-        roots.sort();
+        let mut roots: Vec<(&Oid, &Node<_, _>)> = self.graph.roots().collect();
+        roots.sort_by_key(|(k, _)| *k);
         // This is okay because we check that the graph has a root node in
         // GraphBuilder::build
-        let root = roots.first().unwrap();
-        let manifest = {
-            let first_node = &self.graph[*root];
-            first_node.manifest.clone()
-        };
-        let topo = Topo::new(&self.graph);
-        let items = topo.iter(&self.graph).map(|idx| {
-            let node = &self.graph[idx];
-            let outgoing_edges = self.graph.edges_directed(idx, EdgeDirection::Outgoing);
-            let child_commits = outgoing_edges
-                .map(|e| *self.graph[e.target()].id())
+        let (root, root_node) = roots.first().unwrap();
+        let manifest = root_node.manifest.clone();
+        let rng = fastrand::Rng::new();
+        let sorted = self.graph.sorted(rng);
+        let items = sorted.iter().map(|oid| {
+            let node = &self.graph[oid];
+            let child_commits = node
+                .dependents
+                .iter()
+                .map(|e| *self.graph[e].id())
                 .collect::<Vec<_>>();
 
-            (node, idx, child_commits)
+            (&node.value, *oid, child_commits)
         });
         let history = {
             let root_change = &self.graph[*root];
@@ -129,35 +122,24 @@ impl ChangeGraph {
 
     /// Get the tips of the collaborative object
     pub(crate) fn tips(&self) -> BTreeSet<Oid> {
-        self.graph
-            .externals(petgraph::Direction::Outgoing)
-            .map(|n| {
-                let change = &self.graph[n];
-                *change.id()
-            })
-            .collect()
+        self.graph.tips().map(|(_, change)| *change.id()).collect()
     }
 
     pub(crate) fn number_of_nodes(&self) -> u64 {
-        self.graph.node_count().try_into().unwrap()
-    }
-
-    pub(crate) fn graphviz(&self) -> String {
-        let for_display = self.graph.map(|_ix, n| n.to_string(), |_ix, _e| "");
-        petgraph::dot::Dot::new(&for_display).to_string()
+        self.graph.len().try_into().unwrap()
     }
 }
 
 struct GraphBuilder {
-    node_indices: HashMap<Oid, petgraph::graph::NodeIndex<u32>>,
-    graph: petgraph::Graph<Change, ()>,
+    node_indices: HashMap<Oid, Oid>,
+    graph: Dag<Oid, Change>,
 }
 
 impl Default for GraphBuilder {
     fn default() -> Self {
         GraphBuilder {
             node_indices: HashMap::new(),
-            graph: petgraph::graph::Graph::new(),
+            graph: Dag::new(),
         }
     }
 }
@@ -173,11 +155,11 @@ impl GraphBuilder {
         let resource_commit = *change.resource();
         let commit_id = commit.id;
         if let Entry::Vacant(e) = self.node_indices.entry(commit_id) {
-            let ix = self.graph.add_node(change);
-            e.insert(ix);
+            self.graph.node(commit_id, change);
+            e.insert(commit_id);
         }
         commit.parents.into_iter().filter_map(move |parent| {
-            if parent.id != resource_commit && !self.has_edge(parent.id, commit_id) {
+            if parent.id != resource_commit && !self.has_dependency(commit_id, parent.id) {
                 Some((parent, commit_id))
             } else {
                 None
@@ -185,11 +167,11 @@ impl GraphBuilder {
         })
     }
 
-    fn has_edge(&mut self, parent_id: Oid, child_id: Oid) -> bool {
+    fn has_dependency(&mut self, child_id: Oid, parent_id: Oid) -> bool {
         let parent_ix = self.node_indices.get(&parent_id);
         let child_ix = self.node_indices.get(&child_id);
         match (parent_ix, child_ix) {
-            (Some(parent_ix), Some(child_ix)) => self.graph.contains_edge(*parent_ix, *child_ix),
+            (Some(parent_ix), Some(child_ix)) => self.graph.has_dependency(child_ix, parent_ix),
             _ => false,
         }
     }
@@ -204,16 +186,11 @@ impl GraphBuilder {
             .node_indices
             .get(&parent)
             .expect("BUG: parent id expected to in graph");
-        self.graph.update_edge(*parent_id, *child_id, ());
+        self.graph.dependency(*child_id, *parent_id);
     }
 
     fn build(self, object_id: ObjectId) -> Option<ChangeGraph> {
-        if self
-            .graph
-            .externals(petgraph::Direction::Incoming)
-            .next()
-            .is_some()
-        {
+        if self.graph.roots().next().is_some() {
             Some(ChangeGraph {
                 object_id,
                 graph: self.graph,
