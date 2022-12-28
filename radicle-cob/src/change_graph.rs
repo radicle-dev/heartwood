@@ -3,10 +3,7 @@
 // This file is part of radicle-link, distributed under the GPLv3 with Radicle
 // Linking Exception. For full terms see the included LICENSE file.
 
-use std::{
-    collections::{hash_map::Entry, BTreeSet, HashMap},
-    convert::TryInto,
-};
+use std::{collections::BTreeSet, convert::TryInto};
 
 use git_ext::Oid;
 use radicle_dag::{Dag, Node};
@@ -87,9 +84,7 @@ impl ChangeGraph {
     }
 
     /// Given a graph evaluate it to produce a collaborative object. This will
-    /// filter out branches of the graph which do not have valid signatures,
-    /// or which do not have permission to make a change, or which make a
-    /// change which invalidates the schema of the object
+    /// filter out branches of the graph which do not have valid signatures.
     pub(crate) fn evaluate(&self) -> CollaborativeObject {
         let mut roots: Vec<(&Oid, &Node<_, _>)> = self.graph.roots().collect();
         roots.sort_by_key(|(k, _)| *k);
@@ -98,21 +93,21 @@ impl ChangeGraph {
         let (root, root_node) = roots.first().unwrap();
         let manifest = root_node.manifest.clone();
         let rng = fastrand::Rng::new();
-        let sorted = self.graph.sorted(rng);
-        let items = sorted.iter().map(|oid| {
-            let node = &self.graph[oid];
+        let items = self.graph.sorted(rng).into_iter().map(|oid| {
+            let node = &self.graph[&oid];
             let child_commits = node
                 .dependents
                 .iter()
                 .map(|e| *self.graph[e].id())
                 .collect::<Vec<_>>();
 
-            (&node.value, *oid, child_commits)
+            (&node.value, oid, child_commits)
         });
         let history = {
             let root_change = &self.graph[*root];
             evaluate(*root_change.id(), &self.graph, items)
         };
+
         CollaborativeObject {
             manifest,
             history,
@@ -131,16 +126,12 @@ impl ChangeGraph {
 }
 
 struct GraphBuilder {
-    node_indices: HashMap<Oid, Oid>,
     graph: Dag<Oid, Change>,
 }
 
 impl Default for GraphBuilder {
     fn default() -> Self {
-        GraphBuilder {
-            node_indices: HashMap::new(),
-            graph: Dag::new(),
-        }
+        GraphBuilder { graph: Dag::new() }
     }
 }
 
@@ -154,12 +145,11 @@ impl GraphBuilder {
     ) -> impl Iterator<Item = (object::Commit, Oid)> + '_ {
         let resource_commit = *change.resource();
         let commit_id = commit.id;
-        if let Entry::Vacant(e) = self.node_indices.entry(commit_id) {
-            self.graph.node(commit_id, change);
-            e.insert(commit_id);
-        }
+
+        self.graph.node(commit_id, change);
+
         commit.parents.into_iter().filter_map(move |parent| {
-            if parent.id != resource_commit && !self.has_dependency(commit_id, parent.id) {
+            if parent.id != resource_commit && !self.graph.has_dependency(&commit_id, &parent.id) {
                 Some((parent, commit_id))
             } else {
                 None
@@ -167,26 +157,8 @@ impl GraphBuilder {
         })
     }
 
-    fn has_dependency(&mut self, child_id: Oid, parent_id: Oid) -> bool {
-        let parent_ix = self.node_indices.get(&parent_id);
-        let child_ix = self.node_indices.get(&child_id);
-        match (parent_ix, child_ix) {
-            (Some(parent_ix), Some(child_ix)) => self.graph.has_dependency(child_ix, parent_ix),
-            _ => false,
-        }
-    }
-
     fn add_edge(&mut self, child: Oid, parent: Oid) {
-        // This panics if the child or parent ids are not in the graph already
-        let child_id = self
-            .node_indices
-            .get(&child)
-            .expect("BUG: child id expected to be in graph");
-        let parent_id = self
-            .node_indices
-            .get(&parent)
-            .expect("BUG: parent id expected to in graph");
-        self.graph.dependency(*child_id, *parent_id);
+        self.graph.dependency(child, parent);
     }
 
     fn build(self, object_id: ObjectId) -> Option<ChangeGraph> {
