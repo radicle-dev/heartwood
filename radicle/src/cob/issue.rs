@@ -92,6 +92,7 @@ impl Semilattice for Issue {
         self.assignees.merge(other.assignees);
         self.title.merge(other.title);
         self.state.merge(other.state);
+        self.tags.merge(other.tags);
         self.thread.merge(other.thread);
     }
 }
