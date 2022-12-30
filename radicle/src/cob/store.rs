@@ -9,6 +9,7 @@ use serde::Serialize;
 
 use crate::cob;
 use crate::cob::common::Author;
+use crate::cob::op::OpId;
 use crate::cob::CollaborativeObject;
 use crate::cob::{ActorId, Create, History, ObjectId, TypeName, Update};
 use crate::crypto::PublicKey;
@@ -250,11 +251,11 @@ impl<T: FromHistory> Transaction<T> {
         // Otherwise, it means it was the first operation of our COB. In that case
         // we set our clock to the initial clock value (0), and return that.
         if let Some(ref mut clock) = self.clock {
-            (clock.tick(), self.actor)
+            OpId::new(clock.tick(), self.actor)
         } else {
             self.clock = Some(Lamport::initial());
 
-            (Lamport::initial(), self.actor)
+            OpId::initial(self.actor)
         }
     }
 

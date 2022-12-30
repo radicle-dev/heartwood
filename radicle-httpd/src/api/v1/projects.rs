@@ -423,9 +423,11 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
     fn from_iter<I: IntoIterator<Item = (&'a CommentId, &'a thread::Comment)>>(iter: I) -> Self {
         let mut comments = Vec::new();
 
-        for (comment_id, comment) in iter {
+        for (_, comment) in iter {
             comments.push(Comment {
-                author: Author { id: comment_id.1 },
+                author: Author {
+                    id: comment.author(),
+                },
                 body: comment.body().to_owned(),
                 reactions: [],
                 timestamp: comment.timestamp(),

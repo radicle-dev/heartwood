@@ -33,7 +33,7 @@ pub static TYPENAME: Lazy<TypeName> =
     Lazy::new(|| FromStr::from_str("xyz.radicle.patch").expect("type name is valid"));
 
 /// Patch operation.
-pub type Op = crate::cob::Op<Action>;
+pub type Op = cob::Op<Action>;
 
 /// Identifier for a patch.
 pub type PatchId = ObjectId;
@@ -300,12 +300,9 @@ impl Patch {
                     // TODO(cloudhead): Make sure we can deal with redacted revisions which are added
                     // to out of order, like in the `Merge` case.
                     if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                        revision.discussion.apply([cob::Op {
-                            action,
-                            author: op.author,
-                            clock: op.clock,
-                            timestamp,
-                        }])?;
+                        revision
+                            .discussion
+                            .apply([cob::Op::new(action, op.author, timestamp, op.clock)])?;
                     } else {
                         return Err(ApplyError::Missing(revision));
                     }
@@ -937,7 +934,7 @@ mod test {
                     let base = oids[rng.usize(..oids.len())];
 
                     if rng.bool() {
-                        revisions.push((clock.tick(), author));
+                        revisions.push(OpId::new(clock.tick(), author));
                     }
                     Some((*clock, Action::Revision { base, oid }))
                 });
@@ -947,12 +944,7 @@ mod test {
             let timestamp = Timestamp::now() + rng.u64(..60);
 
             for (clock, action) in gen.take(g.size()) {
-                changes.push(Op {
-                    action,
-                    author,
-                    clock,
-                    timestamp,
-                });
+                changes.push(Op::new(action, author, timestamp, clock));
             }
 
             for p in &mut permutations {
@@ -1250,11 +1242,11 @@ mod test {
         assert_eq!(patch.description(), Some("Blah blah blah."));
         assert_eq!(patch.version(), 0);
 
-        let ((c1, _), (c2, _)) = patch
+        let (r1, t1) = patch
             .update("I've made changes.", base, rev1_oid, &signer)
             .unwrap();
-        assert_eq!(c1.get(), 3);
-        assert_eq!(c2.get(), 4);
+        assert_eq!(r1.clock().get(), 3);
+        assert_eq!(t1.clock().get(), 4);
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();

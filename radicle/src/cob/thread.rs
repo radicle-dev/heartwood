@@ -42,6 +42,8 @@ pub struct Edit {
 /// A comment on a discussion thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Comment {
+    /// Comment author.
+    author: ActorId,
     /// The comment body.
     edits: GMap<Lamport, Max<Edit>>,
     /// Comment this is a reply to.
@@ -51,10 +53,16 @@ pub struct Comment {
 
 impl Comment {
     /// Create a new comment.
-    pub fn new(body: String, reply_to: Option<CommentId>, timestamp: Timestamp) -> Self {
+    pub fn new(
+        author: ActorId,
+        body: String,
+        reply_to: Option<CommentId>,
+        timestamp: Timestamp,
+    ) -> Self {
         let edit = Edit { body, timestamp };
 
         Self {
+            author,
             edits: GMap::singleton(Lamport::initial(), Max::from(edit)),
             reply_to,
         }
@@ -80,6 +88,11 @@ impl Comment {
             .unwrap()
             .get()
             .timestamp
+    }
+
+    /// Return the comment author.
+    pub fn author(&self) -> ActorId {
+        self.author
     }
 
     /// Return the comment this is a reply to. Returns nothing if this is the root comment.
@@ -119,7 +132,7 @@ pub enum Action {
         /// Comment this is a reply to.
         /// Should be [`None`] if it's the top-level comment.
         /// Should be the root [`CommentId`] if it's a top-level comment.
-        reply_to: Option<OpId>,
+        reply_to: Option<CommentId>,
     },
     /// Edit a comment.
     Edit { id: CommentId, body: String },
@@ -156,6 +169,13 @@ impl Semilattice for Thread {
 }
 
 impl Thread {
+    pub fn new(id: CommentId, comment: Comment) -> Self {
+        Self {
+            comments: GMap::singleton(id, Redactable::Present(comment)),
+            reactions: GMap::default(),
+        }
+    }
+
     pub fn is_initialized(&self) -> bool {
         !self.comments.is_empty()
     }
@@ -211,17 +231,19 @@ impl Thread {
     pub fn apply(&mut self, ops: impl IntoIterator<Item = Op<Action>>) -> Result<(), OpError> {
         for op in ops.into_iter() {
             let id = op.id();
+            let author = op.author;
+            let timestamp = op.timestamp;
 
             match op.action {
                 Action::Comment { body, reply_to } => {
                     self.comments.insert(
                         id,
-                        Redactable::Present(Comment::new(body, reply_to, op.timestamp)),
+                        Redactable::Present(Comment::new(author, body, reply_to, timestamp)),
                     );
                 }
                 Action::Edit { id, body } => {
                     if let Some(Redactable::Present(comment)) = self.comments.get_mut(&id) {
-                        comment.edit(op.clock, body, op.timestamp);
+                        comment.edit(op.clock, body, timestamp);
                     } else {
                         return Err(OpError::Missing(id));
                     }
@@ -388,11 +410,11 @@ mod tests {
         fn arbitrary(g: &mut qcheck::Gen) -> Self {
             let author = ActorId::from([0; 32]);
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
-            let root = (Lamport::initial(), author);
+            let root = OpId::initial(author);
             let gen =
                 WeightedGenerator::<(Lamport, Action), (Lamport, BTreeSet<OpId>)>::new(rng.clone())
                     .variant(3, |(clock, comments), rng| {
-                        comments.insert((clock.tick(), author));
+                        comments.insert(OpId::new(clock.tick(), author));
 
                         Some((
                             *clock,
@@ -441,25 +463,20 @@ mod tests {
                         Some((clock.tick(), Action::Redact { id }))
                     });
 
-            let mut ops = vec![Op {
-                action: Action::Comment {
+            let mut ops = vec![Op::new(
+                Action::Comment {
                     body: String::default(),
                     reply_to: None,
                 },
                 author,
-                clock: Lamport::initial(),
-                timestamp: Timestamp::now(),
-            }];
+                Timestamp::now(),
+                Lamport::initial(),
+            )];
             let mut permutations: [Vec<Op<Action>>; N] = array::from_fn(|_| Vec::new());
 
             for (clock, action) in gen.take(g.size()) {
                 let timestamp = Timestamp::now() + rng.u64(..60);
-                ops.push(Op {
-                    action,
-                    author,
-                    clock,
-                    timestamp,
-                });
+                ops.push(Op::new(action, author, timestamp, clock));
             }
 
             for p in &mut permutations {
@@ -487,31 +504,21 @@ mod tests {
     #[test]
     fn test_redact_comment() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, repository) = radicle::test::setup::context(&tmp);
-        let store = setup::store(&signer, &repository);
+        let (_, signer, _) = radicle::test::setup::context(&tmp);
         let mut alice = Actor::new(signer);
+        let mut thread = Thread::default();
 
         let a0 = alice.comment("First comment", None);
         let a1 = alice.comment("Second comment", Some(a0.id()));
         let a2 = alice.comment("Third comment", Some(a0.id()));
 
-        let (id, _, _) = store
-            .create("Thread created", a0.action, &alice.signer)
-            .unwrap();
-        let comment = store
-            .update(id, "Thread updated", a1.action, &alice.signer)
-            .unwrap();
-        store
-            .update(id, "Thread updated", a2.action, &alice.signer)
-            .unwrap();
+        thread.apply([a0, a1.clone(), a2]).unwrap();
+        assert_eq!(thread.comments().count(), 3);
 
         // Redact the second comment.
-        let a3 = alice.redact((comment.history().clock().into(), *alice.signer.public_key()));
-        store
-            .update(id, "Comment redacted", a3.action, &alice.signer)
-            .unwrap();
+        let a3 = alice.redact(a1.id());
+        thread.apply([a3]).unwrap();
 
-        let (thread, _) = store.get(&id).unwrap().unwrap();
         let (_, comment0) = thread.comments().nth(0).unwrap();
         let (_, comment1) = thread.comments().nth(1).unwrap();
 
@@ -550,7 +557,6 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, repository) = radicle::test::setup::context(&tmp);
         let store = setup::store(&signer, &repository);
-
         let mut alice = Actor::new(signer);
 
         let a0 = alice.comment("Thread root", None);

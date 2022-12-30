@@ -20,7 +20,7 @@ use crate::storage::git as storage;
 use super::op::Ops;
 
 /// Issue operation.
-pub type Op = crate::cob::Op<Action>;
+pub type Op = cob::Op<Action>;
 
 /// Type name of an issue.
 pub static TYPENAME: Lazy<TypeName> =
@@ -155,7 +155,7 @@ impl Issue {
         self.thread
             .comments()
             .next()
-            .map(|((_, pk), _)| Author::new(*pk))
+            .map(|(_, c)| Author::new(c.author()))
     }
 
     pub fn description(&self) -> Option<&str> {
@@ -192,12 +192,8 @@ impl Issue {
                     }
                 }
                 Action::Thread { action } => {
-                    self.thread.apply([cob::Op {
-                        action,
-                        author: op.author,
-                        clock: op.clock,
-                        timestamp: op.timestamp,
-                    }])?;
+                    self.thread
+                        .apply([cob::Op::new(action, op.author, op.timestamp, op.clock)])?;
                 }
             }
         }
@@ -626,7 +622,7 @@ mod test {
             .create("My first issue", "Blah blah blah.", &[], &signer)
             .unwrap();
 
-        let comment = (clock::Lamport::default(), *signer.public_key());
+        let comment = OpId::initial(*signer.public_key());
         let reaction = Reaction::new('🥳').unwrap();
         issue.react(comment, reaction, &signer).unwrap();
 
@@ -648,7 +644,7 @@ mod test {
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &signer)
             .unwrap();
-        let root = (clock::Lamport::default(), author);
+        let root = OpId::initial(author);
 
         let c1 = issue.comment("Hi hi hi.", root, &signer).unwrap();
         let c2 = issue.comment("Ha ha ha.", root, &signer).unwrap();
@@ -710,23 +706,23 @@ mod test {
             .unwrap();
 
         // The initial thread op id is always the same.
-        let c0 = (clock::Lamport::initial(), author);
+        let c0 = OpId::initial(author);
 
         issue.comment("Ho ho ho.", c0, &signer).unwrap();
         issue.comment("Ha ha ha.", c0, &signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let ((_, a0), c0) = &issue.comments().nth(0).unwrap();
-        let ((_, a1), c1) = &issue.comments().nth(1).unwrap();
-        let ((_, a2), c2) = &issue.comments().nth(2).unwrap();
+        let (_, c0) = &issue.comments().nth(0).unwrap();
+        let (_, c1) = &issue.comments().nth(1).unwrap();
+        let (_, c2) = &issue.comments().nth(2).unwrap();
 
         assert_eq!(c0.body(), "Blah blah blah.");
-        assert_eq!(a0, &author);
+        assert_eq!(c0.author(), author);
         assert_eq!(c1.body(), "Ho ho ho.");
-        assert_eq!(a1, &author);
+        assert_eq!(c1.author(), author);
         assert_eq!(c2.body(), "Ha ha ha.");
-        assert_eq!(a2, &author);
+        assert_eq!(c2.author(), author);
     }
 
     #[test]
