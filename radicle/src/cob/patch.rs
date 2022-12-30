@@ -795,12 +795,12 @@ impl<'a> Patches<'a> {
         Ok(PatchMut::new(id, patch, clock, self))
     }
 
-    /// Get an issue.
+    /// Get a patch.
     pub fn get(&self, id: &ObjectId) -> Result<Option<Patch>, store::Error> {
         self.raw.get(id).map(|r| r.map(|(p, _)| p))
     }
 
-    /// Get an issue mutably.
+    /// Get a patch mutably.
     pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<PatchMut<'a, 'g>, store::Error> {
         let (patch, clock) = self
             .raw
