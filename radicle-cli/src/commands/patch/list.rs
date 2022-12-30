@@ -39,7 +39,7 @@ pub fn run(
         }
     }
     term::blank();
-    term::print(term::format::badge_positive("YOU PROPOSED"));
+    term::print(term::format::badge_positive("YOU PROPOSED").trim_end());
 
     if own.is_empty() {
         term::blank();
@@ -52,7 +52,7 @@ pub fn run(
         }
     }
     term::blank();
-    term::print(term::format::badge_secondary("OTHERS PROPOSED"));
+    term::print(term::format::badge_secondary("OTHERS PROPOSED").trim_end());
 
     if other.is_empty() {
         term::blank();
