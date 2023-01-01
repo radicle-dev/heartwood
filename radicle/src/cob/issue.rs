@@ -433,7 +433,7 @@ impl<'a> Issues<'a> {
                 tx.tag(tags.to_owned(), []);
             })?;
         // Just a sanity check that our clock is advancing as expected.
-        debug_assert_eq!(clock.get(), 2);
+        debug_assert_eq!(clock.get(), 3);
 
         Ok(IssueMut {
             id,
@@ -549,6 +549,8 @@ mod test {
         let created = issues
             .create("My first issue", "Blah blah blah.", &[], &signer)
             .unwrap();
+        assert_eq!(created.clock().get(), 3);
+
         let (id, created) = (created.id, created.issue);
         let issue = issues.get(&id).unwrap().unwrap();
 
@@ -645,7 +647,7 @@ mod test {
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &signer)
             .unwrap();
-        let root = OpId::initial(author);
+        let root = OpId::root(author);
 
         let c1 = issue.comment("Hi hi hi.", root, &signer).unwrap();
         let c2 = issue.comment("Ha ha ha.", root, &signer).unwrap();
@@ -706,8 +708,8 @@ mod test {
             .create("My first issue", "Blah blah blah.", &[], &signer)
             .unwrap();
 
-        // The initial thread op id is always the same.
-        let c0 = OpId::initial(author);
+        // The root thread op id is always the same.
+        let c0 = OpId::root(author);
 
         issue.comment("Ho ho ho.", c0, &signer).unwrap();
         issue.comment("Ha ha ha.", c0, &signer).unwrap();

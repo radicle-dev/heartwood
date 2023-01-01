@@ -24,6 +24,10 @@ impl OpId {
         Self(Lamport::initial(), actor)
     }
 
+    pub fn root(actor: ActorId) -> Self {
+        Self(Lamport::initial().tick(), actor)
+    }
+
     /// Get operation id clock.
     pub fn clock(&self) -> Lamport {
         self.0
@@ -153,7 +157,7 @@ impl<G: Signer, A: Clone> Actor<G, A> {
     /// Create a new operation.
     pub fn op(&mut self, action: A) -> Op<A> {
         let author = *self.signer.public_key();
-        let clock = self.clock;
+        let clock = self.clock.tick();
         let timestamp = clock::Physical::now();
         let op = Op {
             action,
@@ -162,7 +166,6 @@ impl<G: Signer, A: Clone> Actor<G, A> {
             timestamp,
         };
         self.ops.insert((self.clock, author), op.clone());
-        self.clock.tick();
 
         op
     }

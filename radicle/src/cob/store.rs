@@ -194,17 +194,19 @@ where
 pub struct Transaction<T: FromHistory> {
     actor: ActorId,
     start: Lamport,
-    clock: Option<Lamport>,
+    clock: Lamport,
     actions: Vec<T::Action>,
 }
 
 impl<T: FromHistory> Transaction<T> {
     /// Create a new transaction.
     pub fn new(actor: ActorId, clock: Lamport) -> Self {
+        let start = clock;
+
         Self {
             actor,
-            start: clock,
-            clock: Some(clock),
+            start,
+            clock,
             actions: Vec::new(),
         }
     }
@@ -225,7 +227,7 @@ impl<T: FromHistory> Transaction<T> {
         let mut tx = Transaction {
             actor,
             start: Lamport::initial(),
-            clock: None,
+            clock: Lamport::initial(),
             actions: Vec::new(),
         };
         operations(&mut tx);
@@ -235,7 +237,7 @@ impl<T: FromHistory> Transaction<T> {
         let (id, cob, clock) = store.create(message, actions, signer)?;
 
         // The history clock should be in sync with the tx clock.
-        assert_eq!(Some(clock), tx.clock);
+        assert_eq!(clock, tx.clock);
 
         Ok((id, cob, clock))
     }
@@ -243,20 +245,7 @@ impl<T: FromHistory> Transaction<T> {
     /// Add an operation to this transaction.
     pub fn push(&mut self, action: T::Action) -> cob::OpId {
         self.actions.push(action);
-
-        // If our clock already had a value, it means this isn't the first operation
-        // of this COB. In that case we 'tick' the clock and return the new clock
-        // value.
-        //
-        // Otherwise, it means it was the first operation of our COB. In that case
-        // we set our clock to the initial clock value (0), and return that.
-        if let Some(ref mut clock) = self.clock {
-            OpId::new(clock.tick(), self.actor)
-        } else {
-            self.clock = Some(Lamport::initial());
-
-            OpId::initial(self.actor)
-        }
+        OpId::new(self.clock.tick(), self.actor)
     }
 
     /// Commit transaction.
@@ -279,7 +268,7 @@ impl<T: FromHistory> Transaction<T> {
         let timestamp = cob.history().timestamp().into();
 
         // The history clock should be in sync with the tx clock.
-        assert_eq!(Some(cob.history().clock()), self.clock.map(|c| c.get()));
+        assert_eq!(cob.history().clock(), self.clock.get());
 
         // Start the clock from where the transcation clock started.
         let mut clock = self.start;

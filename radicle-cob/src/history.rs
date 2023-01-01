@@ -58,7 +58,7 @@ impl History {
             timestamp,
         };
         let mut entries = HashMap::new();
-        entries.insert(id, EntryWithClock::from(root_entry));
+        entries.insert(id, EntryWithClock::root(root_entry));
 
         create_dag(&id, &entries)
     }

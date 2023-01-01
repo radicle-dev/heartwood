@@ -131,11 +131,11 @@ pub struct EntryWithClock {
     pub clock: Clock,
 }
 
-impl From<Entry> for EntryWithClock {
-    fn from(entry: Entry) -> Self {
+impl EntryWithClock {
+    pub fn root(entry: Entry) -> Self {
         Self {
             entry,
-            clock: Clock::default(),
+            clock: 1 as Clock, // The root entry has a clock value of `1`.
         }
     }
 }

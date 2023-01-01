@@ -48,8 +48,8 @@ pub fn evaluate(root: Oid, graph: &Dag<Oid, Change>, rng: fastrand::Rng) -> hist
                         clock + entry.contents().len() as Clock - 1
                     })
                     .max()
-                    .map(|n| n + 1)
-                    .unwrap_or_default();
+                    .unwrap_or_default() // When there are no operations, the clock is zero.
+                    + 1;
                 log::trace!("change '{}' accepted", c.change.id());
 
                 entries.insert(*entry.id(), EntryWithClock { entry, clock });

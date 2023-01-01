@@ -787,7 +787,7 @@ impl<'a> Patches<'a> {
                 tx.tag(tags.to_owned(), []);
             })?;
         // Just a sanity check that our clock is advancing as expected.
-        debug_assert_eq!(clock.get(), 2);
+        debug_assert_eq!(clock.get(), 3);
 
         Ok(PatchMut::new(id, patch, clock, self))
     }
@@ -1023,7 +1023,7 @@ mod test {
             )
             .unwrap();
 
-        assert_eq!(patch.clock, clock::Lamport::from(2));
+        assert_eq!(patch.clock.get(), 3);
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();
@@ -1238,15 +1238,15 @@ mod test {
             )
             .unwrap();
 
-        assert_eq!(patch.clock.get(), 2);
+        assert_eq!(patch.clock.get(), 3);
         assert_eq!(patch.description(), Some("Blah blah blah."));
         assert_eq!(patch.version(), 0);
 
         let (r1, t1) = patch
             .update("I've made changes.", base, rev1_oid, &signer)
             .unwrap();
-        assert_eq!(r1.clock().get(), 3);
-        assert_eq!(t1.clock().get(), 4);
+        assert_eq!(r1.clock().get(), 4);
+        assert_eq!(t1.clock().get(), 5);
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();
