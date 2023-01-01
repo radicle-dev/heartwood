@@ -62,6 +62,18 @@ pub struct Op<A> {
     pub timestamp: clock::Physical,
 }
 
+impl<A: Eq> PartialOrd for Op<A> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.id().partial_cmp(&other.id())
+    }
+}
+
+impl<A: Eq> Ord for Op<A> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id().cmp(&other.id())
+    }
+}
+
 impl<A: Serialize> Op<A> {
     pub fn new(
         action: A,

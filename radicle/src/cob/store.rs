@@ -54,6 +54,15 @@ pub trait FromHistory: Sized + Default {
 
         Ok((obj, history.clock().into()))
     }
+
+    /// Create an object from individual operations.
+    /// Returns an error if any of the operations fails to apply.
+    fn from_ops(ops: impl IntoIterator<Item = Op<Self::Action>>) -> Result<Self, Self::Error> {
+        let mut state = Self::default();
+        state.apply(ops)?;
+
+        Ok(state)
+    }
 }
 
 /// Store error.

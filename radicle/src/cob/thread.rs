@@ -373,6 +373,7 @@ mod tests {
     use super::*;
     use crate as radicle;
     use crate::cob::store::FromHistory;
+    use crate::cob::test;
     use crate::crypto::test::signer::MockSigner;
 
     #[derive(Clone)]
@@ -639,6 +640,33 @@ mod tests {
             vec![&a0, &a1, &b0, &b1, &e0, &b2, &e1, &a2],
             alice.timeline().collect::<Vec<_>>(),
         );
+    }
+
+    #[test]
+    fn test_histories() {
+        let mut alice = Actor::<MockSigner>::default();
+        let mut bob = Actor::<MockSigner>::default();
+        let mut eve = Actor::<MockSigner>::default();
+
+        let a0 = alice.comment("Alice's comment", None);
+        let b0 = bob.comment("Bob's reply", Some(a0.id())); // Bob and Eve's replies are concurrent.
+        let e0 = eve.comment("Eve's reply", Some(a0.id()));
+
+        let mut a = test::history::<Thread>(&a0);
+        let mut b = a.clone();
+        let mut e = a.clone();
+
+        b.append(&b0);
+        e.append(&e0);
+
+        a.merge(b);
+        a.merge(e);
+
+        let (expected, _) = Thread::from_history(&a).unwrap();
+        for permutation in a.permutations(2) {
+            let actual = Thread::from_ops(permutation).unwrap();
+            assert_eq!(actual, expected);
+        }
     }
 
     #[test]

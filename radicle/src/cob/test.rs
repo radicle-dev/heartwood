@@ -1,25 +1,31 @@
+use std::collections::BTreeSet;
 use std::marker::PhantomData;
-use std::ops::Deref;
+use std::ops::{ControlFlow, Deref};
 
 use nonempty::NonEmpty;
 use serde::Serialize;
 
-use crate::cob::op::Op;
+use crate::cob::op::{Op, Ops};
 use crate::cob::store::encoding;
 use crate::cob::History;
 use crate::git::Oid;
 use crate::test::arbitrary;
 
+use super::store::FromHistory;
+
 /// Convenience type for building histories.
 #[derive(Debug, Clone)]
-pub struct HistoryBuilder<A> {
+pub struct HistoryBuilder<T> {
     history: History,
-    witness: PhantomData<A>,
     resource: Oid,
+    witness: PhantomData<T>,
 }
 
-impl<A: Serialize> HistoryBuilder<A> {
-    pub fn new(op: &Op<A>) -> HistoryBuilder<A> {
+impl<T: FromHistory> HistoryBuilder<T>
+where
+    T::Action: Serialize + Eq,
+{
+    pub fn new(op: &Op<T::Action>) -> HistoryBuilder<T> {
         let entry = arbitrary::oid();
         let resource = arbitrary::oid();
         let contents = encoding::encode(&op.action).unwrap();
@@ -37,7 +43,7 @@ impl<A: Serialize> HistoryBuilder<A> {
         }
     }
 
-    pub fn append(&mut self, op: &Op<A>) -> &mut Self {
+    pub fn append(&mut self, op: &Op<T::Action>) -> &mut Self {
         self.history.extend(
             arbitrary::oid(),
             op.author,
@@ -51,6 +57,27 @@ impl<A: Serialize> HistoryBuilder<A> {
     pub fn merge(&mut self, other: Self) {
         self.history.merge(other.history);
     }
+
+    /// Return a sorted list of operations by traversing the history in topological order.
+    pub fn sorted(&self) -> Vec<Op<T::Action>> {
+        self.history.traverse(Vec::new(), |mut acc, entry| {
+            let Ops(ops) =
+                Ops::try_from(entry).expect("HistoryBuilder::sorted: operations must be valid");
+            acc.extend(ops);
+
+            ControlFlow::Continue(acc)
+        })
+    }
+
+    /// Return `n` permutations of the topological ordering of operations.
+    /// *This function will never return if less than `n` permutations exist.*
+    pub fn permutations(&self, n: usize) -> impl IntoIterator<Item = Vec<Op<T::Action>>> {
+        let mut permutations = BTreeSet::new();
+        while permutations.len() < n {
+            permutations.insert(self.sorted());
+        }
+        permutations.into_iter()
+    }
 }
 
 impl<A> Deref for HistoryBuilder<A> {
@@ -62,6 +89,9 @@ impl<A> Deref for HistoryBuilder<A> {
 }
 
 /// Create a new test history.
-pub fn history<A: Serialize>(op: &Op<A>) -> HistoryBuilder<A> {
+pub fn history<T: FromHistory>(op: &Op<T::Action>) -> HistoryBuilder<T>
+where
+    T::Action: Serialize + Eq,
+{
     HistoryBuilder::new(op)
 }
