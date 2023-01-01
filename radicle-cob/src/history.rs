@@ -38,7 +38,7 @@ pub enum CreateError {
 }
 
 impl History {
-    pub(crate) fn new_from_root<Id>(
+    pub fn new_from_root<Id>(
         id: Id,
         actor: PublicKey,
         resource: Oid,
@@ -114,14 +114,14 @@ impl History {
         pruning_fold::pruning_fold(init, items, f)
     }
 
-    pub(crate) fn tips(&self) -> BTreeSet<Oid> {
+    pub fn tips(&self) -> BTreeSet<Oid> {
         self.graph
             .tips()
             .map(|(_, entry)| (*entry.id()).into())
             .collect()
     }
 
-    pub(crate) fn extend<Id>(
+    pub fn extend<Id>(
         &mut self,
         new_id: Id,
         new_actor: PublicKey,
@@ -151,6 +151,10 @@ impl History {
         for tip in tips {
             self.graph.dependency(new_id, (*tip).into());
         }
+    }
+
+    pub fn merge(&mut self, other: Self) {
+        self.graph.merge(other.graph);
     }
 }
 

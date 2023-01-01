@@ -286,7 +286,7 @@ impl<T: FromHistory> Transaction<T> {
     }
 }
 
-mod encoding {
+pub mod encoding {
     use serde::Serialize;
 
     /// Serialize the change into a byte string.

@@ -5,6 +5,9 @@ pub mod patch;
 pub mod store;
 pub mod thread;
 
+#[cfg(test)]
+pub mod test;
+
 pub use cob::{create, get, list, remove, update};
 pub use cob::{
     identity, object::collaboration::error, CollaborativeObject, Contents, Create, Entry, History,

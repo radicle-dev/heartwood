@@ -130,6 +130,21 @@ impl<K: Eq + Copy + Hash, V> Dag<K, V> {
             .filter_map(|k| self.graph.get(k).map(|n| (k, n)))
     }
 
+    /// Merge a DAG into this one.
+    ///
+    /// If a key exists in both graphs, its value is set to that of the other graph.
+    pub fn merge(&mut self, other: Self) {
+        for k in other.tips.into_iter() {
+            self.tips.insert(k);
+        }
+        for k in other.roots.into_iter() {
+            self.roots.insert(k);
+        }
+        for (k, v) in other.graph.into_iter() {
+            self.graph.insert(k, v);
+        }
+    }
+
     /// Return a topological ordering of the graph's nodes, using the given RNG.
     /// Graphs with more than one partial order will return an arbitrary topological ordering.
     ///
@@ -236,6 +251,30 @@ mod tests {
         let expected: &[&[i32]] = &[&[0, 1], &[1, 0]];
 
         assert!(expected.contains(&sorted.as_slice()));
+    }
+
+    #[test]
+    fn test_merge() {
+        let mut a = Dag::new();
+        let mut b = Dag::new();
+        let mut c = Dag::new();
+
+        a.node(0, ());
+        a.node(1, ());
+        a.dependency(1, 0);
+
+        b.node(0, ());
+        b.node(2, ());
+        b.dependency(2, 0);
+
+        c.merge(a);
+        c.merge(b);
+
+        assert!(c.get(&0).is_some());
+        assert!(c.get(&1).is_some());
+        assert!(c.get(&2).is_some());
+        assert!(c.has_dependency(&1, &0));
+        assert!(c.has_dependency(&2, &0));
     }
 
     #[test]
