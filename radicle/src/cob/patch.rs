@@ -1,6 +1,5 @@
 #![allow(clippy::too_many_arguments)]
 use std::fmt;
-use std::ops::ControlFlow;
 use std::ops::Deref;
 use std::ops::Range;
 use std::str::FromStr;
@@ -14,7 +13,7 @@ use radicle_crdt::{GMap, LWWReg, LWWSet, Max, Redactable, Semilattice};
 
 use crate::cob;
 use crate::cob::common::{Author, Tag, Timestamp};
-use crate::cob::op::Ops;
+use crate::cob::store::FromHistory as _;
 use crate::cob::store::Transaction;
 use crate::cob::thread;
 use crate::cob::thread::CommentId;
@@ -227,9 +226,17 @@ impl Patch {
     pub fn is_archived(&self) -> bool {
         matches!(self.state.get().get(), &State::Archived)
     }
+}
 
-    /// Apply a list of operations to the state.
-    pub fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), ApplyError> {
+impl store::FromHistory for Patch {
+    type Action = Action;
+    type Error = ApplyError;
+
+    fn type_name() -> &'static TypeName {
+        &*TYPENAME
+    }
+
+    fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), ApplyError> {
         for op in ops {
             let id = op.id();
             let author = Author::new(op.author);
@@ -310,32 +317,6 @@ impl Patch {
             }
         }
         Ok(())
-    }
-}
-
-impl store::FromHistory for Patch {
-    type Action = Action;
-
-    fn type_name() -> &'static TypeName {
-        &*TYPENAME
-    }
-
-    fn from_history(
-        history: &radicle_cob::History,
-    ) -> Result<(Self, clock::Lamport), store::Error> {
-        let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(Ops(ops)) = Ops::try_from(entry) {
-                if let Err(err) = acc.apply(ops) {
-                    log::warn!("Error applying op to patch state: {err}");
-                    return ControlFlow::Break(acc);
-                }
-            } else {
-                return ControlFlow::Break(acc);
-            }
-            ControlFlow::Continue(acc)
-        });
-
-        Ok((obj, history.clock().into()))
     }
 }
 

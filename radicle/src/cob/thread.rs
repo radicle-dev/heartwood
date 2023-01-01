@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
 use std::ops::{Deref, DerefMut};
+use std::str::FromStr;
 
+use once_cell::sync::Lazy;
 use radicle_crdt as crdt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -12,6 +14,11 @@ use crate::crypto::Signer;
 
 use crdt::clock::Lamport;
 use crdt::{GMap, LWWSet, Max, Redactable, Semilattice};
+
+/// Type name of a thread, as well as the domain for all thread operations.
+/// Note that threads are not usually used standalone. They are embeded into other COBs.
+pub static TYPENAME: Lazy<cob::TypeName> =
+    Lazy::new(|| FromStr::from_str("xyz.radicle.thread").expect("type name is valid"));
 
 /// Error applying an operation onto a state.
 #[derive(Error, Debug)]
@@ -228,7 +235,26 @@ impl Thread {
             .map(|(a, r)| (a, r))
     }
 
-    pub fn apply(&mut self, ops: impl IntoIterator<Item = Op<Action>>) -> Result<(), OpError> {
+    pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &Comment)> + '_ {
+        self.comments.iter().filter_map(|(id, comment)| {
+            if let Redactable::Present(c) = comment {
+                Some((id, c))
+            } else {
+                None
+            }
+        })
+    }
+}
+
+impl cob::store::FromHistory for Thread {
+    type Action = Action;
+    type Error = OpError;
+
+    fn type_name() -> &'static radicle_cob::TypeName {
+        &*TYPENAME
+    }
+
+    fn apply(&mut self, ops: impl IntoIterator<Item = Op<Action>>) -> Result<(), OpError> {
         for op in ops.into_iter() {
             let id = op.id();
             let author = op.author;
@@ -269,16 +295,6 @@ impl Thread {
             }
         }
         Ok(())
-    }
-
-    pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &Comment)> + '_ {
-        self.comments.iter().filter_map(|(id, comment)| {
-            if let Redactable::Present(c) = comment {
-                Some((id, c))
-            } else {
-                None
-            }
-        })
     }
 }
 
@@ -346,13 +362,9 @@ impl<G> DerefMut for Actor<G> {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
-    use std::ops::ControlFlow;
-    use std::str::FromStr;
     use std::{array, iter};
 
-    use cob::op::Ops;
     use nonempty::NonEmpty;
-    use once_cell::sync::Lazy;
     use pretty_assertions::assert_eq;
     use qcheck::{Arbitrary, TestResult};
 
@@ -360,33 +372,8 @@ mod tests {
 
     use super::*;
     use crate as radicle;
+    use crate::cob::store::FromHistory;
     use crate::crypto::test::signer::MockSigner;
-
-    /// Type name of a thread.
-    pub static TYPENAME: Lazy<cob::TypeName> =
-        Lazy::new(|| FromStr::from_str("xyz.radicle.thread").expect("type name is valid"));
-
-    impl cob::store::FromHistory for Thread {
-        type Action = Action;
-
-        fn type_name() -> &'static radicle_cob::TypeName {
-            &*TYPENAME
-        }
-
-        fn from_history(history: &cob::History) -> Result<(Self, Lamport), cob::store::Error> {
-            let obj = history.traverse(Thread::default(), |mut acc, entry| {
-                if let Ok(Ops(ops)) = Ops::try_from(entry) {
-                    if acc.apply(ops).is_err() {
-                        return ControlFlow::Break(acc);
-                    }
-                } else {
-                    return ControlFlow::Break(acc);
-                }
-                ControlFlow::Continue(acc)
-            });
-            Ok((obj, history.clock().into()))
-        }
-    }
 
     #[derive(Clone)]
     struct Changes<const N: usize> {

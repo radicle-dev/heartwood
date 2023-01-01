@@ -2,14 +2,15 @@
 #![allow(clippy::large_enum_variant)]
 #![allow(clippy::type_complexity)]
 use std::marker::PhantomData;
+use std::ops::ControlFlow;
 
 use nonempty::NonEmpty;
 use radicle_crdt::Lamport;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::cob;
 use crate::cob::common::Author;
-use crate::cob::op::OpId;
+use crate::cob::op::{Op, OpId, Ops};
 use crate::cob::CollaborativeObject;
 use crate::cob::{ActorId, Create, History, ObjectId, TypeName, Update};
 use crate::crypto::PublicKey;
@@ -24,14 +25,35 @@ pub const HISTORY_TYPE: &str = "radicle";
 
 /// A type that can be materialized from an event history.
 /// All collaborative objects implement this trait.
-pub trait FromHistory: Sized {
-    // TODO(finto): Action not being used smells fishy to me
-    type Action;
+pub trait FromHistory: Sized + Default {
+    /// The underlying action composing each operation.
+    type Action: for<'de> Deserialize<'de>;
+    /// Error returned by `apply` function.
+    type Error: std::error::Error;
 
     /// The object type name.
     fn type_name() -> &'static TypeName;
+
+    /// Apply a list of operations to the state.
+    fn apply(&mut self, ops: impl IntoIterator<Item = Op<Self::Action>>)
+        -> Result<(), Self::Error>;
+
     /// Create an object from a history.
-    fn from_history(history: &History) -> Result<(Self, Lamport), Error>;
+    fn from_history(history: &History) -> Result<(Self, Lamport), Error> {
+        let obj = history.traverse(Self::default(), |mut acc, entry| {
+            if let Ok(Ops(ops)) = Ops::try_from(entry) {
+                if let Err(err) = acc.apply(ops) {
+                    log::warn!("Error applying op to `{}` state: {err}", Self::type_name());
+                    return ControlFlow::Break(acc);
+                }
+            } else {
+                return ControlFlow::Break(acc);
+            }
+            ControlFlow::Continue(acc)
+        });
+
+        Ok((obj, history.clock().into()))
+    }
 }
 
 /// Store error.

@@ -1,4 +1,4 @@
-use std::ops::{ControlFlow, Deref};
+use std::ops::Deref;
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
@@ -10,14 +10,13 @@ use radicle_crdt::{LWWReg, LWWSet, Max, Semilattice};
 
 use crate::cob;
 use crate::cob::common::{Author, Reaction, Tag};
+use crate::cob::store::FromHistory as _;
 use crate::cob::store::Transaction;
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
 use crate::cob::{store, ActorId, ObjectId, OpId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::storage::git as storage;
-
-use super::op::Ops;
 
 /// Issue operation.
 pub type Op = cob::Op<Action>;
@@ -111,27 +110,44 @@ impl Default for Issue {
 
 impl store::FromHistory for Issue {
     type Action = Action;
+    type Error = Error;
 
     fn type_name() -> &'static TypeName {
         &*TYPENAME
     }
 
-    fn from_history(
-        history: &radicle_cob::History,
-    ) -> Result<(Self, clock::Lamport), store::Error> {
-        let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(Ops(ops)) = Ops::try_from(entry) {
-                if let Err(err) = acc.apply(ops) {
-                    log::warn!("Error applying op to issue state: {err}");
-                    return ControlFlow::Break(acc);
+    fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), Error> {
+        for op in ops {
+            match op.action {
+                Action::Assign { add, remove } => {
+                    for assignee in add {
+                        self.assignees.insert(assignee, op.clock);
+                    }
+                    for assignee in remove {
+                        self.assignees.remove(assignee, op.clock);
+                    }
                 }
-            } else {
-                return ControlFlow::Break(acc);
+                Action::Edit { title } => {
+                    self.title.set(title, op.clock);
+                }
+                Action::Lifecycle { state } => {
+                    self.state.set(state, op.clock);
+                }
+                Action::Tag { add, remove } => {
+                    for tag in add {
+                        self.tags.insert(tag, op.clock);
+                    }
+                    for tag in remove {
+                        self.tags.remove(tag, op.clock);
+                    }
+                }
+                Action::Thread { action } => {
+                    self.thread
+                        .apply([cob::Op::new(action, op.author, op.timestamp, op.clock)])?;
+                }
             }
-            ControlFlow::Continue(acc)
-        });
-
-        Ok((obj, history.clock().into()))
+        }
+        Ok(())
     }
 }
 
@@ -165,40 +181,6 @@ impl Issue {
 
     pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment)> {
         self.thread.comments()
-    }
-
-    pub fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), Error> {
-        for op in ops {
-            match op.action {
-                Action::Assign { add, remove } => {
-                    for assignee in add {
-                        self.assignees.insert(assignee, op.clock);
-                    }
-                    for assignee in remove {
-                        self.assignees.remove(assignee, op.clock);
-                    }
-                }
-                Action::Edit { title } => {
-                    self.title.set(title, op.clock);
-                }
-                Action::Lifecycle { state } => {
-                    self.state.set(state, op.clock);
-                }
-                Action::Tag { add, remove } => {
-                    for tag in add {
-                        self.tags.insert(tag, op.clock);
-                    }
-                    for tag in remove {
-                        self.tags.remove(tag, op.clock);
-                    }
-                }
-                Action::Thread { action } => {
-                    self.thread
-                        .apply([cob::Op::new(action, op.author, op.timestamp, op.clock)])?;
-                }
-            }
-        }
-        Ok(())
     }
 }
 
