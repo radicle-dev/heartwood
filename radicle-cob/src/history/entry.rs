@@ -49,6 +49,7 @@ pub struct Entry {
     /// The actor that authored this entry.
     pub(super) actor: PublicKey,
     /// The content-address for the resource this entry lives under.
+    /// If the resource was updated, this should point to its latest version.
     pub(super) resource: Oid,
     /// The child entries for this entry.
     pub(super) children: Vec<EntryId>,
@@ -87,7 +88,7 @@ impl Entry {
         self.children.iter()
     }
 
-    /// The `Oid` of the resource this change lives under.
+    /// The current `Oid` of the resource this change lives under.
     pub fn resource(&self) -> Oid {
         self.resource
     }
