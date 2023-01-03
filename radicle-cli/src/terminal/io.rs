@@ -7,7 +7,7 @@ use radicle::cob::issue::Issue;
 use radicle::cob::thread::CommentId;
 use radicle::crypto::ssh::keystore::Passphrase;
 use radicle::crypto::Signer;
-use radicle::profile::env::RAD_PASSPHRASE;
+use radicle::profile;
 use radicle::profile::Profile;
 
 use radicle_crypto::ssh::keystore::MemorySigner;
@@ -177,19 +177,16 @@ pub fn abort<D: fmt::Display>(prompt: D) -> bool {
 
 /// Get the signer. First we try getting it from ssh-agent, otherwise we prompt the user.
 pub fn signer(profile: &Profile) -> anyhow::Result<Box<dyn Signer>> {
-    let signer = if let Ok(passphrase) = read_passphrase_from_env_var() {
-        MemorySigner::load(&profile.keystore, passphrase)?.boxed()
-    } else if let Ok(signer) = profile.signer() {
-        signer.boxed()
-    } else {
-        let passphrase = secret_input();
-        let spinner = spinner("Unsealing key...");
-        let signer = MemorySigner::load(&profile.keystore, passphrase)?;
+    if let Ok(signer) = profile.signer() {
+        return Ok(signer);
+    }
 
-        spinner.finish();
-        signer.boxed()
-    };
-    Ok(signer)
+    let passphrase = secret_input();
+    let spinner = spinner("Unsealing key...");
+    let signer = MemorySigner::load(&profile.keystore, passphrase)?;
+
+    spinner.finish();
+    Ok(signer.boxed())
 }
 
 pub fn theme() -> ColorfulTheme {
@@ -313,9 +310,9 @@ pub fn secret_stdin() -> Result<Passphrase, anyhow::Error> {
 }
 
 pub fn read_passphrase(stdin: bool, confirm: bool) -> Result<Passphrase, anyhow::Error> {
-    let passphrase = match read_passphrase_from_env_var() {
-        Ok(input) => input,
-        _ => {
+    let passphrase = match profile::env::read_passphrase() {
+        Some(input) => input,
+        None => {
             if stdin {
                 secret_stdin()?
             } else if confirm {
@@ -327,12 +324,6 @@ pub fn read_passphrase(stdin: bool, confirm: bool) -> Result<Passphrase, anyhow:
     };
 
     Ok(passphrase)
-}
-
-pub fn read_passphrase_from_env_var() -> Result<Passphrase, anyhow::Error> {
-    let passphrase = std::env::var(RAD_PASSPHRASE)?;
-
-    Ok(Passphrase::from(passphrase.trim_end().to_owned()))
 }
 
 pub fn select<'a, T>(options: &'a [T], active: &'a T) -> Option<&'a T>

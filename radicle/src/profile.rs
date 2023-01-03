@@ -15,12 +15,14 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
-use crate::crypto::ssh::agent::{Agent, AgentSigner};
+use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{Keystore, Passphrase};
-use crate::crypto::PublicKey;
+use crate::crypto::{PublicKey, Signer};
 use crate::node;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
+
+use radicle_crypto::ssh::keystore;
 
 /// Environment variables used by radicle.
 pub mod env {
@@ -32,6 +34,14 @@ pub mod env {
     pub const RAD_SOCKET: &str = "RAD_SOCKET";
     /// Passphrase for the encrypted radicle secret key.
     pub const RAD_PASSPHRASE: &str = "RAD_PASSPHRASE";
+
+    pub fn read_passphrase() -> Option<super::Passphrase> {
+        let Ok(passphrase) = std::env::var(RAD_PASSPHRASE) else {
+            return None;
+        };
+
+        Some(super::Passphrase::from(passphrase.trim_end().to_owned()))
+    }
 }
 
 #[derive(Debug, Error)]
@@ -40,6 +50,8 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error(transparent)]
     Keystore(#[from] crate::crypto::ssh::keystore::Error),
+    #[error(transparent)]
+    MemorySigner(#[from] keystore::MemorySignerError),
     #[error("no profile found at the filepath '{0}'")]
     NotFound(PathBuf),
     #[error("error connecting to ssh-agent: {0}")]
@@ -95,12 +107,17 @@ impl Profile {
         &self.public_key
     }
 
-    pub fn signer(&self) -> Result<AgentSigner, Error> {
+    pub fn signer(&self) -> Result<Box<dyn Signer>, Error> {
+        if let Some(passphrase) = env::read_passphrase() {
+            let signer = keystore::MemorySigner::load(&self.keystore, passphrase)?;
+            return Ok(signer.boxed());
+        }
+
         match Agent::connect() {
             Ok(agent) => {
                 let signer = agent.signer(self.public_key);
                 if signer.is_ready()? {
-                    Ok(signer)
+                    Ok(signer.boxed())
                 } else {
                     Err(Error::KeyNotRegistered(self.public_key))
                 }
