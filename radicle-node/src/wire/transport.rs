@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::{io, net};
 
 use crossbeam_channel as chan;
@@ -53,7 +53,6 @@ enum Peer<G: Negotiator> {
     },
     /// The state during the fetch request before the transport comes back
     Fetch {
-        fetch: Fetch,
         link: Link,
         id: NodeId,
         listener: chan::Receiver<WorkerResp<G>>,
@@ -102,7 +101,6 @@ impl<G: Negotiator> Peer<G> {
         if let Self::Handover { fetch, id, link } = self {
             let fetch = fetch.clone();
             *self = Self::Fetch {
-                fetch: fetch.clone(),
                 id: *id,
                 link: *link,
                 listener,
@@ -251,8 +249,19 @@ where
 
         self.service.fetch_complete(resp.result);
     }
+}
 
-    // TODO: Move this below to `reactor::Handler` impl once netservices reactor will be updated
+impl<R, S, W, G> reactor::Handler for Transport<R, S, W, G>
+where
+    R: routing::Store + Send,
+    S: address::Store + Send,
+    W: WriteStorage + Send + 'static,
+    G: Signer + Negotiator + Send,
+{
+    type Listener = NetAccept<NoiseXk<G>>;
+    type Transport = NetTransport<NoiseXk<G>, Message>;
+    type Command = service::Command;
+
     fn tick(&mut self, time: Instant) {
         // TODO: Ensure that the time correctly converted
         self.service
@@ -271,18 +280,6 @@ where
             self.fetch_complete(resp);
         }
     }
-}
-
-impl<R, S, W, G> reactor::Handler for Transport<R, S, W, G>
-where
-    R: routing::Store + Send,
-    S: address::Store + Send,
-    W: WriteStorage + Send + 'static,
-    G: Signer + Negotiator + Send,
-{
-    type Listener = NetAccept<NoiseXk<G>>;
-    type Transport = NetTransport<NoiseXk<G>, Message>;
-    type Command = service::Command;
 
     fn handle_wakeup(&mut self) {
         self.service.wake()
@@ -292,11 +289,8 @@ where
         &mut self,
         socket_addr: net::SocketAddr,
         event: ListenerEvent<NoiseXk<G>>,
-        duration: Duration,
+        _: Instant,
     ) {
-        // TODO: Remove this once netservices reactor will be updated
-        self.service.tick(LocalTime::from_secs(duration.as_secs()));
-
         match event {
             ListenerEvent::Accepted(session) => {
                 log::debug!(
@@ -328,11 +322,8 @@ where
         &mut self,
         fd: RawFd,
         event: SessionEvent<NoiseXk<G>, Message>,
-        duration: Duration,
+        _: Instant,
     ) {
-        // TODO: Remove this once netservices reactor will be updated
-        self.service.tick(LocalTime::from_secs(duration.as_secs()));
-
         match event {
             SessionEvent::SessionEstablished(node_id) => {
                 log::debug!(target: "transport", "Session established with {node_id}");
@@ -418,6 +409,9 @@ where
                 log::error!(target: "transport", "Received error: peer {} disconnected: {}", fd, err);
 
                 self.actions.push_back(Action::UnregisterTransport(fd));
+            }
+            reactor::Error::Poll(err) => {
+                log::error!(target: "transport", "Can't poll connections: {}", err);
             }
         }
     }
@@ -517,7 +511,7 @@ where
 
                     return self.actions.pop_back();
                 }
-                Io::Wakeup(d) => return Some(reactor::Action::Wakeup(d.into())),
+                Io::Wakeup(d) => return Some(reactor::Action::SetTimer(d.into())),
                 Io::Fetch(fetch) => {
                     // TODO: Check that the node_id is connected, queue request otherwise
                     let fd = self.by_id(&fetch.remote);

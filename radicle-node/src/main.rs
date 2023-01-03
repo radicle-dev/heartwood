@@ -152,7 +152,8 @@ fn main() -> anyhow::Result<()> {
     });
 
     let wire = Transport::new(service, worker_send, negotiator, proxy_addr, clock);
-    let reactor = Reactor::new(wire, popol::Poller::new());
+    let reactor =
+        Reactor::new(wire, popol::Poller::new()).expect("unable to instantiate P2P reactor");
     let handle = Handle::from(reactor.controller());
     let control = thread::spawn(move || control::listen(node, handle));
 
