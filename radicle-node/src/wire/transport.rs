@@ -127,7 +127,7 @@ impl Peer {
 }
 
 pub enum WorkerReq<G: Negotiator> {
-    Fetch(Id, NetTransport<Session<G>, Message>),
+    Fetch(Fetch, NetTransport<Session<G>, Message>),
 }
 pub enum WorkerResp<G: Negotiator> {
     Success(Id, NetTransport<Session<G>, Message>),
@@ -412,7 +412,7 @@ where
                 self.fetch(transport.as_raw_fd(), fetch.clone());
                 self.worker_ctrl
                     .0
-                    .send(WorkerReq::Fetch(fetch.repo, transport))
+                    .send(WorkerReq::Fetch(fetch, transport))
                     .expect("worker pool is down")
             }
             Some(_) => {

@@ -134,9 +134,9 @@ fn main() -> anyhow::Result<()> {
     let workers = thread::spawn(move || {
         while let Ok(req) = worker_recv.recv() {
             let resp = match req {
-                WorkerReq::Fetch(proj, session) => match worker_storage.repository(proj) {
-                    Ok(_repo) => WorkerResp::Success(proj, session),
-                    Err(err) => WorkerResp::Error(proj, err, session),
+                WorkerReq::Fetch(fetch, session) => match worker_storage.repository(fetch.repo) {
+                    Ok(_repo) => WorkerResp::Success(fetch.repo, session),
+                    Err(err) => WorkerResp::Error(fetch.repo, err, session),
                 },
             };
             worker_send.send(resp).expect("failed to respond");

@@ -469,7 +469,8 @@ where
                     let session = self.sessions.get_mut(&seed).unwrap();
                     if let Some(upgrade) = session.upgrade(id) {
                         self.reactor.write(session.id, upgrade);
-                        self.reactor.fetch(session.id, id, Namespaces::default());
+                        self.reactor
+                            .fetch(session.id, id, Namespaces::default(), true);
                         seeds_found += 1;
                     } else {
                         // TODO: Log error.
@@ -902,7 +903,8 @@ where
             }
             (session::State::Connected { .. }, Message::Upgrade { repo }) => {
                 // All we need is to instruct the transport to handover to the worker
-                self.reactor.fetch(*remote, repo, Namespaces::default());
+                self.reactor
+                    .fetch(*remote, repo, Namespaces::default(), false);
             }
             (session::State::Disconnected { .. }, msg) => {
                 debug!("Ignoring {:?} from disconnected peer {}", msg, peer.id);
