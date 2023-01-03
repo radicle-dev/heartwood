@@ -1,4 +1,5 @@
 pub mod common;
+pub mod identity;
 pub mod issue;
 pub mod op;
 pub mod patch;
@@ -10,8 +11,8 @@ pub mod test;
 
 pub use cob::{create, get, list, remove, update};
 pub use cob::{
-    identity, object::collaboration::error, CollaborativeObject, Contents, Create, Entry, History,
-    ObjectId, TypeName, Update,
+    identity::Identity, object::collaboration::error, CollaborativeObject, Contents, Create, Entry,
+    History, ObjectId, TypeName, Update,
 };
 pub use common::*;
 pub use op::{Actor, ActorId, Op, OpId};
