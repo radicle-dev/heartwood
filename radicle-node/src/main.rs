@@ -130,6 +130,7 @@ fn main() -> anyhow::Result<()> {
         while let Ok(WorkerReq {
             fetch,
             session,
+            drain,
             channel,
         }) = worker_recv.recv()
         {

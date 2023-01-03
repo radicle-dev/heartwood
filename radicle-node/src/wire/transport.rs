@@ -112,12 +112,11 @@ impl<G: Negotiator> Peer<G> {
     }
 
     /// Switch back from fetch to connected state
-    fn comeback(&mut self) {
+    fn comeback(&mut self) -> Link {
         if let Self::Fetch { id, link, .. } = self {
-            *self = Self::Connected {
-                id: *id,
-                link: *link,
-            };
+            let link = *link;
+            *self = Self::Connected { id: *id, link };
+            link
         } else {
             panic!("Peer::comeback: can't switch to connected state");
         }
@@ -222,18 +221,22 @@ where
         };
         let (send, recv) = chan::bounded::<WorkerResp<G>>(1);
         let fetch = peer.fetch(recv);
+        let (session, drain) = transport.downgrade().unwrap_or_else(|_| {
+            panic!("business logic error: need to send outgoing messages before starting fetch")
+        });
         self.worker
             .send(WorkerReq {
                 fetch,
-                session: transport,
+                session,
+                drain,
                 channel: send,
             })
             .expect("worker pool is down");
     }
 
     fn fetch_complete(&mut self, resp: WorkerResp<G>) {
-        let transport = resp.session;
-        let fd = transport.as_raw_fd();
+        let session = resp.session;
+        let fd = session.as_raw_fd();
         let Some(peer) = self.peers.get_mut(&fd) else {
             log::error!(target: "transport", "Peer with fd {fd} was not found");
             return;
@@ -243,8 +246,10 @@ where
             return;
         };
         log::debug!(target: "transport", "Requesting reactor to take back transport");
-        peer.comeback();
+        let link = peer.comeback();
 
+        let transport = NetTransport::upgrade(session, link == Link::Inbound)
+            .expect("unable to set socket into non-blocking mode");
         self.actions.push_back(Action::RegisterTransport(transport));
 
         self.service.fetch_complete(resp.result);
@@ -301,7 +306,7 @@ where
                 self.peers
                     .insert(session.as_raw_fd(), Peer::connecting(Link::Inbound));
 
-                let transport = match NetTransport::<NoiseXk<G>, Message>::upgrade(session) {
+                let transport = match NetTransport::<NoiseXk<G>, Message>::upgrade(session, true) {
                     Ok(transport) => transport,
                     Err(err) => {
                         log::error!(target: "transport", "Failed to upgrade accepted peer socket: {err}");
