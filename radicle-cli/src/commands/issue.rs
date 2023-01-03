@@ -26,7 +26,7 @@ Usage
     rad issue state <id> [--closed | --open | --solved]
     rad issue delete <id>
     rad issue react <id> [--emoji <char>]
-    rad issue list [<assignee>]
+    rad issue list [--assigned <key>]
 
 Options
 
@@ -40,35 +40,23 @@ pub struct Metadata {
     labels: Vec<Tag>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub enum OperationName {
     Create,
     Delete,
+    #[default]
     List,
-    None,
     React,
     Show,
     State,
 }
 
-impl Default for OperationName {
-    fn default() -> Self {
-        Self::None
-    }
-}
-
 /// Command line Peer argument.
-#[derive(Debug, PartialEq, Eq)]
-pub enum OptPeer {
-    Any,
-    CurrentUser,
+#[derive(Default, Debug, PartialEq, Eq)]
+pub enum Assigned {
+    #[default]
+    Me,
     Peer(cob::ActorId),
-}
-
-impl Default for OptPeer {
-    fn default() -> Self {
-        OptPeer::Any
-    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -92,7 +80,7 @@ pub enum Operation {
         reaction: Reaction,
     },
     List {
-        assignee: OptPeer,
+        assigned: Option<Assigned>,
     },
 }
 
@@ -108,7 +96,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut id: Option<IssueId> = None;
-        let mut assignee: OptPeer = OptPeer::default();
+        let mut assigned: Option<Assigned> = None;
         let mut title: Option<String> = None;
         let mut reaction: Option<Reaction> = None;
         let mut description: Option<String> = None;
@@ -144,6 +132,17 @@ impl Args for Options {
                 Long("description") if op == Some(OperationName::Create) => {
                     description = Some(parser.value()?.to_string_lossy().into());
                 }
+                Long("assigned") | Short('a') if assigned.is_none() => {
+                    if let Ok(val) = parser.value() {
+                        let val = val.to_string_lossy();
+                        let Ok(peer) = cob::ActorId::from_str(&val) else {
+                            return Err(anyhow!("invalid peer ID '{}'", val));
+                        };
+                        assigned = Some(Assigned::Peer(peer));
+                    } else {
+                        assigned = Some(Assigned::Me);
+                    }
+                }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "n" | "new" => op = Some(OperationName::Create),
                     "c" | "show" => op = Some(OperationName::Show),
@@ -154,14 +153,6 @@ impl Args for Options {
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
-                Value(val) if op == Some(OperationName::List) && assignee == OptPeer::Any => {
-                    let val = val.to_string_lossy();
-                    let Ok(val) = cob::ActorId::from_str(&val) else {
-                            return Err(anyhow!("invalid peer ID '{}'", val));
-                    };
-
-                    assignee = OptPeer::Peer(val)
-                }
                 Value(val) if op.is_some() => {
                     let val = val
                         .to_str()
@@ -179,9 +170,6 @@ impl Args for Options {
         }
 
         let op = match op.unwrap_or_default() {
-            OperationName::None => Operation::List {
-                assignee: OptPeer::CurrentUser,
-            },
             OperationName::Create => Operation::Create { title, description },
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
@@ -197,7 +185,7 @@ impl Args for Options {
             OperationName::Delete => Operation::Delete {
                 id: id.ok_or_else(|| anyhow!("an issue id to remove must be provided"))?,
             },
-            OperationName::List => Operation::List { assignee },
+            OperationName::List => Operation::List { assigned },
         };
 
         Ok((Options { op }, vec![]))
@@ -279,11 +267,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 )?;
             }
         }
-        Operation::List { assignee } => {
-            let assignee = match assignee {
-                OptPeer::Any => None,
-                OptPeer::CurrentUser => Some(*profile.id()),
-                OptPeer::Peer(id) => Some(id),
+        Operation::List { assigned } => {
+            let assignee = match assigned {
+                Some(Assigned::Me) => Some(*profile.id()),
+                Some(Assigned::Peer(id)) => Some(id),
+                None => None,
             };
 
             let mut t = term::Table::new(term::table::TableOptions::default());

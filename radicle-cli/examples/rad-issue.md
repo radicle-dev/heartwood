@@ -28,11 +28,11 @@ $ rad assign de81d97d7fe07a80bfb339200c6af862d4526b6a z6MknSLrJoTcukLrE435hVNQT4
 It will now show in the list of issues assigned to us.
 
 ```
-$ rad issue
+$ rad issue list --assigned
 de81d97d7fe07a80bfb339200c6af862d4526b6a "flux capacitor underpowered" z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
-Note: this can always be undone with the 'unassign' subcommand.
+Note: this can always be undone with the `unassign` subcommand.
 
 ```
 $ rad unassign de81d97d7fe07a80bfb339200c6af862d4526b6a z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
