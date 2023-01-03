@@ -2,7 +2,7 @@ mod message;
 mod transport;
 
 pub use message::{AddressType, MessageType};
-pub use transport::{Transport, WorkerReq, WorkerResp};
+pub use transport::Transport;
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;

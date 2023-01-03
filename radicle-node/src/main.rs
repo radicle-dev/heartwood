@@ -1,22 +1,20 @@
 use std::{env, net, process, thread};
 
 use anyhow::Context as _;
-use crossbeam_channel::RecvError;
 use cyphernet::addr::PeerAddr;
 use nakamoto_net::{LocalDuration, LocalTime};
-use radicle::prelude::Id;
 use reactor::poller::popol;
 use reactor::Reactor;
 
-use radicle::storage::git::Repository;
-use radicle::storage::{Error, WriteStorage};
-use radicle::{profile, storage};
+use radicle::profile;
+use radicle::storage::WriteStorage;
 use radicle_node::client::handle::Handle;
 use radicle_node::client::{ADDRESS_DB_FILE, NODE_DIR, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle_node::crypto::ssh::keystore::MemorySigner;
 use radicle_node::prelude::{Address, NodeId};
-use radicle_node::service::{routing, tracking, Command, FetchResult};
-use radicle_node::wire::{Transport, WorkerReq, WorkerResp};
+use radicle_node::service::{routing, tracking, FetchResult};
+use radicle_node::wire::Transport;
+use radicle_node::worker::{WorkerReq, WorkerResp};
 use radicle_node::{address, control, logger, service};
 
 #[derive(Debug)]
@@ -127,44 +125,40 @@ fn main() -> anyhow::Result<()> {
         config, clock, routing, storage, addresses, tracking, signer, rng,
     );
 
-    let (to_worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<MemorySigner>>();
-    let (worker_send, from_worker_recv) =
-        crossbeam_channel::unbounded::<WorkerResp<MemorySigner>>();
-    let worker_control = (to_worker_send, from_worker_recv);
+    let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<MemorySigner>>();
     let workers = thread::spawn(move || {
-        while let Ok(req) = worker_recv.recv() {
-            let resp = match req {
-                WorkerReq::Fetch(fetch, session) => match worker_storage.repository(fetch.repo) {
-                    Ok(_repo) => WorkerResp::Success(fetch.repo, session),
-                    Err(err) => WorkerResp::Error(fetch.repo, err, session),
+        while let Ok(WorkerReq {
+            fetch,
+            session,
+            channel,
+        }) = worker_recv.recv()
+        {
+            let result = match worker_storage.repository(fetch.repo) {
+                Ok(_) => FetchResult::Fetched {
+                    from: fetch.remote,
+                    updated: vec![],
+                },
+                Err(err) => FetchResult::Error {
+                    from: fetch.remote,
+                    error: err.into(),
                 },
             };
-            worker_send.send(resp).expect("failed to respond");
+            if channel.send(WorkerResp { result, session }).is_err() {
+                log::error!("unable to report fetch result: the P2P reactor has closed the channel to the worker");
+            }
+            todo!("cloudhead: implement worker business logic");
         }
         unreachable!("Worker pool crashed")
     });
 
-    let wire = Transport::new(
-        service,
-        worker_control.clone(),
-        negotiator,
-        proxy_addr,
-        clock,
-    );
+    let wire = Transport::new(service, worker_send, negotiator, proxy_addr, clock);
     let reactor = Reactor::new(wire, popol::Poller::new());
     let handle = Handle::from(reactor.controller());
     let control = thread::spawn(move || control::listen(node, handle));
 
-    loop {
-        match worker_control.1.recv().expect("worker pool failure") {
-            WorkerResp::Success(repo, transport) => reactor
-                .controller()
-                .send(Command::FetchCompleted(repo, transport))
-                .expect("broken reactor"),
-            WorkerResp::Error(repo, err, transport) => reactor
-                .controller()
-                .send(Command::FetchFailed(repo, err, transport))
-                .expect("broken reactor"),
-        }
-    }
+    control.join().unwrap()?;
+    reactor.join().unwrap();
+    workers.join().unwrap();
+
+    Ok(())
 }

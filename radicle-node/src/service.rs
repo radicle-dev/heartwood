@@ -19,8 +19,6 @@ use log::*;
 use nakamoto::{LocalDuration, LocalTime};
 use nakamoto_net as nakamoto;
 use nakamoto_net::Link;
-use netservices::noise::NoiseXk;
-use netservices::wire::NetTransport;
 use radicle::node::Features;
 use radicle::storage::{Namespaces, ReadStorage};
 
@@ -141,7 +139,7 @@ pub enum FetchResult {
 pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Send + Sync;
 
 /// Commands sent to the service by the operator.
-pub enum Command<G: Negotiator> {
+pub enum Command {
     /// Announce repository references for given project id to peers.
     AnnounceRefs(Id),
     /// Connect to node with the given address.
@@ -158,13 +156,9 @@ pub enum Command<G: Negotiator> {
     UntrackNode(NodeId, chan::Sender<bool>),
     /// Query the internal service state.
     QueryState(Arc<QueryState>, chan::Sender<Result<(), CommandError>>),
-    /// Worker has completed fetch job
-    FetchCompleted(Id, NetTransport<NoiseXk<G>, Message>),
-    /// Worker has failed fetch job
-    FetchFailed(Id, storage::Error, NetTransport<NoiseXk<G>, Message>),
 }
 
-impl<G: Negotiator> fmt::Debug for Command<G> {
+impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({})", id),
@@ -175,8 +169,6 @@ impl<G: Negotiator> fmt::Debug for Command<G> {
             Self::TrackNode(id, _, _) => write!(f, "TrackNode({})", id),
             Self::UntrackNode(id, _) => write!(f, "UntrackNode({})", id),
             Self::QueryState { .. } => write!(f, "QueryState(..)"),
-            Self::FetchCompleted(id, _) => write!(f, "FetchCompleted({},..)", id),
-            Self::FetchFailed(id, _, _) => write!(f, "FetchCompleted({},..)", id),
         }
     }
 }
@@ -428,7 +420,7 @@ where
         }
     }
 
-    pub fn command(&mut self, cmd: Command<G>) {
+    pub fn command(&mut self, cmd: Command) {
         debug!("Command {:?}", cmd);
 
         match cmd {
@@ -517,14 +509,10 @@ where
             Command::QueryState(query, sender) => {
                 sender.send(query(self)).ok();
             }
-            Command::FetchCompleted(_, _) | Command::FetchFailed(..) => {
-                // We should do nothing here since this is handled by the transport
-                // and the service is notified via `fetch_complete()` method call
-            }
         }
     }
 
-    pub fn fetch_complete(&mut self, repo: Id, err: Option<storage::Error>) {
+    pub fn fetch_complete(&mut self, result: FetchResult) {
         // TODO(cloudhead): handle completed job with service business logic
     }
 

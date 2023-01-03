@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{io, net};
 
 use crossbeam_channel as chan;
@@ -18,25 +18,21 @@ use netservices::NetSession;
 
 use radicle::collections::HashMap;
 use radicle::crypto::Negotiator;
-use radicle::identity::Id;
 use radicle::node::NodeId;
-use radicle::storage;
 use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
 use crate::service::reactor::{Fetch, Io};
-use crate::service::{routing, session, Command, Message, Service};
+use crate::service::{routing, session, Message, Service};
+use crate::worker::{WorkerReq, WorkerResp};
 use crate::{address, service};
 
-/// The peer session type.
-pub type Session<N> = NoiseXk<N>;
-
 /// Reactor action.
-type Action<G> = reactor::Action<NetAccept<Session<G>>, NetTransport<Session<G>, Message>>;
+type Action<G> = reactor::Action<NetAccept<NoiseXk<G>>, NetTransport<NoiseXk<G>, Message>>;
 
 /// Peer connection state machine.
 #[derive(Debug)]
-enum Peer {
+enum Peer<G: Negotiator> {
     /// The initial state before handshake is completed.
     Connecting { link: Link },
     /// The state after handshake is completed.
@@ -55,15 +51,16 @@ enum Peer {
         link: Link,
         id: NodeId,
     },
-    /// The state during the fetch request before the transport comeback
+    /// The state during the fetch request before the transport comes back
     Fetch {
         fetch: Fetch,
         link: Link,
         id: NodeId,
+        listener: chan::Receiver<WorkerResp<G>>,
     },
 }
 
-impl Peer {
+impl<G: Negotiator> Peer<G> {
     /// Return a new connecting peer.
     fn connecting(link: Link) -> Self {
         Self::Connecting { link }
@@ -101,13 +98,16 @@ impl Peer {
     }
 
     /// Switch to fetch state
-    fn fetch(&mut self) {
+    fn fetch(&mut self, listener: chan::Receiver<WorkerResp<G>>) -> Fetch {
         if let Self::Handover { fetch, id, link } = self {
+            let fetch = fetch.clone();
             *self = Self::Fetch {
                 fetch: fetch.clone(),
                 id: *id,
                 link: *link,
+                listener,
             };
+            fetch
         } else {
             panic!("Peer::fetch: can't switch to fetch without handover");
         }
@@ -126,27 +126,18 @@ impl Peer {
     }
 }
 
-pub enum WorkerReq<G: Negotiator> {
-    Fetch(Fetch, NetTransport<Session<G>, Message>),
-}
-pub enum WorkerResp<G: Negotiator> {
-    Success(Id, NetTransport<Session<G>, Message>),
-    Error(Id, storage::Error, NetTransport<Session<G>, Message>),
-}
-pub type WorkerCtrl<G> = (chan::Sender<WorkerReq<G>>, chan::Receiver<WorkerResp<G>>);
-
 /// Transport protocol implementation for a set of peers.
 pub struct Transport<R, S, W, G: Negotiator> {
     /// Backing service instance.
     service: Service<R, S, W, G>,
     /// Worker pool interface
-    worker_ctrl: WorkerCtrl<G>,
+    worker: chan::Sender<WorkerReq<G>>,
     /// Used to performs X25519 key exchange.
     keypair: G,
     /// Internal queue of actions to send to the reactor.
     actions: VecDeque<Action<G>>,
     /// Peer sessions.
-    peers: HashMap<RawFd, Peer>,
+    peers: HashMap<RawFd, Peer<G>>,
     /// SOCKS5 proxy address.
     proxy: net::SocketAddr,
 }
@@ -160,7 +151,7 @@ where
 {
     pub fn new(
         mut service: Service<R, S, W, G>,
-        worker_ctrl: WorkerCtrl<G>,
+        worker: chan::Sender<WorkerReq<G>>,
         keypair: G,
         proxy: net::SocketAddr,
         clock: LocalTime,
@@ -169,7 +160,7 @@ where
 
         Self {
             service,
-            worker_ctrl,
+            worker,
             keypair,
             proxy,
             actions: VecDeque::new(),
@@ -209,7 +200,7 @@ where
         self.actions.push_back(Action::UnregisterTransport(fd));
     }
 
-    fn fetch(&mut self, fd: RawFd, fetch: Fetch) {
+    fn handover(&mut self, fd: RawFd, fetch: Fetch) {
         let Some(peer) = self.peers.get_mut(&fd) else {
             log::error!(target: "transport", "Peer with fd {fd} was not found");
             return;
@@ -224,7 +215,26 @@ where
         self.actions.push_back(Action::UnregisterTransport(fd));
     }
 
-    fn fetch_complete(&mut self, transport: NetTransport<Session<G>, Message>) {
+    fn fetch(&mut self, transport: NetTransport<NoiseXk<G>, Message>) {
+        let fd = transport.as_raw_fd();
+
+        let Some(peer) = self.peers.get_mut(&fd) else {
+            log::error!(target: "transport", "Peer with fd {fd} was not found");
+            return;
+        };
+        let (send, recv) = chan::bounded::<WorkerResp<G>>(1);
+        let fetch = peer.fetch(recv);
+        self.worker
+            .send(WorkerReq {
+                fetch,
+                session: transport,
+                channel: send,
+            })
+            .expect("worker pool is down");
+    }
+
+    fn fetch_complete(&mut self, resp: WorkerResp<G>) {
+        let transport = resp.session;
         let fd = transport.as_raw_fd();
         let Some(peer) = self.peers.get_mut(&fd) else {
             log::error!(target: "transport", "Peer with fd {fd} was not found");
@@ -238,6 +248,28 @@ where
         peer.comeback();
 
         self.actions.push_back(Action::RegisterTransport(transport));
+
+        self.service.fetch_complete(resp.result);
+    }
+
+    // TODO: Move this below to `reactor::Handler` impl once netservices reactor will be updated
+    fn tick(&mut self, time: Instant) {
+        // TODO: Ensure that the time correctly converted
+        self.service
+            .tick(LocalTime::from_secs(time.elapsed().as_secs()));
+
+        let mut completed = vec![];
+        for peer in self.peers.values() {
+            if let Peer::Fetch { listener, .. } = peer {
+                if let Ok(resp) = listener.try_recv() {
+                    completed.push(resp);
+                }
+            }
+        }
+        // Needed because of borrow checker
+        for resp in completed {
+            self.fetch_complete(resp);
+        }
     }
 }
 
@@ -248,9 +280,9 @@ where
     W: WriteStorage + Send + 'static,
     G: Signer + Negotiator + Send,
 {
-    type Listener = NetAccept<Session<G>>;
-    type Transport = NetTransport<Session<G>, Message>;
-    type Command = service::Command<G>;
+    type Listener = NetAccept<NoiseXk<G>>;
+    type Transport = NetTransport<NoiseXk<G>, Message>;
+    type Command = service::Command;
 
     fn handle_wakeup(&mut self) {
         self.service.wake()
@@ -259,9 +291,10 @@ where
     fn handle_listener_event(
         &mut self,
         socket_addr: net::SocketAddr,
-        event: ListenerEvent<Session<G>>,
+        event: ListenerEvent<NoiseXk<G>>,
         duration: Duration,
     ) {
+        // TODO: Remove this once netservices reactor will be updated
         self.service.tick(LocalTime::from_secs(duration.as_secs()));
 
         match event {
@@ -274,7 +307,7 @@ where
                 self.peers
                     .insert(session.as_raw_fd(), Peer::connecting(Link::Inbound));
 
-                let transport = match NetTransport::<Session<G>, Message>::upgrade(session) {
+                let transport = match NetTransport::<NoiseXk<G>, Message>::upgrade(session) {
                     Ok(transport) => transport,
                     Err(err) => {
                         log::error!(target: "transport", "Failed to upgrade accepted peer socket: {err}");
@@ -294,9 +327,10 @@ where
     fn handle_transport_event(
         &mut self,
         fd: RawFd,
-        event: SessionEvent<Session<G>, Message>,
+        event: SessionEvent<NoiseXk<G>, Message>,
         duration: Duration,
     ) {
+        // TODO: Remove this once netservices reactor will be updated
         self.service.tick(LocalTime::from_secs(duration.as_secs()));
 
         match event {
@@ -369,12 +403,7 @@ where
     }
 
     fn handle_command(&mut self, cmd: Self::Command) {
-        let (id, err, session) = match cmd {
-            Command::FetchCompleted(id, session) => (id, None, session),
-            Command::FetchFailed(id, err, session) => (id, Some(err), session),
-            cmd => return self.service.command(cmd),
-        };
-        self.service.fetch_complete(id, err);
+        self.service.command(cmd);
     }
 
     fn handle_error(&mut self, err: reactor::Error<net::SocketAddr, RawFd>) {
@@ -407,13 +436,8 @@ where
 
                 self.service.disconnected(*id, reason);
             }
-            Some(Peer::Handover { fetch, .. }) => {
-                let fetch = fetch.clone();
-                self.fetch(transport.as_raw_fd(), fetch.clone());
-                self.worker_ctrl
-                    .0
-                    .send(WorkerReq::Fetch(fetch, transport))
-                    .expect("worker pool is down")
+            Some(Peer::Handover { .. }) => {
+                self.fetch(transport);
             }
             Some(_) => {
                 panic!("Unexpected peer handover from the reactor")
@@ -432,7 +456,7 @@ where
     W: WriteStorage + 'static,
     G: Signer + Negotiator,
 {
-    type Item = reactor::Action<NetAccept<Session<G>>, NetTransport<Session<G>, Message>>;
+    type Item = reactor::Action<NetAccept<NoiseXk<G>>, NetTransport<NoiseXk<G>, Message>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(event) = self.actions.pop_front() {
@@ -469,7 +493,7 @@ where
                         break;
                     }
 
-                    match NetTransport::<Session<G>, Message>::connect(
+                    match NetTransport::<NoiseXk<G>, Message>::connect(
                         PeerAddr::new(node_id, socket_addr),
                         &self.keypair,
                     ) {
@@ -497,7 +521,7 @@ where
                 Io::Fetch(fetch) => {
                     // TODO: Check that the node_id is connected, queue request otherwise
                     let fd = self.by_id(&fetch.remote);
-                    self.fetch(fd, fetch)
+                    self.handover(fd, fetch)
                 }
             }
         }
