@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::hash::Hash;
-use std::iter;
 use std::ops::RangeBounds;
+use std::{iter, net};
 
 use crypto::test::signer::MockSigner;
 use crypto::{PublicKey, Signer, Unverified, Verified};
@@ -15,6 +15,7 @@ use crate::identity::{
     project::Project,
     Did,
 };
+use crate::node::Address;
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::storage::MockStorage;
@@ -185,5 +186,20 @@ impl Arbitrary for Id {
         let oid = git::Oid::try_from(bytes.as_slice()).unwrap();
 
         Id::from(oid)
+    }
+}
+
+impl Arbitrary for Address {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let ip = if bool::arbitrary(g) {
+            net::IpAddr::V4(net::Ipv4Addr::from(u32::arbitrary(g)))
+        } else {
+            let octets: [u8; 16] = Arbitrary::arbitrary(g);
+            net::IpAddr::V6(net::Ipv6Addr::from(octets))
+        };
+        Address::from(cyphernet::addr::NetAddr {
+            host: cyphernet::addr::HostAddr::Ip(ip),
+            port: Some(u16::arbitrary(g)),
+        })
     }
 }

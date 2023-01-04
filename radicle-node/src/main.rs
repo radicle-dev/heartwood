@@ -1,29 +1,20 @@
-use std::{env, net, process, thread};
+use std::{env, net, process};
 
 use anyhow::Context as _;
 use cyphernet::addr::PeerAddr;
-use nakamoto_net::{LocalDuration, LocalTime};
-use netservices::wire::NetAccept;
-use reactor::poller::popol;
-use reactor::Reactor;
+use nakamoto_net::LocalDuration;
 
 use radicle::profile;
-use radicle_node::client::handle::Handle;
-use radicle_node::client::{ADDRESS_DB_FILE, NODE_DIR, ROUTING_DB_FILE, TRACKING_DB_FILE};
+use radicle_node::client::Runtime;
 use radicle_node::crypto::ssh::keystore::MemorySigner;
 use radicle_node::prelude::{Address, NodeId};
-use radicle_node::service::{routing, tracking};
-use radicle_node::wire::Transport;
-use radicle_node::worker::{WorkerPool, WorkerReq};
-use radicle_node::{address, control, logger, service};
+use radicle_node::{logger, service};
 
 #[derive(Debug)]
 struct Options {
     connect: Vec<(NodeId, Address)>,
     external_addresses: Vec<Address>,
     limits: service::config::Limits,
-    // FIXME(cloudhead): Listen on incoming connections.
-    #[allow(dead_code)]
     listen: Vec<net::SocketAddr>,
 }
 
@@ -87,63 +78,20 @@ fn main() -> anyhow::Result<()> {
 
     let options = Options::from_env()?;
     let profile = radicle::Profile::load().context("Failed to load node profile")?;
-    let node = profile.node();
     let passphrase = env::var(profile::env::RAD_PASSPHRASE)
         .context("`RAD_PASSPHRASE` is required to be set for the node to establish connections")?
         .into();
     let signer = MemorySigner::load(&profile.keystore, passphrase)?;
-    let negotiator = signer.clone();
     let config = service::Config {
         connect: options.connect.into_iter().collect(),
         external_addresses: options.external_addresses,
         limits: options.limits,
         ..service::Config::default()
     };
-    let proxy_addr = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
-    let network = config.network;
-    let rng = fastrand::Rng::new();
-    let clock = LocalTime::now();
-    let storage = profile.storage;
-    let node_dir = profile.home.join(NODE_DIR);
-    let address_db = node_dir.join(ADDRESS_DB_FILE);
-    let routing_db = node_dir.join(ROUTING_DB_FILE);
-    let tracking_db = node_dir.join(TRACKING_DB_FILE);
+    let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
+    let runtime = Runtime::with(profile, config, options.listen, proxy, signer)?;
 
-    log::info!("Opening address book {}..", address_db.display());
-    let addresses = address::Book::open(address_db)?;
-
-    log::info!("Opening routing table {}..", routing_db.display());
-    let routing = routing::Table::open(routing_db)?;
-
-    log::info!("Opening tracking policy table {}..", tracking_db.display());
-    let tracking = tracking::Config::open(tracking_db)?;
-
-    log::info!("Initializing service ({:?})..", network);
-    let worker_storage = storage.clone();
-    let service = service::Service::new(
-        config, clock, routing, storage, addresses, tracking, signer, rng,
-    );
-
-    let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<MemorySigner>>();
-    let pool = WorkerPool::with(10, worker_storage, worker_recv);
-    let wire = Transport::new(service, worker_send, negotiator.clone(), proxy_addr, clock);
-    let reactor =
-        Reactor::new(wire, popol::Poller::new()).expect("unable to instantiate P2P reactor");
-    let controller = reactor.controller();
-
-    for socket in options.listen {
-        let listener = NetAccept::bind(socket, negotiator.clone())?;
-        controller.register_listener(listener)?;
-
-        log::info!("Listening on {socket}..");
-    }
-
-    let handle = Handle::from(controller);
-    let control = thread::spawn(move || control::listen(node, handle));
-
-    pool.join().unwrap();
-    control.join().unwrap()?;
-    reactor.join().unwrap();
+    runtime.run()?;
 
     Ok(())
 }

@@ -1,15 +1,14 @@
 use std::path::Path;
-use std::str::FromStr;
 use std::{fmt, io};
 
 use radicle::node;
+use radicle::node::Address;
 use sqlite as sql;
 use thiserror::Error;
 
 use crate::address::types;
 use crate::address::{KnownAddress, Source};
 use crate::clock::Timestamp;
-use crate::prelude::Address;
 use crate::service::NodeId;
 use crate::sql::transaction;
 use crate::wire::AddressType;
@@ -227,29 +226,6 @@ pub trait Store {
     }
     /// Get the address entries in the store.
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error>;
-}
-
-impl TryFrom<&sql::Value> for Address {
-    type Error = sql::Error;
-
-    fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
-        match value {
-            sql::Value::String(s) => Address::from_str(s.as_str()).map_err(|e| sql::Error {
-                code: None,
-                message: Some(e.to_string()),
-            }),
-            _ => Err(sql::Error {
-                code: None,
-                message: Some("sql: invalid type for address".to_owned()),
-            }),
-        }
-    }
-}
-
-impl sql::BindableWithIndex for Address {
-    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
-        self.to_string().bind(stmt, i)
-    }
 }
 
 impl TryFrom<&sql::Value> for Source {

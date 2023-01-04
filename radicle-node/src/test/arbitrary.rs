@@ -8,8 +8,8 @@ use crate::crypto;
 use crate::prelude::{BoundedVec, Id, NodeId, Refs, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
 use crate::service::message::{
-    Address, Announcement, InventoryAnnouncement, Message, NodeAnnouncement, Ping,
-    RefsAnnouncement, Subscribe, ZeroBytes,
+    Announcement, InventoryAnnouncement, Message, NodeAnnouncement, Ping, RefsAnnouncement,
+    Subscribe, ZeroBytes,
 };
 use crate::wire::MessageType;
 
@@ -100,21 +100,6 @@ impl Arbitrary for Message {
             },
             _ => unreachable!(),
         }
-    }
-}
-
-impl Arbitrary for Address {
-    fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let ip = if bool::arbitrary(g) {
-            net::IpAddr::V4(net::Ipv4Addr::from(u32::arbitrary(g)))
-        } else {
-            let octets: [u8; 16] = Arbitrary::arbitrary(g);
-            net::IpAddr::V6(net::Ipv6Addr::from(octets))
-        };
-        Address::from(NetAddr {
-            host: HostAddr::Ip(ip),
-            port: Some(u16::arbitrary(g)),
-        })
     }
 }
 

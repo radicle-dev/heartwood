@@ -1,6 +1,7 @@
 use super::nakamoto::LocalDuration;
 
-use crate::service::message::Address;
+use radicle::node::Address;
+
 use crate::service::NodeId;
 
 /// Peer-to-peer network.
@@ -41,8 +42,6 @@ pub struct Config {
     pub network: Network,
     /// Whether or not our node should relay inventories.
     pub relay: bool,
-    /// List of addresses to listen on for protocol connections.
-    pub listen: Vec<Address>,
     /// Configured service limits.
     pub limits: Limits,
 }
@@ -54,7 +53,6 @@ impl Default for Config {
             external_addresses: vec![],
             network: Network::default(),
             relay: true,
-            listen: vec![],
             limits: Limits::default(),
         }
     }

@@ -2,6 +2,7 @@ use std::{io, mem, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
 use cyphernet::addr::{Addr, HostAddr, NetAddr};
+use radicle::node::Address;
 
 use crate::prelude::*;
 use crate::service::message::*;

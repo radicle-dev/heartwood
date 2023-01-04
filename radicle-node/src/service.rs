@@ -20,7 +20,7 @@ use nakamoto::{LocalDuration, LocalTime};
 use nakamoto_net as nakamoto;
 use nakamoto_net::Link;
 use nonempty::NonEmpty;
-use radicle::node::Features;
+use radicle::node::{Address, Features};
 use radicle::storage::{Namespaces, ReadStorage};
 
 use crate::address;
@@ -32,7 +32,7 @@ use crate::git;
 use crate::identity::{Doc, Id};
 use crate::node;
 use crate::prelude::*;
-use crate::service::message::{Address, Announcement, AnnouncementMessage, Ping};
+use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
@@ -46,8 +46,6 @@ use self::gossip::Gossip;
 use self::message::InventoryAnnouncement;
 use self::reactor::Reactor;
 
-/// Default radicle protocol port.
-pub const DEFAULT_PORT: u16 = 8776;
 /// Target number of peers to maintain connections to.
 pub const TARGET_OUTBOUND_PEERS: usize = 8;
 /// How often to run the "idle" task.
