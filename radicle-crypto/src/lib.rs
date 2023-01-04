@@ -26,13 +26,13 @@ pub type SharedSecret = [u8; 32];
 /// Trait alias used for Diffie–Hellman key exchange.
 #[cfg(feature = "cyphernet")]
 pub trait Negotiator:
-    cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone
+    cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone + Send
 {
 }
 
 #[cfg(feature = "cyphernet")]
 impl<T> Negotiator for T where
-    T: cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone
+    T: cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone + Send
 {
 }
 

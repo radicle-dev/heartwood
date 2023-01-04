@@ -46,25 +46,24 @@ impl<T> From<chan::SendError<T>> for Error {
     }
 }
 
-pub struct Handle {
-    pub(crate) controller: reactor::Controller<service::Command>,
+pub struct Handle<T: reactor::Handler> {
+    pub(crate) controller: reactor::Controller<T>,
 }
 
-impl From<reactor::Controller<service::Command>> for Handle {
-    fn from(controller: reactor::Controller<service::Command>) -> Handle {
+impl<T: reactor::Handler> From<reactor::Controller<T>> for Handle<T> {
+    fn from(controller: reactor::Controller<T>) -> Handle<T> {
         Handle { controller }
     }
 }
 
-impl Handle {
+impl<T: reactor::Handler<Command = service::Command>> Handle<T> {
     fn command(&self, cmd: service::Command) -> Result<(), Error> {
         self.controller.send(cmd)?;
-
         Ok(())
     }
 }
 
-impl radicle::node::Handle for Handle {
+impl<T: reactor::Handler<Command = service::Command>> radicle::node::Handle for Handle<T> {
     type Session = Session;
     type FetchLookup = FetchLookup;
     type Error = Error;

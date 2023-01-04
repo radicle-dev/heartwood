@@ -3,6 +3,7 @@ use std::{env, net, process, thread};
 use anyhow::Context as _;
 use cyphernet::addr::PeerAddr;
 use nakamoto_net::{LocalDuration, LocalTime};
+use netservices::wire::NetAccept;
 use reactor::poller::popol;
 use reactor::Reactor;
 
@@ -152,10 +153,19 @@ fn main() -> anyhow::Result<()> {
         unreachable!("Worker pool crashed")
     });
 
-    let wire = Transport::new(service, worker_send, negotiator, proxy_addr, clock);
+    let wire = Transport::new(service, worker_send, negotiator.clone(), proxy_addr, clock);
     let reactor =
         Reactor::new(wire, popol::Poller::new()).expect("unable to instantiate P2P reactor");
-    let handle = Handle::from(reactor.controller());
+
+    let controller = reactor.controller();
+    log::info!("Binding listening ports:");
+    for socket in options.listen {
+        let listener = NetAccept::bind(socket, negotiator.clone()).unwrap();
+        controller.register_listener(listener).unwrap();
+        log::info!("Listening on {}", socket);
+    }
+
+    let handle = Handle::from(controller);
     let control = thread::spawn(move || control::listen(node, handle));
 
     control.join().unwrap()?;
