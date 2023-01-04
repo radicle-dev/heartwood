@@ -1,9 +1,11 @@
 mod features;
 
-use std::io;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use std::{io, net, ops};
+
+use cyphernet::addr::{HostAddr, NetAddr};
 
 use crate::crypto::PublicKey;
 use crate::identity::Id;
@@ -13,11 +15,40 @@ pub use features::Features;
 
 /// Default name for control socket file.
 pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
+/// Default radicle protocol port.
+pub const DEFAULT_PORT: u16 = 8776;
 /// Response on node socket indicating that a command was carried out successfully.
 pub const RESPONSE_OK: &str = "ok";
 /// Response on node socket indicating that a command had no effect.
 pub const RESPONSE_NOOP: &str = "noop";
 
+/// Peer public protocol address.
+#[derive(Wrapper, Clone, Eq, PartialEq, Debug, From)]
+#[wrapper(Display, FromStr)]
+pub struct Address(NetAddr<DEFAULT_PORT>);
+
+impl cyphernet::addr::Addr for Address {
+    fn port(&self) -> u16 {
+        self.0.port()
+    }
+}
+
+impl ops::Deref for Address {
+    type Target = NetAddr<DEFAULT_PORT>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<net::SocketAddr> for Address {
+    fn from(addr: net::SocketAddr) -> Self {
+        Address(NetAddr {
+            host: HostAddr::Ip(addr.ip()),
+            port: Some(addr.port()),
+        })
+    }
+}
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("failed to connect to node: {0}")]
@@ -37,6 +68,8 @@ pub trait Handle {
     /// The error returned by all methods.
     type Error: std::error::Error;
 
+    /// Connect to a peer.
+    fn connect(&mut self, node: NodeId, addr: Address) -> Result<(), Self::Error>;
     /// Retrieve or update the project from network.
     fn fetch(&mut self, id: Id) -> Result<Self::FetchLookup, Self::Error>;
     /// Start tracking the given project. Doesn't do anything if the project is already
@@ -98,6 +131,10 @@ impl Handle for Node {
     type Session = ();
     type FetchLookup = ();
     type Error = Error;
+
+    fn connect(&mut self, _node: NodeId, _addr: Address) -> Result<(), Error> {
+        todo!()
+    }
 
     fn fetch(&mut self, id: Id) -> Result<(), Error> {
         for line in self.call("fetch", &[id])? {

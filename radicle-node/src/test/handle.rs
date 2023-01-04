@@ -21,6 +21,10 @@ impl radicle::node::Handle for Handle {
     type Session = service::Session;
     type FetchLookup = FetchLookup;
 
+    fn connect(&mut self, _node: NodeId, _addr: radicle::node::Address) -> Result<(), Error> {
+        unimplemented!();
+    }
+
     fn fetch(&mut self, _id: Id) -> Result<FetchLookup, Error> {
         Ok(FetchLookup::NotFound)
     }

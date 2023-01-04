@@ -184,6 +184,18 @@ impl MemorySigner {
     pub fn boxed(self) -> Box<dyn Signer> {
         Box::new(self)
     }
+
+    /// Generate a new memory signer.
+    pub fn gen() -> Self {
+        let seed = crate::Seed::generate();
+        let keypair = KeyPair::from_seed(seed);
+        let sk = keypair.sk;
+
+        Self {
+            public: sk.public_key().into(),
+            secret: Zeroizing::new(sk.into()),
+        }
+    }
 }
 
 impl TryFrom<ssh_key::PublicKey> for PublicKey {

@@ -81,7 +81,7 @@ impl WorkerPool {
         Self { pool }
     }
 
-    pub fn join(self) -> thread::Result<()> {
+    pub fn run(self) -> thread::Result<()> {
         for worker in self.pool {
             let result = worker.join()?;
             if let Err(err) = result {

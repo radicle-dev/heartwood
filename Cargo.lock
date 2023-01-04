@@ -2044,6 +2044,7 @@ dependencies = [
 name = "radicle"
 version = "0.2.0"
 dependencies = [
+ "amplify",
  "base64",
  "byteorder",
  "crossbeam-channel",
@@ -2212,7 +2213,6 @@ dependencies = [
 name = "radicle-node"
 version = "0.2.0"
 dependencies = [
- "amplify",
  "anyhow",
  "bloomy",
  "byteorder",
