@@ -1,5 +1,6 @@
 use crossbeam_channel as chan;
 use netservices::noise::NoiseXk;
+use netservices::wire::NetTransport;
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -13,7 +14,7 @@ use crate::service::FetchResult;
 /// Worker request.
 pub struct WorkerReq<G: Negotiator> {
     pub fetch: Fetch,
-    pub session: NoiseXk<G>,
+    pub session: NetTransport<NoiseXk<G>>,
     pub drain: Vec<u8>,
     pub channel: chan::Sender<WorkerResp<G>>,
 }
@@ -21,7 +22,7 @@ pub struct WorkerReq<G: Negotiator> {
 /// Worker response.
 pub struct WorkerResp<G: Negotiator> {
     pub result: FetchResult,
-    pub session: NoiseXk<G>,
+    pub session: NetTransport<NoiseXk<G>>,
 }
 
 pub struct Worker<G: Negotiator> {
