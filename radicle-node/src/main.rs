@@ -8,14 +8,13 @@ use reactor::poller::popol;
 use reactor::Reactor;
 
 use radicle::profile;
-use radicle::storage::WriteStorage;
 use radicle_node::client::handle::Handle;
 use radicle_node::client::{ADDRESS_DB_FILE, NODE_DIR, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle_node::crypto::ssh::keystore::MemorySigner;
 use radicle_node::prelude::{Address, NodeId};
-use radicle_node::service::{routing, tracking, FetchResult};
+use radicle_node::service::{routing, tracking};
 use radicle_node::wire::Transport;
-use radicle_node::worker::{WorkerReq, WorkerResp};
+use radicle_node::worker::{WorkerPool, WorkerReq};
 use radicle_node::{address, control, logger, service};
 
 #[derive(Debug)]
@@ -127,31 +126,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<MemorySigner>>();
-    let workers = thread::spawn(move || {
-        while let Ok(WorkerReq {
-            fetch,
-            session,
-            drain,
-            channel,
-        }) = worker_recv.recv()
-        {
-            let result = match worker_storage.repository(fetch.repo) {
-                Ok(_) => FetchResult::Fetched {
-                    from: fetch.remote,
-                    updated: vec![],
-                },
-                Err(err) => FetchResult::Error {
-                    from: fetch.remote,
-                    error: err.into(),
-                },
-            };
-            if channel.send(WorkerResp { result, session }).is_err() {
-                log::error!("unable to report fetch result: the P2P reactor has closed the channel to the worker");
-            }
-            todo!("cloudhead: implement worker business logic");
-        }
-        unreachable!("Worker pool crashed")
-    });
+    let pool = WorkerPool::with(10, worker_storage, worker_recv);
 
     let wire = Transport::new(service, worker_send, negotiator.clone(), proxy_addr, clock);
     let reactor =
@@ -168,9 +143,9 @@ fn main() -> anyhow::Result<()> {
     let handle = Handle::from(controller);
     let control = thread::spawn(move || control::listen(node, handle));
 
+    pool.join().unwrap();
     control.join().unwrap()?;
     reactor.join().unwrap();
-    workers.join().unwrap();
 
     Ok(())
 }
