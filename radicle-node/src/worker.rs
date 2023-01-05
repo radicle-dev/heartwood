@@ -1,6 +1,5 @@
 use crossbeam_channel as chan;
 use netservices::noise::NoiseXk;
-use std::collections::VecDeque;
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -24,51 +23,15 @@ pub struct WorkerResp<G: Negotiator> {
 }
 
 pub struct Worker<G: Negotiator> {
-    task_send: chan::Sender<WorkerReq<G>>,
-    free_recv: chan::Receiver<()>,
-    thread: JoinHandle<()>,
+    storage: Storage,
+    tasks: chan::Receiver<WorkerReq<G>>,
 }
 
 impl<G: Negotiator> Worker<G> {
-    fn new(storage: Storage) -> Self
-    where
-        G: 'static,
-    {
-        let (task_send, task_recv) = chan::unbounded::<WorkerReq<G>>();
-        let (free_send, free_recv) = chan::bounded::<()>(1);
-
-        let runtime = WorkerRuntime {
-            task_recv,
-            free_send,
-            storage,
-        };
-
-        let thread = thread::spawn(|| runtime.run());
-
-        Self {
-            task_send,
-            free_recv,
-            thread,
-        }
-    }
-
-    pub fn delegate(&self, task: WorkerReq<G>) -> Result<(), chan::SendError<WorkerReq<G>>> {
-        self.task_send.send(task)
-    }
-}
-
-pub struct WorkerRuntime<G: Negotiator> {
-    storage: Storage,
-    task_recv: chan::Receiver<WorkerReq<G>>,
-    free_send: chan::Sender<()>,
-}
-
-impl<G: Negotiator> WorkerRuntime<G> {
     pub fn run(self) {
         loop {
-            let task = self.task_recv.recv().expect("worker channel is broken");
+            let task = self.tasks.recv().expect("worker task channel is broken");
             self.process(task);
-            self.free_send.send(()).expect("worker channel is broken")
         }
     }
 
@@ -96,77 +59,32 @@ impl<G: Negotiator> WorkerRuntime<G> {
     }
 }
 
-pub struct WorkerPool<G: Negotiator> {
-    pool: Vec<Worker<G>>,
-    free_workers: VecDeque<usize>,
-    queue: VecDeque<WorkerReq<G>>,
+pub struct WorkerPool {
+    pool: Vec<JoinHandle<()>>,
 }
 
-impl<G: Negotiator> WorkerPool<G> {
-    pub fn with(storage: Storage, capacity: usize) -> Self
-    where
-        G: 'static,
-    {
+impl WorkerPool {
+    pub fn with<G: Negotiator + 'static>(
+        capacity: usize,
+        storage: Storage,
+        tasks: chan::Receiver<WorkerReq<G>>,
+    ) -> Self {
         let mut pool = Vec::with_capacity(capacity);
-        let mut free_workers = VecDeque::with_capacity(capacity);
-        for index in 0..capacity {
-            let worker = Worker::new(storage.clone());
-            pool.push(worker);
-            free_workers.push_back(index);
+        for _ in 0..capacity {
+            let runtime = Worker {
+                tasks: tasks.clone(),
+                storage: storage.clone(),
+            };
+            let thread = thread::spawn(|| runtime.run());
+            pool.push(thread);
         }
-        Self {
-            pool,
-            free_workers,
-            queue: Default::default(),
-        }
+        Self { pool }
     }
 
-    pub fn join(mut self, recv_task: chan::Receiver<WorkerReq<G>>) {
-        let mut sel = chan::Select::new();
-        let mut recv = Vec::with_capacity(self.pool.len());
-
-        sel.recv(&recv_task);
-        for worker in &self.pool {
-            recv.push(worker.free_recv.clone());
+    pub fn join(self) -> thread::Result<()> {
+        for worker in self.pool {
+            worker.join()?;
         }
-        for r in &recv {
-            sel.recv(r);
-        }
-
-        loop {
-            let oper = sel.select();
-            let index = oper.index();
-            if index == 0 {
-                let mut task = oper
-                    .recv(&recv_task)
-                    .expect("broken worker request channel");
-
-                loop {
-                    let next = match self.free_workers.pop_front() {
-                        Some(next) => next,
-                        None => {
-                            self.queue.push_back(task);
-                            break;
-                        }
-                    };
-                    sel.remove(next + 1);
-                    let worker = &self.pool[next];
-                    match worker.delegate(task) {
-                        Ok(_) => return,
-                        Err(err) => task = err.0,
-                    }
-                }
-            } else {
-                let _ = oper.recv(&recv[index - 1]);
-                if let Some(task) = self.queue.pop_front() {
-                    if let Err(err) = self.pool[index - 1].delegate(task) {
-                        self.queue.push_front(err.0);
-                    }
-                    continue;
-                }
-                sel.recv(&recv[index - 1]);
-                self.free_workers.push_back(index - 1);
-            }
-        }
+        Ok(())
     }
 }

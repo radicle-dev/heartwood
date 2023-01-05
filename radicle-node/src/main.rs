@@ -126,7 +126,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<MemorySigner>>();
-    let pool = WorkerPool::with(worker_storage, 10);
+    let pool = WorkerPool::with(10, worker_storage, worker_recv);
 
     let wire = Transport::new(service, worker_send, negotiator.clone(), proxy_addr, clock);
     let reactor =
@@ -143,8 +143,7 @@ fn main() -> anyhow::Result<()> {
     let handle = Handle::from(controller);
     let control = thread::spawn(move || control::listen(node, handle));
 
-    pool.join(worker_recv);
-
+    pool.join().unwrap();
     control.join().unwrap()?;
     reactor.join().unwrap();
 
