@@ -23,7 +23,7 @@ pub enum Protocol {
     /// Git smart protocol. Used for fetching repository data.
     /// This protocol is used after a connection upgrade via the
     /// [`Message::Upgrade`] message.
-    Git,
+    Fetch,
 }
 
 #[derive(Debug, Clone)]
@@ -119,11 +119,11 @@ impl Session {
         self.attempts += 1;
     }
 
-    pub fn upgrade(&mut self, repo: Id) -> Option<Message> {
+    pub fn fetch(&mut self, repo: Id) -> Option<Message> {
         if let State::Connected { protocol, .. } = &mut self.state {
             if *protocol == Protocol::Gossip {
-                *protocol = Protocol::Git;
-                return Some(Message::Upgrade { repo });
+                *protocol = Protocol::Fetch;
+                return Some(Message::Fetch { repo });
             } else {
                 log::error!(
                     "Attempted to upgrade protocol for {} which was already upgraded",

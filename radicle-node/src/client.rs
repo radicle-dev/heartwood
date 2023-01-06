@@ -1,5 +1,5 @@
 use std::io;
-use std::{net, thread};
+use std::{net, thread, time};
 
 use netservices::wire::NetAccept;
 use reactor::poller::popol;
@@ -104,7 +104,7 @@ impl<G: crypto::Signer + crypto::Negotiator + 'static> Runtime<G> {
         );
 
         let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<G>>();
-        let pool = WorkerPool::with(10, storage, worker_recv);
+        let pool = WorkerPool::with(10, time::Duration::from_secs(9), storage, worker_recv);
         let wire = Transport::new(service, worker_send, negotiator.clone(), proxy, clock);
         let reactor = Reactor::new(wire, popol::Poller::new())?;
         let handle = Handle::from(reactor.controller());

@@ -303,7 +303,7 @@ where
                 log::debug!(
                     target: "transport",
                     "Accepted inbound peer connection from {}..",
-                    session.transition_addr()
+                    session.transient_addr()
                 );
                 self.peers
                     .insert(session.as_raw_fd(), Peer::connecting(Link::Inbound));
@@ -503,6 +503,7 @@ where
                     match NetTransport::<NoiseXk<G>>::connect(
                         PeerAddr::new(node_id, socket_addr),
                         &self.keypair,
+                        true,
                     ) {
                         Ok(transport) => {
                             self.service.attempted(node_id, &socket_addr.into());

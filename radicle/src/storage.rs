@@ -36,6 +36,15 @@ pub enum Namespaces {
     One(PublicKey),
 }
 
+impl Namespaces {
+    pub fn as_fetchspec(&self) -> String {
+        match self {
+            Self::All => String::from("refs/namespaces/*:refs/namespaces/*"),
+            Self::One(pk) => format!("refs/namespaces/{pk}/refs/*:refs/namespaces/{pk}/refs/*"),
+        }
+    }
+}
+
 impl From<PublicKey> for Namespaces {
     fn from(pk: PublicKey) -> Self {
         Self::One(pk)

@@ -154,7 +154,6 @@ impl Signer for MemorySigner {
 
 #[cfg(feature = "cyphernet")]
 impl cyphernet::crypto::Ecdh for MemorySigner {
-    type Pk = PublicKey;
     type Secret = crate::SharedSecret;
     type Err = ed25519_compact::Error;
 
@@ -164,6 +163,15 @@ impl cyphernet::crypto::Ecdh for MemorySigner {
         let ss = pk.dh(&sk)?;
 
         Ok(*ss)
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::crypto::EcSk for MemorySigner {
+    type Pk = PublicKey;
+
+    fn to_pk(&self) -> Self::Pk {
+        self.public
     }
 }
 

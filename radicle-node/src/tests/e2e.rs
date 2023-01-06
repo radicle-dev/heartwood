@@ -83,7 +83,7 @@ fn network(
 
 #[test]
 fn test_e2e() {
-    logger::init(log::Level::Debug).unwrap();
+    logger::init(log::Level::Trace).unwrap();
 
     let tmp = tempfile::tempdir().unwrap();
     let base = tmp.path();
