@@ -304,8 +304,8 @@ pub enum Message {
         zeroes: ZeroBytes,
     },
 
-    /// Upgrade session to Git protocol for the given repository.
-    Upgrade { repo: Id },
+    /// Upgrade session to Git protocol and fetch the given repository.
+    Fetch { repo: Id },
 }
 
 impl Message {
@@ -391,7 +391,7 @@ impl fmt::Debug for Message {
             }
             Self::Ping(Ping { ponglen, zeroes }) => write!(f, "Ping({ponglen}, {:?})", zeroes),
             Self::Pong { zeroes } => write!(f, "Pong({:?})", zeroes),
-            Self::Upgrade { repo } => write!(f, "Upgrade({repo})"),
+            Self::Fetch { repo } => write!(f, "Upgrade({repo})"),
         }
     }
 }

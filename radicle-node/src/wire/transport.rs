@@ -303,7 +303,7 @@ where
                 log::debug!(
                     target: "transport",
                     "Accepted inbound peer connection from {}..",
-                    session.transition_addr()
+                    session.transient_addr()
                 );
                 self.peers
                     .insert(session.as_raw_fd(), Peer::connecting(Link::Inbound));

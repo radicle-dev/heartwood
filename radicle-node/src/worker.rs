@@ -1,15 +1,27 @@
-use crossbeam_channel as chan;
-use netservices::noise::NoiseXk;
-use netservices::wire::NetTransport;
+use core::time;
+use std::io::prelude::*;
+use std::process;
 use std::thread;
 use std::thread::JoinHandle;
+use std::{io, net};
 
+use crossbeam_channel as chan;
+use netservices::noise::NoiseXk;
+use netservices::tunnel::Tunnel;
+use netservices::wire::NetReader;
+use netservices::wire::NetTransport;
+
+use netservices::wire::NetWriter;
+use netservices::wire::SplitIo;
 use radicle::crypto::Negotiator;
-use radicle::storage::WriteStorage;
+use radicle::storage::{ReadRepository, RefUpdate, WriteStorage};
 use radicle::Storage;
+use reactor::poller::popol;
 
 use crate::service::reactor::Fetch;
-use crate::service::FetchResult;
+use crate::service::{FetchError, FetchResult};
+
+type Session<G> = NetTransport<NoiseXk<G>>;
 
 /// Worker request.
 pub struct WorkerReq<G: Negotiator> {
@@ -22,69 +34,201 @@ pub struct WorkerReq<G: Negotiator> {
 /// Worker response.
 pub struct WorkerResp<G: Negotiator> {
     pub result: FetchResult,
-    pub session: NetTransport<NoiseXk<G>>,
+    pub session: Session<G>,
 }
 
-pub struct Worker<G: Negotiator> {
+/// A worker that replicates git objects.
+struct Worker<G: Negotiator> {
     storage: Storage,
     tasks: chan::Receiver<WorkerReq<G>>,
+    timeout: time::Duration,
 }
 
-impl<G: Negotiator> Worker<G> {
-    pub fn run(self) -> Result<(), chan::RecvError> {
+impl<G: Negotiator + 'static> Worker<G> {
+    /// Waits for tasks and runs them. Blocks indefinitely unless there is an error receiving
+    /// the next task.
+    fn run(self) -> Result<(), chan::RecvError> {
         loop {
             let task = self.tasks.recv()?;
             self.process(task);
         }
     }
 
-    pub fn process(&self, task: WorkerReq<G>) {
+    fn process(&self, task: WorkerReq<G>) {
         let WorkerReq {
             fetch,
             session,
-            // TODO: Implement logic.
-            drain: _drain,
+            drain,
             channel,
         } = task;
-        let result = match self.storage.repository(fetch.repo) {
-            Ok(_) => todo!(),
-            Err(err) => FetchResult::Error {
+
+        let (session, result) = self._process(&fetch, drain, session);
+        let result = match result {
+            Ok(updated) => FetchResult::Fetched {
                 from: fetch.remote,
-                error: err.into(),
+                updated,
+            },
+            Err(error) => FetchResult::Error {
+                from: fetch.remote,
+                error,
             },
         };
         if channel.send(WorkerResp { result, session }).is_err() {
             log::error!("Unable to report fetch result: worker channel disconnected");
         }
     }
+
+    fn _process(
+        &self,
+        fetch: &Fetch,
+        drain: Vec<u8>,
+        session: Session<G>,
+    ) -> (Session<G>, Result<Vec<RefUpdate>, FetchError>) {
+        if fetch.initiated {
+            let mut tunnel = match Tunnel::with(session, net::SocketAddr::from(([0, 0, 0, 0], 0))) {
+                Ok(tunnel) => tunnel,
+                // FIXME: We can't do anything here until we're able to get the session out of the
+                // error.
+                Err(_err) => todo!(),
+            };
+            let result = self.fetch(fetch, &mut tunnel);
+            let session = tunnel.into_session();
+
+            (session, result)
+        } else {
+            let (mut stream_r, mut stream_w) = match session.split_io() {
+                Ok((r, w)) => (r, w),
+                Err(err) => {
+                    return (
+                        err.original,
+                        // FIXME: Return the actual error once `netservices` allows it.
+                        Err(FetchError::Io(io::Error::new(
+                            io::ErrorKind::Other,
+                            err.error.to_string(),
+                        ))),
+                    );
+                }
+            };
+            let result = self.upload_pack(fetch, drain, &mut stream_r, &mut stream_w);
+            let session = NetTransport::from_split_io(stream_r, stream_w);
+
+            (session, result)
+        }
+    }
+
+    fn fetch(
+        &self,
+        fetch: &Fetch,
+        tunnel: &mut Tunnel<Session<G>>,
+    ) -> Result<Vec<RefUpdate>, FetchError> {
+        let tunnel_addr = tunnel.local_addr()?;
+        let repo = self.storage.repository(fetch.repo)?;
+        let child = process::Command::new("git")
+            .current_dir(repo.path())
+            .arg("fetch")
+            .arg("--atomic") // The path to the git repo must be exact.
+            .arg(format!("git://{tunnel_addr}"))
+            .arg(fetch.namespaces.as_fetchspec())
+            .arg(".")
+            .stdout(process::Stdio::piped())
+            .stdin(process::Stdio::piped())
+            .spawn()?;
+
+        let _ = tunnel.tunnel_once(popol::Poller::new(), self.timeout)?;
+        let output = child.wait_with_output()?;
+
+        // TODO: Parse fetch output to return updates.
+        log::debug!(target: "worker", "Fetch output for {}: {:?}", fetch.repo, output);
+
+        Ok(vec![])
+    }
+
+    fn upload_pack(
+        &self,
+        fetch: &Fetch,
+        drain: Vec<u8>,
+        stream_r: &mut NetReader<NoiseXk<G>>,
+        stream_w: &mut NetWriter<NoiseXk<G>>,
+    ) -> Result<Vec<RefUpdate>, FetchError> {
+        let repo = self.storage.repository(fetch.repo)?;
+        let mut child = process::Command::new("git")
+            .current_dir(repo.path())
+            .arg("upload-pack")
+            .arg("--strict") // The path to the git repo must be exact.
+            .arg(".")
+            .stdout(process::Stdio::piped())
+            .stdin(process::Stdio::piped())
+            .spawn()?;
+
+        let mut stdin = child.stdin.take().unwrap();
+        let mut stdout = child.stdout.take().unwrap();
+
+        thread::scope(|scope| {
+            let t = scope.spawn(move || {
+                let mut buf = [0u8; 65535];
+
+                // First drain the buffer of incoming data that was waiting.
+                if stdin.write_all(&drain[..]).is_err() {
+                    return;
+                }
+                // Then process any new data coming into the socket, and write it
+                // to the standard input of the `upload-pack` process.
+                while let Ok(n) = stream_r.read(&mut buf) {
+                    if n == 0 {
+                        break;
+                    }
+                    if stdin.write_all(&buf[..n]).is_err() {
+                        break;
+                    }
+                }
+            });
+            // Output of `upload-pack` is sent back to the remote peer.
+            io::copy(&mut stdout, stream_w)?;
+            // SAFETY: The thread does not panic, unless the implementations of read/write
+            // internally panic.
+            t.join().unwrap();
+
+            Ok::<_, FetchError>(())
+        })?;
+        child.wait()?;
+
+        Ok(vec![])
+    }
 }
 
+/// A pool of workers. One thread is allocated for each worker.
 pub struct WorkerPool {
     pool: Vec<JoinHandle<Result<(), chan::RecvError>>>,
 }
 
 impl WorkerPool {
+    /// Create a new worker pool with the given parameters.
     pub fn with<G: Negotiator + 'static>(
         capacity: usize,
+        timeout: time::Duration,
         storage: Storage,
         tasks: chan::Receiver<WorkerReq<G>>,
     ) -> Self {
         let mut pool = Vec::with_capacity(capacity);
         for _ in 0..capacity {
-            let runtime = Worker {
+            let worker = Worker {
                 tasks: tasks.clone(),
                 storage: storage.clone(),
+                timeout,
             };
-            let thread = thread::spawn(|| runtime.run());
+            let thread = thread::spawn(|| worker.run());
+
             pool.push(thread);
         }
         Self { pool }
     }
 
+    /// Run the worker pool.
+    ///
+    /// Blocks until all worker threads have exited.
     pub fn run(self) -> thread::Result<()> {
         for worker in self.pool {
-            let result = worker.join()?;
-            if let Err(err) = result {
+            if let Err(err) = worker.join()? {
                 log::error!(target: "pool", "Worker failed: {err}");
             }
         }
