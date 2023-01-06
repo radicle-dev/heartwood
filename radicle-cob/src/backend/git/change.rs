@@ -11,7 +11,6 @@ use git_ext::Oid;
 use git_trailers::OwnedTrailer;
 use nonempty::NonEmpty;
 
-use crate::git;
 use crate::history::entry::Timestamp;
 use crate::{
     change::{self, store, Change},
@@ -228,28 +227,36 @@ where
     O: AsRef<git2::Oid>,
 {
     let resource = *resource.as_ref();
-
-    let mut parents = tips.iter().map(|o| *o.as_ref()).collect::<Vec<_>>();
-    parents.push(resource);
+    let parents = tips
+        .iter()
+        .map(|o| *o.as_ref())
+        .chain(std::iter::once(resource))
+        .collect::<Vec<_>>();
 
     let trailers: Vec<OwnedTrailer> = vec![trailers::ResourceCommitTrailer::from(resource).into()];
 
     {
         let author = repo.signature()?;
-        let mut timestamp = author.when().seconds();
+        let timestamp = author.when().seconds();
 
         let mut headers = commit::Headers::new();
         headers.push(
             "gpgsig",
             &String::from_utf8(crypto::ssh::ExtendedSignature::from(signature).to_armored())?,
         );
-        let mut author = commit::Author::try_from(&author)?;
+        let author = commit::Author::try_from(&author)?;
 
         #[cfg(debug_assertions)]
-        if let Ok(s) = std::env::var(git::RAD_COMMIT_TIME) {
-            timestamp = s.trim().parse::<i64>().unwrap();
-            author.time = git_commit::author::Time::new(timestamp, 0);
-        }
+        let (author, timestamp) = if let Ok(s) = std::env::var(crate::git::RAD_COMMIT_TIME) {
+            let timestamp = s.trim().parse::<i64>().unwrap();
+            let author = commit::Author {
+                time: git_commit::author::Time::new(timestamp, 0),
+                ..author
+            };
+            (author, timestamp)
+        } else {
+            (author, timestamp)
+        };
 
         let oid = Commit::new(
             tree.id(),
