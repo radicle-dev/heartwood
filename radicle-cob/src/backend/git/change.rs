@@ -234,43 +234,40 @@ where
         .collect::<Vec<_>>();
 
     let trailers: Vec<OwnedTrailer> = vec![trailers::ResourceCommitTrailer::from(resource).into()];
+    let author = repo.signature()?;
+    let timestamp = author.when().seconds();
 
-    {
-        let author = repo.signature()?;
-        let timestamp = author.when().seconds();
+    let mut headers = commit::Headers::new();
+    headers.push(
+        "gpgsig",
+        &String::from_utf8(crypto::ssh::ExtendedSignature::from(signature).to_armored())?,
+    );
+    let author = commit::Author::try_from(&author)?;
 
-        let mut headers = commit::Headers::new();
-        headers.push(
-            "gpgsig",
-            &String::from_utf8(crypto::ssh::ExtendedSignature::from(signature).to_armored())?,
-        );
-        let author = commit::Author::try_from(&author)?;
-
-        #[cfg(debug_assertions)]
-        let (author, timestamp) = if let Ok(s) = std::env::var(crate::git::RAD_COMMIT_TIME) {
-            let timestamp = s.trim().parse::<i64>().unwrap();
-            let author = commit::Author {
-                time: git_commit::author::Time::new(timestamp, 0),
-                ..author
-            };
-            (author, timestamp)
-        } else {
-            (author, timestamp)
+    #[cfg(debug_assertions)]
+    let (author, timestamp) = if let Ok(s) = std::env::var(crate::git::RAD_COMMIT_TIME) {
+        let timestamp = s.trim().parse::<i64>().unwrap();
+        let author = commit::Author {
+            time: git_commit::author::Time::new(timestamp, 0),
+            ..author
         };
+        (author, timestamp)
+    } else {
+        (author, timestamp)
+    };
 
-        let oid = Commit::new(
-            tree.id(),
-            parents,
-            author.clone(),
-            author,
-            headers,
-            message,
-            trailers,
-        )
-        .write(repo)?;
+    let oid = Commit::new(
+        tree.id(),
+        parents,
+        author.clone(),
+        author,
+        headers,
+        message,
+        trailers,
+    )
+    .write(repo)?;
 
-        Ok((Oid::from(oid), timestamp as u64))
-    }
+    Ok((Oid::from(oid), timestamp as u64))
 }
 
 fn write_manifest(
