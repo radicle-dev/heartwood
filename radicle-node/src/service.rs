@@ -11,7 +11,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::{fmt, net, str};
+use std::{fmt, io, net, str};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
@@ -34,6 +34,7 @@ use crate::node;
 use crate::prelude::*;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
+use crate::service::session::Protocol;
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 
@@ -102,6 +103,8 @@ pub enum FetchError {
     Storage(#[from] storage::Error),
     #[error(transparent)]
     Fetch(#[from] storage::FetchError),
+    #[error(transparent)]
+    Io(#[from] io::Error),
 }
 
 /// Result of looking up seeds in our routing table.
@@ -456,12 +459,12 @@ where
                 // TODO: Limit the number of seeds we fetch from? Randomize?
                 for seed in seeds {
                     let session = self.sessions.get_mut(&seed).unwrap();
-                    if let Some(upgrade) = session.upgrade(id) {
-                        self.reactor.write(session.id, upgrade);
+                    if let Some(fetch) = session.fetch(id) {
+                        self.reactor.write(session.id, fetch);
                         self.reactor
                             .fetch(session.id, id, Namespaces::default(), true);
                     } else {
-                        // TODO: If we can't upgrade, it's because we're already fetching from
+                        // TODO: If we can't fetch, it's because we're already fetching from
                         // this peer. So we need to queue the request, or find another peer.
                         todo!();
                     }
@@ -506,13 +509,16 @@ where
 
     pub fn fetch_complete(&mut self, _result: FetchResult) {
         // TODO(cloudhead): handle completed job with service business logic
+        // TODO: Downgrade session to gossip protocol.
     }
 
     pub fn accepted(&mut self, _addr: net::SocketAddr) {
         // Inbound connection attempt.
     }
 
-    pub fn attempted(&mut self, id: NodeId, _addr: &Address) {
+    pub fn attempted(&mut self, id: NodeId, addr: &Address) {
+        debug!("Attempted connection to {id} ({addr})");
+
         let persistent = self.config.is_persistent(&id);
         let peer = self.sessions.entry(id).or_insert_with(|| {
             Session::new(id, Link::Outbound, persistent, self.rng.clone(), self.clock)
@@ -799,11 +805,18 @@ where
         debug!("Received {:?} from {}", &message, peer.id);
 
         match (&mut peer.state, message) {
+            (session::State::Connected { protocol, .. }, _) if *protocol == Protocol::Fetch => {
+                // This should never happen if the service is properly configured, since all
+                // incoming data is sent directly to the Git worker.
+                log::error!("Received gossip message from {remote} during Git fetch");
+
+                return Err(session::Error::Misbehavior);
+            }
             (session::State::Connected { initialized, .. }, Message::Initialize {}) => {
                 // Already initialized!
                 if *initialized {
                     debug!(
-                        "Disconnecting peer {} for sending us a message before initializing",
+                        "Disconnecting peer {} for initializing already initialized session",
                         peer.id
                     );
                     return Err(session::Error::Misbehavior);
@@ -874,7 +887,8 @@ where
                     }
                 }
             }
-            (session::State::Connected { .. }, Message::Upgrade { repo }) => {
+            (session::State::Connected { protocol, .. }, Message::Fetch { repo }) => {
+                *protocol = Protocol::Fetch;
                 // All we need is to instruct the transport to handover to the worker
                 self.reactor
                     .fetch(*remote, repo, Namespaces::default(), false);

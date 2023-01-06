@@ -32,10 +32,10 @@ pub struct Fetch {
     pub repo: Id,
     /// Namespaces to fetch.
     pub namespaces: Namespaces,
-    /// Connection we are fetching from
+    /// Remote peer we are interacting with.
     pub remote: NodeId,
-    /// Indicates whether the fetch request is initiated by a local party
-    pub initiate: bool,
+    /// Indicates whether the fetch request was initiated by us.
+    pub initiated: bool,
 }
 
 /// Result of a fetch request from a specific seed.
@@ -87,14 +87,17 @@ impl Reactor {
         self.io.push_back(Io::Wakeup(after));
     }
 
-    pub fn fetch(&mut self, remote: NodeId, repo: Id, namespaces: Namespaces, initiate: bool) {
-        debug!("Fetch {} from {}..", repo, remote);
-
+    pub fn fetch(&mut self, remote: NodeId, repo: Id, namespaces: Namespaces, initiated: bool) {
+        if initiated {
+            debug!("Fetch initiated for {} from {}..", repo, remote);
+        } else {
+            debug!("Fetch requested for {} from {}..", repo, remote);
+        }
         self.io.push_back(Io::Fetch(Fetch {
             repo,
             namespaces,
             remote,
-            initiate,
+            initiated,
         }));
     }
 
