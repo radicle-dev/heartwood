@@ -1336,7 +1336,7 @@ dependencies = [
 [[package]]
 name = "io-reactor"
 version = "0.1.0"
-source = "git+https://github.com/cyphernet-wg/rust-netservices#889690ebad18090b731df2c147d623ec78693fb3"
+source = "git+https://github.com/cyphernet-wg/rust-netservices?branch=poll-errors#f32f90a428c1c616c233cc22bcd3e24d47c412ae"
 dependencies = [
  "amplify",
  "crossbeam-channel",
@@ -1504,6 +1504,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
 dependencies = [
  "cfg-if",
+ "value-bag",
 ]
 
 [[package]]
@@ -1585,7 +1586,7 @@ dependencies = [
 [[package]]
 name = "netservices"
 version = "0.1.0"
-source = "git+https://github.com/cyphernet-wg/rust-netservices#889690ebad18090b731df2c147d623ec78693fb3"
+source = "git+https://github.com/cyphernet-wg/rust-netservices?branch=poll-errors#f32f90a428c1c616c233cc22bcd3e24d47c412ae"
 dependencies = [
  "amplify",
  "cyphernet",
@@ -1898,7 +1899,7 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 [[package]]
 name = "popol"
 version = "1.0.0"
-source = "git+https://github.com/Cyphernet-WG/popol?branch=api#02b8d4089bd234f3d9d46ef27f6e64cfbc45118a"
+source = "git+https://github.com/Cyphernet-WG/popol?branch=api#0b78f5ef1c39741cfc67157b7d2c7a27064150b1"
 dependencies = [
  "libc",
 ]
@@ -3277,6 +3278,16 @@ name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
+
+[[package]]
+name = "value-bag"
+version = "1.0.0-alpha.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2209b78d1249f7e6f3293657c9779fe31ced465df091bbd433a1cf88e916ec55"
+dependencies = [
+ "ctor",
+ "version_check",
+]
 
 [[package]]
 name = "vcpkg"
