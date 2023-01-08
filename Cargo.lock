@@ -1336,7 +1336,7 @@ dependencies = [
 [[package]]
 name = "io-reactor"
 version = "0.1.0"
-source = "git+https://github.com/cyphernet-wg/rust-netservices#be4641ff489382eda4e6e3e7d4d2052467885ae5"
+source = "git+https://github.com/cyphernet-wg/rust-netservices#77629a1512f47738b88fd5f09618b1d11e5384d1"
 dependencies = [
  "amplify",
  "crossbeam-channel",
@@ -1584,7 +1584,7 @@ dependencies = [
 [[package]]
 name = "netservices"
 version = "0.1.0"
-source = "git+https://github.com/cyphernet-wg/rust-netservices#be4641ff489382eda4e6e3e7d4d2052467885ae5"
+source = "git+https://github.com/cyphernet-wg/rust-netservices#77629a1512f47738b88fd5f09618b1d11e5384d1"
 dependencies = [
  "amplify",
  "cyphernet",
