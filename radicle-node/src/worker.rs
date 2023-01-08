@@ -87,9 +87,7 @@ impl<G: Negotiator + 'static> Worker<G> {
         if fetch.initiated {
             let mut tunnel = match Tunnel::with(session, net::SocketAddr::from(([0, 0, 0, 0], 0))) {
                 Ok(tunnel) => tunnel,
-                // FIXME: We can't do anything here until we're able to get the session out of the
-                // error.
-                Err(_err) => todo!(),
+                Err((session, err)) => return (session, Err(err.into())),
             };
             let result = self.fetch(fetch, &mut tunnel);
             let session = tunnel.into_session();
@@ -99,14 +97,7 @@ impl<G: Negotiator + 'static> Worker<G> {
             let (mut stream_r, mut stream_w) = match session.split_io() {
                 Ok((r, w)) => (r, w),
                 Err(err) => {
-                    return (
-                        err.original,
-                        // FIXME: Return the actual error once `netservices` allows it.
-                        Err(FetchError::Io(io::Error::new(
-                            io::ErrorKind::Other,
-                            err.error.to_string(),
-                        ))),
-                    );
+                    return (err.original, Err(err.error.into()));
                 }
             };
             let result = self.upload_pack(fetch, drain, &mut stream_r, &mut stream_w);
