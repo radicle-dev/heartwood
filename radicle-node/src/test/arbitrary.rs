@@ -1,7 +1,4 @@
-use std::net;
-
 use bloomy::BloomFilter;
-use cyphernet::addr::{HostAddr, NetAddr};
 use qcheck::Arbitrary;
 
 use crate::crypto;
