@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::sync::Arc;
 use std::{fmt, ops::Deref, str::FromStr};
 
+use amplify::hex::FromHex;
 use ed25519_compact as ed25519;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -171,7 +172,18 @@ impl PublicKey {
 }
 
 #[cfg(feature = "cyphernet")]
-impl cyphernet::crypto::EcPk for PublicKey {}
+impl cyphernet::crypto::EcPk for PublicKey {
+    fn generator() -> Self {
+        ed25519::PublicKey::from_slice(
+            &Vec::<u8>::from_hex(
+                "5866666666666666666666666666666666666666666666666666666666666666",
+            )
+            .expect("hardcoded"),
+        )
+        .expect("hardcoded")
+        .into()
+    }
+}
 
 /// The private/signing key.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]

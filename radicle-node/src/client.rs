@@ -1,7 +1,7 @@
 use std::io;
 use std::{net, thread, time};
 
-use netservices::wire::NetAccept;
+use netservices::resources::NetAccept;
 use reactor::poller::popol;
 use reactor::Reactor;
 use thiserror::Error;
