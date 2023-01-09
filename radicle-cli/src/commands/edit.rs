@@ -84,7 +84,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             project.sign(&signer).and_then(|(_, sig)| {
                 project.update(
                     signer.public_key(),
-                    "Updated payload",
+                    "Update payload",
                     &[(signer.public_key(), sig)],
                     repo.raw(),
                 )
