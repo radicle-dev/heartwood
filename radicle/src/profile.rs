@@ -16,13 +16,11 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::crypto::ssh::agent::Agent;
-use crate::crypto::ssh::{Keystore, Passphrase};
+use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
 use crate::node;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
-
-use radicle_crypto::ssh::keystore;
 
 /// Environment variables used by radicle.
 pub mod env {
@@ -39,8 +37,7 @@ pub mod env {
         let Ok(passphrase) = std::env::var(RAD_PASSPHRASE) else {
             return None;
         };
-
-        Some(super::Passphrase::from(passphrase.trim_end().to_owned()))
+        Some(super::Passphrase::from(passphrase))
     }
 }
 
@@ -49,7 +46,7 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
-    Keystore(#[from] crate::crypto::ssh::keystore::Error),
+    Keystore(#[from] keystore::Error),
     #[error(transparent)]
     MemorySigner(#[from] keystore::MemorySignerError),
     #[error("no profile found at the filepath '{0}'")]
