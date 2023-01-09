@@ -13,7 +13,7 @@ use crossbeam_channel as chan;
 use cyphernet::addr::{Addr as _, HostAddr, PeerAddr};
 use nakamoto_net::{DisconnectReason, Link, LocalTime};
 use netservices::noise::NoiseXk;
-use netservices::wire::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
+use netservices::resources::{ListenerEvent, NetAccept, NetResource, SessionEvent};
 use netservices::NetSession;
 
 use radicle::collections::HashMap;
@@ -29,7 +29,7 @@ use crate::worker::{WorkerReq, WorkerResp};
 use crate::{address, service};
 
 /// Reactor action.
-type Action<G> = reactor::Action<NetAccept<NoiseXk<G>>, NetTransport<NoiseXk<G>>>;
+type Action<G> = reactor::Action<NetAccept<NoiseXk<G>>, NetResource<NoiseXk<G>>>;
 
 /// Peer connection state machine.
 #[derive(Debug)]
@@ -218,7 +218,7 @@ where
         self.actions.push_back(Action::UnregisterTransport(fd));
     }
 
-    fn upgraded(&mut self, session: NetTransport<NoiseXk<G>>) {
+    fn upgraded(&mut self, session: NetResource<NoiseXk<G>>) {
         let fd = session.as_raw_fd();
         let Some(peer) = self.peers.get_mut(&fd) else {
             log::error!(target: "transport", "Peer with fd {fd} was not found");
@@ -267,7 +267,7 @@ where
     G: Signer + Negotiator + Send,
 {
     type Listener = NetAccept<NoiseXk<G>>;
-    type Transport = NetTransport<NoiseXk<G>>;
+    type Transport = NetResource<NoiseXk<G>>;
     type Command = service::Command;
 
     fn tick(&mut self, time: Instant) {
@@ -308,7 +308,7 @@ where
                 self.peers
                     .insert(session.as_raw_fd(), Peer::connecting(Link::Inbound));
 
-                let transport = match NetTransport::<NoiseXk<G>>::accept(session) {
+                let transport = match NetResource::<NoiseXk<G>>::new(session) {
                     Ok(transport) => transport,
                     Err(err) => {
                         log::error!(target: "transport", "Failed to upgrade accepted peer socket: {err}");
@@ -407,21 +407,39 @@ where
         self.service.command(cmd);
     }
 
-    fn handle_error(&mut self, err: reactor::Error<net::SocketAddr, RawFd>) {
-        match err {
+    fn handle_error(
+        &mut self,
+        err: reactor::Error<NetAccept<NoiseXk<G>>, NetResource<NoiseXk<G>>>,
+    ) {
+        match &err {
             reactor::Error::ListenerUnknown(id) => {
                 log::error!(target: "transport", "Received error: unknown listener {}", id);
             }
-            reactor::Error::PeerUnknown(id) => {
+            reactor::Error::TransportUnknown(id) => {
                 log::error!(target: "transport", "Received error: unknown peer {}", id);
-            }
-            reactor::Error::PeerDisconnected(fd, err) => {
-                log::error!(target: "transport", "Received error: peer {} disconnected: {}", fd, err);
-
-                self.actions.push_back(Action::UnregisterTransport(fd));
             }
             reactor::Error::Poll(err) => {
                 log::error!(target: "transport", "Can't poll connections: {}", err);
+            }
+            reactor::Error::ListenerPollError(id, err) => {
+                log::error!(target: "transport", "Received error: listener {} disconnected: {}", id, err);
+                self.actions.push_back(Action::UnregisterListener(*id));
+            }
+            reactor::Error::TransportPollError(id, err) => {
+                log::error!(target: "transport", "Received error: peer {} disconnected: {}", id, err);
+                self.actions.push_back(Action::UnregisterTransport(*id));
+            }
+            reactor::Error::ListenerDisconnect(id, _, err) => {
+                log::error!(target: "transport", "Received error: listener {} disconnected: {}", id, err);
+            }
+            reactor::Error::TransportDisconnect(id, _, err) => {
+                log::error!(target: "transport", "Received error: peer {} disconnected: {}", id, err);
+            }
+            reactor::Error::WriteFailure(id, err) => {
+                log::error!(target: "transport", "Error during writing to peer {id}: {err}")
+            }
+            reactor::Error::WriteLogicError(id, data) => {
+                panic!("writing to {id} before handshake completed (hint: data {data:?})")
             }
         }
     }
@@ -460,7 +478,7 @@ where
     W: WriteStorage + 'static,
     G: Signer + Negotiator,
 {
-    type Item = reactor::Action<NetAccept<NoiseXk<G>>, NetTransport<NoiseXk<G>>>;
+    type Item = reactor::Action<NetAccept<NoiseXk<G>>, NetResource<NoiseXk<G>>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(event) = self.actions.pop_front() {
@@ -500,7 +518,7 @@ where
                         break;
                     }
 
-                    match NetTransport::<NoiseXk<G>>::connect(
+                    match NetResource::<NoiseXk<G>>::connect(
                         PeerAddr::new(node_id, socket_addr),
                         &self.keypair,
                         true,

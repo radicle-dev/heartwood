@@ -7,12 +7,9 @@ use std::{io, net};
 
 use crossbeam_channel as chan;
 use netservices::noise::NoiseXk;
+use netservices::resources::{NetReader, NetResource, NetWriter, SplitIo};
 use netservices::tunnel::Tunnel;
-use netservices::wire::NetReader;
-use netservices::wire::NetTransport;
 
-use netservices::wire::NetWriter;
-use netservices::wire::SplitIo;
 use radicle::crypto::Negotiator;
 use radicle::storage::{ReadRepository, RefUpdate, WriteStorage};
 use radicle::Storage;
@@ -21,12 +18,12 @@ use reactor::poller::popol;
 use crate::service::reactor::Fetch;
 use crate::service::{FetchError, FetchResult};
 
-type Session<G> = NetTransport<NoiseXk<G>>;
+type Session<G> = NetResource<NoiseXk<G>>;
 
 /// Worker request.
 pub struct WorkerReq<G: Negotiator> {
     pub fetch: Fetch,
-    pub session: NetTransport<NoiseXk<G>>,
+    pub session: NetResource<NoiseXk<G>>,
     pub drain: Vec<u8>,
     pub channel: chan::Sender<WorkerResp<G>>,
 }
@@ -102,7 +99,7 @@ impl<G: Negotiator + 'static> Worker<G> {
                 }
             };
             let result = self.upload_pack(fetch, drain, &mut stream_r, &mut stream_w);
-            let session = NetTransport::from_split_io(stream_r, stream_w);
+            let session = NetResource::from_split_io(stream_r, stream_w);
 
             (session, result)
         }
