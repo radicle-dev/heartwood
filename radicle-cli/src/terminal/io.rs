@@ -17,7 +17,7 @@ use super::format;
 use super::spinner::spinner;
 use super::Error;
 
-pub const TAB: &str = "   ";
+pub const TAB: &str = "    ";
 
 #[macro_export]
 macro_rules! info {
@@ -103,7 +103,7 @@ pub fn eprintln(prefix: impl fmt::Display, msg: impl fmt::Display) {
     eprintln!("{} {}", prefix, msg);
 }
 
-pub fn indented(msg: &str) {
+pub fn indented(msg: impl fmt::Display) {
     println!("{}{}", TAB, msg);
 }
 

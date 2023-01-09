@@ -16,10 +16,10 @@ ok Project heartwood created
 
 
 Your project id is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji. You can show it any time by running:
-   rad .
+    rad .
 
 To publish your project to the network, run:
-   rad push
+    rad push
 
 ```
 

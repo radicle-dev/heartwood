@@ -234,11 +234,11 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 "Your project id is {}. You can show it any time by running:",
                 term::format::highlight(id)
             );
-            term::indented(&term::format::secondary("rad ."));
+            term::indented(term::format::secondary("rad ."));
 
             term::blank();
             term::info!("To publish your project to the network, run:");
-            term::indented(&term::format::secondary("rad push"));
+            term::indented(term::format::secondary("rad push"));
             term::blank();
         }
         Err(err) => {

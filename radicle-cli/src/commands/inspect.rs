@@ -149,10 +149,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     } else if options.history {
         let repo = storage.repository(id)?;
         let head = Doc::<Untrusted>::head(signer.public_key(), &repo)?;
-        let history = repo.revwalk(head)?.collect::<Vec<_>>();
-        let revision = history.len();
+        let history = repo.revwalk(head)?.collect::<Vec<_>>().into_iter();
 
-        for (counter, oid) in history.into_iter().rev().enumerate() {
+        for oid in history {
             let oid = oid?.into();
             let tip = repo.commit(oid)?;
             let blob = Doc::<Unverified>::blob_at(oid, &repo)?;
@@ -170,18 +169,30 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             .with_timezone(&timezone)
             .to_rfc2822();
 
-            print!(
-                "{}",
-                term::TextBox::new(format!(
-                    "commit {}\nblob   {}\ndate   {}\n\n{}",
-                    term::format::yellow(oid),
-                    term::format::dim(blob.id()),
-                    term::format::dim(time),
-                    colorizer().colorize_json_str(&serde_json::to_string_pretty(&content)?)?,
-                ))
-                .first(counter == 0)
-                .last(counter + 1 == revision)
+            println!(
+                "{} {}",
+                term::format::yellow("commit"),
+                term::format::yellow(oid),
             );
+            if let Ok(parent) = tip.parent_id(0) {
+                println!("parent {}", parent);
+            }
+            println!("blob   {}", blob.id());
+            println!("date   {}", time);
+            println!();
+
+            if let Some(msg) = tip.message() {
+                for line in msg.lines() {
+                    term::indented(term::format::dim(line));
+                }
+                term::blank();
+            }
+
+            let json = colorizer().colorize_json_str(&serde_json::to_string_pretty(&content)?)?;
+            for line in json.lines() {
+                println!(" {line}");
+            }
+            println!();
         }
     } else if options.id_only {
         term::info!("{}", term::format::highlight(id.to_human()));
@@ -196,7 +207,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 fn colorizer() -> Colorizer {
     Colorizer::new()
         .null(Color::Cyan)
-        .boolean(Color::Yellow)
+        .boolean(Color::Cyan)
         .number(Color::Magenta)
         .string(Color::Green)
         .key(Color::Blue)
