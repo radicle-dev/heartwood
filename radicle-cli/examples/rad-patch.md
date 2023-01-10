@@ -17,7 +17,7 @@ commit the changes to git.
 ```
 $ git add README.md
 $ git commit -m "Define power requirements"
-[flux-capacitor-power 7939a9e] Define power requirements
+[flux-capacitor-power d0f7633] Define power requirements
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
 ```
@@ -32,10 +32,10 @@ $ rad patch open --message "define power requirements" --no-confirm
 ok Pushing HEAD to storage...
 ok Analyzing remotes...
 
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master (cdf76ce) <- z6MknSL…StBU8Vi/flux-capacitor-power (7939a9e)
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master (cdf76ce) <- z6MknSL…StBU8Vi/flux-capacitor-power (d0f7633)
 1 commit(s) ahead, 0 commit(s) behind
 
-7939a9e Define power requirements
+d0f7633 Define power requirements
 
 
 ╭─ define power requirements ───────
@@ -45,7 +45,7 @@ No description provided.
 ╰───────────────────────────────────
 
 
-ok Patch 3b1f58414e51266d7621203554a63eaee242b744 created 🌱
+ok Patch 93a11d4883c8e3e6d37b401b8e6699a397df464c created 🌱
 ```
 
 It will now be listed as one of the project's open patches.
@@ -55,7 +55,7 @@ $ rad patch
 
 - YOU PROPOSED -
 
-define power requirements 3b1f58414e5 R0 7939a9e (flux-capacitor-power) ahead 1, behind 0
+define power requirements 93a11d4883c R0 d0f7633 (flux-capacitor-power) ahead 1, behind 0
 └─ * opened by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..]
 
 - OTHERS PROPOSED -
