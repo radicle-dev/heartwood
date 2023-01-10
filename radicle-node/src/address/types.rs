@@ -2,10 +2,10 @@ use std::ops::{Deref, DerefMut};
 
 use nonempty::NonEmpty;
 use radicle::node;
+use radicle::node::Address;
 
 use crate::clock::Timestamp;
 use crate::collections::HashMap;
-use crate::service::message::Address;
 use crate::LocalTime;
 
 /// A map with the ability to randomly select values.
