@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate amplify;
-
 pub mod address;
 pub mod bounded;
 pub mod client;
@@ -27,8 +24,8 @@ pub mod prelude {
     pub use crate::crypto::{PublicKey, Signature, Signer};
     pub use crate::deserializer::Deserializer;
     pub use crate::identity::{Did, Id};
+    pub use crate::node::Address;
     pub use crate::service::filter::Filter;
-    pub use crate::service::message::Address;
     pub use crate::service::{DisconnectReason, Event, Message, Network, NodeId};
     pub use crate::storage::refs::Refs;
     pub use crate::storage::WriteStorage;

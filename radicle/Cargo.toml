@@ -11,6 +11,7 @@ test = ["qcheck", "radicle-crypto/test"]
 sql = ["sqlite"]
 
 [dependencies]
+amplify = { version = "4.0.0-beta.1", default-features = false, features = ["std"] }
 base64 = { version= "0.13" }
 byteorder = { version = "1.4" }
 crossbeam-channel = { version = "0.5.6" }

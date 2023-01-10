@@ -50,6 +50,14 @@ pub struct Handle<T: reactor::Handler> {
     pub(crate) controller: reactor::Controller<T>,
 }
 
+impl<T: reactor::Handler> Clone for Handle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            controller: self.controller.clone(),
+        }
+    }
+}
+
 impl<T: reactor::Handler> From<reactor::Controller<T>> for Handle<T> {
     fn from(controller: reactor::Controller<T>) -> Handle<T> {
         Handle { controller }
@@ -67,6 +75,12 @@ impl<T: reactor::Handler<Command = service::Command>> radicle::node::Handle for 
     type Session = Session;
     type FetchLookup = FetchLookup;
     type Error = Error;
+
+    fn connect(&mut self, node: NodeId, addr: radicle::node::Address) -> Result<(), Error> {
+        self.command(service::Command::Connect(node, addr))?;
+
+        Ok(())
+    }
 
     fn fetch(&mut self, id: Id) -> Result<Self::FetchLookup, Error> {
         let (sender, receiver) = chan::bounded(1);

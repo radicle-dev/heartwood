@@ -210,8 +210,7 @@ where
                 features: node::Features::SEED,
                 timestamp: self.timestamp(),
                 alias,
-                addresses: Some(net::SocketAddr::from((self.ip, service::DEFAULT_PORT)).into())
-                    .into(),
+                addresses: Some(net::SocketAddr::from((self.ip, node::DEFAULT_PORT)).into()).into(),
                 nonce: 0,
             }
             .solve(),

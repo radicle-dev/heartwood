@@ -154,7 +154,6 @@ impl Signer for MemorySigner {
 
 #[cfg(feature = "cyphernet")]
 impl cyphernet::crypto::Ecdh for MemorySigner {
-    type Pk = PublicKey;
     type Secret = crate::SharedSecret;
     type Err = ed25519_compact::Error;
 
@@ -164,6 +163,15 @@ impl cyphernet::crypto::Ecdh for MemorySigner {
         let ss = pk.dh(&sk)?;
 
         Ok(*ss)
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::crypto::EcSk for MemorySigner {
+    type Pk = PublicKey;
+
+    fn to_pk(&self) -> Self::Pk {
+        self.public
     }
 }
 
@@ -183,6 +191,18 @@ impl MemorySigner {
     /// Box this signer into a trait object.
     pub fn boxed(self) -> Box<dyn Signer> {
         Box::new(self)
+    }
+
+    /// Generate a new memory signer.
+    pub fn gen() -> Self {
+        let seed = crate::Seed::generate();
+        let keypair = KeyPair::from_seed(seed);
+        let sk = keypair.sk;
+
+        Self {
+            public: sk.public_key().into(),
+            secret: Zeroizing::new(sk.into()),
+        }
     }
 }
 

@@ -6,6 +6,7 @@ use sqlite::Value;
 
 use crate::identity::Id;
 use crate::node;
+use crate::node::Address;
 
 impl TryFrom<&Value> for Id {
     type Error = sql::Error;
@@ -47,5 +48,28 @@ impl TryFrom<&Value> for node::Features {
                 message: Some("sql: invalid type for node features".to_owned()),
             }),
         }
+    }
+}
+
+impl TryFrom<&sql::Value> for Address {
+    type Error = sql::Error;
+
+    fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
+        match value {
+            sql::Value::String(s) => Address::from_str(s.as_str()).map_err(|e| sql::Error {
+                code: None,
+                message: Some(e.to_string()),
+            }),
+            _ => Err(sql::Error {
+                code: None,
+                message: Some("sql: invalid type for address".to_owned()),
+            }),
+        }
+    }
+}
+
+impl sql::BindableWithIndex for Address {
+    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
+        self.to_string().bind(stmt, i)
     }
 }

@@ -1,3 +1,5 @@
+mod e2e;
+
 use std::default::*;
 use std::io;
 use std::sync::Arc;

@@ -680,6 +680,8 @@ impl WriteRepository for Repository {
 pub mod trailers {
     use std::str::FromStr;
 
+    use thiserror::Error;
+
     use super::*;
     use crypto::{PublicKey, PublicKeyError};
     use crypto::{Signature, SignatureError};

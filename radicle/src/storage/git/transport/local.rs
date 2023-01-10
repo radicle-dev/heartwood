@@ -7,8 +7,6 @@ use std::process;
 use std::str::FromStr;
 use std::sync::Once;
 
-use once_cell::sync::OnceCell;
-
 use crate::storage;
 use crate::storage::git::Storage;
 
@@ -17,7 +15,7 @@ use super::ChildStream;
 thread_local! {
     /// Stores a storage instance per thread.
     /// This avoids race conditions when used in a multi-threaded context.
-    static THREAD_STORAGE: OnceCell<Storage> = OnceCell::default();
+    static THREAD_STORAGE: RefCell<Option<Storage>> = RefCell::default();
 }
 
 /// Local git transport over the filesystem.
@@ -44,7 +42,8 @@ impl git2::transport::SmartSubtransport for Local {
         };
         let git_dir = THREAD_STORAGE
             .with(|t| {
-                t.get()
+                t.borrow()
+                    .as_ref()
                     .map(|s| storage::git::paths::repository(&s, &url.repo))
             })
             .ok_or_else(|| git2::Error::from_str("local transport storage was not registered"))?;
@@ -100,7 +99,7 @@ pub fn register(storage: Storage) {
     static REGISTER: Once = Once::new();
 
     THREAD_STORAGE.with(|s| {
-        s.set(storage).ok();
+        *s.borrow_mut() = Some(storage);
     });
 
     REGISTER.call_once(|| unsafe {
