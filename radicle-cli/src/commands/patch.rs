@@ -145,16 +145,16 @@ impl Args for Options {
                 }
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "list" => op = Some(OperationName::List),
-                    "open" => op = Some(OperationName::Create),
-                    "update" => op = Some(OperationName::Update),
+                    "l" | "list" => op = Some(OperationName::List),
+                    "o" | "open" => op = Some(OperationName::Create),
+                    "u" | "update" => op = Some(OperationName::Update),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val) if op == Some(OperationName::Update) && id == OptPatch::Any => {
                     let val = val
                         .to_str()
-                        .ok_or_else(|| anyhow!("issue id specified is not UTF-8"))?;
+                        .ok_or_else(|| anyhow!("patch id specified is not UTF-8"))?;
 
                     id = OptPatch::Patch(
                         PatchId::from_str(val)
