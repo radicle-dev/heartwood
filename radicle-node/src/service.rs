@@ -558,11 +558,7 @@ where
         }
     }
 
-    pub fn disconnected(
-        &mut self,
-        remote: NodeId,
-        reason: &nakamoto::DisconnectReason<DisconnectReason>,
-    ) {
+    pub fn disconnected(&mut self, remote: NodeId, reason: &DisconnectReason) {
         let since = self.local_time();
 
         debug!("Disconnected from {} ({})", remote, reason);
@@ -576,10 +572,8 @@ where
                     if reason.is_dial_err() {
                         return;
                     }
-                    if let nakamoto::DisconnectReason::Protocol(r) = reason {
-                        if !r.is_transient() {
-                            return;
-                        }
+                    if !reason.is_transient() {
+                        return;
                     }
                     // TODO: Eventually we want a delay before attempting a reconnection,
                     // with exponential back-off.
@@ -610,7 +604,7 @@ where
                 // If there's an error, stop processing messages from this peer.
                 // However, we still relay messages returned up to this point.
                 self.reactor
-                    .disconnect(remote, DisconnectReason::Error(err));
+                    .disconnect(remote, DisconnectReason::Session(err));
 
                 // FIXME: The peer should be set in a state such that we don'that
                 // process further messages.
@@ -983,8 +977,10 @@ where
             .filter(|(_, session)| session.last_active < *now - STALE_CONNECTION_TIMEOUT);
 
         for (_, session) in stale {
-            self.reactor
-                .disconnect(session.id, DisconnectReason::Error(session::Error::Timeout));
+            self.reactor.disconnect(
+                session.id,
+                DisconnectReason::Session(session::Error::Timeout),
+            );
         }
     }
 
@@ -1086,35 +1082,49 @@ where
     }
 }
 
+/// Disconnect reason.
 #[derive(Debug)]
 pub enum DisconnectReason {
+    /// Error while dialing the remote. This error occures before a connection is
+    /// even established. Errors of this kind are usually not transient.
+    Dial(Arc<std::io::Error>),
+    /// Error with an underlying established connection. Sometimes, reconnecting
+    /// after such an error is possible.
+    Connection(Arc<std::io::Error>),
+    /// Peer was disconnected for another reason.
     User,
     Peer,
-    Error(session::Error),
+    Session(session::Error),
 }
 
 impl DisconnectReason {
-    fn is_transient(&self) -> bool {
+    pub fn is_dial_err(&self) -> bool {
+        matches!(self, Self::Dial(_))
+    }
+
+    pub fn is_connection_err(&self) -> bool {
+        matches!(self, Self::Connection(_))
+    }
+
+    pub fn is_transient(&self) -> bool {
         match self {
+            Self::Dial(_) => false,
+            Self::Connection(_) => true,
             Self::User => false,
             Self::Peer => false,
-            Self::Error(..) => false,
+            Self::Session(..) => false,
         }
-    }
-}
-
-impl From<DisconnectReason> for nakamoto_net::DisconnectReason<DisconnectReason> {
-    fn from(reason: DisconnectReason) -> Self {
-        nakamoto_net::DisconnectReason::Protocol(reason)
     }
 }
 
 impl fmt::Display for DisconnectReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Dial(err) => write!(f, "{}", err),
+            Self::Connection(err) => write!(f, "{}", err),
             Self::User => write!(f, "user"),
             Self::Peer => write!(f, "peer"),
-            Self::Error(err) => write!(f, "error: {}", err),
+            Self::Session(err) => write!(f, "error: {}", err),
         }
     }
 }

@@ -9,7 +9,6 @@ use std::rc::Rc;
 use std::{fmt, io};
 
 use log::*;
-use nakamoto_net as nakamoto;
 use nakamoto_net::{Link, LocalDuration, LocalTime};
 
 use crate::crypto::{Negotiator, Signer};
@@ -55,7 +54,7 @@ pub enum Input {
         link: Link,
     },
     /// Disconnected from peer.
-    Disconnected(NodeId, Rc<nakamoto::DisconnectReason<DisconnectReason>>),
+    Disconnected(NodeId, Rc<DisconnectReason>),
     /// Received a message from a remote peer.
     Received(NodeId, Vec<Message>),
     /// Used to advance the state machine after some wall time has passed.
@@ -493,7 +492,7 @@ impl<S: WriteStorage + 'static, G: Signer + Negotiator> Simulation<S, G> {
                                 remote,
                                 input: Input::Disconnected(
                                     remote,
-                                    Rc::new(nakamoto::DisconnectReason::ConnectionError(
+                                    Rc::new(DisconnectReason::Connection(
                                         io::Error::from(io::ErrorKind::UnexpectedEof).into(),
                                     )),
                                 ),
@@ -556,7 +555,7 @@ impl<S: WriteStorage + 'static, G: Signer + Negotiator> Simulation<S, G> {
                         remote: node,
                         input: Input::Disconnected(
                             node,
-                            Rc::new(nakamoto::DisconnectReason::ConnectionError(
+                            Rc::new(DisconnectReason::Connection(
                                 io::Error::from(io::ErrorKind::ConnectionReset).into(),
                             )),
                         ),
