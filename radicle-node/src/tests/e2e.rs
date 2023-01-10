@@ -13,11 +13,12 @@ use radicle::test::fixtures;
 use radicle::Profile;
 use radicle::Storage;
 
+use crate::address;
 use crate::node::NodeId;
 use crate::service::routing;
 use crate::storage::git::transport;
+use crate::test::logger;
 use crate::wire::Transport;
-use crate::{address, logger};
 use crate::{client, client::Runtime, service};
 
 type TestHandle = (
@@ -46,7 +47,7 @@ fn populate(storage: &Storage, signer: &MemorySigner) {
 /// Create a node runtime.
 fn runtime(home: &Path, config: service::Config) -> Runtime<MemorySigner> {
     let profile = Profile::init(home, "pasphrase".to_owned()).unwrap();
-    let signer = MemorySigner::gen();
+    let signer = MemorySigner::load(&profile.keystore, "pasphrase".to_owned().into()).unwrap();
     let listen = vec![([0, 0, 0, 0], 0).into()];
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
 
@@ -82,8 +83,11 @@ fn network(
         }
     }
 
+    println!("{:#?}", runtimes.keys());
+
     for (from, (to_id, to_addr)) in connect {
         let (handle, _) = runtimes.get_mut(&from).unwrap();
+        println!("{} => {}", from.0, to_id);
         handle.connect(to_id, to_addr.into()).unwrap();
     }
     runtimes
@@ -117,17 +121,18 @@ fn check(
 
 #[test]
 fn test_e2e() {
-    logger::init(log::Level::Trace).unwrap();
+    logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
     let base = tmp.path();
     let nodes = network(vec![
         (service::Config::default(), base.join("alice")),
         (service::Config::default(), base.join("bob")),
+        (service::Config::default(), base.join("eve")),
     ]);
     // TODO: Find a better way to wait for synchronization, eg. using events, or using a loop.
     thread::sleep(std::time::Duration::from_secs(3));
 
     let routes = check(nodes);
-    assert_eq!(routes.len(), 2);
+    assert_eq!(routes.len(), 3);
 }
