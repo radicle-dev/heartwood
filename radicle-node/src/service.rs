@@ -1,4 +1,5 @@
 #![allow(clippy::too_many_arguments)]
+#![allow(clippy::collapsible_match)]
 pub mod config;
 pub mod filter;
 pub mod message;
@@ -18,7 +19,6 @@ use fastrand::Rng;
 use log::*;
 use nakamoto::{LocalDuration, LocalTime};
 use nakamoto_net as nakamoto;
-use nakamoto_net::Link;
 use nonempty::NonEmpty;
 use radicle::node::{Address, Features};
 use radicle::storage::{Namespaces, ReadStorage};
@@ -27,7 +27,7 @@ use crate::address;
 use crate::address::AddressBook;
 use crate::clock::Timestamp;
 use crate::crypto;
-use crate::crypto::{Negotiator, Signer, Verified};
+use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::{Doc, Id};
 use crate::node;
@@ -37,6 +37,7 @@ use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::session::Protocol;
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
+use crate::Link;
 
 pub use crate::node::NodeId;
 pub use crate::service::config::{Config, Network};
@@ -107,6 +108,8 @@ pub enum FetchError {
     Fetch(#[from] storage::FetchError),
     #[error(transparent)]
     Io(#[from] io::Error),
+    #[error(transparent)]
+    Project(#[from] storage::ProjectError),
 }
 
 /// Result of looking up seeds in our routing table.
@@ -137,6 +140,16 @@ pub enum FetchResult {
     },
     /// Error fetching the resource from a seed.
     Error { from: NodeId, error: FetchError },
+}
+
+impl FetchResult {
+    /// Get the remote node id.
+    pub fn remote(&self) -> &NodeId {
+        match self {
+            Self::Fetched { from, .. } => from,
+            Self::Error { from, .. } => from,
+        }
+    }
 }
 
 /// Function used to query internal service state.
@@ -248,7 +261,7 @@ where
     R: routing::Store,
     A: address::Store,
     S: WriteStorage + 'static,
-    G: Signer + Negotiator,
+    G: Signer,
 {
     pub fn new(
         config: Config,
@@ -448,10 +461,9 @@ where
 
                     return;
                 };
-                log::debug!("Found {} seeds for {}", seeds.len(), id);
+                log::debug!("Found {} seed(s) for {}", seeds.len(), id);
 
-                // FIXME: Get results back to user.
-                let (_, results) = chan::bounded(seeds.len());
+                let (results_send, results) = chan::bounded(seeds.len());
                 resp.send(FetchLookup::Found {
                     seeds: seeds.clone(),
                     results,
@@ -461,7 +473,7 @@ where
                 // TODO: Limit the number of seeds we fetch from? Randomize?
                 for seed in seeds {
                     let session = self.sessions.get_mut(&seed).unwrap();
-                    if let Some(fetch) = session.fetch(id) {
+                    if let Some(fetch) = session.fetch(id, results_send.clone()) {
                         self.reactor.write(session.id, fetch);
                         self.reactor
                             .fetch(session.id, id, Namespaces::default(), true);
@@ -509,9 +521,21 @@ where
         }
     }
 
-    pub fn fetch_complete(&mut self, _result: FetchResult) {
+    pub fn fetch_complete(&mut self, result: FetchResult) {
         // TODO(cloudhead): handle completed job with service business logic
         // TODO: Downgrade session to gossip protocol.
+        if let Some(session) = self.sessions.get_mut(result.remote()) {
+            if let session::State::Connected { protocol, .. } = &session.state {
+                if let session::Protocol::Fetch {
+                    results: Some(results),
+                } = protocol
+                {
+                    results.send(result).unwrap();
+                } else {
+                    // Fetch initiated by remote, we don't need to report back.
+                }
+            }
+        }
     }
 
     pub fn accepted(&mut self, _addr: net::SocketAddr) {
@@ -529,7 +553,7 @@ where
     }
 
     pub fn connected(&mut self, remote: NodeId, link: Link) {
-        debug!("Connected to {} ({:?})", remote, link);
+        info!("Connected to {} ({:?})", remote, link);
 
         // For outbound connections, we are the first to say "Hello".
         // For inbound connections, we wait for the remote to say "Hello" first.
@@ -799,7 +823,13 @@ where
         debug!("Received message {:?} from {}", &message, peer.id);
 
         match (&mut peer.state, message) {
-            (session::State::Connected { protocol, .. }, _) if *protocol == Protocol::Fetch => {
+            (
+                session::State::Connected {
+                    protocol: session::Protocol::Fetch { .. },
+                    ..
+                },
+                _,
+            ) => {
                 // This should never happen if the service is properly configured, since all
                 // incoming data is sent directly to the Git worker.
                 log::error!("Received gossip message from {remote} during Git fetch");
@@ -882,8 +912,8 @@ where
                 }
             }
             (session::State::Connected { protocol, .. }, Message::Fetch { repo }) => {
-                *protocol = Protocol::Fetch;
-                // All we need is to instruct the transport to handover to the worker
+                *protocol = Protocol::Fetch { results: None };
+                // Instruct the transport to handover the socket to the worker.
                 self.reactor
                     .fetch(*remote, repo, Namespaces::default(), false);
             }
@@ -1218,7 +1248,7 @@ impl Node {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Holds currently (or recently) connected peers.
 pub struct Sessions(AddressBook<NodeId, Session>);
 

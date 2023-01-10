@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 use std::sync::Arc;
 use std::{fmt, ops::Deref, str::FromStr};
 
+#[cfg(feature = "cyphernet")]
+use cyphernet::{EcSigInvalid, EcSkInvalid, EcVerifyError};
 use ed25519_compact as ed25519;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -23,19 +25,6 @@ pub struct Unverified;
 
 /// Output of a Diffie-Hellman key exchange.
 pub type SharedSecret = [u8; 32];
-
-/// Trait alias used for Diffie–Hellman key exchange.
-#[cfg(feature = "cyphernet")]
-pub trait Negotiator:
-    cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone + Send
-{
-}
-
-#[cfg(feature = "cyphernet")]
-impl<T> Negotiator for T where
-    T: cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone + Send
-{
-}
 
 /// Error returned if signing fails, eg. due to an HSM or KMS.
 #[derive(Debug, Clone, Error)]
@@ -84,6 +73,12 @@ where
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Serialize, Deserialize)]
 #[serde(into = "String", try_from = "String")]
 pub struct Signature(pub ed25519::Signature);
+
+impl AsRef<[u8]> for Signature {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
 
 impl fmt::Display for Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -171,19 +166,97 @@ impl PublicKey {
 }
 
 #[cfg(feature = "cyphernet")]
-impl cyphernet::crypto::EcPk for PublicKey {
-    // TODO: Change this once NoiseXK is working.
-    fn generator() -> Self {
-        use amplify::hex::FromHex;
+impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKey {
+    type Display = String;
 
-        ed25519::PublicKey::from_slice(
-            &Vec::<u8>::from_hex(
-                "5866666666666666666666666666666666666666666666666666666666666666",
-            )
-            .unwrap(),
-        )
-        .unwrap()
-        .into()
+    fn display_fmt(&self, _: &cyphernet::display::Encoding) -> Self::Display {
+        self.to_string()
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for Signature {
+    type Display = String;
+
+    fn display_fmt(&self, _: &cyphernet::display::Encoding) -> Self::Display {
+        self.to_string()
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::EcSk for SecretKey {
+    type Pk = PublicKey;
+
+    fn generate_keypair() -> (Self, Self::Pk)
+    where
+        Self: Sized,
+    {
+        let pair = KeyPair::generate();
+        (pair.sk.into(), pair.pk.into())
+    }
+
+    fn to_pk(&self) -> Result<Self::Pk, EcSkInvalid> {
+        Ok(self.public_key().into())
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::EcSign for SecretKey {
+    type Sig = Signature;
+
+    fn sign(&self, msg: impl AsRef<[u8]>) -> Self::Sig {
+        self.0.sign(msg, None).into()
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::EcPk for PublicKey {
+    const COMPRESSED_LEN: usize = 32;
+    const CURVE_NAME: &'static str = "Ed25519";
+
+    type Compressed = [u8; 32];
+
+    fn base_point() -> Self {
+        unimplemented!()
+    }
+
+    fn to_pk_compressed(&self) -> Self::Compressed {
+        *self.0.deref()
+    }
+
+    fn from_pk_compressed(pk: Self::Compressed) -> Result<Self, cyphernet::EcPkInvalid> {
+        Ok(PublicKey::from(pk))
+    }
+
+    fn from_pk_compressed_slice(slice: &[u8]) -> Result<Self, cyphernet::EcPkInvalid> {
+        ed25519::PublicKey::from_slice(slice)
+            .map_err(|_| cyphernet::EcPkInvalid::default())
+            .map(Self)
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::EcSig for Signature {
+    const COMPRESSED_LEN: usize = 64;
+    type Pk = PublicKey;
+    type Compressed = [u8; 64];
+
+    fn to_sig_compressed(&self) -> Self::Compressed {
+        *self.0.deref()
+    }
+
+    fn from_sig_compressed(sig: Self::Compressed) -> Result<Self, EcSigInvalid> {
+        Ok(Signature::from(sig))
+    }
+
+    fn from_sig_compressed_slice(slice: &[u8]) -> Result<Self, EcSigInvalid> {
+        ed25519::Signature::from_slice(slice)
+            .map_err(|_| EcSigInvalid::default())
+            .map(Signature)
+    }
+
+    fn verify(&self, pk: &Self::Pk, msg: impl AsRef<[u8]>) -> Result<(), EcVerifyError> {
+        self.0.verify(pk, msg)
     }
 }
 

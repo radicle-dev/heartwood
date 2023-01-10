@@ -79,8 +79,12 @@ impl Reactor {
     }
 
     pub fn write_all(&mut self, remote: NodeId, msgs: impl IntoIterator<Item = Message>) {
-        self.io
-            .push_back(Io::Write(remote, msgs.into_iter().collect()));
+        let msgs = msgs.into_iter().collect::<Vec<_>>();
+        let len = msgs.len();
+        for (no, msg) in msgs.iter().enumerate() {
+            debug!("Write {no}/{len} {:?} message to {}", msg, remote);
+        }
+        self.io.push_back(Io::Write(remote, msgs));
     }
 
     pub fn wakeup(&mut self, after: LocalDuration) {
@@ -89,7 +93,7 @@ impl Reactor {
 
     pub fn fetch(&mut self, remote: NodeId, repo: Id, namespaces: Namespaces, initiated: bool) {
         if initiated {
-            debug!("Fetch initiated for {} from {}..", repo, remote);
+            debug!("Fetch initiated for {} with {}..", repo, remote);
         } else {
             debug!("Fetch requested for {} from {}..", repo, remote);
         }

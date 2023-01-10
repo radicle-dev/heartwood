@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::identity::Id;
 use crate::service;
 use crate::service::{CommandError, FetchLookup, QueryState};
-use crate::service::{NodeId, Session};
+use crate::service::{NodeId, Sessions};
 
 /// An error resulting from a handle method.
 #[derive(Error, Debug)]
@@ -72,7 +72,7 @@ impl<T: reactor::Handler<Command = service::Command>> Handle<T> {
 }
 
 impl<T: reactor::Handler<Command = service::Command>> radicle::node::Handle for Handle<T> {
-    type Session = Session;
+    type Sessions = Sessions;
     type FetchLookup = FetchLookup;
     type Error = Error;
 
@@ -133,9 +133,19 @@ impl<T: reactor::Handler<Command = service::Command>> radicle::node::Handle for 
         Ok(receiver)
     }
 
-    fn sessions(&self) -> Result<chan::Receiver<(NodeId, Session)>, Error> {
-        // TODO: This can be implemented once we have real peer sessions.
-        todo!()
+    fn sessions(&self) -> Result<Self::Sessions, Error> {
+        let (sender, receiver) = chan::unbounded();
+        let query: Arc<QueryState> = Arc::new(move |state| {
+            sender.send(state.sessions().clone()).ok();
+            Ok(())
+        });
+        let (err_sender, err_receiver) = chan::bounded(1);
+        self.command(service::Command::QueryState(query, err_sender))?;
+        err_receiver.recv()??;
+
+        let sessions = receiver.recv()?;
+
+        Ok(sessions)
     }
 
     fn inventory(&self) -> Result<chan::Receiver<Id>, Error> {

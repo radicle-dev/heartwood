@@ -9,7 +9,7 @@ use crate::collections::HashMap;
 use crate::LocalTime;
 
 /// A map with the ability to randomly select values.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AddressBook<K, V> {
     inner: HashMap<K, V>,
     rng: fastrand::Rng,

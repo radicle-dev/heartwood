@@ -1,7 +1,10 @@
+use std::ops::Deref;
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
+#[cfg(feature = "cyphernet")]
+use cyphernet::{EcSign, EcSk, EcSkInvalid};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
@@ -132,7 +135,7 @@ pub enum MemorySignerError {
 /// so that signing never fails.
 ///
 /// Can be created from a [`Keystore`] with the [`MemorySigner::load`] function.
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MemorySigner {
     public: PublicKey,
     secret: Zeroizing<SecretKey>,
@@ -144,34 +147,37 @@ impl Signer for MemorySigner {
     }
 
     fn sign(&self, msg: &[u8]) -> Signature {
-        Signature(self.secret.sign(msg, None))
+        Signature(self.secret.deref().deref().sign(msg, None))
     }
 
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
-        Ok(self.sign(msg))
+        Ok(Signer::sign(self, msg))
     }
 }
 
 #[cfg(feature = "cyphernet")]
-impl cyphernet::crypto::Ecdh for MemorySigner {
-    type Secret = crate::SharedSecret;
-    type Err = ed25519_compact::Error;
-
-    fn ecdh(&self, other: &PublicKey) -> Result<crate::SharedSecret, ed25519_compact::Error> {
-        let pk = ed25519_compact::x25519::PublicKey::from_ed25519(other)?;
-        let sk = ed25519_compact::x25519::SecretKey::from_ed25519(&self.secret)?;
-        let ss = pk.dh(&sk)?;
-
-        Ok(*ss)
-    }
-}
-
-#[cfg(feature = "cyphernet")]
-impl cyphernet::crypto::EcSk for MemorySigner {
+impl EcSk for MemorySigner {
     type Pk = PublicKey;
 
-    fn to_pk(&self) -> Self::Pk {
-        self.public
+    fn generate_keypair() -> (Self, Self::Pk)
+    where
+        Self: Sized,
+    {
+        // TODO(cloudhead): Do we need `EcSk` on `MemorySigner`?
+        todo!()
+    }
+
+    fn to_pk(&self) -> Result<Self::Pk, EcSkInvalid> {
+        Ok(*self.public_key())
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl EcSign for MemorySigner {
+    type Sig = Signature;
+
+    fn sign(&self, msg: impl AsRef<[u8]>) -> Self::Sig {
+        Signer::sign(self, msg.as_ref())
     }
 }
 

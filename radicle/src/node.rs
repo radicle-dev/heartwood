@@ -1,11 +1,12 @@
 mod features;
 
+use amplify::WrapperMut;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::{io, net, ops};
+use std::{io, net};
 
-use cyphernet::addr::{HostAddr, NetAddr};
+use cyphernet::addr::{HostName, NetAddr};
 
 use crate::crypto::PublicKey;
 use crate::identity::Id;
@@ -23,9 +24,16 @@ pub const RESPONSE_OK: &str = "ok";
 pub const RESPONSE_NOOP: &str = "noop";
 
 /// Peer public protocol address.
-#[derive(Wrapper, Clone, Eq, PartialEq, Debug, From)]
-#[wrapper(Display, FromStr)]
-pub struct Address(NetAddr<DEFAULT_PORT>);
+#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, From)]
+#[wrapper(Deref, Display, FromStr)]
+#[wrapper_mut(DerefMut)]
+pub struct Address(NetAddr<HostName>);
+
+impl cyphernet::addr::Host for Address {
+    fn requires_proxy(&self) -> bool {
+        self.0.requires_proxy()
+    }
+}
 
 impl cyphernet::addr::Addr for Address {
     fn port(&self) -> u16 {
@@ -33,22 +41,15 @@ impl cyphernet::addr::Addr for Address {
     }
 }
 
-impl ops::Deref for Address {
-    type Target = NetAddr<DEFAULT_PORT>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 impl From<net::SocketAddr> for Address {
     fn from(addr: net::SocketAddr) -> Self {
         Address(NetAddr {
-            host: HostAddr::Ip(addr.ip()),
-            port: Some(addr.port()),
+            host: HostName::Ip(addr.ip()),
+            port: addr.port(),
         })
     }
 }
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("failed to connect to node: {0}")]
@@ -63,8 +64,8 @@ pub enum Error {
 pub trait Handle {
     /// The result of a fetch request.
     type FetchLookup;
-    /// The peer session type.
-    type Session;
+    /// The peer sessions type.
+    type Sessions;
     /// The error returned by all methods.
     type Error: std::error::Error;
 
@@ -88,7 +89,7 @@ pub trait Handle {
     /// Query the routing table entries.
     fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Self::Error>;
     /// Query the peer session state.
-    fn sessions(&self) -> Result<chan::Receiver<(NodeId, Self::Session)>, Self::Error>;
+    fn sessions(&self) -> Result<Self::Sessions, Self::Error>;
     /// Query the inventory.
     fn inventory(&self) -> Result<chan::Receiver<Id>, Self::Error>;
 }
@@ -128,7 +129,7 @@ impl Node {
 }
 
 impl Handle for Node {
-    type Session = ();
+    type Sessions = ();
     type FetchLookup = ();
     type Error = Error;
 
@@ -233,7 +234,7 @@ impl Handle for Node {
         todo!();
     }
 
-    fn sessions(&self) -> Result<chan::Receiver<(NodeId, Self::Session)>, Error> {
+    fn sessions(&self) -> Result<Self::Sessions, Error> {
         todo!();
     }
 

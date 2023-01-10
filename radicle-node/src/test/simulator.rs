@@ -10,14 +10,15 @@ use std::sync::Arc;
 use std::{fmt, io};
 
 use log::*;
-use nakamoto_net::{Link, LocalDuration, LocalTime};
+use nakamoto_net::{LocalDuration, LocalTime};
 
-use crate::crypto::{Negotiator, Signer};
+use crate::crypto::Signer;
 use crate::prelude::Address;
 use crate::service::reactor::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
 use crate::storage::WriteStorage;
 use crate::test::peer::Service;
+use crate::Link;
 
 /// Minimum latency between peers.
 pub const MIN_LATENCY: LocalDuration = LocalDuration::from_millis(1);
@@ -190,7 +191,7 @@ pub struct Simulation<S, G> {
     signer: PhantomData<G>,
 }
 
-impl<S: WriteStorage + 'static, G: Signer + Negotiator> Simulation<S, G> {
+impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
     /// Create a new simulation.
     pub fn new(time: LocalTime, rng: fastrand::Rng, opts: Options) -> Self {
         Self {

@@ -391,7 +391,7 @@ impl fmt::Debug for Message {
             }
             Self::Ping(Ping { ponglen, zeroes }) => write!(f, "Ping({ponglen}, {:?})", zeroes),
             Self::Pong { zeroes } => write!(f, "Pong({:?})", zeroes),
-            Self::Fetch { repo } => write!(f, "Upgrade({repo})"),
+            Self::Fetch { repo } => write!(f, "Fetch({repo})"),
         }
     }
 }

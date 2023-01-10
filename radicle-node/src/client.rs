@@ -1,13 +1,15 @@
 use std::io;
 use std::{net, thread, time};
 
-use netservices::resources::NetAccept;
+use cyphernet::{Cert, EcSign};
+use netservices::resource::NetAccept;
 use reactor::poller::popol;
 use reactor::Reactor;
 use thiserror::Error;
 
 use crate::address;
 use crate::control;
+use crate::crypto::Signature;
 use crate::node::NodeId;
 use crate::service::{routing, tracking};
 use crate::wire::Transport;
@@ -50,16 +52,16 @@ pub enum Error {
 }
 
 /// Holds join handles to the client threads, as well as a client handle.
-pub struct Runtime<G: crypto::Signer + crypto::Negotiator> {
+pub struct Runtime<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone> {
     pub id: NodeId,
     pub handle: Handle<Transport<routing::Table, address::Book, radicle::Storage, G>>,
     pub control: thread::JoinHandle<Result<(), control::Error>>,
-    pub reactor: Reactor<Transport<service::routing::Table, address::Book, radicle::Storage, G>>,
+    pub reactor: Reactor<Transport<routing::Table, address::Book, radicle::Storage, G>>,
     pub pool: WorkerPool,
     pub local_addrs: Vec<net::SocketAddr>,
 }
 
-impl<G: crypto::Signer + crypto::Negotiator + 'static> Runtime<G> {
+impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static> Runtime<G> {
     /// Run the client.
     ///
     /// This function spawns threads.
@@ -72,7 +74,6 @@ impl<G: crypto::Signer + crypto::Negotiator + 'static> Runtime<G> {
     ) -> Result<Runtime<G>, Error> {
         let id = *profile.id();
         let node = profile.node();
-        let negotiator = signer.clone();
         let network = config.network;
         let rng = fastrand::Rng::new();
         let clock = LocalTime::now();
@@ -99,14 +100,25 @@ impl<G: crypto::Signer + crypto::Negotiator + 'static> Runtime<G> {
             storage.clone(),
             addresses,
             tracking,
-            signer,
+            signer.clone(),
             rng,
         );
 
+        let cert = Cert {
+            pk: id,
+            sig: EcSign::sign(&signer, id.as_slice()),
+        };
+
         let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<G>>();
-        let pool = WorkerPool::with(10, time::Duration::from_secs(9), storage, worker_recv);
-        let wire = Transport::new(service, worker_send, negotiator.clone(), proxy, clock);
-        let reactor = Reactor::new(wire, popol::Poller::new())?;
+        let pool = WorkerPool::with(
+            10,
+            time::Duration::from_secs(9),
+            storage,
+            worker_recv,
+            id.to_human(),
+        );
+        let wire = Transport::new(service, worker_send, cert, signer, proxy, clock);
+        let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
         let handle = Handle::from(reactor.controller());
         let control = thread::spawn({
             let handle = handle.clone();
@@ -116,7 +128,8 @@ impl<G: crypto::Signer + crypto::Negotiator + 'static> Runtime<G> {
         let mut local_addrs = Vec::new();
 
         for addr in listen {
-            let listener = NetAccept::bind(addr, negotiator.clone())?;
+            // TODO: Once the API supports it, we can pass an opaque type here.
+            let listener = NetAccept::bind(&addr)?;
             let local_addr = listener.local_addr();
 
             local_addrs.push(local_addr);

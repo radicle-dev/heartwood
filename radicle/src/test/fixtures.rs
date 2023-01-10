@@ -77,3 +77,41 @@ pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
 
     (repo, oid)
 }
+
+/// Generate random fixtures.
+pub mod gen {
+    use super::*;
+
+    /// Generate a random string of the given length.
+    pub fn string(length: usize) -> String {
+        std::iter::repeat_with(fastrand::alphabetic)
+            .take(length)
+            .collect::<String>()
+    }
+
+    /// Generate a random email.
+    pub fn email() -> String {
+        format!("{}@{}.xyz", string(6), string(6))
+    }
+
+    /// Creates a regular repository at the given path with a couple of commits.
+    pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
+        let repo = git2::Repository::init(path).unwrap();
+        let sig = git2::Signature::now(string(6).as_str(), email().as_str()).unwrap();
+        let head = git::initial_commit(&repo, &sig).unwrap();
+        let oid = git::commit(
+            &repo,
+            &head,
+            git::refname!("refs/heads/master").as_refstr(),
+            string(16).as_str(),
+            &sig,
+        )
+        .unwrap()
+        .id();
+
+        // Look, I don't really understand why we have to do this, but we do.
+        drop(head);
+
+        (repo, oid)
+    }
+}

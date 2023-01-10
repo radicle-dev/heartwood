@@ -9,7 +9,7 @@ use crate::address;
 use crate::address::Store;
 use crate::clock::Timestamp;
 use crate::crypto::test::signer::MockSigner;
-use crate::crypto::{Negotiator, Signer};
+use crate::crypto::Signer;
 use crate::identity::Id;
 use crate::node;
 use crate::prelude::*;
@@ -22,7 +22,8 @@ use crate::storage::{RemoteId, WriteStorage};
 use crate::test::arbitrary;
 use crate::test::simulator;
 use crate::test::storage::MockStorage;
-use crate::{Link, LocalDuration, LocalTime};
+use crate::Link;
+use crate::{LocalDuration, LocalTime};
 
 /// Service instantiation used for testing.
 pub type Service<S, G> = service::Service<routing::Table, address::Book, S, G>;
@@ -42,7 +43,7 @@ pub struct Peer<S, G> {
 impl<S, G> simulator::Peer<S, G> for Peer<S, G>
 where
     S: WriteStorage + 'static,
-    G: Signer + Negotiator + 'static,
+    G: Signer + 'static,
 {
     fn init(&mut self) {
         self.initialize()
@@ -103,7 +104,7 @@ impl Default for Config<MockSigner> {
 impl<S, G> Peer<S, G>
 where
     S: WriteStorage + 'static,
-    G: Signer + Negotiator + 'static,
+    G: Signer + 'static,
 {
     pub fn config(
         name: &'static str,

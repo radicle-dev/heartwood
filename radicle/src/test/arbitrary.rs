@@ -198,8 +198,8 @@ impl Arbitrary for Address {
             net::IpAddr::V6(net::Ipv6Addr::from(octets))
         };
         Address::from(cyphernet::addr::NetAddr {
-            host: cyphernet::addr::HostAddr::Ip(ip),
-            port: Some(u16::arbitrary(g)),
+            host: cyphernet::addr::HostName::Ip(ip),
+            port: u16::arbitrary(g),
         })
     }
 }

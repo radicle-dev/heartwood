@@ -1,39 +1,40 @@
 //! Implementation of the transport protocol.
 //!
-//! We use the Noise XK handshake pattern to establish an encrypted stream with a remote peer.
-//! The handshake itself is implemented in the external [`netservices`] crate.
+//! We use the Noise NN handshake pattern to establish an encrypted stream with a remote peer.
+//! The handshake itself is implemented in the external [`cyphernet`] and [`netservices`] crates.
 use std::collections::VecDeque;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 use std::{io, net};
 
+use amplify::Wrapper as _;
 use crossbeam_channel as chan;
-use cyphernet::addr::{Addr as _, HostAddr, PeerAddr};
-use nakamoto_net::{Link, LocalTime};
-use netservices::noise::NoiseXk;
-use netservices::resources::{ListenerEvent, NetAccept, NetResource, SessionEvent};
-use netservices::NetSession;
+use cyphernet::{Cert, Digest, EcSign, Sha256};
+use nakamoto_net::LocalTime;
+use netservices::resource::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
+use netservices::session::ProtocolArtifact;
+use netservices::{NetConnection, NetSession};
 
 use radicle::collections::HashMap;
-use radicle::crypto::Negotiator;
+use radicle::crypto::Signature;
 use radicle::node::NodeId;
 use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
 use crate::service::reactor::{Fetch, Io};
 use crate::service::{routing, session, DisconnectReason, Message, Service};
-use crate::wire::{Decode, Encode};
+use crate::wire::{Decode, Encode, WireSession};
 use crate::worker::{WorkerReq, WorkerResp};
+use crate::Link;
 use crate::{address, service};
 
 /// Reactor action.
-type Action<G> = reactor::Action<NetAccept<NoiseXk<G>>, NetResource<NoiseXk<G>>>;
+type Action<G> = reactor::Action<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>;
 
 /// Peer connection state machine.
-#[derive(Debug)]
-enum Peer<G: Negotiator> {
+enum Peer<G: Signer + EcSign> {
     /// The initial state before handshake is completed.
     Connecting { link: Link },
     /// The state after handshake is completed.
@@ -42,7 +43,7 @@ enum Peer<G: Negotiator> {
     /// The state after a peer was disconnected, either during handshake,
     /// or once connected.
     Disconnected {
-        id: NodeId,
+        id: Option<NodeId>,
         reason: DisconnectReason,
     },
     /// The state after we've started the process of upgraded the peer for a fetch.
@@ -60,7 +61,34 @@ enum Peer<G: Negotiator> {
     },
 }
 
-impl<G: Negotiator> Peer<G> {
+impl<G: Signer + EcSign> std::fmt::Debug for Peer<G> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Connecting { link } => write!(f, "Connecting({:?})", link),
+            Self::Connected { link, id } => write!(f, "Connected({link:?}, {id})"),
+            Self::Disconnected { reason, id } => write!(f, "Disconnected({reason}, {id:?})"),
+            Self::Upgrading { fetch, link, id } => write!(
+                f,
+                "Upgrading(initiated={}, {link:?}, {id})",
+                fetch.initiated
+            ),
+            Self::Upgraded { link, id, .. } => write!(f, "Upgraded({link:?}, {id})"),
+        }
+    }
+}
+
+impl<G: Signer + EcSign> Peer<G> {
+    /// Return the peer's id, if any.
+    fn id(&self) -> Option<&NodeId> {
+        match self {
+            Peer::Connected { id, .. }
+            | Peer::Disconnected { id: Some(id), .. }
+            | Peer::Upgrading { id, .. }
+            | Peer::Upgraded { id, .. } => Some(id),
+            _ => None,
+        }
+    }
+
     /// Return a new connecting peer.
     fn connecting(link: Link) -> Self {
         Self::Connecting { link }
@@ -78,9 +106,14 @@ impl<G: Negotiator> Peer<G> {
     /// Switch to disconnected state.
     fn disconnected(&mut self, reason: DisconnectReason) {
         if let Self::Connected { id, .. } = self {
-            *self = Self::Disconnected { id: *id, reason };
+            *self = Self::Disconnected {
+                id: Some(*id),
+                reason,
+            };
+        } else if let Self::Connecting { .. } = self {
+            *self = Self::Disconnected { id: None, reason };
         } else {
-            panic!("Peer::disconnected: session is not connected");
+            panic!("Peer::disconnected: session is not connected ({:?})", self);
         }
     }
 
@@ -101,6 +134,7 @@ impl<G: Negotiator> Peer<G> {
     fn upgraded(&mut self, listener: chan::Receiver<WorkerResp<G>>) -> Fetch {
         if let Self::Upgrading { fetch, id, link } = self {
             let fetch = fetch.clone();
+            log::debug!(target: "transport", "Peer {id} upgraded for fetch {}", fetch.repo);
 
             *self = Self::Upgraded {
                 id: *id,
@@ -127,13 +161,15 @@ impl<G: Negotiator> Peer<G> {
 }
 
 /// Transport protocol implementation for a set of peers.
-pub struct Transport<R, S, W, G: Negotiator> {
+pub struct Transport<R, S, W, G: Signer + EcSign> {
     /// Backing service instance.
     service: Service<R, S, W, G>,
     /// Worker pool interface.
     worker: chan::Sender<WorkerReq<G>>,
-    /// Used to performs X25519 key exchange.
-    keypair: G,
+    /// Used for authentication; keeps local identity.
+    cert: Cert<Signature>,
+    /// Used for authentication.
+    signer: G,
     /// Internal queue of actions to send to the reactor.
     actions: VecDeque<Action<G>>,
     /// Peer sessions.
@@ -149,12 +185,13 @@ where
     R: routing::Store,
     S: address::Store,
     W: WriteStorage + 'static,
-    G: Signer + Negotiator,
+    G: Signer + EcSign,
 {
     pub fn new(
         mut service: Service<R, S, W, G>,
         worker: chan::Sender<WorkerReq<G>>,
-        keypair: G,
+        cert: Cert<Signature>,
+        signer: G,
         proxy: net::SocketAddr,
         clock: LocalTime,
     ) -> Self {
@@ -163,7 +200,8 @@ where
         Self {
             service,
             worker,
-            keypair,
+            cert,
+            signer,
             proxy,
             actions: VecDeque::new(),
             peers: HashMap::default(),
@@ -171,11 +209,30 @@ where
         }
     }
 
-    fn by_id(&self, id: &NodeId) -> RawFd {
-        self.connected()
-            .find(|(_, i)| *i == id)
-            .map(|(fd, _)| fd)
-            .unwrap()
+    fn peer_mut_by_fd(&mut self, fd: RawFd) -> &mut Peer<G> {
+        self.peers.get_mut(&fd).unwrap_or_else(|| {
+            log::error!(target: "transport", "Peer with fd {fd} was not found");
+            panic!("Peer with fd {fd} is not known");
+        })
+    }
+
+    fn fd_by_id(&self, node_id: &NodeId) -> (RawFd, &Peer<G>) {
+        self.peers
+            .iter()
+            .find(|(_, peer)| peer.id() == Some(node_id))
+            .map(|(fd, peer)| (*fd, peer))
+            .unwrap_or_else(|| panic!("Peer {node_id} was expected to be known to the transport"))
+    }
+
+    fn connected_fd_by_id(&self, node_id: &NodeId) -> RawFd {
+        match self.fd_by_id(node_id) {
+            (fd, Peer::Connected { .. }) => fd,
+            (fd, peer) => {
+                panic!(
+                    "Peer {node_id} (fd={fd}) was expected to be in a connected state ({peer:?})"
+                )
+            }
+        }
     }
 
     fn connected(&self) -> impl Iterator<Item = (RawFd, &NodeId)> {
@@ -189,43 +246,38 @@ where
     }
 
     fn disconnect(&mut self, fd: RawFd, reason: DisconnectReason) {
-        let Some(peer) = self.peers.get_mut(&fd) else {
-            log::error!(target: "transport", "Peer with fd {fd} was not found");
-            return;
-        };
+        let peer = self.peer_mut_by_fd(fd);
         if let Peer::Disconnected { .. } = peer {
-            log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
+            log::error!(target: "transport", "Peer (fd={fd}) is already disconnected");
             return;
         };
-        log::debug!(target: "transport", "Disconnecting peer with fd {} ({})..", fd, reason);
+        log::debug!(target: "transport", "Disconnecting peer (fd={fd}): {reason}");
         peer.disconnected(reason);
 
         self.actions.push_back(Action::UnregisterTransport(fd));
     }
 
     fn upgrade(&mut self, fd: RawFd, fetch: Fetch) {
-        let Some(peer) = self.peers.get_mut(&fd) else {
-            log::error!(target: "transport", "Peer with fd {fd} was not found");
-            return;
-        };
+        let peer = self.peer_mut_by_fd(fd);
         if let Peer::Disconnected { .. } = peer {
-            log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
+            log::error!(target: "transport", "Peer (fd={fd}) is already disconnected");
             return;
         };
-        log::debug!(target: "transport", "Requesting transport handover from reactor for fd {fd}");
+        log::debug!(target: "transport", "Requesting transport handover from reactor for peer (fd={fd})");
         peer.upgrading(fetch);
 
         self.actions.push_back(Action::UnregisterTransport(fd));
     }
 
-    fn upgraded(&mut self, session: NetResource<NoiseXk<G>>) {
-        let fd = session.as_raw_fd();
-        let Some(peer) = self.peers.get_mut(&fd) else {
-            log::error!(target: "transport", "Peer with fd {fd} was not found");
-            return;
-        };
+    fn upgraded(&mut self, transport: NetTransport<WireSession<G>>) {
+        let fd = transport.as_raw_fd();
+        let peer = self.peer_mut_by_fd(fd);
         let (send, recv) = chan::bounded::<WorkerResp<G>>(1);
         let fetch = peer.upgraded(recv);
+        let session = match transport.into_session() {
+            Ok(session) => session,
+            Err(_) => panic!("Transport::upgraded: peer write buffer not empty on upgrade"),
+        };
 
         if self
             .worker
@@ -242,15 +294,25 @@ where
     }
 
     fn fetch_complete(&mut self, resp: WorkerResp<G>) {
+        log::debug!(target: "transport", "Fetch completed: {:?}", resp.result);
+
         let session = resp.session;
-        let fd = session.as_raw_fd();
-        let Some(peer) = self.peers.get_mut(&fd) else {
-            log::error!(target: "transport", "Peer with fd {fd} was not found");
-            return;
-        };
-        if let Peer::Disconnected { .. } = peer {
+        let fd = session.as_connection().as_raw_fd();
+        let peer = self.peer_mut_by_fd(fd);
+
+        let session = if let Peer::Disconnected { .. } = peer {
             log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
             return;
+        } else if let Peer::Upgraded { link, .. } = peer {
+            match NetTransport::with_session(session, *link) {
+                Ok(session) => session,
+                Err(err) => {
+                    log::error!(target: "transport", "Session downgrade failed: {err}");
+                    return;
+                }
+            }
+        } else {
+            todo!();
         };
         peer.downgrade();
 
@@ -264,13 +326,13 @@ where
     R: routing::Store + Send,
     S: address::Store + Send,
     W: WriteStorage + Send + 'static,
-    G: Signer + Negotiator + Send,
+    G: Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + Send,
 {
-    type Listener = NetAccept<NoiseXk<G>>;
-    type Transport = NetResource<NoiseXk<G>>;
+    type Listener = NetAccept<WireSession<G>>;
+    type Transport = NetTransport<WireSession<G>>;
     type Command = service::Command;
 
-    fn tick(&mut self, _time: Instant) {
+    fn tick(&mut self, _time: Duration) {
         // FIXME: Change this once a proper timestamp is passed into the function.
         self.service.tick(LocalTime::from(SystemTime::now()));
 
@@ -294,23 +356,29 @@ where
     fn handle_listener_event(
         &mut self,
         socket_addr: net::SocketAddr,
-        event: ListenerEvent<NoiseXk<G>>,
-        _: Instant,
+        event: ListenerEvent<WireSession<G>>,
+        _: Duration,
     ) {
         match event {
-            ListenerEvent::Accepted(session) => {
+            ListenerEvent::Accepted(connection) => {
                 log::debug!(
                     target: "transport",
-                    "Accepted inbound peer connection from {}..",
-                    session.transient_addr()
+                    "Accepting inbound peer connection from {}..",
+                    connection.remote_addr()
                 );
                 self.peers
-                    .insert(session.as_raw_fd(), Peer::connecting(Link::Inbound));
+                    .insert(connection.as_raw_fd(), Peer::connecting(Link::Inbound));
 
-                let transport = match NetResource::<NoiseXk<G>>::new(session) {
+                let session = WireSession::accept::<{ Sha256::OUTPUT_LEN }>(
+                    connection,
+                    self.cert,
+                    vec![],
+                    self.signer.clone(),
+                );
+                let transport = match NetTransport::with_session(session, Link::Inbound) {
                     Ok(transport) => transport,
                     Err(err) => {
-                        log::error!(target: "transport", "Failed to upgrade accepted peer socket: {err}");
+                        log::error!(target: "transport", "Failed to create transport for accepted connection: {err}");
                         return;
                     }
                 };
@@ -324,9 +392,17 @@ where
         }
     }
 
-    fn handle_transport_event(&mut self, fd: RawFd, event: SessionEvent<NoiseXk<G>>, _: Instant) {
+    fn handle_transport_event(
+        &mut self,
+        fd: RawFd,
+        event: SessionEvent<WireSession<G>>,
+        _: Duration,
+    ) {
         match event {
-            SessionEvent::Established(node_id) => {
+            SessionEvent::Established(ProtocolArtifact {
+                state: Cert { pk: node_id, .. },
+                ..
+            }) => {
                 log::debug!(target: "transport", "Session established with {node_id}");
 
                 let conflicting = self
@@ -390,6 +466,7 @@ where
                 }
             }
             SessionEvent::Terminated(err) => {
+                log::debug!(target: "transport", "Session for fd {fd} terminated: {err}");
                 self.disconnect(fd, DisconnectReason::Connection(Arc::new(err)));
             }
         }
@@ -401,7 +478,7 @@ where
 
     fn handle_error(
         &mut self,
-        err: reactor::Error<NetAccept<NoiseXk<G>>, NetResource<NoiseXk<G>>>,
+        err: reactor::Error<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>,
     ) {
         match &err {
             reactor::Error::ListenerUnknown(id) => {
@@ -455,9 +532,16 @@ where
                 // Disconnect TCP stream.
                 drop(transport);
 
-                self.service.disconnected(*id, reason);
+                if let Some(id) = id {
+                    self.service.disconnected(*id, reason);
+                } else {
+                    // TODO: Handle this case by calling `disconnected` with the address instead of
+                    // the node id.
+                }
             }
             Some(Peer::Upgrading { .. }) => {
+                log::debug!(target: "transport", "Received handover of transport with fd {fd}");
+
                 self.upgraded(transport);
             }
             Some(_) => {
@@ -475,27 +559,23 @@ where
     R: routing::Store,
     S: address::Store,
     W: WriteStorage + 'static,
-    G: Signer + Negotiator,
+    G: Signer + EcSign<Pk = NodeId, Sig = Signature>,
 {
-    type Item = reactor::Action<NetAccept<NoiseXk<G>>, NetResource<NoiseXk<G>>>;
+    type Item = Action<G>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(event) = self.actions.pop_front() {
-            return Some(event);
-        }
-
         while let Some(ev) = self.service.next() {
             match ev {
                 Io::Write(node_id, msgs) => {
                     log::debug!(
                         target: "transport", "Sending {} message(s) to {}", msgs.len(), node_id
                     );
-                    let fd = self.by_id(&node_id);
+                    let fd = self.connected_fd_by_id(&node_id);
                     let mut data = Vec::new();
                     for msg in msgs {
                         msg.encode(&mut data).expect("in-memory writes never fail");
                     }
-                    return Some(reactor::Action::Send(fd, data));
+                    self.actions.push_back(reactor::Action::Send(fd, data));
                 }
                 Io::Event(_e) => {
                     log::warn!(
@@ -503,12 +583,6 @@ where
                     );
                 }
                 Io::Connect(node_id, addr) => {
-                    let socket_addr = match addr.host {
-                        HostAddr::Ip(ip) => net::SocketAddr::new(ip, addr.port()),
-                        HostAddr::Dns(_) => todo!(),
-                        _ => self.proxy,
-                    };
-
                     if self.connected().any(|(_, id)| id == &node_id) {
                         log::error!(
                             target: "transport",
@@ -517,18 +591,26 @@ where
                         break;
                     }
 
-                    match NetResource::<NoiseXk<G>>::connect(
-                        PeerAddr::new(node_id, socket_addr),
-                        &self.keypair,
-                        // TODO: Improve API to not require a boolean.
-                        true,
-                    ) {
+                    match WireSession::connect_nonblocking::<{ Sha256::OUTPUT_LEN }>(
+                        addr.to_inner(),
+                        self.cert,
+                        vec![node_id],
+                        self.signer.clone(),
+                        self.proxy.into(),
+                        false,
+                    )
+                    .and_then(|session| {
+                        NetTransport::<WireSession<G>>::with_session(session, Link::Outbound)
+                    }) {
                         Ok(transport) => {
-                            self.service.attempted(node_id, &socket_addr.into());
+                            self.service.attempted(node_id, &addr);
+                            // TODO: Keep track of peer address for when peer disconnects before
+                            // handshake is complete.
                             self.peers
                                 .insert(transport.as_raw_fd(), Peer::connecting(Link::Outbound));
 
-                            return Some(reactor::Action::RegisterTransport(transport));
+                            self.actions
+                                .push_back(reactor::Action::RegisterTransport(transport));
                         }
                         Err(err) => {
                             self.service
@@ -538,19 +620,19 @@ where
                     }
                 }
                 Io::Disconnect(node_id, reason) => {
-                    let fd = self.by_id(&node_id);
+                    let fd = self.connected_fd_by_id(&node_id);
                     self.disconnect(fd, reason);
-
-                    return self.actions.pop_back();
                 }
-                Io::Wakeup(d) => return Some(reactor::Action::SetTimer(d.into())),
+                Io::Wakeup(d) => {
+                    self.actions.push_back(reactor::Action::SetTimer(d.into()));
+                }
                 Io::Fetch(fetch) => {
                     // TODO: Check that the node_id is connected, queue request otherwise.
-                    let fd = self.by_id(&fetch.remote);
+                    let fd = self.connected_fd_by_id(&fetch.remote);
                     self.upgrade(fd, fetch);
                 }
             }
         }
-        None
+        self.actions.pop_front()
     }
 }

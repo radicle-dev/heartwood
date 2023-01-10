@@ -1,7 +1,9 @@
+use crate::service::chan;
 use crate::service::message;
 use crate::service::message::Message;
-use crate::service::storage;
-use crate::service::{Id, Link, LocalTime, NodeId, Reactor, Rng};
+use crate::service::{storage, FetchResult};
+use crate::service::{Id, LocalTime, NodeId, Reactor, Rng};
+use crate::Link;
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub enum PingState {
@@ -15,7 +17,7 @@ pub enum PingState {
 }
 
 /// Session protocol.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone)]
 pub enum Protocol {
     /// The default message-based gossip protocol.
     #[default]
@@ -23,7 +25,12 @@ pub enum Protocol {
     /// Git smart protocol. Used for fetching repository data.
     /// This protocol is used after a connection upgrade via the
     /// [`Message::Fetch`] message.
-    Fetch,
+    Fetch {
+        /// Channel to send fetch results on. Set to `Some` when the fetch
+        /// is locally initiated. Otherwise, no results need to be communicated
+        /// back.
+        results: Option<chan::Sender<FetchResult>>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -138,10 +145,12 @@ impl Session {
         self.attempts += 1;
     }
 
-    pub fn fetch(&mut self, repo: Id) -> Option<Message> {
+    pub fn fetch(&mut self, repo: Id, results: chan::Sender<FetchResult>) -> Option<Message> {
         if let State::Connected { protocol, .. } = &mut self.state {
-            if *protocol == Protocol::Gossip {
-                *protocol = Protocol::Fetch;
+            if let Protocol::Gossip = protocol {
+                *protocol = Protocol::Fetch {
+                    results: Some(results),
+                };
                 return Some(Message::Fetch { repo });
             } else {
                 log::error!(

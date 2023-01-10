@@ -18,7 +18,7 @@ pub struct Handle {
 
 impl radicle::node::Handle for Handle {
     type Error = Error;
-    type Session = service::Session;
+    type Sessions = service::Sessions;
     type FetchLookup = FetchLookup;
 
     fn connect(&mut self, _node: NodeId, _addr: radicle::node::Address) -> Result<(), Error> {
@@ -55,7 +55,7 @@ impl radicle::node::Handle for Handle {
         unimplemented!();
     }
 
-    fn sessions(&self) -> Result<chan::Receiver<(service::NodeId, service::Session)>, Error> {
+    fn sessions(&self) -> Result<Self::Sessions, Error> {
         unimplemented!();
     }
 

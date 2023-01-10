@@ -14,14 +14,20 @@ impl Log for Logger {
 
         match record.target() {
             "test" => {
-                println!("{} {}", "test:".cyan(), record.args().to_string().yellow())
+                println!("{} {}", "test:".cyan(), record.args().to_string().cyan())
             }
             "sim" => {
                 println!("{}  {}", "sim:".bold(), record.args().to_string().bold())
             }
             target => {
                 if self.enabled(record.metadata()) {
-                    let s = format!("{:<8} {}", format!("{}:", target), record.args());
+                    let current = std::thread::current();
+                    let msg = format!("{:<8} {}", format!("{}:", target), record.args());
+                    let s = if let Some(name) = current.name() {
+                        format!("{:<8} {msg}", name)
+                    } else {
+                        msg
+                    };
                     match record.level() {
                         log::Level::Warn => {
                             println!("{}", s.yellow());

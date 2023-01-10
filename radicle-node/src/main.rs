@@ -32,7 +32,7 @@ impl Options {
             match arg {
                 Long("connect") => {
                     let peer: PeerAddr<NodeId, Address> = parser.value()?.parse()?;
-                    connect.push((*peer.id(), peer.addr().clone()));
+                    connect.push((peer.id, peer.addr.clone()));
                 }
                 Long("external-address") => {
                     let addr = parser.value()?.parse()?;

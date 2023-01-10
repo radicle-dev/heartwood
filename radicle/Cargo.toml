@@ -11,12 +11,13 @@ test = ["qcheck", "radicle-crypto/test"]
 sql = ["sqlite"]
 
 [dependencies]
-amplify = { version = "4.0.0-beta.1", default-features = false, features = ["std"] }
+amplify = { version = "4.0.0-beta.7", default-features = false, features = ["std"] }
 base64 = { version= "0.13" }
 byteorder = { version = "1.4" }
 crossbeam-channel = { version = "0.5.6" }
 ed25519-compact = { version = "2.0.2", features = ["pem"] }
-cyphernet = { version = "0" }
+# FIXME: Remove the extra cyphernet features once we're able to.
+cyphernet = { version = "0", features = ["tor", "dns", "i2p", "nym", "ed25519"] }
 fastrand = { version = "1.8.0" }
 git-ref-format = { version = "0", features = ["serde", "macro"] }
 multibase = { version = "0.9.1" }
