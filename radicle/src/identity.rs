@@ -5,6 +5,7 @@ pub mod project;
 use std::collections::HashMap;
 
 use radicle_git_ext::Oid;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::crypto;
@@ -44,7 +45,8 @@ pub enum IdentityError {
     Doc(#[from] doc::DocError),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Identity<I> {
     /// The head of the identity branch. This points to a commit that
     /// contains the current document blob.
