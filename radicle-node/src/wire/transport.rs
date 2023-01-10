@@ -11,7 +11,7 @@ use std::{io, net};
 
 use crossbeam_channel as chan;
 use cyphernet::addr::{Addr as _, HostAddr, PeerAddr};
-use nakamoto_net::{DisconnectReason, Link, LocalTime};
+use nakamoto_net::{Link, LocalTime};
 use netservices::noise::NoiseXk;
 use netservices::wire::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
 use netservices::NetSession;
@@ -23,7 +23,7 @@ use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
 use crate::service::reactor::{Fetch, Io};
-use crate::service::{routing, session, Message, Service};
+use crate::service::{routing, session, DisconnectReason, Message, Service};
 use crate::wire::{Decode, Encode};
 use crate::worker::{WorkerReq, WorkerResp};
 use crate::{address, service};
@@ -43,7 +43,7 @@ enum Peer<G: Negotiator> {
     /// or once connected.
     Disconnected {
         id: NodeId,
-        reason: DisconnectReason<service::DisconnectReason>,
+        reason: DisconnectReason,
     },
     /// The state after we've started the process of upgraded the peer for a fetch.
     /// The request to handover the socket was made to the reactor.
@@ -76,7 +76,7 @@ impl<G: Negotiator> Peer<G> {
     }
 
     /// Switch to disconnected state.
-    fn disconnected(&mut self, reason: DisconnectReason<service::DisconnectReason>) {
+    fn disconnected(&mut self, reason: DisconnectReason) {
         if let Self::Connected { id, .. } = self {
             *self = Self::Disconnected { id: *id, reason };
         } else {
@@ -188,7 +188,7 @@ where
         })
     }
 
-    fn disconnect(&mut self, fd: RawFd, reason: DisconnectReason<service::DisconnectReason>) {
+    fn disconnect(&mut self, fd: RawFd, reason: DisconnectReason) {
         let Some(peer) = self.peers.get_mut(&fd) else {
             log::error!(target: "transport", "Peer with fd {fd} was not found");
             return;
@@ -342,9 +342,9 @@ where
                     );
                     self.disconnect(
                         fd,
-                        DisconnectReason::DialError(
-                            io::Error::from(io::ErrorKind::AlreadyExists).into(),
-                        ),
+                        DisconnectReason::Dial(Arc::new(io::Error::from(
+                            io::ErrorKind::AlreadyExists,
+                        ))),
                     );
                 }
 
@@ -385,9 +385,7 @@ where
                                 log::error!(target: "transport", "Invalid message from {}: {err}", id);
                                 self.disconnect(
                                     fd,
-                                    DisconnectReason::Protocol(service::DisconnectReason::Error(
-                                        session::Error::Misbehavior,
-                                    )),
+                                    DisconnectReason::Session(session::Error::Misbehavior),
                                 );
                                 break;
                             }
@@ -398,7 +396,7 @@ where
                 }
             }
             SessionEvent::Terminated(err) => {
-                self.disconnect(fd, DisconnectReason::ConnectionError(Arc::new(err)));
+                self.disconnect(fd, DisconnectReason::Connection(Arc::new(err)));
             }
         }
     }
@@ -513,14 +511,14 @@ where
                         }
                         Err(err) => {
                             self.service
-                                .disconnected(node_id, &DisconnectReason::DialError(Arc::new(err)));
+                                .disconnected(node_id, &DisconnectReason::Dial(Arc::new(err)));
                             break;
                         }
                     }
                 }
                 Io::Disconnect(node_id, reason) => {
                     let fd = self.by_id(&node_id);
-                    self.disconnect(fd, DisconnectReason::Protocol(reason));
+                    self.disconnect(fd, reason);
 
                     return self.actions.pop_back();
                 }

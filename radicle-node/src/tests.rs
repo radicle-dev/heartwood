@@ -3,7 +3,6 @@ use std::io;
 use std::sync::Arc;
 
 use crossbeam_channel as chan;
-use nakamoto_net as nakamoto;
 
 use crate::collections::{HashMap, HashSet};
 use crate::crypto::test::signer::MockSigner;
@@ -379,7 +378,7 @@ fn test_inventory_relay_bad_timestamp() {
     );
     assert_matches!(
         alice.outbox().next(),
-        Some(Io::Disconnect(addr, DisconnectReason::Error(session::Error::InvalidTimestamp(t))))
+        Some(Io::Disconnect(addr, DisconnectReason::Session(session::Error::InvalidTimestamp(t))))
         if addr == bob.id() && t == timestamp
     );
 }
@@ -735,17 +734,11 @@ fn test_persistent_peer_reconnect() {
 
     // A non-transient disconnect, such as one requested by the user will not trigger
     // a reconnection.
-    alice.disconnected(
-        eve.id(),
-        &nakamoto::DisconnectReason::DialError(error.clone()),
-    );
+    alice.disconnected(eve.id(), &DisconnectReason::Dial(error.clone()));
     assert_matches!(alice.outbox().next(), None);
 
     for _ in 0..MAX_CONNECTION_ATTEMPTS {
-        alice.disconnected(
-            bob.id(),
-            &nakamoto::DisconnectReason::ConnectionError(error.clone()),
-        );
+        alice.disconnected(bob.id(), &DisconnectReason::Connection(error.clone()));
         assert_matches!(alice.outbox().next(), Some(Io::Connect(a, _)) if a == bob.id());
         assert_matches!(alice.outbox().next(), None);
 
@@ -753,10 +746,7 @@ fn test_persistent_peer_reconnect() {
     }
 
     // After the max connection attempts, a disconnect doesn't trigger a reconnect.
-    alice.disconnected(
-        bob.id(),
-        &nakamoto::DisconnectReason::ConnectionError(error),
-    );
+    alice.disconnected(bob.id(), &DisconnectReason::Connection(error));
     assert_matches!(alice.outbox().next(), None);
 }
 
@@ -790,10 +780,7 @@ fn test_maintain_connections() {
     // A transient error such as this will cause Alice to attempt a reconnection.
     let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
     for peer in connected.iter() {
-        alice.disconnected(
-            peer.id(),
-            &nakamoto::DisconnectReason::ConnectionError(error.clone()),
-        );
+        alice.disconnected(peer.id(), &DisconnectReason::Connection(error.clone()));
 
         let id = alice
             .outbox()

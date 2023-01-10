@@ -6,10 +6,10 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::{fmt, io};
 
 use log::*;
-use nakamoto_net as nakamoto;
 use nakamoto_net::{Link, LocalDuration, LocalTime};
 
 use crate::crypto::{Negotiator, Signer};
@@ -55,7 +55,7 @@ pub enum Input {
         link: Link,
     },
     /// Disconnected from peer.
-    Disconnected(NodeId, Rc<nakamoto::DisconnectReason<DisconnectReason>>),
+    Disconnected(NodeId, Rc<DisconnectReason>),
     /// Received a message from a remote peer.
     Received(NodeId, Vec<Message>),
     /// Used to advance the state machine after some wall time has passed.
@@ -493,9 +493,9 @@ impl<S: WriteStorage + 'static, G: Signer + Negotiator> Simulation<S, G> {
                                 remote,
                                 input: Input::Disconnected(
                                     remote,
-                                    Rc::new(nakamoto::DisconnectReason::ConnectionError(
-                                        io::Error::from(io::ErrorKind::UnexpectedEof).into(),
-                                    )),
+                                    Rc::new(DisconnectReason::Connection(Arc::new(
+                                        io::Error::from(io::ErrorKind::UnexpectedEof),
+                                    ))),
                                 ),
                             },
                         );
@@ -533,7 +533,7 @@ impl<S: WriteStorage + 'static, G: Signer + Negotiator> Simulation<S, G> {
                 self.priority.push_back(Scheduled {
                     remote,
                     node,
-                    input: Input::Disconnected(remote, Rc::new(reason.into())),
+                    input: Input::Disconnected(remote, Rc::new(reason)),
                 });
 
                 // Nb. It's possible for disconnects to happen simultaneously from both ends, hence
@@ -556,9 +556,9 @@ impl<S: WriteStorage + 'static, G: Signer + Negotiator> Simulation<S, G> {
                         remote: node,
                         input: Input::Disconnected(
                             node,
-                            Rc::new(nakamoto::DisconnectReason::ConnectionError(
-                                io::Error::from(io::ErrorKind::ConnectionReset).into(),
-                            )),
+                            Rc::new(DisconnectReason::Connection(Arc::new(io::Error::from(
+                                io::ErrorKind::ConnectionReset,
+                            )))),
                         ),
                     },
                 );
