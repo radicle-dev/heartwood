@@ -57,7 +57,7 @@ impl Default for OptPatch {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum OperationName {
-    Create,
+    Open,
     Update,
     List,
 }
@@ -70,7 +70,7 @@ impl Default for OperationName {
 
 #[derive(Debug)]
 pub enum Operation {
-    Create {
+    Open {
         message: Comment,
     },
     Update {
@@ -146,7 +146,7 @@ impl Args for Options {
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "l" | "list" => op = Some(OperationName::List),
-                    "o" | "open" => op = Some(OperationName::Create),
+                    "o" | "open" => op = Some(OperationName::Open),
                     "u" | "update" => op = Some(OperationName::Update),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
@@ -166,7 +166,7 @@ impl Args for Options {
         }
 
         let op = match op.unwrap_or_default() {
-            OperationName::Create => Operation::Create { message },
+            OperationName::Open => Operation::Open { message },
             OperationName::List => Operation::List,
             OperationName::Update => Operation::Update {
                 patch_id: id,
@@ -195,7 +195,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = profile.storage.repository(id)?;
 
     match options.op {
-        Operation::Create { ref message } => {
+        Operation::Open { ref message } => {
             create::run(
                 &storage,
                 &profile,
