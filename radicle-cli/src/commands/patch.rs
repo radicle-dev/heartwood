@@ -42,30 +42,20 @@ Options
 "#,
 };
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum OptPatch {
+    #[default]
     Any,
     None,
     Patch(PatchId),
 }
 
-impl Default for OptPatch {
-    fn default() -> Self {
-        Self::Any
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub enum OperationName {
     Open,
     Update,
+    #[default]
     List,
-}
-
-impl Default for OperationName {
-    fn default() -> Self {
-        Self::List
-    }
 }
 
 #[derive(Debug)]
