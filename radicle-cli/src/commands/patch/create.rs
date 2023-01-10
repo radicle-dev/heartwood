@@ -1,4 +1,3 @@
-use std::fmt;
 use std::path::Path;
 
 use anyhow::{anyhow, Context};
@@ -35,9 +34,17 @@ blank is also okay.
 -->
 "#;
 
-#[inline]
-fn confirm<D: fmt::Display>(prompt: D, options: &Options) -> bool {
-    !options.confirm || term::confirm(prompt)
+/// Always agree to user prompts.
+fn always_accept(_prompt: &str) -> bool {
+    true
+}
+
+fn user_confirmer(options: &Options) -> &dyn Fn(&str) -> bool {
+    if options.confirm {
+        &{ |s| term::confirm(s) }
+    } else {
+        &always_accept
+    }
 }
 
 /// Run patch creation.
@@ -53,6 +60,7 @@ pub fn run(
         "couldn't load project {} from local state",
         storage.id
     ))?;
+    let confirm = user_confirmer(&options);
 
     term::headline(&format!(
         "🌱 Creating patch for {}",
@@ -171,7 +179,7 @@ pub fn run(
     };
 
     if let Some((id, patch)) = patch {
-        if confirm("Update?", &options) {
+        if confirm("Update?") {
             term::blank();
 
             return update(
@@ -205,7 +213,7 @@ pub fn run(
     term::patch::list_commits(&commits)?;
     term::blank();
 
-    if !confirm("Continue?", &options) {
+    if !confirm("Continue?") {
         anyhow::bail!("patch proposal aborted by user");
     }
 
@@ -240,7 +248,7 @@ pub fn run(
     )));
     term::blank();
 
-    if !confirm("Create patch?", &options) {
+    if !confirm("Create patch?") {
         anyhow::bail!("patch proposal aborted by user");
     }
 
@@ -275,6 +283,8 @@ fn update<G: Signer>(
     message: patch::Comment,
     signer: &G,
 ) -> anyhow::Result<()> {
+    let confirm = user_confirmer(&options);
+
     // TODO(cloudhead): Handle error.
     let (_, current_revision) = patch.latest().unwrap();
     let current_version = patch.version();
@@ -298,7 +308,7 @@ fn update<G: Signer>(
     term::patch::print_commits_ahead_behind(workdir, *head, *current_revision.oid)?;
     term::blank();
 
-    if !confirm("Continue?", &options) {
+    if !confirm("Continue?") {
         anyhow::bail!("patch update aborted by user");
     }
     patch.update(message, *base, *head, signer)?;
