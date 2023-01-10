@@ -13,11 +13,11 @@ use radicle::test::fixtures;
 use radicle::Profile;
 use radicle::Storage;
 
-use crate::address;
 use crate::node::NodeId;
 use crate::service::routing;
 use crate::storage::git::transport;
 use crate::wire::Transport;
+use crate::{address, logger};
 use crate::{client, client::Runtime, service};
 
 type TestHandle = (
@@ -117,6 +117,8 @@ fn check(
 
 #[test]
 fn test_e2e() {
+    logger::init(log::Level::Trace).unwrap();
+
     let tmp = tempfile::tempdir().unwrap();
     let base = tmp.path();
     let nodes = network(vec![

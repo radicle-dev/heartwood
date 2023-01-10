@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use std::{io, net};
 
 use amplify::Wrapper;
@@ -279,7 +279,7 @@ where
     type Transport = NetResource<Noise>;
     type Command = service::Command;
 
-    fn tick(&mut self, _time: Instant) {
+    fn tick(&mut self, time: Duration) {
         // FIXME: Change this once a proper timestamp is passed into the function.
         self.service.tick(LocalTime::from(SystemTime::now()));
 
@@ -304,7 +304,7 @@ where
         &mut self,
         socket_addr: net::SocketAddr,
         event: ListenerEvent<Noise>,
-        _: Instant,
+        _: Duration,
     ) {
         match event {
             ListenerEvent::Accepted(session) => {
@@ -333,7 +333,7 @@ where
         }
     }
 
-    fn handle_transport_event(&mut self, fd: RawFd, event: SessionEvent<Noise>, _: Instant) {
+    fn handle_transport_event(&mut self, fd: RawFd, event: SessionEvent<Noise>, _: Duration) {
         match event {
             SessionEvent::Established(node_id) => {
                 log::debug!(target: "transport", "Session established with {node_id}");
