@@ -651,11 +651,11 @@ impl WriteRepository for Repository {
         let head_ref = refname!("HEAD");
         let (branch_ref, head) = self.canonical_head()?;
 
-        log::debug!("Setting ref {:?} -> {:?}", &branch_ref, head);
+        log::debug!("Setting ref: {} -> {}", &branch_ref, head);
         self.raw()
             .reference(&branch_ref, *head, true, "set-local-branch (radicle)")?;
 
-        log::debug!("Setting ref {:?} -> {:?}", head_ref, branch_ref);
+        log::debug!("Setting ref: {} -> {}", head_ref, branch_ref);
         self.raw()
             .reference_symbolic(&head_ref, &branch_ref, true, "set-head (radicle)")?;
 
