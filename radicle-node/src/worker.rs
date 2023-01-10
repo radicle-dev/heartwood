@@ -217,6 +217,8 @@ impl WorkerPool {
                 log::error!(target: "pool", "Worker failed: {err}");
             }
         }
+        log::debug!(target: "pool", "Worker pool shutting down..");
+
         Ok(())
     }
 }

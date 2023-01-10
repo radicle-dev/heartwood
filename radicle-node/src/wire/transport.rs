@@ -46,7 +46,7 @@ enum Peer {
     /// The state after a peer was disconnected, either during handshake,
     /// or once connected.
     Disconnected {
-        id: NodeId,
+        id: Option<NodeId>,
         reason: DisconnectReason,
     },
     /// The state after we've started the process of upgraded the peer for a fetch.
@@ -82,9 +82,14 @@ impl Peer {
     /// Switch to disconnected state.
     fn disconnected(&mut self, reason: DisconnectReason) {
         if let Self::Connected { id, .. } = self {
-            *self = Self::Disconnected { id: *id, reason };
+            *self = Self::Disconnected {
+                id: Some(*id),
+                reason,
+            };
+        } else if let Self::Connecting { .. } = self {
+            *self = Self::Disconnected { id: None, reason };
         } else {
-            panic!("Peer::disconnected: session is not connected");
+            panic!("Peer::disconnected: session is not connected ({:?})", self);
         }
     }
 
@@ -395,6 +400,7 @@ where
                 }
             }
             SessionEvent::Terminated(err) => {
+                log::debug!(target: "transport", "Session for fd {fd} terminated: {err}");
                 self.disconnect(fd, DisconnectReason::Connection(Arc::new(err)));
             }
         }
@@ -457,7 +463,12 @@ where
                 // Disconnect TCP stream.
                 drop(transport);
 
-                self.service.disconnected(*id, reason);
+                if let Some(id) = id {
+                    self.service.disconnected(*id, reason);
+                } else {
+                    // TODO: Handle this case by calling `disconnected` with the address instead of
+                    // the node id.
+                }
             }
             Some(Peer::Upgrading { .. }) => {
                 self.upgraded(transport);
@@ -521,6 +532,8 @@ where
                     ) {
                         Ok(transport) => {
                             self.service.attempted(node_id, &addr);
+                            // TODO: Keep track of peer address for when peer disconnects before
+                            // handshake is complete.
                             self.peers
                                 .insert(transport.as_raw_fd(), Peer::connecting(Link::Outbound));
 
