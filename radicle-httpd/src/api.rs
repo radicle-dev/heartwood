@@ -20,6 +20,8 @@ use radicle::Profile;
 mod auth;
 mod axum_extra;
 mod error;
+#[cfg(test)]
+mod test;
 mod v1;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
