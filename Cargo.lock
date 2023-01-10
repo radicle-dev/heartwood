@@ -655,7 +655,7 @@ dependencies = [
 [[package]]
 name = "cyphernet"
 version = "0.1.0"
-source = "git+https://github.com/cyphernet-wg/rust-cyphernet?branch=refactoring#f0e742a0551284386037d3f67bea4c52604e2781"
+source = "git+https://github.com/cyphernet-wg/rust-cyphernet?branch=master#352d1e1966617672e2ea01dd075e3b1c9e1d73db"
 dependencies = [
  "amplify",
  "base32",
@@ -663,12 +663,9 @@ dependencies = [
  "ed25519-compact",
  "hmac",
  "multibase",
- "rand 0.8.5",
- "secp256k1",
  "serde",
  "sha2 0.10.6",
  "sha3",
- "socks",
 ]
 
 [[package]]
@@ -1420,7 +1417,7 @@ dependencies = [
 [[package]]
 name = "io-reactor"
 version = "0.1.0"
-source = "git+https://github.com/cyphernet-wg/rust-netservices?branch=noise-socks5#b06f073168561c8a2f9a92b72975f2b81eff2496"
+source = "git+https://github.com/cyphernet-wg/rust-netservices?branch=master#411e0c6bfe06516e222649c72b19d4e3f9eca257"
 dependencies = [
  "amplify",
  "crossbeam-channel",
@@ -1670,7 +1667,7 @@ dependencies = [
 [[package]]
 name = "netservices"
 version = "0.1.0"
-source = "git+https://github.com/cyphernet-wg/rust-netservices?branch=noise-socks5#b06f073168561c8a2f9a92b72975f2b81eff2496"
+source = "git+https://github.com/cyphernet-wg/rust-netservices?branch=master#411e0c6bfe06516e222649c72b19d4e3f9eca257"
 dependencies = [
  "amplify",
  "chacha20 0.9.0",
@@ -2644,25 +2641,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "secp256k1"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "550fc3b723a478be77bf74718947cdcdd75144d508aaa70f0a320036905df2a8"
-dependencies = [
- "rand 0.8.5",
- "secp256k1-sys",
-]
-
-[[package]]
-name = "secp256k1-sys"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8058e28ae464daf5ac14c5c0f78110b58616e796c4e4e28cfcca38fdb13d8f22"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "serde"
 version = "1.0.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2856,17 +2834,6 @@ version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02e2d2db9033d13a1567121ddd7a095ee144db4e1ca1b1bda3419bc0da294ebd"
 dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
-name = "socks"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0c3dbbd9ae980613c6dd8e28a9407b50509d3803b57624d5dfe8315218cd58b"
-dependencies = [
- "byteorder",
  "libc",
  "winapi",
 ]

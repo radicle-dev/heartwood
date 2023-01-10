@@ -36,17 +36,17 @@ version = "0.3.0"
 [patch.crates-io.cyphernet]
 git = "https://github.com/cyphernet-wg/rust-cyphernet"
 version = "0.1.0"
-branch = "refactoring"
+branch = "master"
 
 [patch.crates-io.io-reactor]
 git = "https://github.com/cyphernet-wg/rust-netservices"
 version = "0.1.0"
-branch = "noise-socks5"
+branch = "master"
 
 [patch.crates-io.netservices]
 git = "https://github.com/cyphernet-wg/rust-netservices"
 version = "0.1.0"
-branch = "noise-socks5"
+branch = "master"
 
 [patch.crates-io.radicle-git-ext]
 git = "https://github.com/radicle-dev/radicle-git"

@@ -6,7 +6,7 @@ use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::{io, net};
 
-use cyphernet::addr::{MixName, NetAddr};
+use cyphernet::addr::{HostName, NetAddr};
 
 use crate::crypto::PublicKey;
 use crate::identity::Id;
@@ -27,7 +27,7 @@ pub const RESPONSE_NOOP: &str = "noop";
 #[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, From)]
 #[wrapper(Deref, Display, FromStr)]
 #[wrapper_mut(DerefMut)]
-pub struct Address(NetAddr<MixName>);
+pub struct Address(NetAddr<HostName>);
 
 impl cyphernet::addr::Host for Address {}
 impl cyphernet::addr::Addr for Address {
@@ -39,7 +39,7 @@ impl cyphernet::addr::Addr for Address {
 impl From<net::SocketAddr> for Address {
     fn from(addr: net::SocketAddr) -> Self {
         Address(NetAddr {
-            host: MixName::Ip(addr.ip()),
+            host: HostName::Ip(addr.ip()),
             port: addr.port(),
         })
     }

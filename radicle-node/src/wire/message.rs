@@ -1,7 +1,7 @@
 use std::{io, mem, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
-use cyphernet::addr::{Addr, MixName, NetAddr};
+use cyphernet::addr::{Addr, HostName, NetAddr};
 use radicle::node::Address;
 
 use crate::prelude::*;
@@ -104,10 +104,10 @@ impl From<AddressType> for u8 {
 impl From<&Address> for AddressType {
     fn from(a: &Address) -> Self {
         match a.host {
-            MixName::Ip(net::IpAddr::V4(_)) => AddressType::Ipv4,
-            MixName::Ip(net::IpAddr::V6(_)) => AddressType::Ipv6,
-            MixName::Dns(_) => AddressType::Hostname,
-            MixName::Tor(_) => AddressType::Onion,
+            HostName::Ip(net::IpAddr::V4(_)) => AddressType::Ipv4,
+            HostName::Ip(net::IpAddr::V6(_)) => AddressType::Ipv6,
+            HostName::Dns(_) => AddressType::Hostname,
+            HostName::Tor(_) => AddressType::Onion,
             _ => todo!(), // FIXME(cloudhead): Maxim will remove `non-exhaustive`
         }
     }
@@ -308,11 +308,11 @@ impl wire::Encode for Address {
         let mut n = 0;
 
         match self.host {
-            MixName::Ip(net::IpAddr::V4(ip)) => {
+            HostName::Ip(net::IpAddr::V4(ip)) => {
                 n += u8::from(AddressType::Ipv4).encode(writer)?;
                 n += ip.octets().encode(writer)?;
             }
-            MixName::Ip(net::IpAddr::V6(ip)) => {
+            HostName::Ip(net::IpAddr::V6(ip)) => {
                 n += u8::from(AddressType::Ipv6).encode(writer)?;
                 n += ip.octets().encode(writer)?;
             }
@@ -334,13 +334,13 @@ impl wire::Decode for Address {
                 let octets: [u8; 4] = wire::Decode::decode(reader)?;
                 let ip = net::Ipv4Addr::from(octets);
 
-                MixName::Ip(net::IpAddr::V4(ip))
+                HostName::Ip(net::IpAddr::V4(ip))
             }
             Ok(AddressType::Ipv6) => {
                 let octets: [u8; 16] = wire::Decode::decode(reader)?;
                 let ip = net::Ipv6Addr::from(octets);
 
-                MixName::Ip(net::IpAddr::V6(ip))
+                HostName::Ip(net::IpAddr::V6(ip))
             }
             Ok(AddressType::Hostname) => {
                 todo!();
