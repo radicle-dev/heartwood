@@ -1,11 +1,12 @@
 mod features;
 
+use amplify::WrapperMut;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::{io, net, ops};
+use std::{io, net};
 
-use cyphernet::addr::{HostAddr, NetAddr};
+use cyphernet::addr::{MixName, NetAddr};
 
 use crate::crypto::PublicKey;
 use crate::identity::Id;
@@ -23,32 +24,27 @@ pub const RESPONSE_OK: &str = "ok";
 pub const RESPONSE_NOOP: &str = "noop";
 
 /// Peer public protocol address.
-#[derive(Wrapper, Clone, Eq, PartialEq, Debug, From)]
-#[wrapper(Display, FromStr)]
-pub struct Address(NetAddr<DEFAULT_PORT>);
+#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, From)]
+#[wrapper(Deref, Display, FromStr)]
+#[wrapper_mut(DerefMut)]
+pub struct Address(NetAddr<MixName>);
 
+impl cyphernet::addr::Host for Address {}
 impl cyphernet::addr::Addr for Address {
     fn port(&self) -> u16 {
         self.0.port()
     }
 }
 
-impl ops::Deref for Address {
-    type Target = NetAddr<DEFAULT_PORT>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 impl From<net::SocketAddr> for Address {
     fn from(addr: net::SocketAddr) -> Self {
         Address(NetAddr {
-            host: HostAddr::Ip(addr.ip()),
-            port: Some(addr.port()),
+            host: MixName::Ip(addr.ip()),
+            port: addr.port(),
         })
     }
 }
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("failed to connect to node: {0}")]

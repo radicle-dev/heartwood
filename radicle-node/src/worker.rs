@@ -6,42 +6,39 @@ use std::thread::JoinHandle;
 use std::{io, net};
 
 use crossbeam_channel as chan;
-use netservices::noise::NoiseXk;
 use netservices::resources::{NetReader, NetResource, NetWriter, SplitIo};
 use netservices::tunnel::Tunnel;
 
-use radicle::crypto::Negotiator;
 use radicle::storage::{ReadRepository, RefUpdate, WriteStorage};
 use radicle::Storage;
 use reactor::poller::popol;
 
 use crate::service::reactor::Fetch;
 use crate::service::{FetchError, FetchResult};
-
-type Session<G> = NetResource<NoiseXk<G>>;
+use crate::wire::Noise;
 
 /// Worker request.
-pub struct WorkerReq<G: Negotiator> {
+pub struct WorkerReq {
     pub fetch: Fetch,
-    pub session: NetResource<NoiseXk<G>>,
+    pub session: NetResource<Noise>,
     pub drain: Vec<u8>,
-    pub channel: chan::Sender<WorkerResp<G>>,
+    pub channel: chan::Sender<WorkerResp>,
 }
 
 /// Worker response.
-pub struct WorkerResp<G: Negotiator> {
+pub struct WorkerResp {
     pub result: FetchResult,
-    pub session: Session<G>,
+    pub session: NetResource<Noise>,
 }
 
 /// A worker that replicates git objects.
-struct Worker<G: Negotiator> {
+struct Worker {
     storage: Storage,
-    tasks: chan::Receiver<WorkerReq<G>>,
+    tasks: chan::Receiver<WorkerReq>,
     timeout: time::Duration,
 }
 
-impl<G: Negotiator + 'static> Worker<G> {
+impl Worker {
     /// Waits for tasks and runs them. Blocks indefinitely unless there is an error receiving
     /// the next task.
     fn run(self) -> Result<(), chan::RecvError> {
@@ -51,7 +48,7 @@ impl<G: Negotiator + 'static> Worker<G> {
         }
     }
 
-    fn process(&self, task: WorkerReq<G>) {
+    fn process(&self, task: WorkerReq) {
         let WorkerReq {
             fetch,
             session,
@@ -79,8 +76,8 @@ impl<G: Negotiator + 'static> Worker<G> {
         &self,
         fetch: &Fetch,
         drain: Vec<u8>,
-        session: Session<G>,
-    ) -> (Session<G>, Result<Vec<RefUpdate>, FetchError>) {
+        session: NetResource<Noise>,
+    ) -> (NetResource<Noise>, Result<Vec<RefUpdate>, FetchError>) {
         if fetch.initiated {
             let mut tunnel = match Tunnel::with(session, net::SocketAddr::from(([0, 0, 0, 0], 0))) {
                 Ok(tunnel) => tunnel,
@@ -107,7 +104,7 @@ impl<G: Negotiator + 'static> Worker<G> {
     fn fetch(
         &self,
         fetch: &Fetch,
-        tunnel: &mut Tunnel<Session<G>>,
+        tunnel: &mut Tunnel<NetResource<Noise>>,
     ) -> Result<Vec<RefUpdate>, FetchError> {
         let tunnel_addr = tunnel.local_addr()?;
         let repo = self.storage.repository(fetch.repo)?;
@@ -135,8 +132,8 @@ impl<G: Negotiator + 'static> Worker<G> {
         &self,
         fetch: &Fetch,
         drain: Vec<u8>,
-        stream_r: &mut NetReader<NoiseXk<G>>,
-        stream_w: &mut NetWriter<NoiseXk<G>>,
+        stream_r: &mut NetReader<Noise>,
+        stream_w: &mut NetWriter<Noise>,
     ) -> Result<Vec<RefUpdate>, FetchError> {
         let repo = self.storage.repository(fetch.repo)?;
         let mut child = process::Command::new("git")
@@ -191,11 +188,11 @@ pub struct WorkerPool {
 
 impl WorkerPool {
     /// Create a new worker pool with the given parameters.
-    pub fn with<G: Negotiator + 'static>(
+    pub fn with(
         capacity: usize,
         timeout: time::Duration,
         storage: Storage,
-        tasks: chan::Receiver<WorkerReq<G>>,
+        tasks: chan::Receiver<WorkerReq>,
     ) -> Self {
         let mut pool = Vec::with_capacity(capacity);
         for _ in 0..capacity {

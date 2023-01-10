@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -5,7 +6,7 @@ use std::{fs, io};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
-use crate::{keypair, KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
+use crate::{keypair, KeyPair, Negotiator, PublicKey, SecretKey, Signature, Signer, SignerError};
 
 /// A secret key passphrase.
 pub type Passphrase = Zeroizing<String>;
@@ -132,7 +133,7 @@ pub enum MemorySignerError {
 /// so that signing never fails.
 ///
 /// Can be created from a [`Keystore`] with the [`MemorySigner::load`] function.
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MemorySigner {
     public: PublicKey,
     secret: Zeroizing<SecretKey>,
@@ -149,6 +150,13 @@ impl Signer for MemorySigner {
 
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
         Ok(self.sign(msg))
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl Negotiator for MemorySigner {
+    fn secret_key(&self) -> cyphernet::crypto::ed25519::PrivateKey {
+        (self.secret.deref().deref().clone()).into()
     }
 }
 

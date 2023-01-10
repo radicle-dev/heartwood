@@ -9,11 +9,13 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 use std::{io, net};
 
+use amplify::Wrapper;
 use crossbeam_channel as chan;
-use cyphernet::addr::{Addr as _, HostAddr, PeerAddr};
+use cyphernet::addr::PeerAddr;
 use nakamoto_net::{Link, LocalTime};
 use netservices::noise::NoiseXk;
 use netservices::resources::{ListenerEvent, NetAccept, NetResource, SessionEvent};
+use netservices::socks5::Socks5;
 use netservices::NetSession;
 
 use radicle::collections::HashMap;
@@ -28,12 +30,14 @@ use crate::wire::{Decode, Encode};
 use crate::worker::{WorkerReq, WorkerResp};
 use crate::{address, service};
 
+pub type Noise = NoiseXk<cyphernet::crypto::ed25519::PrivateKey>;
+
 /// Reactor action.
-type Action<G> = reactor::Action<NetAccept<NoiseXk<G>>, NetResource<NoiseXk<G>>>;
+type Action = reactor::Action<NetAccept<Noise>, NetResource<Noise>>;
 
 /// Peer connection state machine.
 #[derive(Debug)]
-enum Peer<G: Negotiator> {
+enum Peer {
     /// The initial state before handshake is completed.
     Connecting { link: Link },
     /// The state after handshake is completed.
@@ -56,11 +60,11 @@ enum Peer<G: Negotiator> {
     Upgraded {
         link: Link,
         id: NodeId,
-        response: chan::Receiver<WorkerResp<G>>,
+        response: chan::Receiver<WorkerResp>,
     },
 }
 
-impl<G: Negotiator> Peer<G> {
+impl Peer {
     /// Return a new connecting peer.
     fn connecting(link: Link) -> Self {
         Self::Connecting { link }
@@ -98,7 +102,7 @@ impl<G: Negotiator> Peer<G> {
     }
 
     /// Switch to upgraded state.
-    fn upgraded(&mut self, listener: chan::Receiver<WorkerResp<G>>) -> Fetch {
+    fn upgraded(&mut self, listener: chan::Receiver<WorkerResp>) -> Fetch {
         if let Self::Upgrading { fetch, id, link } = self {
             let fetch = fetch.clone();
 
@@ -131,15 +135,15 @@ pub struct Transport<R, S, W, G: Negotiator> {
     /// Backing service instance.
     service: Service<R, S, W, G>,
     /// Worker pool interface.
-    worker: chan::Sender<WorkerReq<G>>,
+    worker: chan::Sender<WorkerReq>,
     /// Used to performs X25519 key exchange.
     keypair: G,
     /// Internal queue of actions to send to the reactor.
-    actions: VecDeque<Action<G>>,
+    actions: VecDeque<Action>,
     /// Peer sessions.
-    peers: HashMap<RawFd, Peer<G>>,
+    peers: HashMap<RawFd, Peer>,
     /// SOCKS5 proxy address.
-    proxy: net::SocketAddr,
+    proxy: Socks5,
     /// Buffer for incoming peer data.
     read_queue: VecDeque<u8>,
 }
@@ -153,9 +157,9 @@ where
 {
     pub fn new(
         mut service: Service<R, S, W, G>,
-        worker: chan::Sender<WorkerReq<G>>,
+        worker: chan::Sender<WorkerReq>,
         keypair: G,
-        proxy: net::SocketAddr,
+        proxy: Socks5,
         clock: LocalTime,
     ) -> Self {
         service.initialize(clock);
@@ -218,13 +222,13 @@ where
         self.actions.push_back(Action::UnregisterTransport(fd));
     }
 
-    fn upgraded(&mut self, session: NetResource<NoiseXk<G>>) {
+    fn upgraded(&mut self, session: NetResource<Noise>) {
         let fd = session.as_raw_fd();
         let Some(peer) = self.peers.get_mut(&fd) else {
             log::error!(target: "transport", "Peer with fd {fd} was not found");
             return;
         };
-        let (send, recv) = chan::bounded::<WorkerResp<G>>(1);
+        let (send, recv) = chan::bounded::<WorkerResp>(1);
         let fetch = peer.upgraded(recv);
 
         if self
@@ -241,7 +245,7 @@ where
         }
     }
 
-    fn fetch_complete(&mut self, resp: WorkerResp<G>) {
+    fn fetch_complete(&mut self, resp: WorkerResp) {
         let session = resp.session;
         let fd = session.as_raw_fd();
         let Some(peer) = self.peers.get_mut(&fd) else {
@@ -266,8 +270,8 @@ where
     W: WriteStorage + Send + 'static,
     G: Signer + Negotiator + Send,
 {
-    type Listener = NetAccept<NoiseXk<G>>;
-    type Transport = NetResource<NoiseXk<G>>;
+    type Listener = NetAccept<Noise>;
+    type Transport = NetResource<Noise>;
     type Command = service::Command;
 
     fn tick(&mut self, _time: Instant) {
@@ -294,7 +298,7 @@ where
     fn handle_listener_event(
         &mut self,
         socket_addr: net::SocketAddr,
-        event: ListenerEvent<NoiseXk<G>>,
+        event: ListenerEvent<Noise>,
         _: Instant,
     ) {
         match event {
@@ -307,7 +311,7 @@ where
                 self.peers
                     .insert(session.as_raw_fd(), Peer::connecting(Link::Inbound));
 
-                let transport = match NetResource::<NoiseXk<G>>::new(session) {
+                let transport = match NetResource::<Noise>::new(session) {
                     Ok(transport) => transport,
                     Err(err) => {
                         log::error!(target: "transport", "Failed to upgrade accepted peer socket: {err}");
@@ -324,14 +328,14 @@ where
         }
     }
 
-    fn handle_transport_event(&mut self, fd: RawFd, event: SessionEvent<NoiseXk<G>>, _: Instant) {
+    fn handle_transport_event(&mut self, fd: RawFd, event: SessionEvent<Noise>, _: Instant) {
         match event {
             SessionEvent::Established(node_id) => {
                 log::debug!(target: "transport", "Session established with {node_id}");
 
                 let conflicting = self
                     .connected()
-                    .filter(|(_, id)| **id == node_id)
+                    .filter(|(_, id)| ***id == node_id.into())
                     .map(|(fd, _)| fd)
                     .collect::<Vec<_>>();
 
@@ -360,6 +364,7 @@ where
                 };
                 let link = *link;
 
+                let node_id = node_id.into_inner().into();
                 peer.connected(node_id);
                 self.service.connected(node_id, link);
             }
@@ -399,10 +404,7 @@ where
         self.service.command(cmd);
     }
 
-    fn handle_error(
-        &mut self,
-        err: reactor::Error<NetAccept<NoiseXk<G>>, NetResource<NoiseXk<G>>>,
-    ) {
+    fn handle_error(&mut self, err: reactor::Error<NetAccept<Noise>, NetResource<Noise>>) {
         match &err {
             reactor::Error::ListenerUnknown(id) => {
                 // TODO: What are we supposed to do here? Remove this error.
@@ -477,7 +479,7 @@ where
     W: WriteStorage + 'static,
     G: Signer + Negotiator,
 {
-    type Item = reactor::Action<NetAccept<NoiseXk<G>>, NetResource<NoiseXk<G>>>;
+    type Item = Action;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(event) = self.actions.pop_front() {
@@ -503,12 +505,6 @@ where
                     );
                 }
                 Io::Connect(node_id, addr) => {
-                    let socket_addr = match addr.host {
-                        HostAddr::Ip(ip) => net::SocketAddr::new(ip, addr.port()),
-                        HostAddr::Dns(_) => todo!(),
-                        _ => self.proxy,
-                    };
-
                     if self.connected().any(|(_, id)| id == &node_id) {
                         log::error!(
                             target: "transport",
@@ -517,14 +513,14 @@ where
                         break;
                     }
 
-                    match NetResource::<NoiseXk<G>>::connect(
-                        PeerAddr::new(node_id, socket_addr),
-                        &self.keypair,
-                        // TODO: Improve API to not require a boolean.
-                        true,
+                    match NetResource::<Noise>::connect_nonblocking(
+                        PeerAddr::new((*node_id).into(), addr.to_inner()),
+                        // TODO: Once the API supports it, we can pass an opaque type here.
+                        &self.keypair.secret_key(),
+                        &self.proxy,
                     ) {
                         Ok(transport) => {
-                            self.service.attempted(node_id, &socket_addr.into());
+                            self.service.attempted(node_id, &addr);
                             self.peers
                                 .insert(transport.as_raw_fd(), Peer::connecting(Link::Outbound));
 
