@@ -53,12 +53,12 @@ It will now be listed as one of the project's open patches.
 ```
 $ rad patch
 
- YOU PROPOSED
+- YOU PROPOSED -
 
 define power requirements 3b1f58414e5 R0 7939a9e (flux-capacitor-power) ahead 1, behind 0
 └─ * opened by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..]
 
- OTHERS PROPOSED
+- OTHERS PROPOSED -
 
 Nothing to show.
 
