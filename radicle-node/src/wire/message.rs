@@ -2,6 +2,7 @@ use std::{io, mem, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
 use cyphernet::addr::{Addr, HostAddr, NetAddr};
+use radicle::node::Address;
 
 use crate::prelude::*;
 use crate::service::message::*;
@@ -19,7 +20,7 @@ pub enum MessageType {
     Subscribe = 8,
     Ping = 10,
     Pong = 12,
-    Upgrade = 14,
+    Fetch = 14,
 }
 
 impl From<MessageType> for u16 {
@@ -40,7 +41,7 @@ impl TryFrom<u16> for MessageType {
             8 => Ok(MessageType::Subscribe),
             10 => Ok(MessageType::Ping),
             12 => Ok(MessageType::Pong),
-            14 => Ok(MessageType::Upgrade),
+            14 => Ok(MessageType::Fetch),
             _ => Err(other),
         }
     }
@@ -62,7 +63,7 @@ impl Message {
             },
             Self::Ping { .. } => MessageType::Ping,
             Self::Pong { .. } => MessageType::Pong,
-            Self::Upgrade { .. } => MessageType::Upgrade,
+            Self::Fetch { .. } => MessageType::Fetch,
         }
         .into()
     }
@@ -216,7 +217,7 @@ impl wire::Encode for Message {
             Self::Pong { zeroes } => {
                 n += zeroes.encode(writer)?;
             }
-            Self::Upgrade { repo } => {
+            Self::Fetch { repo } => {
                 n += repo.encode(writer)?;
             }
         }
@@ -293,9 +294,9 @@ impl wire::Decode for Message {
                 let zeroes = ZeroBytes::decode(reader)?;
                 Ok(Self::Pong { zeroes })
             }
-            Ok(MessageType::Upgrade) => {
+            Ok(MessageType::Fetch) => {
                 let repo = Id::decode(reader)?;
-                Ok(Self::Upgrade { repo })
+                Ok(Self::Fetch { repo })
             }
             Err(other) => Err(wire::Error::UnknownMessageType(other)),
         }

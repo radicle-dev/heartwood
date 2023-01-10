@@ -171,7 +171,21 @@ impl PublicKey {
 }
 
 #[cfg(feature = "cyphernet")]
-impl cyphernet::crypto::EcPk for PublicKey {}
+impl cyphernet::crypto::EcPk for PublicKey {
+    // TODO: Change this once NoiseXK is working.
+    fn generator() -> Self {
+        use amplify::hex::FromHex;
+
+        ed25519::PublicKey::from_slice(
+            &Vec::<u8>::from_hex(
+                "5866666666666666666666666666666666666666666666666666666666666666",
+            )
+            .unwrap(),
+        )
+        .unwrap()
+        .into()
+    }
+}
 
 /// The private/signing key.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]

@@ -10,8 +10,8 @@
 //!     node/
 //!       radicle.sock                           # Node control socket
 //!
-use std::io;
 use std::path::{Path, PathBuf};
+use std::{fs, io};
 
 use thiserror::Error;
 
@@ -68,9 +68,14 @@ pub struct Profile {
 impl Profile {
     pub fn init(home: impl AsRef<Path>, passphrase: impl Into<Passphrase>) -> Result<Self, Error> {
         let home = home.as_ref().to_path_buf();
-        let storage = Storage::open(home.join("storage"))?;
-        let keystore = Keystore::new(&home.join("keys"));
+        let paths = Paths {
+            home: home.as_path(),
+        };
+        let storage = Storage::open(paths.storage())?;
+        let keystore = Keystore::new(&paths.keys());
         let public_key = keystore.init("radicle", passphrase)?;
+
+        fs::create_dir_all(paths.node()).ok();
 
         transport::local::register(storage.clone());
 

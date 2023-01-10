@@ -1,13 +1,13 @@
-use cyphernet::addr::{HostAddr, NetAddr};
-use std::{fmt, io, mem, net, ops};
+use std::{fmt, io, mem};
 
 use crate::crypto;
 use crate::git;
 use crate::identity::Id;
 use crate::node;
+use crate::node::Address;
 use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
-use crate::service::{NodeId, Timestamp, DEFAULT_PORT};
+use crate::service::{NodeId, Timestamp};
 use crate::wire;
 
 /// Maximum number of addresses which can be announced to other nodes.
@@ -24,34 +24,6 @@ pub struct Hostname(String);
 impl fmt::Display for Hostname {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-/// Peer public protocol address.
-#[derive(Wrapper, Clone, Eq, PartialEq, Debug, From)]
-#[wrapper(Display, FromStr)]
-pub struct Address(NetAddr<DEFAULT_PORT>);
-
-impl cyphernet::addr::Addr for Address {
-    fn port(&self) -> u16 {
-        self.0.port()
-    }
-}
-
-impl ops::Deref for Address {
-    type Target = NetAddr<DEFAULT_PORT>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<net::SocketAddr> for Address {
-    fn from(addr: net::SocketAddr) -> Self {
-        Address(NetAddr {
-            host: HostAddr::Ip(addr.ip()),
-            port: Some(addr.port()),
-        })
     }
 }
 
@@ -332,8 +304,8 @@ pub enum Message {
         zeroes: ZeroBytes,
     },
 
-    /// Upgrade session to Git protocol for the given repository.
-    Upgrade { repo: Id },
+    /// Upgrade session to Git protocol and fetch the given repository.
+    Fetch { repo: Id },
 }
 
 impl Message {
@@ -419,7 +391,7 @@ impl fmt::Debug for Message {
             }
             Self::Ping(Ping { ponglen, zeroes }) => write!(f, "Ping({ponglen}, {:?})", zeroes),
             Self::Pong { zeroes } => write!(f, "Pong({:?})", zeroes),
-            Self::Upgrade { repo } => write!(f, "Upgrade({repo})"),
+            Self::Fetch { repo } => write!(f, "Upgrade({repo})"),
         }
     }
 }
