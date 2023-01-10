@@ -467,3 +467,555 @@ fn stats(repo: &Repository, head: Oid) -> Result<Stats, Error> {
         contributors: contributors.len(),
     })
 }
+
+#[cfg(test)]
+mod routes {
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use serde_json::{json, Value};
+    use tower::ServiceExt;
+
+    use crate::api::test::{self, HEAD, HEAD_1};
+
+    #[tokio::test]
+    async fn test_projects_root() {
+        let app = super::router(test::seed());
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/projects".to_string())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            body,
+            json!([
+              {
+                "name": "hello-world",
+                "description": "Rad repository for tests",
+                "defaultBranch": "master",
+                "head": HEAD,
+                "patches": 0,
+                "issues": 1,
+                "id": "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp"
+              }
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects() {
+        let app = super::router(test::seed());
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp".to_string())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            body,
+            json!({
+               "name": "hello-world",
+               "description": "Rad repository for tests",
+               "defaultBranch": "master",
+               "head": HEAD,
+               "patches": 0,
+               "issues": 1,
+               "id": "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp"
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_commits_root() {
+        let app = super::router(test::seed());
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/commits".to_string())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FOUND);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            body,
+            json!({
+              "headers": [
+                {
+                  "header": {
+                    "sha1": HEAD,
+                    "author": {
+                      "name": "Alice Liddell",
+                      "email": "alice@radicle.xyz"
+                    },
+                    "summary": "Add another folder",
+                    "description": "",
+                    "committer": {
+                      "name": "Alice Liddell",
+                      "email": "alice@radicle.xyz"
+                    },
+                    "committerTime": 1673001014
+                  },
+                  "diff": {
+                    "added": [
+                      {
+                        "path": "dir1/README",
+                        "diff": {
+                          "type": "plain",
+                          "hunks": [
+                            {
+                              "header": "@@ -0,0 +1 @@\n",
+                              "lines": [
+                                {
+                                  "line": "Hello World from dir1!\n",
+                                  "lineNo": 1,
+                                  "type": "addition"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    ],
+                    "deleted": [],
+                    "moved": [],
+                    "copied": [],
+                    "modified": [],
+                    "stats": {
+                      "filesChanged": 1,
+                      "insertions": 1,
+                      "deletions": 0
+                    }
+                  },
+                  "branches": [
+                    "refs/heads/master"
+                  ]
+                },
+                {
+                  "header": {
+                    "sha1": HEAD_1,
+                    "author": {
+                      "name": "Alice Liddell",
+                      "email": "alice@radicle.xyz"
+                    },
+                    "summary": "Initial commit",
+                    "description": "",
+                    "committer": {
+                      "name": "Alice Liddell",
+                      "email": "alice@radicle.xyz"
+                    },
+                    "committerTime": 1673001014
+                  },
+                  "diff": {
+                    "added": [
+                      {
+                        "path": "README",
+                        "diff": {
+                          "type": "plain",
+                          "hunks": [
+                            {
+                              "header": "@@ -0,0 +1 @@\n",
+                              "lines": [
+                                {
+                                  "line": "Hello World!\n",
+                                  "lineNo": 1,
+                                  "type": "addition"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    ],
+                    "deleted": [],
+                    "moved": [],
+                    "copied": [],
+                    "modified": [],
+                    "stats": {
+                      "filesChanged": 1,
+                      "insertions": 1,
+                      "deletions": 0
+                    }
+                  },
+                  "branches": [
+                    "refs/heads/master"
+                  ]
+                }
+              ],
+              "stats": {
+                "commits": 2,
+                "branches": 1,
+                "contributors": 1
+              }
+
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_commits() {
+        let app = super::router(test::seed());
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/commits/{HEAD}"
+                    ))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            body,
+            json!({
+              "header": {
+                "sha1": HEAD,
+                "author": {
+                  "name": "Alice Liddell",
+                  "email": "alice@radicle.xyz"
+                },
+                "summary": "Add another folder",
+                "description": "",
+                "committer": {
+                  "name": "Alice Liddell",
+                  "email": "alice@radicle.xyz"
+                },
+                "committerTime": 1673001014
+              },
+              "diff": {
+                "added": [
+                  {
+                    "path": "dir1/README",
+                    "diff": {
+                      "type": "plain",
+                      "hunks": [
+                        {
+                          "header": "@@ -0,0 +1 @@\n",
+                          "lines": [
+                            {
+                              "line": "Hello World from dir1!\n",
+                              "lineNo": 1,
+                              "type": "addition"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "deleted": [],
+                "moved": [],
+                "copied": [],
+                "modified": [],
+                "stats": {
+                  "filesChanged": 1,
+                  "insertions": 1,
+                  "deletions": 0
+                }
+              },
+              "branches": [
+                "refs/heads/master"
+              ]
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_tree() {
+        let app = super::router(test::seed());
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/tree/{HEAD}/"
+                    ))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            body,
+            json!({
+                "entries": [
+                  {
+                    "path": "README",
+                    "name": "README",
+                    "lastCommit": null,
+                    "kind": "blob"
+                  },
+                  {
+                    "path": "dir1",
+                    "name": "dir1",
+                    "lastCommit": null,
+                    "kind": "tree"
+                  }
+                ],
+                "lastCommit": {
+                  "sha1": HEAD,
+                  "author": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz"
+                  },
+                  "summary": "Add another folder",
+                  "description": "",
+                  "committer": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz"
+                  },
+                  "committerTime": 1673001014
+                },
+                "name": "",
+                "path": "",
+                "stats": {
+                  "branches": 1,
+                  "commits": 2,
+                  "contributors": 1
+                }
+              }
+            )
+        );
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/tree/{HEAD}/dir1"
+                    ))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            body,
+            json!({
+              "entries": [
+                {
+                  "path": "dir1/README",
+                  "name": "README",
+                  "lastCommit": null,
+                  "kind": "blob"
+                }
+              ],
+              "lastCommit": null,
+              "name": "dir1",
+              "path": "dir1",
+              "stats": {
+                "branches": 1,
+                "commits": 2,
+                "contributors": 1
+              }
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_remotes_root() {
+        let app = super::router(test::seed());
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/remotes".to_string())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            body,
+            json!([
+              {
+                "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                "heads": {
+                  "master": HEAD
+                },
+                "delegate": false
+              }
+            ])
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_remotes() {
+        let app = super::router(test::seed());
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(
+                        "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/remotes/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                    .to_string())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            body,
+            json!({
+                "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                "heads": {
+                    "master": HEAD
+                },
+                "delegate": false
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_blob() {
+        let app = super::router(test::seed());
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/blob/{HEAD}/README"
+                    ))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            body,
+            json!({
+                "binary": false,
+                "content": "Hello World!\n",
+                "lastCommit": {
+                    "sha1": HEAD_1,
+                    "author": {
+                        "name": "Alice Liddell",
+                        "email": "alice@radicle.xyz"
+                    },
+                    "summary": "Initial commit",
+                    "description": "",
+                    "committer": {
+                        "name": "Alice Liddell",
+                        "email": "alice@radicle.xyz"
+                    },
+                    "committerTime": 1673001014
+                },
+                "name": "README",
+                "path": "README"
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_issues_root() {
+        let app = super::router(test::seed());
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues".to_string())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            body,
+            json!([
+              {
+                "id": "458bbd9f6d47eed3d60cd905141687ad1f99251e",
+                "author": {
+                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                },
+                "title": "Issue #1",
+                "state": {
+                    "status": "open"
+                },
+                "discussion": [
+                  {
+                    "author": {
+                        "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                    },
+                    "body": "Change 'hello world' to 'hello everyone'",
+                    "reactions": [],
+                    "timestamp": 1673001014,
+                    "replyTo": null
+                  }
+                ],
+                "tags": []
+              }
+            ])
+        );
+    }
+}
