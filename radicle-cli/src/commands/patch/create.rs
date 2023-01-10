@@ -10,9 +10,10 @@ use radicle::storage::git::Repository;
 
 use crate::terminal as term;
 use crate::terminal::args::Error;
+use crate::terminal::patch;
 
 use super::common;
-use super::{Options, Update};
+use super::{OptPatch, Options};
 
 const PATCH_MSG: &str = r#"
 <!--
@@ -33,17 +34,33 @@ blank is also okay.
 -->
 "#;
 
+/// Always agree to user prompts.
+fn always_accept(_prompt: &str) -> bool {
+    true
+}
+
+fn user_confirmer(options: &Options) -> &dyn Fn(&str) -> bool {
+    if options.confirm {
+        &{ |s| term::confirm(s) }
+    } else {
+        &always_accept
+    }
+}
+
 /// Run patch creation.
 pub fn run(
     storage: &Repository,
     profile: &Profile,
     workdir: &git::raw::Repository,
+    patch_id: OptPatch,
+    message: patch::Comment,
     options: Options,
 ) -> anyhow::Result<()> {
     let project = storage.project_of(&profile.public_key).context(format!(
         "couldn't load project {} from local state",
         storage.id
     ))?;
+    let confirm = user_confirmer(&options);
 
     term::headline(&format!(
         "🌱 Creating patch for {}",
@@ -118,9 +135,9 @@ pub fn run(
     let base_oid = workdir.merge_base((*target_oid).into(), head_oid)?;
     let commits = common::patch_commits(workdir, &base_oid, &head_oid)?;
 
-    let patch = match &options.update {
-        Update::No => None,
-        Update::Any => {
+    let patch = match &patch_id {
+        OptPatch::None => None,
+        OptPatch::Any => {
             let mut spinner = term::spinner("Finding patches to update...");
             let mut result = common::find_unmerged_with_base(
                 head_oid,
@@ -152,7 +169,7 @@ pub fn run(
                 anyhow::bail!("No patches found that share a base, please create a new patch or specify the patch id manually");
             }
         }
-        Update::Patch(id) => {
+        OptPatch::Patch(id) => {
             if let Ok(patch) = patches.get_mut(id) {
                 Some((*id, patch))
             } else {
@@ -162,10 +179,12 @@ pub fn run(
     };
 
     if let Some((id, patch)) = patch {
-        if term::confirm("Update?") {
+        if confirm("Update?") {
             term::blank();
 
-            return update(patch, id, &base_oid, &head_oid, workdir, options, &signer);
+            return update(
+                patch, id, &base_oid, &head_oid, workdir, options, message, &signer,
+            );
         } else {
             anyhow::bail!("Patch update aborted by user");
         }
@@ -194,14 +213,14 @@ pub fn run(
     term::patch::list_commits(&commits)?;
     term::blank();
 
-    if !term::confirm("Continue?") {
+    if !confirm("Continue?") {
         anyhow::bail!("patch proposal aborted by user");
     }
 
-    let message = head_commit
+    let commit_message = head_commit
         .message()
         .ok_or(anyhow!("commit summary is not valid UTF-8; aborting"))?;
-    let message = options.message.get(&format!("{}{}", message, PATCH_MSG));
+    let message = message.get(&format!("{}{}", commit_message, PATCH_MSG));
     let (title, description) = message.split_once("\n\n").unwrap_or((&message, ""));
     let (title, description) = (title.trim(), description.trim());
     let description = description.replace(PATCH_MSG.trim(), ""); // Delete help message.
@@ -229,7 +248,7 @@ pub fn run(
     )));
     term::blank();
 
-    if !term::confirm("Create patch?") {
+    if !confirm("Create patch?") {
         anyhow::bail!("patch proposal aborted by user");
     }
 
@@ -261,8 +280,11 @@ fn update<G: Signer>(
     head: &Oid,
     workdir: &git::raw::Repository,
     options: Options,
+    message: patch::Comment,
     signer: &G,
 ) -> anyhow::Result<()> {
+    let confirm = user_confirmer(&options);
+
     // TODO(cloudhead): Handle error.
     let (_, current_revision) = patch.latest().unwrap();
     let current_version = patch.version();
@@ -280,13 +302,13 @@ fn update<G: Signer>(
         term::format::dim(format!("R{}", current_version + 1)),
         term::format::secondary(term::format::oid(*head)),
     );
-    let message = options.message.get(REVISION_MSG);
+    let message = message.get(REVISION_MSG);
 
     // Difference between the two revisions.
     term::patch::print_commits_ahead_behind(workdir, *head, *current_revision.oid)?;
     term::blank();
 
-    if !term::confirm("Continue?") {
+    if !confirm("Continue?") {
         anyhow::bail!("patch update aborted by user");
     }
     patch.update(message, *base, *head, signer)?;

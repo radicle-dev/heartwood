@@ -22,6 +22,10 @@ fn test(
     };
 
     TestFormula::new()
+        .env("GIT_AUTHOR_NAME", "radicle")
+        .env("GIT_AUTHOR_EMAIL", "radicle@localhost")
+        .env("GIT_COMMITTER_NAME", "radicle")
+        .env("GIT_COMMITTER_EMAIL", "radicle@localhost")
         .env("RAD_PASSPHRASE", "radicle")
         .env("RAD_HOME", home.to_string_lossy())
         .env("RAD_DEBUG", "1")
@@ -83,4 +87,22 @@ fn rad_delegate() {
 
     test("examples/rad-init.md", working.path(), Some(&profile)).unwrap();
     test("examples/rad-delegate.md", working.path(), Some(&profile)).unwrap();
+}
+
+#[test]
+fn rad_patch() {
+    let home = tempfile::tempdir().unwrap();
+    let working = tempfile::tempdir().unwrap();
+    let profile = profile(home.path());
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+    // Set a fixed commit time.
+    env::set_var(radicle_cob::git::RAD_COMMIT_TIME, "1671125284");
+    env::set_var("GIT_AUTHOR_DATE", "1671125284");
+    env::set_var("GIT_COMMITTER_DATE", "1671125284");
+
+    test("examples/rad-init.md", working.path(), Some(&profile)).unwrap();
+    test("examples/rad-issue.md", working.path(), Some(&profile)).unwrap();
+    test("examples/rad-patch.md", working.path(), Some(&profile)).unwrap();
 }

@@ -24,11 +24,13 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad patch [<option>...]
+    rad patch
+    rad patch open [<option>...]
+    rad patch update <id> [<option>...]
 
-Create options
+Create/Update options
 
-    -u, --update [<id>]        Update an existing patch (default: no)
+        --[no-]confirm         Don't ask for confirmation during clone
         --[no-]sync            Sync patch to seed (default: sync)
         --[no-]push            Push patch head to storage (default: true)
     -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
@@ -36,32 +38,45 @@ Create options
 
 Options
 
-    -l, --list                 List all patches (default: false)
         --help                 Print help
 "#,
 };
 
-#[derive(Debug)]
-pub enum Update {
-    No,
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum OptPatch {
+    #[default]
     Any,
+    None,
     Patch(PatchId),
 }
 
-impl Default for Update {
-    fn default() -> Self {
-        Self::No
-    }
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum OperationName {
+    Open,
+    Update,
+    #[default]
+    List,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
+pub enum Operation {
+    Open {
+        message: Comment,
+    },
+    Update {
+        patch_id: OptPatch,
+        message: Comment,
+    },
+    List,
+}
+
+#[derive(Debug)]
 pub struct Options {
-    pub list: bool,
-    pub verbose: bool,
+    pub op: Operation,
+    pub confirm: bool,
     pub sync: bool,
     pub push: bool,
-    pub update: Update,
-    pub message: Comment,
+    pub verbose: bool,
 }
 
 impl Args for Options {
@@ -69,34 +84,23 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut list = false;
+        let mut confirm = true;
+        let mut op: Option<OperationName> = None;
         let mut verbose = false;
         let mut sync = true;
+        let mut id = OptPatch::default();
         let mut message = Comment::default();
         let mut push = true;
-        let mut update = Update::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
-                // Operations.
-                Long("list") | Short('l') => {
-                    list = true;
-                }
-                Long("update") | Short('u') => {
-                    if let Ok(val) = parser.value() {
-                        let val = val
-                            .to_str()
-                            .ok_or_else(|| anyhow!("patch id specified is not UTF-8"))?;
-                        let id = PatchId::from_str(val)
-                            .map_err(|_| anyhow!("invalid patch id '{}'", val))?;
-
-                        update = Update::Patch(id);
-                    } else {
-                        update = Update::Any;
-                    }
-                }
-
                 // Options.
+                Long("confirm") => {
+                    confirm = true;
+                }
+                Long("no-confirm") => {
+                    confirm = false;
+                }
                 Long("message") | Short('m') => {
                     if message != Comment::Blank {
                         // We skip this code when `no-message` is specified.
@@ -129,17 +133,43 @@ impl Args for Options {
                 Long("help") => {
                     return Err(Error::Help.into());
                 }
+
+                Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
+                    "l" | "list" => op = Some(OperationName::List),
+                    "o" | "open" => op = Some(OperationName::Open),
+                    "u" | "update" => op = Some(OperationName::Update),
+
+                    unknown => anyhow::bail!("unknown operation '{}'", unknown),
+                },
+                Value(val) if op == Some(OperationName::Update) && id == OptPatch::Any => {
+                    let val = val
+                        .to_str()
+                        .ok_or_else(|| anyhow!("patch id specified is not UTF-8"))?;
+
+                    id = OptPatch::Patch(
+                        PatchId::from_str(val)
+                            .map_err(|_| anyhow!("invalid patch id '{}'", val))?,
+                    );
+                }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
         }
 
+        let op = match op.unwrap_or_default() {
+            OperationName::Open => Operation::Open { message },
+            OperationName::List => Operation::List,
+            OperationName::Update => Operation::Update {
+                patch_id: id,
+                message,
+            },
+        };
+
         Ok((
             Options {
-                list,
+                op,
+                confirm,
                 sync,
-                message,
                 push,
-                update,
                 verbose,
             },
             vec![],
@@ -154,10 +184,33 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = profile.storage.repository(id)?;
 
-    if options.list {
-        list::run(&storage, &profile, Some(workdir), options)?;
-    } else {
-        create::run(&storage, &profile, &workdir, options)?;
+    match options.op {
+        Operation::Open { ref message } => {
+            create::run(
+                &storage,
+                &profile,
+                &workdir,
+                OptPatch::None,
+                message.clone(),
+                options,
+            )?;
+        }
+        Operation::List => {
+            list::run(&storage, &profile, Some(workdir), options)?;
+        }
+        Operation::Update {
+            ref patch_id,
+            ref message,
+        } => {
+            create::run(
+                &storage,
+                &profile,
+                &workdir,
+                *patch_id,
+                message.clone(),
+                options,
+            )?;
+        }
     }
     Ok(())
 }
