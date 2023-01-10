@@ -342,9 +342,9 @@ where
                     );
                     self.disconnect(
                         fd,
-                        DisconnectReason::Dial(
-                            io::Error::from(io::ErrorKind::AlreadyExists).into(),
-                        ),
+                        DisconnectReason::Dial(Arc::new(io::Error::from(
+                            io::ErrorKind::AlreadyExists,
+                        ))),
                     );
                 }
 

@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::{fmt, io};
 
 use log::*;
@@ -492,9 +493,9 @@ impl<S: WriteStorage + 'static, G: Signer + Negotiator> Simulation<S, G> {
                                 remote,
                                 input: Input::Disconnected(
                                     remote,
-                                    Rc::new(DisconnectReason::Connection(
-                                        io::Error::from(io::ErrorKind::UnexpectedEof).into(),
-                                    )),
+                                    Rc::new(DisconnectReason::Connection(Arc::new(
+                                        io::Error::from(io::ErrorKind::UnexpectedEof),
+                                    ))),
                                 ),
                             },
                         );
@@ -555,9 +556,9 @@ impl<S: WriteStorage + 'static, G: Signer + Negotiator> Simulation<S, G> {
                         remote: node,
                         input: Input::Disconnected(
                             node,
-                            Rc::new(DisconnectReason::Connection(
-                                io::Error::from(io::ErrorKind::ConnectionReset).into(),
-                            )),
+                            Rc::new(DisconnectReason::Connection(Arc::from(io::Error::from(
+                                io::ErrorKind::ConnectionReset,
+                            )))),
                         ),
                     },
                 );

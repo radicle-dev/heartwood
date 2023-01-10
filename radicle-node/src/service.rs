@@ -1087,10 +1087,10 @@ where
 pub enum DisconnectReason {
     /// Error while dialing the remote. This error occures before a connection is
     /// even established. Errors of this kind are usually not transient.
-    Dial(Arc<std::io::Error>),
+    Dial(Arc<dyn std::error::Error + Sync + Send>),
     /// Error with an underlying established connection. Sometimes, reconnecting
     /// after such an error is possible.
-    Connection(Arc<std::io::Error>),
+    Connection(Arc<dyn std::error::Error + Sync + Send>),
     /// Peer was disconnected for another reason.
     User,
     Peer,
