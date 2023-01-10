@@ -21,12 +21,12 @@ pub const HELP: Help = Help {
 Usage
 
     rad issue
-    rad issue new [--title <title>] [--description <text>]
+    rad issue delete <id>
+    rad issue list [--assigned <key>]
+    rad issue open [--title <title>] [--description <text>]
+    rad issue react <id> [--emoji <char>]
     rad issue show <id>
     rad issue state <id> [--closed | --open | --solved]
-    rad issue delete <id>
-    rad issue react <id> [--emoji <char>]
-    rad issue list [--assigned <key>]
 
 Options
 
@@ -42,7 +42,7 @@ pub struct Metadata {
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub enum OperationName {
-    Create,
+    Open,
     Delete,
     #[default]
     List,
@@ -61,7 +61,7 @@ pub enum Assigned {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Operation {
-    Create {
+    Open {
         title: Option<String>,
         description: Option<String>,
     },
@@ -107,7 +107,7 @@ impl Args for Options {
                 Long("help") => {
                     return Err(Error::Help.into());
                 }
-                Long("title") if op == Some(OperationName::Create) => {
+                Long("title") if op == Some(OperationName::Open) => {
                     title = Some(parser.value()?.to_string_lossy().into());
                 }
                 Long("closed") if op == Some(OperationName::State) => {
@@ -129,7 +129,7 @@ impl Args for Options {
                             Some(Reaction::from_str(emoji).map_err(|_| anyhow!("invalid emoji"))?);
                     }
                 }
-                Long("description") if op == Some(OperationName::Create) => {
+                Long("description") if op == Some(OperationName::Open) => {
                     description = Some(parser.value()?.to_string_lossy().into());
                 }
                 Long("assigned") | Short('a') if assigned.is_none() => {
@@ -144,12 +144,12 @@ impl Args for Options {
                     }
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "n" | "new" => op = Some(OperationName::Create),
                     "c" | "show" => op = Some(OperationName::Show),
-                    "s" | "state" => op = Some(OperationName::State),
                     "d" | "delete" => op = Some(OperationName::Delete),
                     "l" | "list" => op = Some(OperationName::List),
+                    "o" | "open" => op = Some(OperationName::Open),
                     "r" | "react" => op = Some(OperationName::React),
+                    "s" | "state" => op = Some(OperationName::State),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
@@ -170,7 +170,7 @@ impl Args for Options {
         }
 
         let op = match op.unwrap_or_default() {
-            OperationName::Create => Operation::Create { title, description },
+            OperationName::Open => Operation::Open { title, description },
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
             },
@@ -201,7 +201,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut issues = Issues::open(*signer.public_key(), &repo)?;
 
     match options.op {
-        Operation::Create {
+        Operation::Open {
             title: Some(title),
             description: Some(description),
         } => {
@@ -223,7 +223,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 issue.react(comment_id, reaction, &signer)?;
             }
         }
-        Operation::Create { title, description } => {
+        Operation::Open { title, description } => {
             let meta = Metadata {
                 title: title.unwrap_or("Enter a title".to_owned()),
                 labels: vec![],
