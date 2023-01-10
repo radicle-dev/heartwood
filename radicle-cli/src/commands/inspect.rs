@@ -149,7 +149,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     } else if options.history {
         let repo = storage.repository(id)?;
         let head = Doc::<Untrusted>::head(signer.public_key(), &repo)?;
-        let history = repo.revwalk(head)?.collect::<Vec<_>>().into_iter();
+        let history = repo.revwalk(head)?;
 
         for oid in history {
             let oid = oid?.into();
