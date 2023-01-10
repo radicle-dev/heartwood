@@ -1,0 +1,45 @@
+name: Upload binaries for frontend e2e tests
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  release-x86_64-linux-binaries:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+      - name: Configure build cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-x86_64-linux-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build the binaries
+        uses: addnab/docker-run-action@v3
+        with:
+          image: registry.gitlab.com/rust_musl_docker/image:stable-latest
+          options: -v ${{ github.workspace }}:/workdir -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
+          run: |
+            rustup target add x86_64-unknown-linux-musl
+            cd radicle-httpd
+            cargo build --release --target=x86_64-unknown-linux-musl
+            chmod --recursive go+r /root/.cargo/registry
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          workload_identity_provider: 'projects/281042598092/locations/global/workloadIdentityPools/github-actions/providers/google-cloud'
+          service_account: 'github-actions@radicle-services.iam.gserviceaccount.com'
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v1'
+      - id: 'upload-file'
+        uses: 'google-github-actions/upload-cloud-storage@v1'
+        with:
+          path: target/x86_64-unknown-linux-musl/release/radicle-httpd
+          destination: heartwood-artifacts/${{ github.sha }}/
