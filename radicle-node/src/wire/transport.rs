@@ -524,6 +524,9 @@ where
                         break;
                     }
 
+                    eprintln!("MY OUTGOING PK: {}", self.keypair.public_key());
+                    eprintln!("MY SERVICE NODE_ID: {}", self.service.node_id());
+
                     match NetResource::<Noise>::connect_nonblocking(
                         PeerAddr::new((*node_id).into(), addr.to_inner()),
                         // TODO: Once the API supports it, we can pass an opaque type here.
