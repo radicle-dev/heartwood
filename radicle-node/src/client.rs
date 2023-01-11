@@ -1,7 +1,9 @@
+use netservices::Authenticator;
 use std::io;
 use std::{net, thread, time};
 
 use netservices::resources::NetAccept;
+use netservices::socks5::Socks5;
 use reactor::poller::popol;
 use reactor::Reactor;
 use thiserror::Error;
@@ -59,7 +61,7 @@ pub struct Runtime<G: crypto::Signer + crypto::Negotiator> {
     pub local_addrs: Vec<net::SocketAddr>,
 }
 
-impl<G: crypto::Signer + crypto::Negotiator + 'static> Runtime<G> {
+impl<G: crypto::Signer + crypto::Negotiator + Clone + 'static> Runtime<G> {
     /// Run the client.
     ///
     /// This function spawns threads.
@@ -67,12 +69,11 @@ impl<G: crypto::Signer + crypto::Negotiator + 'static> Runtime<G> {
         profile: profile::Profile,
         config: service::Config,
         listen: Vec<net::SocketAddr>,
-        proxy: net::SocketAddr,
+        proxy_addr: net::SocketAddr,
         signer: G,
     ) -> Result<Runtime<G>, Error> {
         let id = *profile.id();
         let node = profile.node();
-        let negotiator = signer.clone();
         let network = config.network;
         let rng = fastrand::Rng::new();
         let clock = LocalTime::now();
@@ -99,13 +100,18 @@ impl<G: crypto::Signer + crypto::Negotiator + 'static> Runtime<G> {
             storage.clone(),
             addresses,
             tracking,
-            signer,
+            signer.clone(),
             rng,
         );
 
-        let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<G>>();
+        let node_id = signer.public_key().0;
+        let sig = signer.sign(node_id.as_slice());
+        let auth = Authenticator::new(node_id.into(), sig.0.into());
+
+        let proxy = Socks5::new(proxy_addr)?;
+        let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq>();
         let pool = WorkerPool::with(10, time::Duration::from_secs(9), storage, worker_recv);
-        let wire = Transport::new(service, worker_send, negotiator.clone(), proxy, clock);
+        let wire = Transport::new(service, worker_send, auth, signer.clone(), proxy, clock);
         let reactor = Reactor::new(wire, popol::Poller::new())?;
         let handle = Handle::from(reactor.controller());
         let control = thread::spawn({
@@ -116,7 +122,8 @@ impl<G: crypto::Signer + crypto::Negotiator + 'static> Runtime<G> {
         let mut local_addrs = Vec::new();
 
         for addr in listen {
-            let listener = NetAccept::bind(addr, negotiator.clone())?;
+            // TODO: Once the API supports it, we can pass an opaque type here.
+            let listener = NetAccept::bind(&addr, (signer.secret_key(), auth))?;
             let local_addr = listener.local_addr();
 
             local_addrs.push(local_addr);

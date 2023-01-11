@@ -9,6 +9,7 @@ edition = "2021"
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qcheck"]
 
 [dependencies]
+amplify = { version = "4.0.0-beta.7" }
 anyhow = { version = "1" }
 bloomy = { version = "1.2" }
 byteorder = { version = "1" }

@@ -24,17 +24,11 @@ pub struct Unverified;
 /// Output of a Diffie-Hellman key exchange.
 pub type SharedSecret = [u8; 32];
 
-/// Trait alias used for Diffie–Hellman key exchange.
+/// Trait used for Diffie–Hellman key exchange.
 #[cfg(feature = "cyphernet")]
-pub trait Negotiator:
-    cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone + Send
-{
-}
-
-#[cfg(feature = "cyphernet")]
-impl<T> Negotiator for T where
-    T: cyphernet::crypto::Ecdh<Pk = PublicKey, Secret = SharedSecret, Err = Error> + Clone + Send
-{
+pub trait Negotiator {
+    /// Return the secret key in `cyphernet` format.
+    fn secret_key(&self) -> cyphernet::crypto::ed25519::PrivateKey;
 }
 
 /// Error returned if signing fails, eg. due to an HSM or KMS.
@@ -172,18 +166,8 @@ impl PublicKey {
 
 #[cfg(feature = "cyphernet")]
 impl cyphernet::crypto::EcPk for PublicKey {
-    // TODO: Change this once NoiseXK is working.
     fn generator() -> Self {
-        use amplify::hex::FromHex;
-
-        ed25519::PublicKey::from_slice(
-            &Vec::<u8>::from_hex(
-                "5866666666666666666666666666666666666666666666666666666666666666",
-            )
-            .unwrap(),
-        )
-        .unwrap()
-        .into()
+        unimplemented!()
     }
 }
 
