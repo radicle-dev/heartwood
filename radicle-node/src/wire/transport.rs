@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 use std::{io, net};
 
 use amplify::Wrapper;
@@ -16,7 +16,7 @@ use nakamoto_net::{Link, LocalTime};
 use netservices::noise::NoiseXk;
 use netservices::resources::{ListenerEvent, NetAccept, NetResource, SessionEvent};
 use netservices::socks5::Socks5;
-use netservices::NetSession;
+use netservices::{Authenticator, NetSession};
 
 use radicle::collections::HashMap;
 use radicle::crypto::Negotiator;
@@ -141,6 +141,7 @@ pub struct Transport<R, S, W, G: Negotiator> {
     service: Service<R, S, W, G>,
     /// Worker pool interface.
     worker: chan::Sender<WorkerReq>,
+    auth: Authenticator,
     /// Used to performs X25519 key exchange.
     keypair: G,
     /// Internal queue of actions to send to the reactor.
@@ -163,6 +164,7 @@ where
     pub fn new(
         mut service: Service<R, S, W, G>,
         worker: chan::Sender<WorkerReq>,
+        auth: Authenticator,
         keypair: G,
         proxy: Socks5,
         clock: LocalTime,
@@ -172,6 +174,7 @@ where
         Self {
             service,
             worker,
+            auth,
             keypair,
             proxy,
             actions: VecDeque::new(),
@@ -530,7 +533,7 @@ where
                     match NetResource::<Noise>::connect_nonblocking(
                         PeerAddr::new((*node_id).into(), addr.to_inner()),
                         // TODO: Once the API supports it, we can pass an opaque type here.
-                        &self.keypair.secret_key(),
+                        &(self.keypair.secret_key(), self.auth),
                         &self.proxy,
                     ) {
                         Ok(transport) => {

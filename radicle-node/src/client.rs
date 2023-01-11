@@ -1,3 +1,4 @@
+use netservices::Authenticator;
 use std::io;
 use std::{net, thread, time};
 
@@ -103,10 +104,14 @@ impl<G: crypto::Signer + crypto::Negotiator + Clone + 'static> Runtime<G> {
             rng,
         );
 
+        let node_id = signer.public_key().0;
+        let sig = signer.sign(node_id.as_slice());
+        let auth = Authenticator::new(node_id.into(), sig.0.into());
+
         let proxy = Socks5::new(proxy_addr)?;
         let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq>();
         let pool = WorkerPool::with(10, time::Duration::from_secs(9), storage, worker_recv);
-        let wire = Transport::new(service, worker_send, signer.clone(), proxy, clock);
+        let wire = Transport::new(service, worker_send, auth, signer.clone(), proxy, clock);
         let reactor = Reactor::new(wire, popol::Poller::new())?;
         let handle = Handle::from(reactor.controller());
         let control = thread::spawn({
@@ -118,7 +123,7 @@ impl<G: crypto::Signer + crypto::Negotiator + Clone + 'static> Runtime<G> {
 
         for addr in listen {
             // TODO: Once the API supports it, we can pass an opaque type here.
-            let listener = NetAccept::bind(&addr, signer.secret_key())?;
+            let listener = NetAccept::bind(&addr, (signer.secret_key(), auth))?;
             let local_addr = listener.local_addr();
 
             local_addrs.push(local_addr);
