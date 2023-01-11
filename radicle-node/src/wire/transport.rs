@@ -36,27 +36,36 @@ pub type Noise = NoiseXk<cyphernet::crypto::ed25519::PrivateKey>;
 type Action = reactor::Action<NetAccept<Noise>, NetResource<Noise>>;
 
 /// Peer connection state machine.
-#[derive(Debug)]
+#[derive(Debug, Display)]
 enum Peer {
     /// The initial state before handshake is completed.
+    #[display("<connecting>")]
     Connecting { link: Link },
+
     /// The state after handshake is completed.
     /// Peers in this state are handled by the underlying service.
+    #[display("{id}")]
     Connected { link: Link, id: NodeId },
+
     /// The state after a peer was disconnected, either during handshake,
     /// or once connected.
+    #[display("<disconnected>")]
     Disconnected {
         id: Option<NodeId>,
         reason: DisconnectReason,
     },
+
     /// The state after we've started the process of upgraded the peer for a fetch.
     /// The request to handover the socket was made to the reactor.
+    #[display("<upgrading>{id}")]
     Upgrading {
         fetch: Fetch,
         link: Link,
         id: NodeId,
     },
+
     /// The peer is now upgraded and we are in control of the socket.
+    #[display("<upgraded>{id}")]
     Upgraded {
         link: Link,
         id: NodeId,
@@ -184,11 +193,42 @@ where
         }
     }
 
-    fn by_id(&self, id: &NodeId) -> RawFd {
-        self.connected()
-            .find(|(_, i)| *i == id)
-            .map(|(fd, _)| fd)
-            .unwrap()
+    fn peer_mut_by_fd(&mut self, fd: RawFd) -> &mut Peer {
+        self.peers.get_mut(&fd).unwrap_or_else(|| {
+            log::error!(target: "transport", "Peer with fd {fd} was not found");
+            panic!("peer with fd {fd} is not known");
+        })
+    }
+
+    fn fd_by_id(&self, node_id: &NodeId) -> (RawFd, &Peer) {
+        self.peers
+            .iter()
+            .find(|(_, peer)| match peer {
+                Peer::Connected { id, .. }
+                | Peer::Disconnected { id: Some(id), .. }
+                | Peer::Upgrading { id, .. }
+                | Peer::Upgraded { id, .. }
+                    if id == node_id =>
+                {
+                    true
+                }
+                _ => false,
+            })
+            .map(|(fd, peer)| (*fd, peer))
+            .unwrap_or_else(|| {
+                log::error!(target: "transport", "No peer with id {node_id}");
+                panic!("peer id {node_id} was expected to be known to the transport")
+            })
+    }
+
+    fn connected_fd_by_id(&self, node_id: &NodeId) -> RawFd {
+        match self.fd_by_id(node_id) {
+            (fd, Peer::Connected { .. }) => fd,
+            (fd, peer) => {
+                log::error!(target: "transport", "Peer {peer}(fd={fd} is not in a connected state");
+                panic!("peer {peer}(fd={fd} was expected to be in a connected state")
+            }
+        }
     }
 
     fn connected(&self) -> impl Iterator<Item = (RawFd, &NodeId)> {
@@ -202,30 +242,24 @@ where
     }
 
     fn disconnect(&mut self, fd: RawFd, reason: DisconnectReason) {
-        let Some(peer) = self.peers.get_mut(&fd) else {
-            log::error!(target: "transport", "Peer with fd {fd} was not found");
-            return;
-        };
+        let peer = self.peer_mut_by_fd(fd);
         if let Peer::Disconnected { .. } = peer {
-            log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
+            log::error!(target: "transport", "Peer {peer}(fd={fd}) is already disconnected");
             return;
         };
-        log::debug!(target: "transport", "Disconnecting peer with fd {} ({})..", fd, reason);
+        log::debug!(target: "transport", "Disconnecting peer {peer}(fd={fd}) because of {}...", reason);
         peer.disconnected(reason);
 
         self.actions.push_back(Action::UnregisterTransport(fd));
     }
 
     fn upgrade(&mut self, fd: RawFd, fetch: Fetch) {
-        let Some(peer) = self.peers.get_mut(&fd) else {
-            log::error!(target: "transport", "Peer with fd {fd} was not found");
-            return;
-        };
+        let peer = self.peer_mut_by_fd(fd);
         if let Peer::Disconnected { .. } = peer {
-            log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
+            log::error!(target: "transport", "Peer {peer}(fd={fd}) is already disconnected");
             return;
         };
-        log::debug!(target: "transport", "Requesting transport handover from reactor for fd {fd}");
+        log::debug!(target: "transport", "Requesting transport handover from reactor for peer {peer}(fd={fd})");
         peer.upgrading(fetch);
 
         self.actions.push_back(Action::UnregisterTransport(fd));
@@ -233,12 +267,10 @@ where
 
     fn upgraded(&mut self, session: NetResource<Noise>) {
         let fd = session.as_raw_fd();
-        let Some(peer) = self.peers.get_mut(&fd) else {
-            log::error!(target: "transport", "Peer with fd {fd} was not found");
-            return;
-        };
+        let peer = self.peer_mut_by_fd(fd);
         let (send, recv) = chan::bounded::<WorkerResp>(1);
         let fetch = peer.upgraded(recv);
+        log::debug!(target: "transport", "Peer {peer}(fd={fd}) got upgraded");
 
         if self
             .worker
@@ -257,10 +289,7 @@ where
     fn fetch_complete(&mut self, resp: WorkerResp) {
         let session = resp.session;
         let fd = session.as_raw_fd();
-        let Some(peer) = self.peers.get_mut(&fd) else {
-            log::error!(target: "transport", "Peer with fd {fd} was not found");
-            return;
-        };
+        let peer = self.peer_mut_by_fd(fd);
         if let Peer::Disconnected { .. } = peer {
             log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
             return;
@@ -505,7 +534,7 @@ where
                     log::debug!(
                         target: "transport", "Sending {} message(s) to {}", msgs.len(), node_id
                     );
-                    let fd = self.by_id(&node_id);
+                    let fd = self.connected_fd_by_id(&node_id);
                     let mut data = Vec::new();
                     for msg in msgs {
                         msg.encode(&mut data).expect("in-memory writes never fail");
@@ -550,7 +579,7 @@ where
                     }
                 }
                 Io::Disconnect(node_id, reason) => {
-                    let fd = self.by_id(&node_id);
+                    let fd = self.connected_fd_by_id(&node_id);
                     self.disconnect(fd, reason);
                 }
                 Io::Wakeup(d) => {
@@ -558,7 +587,7 @@ where
                 }
                 Io::Fetch(fetch) => {
                     // TODO: Check that the node_id is connected, queue request otherwise.
-                    let fd = self.by_id(&fetch.remote);
+                    let fd = self.connected_fd_by_id(&fetch.remote);
                     self.upgrade(fd, fetch);
                 }
             }
