@@ -64,6 +64,12 @@ pub fn headline(headline: &str) {
     println!();
 }
 
+pub fn header(header: &str) {
+    println!();
+    println!("{}", style(format::yellow(header)).bold().underlined());
+    println!();
+}
+
 pub fn blob(text: impl fmt::Display) {
     println!("{}", style(text.to_string().trim()).dim());
 }
@@ -389,4 +395,72 @@ pub fn markdown(content: &str) {
 
 fn _info(args: std::fmt::Arguments) {
     println!("{args}");
+}
+
+pub mod proposal {
+    use std::fmt::Write as _;
+
+    use radicle::{
+        cob::identity::{self, Proposal},
+        git::Oid,
+        identity::Identity,
+    };
+
+    use super::{super::format, theme};
+
+    pub fn revision_select(
+        proposal: &Proposal,
+    ) -> Option<(&identity::RevisionId, &identity::Revision)> {
+        let selection = dialoguer::Select::with_theme(&theme())
+            .with_prompt("Which revision do you want to select?")
+            .items(
+                &proposal
+                    .revisions()
+                    .map(|(rid, _)| rid.to_string())
+                    .collect::<Vec<_>>(),
+            )
+            .default(0)
+            .interact_opt()
+            .unwrap();
+
+        selection.and_then(|n| proposal.revisions().nth(n))
+    }
+
+    pub fn revision_commit_select<'a>(
+        proposal: &'a Proposal,
+        previous: &'a Identity<Oid>,
+    ) -> Option<(&'a identity::RevisionId, &'a identity::Revision)> {
+        let selection = dialoguer::Select::with_theme(&theme())
+            .with_prompt("Which revision do you want to commit?")
+            .items(
+                &proposal
+                    .revisions()
+                    .filter(|(_, r)| r.is_quorum_reached(previous))
+                    .map(|(rid, _)| rid.to_string())
+                    .collect::<Vec<_>>(),
+            )
+            .default(0)
+            .interact_opt()
+            .unwrap();
+
+        selection.and_then(|n| proposal.revisions().nth(n))
+    }
+
+    pub fn diff(proposal: &identity::Revision, previous: &Identity<Oid>) -> anyhow::Result<String> {
+        use similar::{ChangeTag, TextDiff};
+
+        let new = serde_json::to_string_pretty(&proposal.proposed)?;
+        let previous = serde_json::to_string_pretty(&previous.doc)?;
+        let diff = TextDiff::from_lines(&previous, &new);
+        let mut buf = String::new();
+        for change in diff.iter_all_changes() {
+            match change.tag() {
+                ChangeTag::Delete => write!(buf, "{}", format::negative(format!("-{change}")))?,
+                ChangeTag::Insert => write!(buf, "{}", format::positive(format!("+{change}")))?,
+                ChangeTag::Equal => write!(buf, " {change}")?,
+            };
+        }
+
+        Ok(buf)
+    }
 }

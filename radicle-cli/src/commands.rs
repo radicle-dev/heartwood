@@ -14,6 +14,8 @@ pub mod rad_delegate;
 pub mod rad_edit;
 #[path = "commands/help.rs"]
 pub mod rad_help;
+#[path = "commands/id.rs"]
+pub mod rad_id;
 #[path = "commands/init.rs"]
 pub mod rad_init;
 #[path = "commands/inspect.rs"]

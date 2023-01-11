@@ -1860,6 +1860,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "shlex",
+ "similar",
  "snapbox",
  "tempfile",
  "thiserror",

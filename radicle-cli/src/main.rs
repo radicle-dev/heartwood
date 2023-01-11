@@ -166,6 +166,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "id" => {
+            term::run_command_args::<rad_id::Options, _>(
+                rad_id::HELP,
+                "Id",
+                rad_id::run,
+                args.to_vec(),
+            );
+        }
         "init" => {
             term::run_command_args::<rad_init::Options, _>(
                 rad_init::HELP,
@@ -185,7 +193,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         "issue" => {
             term::run_command_args::<rad_issue::Options, _>(
                 rad_issue::HELP,
-                "Command",
+                "Issue",
                 rad_issue::run,
                 args.to_vec(),
             );
@@ -209,7 +217,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         "patch" => {
             term::run_command_args::<rad_patch::Options, _>(
                 rad_patch::HELP,
-                "Command",
+                "Patch",
                 rad_patch::run,
                 args.to_vec(),
             );
@@ -249,7 +257,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         "self" => {
             term::run_command_args::<rad_self::Options, _>(
                 rad_self::HELP,
-                "Command",
+                "Self",
                 rad_self::run,
                 args.to_vec(),
             );
