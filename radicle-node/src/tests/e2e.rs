@@ -8,14 +8,14 @@ use radicle::crypto::ssh::keystore::MemorySigner;
 use radicle::git::refname;
 use radicle::identity::Id;
 use radicle::node::Handle;
-use radicle::rad;
 use radicle::test::fixtures;
 use radicle::Profile;
 use radicle::Storage;
+use radicle::{assert_matches, rad};
 
 use crate::address;
 use crate::node::NodeId;
-use crate::service::routing;
+use crate::service::{routing, FetchLookup};
 use crate::storage::git::transport;
 use crate::test::logger;
 use crate::wire::Transport;
@@ -136,4 +136,42 @@ fn test_e2e() {
 
     let routes = check(nodes);
     assert_eq!(routes.len(), 4);
+}
+
+#[test]
+fn test_replication() {
+    logger::init(log::Level::Trace);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let base = tmp.path();
+    let nodes = network(vec![
+        (service::Config::default(), base.join("alice")),
+        (service::Config::default(), base.join("bob")),
+    ]);
+    // TODO: Find a better way to wait for synchronization, eg. using events, or using a loop.
+    thread::sleep(std::time::Duration::from_secs(2));
+
+    let ((local, _), (handle, _)) = nodes.iter().next().unwrap();
+    let local = *local;
+    let mut handle = handle.clone();
+    let routes = check(nodes);
+    let (rid, remote) = routes
+        .iter()
+        .find(|(rid, remote)| remote != &local)
+        .unwrap();
+
+    let tracked = handle.track_repo(*rid).unwrap();
+    assert!(tracked);
+
+    let lookup = handle.fetch(*rid).unwrap();
+    assert_matches!(
+        lookup,
+        FetchLookup::Found {
+            seeds,
+            ..
+        } if seeds == nonempty::NonEmpty::new(*remote)
+    );
+    // TODO: Read from lookup results.
+
+    thread::sleep(std::time::Duration::from_secs(3));
 }

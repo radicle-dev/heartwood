@@ -79,6 +79,8 @@ impl Worker {
         session: NetResource<Noise>,
     ) -> (NetResource<Noise>, Result<Vec<RefUpdate>, FetchError>) {
         if fetch.initiated {
+            log::debug!(target: "worker", "Worker processing outgoing fetch for {}", fetch.repo);
+
             let mut tunnel = match Tunnel::with(session, net::SocketAddr::from(([0, 0, 0, 0], 0))) {
                 Ok(tunnel) => tunnel,
                 Err((session, err)) => return (session, Err(err.into())),
@@ -88,6 +90,8 @@ impl Worker {
 
             (session, result)
         } else {
+            log::debug!(target: "worker", "Worker processing incoming fetch for {}", fetch.repo);
+
             let (mut stream_r, mut stream_w) = match session.split_io() {
                 Ok((r, w)) => (r, w),
                 Err(err) => {

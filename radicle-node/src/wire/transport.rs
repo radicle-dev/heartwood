@@ -110,6 +110,7 @@ impl Peer {
     fn upgraded(&mut self, listener: chan::Receiver<WorkerResp>) -> Fetch {
         if let Self::Upgrading { fetch, id, link } = self {
             let fetch = fetch.clone();
+            log::debug!(target: "transport", "Peer {id} upgraded for fetch {}", fetch.repo);
 
             *self = Self::Upgraded {
                 id: *id,
@@ -474,6 +475,8 @@ where
                 }
             }
             Some(Peer::Upgrading { .. }) => {
+                log::debug!(target: "transport", "Received handover of transport with fd {fd}");
+
                 self.upgraded(transport);
             }
             Some(_) => {
@@ -496,10 +499,6 @@ where
     type Item = Action;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(event) = self.actions.pop_front() {
-            return Some(event);
-        }
-
         while let Some(ev) = self.service.next() {
             match ev {
                 Io::Write(node_id, msgs) => {
@@ -511,7 +510,7 @@ where
                     for msg in msgs {
                         msg.encode(&mut data).expect("in-memory writes never fail");
                     }
-                    return Some(reactor::Action::Send(fd, data));
+                    self.actions.push_back(reactor::Action::Send(fd, data));
                 }
                 Io::Event(_e) => {
                     log::warn!(
@@ -540,7 +539,8 @@ where
                             self.peers
                                 .insert(transport.as_raw_fd(), Peer::connecting(Link::Outbound));
 
-                            return Some(reactor::Action::RegisterTransport(transport));
+                            self.actions
+                                .push_back(reactor::Action::RegisterTransport(transport));
                         }
                         Err(err) => {
                             self.service
@@ -552,10 +552,10 @@ where
                 Io::Disconnect(node_id, reason) => {
                     let fd = self.by_id(&node_id);
                     self.disconnect(fd, reason);
-
-                    return self.actions.pop_back();
                 }
-                Io::Wakeup(d) => return Some(reactor::Action::SetTimer(d.into())),
+                Io::Wakeup(d) => {
+                    self.actions.push_back(reactor::Action::SetTimer(d.into()));
+                }
                 Io::Fetch(fetch) => {
                     // TODO: Check that the node_id is connected, queue request otherwise.
                     let fd = self.by_id(&fetch.remote);
@@ -563,6 +563,6 @@ where
                 }
             }
         }
-        None
+        self.actions.pop_front()
     }
 }

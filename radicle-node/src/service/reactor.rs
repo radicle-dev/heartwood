@@ -89,7 +89,7 @@ impl Reactor {
 
     pub fn fetch(&mut self, remote: NodeId, repo: Id, namespaces: Namespaces, initiated: bool) {
         if initiated {
-            debug!("Fetch initiated for {} from {}..", repo, remote);
+            debug!("Fetch initiated for {} with {}..", repo, remote);
         } else {
             debug!("Fetch requested for {} from {}..", repo, remote);
         }
