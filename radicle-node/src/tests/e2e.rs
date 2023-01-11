@@ -66,7 +66,10 @@ fn network(
         let id = rt.id;
         let addr = *rt.local_addrs.first().unwrap();
         let handle = rt.handle.clone();
-        let join = thread::spawn(|| rt.run());
+        let join = thread::Builder::new()
+            .name(id.to_string())
+            .spawn(|| rt.run())
+            .unwrap();
 
         runtimes.insert((id, addr), (handle, join));
     }
@@ -83,11 +86,8 @@ fn network(
         }
     }
 
-    println!("{:#?}", runtimes.keys());
-
     for (from, (to_id, to_addr)) in connect {
         let (handle, _) = runtimes.get_mut(&from).unwrap();
-        println!("{} => {}", from.0, to_id);
         handle.connect(to_id, to_addr.into()).unwrap();
     }
     runtimes
@@ -129,10 +129,11 @@ fn test_e2e() {
         (service::Config::default(), base.join("alice")),
         (service::Config::default(), base.join("bob")),
         (service::Config::default(), base.join("eve")),
+        (service::Config::default(), base.join("pop")),
     ]);
     // TODO: Find a better way to wait for synchronization, eg. using events, or using a loop.
     thread::sleep(std::time::Duration::from_secs(3));
 
     let routes = check(nodes);
-    assert_eq!(routes.len(), 3);
+    assert_eq!(routes.len(), 4);
 }

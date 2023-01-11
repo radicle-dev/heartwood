@@ -193,6 +193,7 @@ impl WorkerPool {
         timeout: time::Duration,
         storage: Storage,
         tasks: chan::Receiver<WorkerReq>,
+        name: String,
     ) -> Self {
         let mut pool = Vec::with_capacity(capacity);
         for _ in 0..capacity {
@@ -201,7 +202,10 @@ impl WorkerPool {
                 storage: storage.clone(),
                 timeout,
             };
-            let thread = thread::spawn(|| worker.run());
+            let thread = thread::Builder::new()
+                .name(name.clone())
+                .spawn(|| worker.run())
+                .unwrap();
 
             pool.push(thread);
         }

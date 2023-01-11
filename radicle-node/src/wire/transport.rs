@@ -282,7 +282,7 @@ where
     type Transport = NetResource<Noise>;
     type Command = service::Command;
 
-    fn tick(&mut self, time: Duration) {
+    fn tick(&mut self, _time: Duration) {
         // FIXME: Change this once a proper timestamp is passed into the function.
         self.service.tick(LocalTime::from(SystemTime::now()));
 
@@ -526,9 +526,6 @@ where
                         );
                         break;
                     }
-
-                    eprintln!("MY OUTGOING PK: {}", self.keypair.public_key());
-                    eprintln!("MY SERVICE NODE_ID: {}", self.service.node_id());
 
                     match NetResource::<Noise>::connect_nonblocking(
                         PeerAddr::new((*node_id).into(), addr.to_inner()),

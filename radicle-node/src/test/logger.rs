@@ -21,8 +21,13 @@ impl Log for Logger {
             }
             target => {
                 if self.enabled(record.metadata()) {
-                    let id = std::thread::current().id();
-                    let s = format!("{:?} {:<8} {}", id, format!("{}:", target), record.args());
+                    let current = std::thread::current();
+                    let msg = format!("{:<8} {}", format!("{}:", target), record.args());
+                    let s = if let Some(name) = current.name() {
+                        format!("{:<8} {msg}", name)
+                    } else {
+                        msg
+                    };
                     match record.level() {
                         log::Level::Warn => {
                             println!("{}", s.yellow());
