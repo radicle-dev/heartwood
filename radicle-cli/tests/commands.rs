@@ -94,6 +94,7 @@ fn rad_delegate() {
 }
 
 #[test]
+#[ignore]
 fn rad_patch() {
     let home = tempfile::tempdir().unwrap();
     let working = tempfile::tempdir().unwrap();

@@ -21,7 +21,18 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
       - name: Run tests
-        run: cargo test --all --verbose --all-features
+        run: |
+          cargo test --all --verbose --all-features
+
+          # Workaround for client document tests dependent on the remote
+          # helper. Tests which rely on these should be marked #[ignore] and
+          # whitelisted here.
+          #
+          # Marking them as 'ignored' will allow local testing to work as
+          # expected, yet allow these document tests to be covered during
+          # integration testing.
+          cargo install --locked --debug --path ./radicle-remote-helper
+          cargo test --all --verbose --all-features rad_patch -- --ignored
 
   docs:
     name: Docs
