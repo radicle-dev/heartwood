@@ -105,6 +105,8 @@ pub enum FetchError {
     Fetch(#[from] storage::FetchError),
     #[error(transparent)]
     Io(#[from] io::Error),
+    #[error(transparent)]
+    Project(#[from] storage::ProjectError),
 }
 
 /// Result of looking up seeds in our routing table.
@@ -521,6 +523,7 @@ where
 
         let persistent = self.config.is_persistent(&id);
         let peer = self.sessions.entry(id).or_insert_with(|| {
+            // FIXME: This is wrong. We're not connected here!
             Session::new(id, Link::Outbound, persistent, self.rng.clone(), self.clock)
         });
         peer.attempted();

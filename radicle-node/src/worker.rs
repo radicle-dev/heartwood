@@ -1,26 +1,26 @@
 use core::time;
 use std::io::prelude::*;
-use std::process;
-use std::thread;
 use std::thread::JoinHandle;
-use std::{io, net};
+use std::{env, io, net, process, thread};
 
 use crossbeam_channel as chan;
-use netservices::resources::{NetReader, NetResource, NetWriter, SplitIo};
+use netservices::resources::SplitIo;
 use netservices::tunnel::Tunnel;
+use netservices::NetSession;
 
-use radicle::storage::{ReadRepository, RefUpdate, WriteStorage};
+use radicle::identity::Id;
+use radicle::storage::{ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 use radicle::Storage;
 use reactor::poller::popol;
 
 use crate::service::reactor::Fetch;
 use crate::service::{FetchError, FetchResult};
-use crate::wire::Noise;
+use crate::wire::{Noise, NoiseReader, NoiseWriter};
 
 /// Worker request.
 pub struct WorkerReq {
     pub fetch: Fetch,
-    pub session: NetResource<Noise>,
+    pub session: Noise,
     pub drain: Vec<u8>,
     pub channel: chan::Sender<WorkerResp>,
 }
@@ -28,7 +28,7 @@ pub struct WorkerReq {
 /// Worker response.
 pub struct WorkerResp {
     pub result: FetchResult,
-    pub session: NetResource<Noise>,
+    pub session: Noise,
 }
 
 /// A worker that replicates git objects.
@@ -76,8 +76,8 @@ impl Worker {
         &self,
         fetch: &Fetch,
         drain: Vec<u8>,
-        session: NetResource<Noise>,
-    ) -> (NetResource<Noise>, Result<Vec<RefUpdate>, FetchError>) {
+        mut session: Noise,
+    ) -> (Noise, Result<Vec<RefUpdate>, FetchError>) {
         if fetch.initiated {
             log::debug!(target: "worker", "Worker processing outgoing fetch for {}", fetch.repo);
 
@@ -92,6 +92,9 @@ impl Worker {
         } else {
             log::debug!(target: "worker", "Worker processing incoming fetch for {}", fetch.repo);
 
+            if let Err(err) = session.set_nonblocking(false) {
+                return (session, Err(err.into()));
+            }
             let (mut stream_r, mut stream_w) = match session.split_io() {
                 Ok((r, w)) => (r, w),
                 Err(err) => {
@@ -99,7 +102,7 @@ impl Worker {
                 }
             };
             let result = self.upload_pack(fetch, drain, &mut stream_r, &mut stream_w);
-            let session = NetResource::from_split_io(stream_r, stream_w);
+            let session = Noise::from_split_io(stream_r, stream_w);
 
             (session, result)
         }
@@ -108,26 +111,50 @@ impl Worker {
     fn fetch(
         &self,
         fetch: &Fetch,
-        tunnel: &mut Tunnel<NetResource<Noise>>,
+        tunnel: &mut Tunnel<Noise>,
     ) -> Result<Vec<RefUpdate>, FetchError> {
-        let tunnel_addr = tunnel.local_addr()?;
         let repo = self.storage.repository(fetch.repo)?;
-        let child = process::Command::new("git")
-            .current_dir(repo.path())
+        let tunnel_addr = tunnel.local_addr()?;
+        let mut cmd = process::Command::new("git");
+        cmd.current_dir(repo.path())
+            .env("GIT_PROTOCOL", "2")
+            .env_clear()
+            .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
             .arg("fetch")
-            .arg("--atomic") // The path to the git repo must be exact.
-            .arg(format!("git://{tunnel_addr}"))
+            .arg("--atomic")
+            .arg("--verbose")
+            .arg(format!("git://{tunnel_addr}/{}", repo.id))
             .arg(fetch.namespaces.as_fetchspec())
-            .arg(".")
             .stdout(process::Stdio::piped())
-            .stdin(process::Stdio::piped())
-            .spawn()?;
+            .stderr(process::Stdio::piped())
+            .stdin(process::Stdio::piped());
+
+        log::debug!(target: "worker", "Running command: {:?}", cmd);
+
+        let mut child = cmd.spawn()?;
+        let mut stderr = child.stderr.take().unwrap();
 
         let _ = tunnel.tunnel_once(popol::Poller::new(), self.timeout)?;
-        let output = child.wait_with_output()?;
+        let status = child.wait()?;
 
         // TODO: Parse fetch output to return updates.
-        log::debug!(target: "worker", "Fetch output for {}: {:?}", fetch.repo, output);
+        log::debug!(target: "worker", "Fetch for {} exited with status {:?}", fetch.repo, status.code());
+
+        if let Some(status) = status.code() {
+            log::debug!(target: "worker", "Upload pack for {} exited with status {:?}", fetch.repo, status);
+        } else {
+            log::debug!(target: "worker", "Upload pack for {} exited with unknown status", fetch.repo);
+        }
+
+        if !status.success() {
+            let mut err = Vec::new();
+            stderr.read_to_end(&mut err)?;
+
+            let err = String::from_utf8_lossy(&err);
+            log::debug!(target: "worker", "Fetch for {}: stderr: {err}", fetch.repo);
+        }
+        let head = repo.set_head()?;
+        log::debug!(target: "worker", "Setting head for {} to {head}", fetch.repo);
 
         Ok(vec![])
     }
@@ -136,26 +163,30 @@ impl Worker {
         &self,
         fetch: &Fetch,
         drain: Vec<u8>,
-        stream_r: &mut NetReader<Noise>,
-        stream_w: &mut NetWriter<Noise>,
+        stream_r: &mut NoiseReader,
+        stream_w: &mut NoiseWriter,
     ) -> Result<Vec<RefUpdate>, FetchError> {
         let repo = self.storage.repository(fetch.repo)?;
         let mut child = process::Command::new("git")
             .current_dir(repo.path())
+            .env_clear()
+            .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
+            .env("GIT_PROTOCOL", "2")
             .arg("upload-pack")
             .arg("--strict") // The path to the git repo must be exact.
             .arg(".")
             .stdout(process::Stdio::piped())
+            .stderr(process::Stdio::piped())
             .stdin(process::Stdio::piped())
             .spawn()?;
 
         let mut stdin = child.stdin.take().unwrap();
         let mut stdout = child.stdout.take().unwrap();
+        let mut stderr = child.stderr.take().unwrap();
 
         thread::scope(|scope| {
             let t = scope.spawn(move || {
                 let mut buf = [0u8; 65535];
-
                 // First drain the buffer of incoming data that was waiting.
                 if stdin.write_all(&drain[..]).is_err() {
                     return;
@@ -163,6 +194,15 @@ impl Worker {
                 // Then process any new data coming into the socket, and write it
                 // to the standard input of the `upload-pack` process.
                 while let Ok(n) = stream_r.read(&mut buf) {
+                    if let Ok(line) = std::str::from_utf8(&buf[..n]) {
+                        // FIXME: The git command could come in the drain object.
+                        // FIXME: We should only call this once, before looping.
+                        if let Some(cmd) = GitCommand::parse(line) {
+                            // FIXME: Convert this into an error.
+                            debug_assert_eq!(cmd.repo, fetch.repo);
+                            continue;
+                        }
+                    }
                     if n == 0 {
                         break;
                     }
@@ -179,7 +219,21 @@ impl Worker {
 
             Ok::<_, FetchError>(())
         })?;
-        child.wait()?;
+        let status = child.wait()?;
+
+        if let Some(status) = status.code() {
+            log::debug!(target: "worker", "Upload pack for {} exited with status {:?}", fetch.repo, status);
+        } else {
+            log::debug!(target: "worker", "Upload pack for {} exited with unknown status", fetch.repo);
+        }
+
+        if !status.success() {
+            let mut err = Vec::new();
+            stderr.read_to_end(&mut err)?;
+
+            let err = String::from_utf8_lossy(&err);
+            log::debug!(target: "worker", "Upload pack for {}: stderr: {}", fetch.repo, err);
+        }
 
         Ok(vec![])
     }
@@ -228,5 +282,60 @@ impl WorkerPool {
         log::debug!(target: "pool", "Worker pool shutting down..");
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct GitCommand {
+    pub repo: Id,
+    pub path: String,
+    pub host: Option<(String, Option<u16>)>,
+    pub extra: Vec<(String, Option<String>)>,
+}
+
+impl GitCommand {
+    /// Parse a Git command packet-line.
+    ///
+    /// Example: `0032git-upload-pack /project.git\0host=myserver.com\0`
+    ///
+    fn parse(input: &str) -> Option<Self> {
+        let (left, right) = input.split_at(4);
+        let len = usize::from_str_radix(left, 16).ok()?;
+        if len != input.len() {
+            return None;
+        }
+        let mut parts = right
+            .strip_prefix("git-upload-pack ")?
+            .split_terminator('\0');
+
+        let path = parts.next()?.to_owned();
+        let repo = path.strip_prefix('/')?.parse().ok()?;
+        let host = match parts.next() {
+            None | Some("") => None,
+            Some(host) => {
+                let host = host.strip_prefix("host=")?;
+                match host.split_once(':') {
+                    None => Some((host.to_owned(), None)),
+                    Some((host, port)) => {
+                        let port = port.parse::<u16>().ok()?;
+                        Some((host.to_owned(), Some(port)))
+                    }
+                }
+            }
+        };
+        let extra = parts
+            .skip_while(|part| part.is_empty())
+            .map(|part| match part.split_once('=') {
+                None => (part.to_owned(), None),
+                Some((k, v)) => (k.to_owned(), Some(v.to_owned())),
+            })
+            .collect();
+
+        Some(Self {
+            repo,
+            path,
+            host,
+            extra,
+        })
     }
 }

@@ -140,7 +140,7 @@ fn test_e2e() {
 
 #[test]
 fn test_replication() {
-    logger::init(log::Level::Trace);
+    logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
     let base = tmp.path();
@@ -149,16 +149,23 @@ fn test_replication() {
         (service::Config::default(), base.join("bob")),
     ]);
     // TODO: Find a better way to wait for synchronization, eg. using events, or using a loop.
-    thread::sleep(std::time::Duration::from_secs(2));
+    thread::sleep(std::time::Duration::from_secs(4));
 
     let ((local, _), (handle, _)) = nodes.iter().next().unwrap();
     let local = *local;
     let mut handle = handle.clone();
     let routes = check(nodes);
+    println!("LOCAL NODE: {local}");
     let (rid, remote) = routes
         .iter()
-        .find(|(rid, remote)| remote != &local)
+        .find(|(rid, remote)| dbg!(remote) != &local)
         .unwrap();
+
+    println!("REMOTE NODE: {remote}");
+    let inventory = handle.inventory().unwrap();
+    for inv in inventory.try_iter() {
+        println!("INVENTORY BEFORE: {}", inv);
+    }
 
     let tracked = handle.track_repo(*rid).unwrap();
     assert!(tracked);
@@ -174,4 +181,18 @@ fn test_replication() {
     // TODO: Read from lookup results.
 
     thread::sleep(std::time::Duration::from_secs(3));
+
+    let inventory = handle.inventory().unwrap();
+
+    for inv in inventory.try_iter() {
+        println!("INVENTORY AFTER: {}", inv);
+    }
+
+    println!("alice0----------------------------");
+    use radicle::storage::ReadStorage;
+    let storage = Storage::open(base.join("alice").join("storage")).unwrap();
+    storage.inspect().unwrap();
+    println!("bob----------------------------");
+    let storage = Storage::open(base.join("bob").join("storage")).unwrap();
+    storage.inspect().unwrap();
 }

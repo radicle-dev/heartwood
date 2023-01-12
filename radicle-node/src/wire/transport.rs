@@ -13,7 +13,7 @@ use amplify::Wrapper;
 use crossbeam_channel as chan;
 use cyphernet::addr::PeerAddr;
 use nakamoto_net::{Link, LocalTime};
-use netservices::noise::NoiseXk;
+use netservices::noise::{NoiseXk, NoiseXkReader, NoiseXkWriter};
 use netservices::resources::{ListenerEvent, NetAccept, NetResource, SessionEvent};
 use netservices::socks5::Socks5;
 use netservices::{Authenticator, NetSession};
@@ -31,6 +31,8 @@ use crate::worker::{WorkerReq, WorkerResp};
 use crate::{address, service};
 
 pub type Noise = NoiseXk<cyphernet::crypto::ed25519::PrivateKey>;
+pub type NoiseReader = NoiseXkReader<cyphernet::crypto::ed25519::PrivateKey>;
+pub type NoiseWriter = NoiseXkWriter<cyphernet::crypto::ed25519::PrivateKey>;
 
 /// Reactor action.
 type Action = reactor::Action<NetAccept<Noise>, NetResource<Noise>>;
@@ -276,7 +278,7 @@ where
             .worker
             .send(WorkerReq {
                 fetch,
-                session,
+                session: session.into_session(),
                 drain: self.read_queue.drain(..).collect(),
                 channel: send,
             })
@@ -290,9 +292,14 @@ where
         let session = resp.session;
         let fd = session.as_raw_fd();
         let peer = self.peer_mut_by_fd(fd);
-        if let Peer::Disconnected { .. } = peer {
+
+        let session = if let Peer::Disconnected { .. } = peer {
             log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
             return;
+        } else if let Peer::Upgraded { link, .. } = peer {
+            NetResource::with_session(session, link.is_inbound())
+        } else {
+            todo!();
         };
         peer.downgrade();
 
