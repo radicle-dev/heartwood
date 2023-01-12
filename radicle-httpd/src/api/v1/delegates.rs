@@ -62,3 +62,38 @@ async fn delegates_projects_handler(
 
     Ok::<_, Error>(Json(projects))
 }
+
+#[cfg(test)]
+mod routes {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    use crate::api::test::{self, request, HEAD};
+
+    #[tokio::test]
+    async fn test_delegates_projects() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(test::seed(tmp.path()));
+        let response = request(
+            &app,
+            "/delegates/did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/projects",
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json().await,
+            json!([
+              {
+                "name": "hello-world",
+                "description": "Rad repository for tests",
+                "defaultBranch": "master",
+                "head": HEAD,
+                "patches": 0,
+                "issues": 1,
+                "id": "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp"
+              }
+            ])
+        );
+    }
+}

@@ -22,3 +22,31 @@ async fn stats_handler(Extension(ctx): Extension<Context>) -> impl IntoResponse 
         json!({ "projects": { "count": projects }, "users": { "count": 0 } }),
     ))
 }
+
+#[cfg(test)]
+mod routes {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    use crate::api::test::{self, request};
+
+    #[tokio::test]
+    async fn test_stats() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(test::seed(tmp.path()));
+        let response = request(&app, "/stats").await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json().await,
+            json!({
+                "projects": {
+                    "count": 1
+                },
+                "users": {
+                    "count": 0
+                }
+            })
+        );
+    }
+}

@@ -4,8 +4,7 @@ use std::ffi::OsString;
 use anyhow::anyhow;
 
 use radicle::crypto::ssh;
-use radicle::profile;
-use radicle::Profile;
+use radicle::{profile, Profile};
 
 use crate::git;
 use crate::terminal as term;

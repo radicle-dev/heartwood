@@ -43,3 +43,10 @@ version = "0.2.0"
 git = "https://github.com/radicle-dev/radicle-git"
 features = ["serde"]
 rev = "79a94721366490053e2d8ac1c1afa14fb0c25f09"
+
+[dev-dependencies]
+hyper = { version = "0.14.17", default-features = false, features = ["client"] }
+radicle-cli = { path = "../radicle-cli" }
+radicle-crypto = { path = "../radicle-crypto" }
+tempfile = { version = "3.3.0" }
+tower = { version = "0.4", features = ["util"] }
