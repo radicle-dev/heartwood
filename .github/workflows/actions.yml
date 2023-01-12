@@ -21,7 +21,9 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
       - name: Run tests
-        run: cargo test --all --verbose --all-features
+        run: |
+          cargo install --locked --path ./radicle-remote-helper
+          cargo test --all --verbose --all-features
 
   docs:
     name: Docs
