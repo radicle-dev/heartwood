@@ -40,6 +40,14 @@ fn confirm<D: fmt::Display>(prompt: D, options: &Options) -> bool {
     !options.confirm || term::confirm(prompt)
 }
 
+/// Give the name of the branch or an appropriate error.
+#[inline]
+fn branch_name<'a>(branch: &'a git::raw::Branch) -> anyhow::Result<&'a str> {
+    branch
+        .name()?
+        .ok_or(anyhow!("head branch must be valid UTF-8"))
+}
+
 /// Run patch creation.
 pub fn run(
     storage: &Repository,
@@ -66,9 +74,11 @@ pub fn run(
     let head = workdir.head()?;
     let head_oid = head.target().ok_or(anyhow!("invalid HEAD ref; aborting"))?;
     let head_commit = workdir.find_commit(head_oid)?;
-    let head_branch = head
-        .shorthand()
-        .ok_or(anyhow!("cannot create patch from detached head; aborting"))?;
+    let head_branch = if head.is_branch() {
+        git::raw::Branch::wrap(head)
+    } else {
+        anyhow::bail!("cannot create patch from detached head; aborting")
+    };
 
     // Make sure the `HEAD` commit can be found in the monorepo. Otherwise there
     // is no way for anyone to merge this patch.
@@ -89,7 +99,14 @@ pub fn run(
         }
         spinner.message("Pushing HEAD to storage...");
 
-        let output = git::run::<_, _, &str, &str>(Path::new("."), ["push", "rad"], [])?;
+        let output = match head_branch.upstream() {
+            Ok(_) => git::run::<_, _, &str, &str>(Path::new("."), ["push", "rad"], [])?,
+            Err(_) => git::run::<_, _, &str, &str>(
+                Path::new("."),
+                ["push", "--set-upstream", "rad", branch_name(&head_branch)?],
+                [],
+            )?,
+        };
         if options.verbose {
             spinner.finish();
             term::blob(output);
@@ -191,7 +208,7 @@ pub fn run(
         term::format::highlight(project.default_branch().to_string()),
         term::format::secondary(term::format::oid(*target_oid)),
         term::format::dim(term::format::node(patches.public_key())),
-        term::format::highlight(head_branch.to_string()),
+        term::format::highlight(branch_name(&head_branch)?),
         term::format::secondary(term::format::oid(head_oid)),
     );
 
