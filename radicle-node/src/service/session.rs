@@ -29,6 +29,8 @@ pub enum Protocol {
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum State {
+    /// Initial state for outgoing connections.
+    Connecting,
     /// Initial state after handshake protocol hand-off.
     Connected {
         /// Whether this session was initialized with a [`Message::Initialize`].
@@ -89,7 +91,20 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(id: NodeId, link: Link, persistent: bool, rng: Rng, time: LocalTime) -> Self {
+    pub fn connecting(id: NodeId, persistent: bool, rng: Rng) -> Self {
+        Self {
+            id,
+            state: State::Connecting,
+            link: Link::Outbound,
+            subscribe: None,
+            persistent,
+            last_active: LocalTime::default(),
+            attempts: 0,
+            rng,
+        }
+    }
+
+    pub fn connected(id: NodeId, link: Link, persistent: bool, rng: Rng, time: LocalTime) -> Self {
         Self {
             id,
             state: State::Connected {
@@ -105,6 +120,10 @@ impl Session {
             attempts: 0,
             rng,
         }
+    }
+
+    pub fn is_connecting(&self) -> bool {
+        matches!(self.state, State::Connecting { .. })
     }
 
     pub fn is_connected(&self) -> bool {
@@ -134,8 +153,22 @@ impl Session {
         None
     }
 
-    pub fn connected(&mut self, _link: Link) {
+    pub fn to_connected(&mut self, since: LocalTime) {
+        assert!(
+            self.is_connecting(),
+            "Can only transition to 'connected' state from 'connecting' state"
+        );
         self.attempts = 0;
+        self.state = State::Connected {
+            initialized: false,
+            since,
+            ping: PingState::default(),
+            protocol: Protocol::default(),
+        };
+    }
+
+    pub fn to_disconnected(&mut self, since: LocalTime) {
+        self.state = State::Disconnected { since };
     }
 
     pub fn ping(&mut self, reactor: &mut Reactor) -> Result<(), Error> {

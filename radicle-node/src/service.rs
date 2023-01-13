@@ -520,10 +520,10 @@ where
         debug!("Attempted connection to {id} ({addr})");
 
         let persistent = self.config.is_persistent(&id);
-        let peer = self.sessions.entry(id).or_insert_with(|| {
-            Session::new(id, Link::Outbound, persistent, self.rng.clone(), self.clock)
-        });
-        peer.attempted();
+        self.sessions
+            .entry(id)
+            .or_insert_with(|| Session::connecting(id, persistent, self.rng.clone()))
+            .attempted();
     }
 
     pub fn connected(&mut self, remote: NodeId, link: Link) {
@@ -534,24 +534,22 @@ where
         // TODO: How should we deal with multiple peers connecting from the same IP address?
         if link.is_outbound() {
             if let Some(peer) = self.sessions.get_mut(&remote) {
-                if link.is_outbound() {
-                    self.reactor.write_all(
-                        remote,
-                        gossip::handshake(
-                            self.clock.as_secs(),
-                            &self.storage,
-                            &self.signer,
-                            self.filter.clone(),
-                            &self.config,
-                        ),
-                    );
-                }
-                peer.connected(link);
+                self.reactor.write_all(
+                    remote,
+                    gossip::handshake(
+                        self.clock.as_secs(),
+                        &self.storage,
+                        &self.signer,
+                        self.filter.clone(),
+                        &self.config,
+                    ),
+                );
+                peer.to_connected(self.clock);
             }
         } else {
             self.sessions.insert(
                 remote,
-                Session::new(
+                Session::connected(
                     remote,
                     Link::Inbound,
                     self.config.is_persistent(&remote),
@@ -568,7 +566,7 @@ where
         debug!("Disconnected from {} ({})", remote, reason);
 
         if let Some(session) = self.sessions.get_mut(&remote) {
-            session.state = session::State::Disconnected { since };
+            session.to_disconnected(since);
 
             // Attempt to re-connect to persistent peers.
             if let Some(address) = self.config.peer(&remote) {
@@ -886,6 +884,9 @@ where
                 // All we need is to instruct the transport to handover to the worker
                 self.reactor
                     .fetch(*remote, repo, Namespaces::default(), false);
+            }
+            (session::State::Connecting { .. }, msg) => {
+                error!("Received {:?} from connecting peer {}", msg, peer.id);
             }
             (session::State::Disconnected { .. }, msg) => {
                 debug!("Ignoring {:?} from disconnected peer {}", msg, peer.id);
