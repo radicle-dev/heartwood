@@ -18,10 +18,7 @@ use radicle::identity::{Id, PublicKey};
 use radicle::node::NodeId;
 use radicle::storage::git::paths;
 use radicle::storage::{ReadRepository, WriteStorage};
-use radicle_surf::git::{Glob, History, Repository};
-use radicle_surf::source;
-use radicle_surf::source::object::blob::Blob;
-use radicle_surf::source::object::tree::Tree;
+use radicle_surf::{Glob, Repository};
 
 use crate::api::axum_extra::{Path, Query};
 use crate::api::error::Error;
@@ -168,7 +165,7 @@ async fn history_handler(
         .take(per_page)
         .filter_map(|commit| {
             if let Ok(commit) = commit {
-                source::commit(&repo, commit.id).ok()
+                repo.commit(commit.id).ok()
             } else {
                 None
             }
@@ -195,7 +192,7 @@ async fn commit_handler(
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
-    let commit = source::commit(&repo, sha)?;
+    let commit = repo.commit(sha)?;
 
     Ok::<_, Error>(Json(commit))
 }
@@ -233,11 +230,10 @@ async fn tree_handler(
     Extension(ctx): Extension<Context>,
     Path((project, sha, path)): Path<(Id, Oid, String)>,
 ) -> impl IntoResponse {
-    let path = path.strip_prefix('/').ok_or(Error::NotFound)?.to_string();
+    let path = path.strip_prefix('/').ok_or(Error::NotFound)?;
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
-    let path = if path.is_empty() { None } else { Some(&path) };
-    let tree = Tree::new(&repo, &sha, path)?;
+    let tree = repo.tree(&sha, &path)?;
     let mut response = json!(tree);
     response["stats"] = json!(stats(&repo, sha)?);
 
@@ -313,7 +309,7 @@ async fn blob_handler(
     let path = path.strip_prefix('/').ok_or(Error::NotFound)?;
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
-    let blob = Blob::new(&repo, &sha, &path)?;
+    let blob = repo.blob(&sha, &path)?;
 
     Ok::<_, Error>(Json(blob))
 }
@@ -336,7 +332,7 @@ async fn readme_handler(
     ];
 
     for path in paths {
-        if let Ok(blob) = Blob::new(&repo, &sha, &path) {
+        if let Ok(blob) = repo.blob(&sha, &path) {
             return Ok::<_, Error>(Json(blob));
         }
     }
@@ -450,7 +446,8 @@ fn stats(repo: &Repository, head: Oid) -> Result<Stats, Error> {
     let branches = repo.branches(Glob::all_heads())?.count();
 
     let mut commits = 0;
-    let contributors = History::new(repo, head)?
+    let contributors = repo
+        .history(head)?
         .filter_map(|commit| {
             commits += 1;
             if let Ok(commit) = commit {
@@ -471,6 +468,7 @@ fn stats(repo: &Repository, head: Oid) -> Result<Stats, Error> {
 #[cfg(test)]
 mod routes {
     use axum::http::StatusCode;
+    use pretty_assertions::assert_eq;
     use serde_json::json;
 
     use crate::api::test::{self, request, HEAD, HEAD_1};
