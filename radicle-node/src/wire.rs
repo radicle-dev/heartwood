@@ -1,8 +1,8 @@
 mod message;
-mod transport;
+mod protocol;
 
 pub use message::{AddressType, MessageType};
-pub use transport::Transport;
+pub use protocol::{Wire, WireReader, WireSession, WireWriter};
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -11,8 +11,6 @@ use std::string::FromUtf8Error;
 use std::{io, mem};
 
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
-use cyphernet::Sha256;
-use netservices::session::{CypherReader, CypherSession, CypherWriter};
 
 use crate::crypto::hash::Digest;
 use crate::crypto::{PublicKey, Signature, Unverified};
@@ -32,10 +30,6 @@ use crate::storage::refs::SignedRefs;
 ///
 /// Note that in certain cases, we may use a smaller type.
 pub type Size = u16;
-
-pub type WireSession<G> = CypherSession<G, Sha256>;
-pub type WireReader = CypherReader<Sha256>;
-pub type WireWriter<G> = CypherWriter<G, Sha256>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

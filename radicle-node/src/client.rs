@@ -12,7 +12,7 @@ use crate::control;
 use crate::crypto::Signature;
 use crate::node::NodeId;
 use crate::service::{routing, tracking};
-use crate::wire::Transport;
+use crate::wire::Wire;
 use crate::worker::{WorkerPool, WorkerReq};
 use crate::{crypto, profile, service, LocalTime};
 
@@ -54,9 +54,9 @@ pub enum Error {
 /// Holds join handles to the client threads, as well as a client handle.
 pub struct Runtime<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone> {
     pub id: NodeId,
-    pub handle: Handle<Transport<routing::Table, address::Book, radicle::Storage, G>>,
+    pub handle: Handle<Wire<routing::Table, address::Book, radicle::Storage, G>>,
     pub control: thread::JoinHandle<Result<(), control::Error>>,
-    pub reactor: Reactor<Transport<routing::Table, address::Book, radicle::Storage, G>>,
+    pub reactor: Reactor<Wire<routing::Table, address::Book, radicle::Storage, G>>,
     pub pool: WorkerPool,
     pub local_addrs: Vec<net::SocketAddr>,
 }
@@ -117,7 +117,7 @@ impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static>
             worker_recv,
             id.to_human(),
         );
-        let wire = Transport::new(service, worker_send, cert, signer, proxy, clock);
+        let wire = Wire::new(service, worker_send, cert, signer, proxy, clock);
         let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
         let handle = Handle::from(reactor.controller());
         let control = thread::spawn({

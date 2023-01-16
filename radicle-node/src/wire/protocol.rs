@@ -15,6 +15,7 @@ use cyphernet::{Cert, Digest, EcSign, Sha256};
 use nakamoto_net::LocalTime;
 use netservices::resource::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
 use netservices::session::ProtocolArtifact;
+use netservices::session::{CypherReader, CypherSession, CypherWriter};
 use netservices::{NetConnection, NetSession};
 
 use radicle::collections::HashMap;
@@ -25,10 +26,14 @@ use radicle::storage::WriteStorage;
 use crate::crypto::Signer;
 use crate::service::reactor::{Fetch, Io};
 use crate::service::{routing, session, DisconnectReason, Message, Service};
-use crate::wire::{Decode, Encode, WireSession};
+use crate::wire::{Decode, Encode};
 use crate::worker::{WorkerReq, WorkerResp};
 use crate::Link;
 use crate::{address, service};
+
+pub type WireSession<G> = CypherSession<G, Sha256>;
+pub type WireReader = CypherReader<Sha256>;
+pub type WireWriter<G> = CypherWriter<G, Sha256>;
 
 /// Reactor action.
 type Action<G> = reactor::Action<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>;
@@ -160,8 +165,8 @@ impl<G: Signer + EcSign> Peer<G> {
     }
 }
 
-/// Transport protocol implementation for a set of peers.
-pub struct Transport<R, S, W, G: Signer + EcSign> {
+/// Wire protocol implementation for a set of peers.
+pub struct Wire<R, S, W, G: Signer + EcSign> {
     /// Backing service instance.
     service: Service<R, S, W, G>,
     /// Worker pool interface.
@@ -180,7 +185,7 @@ pub struct Transport<R, S, W, G: Signer + EcSign> {
     read_queue: VecDeque<u8>,
 }
 
-impl<R, S, W, G> Transport<R, S, W, G>
+impl<R, S, W, G> Wire<R, S, W, G>
 where
     R: routing::Store,
     S: address::Store,
@@ -321,7 +326,7 @@ where
     }
 }
 
-impl<R, S, W, G> reactor::Handler for Transport<R, S, W, G>
+impl<R, S, W, G> reactor::Handler for Wire<R, S, W, G>
 where
     R: routing::Store + Send,
     S: address::Store + Send,
@@ -554,7 +559,7 @@ where
     }
 }
 
-impl<R, S, W, G> Iterator for Transport<R, S, W, G>
+impl<R, S, W, G> Iterator for Wire<R, S, W, G>
 where
     R: routing::Store,
     S: address::Store,

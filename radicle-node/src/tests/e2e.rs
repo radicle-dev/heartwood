@@ -20,14 +20,14 @@ use crate::node::NodeId;
 use crate::service::{routing, FetchLookup, FetchResult};
 use crate::storage::git::transport;
 use crate::test::logger;
-use crate::wire::Transport;
+use crate::wire::Wire;
 use crate::{client, client::Runtime, service};
 
 /// Represents a running node.
 struct Node {
     id: NodeId,
     addr: net::SocketAddr,
-    handle: client::handle::Handle<Transport<routing::Table, address::Book, Storage, MemorySigner>>,
+    handle: client::handle::Handle<Wire<routing::Table, address::Book, Storage, MemorySigner>>,
     signer: MemorySigner,
     storage: Storage,
     #[allow(dead_code)]
