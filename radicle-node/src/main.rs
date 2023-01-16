@@ -8,7 +8,6 @@ use radicle::profile;
 use radicle_node::client::Runtime;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::prelude::{Address, NodeId};
-use radicle_node::profile::Paths;
 use radicle_node::{logger, service};
 
 #[derive(Debug)]
@@ -79,11 +78,10 @@ fn main() -> anyhow::Result<()> {
 
     let options = Options::from_env()?;
     let home = profile::home()?;
-    let paths = Paths::new(home);
     let passphrase = env::var(profile::env::RAD_PASSPHRASE)
         .context("`RAD_PASSPHRASE` is required to be set for the node to establish connections")?
         .into();
-    let keystore = Keystore::new(&paths.keys());
+    let keystore = Keystore::new(&home.keys());
     let signer = MemorySigner::load(&keystore, passphrase)?;
     let config = service::Config {
         connect: options.connect.into_iter().collect(),
@@ -92,7 +90,7 @@ fn main() -> anyhow::Result<()> {
         ..service::Config::default()
     };
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
-    let runtime = Runtime::with(paths, config, options.listen, proxy, signer)?;
+    let runtime = Runtime::with(home, config, options.listen, proxy, signer)?;
 
     runtime.run()?;
 

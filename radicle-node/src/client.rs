@@ -2,7 +2,7 @@ use std::{io, net, thread, time};
 
 use cyphernet::{Cert, EcSign};
 use netservices::resource::NetAccept;
-use radicle::profile::Paths;
+use radicle::profile::Home;
 use radicle::Storage;
 use reactor::poller::popol;
 use reactor::Reactor;
@@ -67,19 +67,19 @@ impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static>
     ///
     /// This function spawns threads.
     pub fn with(
-        paths: Paths,
+        home: Home,
         config: service::Config,
         listen: Vec<net::SocketAddr>,
         proxy: net::SocketAddr,
         signer: G,
     ) -> Result<Runtime<G>, Error> {
         let id = *signer.public_key();
-        let node_sock = paths.socket();
-        let node_dir = paths.node();
+        let node_sock = home.socket();
+        let node_dir = home.node();
         let network = config.network;
         let rng = fastrand::Rng::new();
         let clock = LocalTime::now();
-        let storage = Storage::open(paths.storage())?;
+        let storage = Storage::open(home.storage())?;
         let address_db = node_dir.join(ADDRESS_DB_FILE);
         let routing_db = node_dir.join(ROUTING_DB_FILE);
         let tracking_db = node_dir.join(TRACKING_DB_FILE);

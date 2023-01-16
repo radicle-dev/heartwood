@@ -10,7 +10,7 @@ pub mod setup {
     use crate::crypto::test::signer::MockSigner;
     use crate::prelude::*;
     use crate::{
-        profile::Paths,
+        profile::Home,
         test::{fixtures, storage::git::Repository},
         Storage,
     };
@@ -19,7 +19,7 @@ pub mod setup {
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
         let home = tmp.path().join("home");
-        let paths = Paths::new(home.as_path());
+        let paths = Home::new(home.as_path());
         let storage = Storage::open(paths.storage()).unwrap();
         let (id, _, _, _) = fixtures::project(tmp.path().join("copy"), &storage, &signer).unwrap();
         let project = storage.repository(id).unwrap();

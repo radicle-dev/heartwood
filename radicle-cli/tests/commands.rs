@@ -1,7 +1,7 @@
 use std::env;
 use std::path::Path;
 
-use radicle::profile::Profile;
+use radicle::profile::{Home, Profile};
 use radicle::test::fixtures;
 
 mod framework;
@@ -45,7 +45,7 @@ fn profile(home: &Path) -> Profile {
     // Set debug mode, to make test output more predictable.
     env::set_var("RAD_DEBUG", "1");
     // Setup a new user.
-    Profile::init(home, "radicle".to_owned()).unwrap()
+    Profile::init(Home::new(home.to_path_buf()), "radicle".to_owned()).unwrap()
 }
 
 #[test]

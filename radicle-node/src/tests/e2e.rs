@@ -9,7 +9,7 @@ use radicle::crypto::test::signer::MockSigner;
 use radicle::git::refname;
 use radicle::identity::Id;
 use radicle::node::Handle;
-use radicle::profile::Paths;
+use radicle::profile::Home;
 use radicle::storage::WriteStorage;
 use radicle::test::fixtures;
 use radicle::Storage;
@@ -42,7 +42,7 @@ impl Node {
                 .take(8)
                 .collect::<String>(),
         );
-        let paths = Paths::init(home).unwrap();
+        let paths = Home::init(home).unwrap();
         let signer = MockSigner::default();
         let listen = vec![([0, 0, 0, 0], 0).into()];
         let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);

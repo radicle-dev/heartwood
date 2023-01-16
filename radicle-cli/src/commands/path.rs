@@ -50,7 +50,7 @@ impl Args for Options {
 pub fn run(_options: Options, _ctx: impl term::Context) -> anyhow::Result<()> {
     let home = profile::home()?;
 
-    println!("{}", home.display());
+    println!("{}", home.path().display());
 
     Ok(())
 }

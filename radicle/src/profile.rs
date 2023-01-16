@@ -59,24 +59,22 @@ pub enum Error {
 
 #[derive(Debug, Clone)]
 pub struct Profile {
-    pub paths: Paths,
+    pub home: Home,
     pub storage: Storage,
     pub keystore: Keystore,
     pub public_key: PublicKey,
 }
 
 impl Profile {
-    pub fn init(home: impl AsRef<Path>, passphrase: impl Into<Passphrase>) -> Result<Self, Error> {
-        let home = home.as_ref().to_path_buf();
-        let paths = Paths::init(home.as_path())?;
-        let storage = Storage::open(paths.storage())?;
-        let keystore = Keystore::new(&paths.keys());
+    pub fn init(home: Home, passphrase: impl Into<Passphrase>) -> Result<Self, Error> {
+        let storage = Storage::open(home.storage())?;
+        let keystore = Keystore::new(&home.keys());
         let public_key = keystore.init("radicle", passphrase)?;
 
         transport::local::register(storage.clone());
 
         Ok(Profile {
-            paths,
+            home,
             storage,
             keystore,
             public_key,
@@ -85,17 +83,16 @@ impl Profile {
 
     pub fn load() -> Result<Self, Error> {
         let home = self::home()?;
-        let paths = Paths::new(home);
-        let storage = Storage::open(paths.storage())?;
-        let keystore = Keystore::new(&paths.keys());
+        let storage = Storage::open(home.storage())?;
+        let keystore = Keystore::new(&home.keys());
         let public_key = keystore
             .public_key()?
-            .ok_or_else(|| Error::NotFound(paths.home.clone()))?;
+            .ok_or_else(|| Error::NotFound(home.path().to_path_buf()))?;
 
         transport::local::register(storage.clone());
 
         Ok(Profile {
-            paths,
+            home,
             storage,
             keystore,
             public_key,
@@ -127,31 +124,31 @@ impl Profile {
 
     /// Return the path to the keys folder.
     pub fn keys(&self) -> PathBuf {
-        self.paths.keys()
+        self.home.keys()
     }
 
     /// Get the profile home directory.
     pub fn home(&self) -> &Path {
-        self.paths.home()
+        self.home.path()
     }
 
     /// Get the path to the radicle node socket.
     pub fn socket(&self) -> PathBuf {
-        self.paths.socket()
+        self.home.socket()
     }
 
     /// Get `Paths` of profile
-    pub fn paths(&self) -> &Paths {
-        &self.paths
+    pub fn paths(&self) -> &Home {
+        &self.home
     }
 }
 
 /// Get the path to the radicle home folder.
-pub fn home() -> Result<PathBuf, io::Error> {
+pub fn home() -> Result<Home, io::Error> {
     if let Some(home) = env::var_os(env::RAD_HOME) {
-        Ok(PathBuf::from(home))
+        Ok(Home::new(PathBuf::from(home)))
     } else if let Some(home) = env::var_os("HOME") {
-        Ok(PathBuf::from(home).join(".radicle"))
+        Ok(Home::new(PathBuf::from(home).join(".radicle")))
     } else {
         Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -160,12 +157,19 @@ pub fn home() -> Result<PathBuf, io::Error> {
     }
 }
 
+/// Radicle home.
 #[derive(Debug, Clone)]
-pub struct Paths {
-    home: PathBuf,
+pub struct Home {
+    path: PathBuf,
 }
 
-impl Paths {
+impl From<PathBuf> for Home {
+    fn from(path: PathBuf) -> Self {
+        Self { path }
+    }
+}
+
+impl Home {
     pub fn init(home: impl Into<PathBuf>) -> Result<Self, io::Error> {
         let paths = Self::new(home);
         fs::create_dir_all(paths.node()).ok();
@@ -174,23 +178,23 @@ impl Paths {
     }
 
     pub fn new(home: impl Into<PathBuf>) -> Self {
-        Self { home: home.into() }
+        Self { path: home.into() }
     }
 
-    pub fn home(&self) -> &Path {
-        self.home.as_path()
+    pub fn path(&self) -> &Path {
+        self.path.as_path()
     }
 
     pub fn storage(&self) -> PathBuf {
-        self.home.join("storage")
+        self.path.join("storage")
     }
 
     pub fn keys(&self) -> PathBuf {
-        self.home.join("keys")
+        self.path.join("keys")
     }
 
     pub fn node(&self) -> PathBuf {
-        self.home.join("node")
+        self.path.join("node")
     }
 
     pub fn socket(&self) -> PathBuf {
