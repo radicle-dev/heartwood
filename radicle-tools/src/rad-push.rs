@@ -16,7 +16,7 @@ fn main() -> anyhow::Result<()> {
     let sigrefs = project.sign_refs(&signer)?;
     let head = project.set_head()?;
 
-    radicle::node::connect(profile.node())?.announce_refs(id)?;
+    radicle::node::connect(profile.socket())?.announce_refs(id)?;
 
     println!("head: {}", head);
     println!("ok: {}", sigrefs.signature);

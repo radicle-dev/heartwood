@@ -16,7 +16,7 @@ fn test(
     let base = Path::new(env!("CARGO_MANIFEST_DIR"));
     let tmp = tempfile::tempdir().unwrap();
     let home = if let Some(profile) = profile {
-        profile.home.as_path().to_path_buf()
+        profile.home().to_path_buf()
     } else {
         tmp.path().to_path_buf()
     };

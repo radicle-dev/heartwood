@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
 
     if let Some(id) = env::args().nth(1) {
         let id = Id::from_str(&id)?;
-        let mut node = radicle::node::connect(profile.node())?;
+        let mut node = radicle::node::connect(profile.socket())?;
         let repo = radicle::rad::clone(id, &cwd, &signer, &profile.storage, &mut node)?;
 
         println!(

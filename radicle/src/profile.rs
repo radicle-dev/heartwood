@@ -59,7 +59,7 @@ pub enum Error {
 
 #[derive(Debug, Clone)]
 pub struct Profile {
-    pub home: PathBuf,
+    pub paths: Paths,
     pub storage: Storage,
     pub keystore: Keystore,
     pub public_key: PublicKey,
@@ -68,19 +68,15 @@ pub struct Profile {
 impl Profile {
     pub fn init(home: impl AsRef<Path>, passphrase: impl Into<Passphrase>) -> Result<Self, Error> {
         let home = home.as_ref().to_path_buf();
-        let paths = Paths {
-            home: home.as_path(),
-        };
+        let paths = Paths::init(home.as_path())?;
         let storage = Storage::open(paths.storage())?;
         let keystore = Keystore::new(&paths.keys());
         let public_key = keystore.init("radicle", passphrase)?;
 
-        fs::create_dir_all(paths.node()).ok();
-
         transport::local::register(storage.clone());
 
         Ok(Profile {
-            home,
+            paths,
             storage,
             keystore,
             public_key,
@@ -89,16 +85,17 @@ impl Profile {
 
     pub fn load() -> Result<Self, Error> {
         let home = self::home()?;
-        let storage = Storage::open(home.join("storage"))?;
-        let keystore = Keystore::new(&home.join("keys"));
+        let paths = Paths::new(home);
+        let storage = Storage::open(paths.storage())?;
+        let keystore = Keystore::new(&paths.keys());
         let public_key = keystore
             .public_key()?
-            .ok_or_else(|| Error::NotFound(home.clone()))?;
+            .ok_or_else(|| Error::NotFound(paths.home.clone()))?;
 
         transport::local::register(storage.clone());
 
         Ok(Profile {
-            home,
+            paths,
             storage,
             keystore,
             public_key,
@@ -130,19 +127,22 @@ impl Profile {
 
     /// Return the path to the keys folder.
     pub fn keys(&self) -> PathBuf {
-        self.home.join("keys")
+        self.paths.keys()
+    }
+
+    /// Get the profile home directory.
+    pub fn home(&self) -> &Path {
+        self.paths.home()
     }
 
     /// Get the path to the radicle node socket.
-    pub fn node(&self) -> PathBuf {
-        env::var_os(env::RAD_SOCKET)
-            .map(PathBuf::from)
-            .unwrap_or_else(|| self.home.join("node").join(node::DEFAULT_SOCKET_NAME))
+    pub fn socket(&self) -> PathBuf {
+        self.paths.socket()
     }
 
     /// Get `Paths` of profile
-    pub fn paths(&self) -> Paths {
-        Paths { home: &self.home }
+    pub fn paths(&self) -> &Paths {
+        &self.paths
     }
 }
 
@@ -161,13 +161,24 @@ pub fn home() -> Result<PathBuf, io::Error> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Paths<'a> {
-    home: &'a Path,
+pub struct Paths {
+    home: PathBuf,
 }
 
-impl<'a> Paths<'a> {
-    pub fn new(home: &'a Path) -> Self {
-        Self { home }
+impl Paths {
+    pub fn init(home: impl Into<PathBuf>) -> Result<Self, io::Error> {
+        let paths = Self::new(home);
+        fs::create_dir_all(paths.node()).ok();
+
+        Ok(paths)
+    }
+
+    pub fn new(home: impl Into<PathBuf>) -> Self {
+        Self { home: home.into() }
+    }
+
+    pub fn home(&self) -> &Path {
+        self.home.as_path()
     }
 
     pub fn storage(&self) -> PathBuf {
@@ -180,5 +191,11 @@ impl<'a> Paths<'a> {
 
     pub fn node(&self) -> PathBuf {
         self.home.join("node")
+    }
+
+    pub fn socket(&self) -> PathBuf {
+        env::var_os(env::RAD_SOCKET)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| self.node().join(node::DEFAULT_SOCKET_NAME))
     }
 }

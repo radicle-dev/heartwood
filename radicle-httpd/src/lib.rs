@@ -51,7 +51,7 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
     tracing::info!("{}", str::from_utf8(&git_version)?.trim());
 
     let profile = Arc::new(radicle::Profile::load()?);
-    tracing::info!("using radicle home at {}", profile.home.display());
+    tracing::info!("using radicle home at {}", profile.home().display());
 
     let git_router = Router::new()
         .route("/:project/*request", any(git_handler))

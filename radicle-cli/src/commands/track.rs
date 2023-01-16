@@ -94,7 +94,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let (_, rid) = radicle::rad::cwd().context("this command must be run within a project")?;
     let project = storage.repository(rid)?.project_of(profile.id())?;
-    let mut node = radicle::node::connect(profile.node())?;
+    let mut node = radicle::node::connect(profile.socket())?;
 
     term::info!(
         "Establishing 🌱 tracking relationship for {}",

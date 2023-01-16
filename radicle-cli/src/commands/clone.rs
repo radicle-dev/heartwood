@@ -80,7 +80,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 pub fn clone(id: Id, _interactive: Interactive, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let mut node = radicle::node::connect(profile.node())?;
+    let mut node = radicle::node::connect(profile.socket())?;
     let signer = term::signer(&profile)?;
 
     // Track & fetch project.

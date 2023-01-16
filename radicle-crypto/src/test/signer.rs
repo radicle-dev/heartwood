@@ -71,3 +71,28 @@ impl Signer for MockSigner {
         Ok(self.sign(msg))
     }
 }
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::EcSk for MockSigner {
+    type Pk = PublicKey;
+
+    fn generate_keypair() -> (Self, Self::Pk)
+    where
+        Self: Sized,
+    {
+        unimplemented! {}
+    }
+
+    fn to_pk(&self) -> Result<Self::Pk, cyphernet::EcSkInvalid> {
+        Ok(*self.public_key())
+    }
+}
+
+#[cfg(feature = "cyphernet")]
+impl cyphernet::EcSign for MockSigner {
+    type Sig = Signature;
+
+    fn sign(&self, msg: impl AsRef<[u8]>) -> Self::Sig {
+        Signer::sign(self, msg.as_ref())
+    }
+}

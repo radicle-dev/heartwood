@@ -5,13 +5,13 @@ use std::{
     time::Duration,
 };
 
-use radicle::crypto::ssh::keystore::MemorySigner;
+use radicle::crypto::test::signer::MockSigner;
 use radicle::git::refname;
 use radicle::identity::Id;
 use radicle::node::Handle;
+use radicle::profile::Paths;
 use radicle::storage::WriteStorage;
 use radicle::test::fixtures;
-use radicle::Profile;
 use radicle::Storage;
 use radicle::{assert_matches, rad};
 
@@ -27,8 +27,8 @@ use crate::{client, client::Runtime, service};
 struct Node {
     id: NodeId,
     addr: net::SocketAddr,
-    handle: client::handle::Handle<Wire<routing::Table, address::Book, Storage, MemorySigner>>,
-    signer: MemorySigner,
+    handle: client::handle::Handle<Wire<routing::Table, address::Book, Storage, MockSigner>>,
+    signer: MockSigner,
     storage: Storage,
     #[allow(dead_code)]
     thread: thread::JoinHandle<Result<(), client::Error>>,
@@ -42,15 +42,12 @@ impl Node {
                 .take(8)
                 .collect::<String>(),
         );
-
-        let profile = Profile::init(home.as_path(), "pasphrase".to_owned()).unwrap();
-        let signer = MemorySigner::load(&profile.keystore, "pasphrase".to_owned().into()).unwrap();
+        let paths = Paths::init(home).unwrap();
+        let signer = MockSigner::default();
         let listen = vec![([0, 0, 0, 0], 0).into()];
         let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
-        let storage = profile.storage.clone();
-
-        let rt = Runtime::with(profile, config, listen, proxy, signer.clone()).unwrap();
-
+        let storage = Storage::open(paths.storage()).unwrap();
+        let rt = Runtime::with(paths, config, listen, proxy, signer.clone()).unwrap();
         let addr = *rt.local_addrs.first().unwrap();
         let id = rt.id;
         let handle = rt.handle.clone();

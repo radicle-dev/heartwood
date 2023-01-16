@@ -1,8 +1,9 @@
-use std::io;
-use std::{net, thread, time};
+use std::{io, net, thread, time};
 
 use cyphernet::{Cert, EcSign};
 use netservices::resource::NetAccept;
+use radicle::profile::Paths;
+use radicle::Storage;
 use reactor::poller::popol;
 use reactor::Reactor;
 use thiserror::Error;
@@ -14,7 +15,7 @@ use crate::node::NodeId;
 use crate::service::{routing, tracking};
 use crate::wire::Wire;
 use crate::worker::{WorkerPool, WorkerReq};
-use crate::{crypto, profile, service, LocalTime};
+use crate::{crypto, service, LocalTime};
 
 pub mod handle;
 use handle::Handle;
@@ -66,19 +67,19 @@ impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static>
     ///
     /// This function spawns threads.
     pub fn with(
-        profile: profile::Profile,
+        paths: Paths,
         config: service::Config,
         listen: Vec<net::SocketAddr>,
         proxy: net::SocketAddr,
         signer: G,
     ) -> Result<Runtime<G>, Error> {
-        let id = *profile.id();
-        let node = profile.node();
+        let id = *signer.public_key();
+        let node_sock = paths.socket();
+        let node_dir = paths.node();
         let network = config.network;
         let rng = fastrand::Rng::new();
         let clock = LocalTime::now();
-        let storage = profile.storage;
-        let node_dir = profile.home.join(NODE_DIR);
+        let storage = Storage::open(paths.storage())?;
         let address_db = node_dir.join(ADDRESS_DB_FILE);
         let routing_db = node_dir.join(ROUTING_DB_FILE);
         let tracking_db = node_dir.join(TRACKING_DB_FILE);
@@ -122,7 +123,7 @@ impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static>
         let handle = Handle::from(reactor.controller());
         let control = thread::spawn({
             let handle = handle.clone();
-            move || control::listen(node, handle)
+            move || control::listen(node_sock, handle)
         });
         let controller = reactor.controller();
         let mut local_addrs = Vec::new();

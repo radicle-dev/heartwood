@@ -108,7 +108,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                         // Connect to local node and announce refs to the network.
                         // If our node is not running, we simply skip this step, as the
                         // refs will be announced eventually, when the node restarts.
-                        if let Ok(mut conn) = radicle::node::connect(profile.node()) {
+                        if let Ok(mut conn) = radicle::node::connect(profile.socket()) {
                             conn.announce_refs(url.repo)?;
                         }
                     }

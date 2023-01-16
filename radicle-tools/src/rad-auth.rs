@@ -9,7 +9,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     println!("id: {}", profile.id());
-    println!("home: {}", profile.home.display());
+    println!("home: {}", profile.home().display());
 
     Ok(())
 }
