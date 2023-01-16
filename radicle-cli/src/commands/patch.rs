@@ -4,6 +4,8 @@ mod common;
 mod create;
 #[path = "patch/list.rs"]
 mod list;
+#[path = "patch/show.rs"]
+mod show;
 
 use std::ffi::OsString;
 use std::str::FromStr;
@@ -50,9 +52,19 @@ pub enum OptPatch {
     Patch(PatchId),
 }
 
+impl From<OptPatch> for Option<PatchId> {
+    fn from(opt: OptPatch) -> Self {
+        match opt {
+            OptPatch::Patch(patch_id) => Some(patch_id),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Default, PartialEq, Eq)]
 pub enum OperationName {
     Open,
+    Show,
     Update,
     #[default]
     List,
@@ -62,6 +74,9 @@ pub enum OperationName {
 pub enum Operation {
     Open {
         message: Comment,
+    },
+    Show {
+        patch_id: PatchId,
     },
     Update {
         patch_id: OptPatch,
@@ -79,6 +94,14 @@ pub struct Options {
     pub verbose: bool,
 }
 
+fn parse_patch_id(val: OsString) -> Result<OptPatch, anyhow::Error> {
+    let val = val
+        .to_str()
+        .ok_or_else(|| anyhow!("patch id specified is not UTF-8"))?;
+    let patch_id = PatchId::from_str(val).map_err(|_| anyhow!("invalid patch id '{}'", val))?;
+    Ok(OptPatch::Patch(patch_id))
+}
+
 impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
         use lexopt::prelude::*;
@@ -88,7 +111,7 @@ impl Args for Options {
         let mut op: Option<OperationName> = None;
         let mut verbose = false;
         let mut sync = true;
-        let mut id = OptPatch::default();
+        let mut patch_id = OptPatch::default();
         let mut message = Comment::default();
         let mut push = true;
 
@@ -137,19 +160,16 @@ impl Args for Options {
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "l" | "list" => op = Some(OperationName::List),
                     "o" | "open" => op = Some(OperationName::Open),
+                    "s" | "show" => op = Some(OperationName::Show),
                     "u" | "update" => op = Some(OperationName::Update),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
-                Value(val) if op == Some(OperationName::Update) && id == OptPatch::Any => {
-                    let val = val
-                        .to_str()
-                        .ok_or_else(|| anyhow!("patch id specified is not UTF-8"))?;
-
-                    id = OptPatch::Patch(
-                        PatchId::from_str(val)
-                            .map_err(|_| anyhow!("invalid patch id '{}'", val))?,
-                    );
+                Value(val) if op == Some(OperationName::Show) && patch_id == OptPatch::Any => {
+                    patch_id = parse_patch_id(val)?;
+                }
+                Value(val) if op == Some(OperationName::Update) && patch_id == OptPatch::Any => {
+                    patch_id = parse_patch_id(val)?;
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
@@ -158,10 +178,11 @@ impl Args for Options {
         let op = match op.unwrap_or_default() {
             OperationName::Open => Operation::Open { message },
             OperationName::List => Operation::List,
-            OperationName::Update => Operation::Update {
-                patch_id: id,
-                message,
+            OperationName::Show => Operation::Show {
+                patch_id: Option::from(patch_id)
+                    .ok_or_else(|| anyhow!("a patch id must be provided"))?,
             },
+            OperationName::Update => Operation::Update { patch_id, message },
         };
 
         Ok((
@@ -197,6 +218,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::List => {
             list::run(&storage, &profile, Some(workdir), options)?;
+        }
+        Operation::Show { ref patch_id } => {
+            show::run(&storage, &profile, &workdir, patch_id)?;
         }
         Operation::Update {
             ref patch_id,

@@ -62,4 +62,16 @@ define power requirements b9bb418c6f5 R0 9dad201 (flux-capacitor-power) ahead 1,
 
 Nothing to show.
 
+$ rad patch show b9bb418c6f504ee91e54c555bdc8fc37b4d9b28b
+
+patch b9bb418c6f504ee91e54c555bdc8fc37b4d9b28b
+
+╭─ define power requirements ───────
+
+No description provided.
+
+╰───────────────────────────────────
+
+9dad201 Define power requirements
+
 ```

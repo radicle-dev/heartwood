@@ -238,23 +238,8 @@ pub fn run(
         anyhow::bail!("a title must be given");
     }
 
-    let title_pretty = &term::format::dim(format!("╭─ {} ───────", title));
-
     term::blank();
-    term::print(title_pretty);
-    term::blank();
-
-    if description.is_empty() {
-        term::print(term::format::italic("No description provided."));
-    } else {
-        term::markdown(&description);
-    }
-
-    term::blank();
-    term::print(term::format::dim(format!(
-        "╰{}",
-        "─".repeat(term::text_width(title_pretty) - 1)
-    )));
+    term::patch::print_title_desc(title, &description);
     term::blank();
 
     if !confirm("Create patch?", &options) {
