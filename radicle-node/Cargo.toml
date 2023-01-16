@@ -16,7 +16,7 @@ byteorder = { version = "1" }
 chrono = { version = "0.4.0" }
 colored = { version = "1.9.0" }
 crossbeam-channel = { version = "0.5.6" }
-cyphernet = { version = "0", features = ["tor", "dns", "ed25519"] }
+cyphernet = { version = "0.1.0", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
 fastrand = { version = "1.8.0" }
 git-ref-format = { version = "0", features = ["serde", "macro"] }
 lexopt = { version = "0.2.1" }
