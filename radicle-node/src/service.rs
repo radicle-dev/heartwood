@@ -65,6 +65,8 @@ pub const KEEP_ALIVE_DELTA: LocalDuration = LocalDuration::from_secs(30);
 pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Maximum attempts to connect to a peer before we give up.
 pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
+/// How far back from the present time should we request gossip messages when connecting to a peer.
+pub const SUBSCRIBE_BACKLOG_DELTA: LocalDuration = LocalDuration::from_mins(60);
 
 /// Maximum external address limit imposed by message size limits.
 pub use message::ADDRESS_LIMIT;
@@ -1287,7 +1289,7 @@ mod gossip {
     }
 
     pub fn handshake<G: Signer, S: ReadStorage>(
-        timestamp: Timestamp,
+        now: Timestamp,
         storage: &S,
         signer: &G,
         filter: Filter,
@@ -1305,10 +1307,14 @@ mod gossip {
 
         let mut msgs = vec![
             Message::init(),
-            Message::inventory(gossip::inventory(timestamp, inventory), signer),
-            Message::subscribe(filter, timestamp, Timestamp::MAX),
+            Message::inventory(gossip::inventory(now, inventory), signer),
+            Message::subscribe(
+                filter,
+                now - SUBSCRIBE_BACKLOG_DELTA.as_secs(),
+                Timestamp::MAX,
+            ),
         ];
-        if let Some(m) = gossip::node(timestamp, config) {
+        if let Some(m) = gossip::node(now, config) {
             msgs.push(Message::node(m, signer));
         };
 
