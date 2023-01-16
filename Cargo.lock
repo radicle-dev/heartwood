@@ -2158,18 +2158,14 @@ name = "radicle"
 version = "0.2.0"
 dependencies = [
  "amplify",
- "base64",
- "byteorder",
  "crossbeam-channel",
  "cyphernet",
- "ed25519-compact",
  "fastrand",
  "git-ref-format",
  "git2",
  "log",
  "multibase",
  "nonempty 0.8.1",
- "num-traits",
  "olpc-cjson",
  "once_cell",
  "pretty_assertions",
@@ -2186,7 +2182,6 @@ dependencies = [
  "sqlite",
  "tempfile",
  "thiserror",
- "zeroize",
 ]
 
 [[package]]
