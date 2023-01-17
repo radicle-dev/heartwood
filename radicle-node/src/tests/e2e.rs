@@ -294,23 +294,24 @@ fn test_replication() {
     assert_eq!(updated, vec![]);
 
     let inventory = alice.handle.inventory().unwrap();
+    let alice_refs = alice
+        .storage
+        .repository(acme)
+        .unwrap()
+        .remotes()
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect::<Vec<_>>();
+    let bob_refs = bob
+        .storage
+        .repository(acme)
+        .unwrap()
+        .remotes()
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect::<Vec<_>>();
+
     assert_eq!(inventory.try_iter().next(), Some(acme));
-    assert_eq!(
-        alice
-            .storage
-            .repository(acme)
-            .unwrap()
-            .remotes()
-            .unwrap()
-            .map(|r| r.unwrap())
-            .collect::<Vec<_>>(),
-        bob.storage
-            .repository(acme)
-            .unwrap()
-            .remotes()
-            .unwrap()
-            .map(|r| r.unwrap())
-            .collect::<Vec<_>>(),
-    );
+    assert_eq!(alice_refs, bob_refs);
     assert_matches!(alice.storage.repository(acme).unwrap().verify(), Ok(()));
 }
