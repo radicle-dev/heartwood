@@ -10,7 +10,7 @@ use radicle::git::refname;
 use radicle::identity::Id;
 use radicle::node::Handle;
 use radicle::profile::Home;
-use radicle::storage::WriteStorage;
+use radicle::storage::{ReadStorage, WriteStorage};
 use radicle::test::fixtures;
 use radicle::Storage;
 use radicle::{assert_matches, rad};
@@ -126,10 +126,10 @@ fn check<'a>(nodes: impl IntoIterator<Item = &'a Node>) -> BTreeSet<(Id, NodeId)
 
     // First build the set of all routes.
     for node in &nodes {
-        let routing = node.handle.routing().unwrap();
+        let inv = node.storage.inventory().unwrap();
 
-        for (rid, seed) in routing.try_iter() {
-            all_routes.insert((rid, seed));
+        for rid in inv {
+            all_routes.insert((rid, node.id));
         }
     }
 
