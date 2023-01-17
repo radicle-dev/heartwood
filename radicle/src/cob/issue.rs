@@ -289,12 +289,19 @@ impl<'a, 'g> IssueMut<'a, 'g> {
     }
 
     /// Comment on an issue.
+    ///
+    /// By default, comments are replies to the root of the thread.
     pub fn comment<G: Signer, S: ToString>(
         &mut self,
         body: S,
-        reply_to: CommentId,
+        reply_to: Option<CommentId>,
         signer: &G,
     ) -> Result<CommentId, Error> {
+        let reply_to = reply_to.unwrap_or_else(|| {
+            let author = self.author().expect("author always present");
+            OpId::root(author.id)
+        });
+
         assert!(self.thread.comment(&reply_to).is_some());
         self.transaction("Comment", signer, |tx| tx.comment(body, reply_to))
     }
@@ -631,8 +638,8 @@ mod test {
             .unwrap();
         let root = OpId::root(author);
 
-        let c1 = issue.comment("Hi hi hi.", root, &signer).unwrap();
-        let c2 = issue.comment("Ha ha ha.", root, &signer).unwrap();
+        let c1 = issue.comment("Hi hi hi.", None, &signer).unwrap();
+        let c2 = issue.comment("Ha ha ha.", None, &signer).unwrap();
 
         let id = issue.id;
         let mut issue = issues.get_mut(&id).unwrap();
@@ -642,10 +649,10 @@ mod test {
         assert_eq!(reply1.body(), "Hi hi hi.");
         assert_eq!(reply2.body(), "Ha ha ha.");
 
-        issue.comment("Re: Hi.", c1, &signer).unwrap();
-        issue.comment("Re: Ha.", c2, &signer).unwrap();
-        issue.comment("Re: Ha. Ha.", c2, &signer).unwrap();
-        issue.comment("Re: Ha. Ha. Ha.", c2, &signer).unwrap();
+        issue.comment("Re: Hi.", Some(c1), &signer).unwrap();
+        issue.comment("Re: Ha.", Some(c2), &signer).unwrap();
+        issue.comment("Re: Ha. Ha.", Some(c2), &signer).unwrap();
+        issue.comment("Re: Ha. Ha. Ha.", Some(c2), &signer).unwrap();
 
         let issue = issues.get(&id).unwrap().unwrap();
         assert_eq!(issue.replies(&c1).nth(0).unwrap().1.body(), "Re: Hi.");
@@ -690,11 +697,8 @@ mod test {
             .create("My first issue", "Blah blah blah.", &[], &signer)
             .unwrap();
 
-        // The root thread op id is always the same.
-        let c0 = OpId::root(author);
-
-        issue.comment("Ho ho ho.", c0, &signer).unwrap();
-        issue.comment("Ha ha ha.", c0, &signer).unwrap();
+        issue.comment("Ho ho ho.", None, &signer).unwrap();
+        issue.comment("Ha ha ha.", None, &signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
