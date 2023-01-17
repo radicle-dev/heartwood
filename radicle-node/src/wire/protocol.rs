@@ -203,7 +203,9 @@ where
         proxy: net::SocketAddr,
         clock: LocalTime,
     ) -> Self {
-        service.initialize(clock);
+        service
+            .initialize(clock)
+            .expect("Wire::new: error initializing service");
 
         Self {
             service,

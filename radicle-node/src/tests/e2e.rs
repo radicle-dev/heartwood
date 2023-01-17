@@ -6,6 +6,7 @@ use std::{
 };
 
 use radicle::crypto::test::signer::MockSigner;
+use radicle::crypto::Signer;
 use radicle::git::refname;
 use radicle::identity::Id;
 use radicle::node::Handle;
@@ -23,51 +24,26 @@ use crate::test::logger;
 use crate::wire::Wire;
 use crate::{client, client::Runtime, service};
 
-/// Represents a running node.
+/// A node that can be run.
 struct Node {
-    id: NodeId,
-    addr: net::SocketAddr,
-    handle: client::handle::Handle<Wire<routing::Table, address::Book, Storage, MockSigner>>,
+    home: Home,
     signer: MockSigner,
     storage: Storage,
-    #[allow(dead_code)]
-    thread: thread::JoinHandle<Result<(), client::Error>>,
 }
 
-impl Node {
-    /// Spawn a node in its own thread.
-    fn spawn(base: &Path, config: service::Config) -> Self {
-        let home = base.join(
-            iter::repeat_with(fastrand::alphanumeric)
-                .take(8)
-                .collect::<String>(),
-        );
-        let paths = Home::init(home).unwrap();
-        let signer = MockSigner::default();
-        let listen = vec![([0, 0, 0, 0], 0).into()];
-        let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
-        let storage = Storage::open(paths.storage()).unwrap();
-        let rt = Runtime::with(paths, config, listen, proxy, signer.clone()).unwrap();
-        let addr = *rt.local_addrs.first().unwrap();
-        let id = rt.id;
-        let handle = rt.handle.clone();
-        let thread = thread::Builder::new()
-            .name(id.to_string())
-            .spawn(|| rt.run())
-            .unwrap();
+/// Handle to a running node.
+struct NodeHandle {
+    id: NodeId,
+    storage: Storage,
+    addr: net::SocketAddr,
+    #[allow(dead_code)]
+    thread: thread::JoinHandle<Result<(), client::Error>>,
+    handle: client::handle::Handle<Wire<routing::Table, address::Book, Storage, MockSigner>>,
+}
 
-        Self {
-            id,
-            addr,
-            handle,
-            signer,
-            storage,
-            thread,
-        }
-    }
-
+impl NodeHandle {
     /// Connect this node to another node, and wait for the connection to be established both ways.
-    fn connect(&mut self, remote: &Node) {
+    fn connect(&mut self, remote: &NodeHandle) {
         self.handle.connect(remote.id, remote.addr.into()).unwrap();
 
         loop {
@@ -84,9 +60,52 @@ impl Node {
                 .collect::<BTreeSet<_>>();
 
             if local_sessions.contains(&remote.id) && remote_sessions.contains(&self.id) {
+                log::debug!(target: "test", "Connection between {} and {} established", self.id, remote.id);
                 break;
             }
             thread::sleep(Duration::from_millis(100));
+        }
+    }
+}
+
+impl Node {
+    /// Create a new node.
+    fn new(base: &Path) -> Self {
+        let home = base.join(
+            iter::repeat_with(fastrand::alphanumeric)
+                .take(8)
+                .collect::<String>(),
+        );
+        let home = Home::init(home).unwrap();
+        let signer = MockSigner::default();
+        let storage = Storage::open(home.storage()).unwrap();
+
+        Self {
+            home,
+            signer,
+            storage,
+        }
+    }
+
+    /// Spawn a node in its own thread.
+    fn spawn(self, config: service::Config) -> NodeHandle {
+        let listen = vec![([0, 0, 0, 0], 0).into()];
+        let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
+        let rt = Runtime::with(self.home, config, listen, proxy, self.signer.clone()).unwrap();
+        let handle = rt.handle.clone();
+        let addr = *rt.local_addrs.first().unwrap();
+        let id = *self.signer.public_key();
+        let thread = thread::Builder::new()
+            .name(id.to_string())
+            .spawn(move || rt.run())
+            .unwrap();
+
+        NodeHandle {
+            id,
+            storage: self.storage,
+            addr,
+            handle,
+            thread,
         }
     }
 
@@ -110,7 +129,10 @@ impl Node {
         .map(|(id, _, _)| id)
         .unwrap();
 
-        log::debug!(target: "test", "Initialized project {id} for node {}", self.id);
+        log::debug!(
+            target: "test",
+            "Initialized project {id} for node {}", self.signer.public_key()
+        );
 
         id
     }
@@ -118,7 +140,7 @@ impl Node {
 
 /// Checks whether the nodes have converged in their routing tables.
 #[track_caller]
-fn check<'a>(nodes: impl IntoIterator<Item = &'a Node>) -> BTreeSet<(Id, NodeId)> {
+fn check<'a>(nodes: impl IntoIterator<Item = &'a NodeHandle>) -> BTreeSet<(Id, NodeId)> {
     let nodes = nodes.into_iter().collect::<Vec<_>>();
 
     let mut all_routes = BTreeSet::<(Id, NodeId)>::new();
@@ -143,6 +165,8 @@ fn check<'a>(nodes: impl IntoIterator<Item = &'a Node>) -> BTreeSet<(Id, NodeId)
             if routes == all_routes {
                 log::debug!(target: "test", "Node {} has converged", node.id);
                 return false;
+            } else {
+                log::debug!(target: "test", "Node {} has {:?}", node.id, routes);
             }
             true
         });
@@ -160,11 +184,15 @@ fn test_inventory_sync_basic() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::spawn(tmp.path(), service::Config::default());
-    let mut bob = Node::spawn(tmp.path(), service::Config::default());
+    let mut alice = Node::new(tmp.path());
+    let mut bob = Node::new(tmp.path());
 
     alice.project("alice");
     bob.project("bob");
+
+    let mut alice = alice.spawn(service::Config::default());
+    let bob = bob.spawn(service::Config::default());
+
     alice.connect(&bob);
 
     let routes = check([&alice, &bob]);
@@ -180,13 +208,17 @@ fn test_inventory_sync_bridge() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::spawn(tmp.path(), service::Config::default());
-    let mut bob = Node::spawn(tmp.path(), service::Config::default());
-    let mut eve = Node::spawn(tmp.path(), service::Config::default());
+    let mut alice = Node::new(tmp.path());
+    let mut bob = Node::new(tmp.path());
+    let mut eve = Node::new(tmp.path());
 
     alice.project("alice");
     bob.project("bob");
     eve.project("eve");
+
+    let mut alice = alice.spawn(service::Config::default());
+    let mut bob = bob.spawn(service::Config::default());
+    let eve = eve.spawn(service::Config::default());
 
     alice.connect(&bob);
     bob.connect(&eve);
@@ -206,15 +238,20 @@ fn test_inventory_sync_ring() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::spawn(tmp.path(), service::Config::default());
-    let mut bob = Node::spawn(tmp.path(), service::Config::default());
-    let mut eve = Node::spawn(tmp.path(), service::Config::default());
-    let mut carol = Node::spawn(tmp.path(), service::Config::default());
+    let mut alice = Node::new(tmp.path());
+    let mut bob = Node::new(tmp.path());
+    let mut eve = Node::new(tmp.path());
+    let mut carol = Node::new(tmp.path());
 
     alice.project("alice");
     bob.project("bob");
     eve.project("eve");
     carol.project("carol");
+
+    let mut alice = alice.spawn(service::Config::default());
+    let mut bob = bob.spawn(service::Config::default());
+    let mut eve = eve.spawn(service::Config::default());
+    let mut carol = carol.spawn(service::Config::default());
 
     alice.connect(&bob);
     bob.connect(&eve);
@@ -238,17 +275,23 @@ fn test_inventory_sync_star() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::spawn(tmp.path(), service::Config::default());
-    let mut bob = Node::spawn(tmp.path(), service::Config::default());
-    let mut eve = Node::spawn(tmp.path(), service::Config::default());
-    let mut carol = Node::spawn(tmp.path(), service::Config::default());
-    let mut dave = Node::spawn(tmp.path(), service::Config::default());
+    let mut alice = Node::new(tmp.path());
+    let mut bob = Node::new(tmp.path());
+    let mut eve = Node::new(tmp.path());
+    let mut carol = Node::new(tmp.path());
+    let mut dave = Node::new(tmp.path());
 
     alice.project("alice");
     bob.project("bob");
     eve.project("eve");
     carol.project("carol");
     dave.project("dave");
+
+    let alice = alice.spawn(service::Config::default());
+    let mut bob = bob.spawn(service::Config::default());
+    let mut eve = eve.spawn(service::Config::default());
+    let mut carol = carol.spawn(service::Config::default());
+    let mut dave = dave.spawn(service::Config::default());
 
     bob.connect(&alice);
     eve.connect(&alice);
@@ -265,9 +308,12 @@ fn test_replication() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::spawn(tmp.path(), service::Config::default());
-    let mut bob = Node::spawn(tmp.path(), service::Config::default());
+    let alice = Node::new(tmp.path());
+    let mut bob = Node::new(tmp.path());
     let acme = bob.project("acme");
+
+    let mut alice = alice.spawn(service::Config::default());
+    let bob = bob.spawn(service::Config::default());
 
     alice.connect(&bob);
     check([&alice, &bob]);

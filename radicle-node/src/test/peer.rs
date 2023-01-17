@@ -144,7 +144,7 @@ where
             info!("{}: Initializing: address = {}", self.name, self.ip);
 
             self.initialized = true;
-            self.service.initialize(LocalTime::now());
+            self.service.initialize(LocalTime::now()).unwrap();
         }
     }
 

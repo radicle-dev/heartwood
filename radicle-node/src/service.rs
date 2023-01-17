@@ -378,8 +378,8 @@ where
         })
     }
 
-    pub fn initialize(&mut self, time: LocalTime) {
-        trace!("Init {}", time.as_secs());
+    pub fn initialize(&mut self, time: LocalTime) -> Result<(), Error> {
+        debug!("Init @{}", time.as_secs());
 
         self.start_time = time;
 
@@ -388,6 +388,11 @@ where
         for (id, addr) in addrs {
             self.reactor.connect(id, addr);
         }
+        // Ensure that our inventory is recorded in our routing table.
+        for id in self.storage.inventory()? {
+            self.routing.insert(id, self.node_id(), time.as_secs())?;
+        }
+        Ok(())
     }
 
     pub fn tick(&mut self, now: nakamoto::LocalTime) {
@@ -658,6 +663,11 @@ where
             message,
             ..
         } = announcement;
+
+        // Ignore our own announcements, in case the relayer sent one by mistake.
+        if *announcer == self.node_id() {
+            return Ok(false);
+        }
         let now = self.clock;
         let timestamp = message.timestamp();
         let relay = self.config.relay;
@@ -884,11 +894,14 @@ where
                 }
             }
             (session::State::Connected { .. }, Message::Subscribe(subscribe)) => {
-                for msg in self
+                for ann in self
                     .gossip
+                    // Filter announcements by interest.
                     .filtered(&subscribe.filter, subscribe.since, subscribe.until)
+                    // Don't send announcements authored by the remote, back to the remote.
+                    .filter(|ann| &ann.node != remote)
                 {
-                    self.reactor.write(peer.id, msg);
+                    self.reactor.write(peer.id, ann.into());
                 }
                 peer.subscribe = Some(subscribe);
             }
@@ -937,13 +950,17 @@ where
         let mut included = HashSet::new();
         for proj_id in inventory {
             included.insert(proj_id);
-            if self.routing.insert(*proj_id, from, *timestamp)?
-                && self
+            if self.routing.insert(*proj_id, from, *timestamp)? {
+                log::info!("Routing table updated for {proj_id} with seed {from}");
+
+                if self
                     .tracking
                     .is_repo_tracked(proj_id)
                     .expect("Service::process_inventory: error accessing tracking configuration")
-            {
-                log::info!("Routing table updated for {} with seed {}", proj_id, from);
+                {
+                    // TODO: We should fetch here if we're already connected, case this seed has
+                    // refs we don't have.
+                }
             }
         }
         for id in self.routing.get_resources(&from)?.into_iter() {
@@ -1308,13 +1325,13 @@ mod gossip {
             filter: &'a Filter,
             start: Timestamp,
             end: Timestamp,
-        ) -> impl Iterator<Item = Message> + '_ {
+        ) -> impl Iterator<Item = Announcement> + '_ {
             self.received
                 .iter()
                 .filter(move |(t, _)| *t >= start && *t < end)
                 .filter(move |(_, a)| a.matches(filter))
                 .cloned()
-                .map(|(_, a)| a.into())
+                .map(|(_, ann)| ann)
         }
     }
 
