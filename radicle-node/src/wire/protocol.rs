@@ -31,8 +31,11 @@ use crate::worker::{WorkerReq, WorkerResp};
 use crate::Link;
 use crate::{address, service};
 
+/// Peer session type.
 pub type WireSession<G> = CypherSession<G, Sha256>;
+/// Peer session type (read-only).
 pub type WireReader = CypherReader<Sha256>;
+/// Peer session type (write-only).
 pub type WireWriter<G> = CypherWriter<G, Sha256>;
 
 /// Reactor action.
@@ -572,8 +575,8 @@ where
         while let Some(ev) = self.service.next() {
             match ev {
                 Io::Write(node_id, msgs) => {
-                    log::debug!(
-                        target: "transport", "Sending {} message(s) to {}", msgs.len(), node_id
+                    log::trace!(
+                        target: "transport", "Writing {} message(s) to {}", msgs.len(), node_id
                     );
                     let fd = self.connected_fd_by_id(&node_id);
                     let mut data = Vec::new();

@@ -80,9 +80,14 @@ impl Reactor {
 
     pub fn write_all(&mut self, remote: NodeId, msgs: impl IntoIterator<Item = Message>) {
         let msgs = msgs.into_iter().collect::<Vec<_>>();
-        let len = msgs.len();
-        for (no, msg) in msgs.iter().enumerate() {
-            debug!("Write {no}/{len} {:?} message to {}", msg, remote);
+        for (ix, msg) in msgs.iter().enumerate() {
+            debug!(
+                "Write {:?} message to {} ({}/{})",
+                msg,
+                remote,
+                ix + 1,
+                msgs.len()
+            );
         }
         self.io.push_back(Io::Write(remote, msgs));
     }
