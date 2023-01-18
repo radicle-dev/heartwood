@@ -1,9 +1,12 @@
+use std::io::Write;
+use std::os::unix::net::UnixStream;
 use std::sync::Arc;
 
 use crossbeam_channel as chan;
 use thiserror::Error;
 
 use crate::identity::Id;
+use crate::profile::Home;
 use crate::service;
 use crate::service::{CommandError, FetchLookup, QueryState};
 use crate::service::{NodeId, Sessions};
@@ -47,20 +50,22 @@ impl<T> From<chan::SendError<T>> for Error {
 }
 
 pub struct Handle<T: reactor::Handler> {
+    pub(crate) home: Home,
     pub(crate) controller: reactor::Controller<T>,
 }
 
 impl<T: reactor::Handler> Clone for Handle<T> {
     fn clone(&self) -> Self {
         Self {
+            home: self.home.clone(),
             controller: self.controller.clone(),
         }
     }
 }
 
-impl<T: reactor::Handler> From<reactor::Controller<T>> for Handle<T> {
-    fn from(controller: reactor::Controller<T>) -> Handle<T> {
-        Handle { controller }
+impl<T: reactor::Handler> Handle<T> {
+    pub fn new(home: Home, controller: reactor::Controller<T>) -> Self {
+        Self { home, controller }
     }
 }
 
@@ -166,6 +171,13 @@ impl<T: reactor::Handler<Command = service::Command>> radicle::node::Handle for 
     }
 
     fn shutdown(self) -> Result<(), Error> {
+        // Send a shutdown request to our own control socket. This is the only way to kill the
+        // control thread gracefully. Since the control thread may have called this function,
+        // the control socket may already be disconnected. Ignore errors.
+        UnixStream::connect(self.home.socket())
+            .and_then(|mut sock| sock.write_all(b"shutdown"))
+            .ok();
+
         self.controller.shutdown().map_err(|_| Error::NotConnected)
     }
 }

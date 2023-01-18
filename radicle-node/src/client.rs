@@ -112,7 +112,7 @@ impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static>
 
         let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<G>>();
         let pool = WorkerPool::with(
-            10,
+            8,
             time::Duration::from_secs(9),
             storage,
             worker_recv,
@@ -120,7 +120,7 @@ impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static>
         );
         let wire = Wire::new(service, worker_send, cert, signer, proxy, clock);
         let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
-        let handle = Handle::from(reactor.controller());
+        let handle = Handle::new(home, reactor.controller());
         let control = thread::spawn({
             let handle = handle.clone();
             move || control::listen(node_sock, handle)
@@ -129,7 +129,6 @@ impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static>
         let mut local_addrs = Vec::new();
 
         for addr in listen {
-            // TODO: Once the API supports it, we can pass an opaque type here.
             let listener = NetAccept::bind(&addr)?;
             let local_addr = listener.local_addr();
 
@@ -153,8 +152,10 @@ impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static>
         log::info!("Running node {}..", self.id);
 
         self.pool.run().unwrap();
-        self.control.join().unwrap()?;
         self.reactor.join().unwrap();
+        self.control.join().unwrap()?;
+
+        log::debug!("Node shutdown completed for {}", self.id);
 
         Ok(())
     }

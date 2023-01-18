@@ -272,9 +272,9 @@ impl WorkerPool {
     ///
     /// Blocks until all worker threads have exited.
     pub fn run(self) -> thread::Result<()> {
-        for worker in self.pool {
+        for (i, worker) in self.pool.into_iter().enumerate() {
             if let Err(err) = worker.join()? {
-                log::error!(target: "pool", "Worker failed: {err}");
+                log::debug!(target: "pool", "Worker {i} exited: {err}");
             }
         }
         log::debug!(target: "pool", "Worker pool shutting down..");

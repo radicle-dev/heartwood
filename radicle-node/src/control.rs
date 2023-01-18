@@ -47,8 +47,15 @@ pub fn listen<
         match incoming {
             Ok(mut stream) => {
                 if let Err(e) = drain(&stream, &mut handle) {
-                    log::error!("Received {} on control socket", e);
+                    log::debug!("Received {} on control socket", e);
 
+                    if let DrainError::Shutdown = e {
+                        log::debug!("Shutdown requested..");
+                        // Channel might already be disconnected if shutdown
+                        // came from somewhere else. Ignore errors.
+                        handle.shutdown().ok();
+                        break;
+                    }
                     writeln!(stream, "error: {}", e).ok();
 
                     stream.flush().ok();
@@ -57,9 +64,10 @@ pub fn listen<
                     writeln!(stream, "ok").ok();
                 }
             }
-            Err(e) => log::error!("Failed to open control socket stream: {}", e),
+            Err(e) => log::error!("Failed to accept incoming connection: {}", e),
         }
     }
+    log::debug!("Exiting control loop..");
 
     Ok(())
 }
@@ -74,6 +82,8 @@ enum DrainError {
     Client(#[from] client::handle::Error),
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
+    #[error("shutdown requested")]
+    Shutdown,
 }
 
 fn drain<H: Handle<Error = client::handle::Error, FetchLookup = FetchLookup>>(
@@ -199,6 +209,9 @@ fn drain<H: Handle<Error = client::handle::Error, FetchLookup = FetchLookup>>(
                     }
                     Err(e) => return Err(DrainError::Client(e)),
                 },
+                "shutdown" => {
+                    return Err(DrainError::Shutdown);
+                }
                 _ => {
                     return Err(DrainError::UnknownCommand(line));
                 }

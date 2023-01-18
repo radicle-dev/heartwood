@@ -1,3 +1,4 @@
+use std::mem::ManuallyDrop;
 use std::path::Path;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -9,7 +10,7 @@ use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::Signer;
 use radicle::git::refname;
 use radicle::identity::Id;
-use radicle::node::Handle;
+use radicle::node::Handle as _;
 use radicle::profile::Home;
 use radicle::storage::{ReadStorage, WriteStorage};
 use radicle::test::fixtures;
@@ -22,7 +23,7 @@ use crate::service::{routing, FetchLookup, FetchResult};
 use crate::storage::git::transport;
 use crate::test::logger;
 use crate::wire::Wire;
-use crate::{client, client::Runtime, service};
+use crate::{client, client::handle::Handle, client::Runtime, service};
 
 /// A node that can be run.
 struct Node {
@@ -36,9 +37,22 @@ struct NodeHandle {
     id: NodeId,
     storage: Storage,
     addr: net::SocketAddr,
-    #[allow(dead_code)]
-    thread: thread::JoinHandle<Result<(), client::Error>>,
-    handle: client::handle::Handle<Wire<routing::Table, address::Book, Storage, MockSigner>>,
+    thread: ManuallyDrop<thread::JoinHandle<Result<(), client::Error>>>,
+    handle: ManuallyDrop<Handle<Wire<routing::Table, address::Book, Storage, MockSigner>>>,
+}
+
+impl Drop for NodeHandle {
+    fn drop(&mut self) {
+        log::debug!(target: "test", "Node {} shutting down..", self.id);
+
+        unsafe { ManuallyDrop::take(&mut self.handle) }
+            .shutdown()
+            .unwrap();
+        unsafe { ManuallyDrop::take(&mut self.thread) }
+            .join()
+            .unwrap()
+            .unwrap();
+    }
 }
 
 impl NodeHandle {
@@ -92,13 +106,15 @@ impl Node {
         let listen = vec![([0, 0, 0, 0], 0).into()];
         let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
         let rt = Runtime::with(self.home, config, listen, proxy, self.signer.clone()).unwrap();
-        let handle = rt.handle.clone();
         let addr = *rt.local_addrs.first().unwrap();
         let id = *self.signer.public_key();
-        let thread = thread::Builder::new()
-            .name(id.to_string())
-            .spawn(move || rt.run())
-            .unwrap();
+        let handle = ManuallyDrop::new(rt.handle.clone());
+        let thread = ManuallyDrop::new(
+            thread::Builder::new()
+                .name(id.to_string())
+                .spawn(move || rt.run())
+                .unwrap(),
+        );
 
         NodeHandle {
             id,
@@ -140,7 +156,7 @@ impl Node {
 
 /// Checks whether the nodes have converged in their routing tables.
 #[track_caller]
-fn check<'a>(nodes: impl IntoIterator<Item = &'a NodeHandle>) -> BTreeSet<(Id, NodeId)> {
+fn converge<'a>(nodes: impl IntoIterator<Item = &'a NodeHandle>) -> BTreeSet<(Id, NodeId)> {
     let nodes = nodes.into_iter().collect::<Vec<_>>();
 
     let mut all_routes = BTreeSet::<(Id, NodeId)>::new();
@@ -195,7 +211,7 @@ fn test_inventory_sync_basic() {
 
     alice.connect(&bob);
 
-    let routes = check([&alice, &bob]);
+    let routes = converge([&alice, &bob]);
     assert_eq!(routes.len(), 2);
 }
 
@@ -223,7 +239,7 @@ fn test_inventory_sync_bridge() {
     alice.connect(&bob);
     bob.connect(&eve);
 
-    let routes = check([&alice, &bob, &eve]);
+    let routes = converge([&alice, &bob, &eve]);
     assert_eq!(routes.len(), 3);
 }
 
@@ -258,7 +274,7 @@ fn test_inventory_sync_ring() {
     eve.connect(&carol);
     carol.connect(&alice);
 
-    let routes = check([&alice, &bob, &eve, &carol]);
+    let routes = converge([&alice, &bob, &eve, &carol]);
     assert_eq!(routes.len(), 4);
 }
 
@@ -298,7 +314,7 @@ fn test_inventory_sync_star() {
     carol.connect(&alice);
     dave.connect(&alice);
 
-    let routes = check([&alice, &bob, &eve, &carol, &dave]);
+    let routes = converge([&alice, &bob, &eve, &carol, &dave]);
     assert_eq!(routes.len(), 5);
 }
 
@@ -316,7 +332,7 @@ fn test_replication() {
     let bob = bob.spawn(service::Config::default());
 
     alice.connect(&bob);
-    check([&alice, &bob]);
+    converge([&alice, &bob]);
 
     let inventory = alice.handle.inventory().unwrap();
     assert!(inventory.try_iter().next().is_none());
