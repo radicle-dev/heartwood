@@ -526,7 +526,7 @@ where
         }
     }
 
-    pub fn fetch_complete(&mut self, result: FetchResult) {
+    pub fn repo_fetched(&mut self, result: FetchResult) {
         // TODO(cloudhead): handle completed job with service business logic
         // TODO: Downgrade session to gossip protocol.
         if let Some(session) = self.sessions.get_mut(result.remote()) {

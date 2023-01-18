@@ -1,16 +1,19 @@
-use std::io::Write;
+use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
 use std::sync::Arc;
 
 use crossbeam_channel as chan;
+use cyphernet::EcSign;
 use thiserror::Error;
 
+use crate::crypto::Signer;
 use crate::identity::Id;
 use crate::profile::Home;
 use crate::service;
 use crate::service::{CommandError, FetchLookup, QueryState};
 use crate::service::{NodeId, Sessions};
 use crate::wire;
+use crate::worker::WorkerResp;
 
 /// An error resulting from a handle method.
 #[derive(Error, Debug)]
@@ -50,12 +53,12 @@ impl<T> From<chan::SendError<T>> for Error {
     }
 }
 
-pub struct Handle {
+pub struct Handle<G: Signer + EcSign> {
     pub(crate) home: Home,
-    pub(crate) controller: reactor::Controller<wire::Control>,
+    pub(crate) controller: reactor::Controller<wire::Control<G>>,
 }
 
-impl Clone for Handle {
+impl<G: Signer + EcSign> Clone for Handle<G> {
     fn clone(&self) -> Self {
         Self {
             home: self.home.clone(),
@@ -64,25 +67,27 @@ impl Clone for Handle {
     }
 }
 
-impl Handle {
-    pub fn new(home: Home, controller: reactor::Controller<wire::Control>) -> Self {
+impl<G: Signer + EcSign + 'static> Handle<G> {
+    pub fn new(home: Home, controller: reactor::Controller<wire::Control<G>>) -> Self {
         Self { home, controller }
     }
 
-    pub fn wakeup(&mut self) -> Result<(), Error> {
-        // TODO: Handle channel disconnect error correctly.
-        //       This just returns `BrokenPipe`.
-        self.controller.cmd(wire::Control::Wakeup)?;
+    pub fn worker_result(&mut self, resp: WorkerResp<G>) -> Result<(), Error> {
+        match self.controller.cmd(wire::Control::Worker(resp)) {
+            Ok(()) => {}
+            Err(err) if err.kind() == io::ErrorKind::BrokenPipe => return Err(Error::NotConnected),
+            Err(err) => return Err(err.into()),
+        }
         Ok(())
     }
 
     fn command(&self, cmd: service::Command) -> Result<(), Error> {
-        self.controller.cmd(wire::Control::Command(cmd))?;
+        self.controller.cmd(wire::Control::User(cmd))?;
         Ok(())
     }
 }
 
-impl radicle::node::Handle for Handle {
+impl<G: Signer + EcSign + 'static> radicle::node::Handle for Handle<G> {
     type Sessions = Sessions;
     type FetchLookup = FetchLookup;
     type Error = Error;

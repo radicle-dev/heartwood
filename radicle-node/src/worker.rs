@@ -23,7 +23,6 @@ pub struct WorkerReq<G: Signer + EcSign> {
     pub fetch: Fetch,
     pub session: WireSession<G>,
     pub drain: Vec<u8>,
-    pub channel: chan::Sender<WorkerResp<G>>,
 }
 
 /// Worker response.
@@ -37,10 +36,10 @@ struct Worker<G: Signer + EcSign> {
     storage: Storage,
     tasks: chan::Receiver<WorkerReq<G>>,
     timeout: time::Duration,
-    handle: Handle,
+    handle: Handle<G>,
 }
 
-impl<G: Signer + EcSign> Worker<G> {
+impl<G: Signer + EcSign + 'static> Worker<G> {
     /// Waits for tasks and runs them. Blocks indefinitely unless there is an error receiving
     /// the next task.
     fn run(mut self) -> Result<(), chan::RecvError> {
@@ -55,7 +54,6 @@ impl<G: Signer + EcSign> Worker<G> {
             fetch,
             session,
             drain,
-            channel,
         } = task;
 
         let (session, result) = self._process(&fetch, drain, session);
@@ -71,10 +69,12 @@ impl<G: Signer + EcSign> Worker<G> {
         };
         log::debug!(target: "worker", "Sending response back to service..");
 
-        if channel.send(WorkerResp { result, session }).is_err() {
+        if self
+            .handle
+            .worker_result(WorkerResp { result, session })
+            .is_err()
+        {
             log::error!("Unable to report fetch result: worker channel disconnected");
-        } else {
-            self.handle.wakeup().unwrap();
         }
     }
 
@@ -253,7 +253,7 @@ impl WorkerPool {
         timeout: time::Duration,
         storage: Storage,
         tasks: chan::Receiver<WorkerReq<G>>,
-        handle: Handle,
+        handle: Handle<G>,
         name: String,
     ) -> Self {
         let mut pool = Vec::with_capacity(capacity);

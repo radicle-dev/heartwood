@@ -11,7 +11,7 @@ use thiserror::Error;
 
 use crate::address;
 use crate::control;
-use crate::crypto::Signature;
+use crate::crypto::{Signature, Signer};
 use crate::node::NodeId;
 use crate::service::{routing, tracking};
 use crate::wire;
@@ -55,26 +55,26 @@ pub enum Error {
 }
 
 /// Holds join handles to the client threads, as well as a client handle.
-pub struct Runtime {
+pub struct Runtime<G: Signer + EcSign> {
     pub id: NodeId,
-    pub handle: Handle,
+    pub handle: Handle<G>,
     pub control: thread::JoinHandle<Result<(), control::Error>>,
-    pub reactor: Reactor<wire::Control>,
+    pub reactor: Reactor<wire::Control<G>>,
     pub pool: WorkerPool,
     pub local_addrs: Vec<net::SocketAddr>,
 }
 
-impl Runtime {
+impl<G: Signer + EcSign> Runtime<G> {
     /// Run the client.
     ///
     /// This function spawns threads.
-    pub fn with<G>(
+    pub fn with(
         home: Home,
         config: service::Config,
         listen: Vec<net::SocketAddr>,
         proxy: net::SocketAddr,
         signer: G,
-    ) -> Result<Runtime, Error>
+    ) -> Result<Runtime<G>, Error>
     where
         G: crypto::Signer + EcSign<Sig = Signature, Pk = NodeId> + Clone + 'static,
     {

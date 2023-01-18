@@ -36,7 +36,7 @@ struct NodeHandle {
     storage: Storage,
     addr: net::SocketAddr,
     thread: ManuallyDrop<thread::JoinHandle<Result<(), client::Error>>>,
-    handle: ManuallyDrop<Handle>,
+    handle: ManuallyDrop<Handle<MockSigner>>,
 }
 
 impl Drop for NodeHandle {

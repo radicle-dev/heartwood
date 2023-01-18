@@ -7,7 +7,7 @@ use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use std::{io, net};
+use std::{fmt, io, net};
 
 use amplify::Wrapper as _;
 use crossbeam_channel as chan;
@@ -31,10 +31,22 @@ use crate::worker::{WorkerReq, WorkerResp};
 use crate::Link;
 use crate::{address, service};
 
-#[derive(Debug)]
-pub enum Control {
-    Command(service::Command),
-    Wakeup,
+#[allow(clippy::large_enum_variant)]
+/// Control message used internally between workers, users, and the service.
+pub enum Control<G: Signer + EcSign> {
+    /// Message from the user to the service.
+    User(service::Command),
+    /// Message from a worker to the service.
+    Worker(WorkerResp<G>),
+}
+
+impl<G: Signer + EcSign> fmt::Debug for Control<G> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::User(cmd) => cmd.fmt(f),
+            Self::Worker(resp) => resp.result.fmt(f),
+        }
+    }
 }
 
 /// Peer session type.
@@ -48,7 +60,7 @@ pub type WireWriter<G> = CypherWriter<G, Sha256>;
 type Action<G> = reactor::Action<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>;
 
 /// Peer connection state machine.
-enum Peer<G: Signer + EcSign> {
+enum Peer {
     /// The initial state before handshake is completed.
     Connecting { link: Link },
     /// The state after handshake is completed.
@@ -68,14 +80,10 @@ enum Peer<G: Signer + EcSign> {
         id: NodeId,
     },
     /// The peer is now upgraded and we are in control of the socket.
-    Upgraded {
-        link: Link,
-        id: NodeId,
-        response: chan::Receiver<WorkerResp<G>>,
-    },
+    Upgraded { link: Link, id: NodeId },
 }
 
-impl<G: Signer + EcSign> std::fmt::Debug for Peer<G> {
+impl std::fmt::Debug for Peer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Connecting { link } => write!(f, "Connecting({:?})", link),
@@ -91,7 +99,7 @@ impl<G: Signer + EcSign> std::fmt::Debug for Peer<G> {
     }
 }
 
-impl<G: Signer + EcSign> Peer<G> {
+impl Peer {
     /// Return the peer's id, if any.
     fn id(&self) -> Option<&NodeId> {
         match self {
@@ -145,7 +153,7 @@ impl<G: Signer + EcSign> Peer<G> {
     }
 
     /// Switch to upgraded state.
-    fn upgraded(&mut self, listener: chan::Receiver<WorkerResp<G>>) -> Fetch {
+    fn upgraded(&mut self) -> Fetch {
         if let Self::Upgrading { fetch, id, link } = self {
             let fetch = fetch.clone();
             log::debug!(target: "wire", "Peer {id} upgraded for fetch {}", fetch.repo);
@@ -153,7 +161,6 @@ impl<G: Signer + EcSign> Peer<G> {
             *self = Self::Upgraded {
                 id: *id,
                 link: *link,
-                response: listener,
             };
             fetch
         } else {
@@ -187,7 +194,7 @@ pub struct Wire<R, S, W, G: Signer + EcSign> {
     /// Internal queue of actions to send to the reactor.
     actions: VecDeque<Action<G>>,
     /// Peer sessions.
-    peers: HashMap<RawFd, Peer<G>>,
+    peers: HashMap<RawFd, Peer>,
     /// SOCKS5 proxy address.
     proxy: net::SocketAddr,
     /// Buffer for incoming peer data.
@@ -229,14 +236,14 @@ where
         self.actions.push_back(Action::RegisterListener(socket));
     }
 
-    fn peer_mut_by_fd(&mut self, fd: RawFd) -> &mut Peer<G> {
+    fn peer_mut_by_fd(&mut self, fd: RawFd) -> &mut Peer {
         self.peers.get_mut(&fd).unwrap_or_else(|| {
             log::error!(target: "wire", "Peer with fd {fd} was not found");
             panic!("Peer with fd {fd} is not known");
         })
     }
 
-    fn fd_by_id(&self, node_id: &NodeId) -> (RawFd, &Peer<G>) {
+    fn fd_by_id(&self, node_id: &NodeId) -> (RawFd, &Peer) {
         self.peers
             .iter()
             .find(|(_, peer)| peer.id() == Some(node_id))
@@ -292,8 +299,7 @@ where
     fn upgraded(&mut self, transport: NetTransport<WireSession<G>>) {
         let fd = transport.as_raw_fd();
         let peer = self.peer_mut_by_fd(fd);
-        let (send, recv) = chan::bounded::<WorkerResp<G>>(1);
-        let fetch = peer.upgraded(recv);
+        let fetch = peer.upgraded();
         let session = match transport.into_session() {
             Ok(session) => session,
             Err(_) => panic!("Transport::upgraded: peer write buffer not empty on upgrade"),
@@ -305,7 +311,6 @@ where
                 fetch,
                 session,
                 drain: self.read_queue.drain(..).collect(),
-                channel: send,
             })
             .is_err()
         {
@@ -313,21 +318,7 @@ where
         }
     }
 
-    fn wakeup(&mut self) {
-        let mut completed = Vec::new();
-        for peer in self.peers.values() {
-            if let Peer::Upgraded { response, .. } = peer {
-                if let Ok(resp) = response.try_recv() {
-                    completed.push(resp);
-                }
-            }
-        }
-        for resp in completed {
-            self.fetch_complete(resp);
-        }
-    }
-
-    fn fetch_complete(&mut self, resp: WorkerResp<G>) {
+    fn worker_result(&mut self, resp: WorkerResp<G>) {
         log::debug!(target: "wire", "Fetch completed: {:?}", resp.result);
 
         let session = resp.session;
@@ -351,7 +342,7 @@ where
         peer.downgrade();
 
         self.actions.push_back(Action::RegisterTransport(session));
-        self.service.fetch_complete(resp.result);
+        self.service.repo_fetched(resp.result);
     }
 }
 
@@ -364,7 +355,7 @@ where
 {
     type Listener = NetAccept<WireSession<G>>;
     type Transport = NetTransport<WireSession<G>>;
-    type Command = Control;
+    type Command = Control<G>;
 
     fn tick(&mut self, _time: Duration) {
         // FIXME: Change this once a proper timestamp is passed into the function.
@@ -496,8 +487,8 @@ where
 
     fn handle_command(&mut self, cmd: Self::Command) {
         match cmd {
-            Control::Command(cmd) => self.service.command(cmd),
-            Control::Wakeup => self.wakeup(),
+            Control::User(cmd) => self.service.command(cmd),
+            Control::Worker(resp) => self.worker_result(resp),
         }
     }
 
