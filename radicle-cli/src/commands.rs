@@ -6,6 +6,8 @@ pub mod rad_auth;
 pub mod rad_checkout;
 #[path = "commands/clone.rs"]
 pub mod rad_clone;
+#[path = "commands/comment.rs"]
+pub mod rad_comment;
 #[path = "commands/delegate.rs"]
 pub mod rad_delegate;
 #[path = "commands/edit.rs"]

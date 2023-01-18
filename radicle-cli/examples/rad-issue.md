@@ -37,3 +37,12 @@ Note: this can always be undone with the `unassign` subcommand.
 ```
 $ rad unassign de81d97d7fe07a80bfb339200c6af862d4526b6a z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
+
+Great, now we have communicated to the world about our car's defect.
+
+But wait! We've found an important detail about the car's power requirements.
+It will help whoever works on a fix.
+
+```
+$ rad comment de81d97d7fe07a80bfb339200c6af862d4526b6a --message 'The flux capacitor needs 1.21 Gigawatts'
+```
