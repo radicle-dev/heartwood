@@ -317,7 +317,6 @@ fn test_inventory_sync_star() {
 }
 
 #[test]
-#[ignore]
 fn test_replication() {
     logger::init(log::Level::Debug);
 
@@ -352,6 +351,8 @@ fn test_replication() {
     };
     assert_eq!(from, bob.id);
     assert_eq!(updated, vec![]);
+
+    log::debug!(target: "test", "Fetch complete with {}", from);
 
     let inventory = alice.handle.inventory().unwrap();
     let alice_refs = alice

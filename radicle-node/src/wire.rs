@@ -2,7 +2,7 @@ mod message;
 mod protocol;
 
 pub use message::{AddressType, MessageType};
-pub use protocol::{Wire, WireReader, WireSession, WireWriter};
+pub use protocol::{Control, Wire, WireReader, WireSession, WireWriter};
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;

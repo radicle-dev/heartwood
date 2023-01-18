@@ -1,5 +1,6 @@
 use std::{io, net, thread, time};
 
+use crossbeam_channel as chan;
 use cyphernet::{Cert, EcSign};
 use netservices::resource::NetAccept;
 use radicle::profile::Home;
@@ -13,6 +14,7 @@ use crate::control;
 use crate::crypto::Signature;
 use crate::node::NodeId;
 use crate::service::{routing, tracking};
+use crate::wire;
 use crate::wire::Wire;
 use crate::worker::{WorkerPool, WorkerReq};
 use crate::{crypto, service, LocalTime};
@@ -57,7 +59,7 @@ pub struct Runtime {
     pub id: NodeId,
     pub handle: Handle,
     pub control: thread::JoinHandle<Result<(), control::Error>>,
-    pub reactor: Reactor<service::Command>,
+    pub reactor: Reactor<wire::Control>,
     pub pool: WorkerPool,
     pub local_addrs: Vec<net::SocketAddr>,
 }
@@ -113,14 +115,7 @@ impl Runtime {
             sig: EcSign::sign(&signer, id.as_slice()),
         };
 
-        let (worker_send, worker_recv) = crossbeam_channel::unbounded::<WorkerReq<G>>();
-        let pool = WorkerPool::with(
-            8,
-            time::Duration::from_secs(9),
-            storage,
-            worker_recv,
-            id.to_human(),
-        );
+        let (worker_send, worker_recv) = chan::unbounded::<WorkerReq<G>>();
         let mut wire = Wire::new(service, worker_send, cert, signer, proxy, clock);
         let mut local_addrs = Vec::new();
 
@@ -139,6 +134,15 @@ impl Runtime {
             let handle = handle.clone();
             move || control::listen(node_sock, handle)
         });
+
+        let pool = WorkerPool::with(
+            8,
+            time::Duration::from_secs(9),
+            storage,
+            worker_recv,
+            handle.clone(),
+            id.to_human(),
+        );
 
         Ok(Runtime {
             id,

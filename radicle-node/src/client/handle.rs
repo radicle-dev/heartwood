@@ -10,6 +10,7 @@ use crate::profile::Home;
 use crate::service;
 use crate::service::{CommandError, FetchLookup, QueryState};
 use crate::service::{NodeId, Sessions};
+use crate::wire;
 
 /// An error resulting from a handle method.
 #[derive(Error, Debug)]
@@ -51,7 +52,7 @@ impl<T> From<chan::SendError<T>> for Error {
 
 pub struct Handle {
     pub(crate) home: Home,
-    pub(crate) controller: reactor::Controller<service::Command>,
+    pub(crate) controller: reactor::Controller<wire::Control>,
 }
 
 impl Clone for Handle {
@@ -64,12 +65,19 @@ impl Clone for Handle {
 }
 
 impl Handle {
-    pub fn new(home: Home, controller: reactor::Controller<service::Command>) -> Self {
+    pub fn new(home: Home, controller: reactor::Controller<wire::Control>) -> Self {
         Self { home, controller }
     }
 
+    pub fn wakeup(&mut self) -> Result<(), Error> {
+        // TODO: Handle channel disconnect error correctly.
+        //       This just returns `BrokenPipe`.
+        self.controller.cmd(wire::Control::Wakeup)?;
+        Ok(())
+    }
+
     fn command(&self, cmd: service::Command) -> Result<(), Error> {
-        self.controller.cmd(cmd)?;
+        self.controller.cmd(wire::Control::Command(cmd))?;
         Ok(())
     }
 }

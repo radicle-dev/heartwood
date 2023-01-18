@@ -13,6 +13,7 @@ use radicle::storage::{ReadRepository, RefUpdate, WriteRepository, WriteStorage}
 use radicle::{git, Storage};
 use reactor::poller::popol;
 
+use crate::client::handle::Handle;
 use crate::service::reactor::Fetch;
 use crate::service::{FetchError, FetchResult};
 use crate::wire::{WireReader, WireSession, WireWriter};
@@ -36,19 +37,20 @@ struct Worker<G: Signer + EcSign> {
     storage: Storage,
     tasks: chan::Receiver<WorkerReq<G>>,
     timeout: time::Duration,
+    handle: Handle,
 }
 
 impl<G: Signer + EcSign> Worker<G> {
     /// Waits for tasks and runs them. Blocks indefinitely unless there is an error receiving
     /// the next task.
-    fn run(self) -> Result<(), chan::RecvError> {
+    fn run(mut self) -> Result<(), chan::RecvError> {
         loop {
             let task = self.tasks.recv()?;
             self.process(task);
         }
     }
 
-    fn process(&self, task: WorkerReq<G>) {
+    fn process(&mut self, task: WorkerReq<G>) {
         let WorkerReq {
             fetch,
             session,
@@ -71,6 +73,8 @@ impl<G: Signer + EcSign> Worker<G> {
 
         if channel.send(WorkerResp { result, session }).is_err() {
             log::error!("Unable to report fetch result: worker channel disconnected");
+        } else {
+            self.handle.wakeup().unwrap();
         }
     }
 
@@ -249,6 +253,7 @@ impl WorkerPool {
         timeout: time::Duration,
         storage: Storage,
         tasks: chan::Receiver<WorkerReq<G>>,
+        handle: Handle,
         name: String,
     ) -> Self {
         let mut pool = Vec::with_capacity(capacity);
@@ -256,6 +261,7 @@ impl WorkerPool {
             let worker = Worker {
                 tasks: tasks.clone(),
                 storage: storage.clone(),
+                handle: handle.clone(),
                 timeout,
             };
             let thread = thread::Builder::new()

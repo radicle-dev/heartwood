@@ -31,6 +31,12 @@ use crate::worker::{WorkerReq, WorkerResp};
 use crate::Link;
 use crate::{address, service};
 
+#[derive(Debug)]
+pub enum Control {
+    Command(service::Command),
+    Wakeup,
+}
+
 /// Peer session type.
 pub type WireSession<G> = CypherSession<G, Sha256>;
 /// Peer session type (read-only).
@@ -307,6 +313,20 @@ where
         }
     }
 
+    fn wakeup(&mut self) {
+        let mut completed = Vec::new();
+        for peer in self.peers.values() {
+            if let Peer::Upgraded { response, .. } = peer {
+                if let Ok(resp) = response.try_recv() {
+                    completed.push(resp);
+                }
+            }
+        }
+        for resp in completed {
+            self.fetch_complete(resp);
+        }
+    }
+
     fn fetch_complete(&mut self, resp: WorkerResp<G>) {
         log::debug!(target: "transport", "Fetch completed: {:?}", resp.result);
 
@@ -344,23 +364,11 @@ where
 {
     type Listener = NetAccept<WireSession<G>>;
     type Transport = NetTransport<WireSession<G>>;
-    type Command = service::Command;
+    type Command = Control;
 
     fn tick(&mut self, _time: Duration) {
         // FIXME: Change this once a proper timestamp is passed into the function.
         self.service.tick(LocalTime::from(SystemTime::now()));
-
-        let mut completed = Vec::new();
-        for peer in self.peers.values() {
-            if let Peer::Upgraded { response, .. } = peer {
-                if let Ok(resp) = response.try_recv() {
-                    completed.push(resp);
-                }
-            }
-        }
-        for resp in completed {
-            self.fetch_complete(resp);
-        }
     }
 
     fn handle_wakeup(&mut self) {
@@ -487,7 +495,10 @@ where
     }
 
     fn handle_command(&mut self, cmd: Self::Command) {
-        self.service.command(cmd);
+        match cmd {
+            Control::Command(cmd) => self.service.command(cmd),
+            Control::Wakeup => self.wakeup(),
+        }
     }
 
     fn handle_error(
