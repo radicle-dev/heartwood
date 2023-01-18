@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
+use axum::extract::State;
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
 use axum::response::IntoResponse;
 use axum::routing::get;
-use axum::{Extension, Json, Router};
+use axum::{Json, Router};
 use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -40,6 +41,7 @@ pub fn router(ctx: Context) -> Router {
                 )),
             ),
         )
+        .route("/projects/:project/tree/:sha/", get(tree_handler_root))
         .route("/projects/:project/tree/:sha/*path", get(tree_handler))
         .route("/projects/:project/remotes", get(remotes_handler))
         .route("/projects/:project/remotes/:peer", get(remote_handler))
@@ -47,13 +49,13 @@ pub fn router(ctx: Context) -> Router {
         .route("/projects/:project/readme/:sha", get(readme_handler))
         .route("/projects/:project/issues", get(issues_handler))
         .route("/projects/:project/issues/:id", get(issue_handler))
-        .layer(Extension(ctx))
+        .with_state(ctx)
 }
 
 /// List all projects.
 /// `GET /projects`
 async fn project_root_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Query(qs): Query<PaginationQuery>,
 ) -> impl IntoResponse {
     let PaginationQuery { page, per_page } = qs;
@@ -87,10 +89,7 @@ async fn project_root_handler(
 
 /// Get project metadata.
 /// `GET /projects/:project`
-async fn project_handler(
-    Extension(ctx): Extension<Context>,
-    Path(id): Path<Id>,
-) -> impl IntoResponse {
+async fn project_handler(State(ctx): State<Context>, Path(id): Path<Id>) -> impl IntoResponse {
     let info = ctx.project_info(id)?;
 
     Ok::<_, Error>(Json(info))
@@ -109,7 +108,7 @@ pub struct CommitsQueryString {
 /// Get project commit range.
 /// `GET /projects/:project/commits?since=<sha>`
 async fn history_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path(project): Path<Id>,
     Query(qs): Query<CommitsQueryString>,
 ) -> impl IntoResponse {
@@ -194,7 +193,7 @@ async fn history_handler(
 /// Get project commit.
 /// `GET /projects/:project/commits/:sha`
 async fn commit_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path((project, sha)): Path<(Id, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
@@ -220,7 +219,7 @@ async fn commit_handler(
 /// Get project activity for the past year.
 /// `GET /projects/:project/activity`
 async fn activity_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path(project): Path<Id>,
 ) -> impl IntoResponse {
     let current_date = chrono::Utc::now().timestamp();
@@ -244,13 +243,21 @@ async fn activity_handler(
     Ok::<_, Error>((StatusCode::OK, Json(json!({ "activity": timestamps }))))
 }
 
+/// Get project source tree for '/' path.
+/// `GET /projects/:project/tree/:sha/`
+async fn tree_handler_root(
+    State(ctx): State<Context>,
+    Path((project, sha)): Path<(Id, Oid)>,
+) -> impl IntoResponse {
+    tree_handler(State(ctx), Path((project, sha, String::new()))).await
+}
+
 /// Get project source tree.
 /// `GET /projects/:project/tree/:sha/*path`
 async fn tree_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path((project, sha, path)): Path<(Id, Oid, String)>,
 ) -> impl IntoResponse {
-    let path = path.strip_prefix('/').ok_or(Error::NotFound)?.to_string();
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
     let tree = repo.tree(sha, &path)?;
@@ -262,10 +269,7 @@ async fn tree_handler(
 
 /// Get all project remotes.
 /// `GET /projects/:project/remotes`
-async fn remotes_handler(
-    Extension(ctx): Extension<Context>,
-    Path(project): Path<Id>,
-) -> impl IntoResponse {
+async fn remotes_handler(State(ctx): State<Context>, Path(project): Path<Id>) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
     let remotes = repo
@@ -296,7 +300,7 @@ async fn remotes_handler(
 /// Get project remote.
 /// `GET /projects/:project/remotes/:peer`
 async fn remote_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path((project, node_id)): Path<(Id, NodeId)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
@@ -323,14 +327,13 @@ async fn remote_handler(
 /// Get project source file.
 /// `GET /projects/:project/blob/:sha/*path`
 async fn blob_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path((project, sha, path)): Path<(Id, Oid, String)>,
 ) -> impl IntoResponse {
-    let path = path.strip_prefix('/').ok_or(Error::NotFound)?;
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
     let blob = repo.blob(sha, &path)?;
-    let response = api::json::blob(&blob, path);
+    let response = api::json::blob(&blob, &path);
 
     Ok::<_, Error>(Json(response))
 }
@@ -338,7 +341,7 @@ async fn blob_handler(
 /// Get project readme.
 /// `GET /projects/:project/readme/:sha`
 async fn readme_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path((project, sha)): Path<(Id, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
@@ -365,7 +368,7 @@ async fn readme_handler(
 /// Get project issues list.
 /// `GET /projects/:project/issues`
 async fn issues_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path(project): Path<Id>,
     Query(qs): Query<PaginationQuery>,
 ) -> impl IntoResponse {
@@ -399,7 +402,7 @@ async fn issues_handler(
 /// Get project issue.
 /// `GET /projects/:project/issues/:id`
 async fn issue_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path((project, issue_id)): Path<(Id, Oid)>,
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;

@@ -1,6 +1,7 @@
 use axum::extract::path::ErrorKind;
 use axum::extract::rejection::{PathRejection, QueryRejection};
-use axum::extract::{FromRequest, RequestParts};
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::{async_trait, Json};
 
@@ -10,15 +11,15 @@ use serde::Serialize;
 pub struct Path<T>(pub T);
 
 #[async_trait]
-impl<B, T> FromRequest<B> for Path<T>
+impl<S, T> FromRequestParts<S> for Path<T>
 where
     T: DeserializeOwned + Send,
-    B: Send,
+    S: Send + Sync,
 {
     type Rejection = (StatusCode, axum::Json<Error>);
 
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<T>::from_request(req).await {
+    async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        match axum::extract::Path::<T>::from_request_parts(req, state).await {
             Ok(value) => Ok(Self(value.0)),
             Err(rejection) => {
                 let status = StatusCode::BAD_REQUEST;
@@ -52,15 +53,15 @@ where
 pub struct Query<T>(pub T);
 
 #[async_trait]
-impl<B, T> FromRequest<B> for Query<T>
+impl<S, T> FromRequestParts<S> for Query<T>
 where
     T: DeserializeOwned + Send,
-    B: Send,
+    S: Send + Sync,
 {
     type Rejection = (StatusCode, axum::Json<Error>);
 
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        match axum::extract::Query::<T>::from_request(req).await {
+    async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        match axum::extract::Query::<T>::from_request_parts(req, state).await {
             Ok(value) => Ok(Self(value.0)),
             Err(rejection) => {
                 let status = StatusCode::BAD_REQUEST;

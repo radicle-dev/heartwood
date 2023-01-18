@@ -98,9 +98,9 @@ async fn git_handler(
     AxumPath((project, request)): AxumPath<(String, String)>,
     method: Method,
     headers: HeaderMap,
-    body: Bytes,
     ConnectInfo(remote): ConnectInfo<SocketAddr>,
     query: RawQuery,
+    body: Bytes,
 ) -> impl IntoResponse {
     let query = query.0.unwrap_or_default();
     let id: Id = project.strip_suffix(".git").unwrap_or(&project).parse()?;

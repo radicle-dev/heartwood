@@ -1,6 +1,7 @@
+use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::routing::get;
-use axum::{Extension, Json, Router};
+use axum::{Json, Router};
 
 use radicle::cob::issue::Issues;
 use radicle::identity::Did;
@@ -18,13 +19,13 @@ pub fn router(ctx: Context) -> Router {
             "/delegates/:delegate/projects",
             get(delegates_projects_handler),
         )
-        .layer(Extension(ctx))
+        .with_state(ctx)
 }
 
 /// List all projects which delegate is a part of.
 /// `GET /delegates/:delegate/projects`
 async fn delegates_projects_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path(delegate): Path<Did>,
     Query(qs): Query<PaginationQuery>,
 ) -> impl IntoResponse {

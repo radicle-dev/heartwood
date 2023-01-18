@@ -1,6 +1,7 @@
+use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::routing::get;
-use axum::{Extension, Json, Router};
+use axum::{Json, Router};
 use serde_json::json;
 
 use radicle::node::NodeId;
@@ -12,12 +13,12 @@ pub fn router(ctx: Context) -> Router {
 
     Router::new()
         .route("/node", get(node_handler))
-        .layer(Extension(node_id))
+        .with_state(node_id)
 }
 
 /// Return the node id for the node identity.
 /// `GET /node`
-async fn node_handler(Extension(node_id): Extension<NodeId>) -> impl IntoResponse {
+async fn node_handler(State(node_id): State<NodeId>) -> impl IntoResponse {
     let response = json!({
         "id": node_id.to_string(),
     });

@@ -16,8 +16,8 @@ logfmt = [
 
 [dependencies]
 anyhow = { version = "1" }
-axum = { version = "0.5.16", default-features = false, features = ["json", "headers", "query"] }
-axum-server = { version = "0.4.2", default-features = false }
+axum = { version = "0.6.2", default-features = false, features = ["headers", "json", "query", "tokio"] }
+axum-server = { version = "0.4.4", default-features = false }
 chrono = { version = "0.4.22" }
 ethers-core = { version = "1.0" }
 fastrand = { version = "1.7.0" }

@@ -4,9 +4,10 @@ use std::env;
 use std::iter::repeat_with;
 use std::str::FromStr;
 
+use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
-use axum::{Extension, Json, Router};
+use axum::{Json, Router};
 use ethers_core::utils::hex;
 use hyper::http::uri::Authority;
 use serde_json::json;
@@ -27,12 +28,12 @@ pub fn router(ctx: Context) -> Router {
             "/sessions/:id",
             get(session_get_handler).put(session_signin_handler),
         )
-        .layer(Extension(ctx))
+        .with_state(ctx)
 }
 
 /// Create session.
 /// `POST /sessions`
-async fn session_create_handler(Extension(ctx): Extension<Context>) -> impl IntoResponse {
+async fn session_create_handler(State(ctx): State<Context>) -> impl IntoResponse {
     let expiration_time = OffsetDateTime::now_utc()
         .checked_add(UNAUTHORIZED_SESSIONS_EXPIRATION)
         .unwrap();
@@ -45,7 +46,7 @@ async fn session_create_handler(Extension(ctx): Extension<Context>) -> impl Into
 /// Get session.
 /// `GET /sessions/:id`
 async fn session_get_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     let sessions = ctx.sessions.read().await;
@@ -67,7 +68,7 @@ async fn session_get_handler(
 /// Update session.
 /// `PUT /sessions/:id`
 async fn session_signin_handler(
-    Extension(ctx): Extension<Context>,
+    State(ctx): State<Context>,
     Path(id): Path<String>,
     Json(request): Json<AuthRequest>,
 ) -> impl IntoResponse {
