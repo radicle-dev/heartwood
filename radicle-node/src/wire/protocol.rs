@@ -148,7 +148,7 @@ impl<G: Signer + EcSign> Peer<G> {
     fn upgraded(&mut self, listener: chan::Receiver<WorkerResp<G>>) -> Fetch {
         if let Self::Upgrading { fetch, id, link } = self {
             let fetch = fetch.clone();
-            log::debug!(target: "transport", "Peer {id} upgraded for fetch {}", fetch.repo);
+            log::debug!(target: "wire", "Peer {id} upgraded for fetch {}", fetch.repo);
 
             *self = Self::Upgraded {
                 id: *id,
@@ -231,7 +231,7 @@ where
 
     fn peer_mut_by_fd(&mut self, fd: RawFd) -> &mut Peer<G> {
         self.peers.get_mut(&fd).unwrap_or_else(|| {
-            log::error!(target: "transport", "Peer with fd {fd} was not found");
+            log::error!(target: "wire", "Peer with fd {fd} was not found");
             panic!("Peer with fd {fd} is not known");
         })
     }
@@ -268,10 +268,10 @@ where
     fn disconnect(&mut self, fd: RawFd, reason: DisconnectReason) {
         let peer = self.peer_mut_by_fd(fd);
         if let Peer::Disconnected { .. } = peer {
-            log::error!(target: "transport", "Peer (fd={fd}) is already disconnected");
+            log::error!(target: "wire", "Peer (fd={fd}) is already disconnected");
             return;
         };
-        log::debug!(target: "transport", "Disconnecting peer (fd={fd}): {reason}");
+        log::debug!(target: "wire", "Disconnecting peer (fd={fd}): {reason}");
         peer.disconnected(reason);
 
         self.actions.push_back(Action::UnregisterTransport(fd));
@@ -280,10 +280,10 @@ where
     fn upgrade(&mut self, fd: RawFd, fetch: Fetch) {
         let peer = self.peer_mut_by_fd(fd);
         if let Peer::Disconnected { .. } = peer {
-            log::error!(target: "transport", "Peer (fd={fd}) is already disconnected");
+            log::error!(target: "wire", "Peer (fd={fd}) is already disconnected");
             return;
         };
-        log::debug!(target: "transport", "Requesting transport handover from reactor for peer (fd={fd})");
+        log::debug!(target: "wire", "Requesting transport handover from reactor for peer (fd={fd})");
         peer.upgrading(fetch);
 
         self.actions.push_back(Action::UnregisterTransport(fd));
@@ -309,7 +309,7 @@ where
             })
             .is_err()
         {
-            log::error!(target: "transport", "Worker pool is disconnected; cannot send fetch request");
+            log::error!(target: "wire", "Worker pool is disconnected; cannot send fetch request");
         }
     }
 
@@ -328,20 +328,20 @@ where
     }
 
     fn fetch_complete(&mut self, resp: WorkerResp<G>) {
-        log::debug!(target: "transport", "Fetch completed: {:?}", resp.result);
+        log::debug!(target: "wire", "Fetch completed: {:?}", resp.result);
 
         let session = resp.session;
         let fd = session.as_connection().as_raw_fd();
         let peer = self.peer_mut_by_fd(fd);
 
         let session = if let Peer::Disconnected { .. } = peer {
-            log::error!(target: "transport", "Peer with fd {fd} is already disconnected");
+            log::error!(target: "wire", "Peer with fd {fd} is already disconnected");
             return;
         } else if let Peer::Upgraded { link, .. } = peer {
             match NetTransport::with_session(session, *link) {
                 Ok(session) => session,
                 Err(err) => {
-                    log::error!(target: "transport", "Session downgrade failed: {err}");
+                    log::error!(target: "wire", "Session downgrade failed: {err}");
                     return;
                 }
             }
@@ -384,7 +384,7 @@ where
         match event {
             ListenerEvent::Accepted(connection) => {
                 log::debug!(
-                    target: "transport",
+                    target: "wire",
                     "Accepting inbound peer connection from {}..",
                     connection.remote_addr()
                 );
@@ -400,7 +400,7 @@ where
                 let transport = match NetTransport::with_session(session, Link::Inbound) {
                     Ok(transport) => transport,
                     Err(err) => {
-                        log::error!(target: "transport", "Failed to create transport for accepted connection: {err}");
+                        log::error!(target: "wire", "Failed to create transport for accepted connection: {err}");
                         return;
                     }
                 };
@@ -409,7 +409,7 @@ where
                     .push_back(reactor::Action::RegisterTransport(transport))
             }
             ListenerEvent::Failure(err) => {
-                log::error!(target: "transport", "Error listening for inbound connections: {err}");
+                log::error!(target: "wire", "Error listening for inbound connections: {err}");
             }
         }
     }
@@ -425,7 +425,7 @@ where
                 state: Cert { pk: node_id, .. },
                 ..
             }) => {
-                log::debug!(target: "transport", "Session established with {node_id}");
+                log::debug!(target: "wire", "Session established with {node_id}");
 
                 let conflicting = self
                     .connected()
@@ -435,7 +435,7 @@ where
 
                 for fd in conflicting {
                     log::warn!(
-                        target: "transport", "Closing conflicting session with {node_id} (fd={fd})"
+                        target: "wire", "Closing conflicting session with {node_id} (fd={fd})"
                     );
                     self.disconnect(
                         fd,
@@ -446,12 +446,12 @@ where
                 }
 
                 let Some(peer) = self.peers.get_mut(&fd) else {
-                    log::error!(target: "transport", "Session not found for fd {fd}");
+                    log::error!(target: "wire", "Session not found for fd {fd}");
                     return;
                 };
                 let Peer::Connecting { link } = peer else {
                     log::error!(
-                        target: "transport",
+                        target: "wire",
                         "Session for {node_id} was either not found, or in an invalid state"
                     );
                     return;
@@ -474,7 +474,7 @@ where
                             }
                             Err(err) => {
                                 // TODO(cloudhead): Include error in reason.
-                                log::error!(target: "transport", "Invalid message from {}: {err}", id);
+                                log::error!(target: "wire", "Invalid message from {}: {err}", id);
                                 self.disconnect(
                                     fd,
                                     DisconnectReason::Session(session::Error::Misbehavior),
@@ -484,11 +484,11 @@ where
                         }
                     }
                 } else {
-                    log::warn!(target: "transport", "Dropping message from unconnected peer with fd {fd}");
+                    log::warn!(target: "wire", "Dropping message from unconnected peer with fd {fd}");
                 }
             }
             SessionEvent::Terminated(err) => {
-                log::debug!(target: "transport", "Session for fd {fd} terminated: {err}");
+                log::debug!(target: "wire", "Session for fd {fd} terminated: {err}");
                 self.disconnect(fd, DisconnectReason::Connection(Arc::new(err)));
             }
         }
@@ -508,39 +508,39 @@ where
         match &err {
             reactor::Error::ListenerUnknown(id) => {
                 // TODO: What are we supposed to do here? Remove this error.
-                log::error!(target: "transport", "Received error: unknown listener {}", id);
+                log::error!(target: "wire", "Received error: unknown listener {}", id);
             }
             reactor::Error::TransportUnknown(id) => {
                 // TODO: What are we supposed to do here? Remove this error.
-                log::error!(target: "transport", "Received error: unknown peer {}", id);
+                log::error!(target: "wire", "Received error: unknown peer {}", id);
             }
             reactor::Error::Poll(err) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
-                log::error!(target: "transport", "Can't poll connections: {}", err);
+                log::error!(target: "wire", "Can't poll connections: {}", err);
             }
             reactor::Error::ListenerPollError(id, err) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
-                log::error!(target: "transport", "Received error: listener {} disconnected: {}", id, err);
+                log::error!(target: "wire", "Received error: listener {} disconnected: {}", id, err);
                 self.actions.push_back(Action::UnregisterListener(*id));
             }
             reactor::Error::ListenerDisconnect(id, _, err) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
-                log::error!(target: "transport", "Received error: listener {} disconnected: {}", id, err);
+                log::error!(target: "wire", "Received error: listener {} disconnected: {}", id, err);
             }
             reactor::Error::TransportPollError(id, err) => {
-                log::error!(target: "transport", "Received error: peer {} disconnected: {}", id, err);
+                log::error!(target: "wire", "Received error: peer {} disconnected: {}", id, err);
                 self.actions.push_back(Action::UnregisterTransport(*id));
             }
             reactor::Error::TransportDisconnect(id, _, err) => {
-                log::error!(target: "transport", "Received error: peer {} disconnected: {}", id, err);
+                log::error!(target: "wire", "Received error: peer {} disconnected: {}", id, err);
             }
             reactor::Error::WriteFailure(id, err) => {
                 // TODO: Disconnect peer?
-                log::error!(target: "transport", "Error during writing to peer {id}: {err}")
+                log::error!(target: "wire", "Error during writing to peer {id}: {err}")
             }
             reactor::Error::WriteLogicError(id, _) => {
                 // TODO: We shouldn't be receiving this error. There's nothing we can do.
-                log::error!(target: "transport", "Write logic error for peer {id}: {err}")
+                log::error!(target: "wire", "Write logic error for peer {id}: {err}")
             }
         }
     }
@@ -565,7 +565,7 @@ where
                 }
             }
             Some(Peer::Upgrading { .. }) => {
-                log::debug!(target: "transport", "Received handover of transport with fd {fd}");
+                log::debug!(target: "wire", "Received handover of transport with fd {fd}");
 
                 self.upgraded(transport);
             }
@@ -593,7 +593,7 @@ where
             match ev {
                 Io::Write(node_id, msgs) => {
                     log::trace!(
-                        target: "transport", "Writing {} message(s) to {}", msgs.len(), node_id
+                        target: "wire", "Writing {} message(s) to {}", msgs.len(), node_id
                     );
                     let fd = self.connected_fd_by_id(&node_id);
                     let mut data = Vec::new();
@@ -604,13 +604,13 @@ where
                 }
                 Io::Event(_e) => {
                     log::warn!(
-                        target: "transport", "Events are not currently supported"
+                        target: "wire", "Events are not currently supported"
                     );
                 }
                 Io::Connect(node_id, addr) => {
                     if self.connected().any(|(_, id)| id == &node_id) {
                         log::error!(
-                            target: "transport",
+                            target: "wire",
                             "Attempt to connect to already connected peer {node_id}"
                         );
                         break;
