@@ -7,6 +7,20 @@ use radicle::git;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
 
+fn show_patch_diff(
+    patch: &patch::Patch,
+    storage: &Repository,
+    workdir: &git::raw::Repository,
+) -> anyhow::Result<()> {
+    let target_head = patch_merge_target_oid(patch.target(), storage)?;
+    let base_oid = workdir.merge_base(target_head, **patch.head())?;
+    let diff = format!("{}..{}", base_oid, patch.head());
+
+    let output = git::run::<_, _, &str, &str>(workdir.path(), ["log", "--patch", &diff], [])?;
+    term::blob(output);
+    Ok(())
+}
+
 pub fn run(
     storage: &Repository,
     profile: &Profile,
@@ -25,10 +39,7 @@ pub fn run(
     term::patch::print_title_desc(patch.title(), patch.description().unwrap_or(""));
     term::blank();
 
-    let target_head = patch_merge_target_oid(patch.target(), storage)?;
-    let base_oid = workdir.merge_base(target_head, **patch.head())?;
-    let commits = patch_commits(workdir, &base_oid, patch.head())?;
-    term::patch::list_commits(&commits)?;
+    show_patch_diff(&patch, storage, workdir)?;
     term::blank();
 
     Ok(())

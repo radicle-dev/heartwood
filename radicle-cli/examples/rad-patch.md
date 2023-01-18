@@ -72,6 +72,14 @@ No description provided.
 
 ╰───────────────────────────────────
 
-9dad201 Define power requirements
+commit 9dad201e2cb3306dd708b4a9ebe811b293e27196
+Author: radicle <radicle@localhost>
+Date:   Thu Dec 15 17:28:04 2022 +0000
+
+    Define power requirements
+
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..e69de29
 
 ```
