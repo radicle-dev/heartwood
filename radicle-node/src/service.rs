@@ -16,9 +16,8 @@ use std::{fmt, io, net, str};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
+use localtime::{LocalDuration, LocalTime};
 use log::*;
-use nakamoto::{LocalDuration, LocalTime};
-use nakamoto_net as nakamoto;
 use nonempty::NonEmpty;
 use radicle::node::{Address, Features};
 use radicle::storage::{Namespaces, ReadStorage};
@@ -395,7 +394,7 @@ where
         Ok(())
     }
 
-    pub fn tick(&mut self, now: nakamoto::LocalTime) {
+    pub fn tick(&mut self, now: LocalTime) {
         trace!("Tick +{}", now - self.start_time);
 
         self.clock = now;

@@ -1,4 +1,4 @@
-use super::nakamoto::LocalDuration;
+use localtime::LocalDuration;
 
 use radicle::node::Address;
 

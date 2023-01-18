@@ -14,7 +14,7 @@ pub mod tests;
 pub mod wire;
 pub mod worker;
 
-pub use nakamoto_net::{Io, LocalDuration, LocalTime};
+pub use localtime::{LocalDuration, LocalTime};
 pub use netservices::LinkDirection as Link;
 pub use radicle::{collections, crypto, git, identity, node, profile, rad, storage};
 

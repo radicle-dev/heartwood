@@ -46,9 +46,6 @@ pub enum Error {
     /// An I/O error.
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
-    /// A networking error.
-    #[error("network error: {0}")]
-    Net(#[from] nakamoto_net::error::Error),
     /// A control socket error.
     #[error("control socket error: {0}")]
     Control(#[from] control::Error),

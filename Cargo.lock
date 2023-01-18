@@ -1571,6 +1571,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f9f08d8963a6c613f4b1a78f4f4a4dbfadf8e6545b2d72861731e4858b8b47f"
 
 [[package]]
+name = "localtime"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b58b1a2626b0920eec1d591e94c4feb3d1353695faad25c38f2a3c3efaf3db19"
+
+[[package]]
 name = "log"
 version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1643,17 +1649,6 @@ dependencies = [
  "base-x",
  "data-encoding",
  "data-encoding-macro",
-]
-
-[[package]]
-name = "nakamoto-net"
-version = "0.3.0"
-source = "git+https://github.com/cloudhead/nakamoto?rev=90cc3eac67aa5cfd5f42cf7cb1e2b155af3214fb#90cc3eac67aa5cfd5f42cf7cb1e2b155af3214fb"
-dependencies = [
- "crossbeam-channel",
- "fastrand",
- "log",
- "thiserror",
 ]
 
 [[package]]
@@ -2290,8 +2285,8 @@ dependencies = [
  "git-ref-format",
  "io-reactor",
  "lexopt",
+ "localtime",
  "log",
- "nakamoto-net",
  "netservices",
  "nonempty 0.8.1",
  "qcheck",

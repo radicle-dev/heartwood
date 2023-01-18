@@ -196,7 +196,7 @@ impl Store for Table {
 
 #[cfg(test)]
 mod test {
-    use nakamoto_net::LocalTime;
+    use localtime::LocalTime;
 
     use super::*;
     use crate::test::arbitrary;

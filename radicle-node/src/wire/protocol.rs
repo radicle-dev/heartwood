@@ -12,7 +12,7 @@ use std::{fmt, io, net};
 use amplify::Wrapper as _;
 use crossbeam_channel as chan;
 use cyphernet::{Cert, Digest, EcSign, Sha256};
-use nakamoto_net::LocalTime;
+use localtime::LocalTime;
 use netservices::resource::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
 use netservices::session::ProtocolArtifact;
 use netservices::session::{CypherReader, CypherSession, CypherWriter};

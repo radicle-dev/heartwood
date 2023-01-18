@@ -9,8 +9,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::{fmt, io};
 
+use localtime::{LocalDuration, LocalTime};
 use log::*;
-use nakamoto_net::{LocalDuration, LocalTime};
 
 use crate::crypto::Signer;
 use crate::prelude::Address;

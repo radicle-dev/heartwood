@@ -2,7 +2,7 @@ use std::{env, net, process};
 
 use anyhow::Context as _;
 use cyphernet::addr::PeerAddr;
-use nakamoto_net::LocalDuration;
+use localtime::LocalDuration;
 
 use radicle::profile;
 use radicle_node::client::Runtime;
