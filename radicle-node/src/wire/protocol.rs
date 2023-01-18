@@ -219,6 +219,10 @@ where
         }
     }
 
+    pub fn listen(&mut self, socket: NetAccept<WireSession<G>>) {
+        self.actions.push_back(Action::RegisterListener(socket));
+    }
+
     fn peer_mut_by_fd(&mut self, fd: RawFd) -> &mut Peer<G> {
         self.peers.get_mut(&fd).unwrap_or_else(|| {
             log::error!(target: "transport", "Peer with fd {fd} was not found");

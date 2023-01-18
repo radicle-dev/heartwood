@@ -49,12 +49,12 @@ impl<T> From<chan::SendError<T>> for Error {
     }
 }
 
-pub struct Handle<T: reactor::Handler> {
+pub struct Handle {
     pub(crate) home: Home,
-    pub(crate) controller: reactor::Controller<T>,
+    pub(crate) controller: reactor::Controller<service::Command>,
 }
 
-impl<T: reactor::Handler> Clone for Handle<T> {
+impl Clone for Handle {
     fn clone(&self) -> Self {
         Self {
             home: self.home.clone(),
@@ -63,20 +63,18 @@ impl<T: reactor::Handler> Clone for Handle<T> {
     }
 }
 
-impl<T: reactor::Handler> Handle<T> {
-    pub fn new(home: Home, controller: reactor::Controller<T>) -> Self {
+impl Handle {
+    pub fn new(home: Home, controller: reactor::Controller<service::Command>) -> Self {
         Self { home, controller }
     }
-}
 
-impl<T: reactor::Handler<Command = service::Command>> Handle<T> {
     fn command(&self, cmd: service::Command) -> Result<(), Error> {
-        self.controller.send(cmd)?;
+        self.controller.cmd(cmd)?;
         Ok(())
     }
 }
 
-impl<T: reactor::Handler<Command = service::Command>> radicle::node::Handle for Handle<T> {
+impl radicle::node::Handle for Handle {
     type Sessions = Sessions;
     type FetchLookup = FetchLookup;
     type Error = Error;

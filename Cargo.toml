@@ -34,11 +34,12 @@ rev = "90cc3eac67aa5cfd5f42cf7cb1e2b155af3214fb"
 version = "0.3.0"
 
 [patch.crates-io.io-reactor]
-git = "https://github.com/cyphernet-wg/rust-netservices"
+git = "https://github.com/rust-amplify/io-reactor"
+rev = "6148aec926c82f08373687d1a9da07a2bca67ea3"
 version = "0.1.0"
 
 [patch.crates-io.netservices]
-git = "https://github.com/cyphernet-wg/rust-netservices"
+git = "https://github.com/cyphernet-dao/rust-netservices"
 version = "0.1.0"
 
 [patch.crates-io.radicle-git-ext]

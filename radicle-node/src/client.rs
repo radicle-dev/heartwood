@@ -53,26 +53,29 @@ pub enum Error {
 }
 
 /// Holds join handles to the client threads, as well as a client handle.
-pub struct Runtime<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone> {
+pub struct Runtime {
     pub id: NodeId,
-    pub handle: Handle<Wire<routing::Table, address::Book, radicle::Storage, G>>,
+    pub handle: Handle,
     pub control: thread::JoinHandle<Result<(), control::Error>>,
-    pub reactor: Reactor<Wire<routing::Table, address::Book, radicle::Storage, G>>,
+    pub reactor: Reactor<service::Command>,
     pub pool: WorkerPool,
     pub local_addrs: Vec<net::SocketAddr>,
 }
 
-impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static> Runtime<G> {
+impl Runtime {
     /// Run the client.
     ///
     /// This function spawns threads.
-    pub fn with(
+    pub fn with<G>(
         home: Home,
         config: service::Config,
         listen: Vec<net::SocketAddr>,
         proxy: net::SocketAddr,
         signer: G,
-    ) -> Result<Runtime<G>, Error> {
+    ) -> Result<Runtime, Error>
+    where
+        G: crypto::Signer + EcSign<Sig = Signature, Pk = NodeId> + Clone + 'static,
+    {
         let id = *signer.public_key();
         let node_sock = home.socket();
         let node_dir = home.node();
@@ -118,14 +121,7 @@ impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static>
             worker_recv,
             id.to_human(),
         );
-        let wire = Wire::new(service, worker_send, cert, signer, proxy, clock);
-        let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
-        let handle = Handle::new(home, reactor.controller());
-        let control = thread::spawn({
-            let handle = handle.clone();
-            move || control::listen(node_sock, handle)
-        });
-        let controller = reactor.controller();
+        let mut wire = Wire::new(service, worker_send, cert, signer, proxy, clock);
         let mut local_addrs = Vec::new();
 
         for addr in listen {
@@ -133,10 +129,16 @@ impl<G: crypto::Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + 'static>
             let local_addr = listener.local_addr();
 
             local_addrs.push(local_addr);
-            controller.register_listener(listener)?;
+            wire.listen(listener);
 
             log::info!("Listening on {local_addr}..");
         }
+        let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
+        let handle = Handle::new(home, reactor.controller());
+        let control = thread::spawn({
+            let handle = handle.clone();
+            move || control::listen(node_sock, handle)
+        });
 
         Ok(Runtime {
             id,

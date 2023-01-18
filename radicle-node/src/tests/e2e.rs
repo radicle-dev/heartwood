@@ -17,12 +17,10 @@ use radicle::test::fixtures;
 use radicle::Storage;
 use radicle::{assert_matches, rad};
 
-use crate::address;
 use crate::node::NodeId;
-use crate::service::{routing, FetchLookup, FetchResult};
+use crate::service::{FetchLookup, FetchResult};
 use crate::storage::git::transport;
 use crate::test::logger;
-use crate::wire::Wire;
 use crate::{client, client::handle::Handle, client::Runtime, service};
 
 /// A node that can be run.
@@ -38,7 +36,7 @@ struct NodeHandle {
     storage: Storage,
     addr: net::SocketAddr,
     thread: ManuallyDrop<thread::JoinHandle<Result<(), client::Error>>>,
-    handle: ManuallyDrop<Handle<Wire<routing::Table, address::Book, Storage, MockSigner>>>,
+    handle: ManuallyDrop<Handle>,
 }
 
 impl Drop for NodeHandle {
