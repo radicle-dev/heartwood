@@ -1,4 +1,5 @@
 pub mod args;
+pub mod cob;
 pub mod command;
 pub mod format;
 pub mod io;

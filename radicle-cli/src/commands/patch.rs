@@ -8,7 +8,6 @@ mod list;
 mod show;
 
 use std::ffi::OsString;
-use std::str::FromStr;
 
 use anyhow::anyhow;
 
@@ -94,14 +93,6 @@ pub struct Options {
     pub verbose: bool,
 }
 
-fn parse_patch_id(val: OsString) -> Result<OptPatch, anyhow::Error> {
-    let val = val
-        .to_str()
-        .ok_or_else(|| anyhow!("patch id specified is not UTF-8"))?;
-    let patch_id = PatchId::from_str(val).map_err(|_| anyhow!("invalid patch id '{}'", val))?;
-    Ok(OptPatch::Patch(patch_id))
-}
-
 impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
         use lexopt::prelude::*;
@@ -166,10 +157,10 @@ impl Args for Options {
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val) if op == Some(OperationName::Show) && patch_id == OptPatch::Any => {
-                    patch_id = parse_patch_id(val)?;
+                    patch_id = OptPatch::Patch(term::cob::parse_patch_id(val)?);
                 }
                 Value(val) if op == Some(OperationName::Update) && patch_id == OptPatch::Any => {
-                    patch_id = parse_patch_id(val)?;
+                    patch_id = OptPatch::Patch(term::cob::parse_patch_id(val)?);
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
