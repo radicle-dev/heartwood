@@ -140,7 +140,7 @@ async fn history_handler(
         per_page.unwrap_or(30)
     };
 
-    let headers = repo
+    let commits = repo
         .history(&sha)?
         .filter(|q| {
             if let Ok(q) = q {
@@ -170,7 +170,7 @@ async fn history_handler(
                     .collect();
                 let diff = repo.diff_commit(c.id)?;
                 Ok(json!({
-                    "header": api::json::commit(&c),
+                    "commit": api::json::commit(&c),
                     "diff": diff,
                     "branches": branches
                 }))
@@ -179,7 +179,7 @@ async fn history_handler(
         .collect::<Result<Vec<_>, _>>()?;
 
     let response = json!({
-        "headers": headers,
+        "commits": commits,
         "stats":  repo.stats()?,
     });
 
@@ -209,7 +209,7 @@ async fn commit_handler(
         .collect();
 
     let response = json!({
-      "header": api::json::commit(&commit),
+      "commit": api::json::commit(&commit),
       "diff": diff,
       "branches": branches
     });
@@ -521,9 +521,9 @@ mod routes {
         assert_eq!(
             response.json().await,
             json!({
-              "headers": [
+              "commits": [
                 {
-                  "header": {
+                  "commit": {
                     "sha1": HEAD,
                     "author": {
                       "name": "Alice Liddell",
@@ -573,7 +573,7 @@ mod routes {
                   ]
                 },
                 {
-                  "header": {
+                  "commit": {
                     "sha1": HEAD_1,
                     "author": {
                       "name": "Alice Liddell",
@@ -647,7 +647,7 @@ mod routes {
         assert_eq!(
             response.json().await,
             json!({
-              "header": {
+              "commit": {
                 "sha1": HEAD,
                 "author": {
                   "name": "Alice Liddell",
