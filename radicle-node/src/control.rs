@@ -13,7 +13,6 @@ use crate::client;
 use crate::identity::Id;
 use crate::node;
 use crate::service::FetchLookup;
-use crate::service::FetchResult;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -242,19 +241,19 @@ fn fetch<W: Write, H: Handle<Error = client::handle::Error, FetchLookup = FetchL
             )?;
 
             for result in results.iter() {
-                match result {
-                    FetchResult::Fetched { from, updated } => {
-                        writeln!(writer, "ok: {} fetched from {}", &id, from)?;
+                match result.result {
+                    Ok(updated) => {
+                        writeln!(writer, "ok: {} fetched from {}", &id, result.remote)?;
 
                         for update in updated {
                             writeln!(writer, "{}", update)?;
                         }
                     }
-                    FetchResult::Error { from, error } => {
+                    Err(err) => {
                         writeln!(
                             writer,
                             "error: {} failed to fetch from {}: {}",
-                            &id, from, error
+                            &id, result.remote, err
                         )?;
                     }
                 }

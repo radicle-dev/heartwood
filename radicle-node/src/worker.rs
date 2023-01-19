@@ -57,15 +57,10 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         } = task;
 
         let (session, result) = self._process(&fetch, drain, session);
-        let result = match result {
-            Ok(updated) => FetchResult::Fetched {
-                from: fetch.remote,
-                updated,
-            },
-            Err(error) => FetchResult::Error {
-                from: fetch.remote,
-                error,
-            },
+        let result = FetchResult {
+            rid: fetch.repo,
+            remote: fetch.remote,
+            result,
         };
         log::debug!(target: "worker", "Sending response back to service..");
 

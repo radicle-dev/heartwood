@@ -18,7 +18,7 @@ use radicle::Storage;
 use radicle::{assert_matches, rad};
 
 use crate::node::NodeId;
-use crate::service::{FetchLookup, FetchResult};
+use crate::service::FetchLookup;
 use crate::storage::git::transport;
 use crate::test::logger;
 use crate::{client, client::handle::Handle, client::Runtime, service};
@@ -343,16 +343,17 @@ fn test_replication() {
     };
     assert_eq!(seeds, nonempty::NonEmpty::new(bob.id));
 
-    let (from, updated) = match results.recv_timeout(Duration::from_secs(6)).unwrap() {
-        FetchResult::Fetched { from, updated } => (from, updated),
-        FetchResult::Error { from, error } => {
-            panic!("Fetch failed from {from}: {error}");
+    let result = results.recv_timeout(Duration::from_secs(6)).unwrap();
+    let updated = match result.result {
+        Ok(updated) => updated,
+        Err(err) => {
+            panic!("Fetch failed from {}: {err}", result.remote);
         }
     };
-    assert_eq!(from, bob.id);
+    assert_eq!(result.remote, bob.id);
     assert_eq!(updated, vec![]);
 
-    log::debug!(target: "test", "Fetch complete with {}", from);
+    log::debug!(target: "test", "Fetch complete with {}", result.remote);
 
     let inventory = alice.handle.inventory().unwrap();
     let alice_refs = alice

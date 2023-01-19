@@ -131,24 +131,10 @@ pub enum FetchLookup {
 /// Result of a fetch request from a specific seed.
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
-pub enum FetchResult {
-    /// Successful fetch from a seed.
-    Fetched {
-        from: NodeId,
-        updated: Vec<RefUpdate>,
-    },
-    /// Error fetching the resource from a seed.
-    Error { from: NodeId, error: FetchError },
-}
-
-impl FetchResult {
-    /// Get the remote node id.
-    pub fn remote(&self) -> &NodeId {
-        match self {
-            Self::Fetched { from, .. } => from,
-            Self::Error { from, .. } => from,
-        }
-    }
+pub struct FetchResult {
+    pub rid: Id,
+    pub remote: NodeId,
+    pub result: Result<Vec<RefUpdate>, FetchError>,
 }
 
 /// Function used to query internal service state.
@@ -226,6 +212,8 @@ pub struct Service<R, A, S, G> {
     rng: Rng,
     /// Whether our local inventory no long represents what we have announced to the network.
     out_of_sync: bool,
+    /// Fetch requests initiated by user, which are waiting for results.
+    fetch_reqs: HashMap<Id, chan::Sender<FetchResult>>,
     /// Current tracked repository bloom filter.
     filter: Filter,
     /// Last time the service was idle.
@@ -289,6 +277,7 @@ where
             reactor: Reactor::default(),
             sessions,
             out_of_sync: false,
+            fetch_reqs: HashMap::new(),
             filter: Filter::empty(),
             last_idle: LocalTime::default(),
             last_sync: LocalTime::default(),
@@ -456,8 +445,14 @@ where
                     return;
                 }
 
-                let Ok(seeds) = self.routing.get(&id) else {
-                    todo!();
+                let seeds = match self.routing.get(&id) {
+                    Ok(seeds) => seeds,
+                    Err(err) => {
+                        log::error!("Error reading routing table for {id}: {err}");
+                        resp.send(FetchLookup::NotFound).ok();
+
+                        return;
+                    }
                 };
                 let Some(seeds) = NonEmpty::from_vec(seeds.into_iter().collect()) else {
                     log::warn!("No seeds found for {}", id);
@@ -474,17 +469,12 @@ where
                 })
                 .ok();
 
+                self.fetch_reqs.insert(id, results_send);
+
                 // TODO: Limit the number of seeds we fetch from? Randomize?
                 for seed in seeds {
-                    let session = self.sessions.get_mut(&seed).unwrap();
-                    if let Some(fetch) = session.fetch(id, results_send.clone()) {
-                        self.reactor.write(session.id, fetch);
-                        self.reactor
-                            .fetch(session.id, id, Namespaces::default(), true);
-                    } else {
-                        // TODO: If we can't fetch, it's because we're already fetching from
-                        // this peer. So we need to queue the request, or find another peer.
-                        todo!();
+                    if let Err(err) = self.fetch(id, seed) {
+                        log::error!("Error initiating fetch for {id} from {seed}: {err}");
                     }
                 }
             }
@@ -525,18 +515,38 @@ where
         }
     }
 
+    pub fn fetch(&mut self, rid: Id, seed: NodeId) -> Result<(), Error> {
+        let session = self.sessions.get_mut(&seed).unwrap();
+        if let Some(fetch) = session.fetch(rid) {
+            self.reactor.write(session.id, fetch);
+            self.reactor
+                .fetch(session.id, rid, Namespaces::default(), true);
+        } else {
+            // TODO: If we can't fetch, it's because we're already fetching from
+            // this peer. So we need to queue the request, or find another peer.
+            todo!();
+        }
+        Ok(())
+    }
+
     pub fn repo_fetched(&mut self, result: FetchResult) {
-        // TODO(cloudhead): handle completed job with service business logic
-        // TODO: Downgrade session to gossip protocol.
-        if let Some(session) = self.sessions.get_mut(result.remote()) {
-            if let session::State::Connected { protocol, .. } = &session.state {
-                if let session::Protocol::Fetch {
-                    results: Some(results),
-                } = protocol
-                {
-                    results.send(result).unwrap();
+        let remote = result.remote;
+        let rid = result.rid;
+
+        if let Some(results) = self.fetch_reqs.get(&rid) {
+            if results.send(result).is_err() {
+                self.fetch_reqs.remove(&rid);
+            }
+        }
+        if let Some(session) = self.sessions.get_mut(&remote) {
+            if let session::State::Connected { protocol, .. } = &mut session.state {
+                if *protocol == session::Protocol::Fetch {
+                    *protocol = session::Protocol::Gossip;
                 } else {
-                    // Fetch initiated by remote, we don't need to report back.
+                    panic!(
+                        "Unexpected session state for {}: expected 'fetch' protocol, got 'gossip'",
+                        session.id
+                    );
                 }
             }
         }
@@ -924,7 +934,7 @@ where
                 }
             }
             (session::State::Connected { protocol, .. }, Message::Fetch { repo }) => {
-                *protocol = Protocol::Fetch { results: None };
+                *protocol = Protocol::Fetch;
                 // Instruct the transport to handover the socket to the worker.
                 self.reactor
                     .fetch(*remote, repo, Namespaces::default(), false);
