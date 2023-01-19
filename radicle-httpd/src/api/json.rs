@@ -85,6 +85,7 @@ pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
     json!({
         "id": id.to_string(),
         "author": issue.author(),
+        "assignees": issue.assigned().collect::<Vec<_>>(),
         "title": issue.title(),
         "state": issue.state(),
         "discussion": issue.comments().collect::<Comments>(),

@@ -4,15 +4,17 @@ use axum::extract::State;
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
 use axum::response::IntoResponse;
-use axum::routing::get;
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
+use axum_auth::AuthBearer;
 use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
-use radicle::cob::issue::Issues;
+use radicle::cob::issue::{Action, Issues};
 use radicle::cob::patch::Patches;
+use radicle::cob::{thread, Tag};
 use radicle::identity::Id;
 use radicle::node::NodeId;
 use radicle::storage::{git::paths, ReadRepository, WriteStorage};
@@ -46,8 +48,14 @@ pub fn router(ctx: Context) -> Router {
         .route("/projects/:project/remotes/:peer", get(remote_handler))
         .route("/projects/:project/blob/:sha/*path", get(blob_handler))
         .route("/projects/:project/readme/:sha", get(readme_handler))
-        .route("/projects/:project/issues", get(issues_handler))
-        .route("/projects/:project/issues/:id", get(issue_handler))
+        .route(
+            "/projects/:project/issues",
+            post(issue_create_handler).get(issues_handler),
+        )
+        .route(
+            "/projects/:project/issues/:id",
+            patch(issue_update_handler).get(issue_handler),
+        )
         .route("/projects/:project/patches", get(patches_handler))
         .route("/projects/:project/patches/:id", get(patch_handler))
         .with_state(ctx)
@@ -389,6 +397,92 @@ async fn issues_handler(
         .collect::<Vec<_>>();
 
     Ok::<_, Error>(Json(issues))
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct IssueCreate {
+    pub title: String,
+    pub description: String,
+    pub tags: Vec<Tag>,
+}
+
+/// Create a new issue.
+/// `POST /projects/:project/issues`
+async fn issue_create_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path(project): Path<Id>,
+    Json(issue): Json<IssueCreate>,
+) -> impl IntoResponse {
+    let sessions = ctx.sessions.read().await;
+    sessions.get(&token).ok_or(Error::Auth("Unauthorized"))?;
+    let storage = &ctx.profile.storage;
+    let signer = ctx
+        .profile
+        .signer()
+        .map_err(|_| Error::Auth("Unauthorized"))?;
+    let repo = storage.repository(project)?;
+    let mut issues = Issues::open(ctx.profile.public_key, &repo)?;
+    issues
+        .create(issue.title, issue.description, &issue.tags, &signer)
+        .map_err(Error::from)?;
+
+    Ok::<_, Error>((StatusCode::CREATED, Json(json!({ "success": true }))))
+}
+
+/// Update an issue.
+/// `PATCH /projects/:project/issues/:id`
+async fn issue_update_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path((project, issue_id)): Path<(Id, Oid)>,
+    Json(action): Json<Action>,
+) -> impl IntoResponse {
+    let sessions = ctx.sessions.write().await;
+    sessions.get(&token).ok_or(Error::Auth("Unauthorized"))?;
+    let storage = &ctx.profile.storage;
+    let signer = ctx.profile.signer().unwrap();
+    let repo = storage.repository(project)?;
+    let mut issues = Issues::open(ctx.profile.public_key, &repo)?;
+    let mut issue = issues.get_mut(&issue_id.into())?;
+    match action {
+        Action::Assign { add, remove } => {
+            issue.assign(add, &signer)?;
+            issue.unassign(remove, &signer)?;
+        }
+        Action::Lifecycle { state } => {
+            issue.lifecycle(state, &signer)?;
+        }
+        Action::Tag { add, remove } => {
+            issue.tag(add, remove, &signer)?;
+        }
+        Action::Edit { title } => {
+            issue.edit(title, &signer)?;
+        }
+        Action::Thread { action } => {
+            let mut actor = thread::Actor::new(ctx.profile.signer().unwrap());
+            match action {
+                thread::Action::Comment { body, reply_to } => {
+                    if let Some(reply_to) = reply_to {
+                        issue.comment(body, reply_to, &signer)?;
+                    } else {
+                        issue.thread(body, &signer)?;
+                    }
+                }
+                thread::Action::React { to, reaction, .. } => {
+                    issue.react(to, reaction, &signer)?;
+                }
+                thread::Action::Edit { id, body } => {
+                    actor.edit(id, &body);
+                }
+                thread::Action::Redact { id } => {
+                    actor.redact(id);
+                }
+            }
+        }
+    };
+
+    Ok::<_, Error>(Json(json!({ "success": true })))
 }
 
 /// Get project issue.
@@ -909,6 +1003,7 @@ mod routes {
                 "state": {
                     "status": "open"
                 },
+                "assignees": [],
                 "discussion": [
                   {
                     "author": {

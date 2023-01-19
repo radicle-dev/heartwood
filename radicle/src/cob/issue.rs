@@ -274,6 +274,11 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         self.transaction("Assign", signer, |tx| tx.assign(assignees, vec![]))
     }
 
+    /// Set the issue title.
+    pub fn edit<G: Signer>(&mut self, title: impl ToString, signer: &G) -> Result<OpId, Error> {
+        self.transaction("Edit", signer, |tx| tx.edit(title))
+    }
+
     /// Lifecycle an issue.
     pub fn lifecycle<G: Signer>(&mut self, state: State, signer: &G) -> Result<OpId, Error> {
         self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
@@ -596,6 +601,24 @@ mod test {
         let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
         assert_eq!(1, assignees.len());
         assert!(assignees.contains(&assignee_two));
+    }
+
+    #[test]
+    fn test_issue_edit_title() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issue = issues
+            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .unwrap();
+
+        issue.edit("Sorry typo", &signer).unwrap();
+
+        let id = issue.id;
+        let issue = issues.get(&id).unwrap().unwrap();
+        let r = issue.title();
+
+        assert_eq!(r, "Sorry typo");
     }
 
     #[test]

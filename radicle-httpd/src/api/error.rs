@@ -30,6 +30,10 @@ pub enum Error {
     #[error(transparent)]
     Storage(#[from] radicle::storage::Error),
 
+    /// Cob issue error.
+    #[error(transparent)]
+    CobIssue(#[from] radicle::cob::issue::Error),
+
     /// Cob store error.
     #[error(transparent)]
     CobStore(#[from] radicle::cob::store::Error),

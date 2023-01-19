@@ -17,6 +17,7 @@ logfmt = [
 [dependencies]
 anyhow = { version = "1" }
 axum = { version = "0.6.2", default-features = false, features = ["headers", "json", "query", "tokio"] }
+axum-auth = { version= "0.4.0", default-features = false, features = ["auth-bearer"] }
 axum-server = { version = "0.4.4", default-features = false }
 chrono = { version = "0.4.22" }
 fastrand = { version = "1.7.0" }
