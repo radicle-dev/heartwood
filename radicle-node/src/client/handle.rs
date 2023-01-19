@@ -1,5 +1,6 @@
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crossbeam_channel as chan;
@@ -56,6 +57,9 @@ impl<T> From<chan::SendError<T>> for Error {
 pub struct Handle<G: Signer + EcSign> {
     pub(crate) home: Home,
     pub(crate) controller: reactor::Controller<wire::Control<G>>,
+
+    /// Whether a shutdown was initiated or not. Prevents attempting to shutdown twice.
+    shutdown: Arc<AtomicBool>,
 }
 
 impl<G: Signer + EcSign> Clone for Handle<G> {
@@ -63,13 +67,18 @@ impl<G: Signer + EcSign> Clone for Handle<G> {
         Self {
             home: self.home.clone(),
             controller: self.controller.clone(),
+            shutdown: self.shutdown.clone(),
         }
     }
 }
 
 impl<G: Signer + EcSign + 'static> Handle<G> {
     pub fn new(home: Home, controller: reactor::Controller<wire::Control<G>>) -> Self {
-        Self { home, controller }
+        Self {
+            home,
+            controller,
+            shutdown: Arc::default(),
+        }
     }
 
     pub fn worker_result(&mut self, resp: WorkerResp<G>) -> Result<(), Error> {
@@ -182,6 +191,14 @@ impl<G: Signer + EcSign + 'static> radicle::node::Handle for Handle<G> {
     }
 
     fn shutdown(self) -> Result<(), Error> {
+        // If the current value is `false`, set it to `true`, otherwise error.
+        if self
+            .shutdown
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return Ok(());
+        }
         // Send a shutdown request to our own control socket. This is the only way to kill the
         // control thread gracefully. Since the control thread may have called this function,
         // the control socket may already be disconnected. Ignore errors.
