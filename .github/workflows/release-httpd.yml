@@ -1,4 +1,4 @@
-name: Upload binaries for frontend e2e tests
+name: Release / httpd
 
 on:
   push:
