@@ -26,8 +26,8 @@ jobs:
             options: -v ${{ github.workspace }}:/workdir -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
             run: |
               rustup target add x86_64-unknown-linux-musl
-              cd radicle-cli
-              cargo build --release --target=x86_64-unknown-linux-musl
+              cargo build --release --target=x86_64-unknown-linux-musl --bin rad
+              cargo build --release --target=x86_64-unknown-linux-musl --bin git-remote-rad
               chmod --recursive go+r /root/.cargo/registry
       - name: Build deb package
         uses: addnab/docker-run-action@v3
@@ -43,6 +43,7 @@ jobs:
           staging="radicle-cli-x86_64-unknown-linux-musl"
           mkdir -p "$staging"
           cp target/x86_64-unknown-linux-musl/release/rad "$staging"/
+          cp target/x86_64-unknown-linux-musl/release/git-remote-rad "$staging"/
           tar czf "$staging.tar.gz" "$staging"
       - uses: softprops/action-gh-release@v1
         with:
@@ -73,13 +74,14 @@ jobs:
             options: -v ${{ github.workspace }}:/home/rust/src -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
             run: |
               rustup target add aarch64-unknown-linux-musl
-              cd radicle-cli
-              cargo build --release
+              cargo build --release --bin rad
+              cargo build --release --bin git-remote-rad
       - shell: bash
         run: |
           staging="radicle-cli-aarch64-unknown-linux-musl"
           mkdir -p "$staging"
           cp target/aarch64-unknown-linux-musl/release/rad "$staging"/
+          cp target/aarch64-unknown-linux-musl/release/git-remote-rad "$staging"/
           tar czf "$staging.tar.gz" "$staging"
       - uses: softprops/action-gh-release@v1
         with:
@@ -111,14 +113,15 @@ jobs:
           target: ${{ matrix.target }}
       - name: Build the release binaries
         run: |
-          cd radicle-cli
-          env LIBUSB_STATIC=1 cargo build --release --target ${{ matrix.target }}
+          cargo build --release --target ${{ matrix.target }} --bin rad
+          cargo build --release --target ${{ matrix.target }} --bin git-remote-rad
       - name: Build the release archive
         shell: bash
         run: |
           staging="radicle-cli-${{ matrix.target }}"
           mkdir -p "$staging"
           cp target/${{ matrix.target }}/release/rad "$staging"/
+          cp target/${{ matrix.target }}/release/git-remote-rad "$staging"/
           tar czf "$staging.tar.gz" "$staging"
       - uses: softprops/action-gh-release@v1
         with:
