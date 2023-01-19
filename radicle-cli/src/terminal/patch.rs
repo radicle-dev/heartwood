@@ -2,9 +2,9 @@ use radicle::git;
 
 use crate::terminal as term;
 
-/// How a comment is to be supplied by the user for a patch or issue on the terminal.
+/// The user supplied `Patch` description.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Comment {
+pub enum Message {
     /// Prompt user to write comment in editor.
     Edit,
     /// Don't leave a comment.
@@ -13,18 +13,18 @@ pub enum Comment {
     Text(String),
 }
 
-impl Comment {
-    /// Get the comment as a string according to the method.
+impl Message {
+    /// Get the `Message` as a string according to the method.
     pub fn get(self, help: &str) -> String {
         let comment = match self {
-            Comment::Edit => term::Editor::new()
+            Message::Edit => term::Editor::new()
                 .require_save(true)
                 .trim_newlines(true)
                 .extension(".markdown")
                 .edit(help)
                 .unwrap(),
-            Comment::Blank => None,
-            Comment::Text(c) => Some(c),
+            Message::Blank => None,
+            Message::Text(c) => Some(c),
         };
         let comment = comment.unwrap_or_default().replace(help, "");
         let comment = comment.trim();
@@ -33,15 +33,15 @@ impl Comment {
     }
 
     pub fn append(&mut self, arg: &str) {
-        if let Comment::Text(v) = self {
+        if let Message::Text(v) = self {
             v.extend(["\n\n", arg]);
         } else {
-            *self = Comment::Text(arg.into());
+            *self = Message::Text(arg.into());
         };
     }
 }
 
-impl Default for Comment {
+impl Default for Message {
     fn default() -> Self {
         Self::Edit
     }

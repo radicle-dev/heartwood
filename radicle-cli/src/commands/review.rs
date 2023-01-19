@@ -9,7 +9,7 @@ use radicle::rad;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::patch::Comment;
+use crate::terminal::patch::Message;
 
 pub const HELP: Help = Help {
     name: "review",
@@ -47,7 +47,7 @@ Markdown supported.
 pub struct Options {
     pub id: PatchId,
     pub revision: Option<RevisionIx>,
-    pub message: Comment,
+    pub message: Message,
     pub sync: bool,
     pub verbose: bool,
     pub verdict: Option<Verdict>,
@@ -60,7 +60,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<PatchId> = None;
         let mut revision: Option<RevisionIx> = None;
-        let mut message = Comment::default();
+        let mut message = Message::default();
         let mut sync = true;
         let mut verbose = false;
         let mut verdict = None;
@@ -85,13 +85,13 @@ impl Args for Options {
                     sync = false;
                 }
                 Long("message") | Short('m') => {
-                    if message != Comment::Blank {
+                    if message != Message::Blank {
                         let txt: String = parser.value()?.to_string_lossy().into();
                         message.append(&txt);
                     }
                 }
                 Long("no-message") => {
-                    message = Comment::Blank;
+                    message = Message::Blank;
                 }
                 Long("verbose") | Short('v') => {
                     verbose = true;

@@ -12,7 +12,7 @@ use radicle::storage::WriteStorage;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::patch::Comment;
+use crate::terminal::patch::Message;
 
 pub const HELP: Help = Help {
     name: "comment",
@@ -33,7 +33,7 @@ Options
 #[derive(Debug)]
 pub struct Options {
     pub id: cob::ObjectId,
-    pub message: Comment,
+    pub message: Message,
 }
 
 #[inline]
@@ -50,19 +50,19 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<cob::ObjectId> = None;
-        let mut message = Comment::default();
+        let mut message = Message::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
                 // Options.
                 Long("message") | Short('m') => {
-                    if message != Comment::Blank {
+                    if message != Message::Blank {
                         // We skip this code when `no-message` is specified.
                         let txt: String = parser.value()?.to_string_lossy().into();
                         message.append(&txt);
                     }
                 }
-                Long("no-message") => message = Comment::Blank,
+                Long("no-message") => message = Message::Blank,
 
                 // Common.
                 Long("help") => return Err(Error::Help.into()),

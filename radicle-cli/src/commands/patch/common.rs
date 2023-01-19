@@ -1,12 +1,43 @@
+use std::fmt;
+use std::path::Path;
+
+use anyhow::anyhow;
+
 use radicle::cob::patch::{Clock, MergeTarget, Patch, PatchId, Patches};
 use radicle::git;
 use radicle::git::raw::Oid;
 use radicle::prelude::*;
+use radicle::storage;
 use radicle::storage::git::Repository;
 use radicle::storage::Remote;
 
 use crate::terminal as term;
 use crate::terminal::args::Error;
+
+use super::Options;
+
+/// Give the name of the branch or an appropriate error.
+#[inline]
+pub fn branch_name<'a>(branch: &'a git::raw::Branch) -> anyhow::Result<&'a str> {
+    branch
+        .name()?
+        .ok_or(anyhow!("head branch must be valid UTF-8"))
+}
+
+/// Give the oid of the branch or an appropriate error.
+#[inline]
+pub fn branch_oid(branch: &git::raw::Branch) -> anyhow::Result<git::Oid> {
+    let oid = branch
+        .get()
+        .target()
+        .ok_or(anyhow!("invalid HEAD ref; aborting"))?;
+    Ok(oid.into())
+}
+
+#[inline]
+pub fn confirm<D: fmt::Display>(prompt: D, options: &Options) -> bool {
+    !options.confirm || term::confirm(prompt)
+}
 
 /// List of merge targets.
 #[derive(Debug, Default)]
@@ -38,6 +69,38 @@ pub fn find_merge_targets(
         }
     }
     Ok(targets)
+}
+
+/// Determine the merge target for this patch. This can ben any tracked remote's "default"
+/// branch, as well as your own (eg. `rad/master`).
+pub fn get_merge_target(
+    project: &Project,
+    storage: &Repository,
+    head_branch: &git::raw::Branch,
+) -> anyhow::Result<(storage::Remote, git::Oid)> {
+    let head_oid = head_branch
+        .get()
+        .target()
+        .ok_or(anyhow!("invalid HEAD ref; aborting"))?;
+    let mut spinner = term::spinner("Analyzing remotes...");
+    let targets = find_merge_targets(&head_oid, project.default_branch().as_refstr(), storage)?;
+
+    // eg. `refs/namespaces/<peer>/refs/heads/master`
+    let (target_peer, target_oid) = match targets.not_merged.as_slice() {
+        [] => {
+            spinner.message("All tracked peers are up to date.");
+            todo!("handle case without target");
+        }
+        [target] => target,
+        _ => {
+            // TODO: Let user select which branch to use as a target.
+            todo!();
+        }
+    };
+    // TODO: Tell user how many peers don't have this change.
+    spinner.finish();
+
+    Ok((target_peer.clone(), *target_oid))
 }
 
 /// Return the [`Oid`] of the merge target.
@@ -104,6 +167,60 @@ pub fn pretty_commit_version(
     }
 
     Ok(oid)
+}
+
+#[inline]
+pub fn try_branch(reference: git::raw::Reference<'_>) -> anyhow::Result<git::raw::Branch> {
+    let branch = if reference.is_branch() {
+        git::raw::Branch::wrap(reference)
+    } else {
+        anyhow::bail!("cannot create patch from detached head; aborting")
+    };
+    Ok(branch)
+}
+
+/// Push branch to the local storage.
+///
+/// The branch must be in storage for others to merge the `Patch`.
+pub fn push_to_storage(
+    storage: &Repository,
+    head_branch: &git::raw::Branch,
+    options: &Options,
+) -> anyhow::Result<()> {
+    let head_oid = branch_oid(head_branch)?;
+    let mut spinner = term::spinner(format!(
+        "Looking for HEAD ({}) in storage...",
+        term::format::secondary(term::format::oid(head_oid))
+    ));
+    if storage.commit(head_oid).is_err() {
+        if !options.push {
+            spinner.failed();
+            term::blank();
+
+            return Err(Error::WithHint {
+                err: anyhow!("Current branch head was not found in storage"),
+                hint: "hint: run `git push rad` and try again",
+            }
+            .into());
+        }
+        spinner.message("Pushing HEAD to storage...");
+
+        let output = match head_branch.upstream() {
+            Ok(_) => git::run::<_, _, &str, &str>(Path::new("."), ["push", "rad"], [])?,
+            Err(_) => git::run::<_, _, &str, &str>(
+                Path::new("."),
+                ["push", "--set-upstream", "rad", branch_name(head_branch)?],
+                [],
+            )?,
+        };
+        if options.verbose {
+            spinner.finish();
+            term::blob(output);
+        }
+    }
+    spinner.finish();
+
+    Ok(())
 }
 
 /// Find patches with a merge base equal to the one provided.

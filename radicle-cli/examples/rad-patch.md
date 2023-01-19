@@ -89,18 +89,18 @@ Wait, lets add a README too! Just for fun.
 ```
 $ touch README.md
 $ git add README.md
-$ git commit --message "add README for the YOLOs"
-[flux-capacitor-power 6792455] add README for the YOLOs
+$ git commit --message "Add README, just for the fun"
+[flux-capacitor-power 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
 $ rad patch update --message "Add README, just for the fun" --no-confirm 15141cf1497627e2db54362972dd9533f62d1dcb
 
-🌱 Creating patch for heartwood
+🌱 Updating patch for heartwood
 
 ok Pushing HEAD to storage...
 ok Analyzing remotes...
 
-15141cf1497 R0 (3e674d1) -> R1 (6792455)
+15141cf1497 R0 (3e674d1) -> R1 (27857ec)
 1 commit(s) ahead, 0 commit(s) behind
 
 
