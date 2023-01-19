@@ -573,13 +573,13 @@ impl store::Transaction<Patch> {
         &mut self,
         revision: RevisionId,
         body: S,
-        reply_to: CommentId,
+        reply_to: Option<CommentId>,
     ) -> OpId {
         self.push(Action::Thread {
             revision,
             action: thread::Action::Comment {
                 body: body.to_string(),
-                reply_to: Some(reply_to),
+                reply_to,
             },
         })
     }
@@ -696,7 +696,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         &mut self,
         revision: RevisionId,
         body: S,
-        reply_to: CommentId,
+        reply_to: Option<CommentId>,
         signer: &G,
     ) -> Result<CommentId, Error> {
         self.transaction("Comment", signer, |tx| tx.comment(revision, body, reply_to))
@@ -1062,6 +1062,38 @@ mod test {
         assert_eq!(revision.discussion.len(), 0);
         assert_eq!(revision.oid, oid);
         assert_eq!(revision.base, base);
+    }
+
+    #[test]
+    fn test_patch_discussion() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                git::Oid::try_from("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap(),
+                git::Oid::try_from("e2a85016a458cd809c0ecee81f8c99613b0b0945").unwrap(),
+                &[],
+                &signer,
+            )
+            .unwrap();
+
+        let id = patch.id;
+        let mut patch = patches.get_mut(&id).unwrap();
+        let (revision_id, _) = patch.revisions().last().unwrap();
+        assert!(
+            patch
+                .comment(*revision_id, "patch comment", None, &signer)
+                .is_ok(),
+            "can comment on patch"
+        );
+
+        let (_, revision) = patch.revisions().last().unwrap();
+        let (_, comment) = revision.discussion.first().unwrap();
+        assert_eq!("patch comment", comment.body(), "comment body untouched");
     }
 
     #[test]

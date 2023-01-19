@@ -107,3 +107,9 @@ ok Analyzing remotes...
 ok Patch 15141cf1497627e2db54362972dd9533f62d1dcb updated 🌱
 
 ```
+
+And lets leave a quick comment for our team:
+
+```
+$ rad comment 15141cf1497627e2db54362972dd9533f62d1dcb --message 'I cannot wait to get back to the 90s!'
+```

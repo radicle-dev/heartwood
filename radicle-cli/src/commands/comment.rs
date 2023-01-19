@@ -5,6 +5,7 @@ use anyhow::anyhow;
 
 use radicle::cob;
 use radicle::cob::issue::Issues;
+use radicle::cob::patch::Patches;
 use radicle::cob::store;
 use radicle::prelude::*;
 use radicle::storage;
@@ -93,15 +94,28 @@ fn comment(
     }
 
     let mut issues = Issues::open(*signer.public_key(), repo)?;
-    let mut issue = issues.get_mut(&options.id).map_err(|e| match e {
-        store::Error::NotFound(_, _) => anyhow::anyhow!("Could not find issue {}", options.id),
-        _ => e.into(),
-    })?;
-    let (comment_id, _) = issue.comments().next().expect("root comment always exists");
+    match issues.get_mut(&options.id) {
+        Ok(mut issue) => {
+            let (comment_id, _) = issue.comments().next().expect("root comment always exists");
+            issue.comment(message, *comment_id, &signer)?;
+            return Ok(());
+        }
+        Err(store::Error::NotFound(_, _)) => {}
+        Err(e) => return Err(e.into()),
+    }
 
-    issue.comment(message, *comment_id, &signer)?;
+    let mut patches = Patches::open(*signer.public_key(), repo)?;
+    match patches.get_mut(&options.id) {
+        Ok(mut patch) => {
+            let (revision_id, _) = patch.revisions().last().expect("patch has a revision");
+            patch.comment(*revision_id, message, None, &signer)?;
+            return Ok(());
+        }
+        Err(store::Error::NotFound(_, _)) => {}
+        Err(e) => return Err(e.into()),
+    }
 
-    Ok(())
+    anyhow::bail!("Couldn't find issue or patch {}", options.id)
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
