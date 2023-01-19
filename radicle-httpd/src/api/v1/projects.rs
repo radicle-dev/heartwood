@@ -533,9 +533,9 @@ mod routes {
                     "description": "",
                     "committer": {
                       "name": "Alice Liddell",
-                      "email": "alice@radicle.xyz"
+                      "email": "alice@radicle.xyz",
+                      "time": 1673001014
                     },
-                    "committerTime": 1673001014
                   },
                   "diff": {
                     "added": [
@@ -583,9 +583,9 @@ mod routes {
                     "description": "",
                     "committer": {
                       "name": "Alice Liddell",
-                      "email": "alice@radicle.xyz"
+                      "email": "alice@radicle.xyz",
+                      "time": 1673001014
                     },
-                    "committerTime": 1673001014
                   },
                   "diff": {
                     "added": [
@@ -657,9 +657,9 @@ mod routes {
                 "description": "",
                 "committer": {
                   "name": "Alice Liddell",
-                  "email": "alice@radicle.xyz"
+                  "email": "alice@radicle.xyz",
+                  "time": 1673001014
                 },
-                "committerTime": 1673001014
               },
               "diff": {
                 "added": [
@@ -737,9 +737,9 @@ mod routes {
                   "description": "",
                   "committer": {
                     "name": "Alice Liddell",
-                    "email": "alice@radicle.xyz"
+                    "email": "alice@radicle.xyz",
+                    "time": 1673001014
                   },
-                  "committerTime": 1673001014
                 },
                 "name": "",
                 "path": "",
@@ -780,9 +780,9 @@ mod routes {
                 "description": "",
                 "committer": {
                   "name": "Alice Liddell",
-                  "email": "alice@radicle.xyz"
+                  "email": "alice@radicle.xyz",
+                  "time": 1673001014
                 },
-                "committerTime": 1673001014
               },
               "name": "dir1",
               "path": "dir1",
@@ -861,9 +861,9 @@ mod routes {
                     "description": "",
                     "committer": {
                         "name": "Alice Liddell",
-                        "email": "alice@radicle.xyz"
+                        "email": "alice@radicle.xyz",
+                        "time": 1673001014
                     },
-                    "committerTime": 1673001014
                 },
                 "name": "README",
                 "path": "README"
@@ -897,9 +897,9 @@ mod routes {
                     "description": "",
                     "committer": {
                         "name": "Alice Liddell",
-                        "email": "alice@radicle.xyz"
+                        "email": "alice@radicle.xyz",
+                        "time": 1673001014
                     },
-                    "committerTime": 1673001014
                 },
                 "name": "README",
                 "path": "README"
