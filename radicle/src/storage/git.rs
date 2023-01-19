@@ -631,13 +631,19 @@ impl WriteRepository for Repository {
             opts.remote_callbacks(callbacks);
 
             let refspec = if let Some(namespace) = namespace {
+                // TODO: Make sure we verify before pruning, as pruning may get us into
+                // a state we can't roll back.
+                opts.prune(git2::FetchPrune::On);
+
                 format!("refs/namespaces/{namespace}/refs/*:refs/namespaces/{namespace}/refs/*")
             } else {
+                // We should not prune in this case, because it would mean that namespaces that
+                // don't exit on the remote would be deleted locally.
+                opts.prune(git2::FetchPrune::Off);
+
+                // FIXME: We need to omit our own namespace from this refspec.
                 "refs/namespaces/*:refs/namespaces/*".to_owned()
             };
-            // TODO: Make sure we verify before pruning, as pruning may get us into
-            // a state we can't roll back.
-            opts.prune(git2::FetchPrune::On);
             // Fetch from the staging copy into the canonical repo.
             remote.fetch(&[refspec], Some(&mut opts), None)?;
         }

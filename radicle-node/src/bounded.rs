@@ -7,7 +7,7 @@ pub enum Error {
 }
 
 /// A vector with an upper limit on its size using type level constants.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Default, Clone, PartialEq, Eq)]
 pub struct BoundedVec<T, const N: usize> {
     v: Vec<T>,
 }
@@ -184,5 +184,11 @@ impl<T, const N: usize> TryFrom<Vec<T>> for BoundedVec<T, N> {
             });
         }
         Ok(BoundedVec { v: value })
+    }
+}
+
+impl<T: std::fmt::Debug, const N: usize> std::fmt::Debug for BoundedVec<T, N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.v.fmt(f)
     }
 }

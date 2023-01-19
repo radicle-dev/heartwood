@@ -342,7 +342,7 @@ where
         peer.downgrade();
 
         self.actions.push_back(Action::RegisterTransport(session));
-        self.service.repo_fetched(resp.result);
+        self.service.fetched(resp.result);
     }
 }
 

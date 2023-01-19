@@ -35,12 +35,13 @@ use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::session::Protocol;
 use crate::storage;
-use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
+use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteStorage};
 use crate::Link;
 
 pub use crate::node::NodeId;
 pub use crate::service::config::{Config, Network};
 pub use crate::service::message::{Message, ZeroBytes};
+pub use crate::service::reactor::Fetch;
 pub use crate::service::session::Session;
 
 use self::gossip::Gossip;
@@ -79,8 +80,8 @@ pub use message::REF_LIMIT;
 #[derive(Debug, Clone)]
 pub enum Event {
     RefsFetched {
-        from: NodeId,
-        project: Id,
+        remote: NodeId,
+        rid: Id,
         updated: Vec<RefUpdate>,
     },
 }
@@ -134,6 +135,7 @@ pub enum FetchLookup {
 pub struct FetchResult {
     pub rid: Id,
     pub remote: NodeId,
+    pub namespaces: Namespaces,
     pub result: Result<Vec<RefUpdate>, FetchError>,
 }
 
@@ -473,9 +475,7 @@ where
 
                 // TODO: Limit the number of seeds we fetch from? Randomize?
                 for seed in seeds {
-                    if let Err(err) = self.fetch(id, seed) {
-                        log::error!("Error initiating fetch for {id} from {seed}: {err}");
-                    }
+                    self.fetch(id, &seed);
                 }
             }
             Command::TrackRepo(id, resp) => {
@@ -515,33 +515,51 @@ where
         }
     }
 
-    pub fn fetch(&mut self, rid: Id, seed: NodeId) -> Result<(), Error> {
-        let session = self.sessions.get_mut(&seed).unwrap();
+    pub fn fetch(&mut self, rid: Id, seed: &NodeId) {
+        let Some(session) = self.sessions.get_mut(seed) else {
+            panic!("Service::fetch: attempted to fetch from unknown peer {seed}");
+        };
+
         if let Some(fetch) = session.fetch(rid) {
+            debug!("Fetch initiated for {rid} with {seed}..");
+
             self.reactor.write(session.id, fetch);
-            self.reactor
-                .fetch(session.id, rid, Namespaces::default(), true);
         } else {
             // TODO: If we can't fetch, it's because we're already fetching from
             // this peer. So we need to queue the request, or find another peer.
-            todo!();
+            log::error!(
+                "Unable to fetch {rid} from peer {seed} that is already being fetched from"
+            );
         }
-        Ok(())
     }
 
-    pub fn repo_fetched(&mut self, result: FetchResult) {
+    pub fn fetched(&mut self, result: FetchResult) {
         let remote = result.remote;
         let rid = result.rid;
+
+        match &result.result {
+            Ok(updated) => {
+                self.reactor.event(Event::RefsFetched {
+                    remote,
+                    rid,
+                    updated: updated.clone(),
+                });
+            }
+            Err(err) => {
+                error!("Fetch failed for {rid} from {remote}: {err}");
+            }
+        }
 
         if let Some(results) = self.fetch_reqs.get(&rid) {
             if results.send(result).is_err() {
                 self.fetch_reqs.remove(&rid);
             }
         }
+
         if let Some(session) = self.sessions.get_mut(&remote) {
             if let session::State::Connected { protocol, .. } = &mut session.state {
                 if *protocol == session::Protocol::Fetch {
-                    *protocol = session::Protocol::Gossip;
+                    *protocol = session::Protocol::default();
                 } else {
                     panic!(
                         "Unexpected session state for {}: expected 'fetch' protocol, got 'gossip'",
@@ -734,32 +752,9 @@ where
                     // Refs are only supposed to be relayed by peers who are tracking
                     // the resource. Therefore, it's safe to fetch from the remote
                     // peer, even though it isn't the announcer.
-                    let updated = match self
-                        .storage
-                        .repository(message.id)
-                        .map_err(storage::FetchError::from)
-                        .and_then(|mut r| r.fetch(relayer, Namespaces::default()))
-                    {
-                        Ok(updated) => updated,
-                        Err(err) => {
-                            error!(
-                                "Error fetching repository {} from {}: {}",
-                                message.id, relayer, err
-                            );
-                            return Ok(false);
-                        }
-                    };
-                    let is_updated = !updated.is_empty();
+                    self.fetch(message.id, relayer);
 
-                    self.reactor.event(Event::RefsFetched {
-                        from: *relayer,
-                        project: message.id,
-                        updated,
-                    });
-
-                    if is_updated {
-                        return Ok(relay);
-                    }
+                    return Ok(true);
                 } else {
                     log::debug!(
                         "Ignoring refs announcement from {announcer}: repository {} isn't tracked",
@@ -844,14 +839,14 @@ where
         match (&mut peer.state, message) {
             (
                 session::State::Connected {
-                    protocol: session::Protocol::Fetch { .. },
+                    protocol: session::Protocol::Fetch,
                     ..
                 },
                 _,
             ) => {
                 // This should never happen if the service is properly configured, since all
                 // incoming data is sent directly to the Git worker.
-                log::error!("Received gossip message from {remote} during Git fetch");
+                log::error!("Received gossip message from {remote} during git fetch");
 
                 return Err(session::Error::Misbehavior);
             }
@@ -933,11 +928,37 @@ where
                     }
                 }
             }
-            (session::State::Connected { protocol, .. }, Message::Fetch { repo }) => {
+            (session::State::Connected { protocol, .. }, Message::Fetch { rid }) => {
+                debug!("Fetch requested for {rid} from {remote}..");
+
+                // TODO: Check that we have the repo first?
+
+                *protocol = Protocol::Fetch;
+                // Accept the request and instruct the transport to handover the socket to the worker.
+                self.reactor.write(*remote, Message::FetchOk { rid });
+                self.reactor
+                    .fetch(*remote, rid, Namespaces::default(), false);
+            }
+            (session::State::Connected { protocol, .. }, Message::FetchOk { rid }) => {
+                if *protocol
+                    != (session::Protocol::Gossip {
+                        requested: Some(rid),
+                    })
+                {
+                    // As long as we disconnect peers who don't respond to our fetch requests within
+                    // the alloted time, this shouldn't happen by mistake.
+                    error!(
+                        "Received unexpected message `fetch-ok` from peer {}",
+                        peer.id
+                    );
+                    return Err(session::Error::Misbehavior);
+                }
+                debug!("Fetch accepted for {rid} from {remote}..");
+
                 *protocol = Protocol::Fetch;
                 // Instruct the transport to handover the socket to the worker.
                 self.reactor
-                    .fetch(*remote, repo, Namespaces::default(), false);
+                    .fetch(*remote, rid, Namespaces::default(), true);
             }
             (session::State::Connecting { .. }, msg) => {
                 error!("Received {:?} from connecting peer {}", msg, peer.id);

@@ -355,6 +355,8 @@ fn test_replication() {
 
     log::debug!(target: "test", "Fetch complete with {}", result.remote);
 
+    // TODO: Have simpler way of listing all refs.
+
     let inventory = alice.handle.inventory().unwrap();
     let alice_refs = alice
         .storage

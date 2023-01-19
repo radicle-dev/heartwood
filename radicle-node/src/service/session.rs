@@ -16,15 +16,20 @@ pub enum PingState {
 }
 
 /// Session protocol.
-#[derive(Debug, Default, Copy, PartialEq, Eq, Clone)]
+#[derive(Debug, Copy, PartialEq, Eq, Clone)]
 pub enum Protocol {
     /// The default message-based gossip protocol.
-    #[default]
-    Gossip,
+    Gossip { requested: Option<Id> },
     /// Git smart protocol. Used for fetching repository data.
     /// This protocol is used after a connection upgrade via the
     /// [`Message::Fetch`] message.
     Fetch,
+}
+
+impl Default for Protocol {
+    fn default() -> Self {
+        Self::Gossip { requested: None }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -139,16 +144,15 @@ impl Session {
         self.attempts += 1;
     }
 
-    pub fn fetch(&mut self, repo: Id) -> Option<Message> {
+    pub fn fetch(&mut self, rid: Id) -> Option<Message> {
         if let State::Connected { protocol, .. } = &mut self.state {
-            if let Protocol::Gossip = protocol {
-                *protocol = Protocol::Fetch;
-                return Some(Message::Fetch { repo });
+            if *protocol == (Protocol::Gossip { requested: None }) {
+                *protocol = Protocol::Gossip {
+                    requested: Some(rid),
+                };
+                return Some(Message::Fetch { rid });
             } else {
-                log::error!(
-                    "Attempted to upgrade protocol for {} which was already upgraded",
-                    self.id
-                );
+                log::error!("Attempted to fetch from peer {} which isn't ready", self.id);
             }
         }
         None

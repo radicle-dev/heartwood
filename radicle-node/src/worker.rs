@@ -60,6 +60,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         let result = FetchResult {
             rid: fetch.repo,
             remote: fetch.remote,
+            namespaces: fetch.namespaces,
             result,
         };
         log::debug!(target: "worker", "Sending response back to service..");
@@ -125,6 +126,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             .arg("--atomic")
             .arg("--verbose")
             .arg(format!("git://{tunnel_addr}/{}", repo.id))
+            // FIXME: We need to omit our own namespace from this refspec in case we're fetching '*'.
             .arg(fetch.namespaces.as_fetchspec())
             .stdout(process::Stdio::piped())
             .stderr(process::Stdio::piped())

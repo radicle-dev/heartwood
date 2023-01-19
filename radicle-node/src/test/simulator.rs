@@ -16,7 +16,8 @@ use crate::crypto::Signer;
 use crate::prelude::Address;
 use crate::service::reactor::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
-use crate::storage::WriteStorage;
+use crate::service::{FetchError, FetchResult};
+use crate::storage::{WriteRepository, WriteStorage};
 use crate::test::peer::Service;
 use crate::Link;
 
@@ -59,6 +60,8 @@ pub enum Input {
     Disconnected(NodeId, Rc<DisconnectReason>),
     /// Received a message from a remote peer.
     Received(NodeId, Vec<Message>),
+    /// Fetch completed for a node.
+    Fetched(Arc<FetchResult>),
     /// Used to advance the state machine after some wall time has passed.
     Wake,
 }
@@ -102,6 +105,13 @@ impl fmt::Display for Scheduled {
             }
             Input::Wake => {
                 write!(f, "{}: Tock", self.node)
+            }
+            Input::Fetched(result) => {
+                write!(
+                    f,
+                    "{} <~ {} ({}): FetchCompleted",
+                    self.node, result.remote, result.rid
+                )
             }
         }
     }
@@ -399,6 +409,14 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             p.received_message(id, msg);
                         }
                     }
+                    Input::Fetched(result) => {
+                        let result = Arc::try_unwrap(result).unwrap();
+                        let mut repo = p.storage().repository(result.rid).unwrap();
+
+                        repo.fetch(&result.remote, result.namespaces.clone())
+                            .unwrap();
+                        p.fetched(result);
+                    }
                 }
                 for o in p.by_ref() {
                     self.schedule(&node, o);
@@ -593,7 +611,37 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     events.push_back(event);
                 }
             }
-            Io::Fetch(..) => todo!("I have no idea what to do here"),
+            Io::Fetch(fetch) => {
+                if self.is_fallible() {
+                    self.inbox.insert(
+                        self.time + LocalDuration::from_secs(3),
+                        Scheduled {
+                            node,
+                            remote: fetch.remote,
+                            input: Input::Fetched(Arc::new(FetchResult {
+                                rid: fetch.repo,
+                                remote: fetch.remote,
+                                namespaces: fetch.namespaces,
+                                result: Err(FetchError::Io(io::ErrorKind::Other.into())),
+                            })),
+                        },
+                    );
+                } else {
+                    self.inbox.insert(
+                        self.time + LocalDuration::from_secs(3),
+                        Scheduled {
+                            node,
+                            remote: fetch.remote,
+                            input: Input::Fetched(Arc::new(FetchResult {
+                                rid: fetch.repo,
+                                remote: fetch.remote,
+                                namespaces: fetch.namespaces,
+                                result: Ok(vec![]),
+                            })),
+                        },
+                    );
+                }
+            }
         }
     }
 

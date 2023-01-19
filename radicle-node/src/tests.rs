@@ -868,6 +868,8 @@ fn test_push_and_pull() {
     alice.command(service::Command::AnnounceRefs(proj_id));
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
+    // TODO: Refs should be compared between the two peers.
+
     assert!(eve
         .storage()
         .get(&alice.node_id(), proj_id)
@@ -880,8 +882,8 @@ fn test_push_and_pull() {
         .is_some());
     assert_matches!(
         sim.events(&bob.id).next(),
-        Some(service::Event::RefsFetched { from, .. })
-        if from == eve.node_id(),
+        Some(service::Event::RefsFetched { remote, .. })
+        if remote == eve.node_id(),
         "Bob fetched from Eve"
     );
 }
