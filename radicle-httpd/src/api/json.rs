@@ -18,9 +18,9 @@ pub(crate) fn commit(commit: &Commit) -> serde_json::Value {
       "description": commit.description(),
       "committer": {
         "name": commit.committer.name,
-        "email": commit.committer.email
-      },
-      "committerTime": commit.committer.time.seconds()
+        "email": commit.committer.email,
+        "time": commit.committer.time.seconds()
+      }
     })
 }
 
