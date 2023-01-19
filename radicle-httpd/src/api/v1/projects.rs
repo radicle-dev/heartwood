@@ -524,7 +524,7 @@ mod routes {
               "commits": [
                 {
                   "commit": {
-                    "sha1": HEAD,
+                    "id": HEAD,
                     "author": {
                       "name": "Alice Liddell",
                       "email": "alice@radicle.xyz"
@@ -574,7 +574,7 @@ mod routes {
                 },
                 {
                   "commit": {
-                    "sha1": HEAD_1,
+                    "id": HEAD_1,
                     "author": {
                       "name": "Alice Liddell",
                       "email": "alice@radicle.xyz"
@@ -648,7 +648,7 @@ mod routes {
             response.json().await,
             json!({
               "commit": {
-                "sha1": HEAD,
+                "id": HEAD,
                 "author": {
                   "name": "Alice Liddell",
                   "email": "alice@radicle.xyz"
@@ -728,7 +728,7 @@ mod routes {
                   }
                 ],
                 "lastCommit": {
-                  "sha1": HEAD,
+                  "id": HEAD,
                   "author": {
                     "name": "Alice Liddell",
                     "email": "alice@radicle.xyz"
@@ -771,7 +771,7 @@ mod routes {
                 }
               ],
               "lastCommit": {
-                "sha1": HEAD,
+                "id": HEAD,
                 "author": {
                   "name": "Alice Liddell",
                   "email": "alice@radicle.xyz"
@@ -852,7 +852,7 @@ mod routes {
                 "binary": false,
                 "content": "Hello World!\n",
                 "lastCommit": {
-                    "sha1": HEAD_1,
+                    "id": HEAD_1,
                     "author": {
                         "name": "Alice Liddell",
                         "email": "alice@radicle.xyz"
@@ -888,7 +888,7 @@ mod routes {
                 "binary": false,
                 "content": "Hello World!\n",
                 "lastCommit": {
-                    "sha1": HEAD_1,
+                    "id": HEAD_1,
                     "author": {
                         "name": "Alice Liddell",
                         "email": "alice@radicle.xyz"

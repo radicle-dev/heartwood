@@ -9,7 +9,7 @@ use serde_json::json;
 /// Returns JSON of a commit.
 pub(crate) fn commit(commit: &Commit) -> serde_json::Value {
     json!({
-      "sha1": commit.id,
+      "id": commit.id,
       "author": {
         "name": commit.author.name,
         "email": commit.author.email
