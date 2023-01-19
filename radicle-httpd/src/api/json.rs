@@ -1,13 +1,14 @@
 //! Utilities for building JSON responses of our API.
 
-use radicle_surf::{
-    object::{Blob, Tree},
-    Commit, Stats,
-};
-use serde_json::json;
+use std::path::Path;
+
+use serde_json::{json, Value};
+
+use radicle_surf::object::{Blob, Tree};
+use radicle_surf::{Commit, Stats};
 
 /// Returns JSON of a commit.
-pub(crate) fn commit(commit: &Commit) -> serde_json::Value {
+pub(crate) fn commit(commit: &Commit) -> Value {
     json!({
       "id": commit.id,
       "author": {
@@ -25,7 +26,7 @@ pub(crate) fn commit(commit: &Commit) -> serde_json::Value {
 }
 
 /// Returns JSON for a blob with a given `path`.
-pub(crate) fn blob(blob: &Blob, path: &str) -> serde_json::Value {
+pub(crate) fn blob(blob: &Blob, path: &str) -> Value {
     json!({
         "binary": blob.is_binary(),
         "content": blob.content(),
@@ -36,8 +37,8 @@ pub(crate) fn blob(blob: &Blob, path: &str) -> serde_json::Value {
 }
 
 /// Returns JSON for a tree with a given `path` and `stats`.
-pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> serde_json::Value {
-    let prefix = std::path::Path::new(path);
+pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
+    let prefix = Path::new(path);
     let entries = tree
         .entries()
         .iter()
@@ -45,11 +46,12 @@ pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> serde_json::Value 
             json!({
                 "path": prefix.join(entry.name()),
                 "name": entry.name(),
-                "lastCommit": serde_json::Value::Null,
+                "lastCommit": Value::Null,
                 "kind": if entry.is_tree() { "tree" } else { "blob" },
             })
         })
         .collect::<Vec<_>>();
+
     json!({
         "entries": &entries,
         "lastCommit": commit(tree.commit()),
