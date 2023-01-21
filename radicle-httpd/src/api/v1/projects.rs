@@ -717,13 +717,11 @@ mod routes {
                   {
                     "path": "dir1",
                     "name": "dir1",
-                    "lastCommit": null,
                     "kind": "tree"
                   },
                   {
                     "path": "README",
                     "name": "README",
-                    "lastCommit": null,
                     "kind": "blob"
                   }
                 ],
@@ -766,7 +764,6 @@ mod routes {
                 {
                   "path": "dir1/README",
                   "name": "README",
-                  "lastCommit": null,
                   "kind": "blob"
                 }
               ],
