@@ -46,7 +46,6 @@ pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
             json!({
                 "path": prefix.join(entry.name()),
                 "name": entry.name(),
-                "lastCommit": Value::Null,
                 "kind": if entry.is_tree() { "tree" } else { "blob" },
             })
         })
