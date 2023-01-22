@@ -14,8 +14,8 @@ use radicle::{git, Storage};
 use reactor::poller::popol;
 
 use crate::client::handle::Handle;
+use crate::node::{FetchError, FetchResult};
 use crate::service::reactor::Fetch;
-use crate::service::{FetchError, FetchResult};
 use crate::wire::{WireReader, WireSession, WireWriter};
 
 /// Worker request.
@@ -70,7 +70,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             .worker_result(WorkerResp { result, session })
             .is_err()
         {
-            log::error!("Unable to report fetch result: worker channel disconnected");
+            log::error!(target: "worker", "Unable to report fetch result: worker channel disconnected");
         }
     }
 
@@ -144,9 +144,9 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         log::debug!(target: "worker", "Fetch for {} exited with status {:?}", fetch.repo, status.code());
 
         if let Some(status) = status.code() {
-            log::debug!(target: "worker", "Upload pack for {} exited with status {:?}", fetch.repo, status);
+            log::debug!(target: "worker", "Fetch for {} exited with status {:?}", fetch.repo, status);
         } else {
-            log::debug!(target: "worker", "Upload pack for {} exited with unknown status", fetch.repo);
+            log::debug!(target: "worker", "Fetch for {} exited with unknown status", fetch.repo);
         }
 
         if !status.success() {
@@ -221,9 +221,9 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         let status = child.wait()?;
 
         if let Some(status) = status.code() {
-            log::debug!(target: "worker", "Upload pack for {} exited with status {:?}", fetch.repo, status);
+            log::debug!(target: "worker", "Upload-pack for {} exited with status {:?}", fetch.repo, status);
         } else {
-            log::debug!(target: "worker", "Upload pack for {} exited with unknown status", fetch.repo);
+            log::debug!(target: "worker", "Upload-pack for {} exited with unknown status", fetch.repo);
         }
 
         if !status.success() {
@@ -231,7 +231,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             stderr.read_to_end(&mut err)?;
 
             let err = String::from_utf8_lossy(&err);
-            log::debug!(target: "worker", "Upload pack for {}: stderr: {}", fetch.repo, err);
+            log::debug!(target: "worker", "Upload-pack for {}: stderr: {}", fetch.repo, err);
         }
 
         Ok(vec![])

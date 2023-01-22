@@ -303,7 +303,7 @@ pub trait ReadRepository {
         remote: &RemoteId,
         reference: &Qualified,
     ) -> Result<Oid, git_ext::Error>;
-    fn references(&self, remote: &RemoteId) -> Result<Refs, Error>;
+    fn references_of(&self, remote: &RemoteId) -> Result<Refs, Error>;
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error>;
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;
     /// Return the project associated with this repository.

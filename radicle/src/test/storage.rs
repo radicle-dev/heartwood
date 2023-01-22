@@ -116,7 +116,7 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn references(&self, _remote: &RemoteId) -> Result<crate::storage::refs::Refs, Error> {
+    fn references_of(&self, _remote: &RemoteId) -> Result<crate::storage::refs::Refs, Error> {
         todo!()
     }
 

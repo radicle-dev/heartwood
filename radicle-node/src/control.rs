@@ -12,7 +12,7 @@ use radicle::node::Handle;
 use crate::client;
 use crate::identity::Id;
 use crate::node;
-use crate::service::FetchLookup;
+use crate::node::FetchLookup;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -23,10 +23,7 @@ pub enum Error {
 }
 
 /// Listen for commands on the control socket, and process them.
-pub fn listen<
-    P: AsRef<Path>,
-    H: Handle<Error = client::handle::Error, FetchLookup = FetchLookup>,
->(
+pub fn listen<P: AsRef<Path>, H: Handle<Error = client::handle::Error>>(
     path: P,
     mut handle: H,
 ) -> Result<(), Error> {
@@ -41,6 +38,7 @@ pub fn listen<
 
     log::info!("Binding control socket {}..", path.as_ref().display());
 
+    // TODO: Move socket binding to main thread.
     let listener = UnixListener::bind(path).map_err(Error::Bind)?;
     for incoming in listener.incoming() {
         match incoming {
@@ -85,7 +83,7 @@ enum DrainError {
     Shutdown,
 }
 
-fn drain<H: Handle<Error = client::handle::Error, FetchLookup = FetchLookup>>(
+fn drain<H: Handle<Error = client::handle::Error>>(
     stream: &UnixStream,
     handle: &mut H,
 ) -> Result<(), DrainError> {
@@ -220,7 +218,7 @@ fn drain<H: Handle<Error = client::handle::Error, FetchLookup = FetchLookup>>(
     Ok(())
 }
 
-fn fetch<W: Write, H: Handle<Error = client::handle::Error, FetchLookup = FetchLookup>>(
+fn fetch<W: Write, H: Handle<Error = client::handle::Error>>(
     id: Id,
     mut writer: W,
     handle: &mut H,

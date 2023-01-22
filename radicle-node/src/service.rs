@@ -12,30 +12,29 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::{fmt, io, net, str};
+use std::{fmt, net, str};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
 use localtime::{LocalDuration, LocalTime};
 use log::*;
 use nonempty::NonEmpty;
-use radicle::node::{Address, Features};
-use radicle::storage::{Namespaces, ReadStorage};
 
 use crate::address;
 use crate::address::AddressBook;
 use crate::clock::Timestamp;
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
-use crate::git;
 use crate::identity::{Doc, Id};
 use crate::node;
+use crate::node::{Address, Features, FetchLookup, FetchResult};
 use crate::prelude::*;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::session::Protocol;
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteStorage};
+use crate::storage::{Namespaces, ReadStorage};
 use crate::Link;
 
 pub use crate::node::NodeId;
@@ -95,48 +94,6 @@ pub enum Error {
     Fetch(#[from] storage::FetchError),
     #[error(transparent)]
     Routing(#[from] routing::Error),
-}
-
-/// Error returned by [`Command::Fetch`].
-#[derive(thiserror::Error, Debug)]
-pub enum FetchError {
-    #[error(transparent)]
-    Git(#[from] git::raw::Error),
-    #[error(transparent)]
-    Storage(#[from] storage::Error),
-    #[error(transparent)]
-    Fetch(#[from] storage::FetchError),
-    #[error(transparent)]
-    Io(#[from] io::Error),
-    #[error(transparent)]
-    Project(#[from] storage::ProjectError),
-}
-
-/// Result of looking up seeds in our routing table.
-/// This object is sent back to the caller who initiated the fetch.
-#[derive(Debug)]
-pub enum FetchLookup {
-    /// Found seeds for the given project.
-    Found {
-        seeds: NonEmpty<NodeId>,
-        results: chan::Receiver<FetchResult>,
-    },
-    /// Can't fetch because no seeds were found for this project.
-    NotFound,
-    /// Can't fetch because the project isn't tracked.
-    NotTracking,
-    /// Error trying to find seeds.
-    Error(FetchError),
-}
-
-/// Result of a fetch request from a specific seed.
-#[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-pub struct FetchResult {
-    pub rid: Id,
-    pub remote: NodeId,
-    pub namespaces: Namespaces,
-    pub result: Result<Vec<RefUpdate>, FetchError>,
 }
 
 /// Function used to query internal service state.

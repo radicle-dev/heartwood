@@ -5,8 +5,8 @@ use crossbeam_channel as chan;
 
 use crate::client::handle::Error;
 use crate::identity::Id;
+use crate::node::FetchLookup;
 use crate::service;
-use crate::service::FetchLookup;
 use crate::service::NodeId;
 
 #[derive(Default, Clone)]
@@ -19,7 +19,6 @@ pub struct Handle {
 impl radicle::node::Handle for Handle {
     type Error = Error;
     type Sessions = service::Sessions;
-    type FetchLookup = FetchLookup;
 
     fn connect(&mut self, _node: NodeId, _addr: radicle::node::Address) -> Result<(), Error> {
         unimplemented!();

@@ -41,7 +41,7 @@ pub enum RefError {
     #[error("expected ref to begin with 'refs/namespaces' but found '{0}'")]
     MissingNamespace(format::RefString),
     #[error("ref name contains invalid namespace identifier '{name}'")]
-    Id {
+    InvalidNamespace {
         name: format::RefString,
         #[source]
         err: Box<dyn std::error::Error + Send + Sync + 'static>,
@@ -224,7 +224,7 @@ where
                 .namespace()
                 .as_str()
                 .parse()
-                .map_err(|err| RefError::Id {
+                .map_err(|err| RefError::InvalidNamespace {
                     name: input.to_owned(),
                     err: Box::new(err),
                 })?;
@@ -300,7 +300,7 @@ pub fn configure_remote<'r>(
     url: &Url,
 ) -> Result<git2::Remote<'r>, git2::Error> {
     let fetch = format!("+refs/heads/*:refs/remotes/{name}/*");
-    let remote = repo.remote_with_fetch(name, url.to_string().as_str(), &fetch)?;
+    let remote = repo.remote_with_fetch(name, dbg!(url.to_string().as_str()), &fetch)?;
 
     Ok(remote)
 }

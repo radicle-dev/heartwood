@@ -30,6 +30,36 @@ pub static NAMESPACES_GLOB: Lazy<refspec::PatternString> =
 pub static SIGREFS_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*/rad/sigrefs"));
 
+/// A parsed Git reference.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Ref {
+    pub oid: git::Oid,
+    pub name: RefString,
+    pub namespace: Option<RemoteId>,
+}
+
+impl<'a> TryFrom<git2::Reference<'a>> for Ref {
+    type Error = RefError;
+
+    fn try_from(r: git2::Reference) -> Result<Self, Self::Error> {
+        let name = r.name().ok_or(RefError::InvalidName)?;
+        let (namespace, name) = match git::parse_ref_namespaced::<RemoteId>(name) {
+            Ok((namespace, refname)) => (Some(namespace), refname.to_ref_string()),
+            Err(RefError::MissingNamespace(refname)) => (None, refname),
+            Err(err) => return Err(err),
+        };
+        let Some(oid) = r.target() else {
+            // Ignore symbolic refs, eg. `HEAD`.
+            return Err(RefError::Symbolic(name));
+        };
+        Ok(Self {
+            namespace,
+            name,
+            oid: oid.into(),
+        })
+    }
+}
+
 // TODO: Is this is the wrong place for this type?
 #[derive(Error, Debug)]
 pub enum ProjectError {
@@ -261,6 +291,27 @@ impl Repository {
         Ok(())
     }
 
+    /// Iterate over all references.
+    pub fn references(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<Ref, refs::Error>> + '_, git2::Error> {
+        let refs = self
+            .backend
+            .references()?
+            .map(|reference| {
+                let r = reference?;
+
+                match Ref::try_from(r) {
+                    Err(RefError::Symbolic(_)) => Ok(None),
+                    Err(err) => Err(err.into()),
+                    Ok(r) => Ok(Some(r)),
+                }
+            })
+            .filter_map(Result::transpose);
+
+        Ok(refs)
+    }
+
     pub fn identity(&self, remote: &RemoteId) -> Result<Identity<Oid>, IdentityError> {
         Identity::load(remote, self)
     }
@@ -448,7 +499,7 @@ impl ReadRepository for Repository {
         Ok(Remote::new(*remote, refs))
     }
 
-    fn references(&self, remote: &RemoteId) -> Result<Refs, Error> {
+    fn references_of(&self, remote: &RemoteId) -> Result<Refs, Error> {
         // TODO: Only return known refs, eg. heads/ rad/ tags/ etc..
         let entries = self
             .backend
@@ -670,7 +721,7 @@ impl WriteRepository for Repository {
 
     fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error> {
         let remote = signer.public_key();
-        let refs = self.references(remote)?;
+        let refs = self.references_of(remote)?;
         let signed = refs.signed(signer)?;
 
         signed.save(remote, self)?;
@@ -936,7 +987,7 @@ mod tests {
 
         let signed = project.sign_refs(&signer).unwrap();
         let remote = project.remote(&alice).unwrap();
-        let mut unsigned = project.references(&alice).unwrap();
+        let mut unsigned = project.references_of(&alice).unwrap();
 
         // The signed refs doesn't contain the signature ref itself.
         let sigref = (*SIGREFS_BRANCH).to_ref_string();

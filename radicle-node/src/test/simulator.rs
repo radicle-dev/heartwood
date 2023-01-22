@@ -13,10 +13,10 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 
 use crate::crypto::Signer;
+use crate::node::{FetchError, FetchResult};
 use crate::prelude::Address;
 use crate::service::reactor::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
-use crate::service::{FetchError, FetchResult};
 use crate::storage::{WriteRepository, WriteStorage};
 use crate::test::peer::Service;
 use crate::Link;

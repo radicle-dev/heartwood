@@ -10,15 +10,15 @@ use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::Signer;
 use radicle::git::refname;
 use radicle::identity::Id;
+use radicle::node::FetchLookup;
 use radicle::node::Handle as _;
 use radicle::profile::Home;
-use radicle::storage::{ReadStorage, WriteStorage};
+use radicle::storage::{ReadRepository, ReadStorage, WriteStorage};
 use radicle::test::fixtures;
 use radicle::Storage;
 use radicle::{assert_matches, rad};
 
 use crate::node::NodeId;
-use crate::service::FetchLookup;
 use crate::storage::git::transport;
 use crate::test::logger;
 use crate::{client, client::handle::Handle, client::Runtime, service};
@@ -34,6 +34,7 @@ struct Node {
 struct NodeHandle {
     id: NodeId,
     storage: Storage,
+    signer: MockSigner,
     addr: net::SocketAddr,
     thread: ManuallyDrop<thread::JoinHandle<Result<(), client::Error>>>,
     handle: ManuallyDrop<Handle<MockSigner>>,
@@ -117,6 +118,7 @@ impl Node {
         NodeHandle {
             id,
             storage: self.storage,
+            signer: self.signer,
             addr,
             handle,
             thread,
@@ -355,27 +357,64 @@ fn test_replication() {
 
     log::debug!(target: "test", "Fetch complete with {}", result.remote);
 
-    // TODO: Have simpler way of listing all refs.
-
     let inventory = alice.handle.inventory().unwrap();
-    let alice_refs = alice
-        .storage
-        .repository(acme)
+    let alice_repo = alice.storage.repository(acme).unwrap();
+    let bob_repo = bob.storage.repository(acme).unwrap();
+
+    let alice_refs = alice_repo
+        .references()
         .unwrap()
-        .remotes()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let bob_refs = bob_repo
+        .references()
         .unwrap()
-        .map(|r| r.unwrap())
-        .collect::<Vec<_>>();
-    let bob_refs = bob
-        .storage
-        .repository(acme)
-        .unwrap()
-        .remotes()
-        .unwrap()
-        .map(|r| r.unwrap())
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
 
     assert_eq!(inventory.try_iter().next(), Some(acme));
     assert_eq!(alice_refs, bob_refs);
     assert_matches!(alice.storage.repository(acme).unwrap().verify(), Ok(()));
+}
+
+#[test]
+fn test_clone() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let alice = Node::new(tmp.path());
+    let mut bob = Node::new(tmp.path());
+    let acme = bob.project("acme");
+
+    let mut alice = alice.spawn(service::Config::default());
+    let bob = bob.spawn(service::Config::default());
+
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    transport::local::register(alice.storage.clone());
+
+    let repo = rad::clone(
+        acme,
+        tmp.path().join("clone"),
+        &alice.signer,
+        &alice.storage,
+        &mut (*alice.handle),
+    )
+    .unwrap();
+
+    // Makes test finish faster.
+    drop(alice);
+
+    let head = repo.head().unwrap();
+    let oid = head.target().unwrap();
+
+    let (_, canonical) = bob
+        .storage
+        .repository(acme)
+        .unwrap()
+        .canonical_head()
+        .unwrap();
+
+    assert_eq!(oid, *canonical);
 }

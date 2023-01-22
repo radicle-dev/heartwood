@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -9,9 +10,10 @@ use thiserror::Error;
 
 use crate::crypto::Signer;
 use crate::identity::Id;
+use crate::node::FetchLookup;
 use crate::profile::Home;
 use crate::service;
-use crate::service::{CommandError, FetchLookup, QueryState};
+use crate::service::{CommandError, QueryState};
 use crate::service::{NodeId, Sessions};
 use crate::wire;
 use crate::worker::WorkerResp;
@@ -62,6 +64,12 @@ pub struct Handle<G: Signer + EcSign> {
     shutdown: Arc<AtomicBool>,
 }
 
+impl<G: Signer + EcSign> fmt::Debug for Handle<G> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Handle").field("home", &self.home).finish()
+    }
+}
+
 impl<G: Signer + EcSign> Clone for Handle<G> {
     fn clone(&self) -> Self {
         Self {
@@ -98,7 +106,6 @@ impl<G: Signer + EcSign + 'static> Handle<G> {
 
 impl<G: Signer + EcSign + 'static> radicle::node::Handle for Handle<G> {
     type Sessions = Sessions;
-    type FetchLookup = FetchLookup;
     type Error = Error;
 
     fn connect(&mut self, node: NodeId, addr: radicle::node::Address) -> Result<(), Error> {
@@ -107,7 +114,7 @@ impl<G: Signer + EcSign + 'static> radicle::node::Handle for Handle<G> {
         Ok(())
     }
 
-    fn fetch(&mut self, id: Id) -> Result<Self::FetchLookup, Error> {
+    fn fetch(&mut self, id: Id) -> Result<FetchLookup, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::Fetch(id, sender))?;
         receiver.recv().map_err(Error::from)

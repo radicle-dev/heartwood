@@ -2,15 +2,20 @@ mod features;
 
 use amplify::WrapperMut;
 use std::io::{BufRead, BufReader, Write};
+use std::ops::Deref;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::{io, net};
 
+use crossbeam_channel as chan;
 use cyphernet::addr::{HostName, NetAddr};
+use nonempty::NonEmpty;
 
 use crate::crypto::PublicKey;
+use crate::git;
 use crate::identity::Id;
-use crossbeam_channel as chan;
+use crate::storage;
+use crate::storage::{Namespaces, RefUpdate};
 
 pub use features::Features;
 
@@ -50,6 +55,56 @@ impl From<net::SocketAddr> for Address {
     }
 }
 
+/// Result of a fetch request from a specific seed.
+#[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
+pub struct FetchResult {
+    pub rid: Id,
+    pub remote: NodeId,
+    pub namespaces: Namespaces,
+    pub result: Result<Vec<RefUpdate>, FetchError>,
+}
+
+impl Deref for FetchResult {
+    type Target = Result<Vec<RefUpdate>, FetchError>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.result
+    }
+}
+
+/// Error returned by fetch.
+#[derive(thiserror::Error, Debug)]
+pub enum FetchError {
+    #[error(transparent)]
+    Git(#[from] git::raw::Error),
+    #[error(transparent)]
+    Storage(#[from] storage::Error),
+    #[error(transparent)]
+    Fetch(#[from] storage::FetchError),
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    #[error(transparent)]
+    Project(#[from] storage::ProjectError),
+}
+
+/// Result of looking up seeds in our routing table.
+/// This object is sent back to the caller who initiated the fetch.
+#[derive(Debug)]
+pub enum FetchLookup {
+    /// Found seeds for the given project.
+    Found {
+        seeds: NonEmpty<NodeId>,
+        results: chan::Receiver<FetchResult>,
+    },
+    /// Can't fetch because no seeds were found for this project.
+    NotFound,
+    /// Can't fetch because the project isn't tracked.
+    NotTracking,
+    /// Error trying to find seeds.
+    Error(FetchError),
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("failed to connect to node: {0}")]
@@ -62,8 +117,6 @@ pub enum Error {
 
 /// A handle to send commands to the node or request information.
 pub trait Handle {
-    /// The result of a fetch request.
-    type FetchLookup;
     /// The peer sessions type.
     type Sessions;
     /// The error returned by all methods.
@@ -72,7 +125,7 @@ pub trait Handle {
     /// Connect to a peer.
     fn connect(&mut self, node: NodeId, addr: Address) -> Result<(), Self::Error>;
     /// Retrieve or update the project from network.
-    fn fetch(&mut self, id: Id) -> Result<Self::FetchLookup, Self::Error>;
+    fn fetch(&mut self, id: Id) -> Result<FetchLookup, Self::Error>;
     /// Start tracking the given project. Doesn't do anything if the project is already
     /// tracked.
     fn track_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
@@ -130,19 +183,18 @@ impl Node {
 
 impl Handle for Node {
     type Sessions = ();
-    type FetchLookup = ();
     type Error = Error;
 
     fn connect(&mut self, _node: NodeId, _addr: Address) -> Result<(), Error> {
         todo!()
     }
 
-    fn fetch(&mut self, id: Id) -> Result<(), Error> {
+    fn fetch(&mut self, id: Id) -> Result<FetchLookup, Error> {
         for line in self.call("fetch", &[id.urn()])? {
             let line = line?;
             log::debug!("node: {}", line);
         }
-        Ok(())
+        todo!()
     }
 
     fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {
