@@ -167,7 +167,7 @@ mod test {
         assert_eq!(format!("\"{}\"", pk), json);
 
         let json = serde_json::to_string(&proj).unwrap();
-        assert_eq!(format!("\"{}\"", proj), json);
+        assert_eq!(format!("\"{}\"", proj.urn()), json);
 
         let json = serde_json::to_string(&did).unwrap();
         assert_eq!(format!("\"{}\"", did), json);

@@ -232,7 +232,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             term::blank();
             term::info!(
                 "Your project id is {}. You can show it any time by running:",
-                term::format::highlight(id)
+                term::format::highlight(id.urn())
             );
             term::indented(term::format::secondary("rad ."));
 

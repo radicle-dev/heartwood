@@ -138,7 +138,7 @@ impl Handle for Node {
     }
 
     fn fetch(&mut self, id: Id) -> Result<(), Error> {
-        for line in self.call("fetch", &[id])? {
+        for line in self.call("fetch", &[id.urn()])? {
             let line = line?;
             log::debug!("node: {}", line);
         }
@@ -169,7 +169,7 @@ impl Handle for Node {
     }
 
     fn track_repo(&mut self, id: Id) -> Result<bool, Error> {
-        let mut line = self.call("track-repo", &[id])?;
+        let mut line = self.call("track-repo", &[id.urn()])?;
         let line = line
             .next()
             .ok_or(Error::EmptyResponse { cmd: "track-repo" })??;
@@ -205,7 +205,7 @@ impl Handle for Node {
     }
 
     fn untrack_repo(&mut self, id: Id) -> Result<bool, Error> {
-        let mut line = self.call("untrack-repo", &[id])?;
+        let mut line = self.call("untrack-repo", &[id.urn()])?;
         let line = line.next().ok_or(Error::EmptyResponse {
             cmd: "untrack-repo",
         })??;
@@ -223,7 +223,7 @@ impl Handle for Node {
     }
 
     fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
-        for line in self.call("announce-refs", &[id])? {
+        for line in self.call("announce-refs", &[id.urn()])? {
             let line = line?;
             log::debug!("node: {}", line);
         }

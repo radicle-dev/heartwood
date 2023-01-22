@@ -130,7 +130,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         let path = profile
             .paths()
             .storage()
-            .join(id.to_human())
+            .join(id.urn())
             .join("refs")
             .join("namespaces");
 
@@ -195,7 +195,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             println!();
         }
     } else if options.id_only {
-        term::info!("{}", term::format::highlight(id.to_human()));
+        term::info!("{}", term::format::highlight(id.urn()));
     } else {
         term::info!("{}", term::format::highlight(id));
     }

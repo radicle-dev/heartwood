@@ -394,10 +394,7 @@ mod test {
             (*id).to_string(),
             "d96f425412c9f8ad5d9a9a05c9831d0728e2338d"
         );
-        assert_eq!(
-            id.to_human(),
-            String::from("rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji")
-        );
+        assert_eq!(id.urn(), String::from("rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji"));
     }
 
     #[test]

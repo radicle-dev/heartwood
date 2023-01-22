@@ -42,7 +42,7 @@ impl Args for Options {
                 Value(val) if id.is_none() => {
                     let val = val.to_string_lossy();
 
-                    if let Ok(val) = Id::from_human(&val) {
+                    if let Ok(val) = Id::from_urn(&val) {
                         id = Some(val);
                     } else {
                         return Err(anyhow!("invalid ID '{}'", val));
@@ -74,13 +74,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         term::success!(
             "Tracking relationships for {} ({}) removed",
             term::format::highlight(project.name()),
-            &id.to_human()
+            &id.urn()
         );
     } else {
         term::info!(
             "Tracking relationships for {} ({}) doesn't exist",
             term::format::highlight(project.name()),
-            &id.to_human()
+            &id.urn()
         );
     }
 

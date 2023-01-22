@@ -81,12 +81,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let id = options.id;
 
     if let Ok(Some(_)) = storage.get(signer.public_key(), id.to_owned()) {
-        let namespace = profile.paths().storage().join(id.to_human());
+        let namespace = profile.paths().storage().join(id.urn());
 
         if !options.confirm
             || term::confirm(format!(
                 "Are you sure you would like to delete {}?",
-                term::format::dim(id.to_human())
+                term::format::dim(id.urn())
             ))
         {
             rad_untrack::untrack(id.to_owned(), &profile)?;

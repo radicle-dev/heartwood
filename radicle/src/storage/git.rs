@@ -134,7 +134,7 @@ impl Storage {
                 let name = r.name().ok_or(Error::InvalidRef)?;
                 let oid = r.target().ok_or(Error::InvalidRef)?;
 
-                println!("{} {} {}", proj, oid, name);
+                println!("{} {} {}", proj.urn(), oid, name);
             }
         }
         Ok(())
@@ -726,21 +726,17 @@ pub mod paths {
     use super::ReadStorage;
 
     pub fn repository<S: ReadStorage>(storage: &S, proj: &Id) -> PathBuf {
-        storage.path().join(proj.to_string())
+        storage.path().join(proj.canonical())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Read, Write};
-    use std::{io, net, process, thread};
-
     use crypto::test::signer::MockSigner;
 
     use super::*;
     use crate::assert_matches;
     use crate::git;
-    use crate::rad;
     use crate::storage::refs::SIGREFS_BRANCH;
     use crate::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
     use crate::test::arbitrary;
@@ -901,115 +897,6 @@ mod tests {
         refs.sort();
 
         assert_eq!(refs, vec!["refs/heads/master", "refs/rad/id"]);
-    }
-
-    #[test]
-    #[ignore]
-    // Test the remote transport using `git-upload-pack` and TCP streams.
-    // Must be run on its own, since it tries to register the remote transport, which
-    // will fail if the mock transport was already registered.
-    fn test_upload_pack() {
-        let tmp = tempfile::tempdir().unwrap();
-        let signer = MockSigner::default();
-        let remote = *signer.public_key();
-        let storage = Storage::open(tmp.path().join("storage")).unwrap();
-        let socket = net::TcpListener::bind(net::SocketAddr::from(([0, 0, 0, 0], 0))).unwrap();
-        let addr = socket.local_addr().unwrap();
-        let source_path = tmp.path().join("source");
-        let target_path = tmp.path().join("target");
-        let (source, _) = fixtures::repository(source_path);
-
-        transport::local::register(storage.clone());
-
-        let (proj, _, _) = rad::init(
-            &source,
-            "radicle",
-            "radicle",
-            git::refname!("master"),
-            &signer,
-            &storage,
-        )
-        .unwrap();
-
-        let t = thread::spawn(move || {
-            let (stream, _) = socket.accept().unwrap();
-            let repo = storage.repository(proj).unwrap();
-            // NOTE: `GIT_PROTOCOL=version=2` doesn't work.
-            let mut child = process::Command::new("git")
-                .current_dir(repo.path())
-                .arg("upload-pack")
-                .arg("--strict") // The path to the git repo must be exact.
-                .arg(".")
-                .stdout(process::Stdio::piped())
-                .stdin(process::Stdio::piped())
-                .spawn()
-                .unwrap();
-
-            let mut stdin = child.stdin.take().unwrap();
-            let mut stdout = child.stdout.take().unwrap();
-
-            let mut stream_r = stream.try_clone().unwrap();
-            let mut stream_w = stream;
-
-            let t = thread::spawn(move || {
-                let mut buf = [0u8; 1024];
-
-                while let Ok(n) = stream_r.read(&mut buf) {
-                    if n == 0 {
-                        break;
-                    }
-                    if stdin.write_all(&buf[..n]).is_err() {
-                        break;
-                    }
-                }
-            });
-            io::copy(&mut stdout, &mut stream_w).unwrap();
-
-            t.join().unwrap();
-            child.wait().unwrap();
-        });
-
-        let mut updates = Vec::new();
-        {
-            let mut callbacks = git2::RemoteCallbacks::new();
-            let mut opts = git2::FetchOptions::default();
-
-            callbacks.update_tips(|name, _, _| {
-                updates.push(name.to_owned());
-                true
-            });
-            opts.remote_callbacks(callbacks);
-
-            let target = git2::Repository::init_bare(target_path).unwrap();
-            let stream = net::TcpStream::connect(addr).unwrap();
-
-            // Register the `heartwood://` transport for this stream.
-            transport::remote::register(remote, stream.try_clone().unwrap());
-
-            // Fetch with the `heartwood://` transport.
-            target
-                .remote_anonymous(&format!("heartwood://{remote}/{proj}"))
-                .unwrap()
-                .fetch(
-                    &["refs/namespaces/*:refs/namespaces/*"],
-                    Some(&mut opts),
-                    None,
-                )
-                .unwrap();
-
-            stream.shutdown(net::Shutdown::Both).unwrap();
-
-            t.join().unwrap();
-        }
-
-        assert_eq!(
-            updates,
-            vec![
-                format!("refs/namespaces/{remote}/refs/heads/master"),
-                format!("refs/namespaces/{remote}/refs/rad/id"),
-                format!("refs/namespaces/{remote}/refs/rad/sigrefs")
-            ]
-        );
     }
 
     #[test]

@@ -42,7 +42,7 @@ impl git2::transport::SmartSubtransport for MockTransport {
                 url.node
             )));
         };
-        let git_dir = storage.join(url.repo.to_human());
+        let git_dir = storage.join(url.repo.canonical());
         let mut cmd = process::Command::new("git");
         let mut child = cmd
             .arg("upload-pack")

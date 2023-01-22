@@ -13,7 +13,7 @@ impl TryFrom<&Value> for Id {
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
         match value {
-            Value::String(id) => Id::from_str(id).map_err(|e| sql::Error {
+            Value::String(id) => Id::from_urn(id).map_err(|e| sql::Error {
                 code: None,
                 message: Some(e.to_string()),
             }),
@@ -27,7 +27,7 @@ impl TryFrom<&Value> for Id {
 
 impl sqlite::BindableWithIndex for &Id {
     fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
-        self.to_human().as_str().bind(stmt, i)
+        self.urn().as_str().bind(stmt, i)
     }
 }
 

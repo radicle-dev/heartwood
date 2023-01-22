@@ -1,6 +1,5 @@
 use std::env;
 use std::path::Path;
-use std::str::FromStr;
 
 use radicle::identity::Id;
 
@@ -10,7 +9,7 @@ fn main() -> anyhow::Result<()> {
     let signer = profile.signer()?;
 
     if let Some(id) = env::args().nth(1) {
-        let id = Id::from_str(&id)?;
+        let id = Id::from_urn(&id)?;
         let mut node = radicle::node::connect(profile.socket())?;
         let repo = radicle::rad::clone(id, &cwd, &signer, &profile.storage, &mut node)?;
 

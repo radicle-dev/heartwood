@@ -66,9 +66,9 @@ impl From<Id> for Url {
 impl fmt::Display for Url {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(ns) = self.namespace {
-            write!(f, "{}://{}/{}", Self::SCHEME, self.repo, ns)
+            write!(f, "{}://{}/{}", Self::SCHEME, self.repo.canonical(), ns)
         } else {
-            write!(f, "{}://{}", Self::SCHEME, self.repo)
+            write!(f, "{}://{}", Self::SCHEME, self.repo.canonical())
         }
     }
 }
@@ -88,7 +88,7 @@ impl FromStr for Url {
             _ => return Err(UrlError::InvalidFormat),
         };
 
-        let resource = Id::from_str(resource).map_err(UrlError::InvalidRepository)?;
+        let resource = Id::from_canonical(resource).map_err(UrlError::InvalidRepository)?;
         let namespace = namespace
             .map(|pk| Namespace::from_str(pk).map_err(UrlError::InvalidNamespace))
             .transpose()?;
@@ -106,33 +106,37 @@ mod test {
 
     #[test]
     fn test_url_parse() {
-        let repo = Id::from_str("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
+        let repo = Id::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
         let namespace =
             Namespace::from_str("z6Mkifeb5NPS6j7JP72kEQEeuqMTpCAVcHsJi1C86jGTzHRi").unwrap();
 
-        let url = format!("rad://{repo}");
+        let url = format!("rad://{}", repo.canonical());
         let url = Url::from_str(&url).unwrap();
 
         assert_eq!(url.repo, repo);
         assert_eq!(url.namespace, None);
 
-        let url = format!("rad://{repo}/{namespace}");
+        let url = format!("rad://{}/{namespace}", repo.canonical());
         let url = Url::from_str(&url).unwrap();
 
         assert_eq!(url.repo, repo);
         assert_eq!(url.namespace, Some(namespace));
 
-        assert!(format!("heartwood://{repo}").parse::<Url>().is_err());
-        assert!(format!("git://{repo}").parse::<Url>().is_err());
+        assert!(format!("heartwood://{}", repo.canonical())
+            .parse::<Url>()
+            .is_err());
+        assert!(format!("git://{}", repo.canonical())
+            .parse::<Url>()
+            .is_err());
         assert!(format!("rad://{namespace}").parse::<Url>().is_err());
-        assert!(format!("rad://{repo}/{namespace}/fnord")
+        assert!(format!("rad://{}/{namespace}/fnord", repo.canonical())
             .parse::<Url>()
             .is_err());
     }
 
     #[test]
     fn test_url_to_string() {
-        let repo = Id::from_str("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
+        let repo = Id::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
         let namespace =
             Namespace::from_str("z6Mkifeb5NPS6j7JP72kEQEeuqMTpCAVcHsJi1C86jGTzHRi").unwrap();
 
@@ -140,12 +144,15 @@ mod test {
             repo,
             namespace: None,
         };
-        assert_eq!(url.to_string(), format!("rad://{repo}"));
+        assert_eq!(url.to_string(), format!("rad://{}", repo.canonical()));
 
         let url = Url {
             repo,
             namespace: Some(namespace),
         };
-        assert_eq!(url.to_string(), format!("rad://{repo}/{namespace}"));
+        assert_eq!(
+            url.to_string(),
+            format!("rad://{}/{namespace}", repo.canonical())
+        );
     }
 }

@@ -53,9 +53,22 @@ impl Url {
 impl fmt::Display for Url {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(ns) = self.namespace {
-            write!(f, "{}://{}/{}/{}", Self::SCHEME, self.node, self.repo, ns)
+            write!(
+                f,
+                "{}://{}/{}/{}",
+                Self::SCHEME,
+                self.node,
+                self.repo.canonical(),
+                ns
+            )
         } else {
-            write!(f, "{}://{}/{}", Self::SCHEME, self.node, self.repo)
+            write!(
+                f,
+                "{}://{}/{}",
+                Self::SCHEME,
+                self.node,
+                self.repo.canonical()
+            )
         }
     }
 }
@@ -76,7 +89,7 @@ impl FromStr for Url {
         };
 
         let node = NodeId::from_str(node).map_err(UrlError::InvalidNode)?;
-        let resource = Id::from_str(resource).map_err(UrlError::InvalidRepository)?;
+        let resource = Id::from_canonical(resource).map_err(UrlError::InvalidRepository)?;
         let namespace = namespace
             .map(|pk| Namespace::from_str(pk).map_err(UrlError::InvalidNamespace))
             .transpose()?;
@@ -96,18 +109,18 @@ mod test {
     #[test]
     fn test_url_parse() {
         let node = NodeId::from_str("z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK").unwrap();
-        let repo = Id::from_str("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
+        let repo = Id::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
         let namespace =
             Namespace::from_str("z6Mkifeb5NPS6j7JP72kEQEeuqMTpCAVcHsJi1C86jGTzHRi").unwrap();
 
-        let url = format!("heartwood://{node}/{repo}");
+        let url = format!("heartwood://{node}/{}", repo.canonical());
         let url = Url::from_str(&url).unwrap();
 
         assert_eq!(url.node, node);
         assert_eq!(url.repo, repo);
         assert_eq!(url.namespace, None);
 
-        let url = format!("heartwood://{node}/{repo}/{namespace}");
+        let url = format!("heartwood://{node}/{}/{namespace}", repo.canonical());
         let url = Url::from_str(&url).unwrap();
 
         assert_eq!(url.node, node);
@@ -119,8 +132,10 @@ mod test {
         assert!(format!("heartwood://{node}/{namespace}")
             .parse::<Url>()
             .is_err());
-        assert!(format!("heartwood://{node}/{repo}/{namespace}/fnord")
-            .parse::<Url>()
-            .is_err());
+        assert!(
+            format!("heartwood://{node}/{}/{namespace}/fnord", repo.canonical())
+                .parse::<Url>()
+                .is_err()
+        );
     }
 }
