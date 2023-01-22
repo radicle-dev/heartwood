@@ -67,6 +67,7 @@ pub struct Profile {
 
 impl Profile {
     pub fn init(home: Home, passphrase: impl Into<Passphrase>) -> Result<Self, Error> {
+        let home = home.init()?;
         let storage = Storage::open(home.storage())?;
         let keystore = Keystore::new(&home.keys());
         let public_key = keystore.init("radicle", passphrase)?;
@@ -170,11 +171,10 @@ impl From<PathBuf> for Home {
 }
 
 impl Home {
-    pub fn init(home: impl Into<PathBuf>) -> Result<Self, io::Error> {
-        let paths = Self::new(home);
-        fs::create_dir_all(paths.node()).ok();
+    pub fn init(self) -> Result<Self, io::Error> {
+        fs::create_dir_all(self.node()).ok();
 
-        Ok(paths)
+        Ok(self)
     }
 
     pub fn new(home: impl Into<PathBuf>) -> Self {

@@ -88,7 +88,7 @@ impl Node {
                 .take(8)
                 .collect::<String>(),
         );
-        let home = Home::init(home).unwrap();
+        let home = Home::new(home).init().unwrap();
         let signer = MockSigner::default();
         let storage = Storage::open(home.storage()).unwrap();
 
