@@ -181,6 +181,7 @@ fn drain<H: Handle<Error = client::handle::Error>>(
                     if let Err(e) = handle.announce_refs(id) {
                         return Err(DrainError::Client(e));
                     }
+                    writeln!(writer, "{}", node::RESPONSE_OK)?;
                 } else {
                     return Err(DrainError::InvalidCommandArg(arg.to_owned()));
                 }
