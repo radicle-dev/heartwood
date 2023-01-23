@@ -27,8 +27,6 @@ pub fn listen<P: AsRef<Path>, H: Handle<Error = client::handle::Error>>(
     path: P,
     mut handle: H,
 ) -> Result<(), Error> {
-    // Remove the socket file on startup before rebinding.
-    fs::remove_file(&path).ok();
     fs::create_dir_all(
         path.as_ref()
             .parent()
@@ -39,7 +37,7 @@ pub fn listen<P: AsRef<Path>, H: Handle<Error = client::handle::Error>>(
     log::info!("Binding control socket {}..", path.as_ref().display());
 
     // TODO: Move socket binding to main thread.
-    let listener = UnixListener::bind(path).map_err(Error::Bind)?;
+    let listener = UnixListener::bind(&path).map_err(Error::Bind)?;
     for incoming in listener.incoming() {
         match incoming {
             Ok(mut stream) => {
@@ -65,6 +63,7 @@ pub fn listen<P: AsRef<Path>, H: Handle<Error = client::handle::Error>>(
         }
     }
     log::debug!("Exiting control loop..");
+    fs::remove_file(&path).ok();
 
     Ok(())
 }
