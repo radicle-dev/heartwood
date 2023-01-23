@@ -6,11 +6,16 @@ use anyhow::{anyhow, Context as _};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use radicle::cob::thread::{self, CommentId};
+use radicle::cob::Timestamp;
+use serde::Serialize;
+use serde_json::json;
 
 use radicle::cob;
 use radicle::cob::common::{Reaction, Tag};
 use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, IssueId, Issues, State};
+use radicle::identity::PublicKey;
 use radicle::storage::WriteStorage;
 
 pub const HELP: Help = Help {
@@ -31,6 +36,7 @@ Usage
 Options
 
     --help      Print help
+    --json      Print JSON output like HTTP API
 "#,
 };
 
@@ -67,6 +73,7 @@ pub enum Operation {
     },
     Show {
         id: IssueId,
+        json: Option<bool>,
     },
     State {
         id: IssueId,
@@ -101,11 +108,15 @@ impl Args for Options {
         let mut reaction: Option<Reaction> = None;
         let mut description: Option<String> = None;
         let mut state: Option<State> = None;
+        let mut json_out: Option<bool> = Some(false);
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") => {
                     return Err(Error::Help.into());
+                }
+                Long("json") => {
+                    json_out = Some(true);
                 }
                 Long("title") if op == Some(OperationName::Open) => {
                     title = Some(parser.value()?.to_string_lossy().into());
@@ -173,6 +184,7 @@ impl Args for Options {
             OperationName::Open => Operation::Open { title, description },
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
+                json: json_out,
             },
             OperationName::State => Operation::State {
                 id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
@@ -207,11 +219,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             issues.create(title, description, &[], &signer)?;
         }
-        Operation::Show { id } => {
-            let issue = issues
-                .get(&id)?
-                .context("No issue with the given ID exists")?;
-            show_issue(&issue)?;
+        Operation::Show { id, json } => {
+            let error_message = "No issue with the given ID exists";
+            let mut _output: String = String::from(error_message);
+
+            if json == Some(true) {
+                let json_out = json!({ "errors": error_message });
+                _output = json_out.to_string();
+            }
+
+            let issue = issues.get(&id)?.context(_output)?;
+            show_issue(&issue, id, json)?;
         }
         Operation::State { id, state } => {
             let mut issue = issues.get_mut(&id)?;
@@ -304,16 +322,70 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn show_issue(issue: &issue::Issue) -> anyhow::Result<()> {
-    term::info!("title: {}", issue.title());
-    term::info!("state: {}", issue.state());
+#[derive(Serialize)]
+struct Author {
+    id: PublicKey,
+}
 
-    let tags: Vec<String> = issue.tags().cloned().map(|t| t.into()).collect();
-    term::info!("tags: {}", tags.join(", "));
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Comment {
+    author: Author,
+    body: String,
+    reactions: [String; 0],
+    timestamp: Timestamp,
+    reply_to: Option<CommentId>,
+}
+//
+#[derive(Serialize)]
+struct Comments(Vec<Comment>);
 
-    let assignees: Vec<String> = issue.assigned().map(|a| a.to_string()).collect();
-    term::info!("assignees: {}", assignees.join(", "));
+impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
+    fn from_iter<I: IntoIterator<Item = (&'a CommentId, &'a thread::Comment)>>(iter: I) -> Self {
+        let mut comments = Vec::new();
 
-    term::info!("{}", issue.description().unwrap_or(""));
+        for (_, comment) in iter {
+            comments.push(Comment {
+                author: Author {
+                    id: comment.author(),
+                },
+                body: comment.body().to_owned(),
+                reactions: [],
+                timestamp: comment.timestamp(),
+                reply_to: comment.reply_to(),
+            });
+        }
+
+        Comments(comments)
+    }
+}
+
+fn show_issue(
+    issue: &issue::Issue,
+    issue_id: IssueId,
+    json_output: Option<bool>,
+) -> anyhow::Result<()> {
+    if json_output == Some(true) {
+        term::print(json!({
+            "id": issue_id.to_string(),
+            "author": issue.author(),
+            "title": issue.title(),
+            "description": issue.description(),
+            "discussion": issue.comments().collect::<Comments>(),
+            "tags": issue.tags().collect::<Vec<_>>(),
+            "state": issue.state()
+        }))
+    } else {
+        term::info!("title: {}", issue.title());
+        term::info!("state: {}", issue.state());
+
+        let tags: Vec<String> = issue.tags().cloned().map(|t| t.into()).collect();
+        term::info!("tags: {}", tags.join(", "));
+
+        let assignees: Vec<String> = issue.assigned().map(|a| a.to_string()).collect();
+        term::info!("assignees: {}", assignees.join(", "));
+
+        term::info!("{}", issue.description().unwrap_or(""));
+    }
     Ok(())
 }
