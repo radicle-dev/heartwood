@@ -17,14 +17,14 @@ Usage
 
 Options
 
-    --profile    Show Profile ID
+    --id         Show ID
     --help       Show help
 "#,
 };
 
 #[derive(Debug)]
 enum Show {
-    Profile,
+    Id,
     All,
 }
 
@@ -42,8 +42,8 @@ impl Args for Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("profile") if show.is_none() => {
-                    show = Some(Show::Profile);
+                Long("id") if show.is_none() => {
+                    show = Some(Show::Id);
                 }
                 Long("help") => {
                     return Err(Error::Help.into());
@@ -65,7 +65,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
     match options.show {
-        Show::Profile => {
+        Show::Id => {
             term::print(profile.id());
         }
         Show::All => all(&profile)?,

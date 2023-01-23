@@ -11,7 +11,7 @@ use radicle::prelude::*;
 use radicle::rad;
 use radicle::storage::WriteStorage;
 
-use crate::commands::rad_checkout::setup_remotes;
+use crate::commands::rad_checkout as checkout;
 use crate::project;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -108,7 +108,7 @@ pub fn clone(id: Id, _interactive: Interactive, ctx: impl term::Context) -> anyh
     let default_branch = proj.default_branch().clone();
 
     // Setup tracking for project delegates.
-    setup_remotes(
+    checkout::setup_remotes(
         project::SetupRemote {
             project: id,
             default_branch,
