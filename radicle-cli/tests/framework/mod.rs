@@ -70,6 +70,16 @@ impl TestFormula {
         self
     }
 
+    pub fn envs<K: ToString, V: ToString>(
+        &mut self,
+        envs: impl IntoIterator<Item = (K, V)>,
+    ) -> &mut Self {
+        for (k, v) in envs {
+            self.env.insert(k.to_string(), v.to_string());
+        }
+        self
+    }
+
     pub fn file(&mut self, path: impl AsRef<Path>) -> Result<&mut Self, Error> {
         let contents = fs::read(path)?;
         self.read(io::Cursor::new(contents))

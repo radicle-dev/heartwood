@@ -201,8 +201,7 @@ impl MemorySigner {
 
     /// Generate a new memory signer.
     pub fn gen() -> Self {
-        let seed = crate::Seed::generate();
-        let keypair = KeyPair::from_seed(seed);
+        let keypair = KeyPair::generate();
         let sk = keypair.sk;
 
         Self {
