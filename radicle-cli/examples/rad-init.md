@@ -27,5 +27,5 @@ Projects can be listed with the `ls` command:
 
 ```
 $ rad ls
-heartwood rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji cdf76ce Radicle Heartwood Protocol & Stack
+heartwood rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji f2de534 Radicle Heartwood Protocol & Stack
 ```

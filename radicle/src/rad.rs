@@ -285,7 +285,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     let mut opts = git2::RepositoryInitOptions::new();
     opts.no_reinit(true).description(project.description());
 
-    let repo = git2::Repository::init_opts(path.as_ref().join(project.name()), &opts)?;
+    let repo = git2::Repository::init_opts(path.as_ref(), &opts)?;
     let url = git::Url::from(proj).with_namespace(*remote);
 
     // Configure and fetch all refs from remote.
@@ -298,15 +298,18 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
             git::refs::workdir::remote_branch(&REMOTE_NAME, project.default_branch());
 
         let remote_head_commit = repo.find_reference(&remote_head_ref)?.peel_to_commit()?;
-        let _ = repo.branch(project.default_branch(), &remote_head_commit, true)?;
+        let branch = repo
+            .branch(project.default_branch(), &remote_head_commit, true)?
+            .into_reference();
+        let branch_ref = branch
+            .name()
+            .expect("checkout: default branch name is valid UTF-8");
+
+        repo.set_head(branch_ref)?;
+        repo.checkout_head(None)?;
 
         // Setup remote tracking for default branch.
-        git::set_upstream(
-            &repo,
-            &REMOTE_NAME,
-            project.default_branch(),
-            &git::refs::workdir::branch(project.default_branch()),
-        )?;
+        git::set_upstream(&repo, &REMOTE_NAME, project.default_branch(), branch_ref)?;
     }
 
     Ok(repo)

@@ -62,17 +62,25 @@ pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
     )
     .unwrap();
     let head = git::initial_commit(&repo, &sig).unwrap();
-    let oid = git::commit(
-        &repo,
-        &head,
-        git::refname!("refs/heads/master").as_refstr(),
-        "Second commit",
-        &sig,
-    )
-    .unwrap()
-    .id();
+    let tree = git::write_tree(Path::new("README"), "Hello World!\n".as_bytes(), &repo).unwrap();
+    let oid = {
+        let commit = git::commit(
+            &repo,
+            &head,
+            git::refname!("refs/heads/master").as_refstr(),
+            "Second commit",
+            &sig,
+            &tree,
+        )
+        .unwrap();
+
+        commit.id()
+    };
+    repo.set_head("refs/heads/master").unwrap();
+    repo.checkout_head(None).unwrap();
 
     // Look, I don't really understand why we have to do this, but we do.
+    drop(tree);
     drop(head);
 
     (repo, oid)
@@ -99,18 +107,22 @@ pub mod gen {
         let repo = git2::Repository::init(path).unwrap();
         let sig = git2::Signature::now(string(6).as_str(), email().as_str()).unwrap();
         let head = git::initial_commit(&repo, &sig).unwrap();
+        let tree =
+            git::write_tree(Path::new("README"), "Hello World!\n".as_bytes(), &repo).unwrap();
         let oid = git::commit(
             &repo,
             &head,
             git::refname!("refs/heads/master").as_refstr(),
             string(16).as_str(),
             &sig,
+            &tree,
         )
         .unwrap()
         .id();
 
         // Look, I don't really understand why we have to do this, but we do.
         drop(head);
+        drop(tree);
 
         (repo, oid)
     }

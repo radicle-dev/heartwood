@@ -2,9 +2,9 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::{fs, io, mem};
+use std::{env, fs, io, mem};
 
-use snapbox::cmd::Command;
+use snapbox::cmd::{Command, OutputAssert};
 use snapbox::{Assert, Substitutions};
 use thiserror::Error;
 
@@ -136,25 +136,54 @@ impl TestFormula {
         Ok(self)
     }
 
-    pub fn run(&self) -> Result<bool, io::Error> {
+    pub fn run(&mut self) -> Result<bool, io::Error> {
         let assert = Assert::new().substitutions(self.subs.clone());
 
         for test in &self.tests {
             for assertion in &test.assertions {
                 let program = if assertion.program == "rad" {
                     snapbox::cmd::cargo_bin("rad")
+                } else if assertion.program == "cd" {
+                    let path: PathBuf = assertion.args.first().unwrap().into();
+                    let path = self.cwd.join(path);
+
+                    // TODO: Add support for `..` and `/`
+                    // TODO: Error if more than one args are given.
+
+                    if !path.exists() {
+                        return Err(io::Error::new(
+                            io::ErrorKind::NotFound,
+                            format!("cd: '{}' does not exist", path.display()),
+                        ));
+                    }
+                    self.cwd = path;
+
+                    continue;
                 } else {
                     PathBuf::from(&assertion.program)
                 };
 
-                Command::new(program)
+                let result = Command::new(program.clone())
+                    .env_clear()
+                    .envs(env::vars().filter(|(k, _)| k == "PATH"))
                     .envs(self.env.clone())
                     .current_dir(&self.cwd)
                     .args(&assertion.args)
                     .with_assert(assert.clone())
-                    .assert()
-                    .stdout_matches(&assertion.expected)
-                    .success();
+                    .output();
+
+                match result {
+                    Ok(output) => {
+                        let assert = OutputAssert::new(output).with_assert(assert.clone());
+                        assert.stdout_matches(&assertion.expected).success();
+                    }
+                    Err(err) => {
+                        return Err(io::Error::new(
+                            err.kind(),
+                            format!("{err}: `{}`", program.display()),
+                        ));
+                    }
+                }
             }
         }
         Ok(true)

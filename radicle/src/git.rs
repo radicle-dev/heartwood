@@ -255,10 +255,9 @@ pub fn commit<'a>(
     target: &RefStr,
     message: &str,
     sig: &git2::Signature,
+    tree: &git2::Tree,
 ) -> Result<git2::Commit<'a>, git2::Error> {
-    let tree_id = repo.index()?.write_tree()?;
-    let tree = repo.find_tree(tree_id)?;
-    let oid = repo.commit(Some(target.as_str()), sig, sig, message, &tree, &[parent])?;
+    let oid = repo.commit(Some(target.as_str()), sig, sig, message, tree, &[parent])?;
     let commit = repo.find_commit(oid)?;
 
     Ok(commit)
@@ -308,7 +307,16 @@ pub fn configure_remote<'r>(
 
 /// Fetch from the given `remote`.
 pub fn fetch(repo: &git2::Repository, remote: &str) -> Result<(), git2::Error> {
-    repo.find_remote(remote)?.fetch::<&str>(&[], None, None)
+    repo.find_remote(remote)?.fetch::<&str>(
+        &[],
+        Some(
+            git2::FetchOptions::new()
+                .update_fetchhead(false)
+                .prune(git2::FetchPrune::On)
+                .download_tags(git2::AutotagOption::None),
+        ),
+        None,
+    )
 }
 
 /// Push `refspecs` to the given `remote` using the provided `namespace`.

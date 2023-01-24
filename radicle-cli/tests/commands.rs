@@ -73,9 +73,12 @@ fn test<'a>(
         .env("GIT_COMMITTER_DATE", "1671125284")
         .env("GIT_COMMITTER_EMAIL", "radicle@localhost")
         .env("GIT_COMMITTER_NAME", "radicle")
+        .env("GIT_CONFIG", "/dev/null")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("RAD_HOME", home.to_string_lossy())
         .env("RAD_PASSPHRASE", "radicle")
-        .env("TZ", "Etc/GMT")
+        .env("TZ", "UTC")
         .env(radicle_cob::git::RAD_COMMIT_TIME, "1671125284")
         .envs(envs)
         .cwd(cwd)
@@ -124,6 +127,33 @@ fn rad_init() {
     test(
         "examples/rad-init.md",
         working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_checkout() {
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let working = tempfile::tempdir().unwrap();
+    let copy = tempfile::tempdir().unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test(
+        "examples/rad-init.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+
+    test(
+        "examples/rad-checkout.md",
+        copy.path(),
         Some(&profile.home),
         [],
     )

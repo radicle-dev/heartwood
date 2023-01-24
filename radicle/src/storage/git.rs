@@ -844,12 +844,16 @@ mod tests {
         let alice_proj_storage = alice.repository(proj_id).unwrap();
         let alice_head = proj_repo.find_commit(alice_head).unwrap();
         let alice_sig = git2::Signature::now("Alice", "alice@radicle.xyz").unwrap();
+        let alice_tree = proj_repo
+            .find_tree(proj_repo.index().unwrap().write_tree().unwrap())
+            .unwrap();
         let alice_head = git::commit(
             &proj_repo,
             &alice_head,
             &refname,
             "Making changes",
             &alice_sig,
+            &alice_tree,
         )
         .unwrap()
         .id();
@@ -911,6 +915,8 @@ mod tests {
         let backend = &project.backend;
         let sig = git2::Signature::now(&alice.to_string(), "anonymous@radicle.xyz").unwrap();
         let head = git::initial_commit(backend, &sig).unwrap();
+        let tree =
+            git::write_tree(Path::new("README"), "Hello World!\n".as_bytes(), backend).unwrap();
 
         git::commit(
             backend,
@@ -918,6 +924,7 @@ mod tests {
             &git::RefString::try_from(format!("refs/remotes/{alice}/heads/master")).unwrap(),
             "Second commit",
             &sig,
+            &tree,
         )
         .unwrap();
 

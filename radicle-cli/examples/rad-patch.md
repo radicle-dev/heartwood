@@ -8,18 +8,18 @@ missing from the project.
 
 ```
 $ git checkout -b flux-capacitor-power
-$ touch README.md
+$ touch REQUIREMENTS
 ```
 
 Here the instructions are added to the project's README for 1.21 gigawatts and
 commit the changes to git.
 
 ```
-$ git add README.md
+$ git add REQUIREMENTS
 $ git commit -v -m "Define power requirements"
-[flux-capacitor-power 9dad201] Define power requirements
+[flux-capacitor-power 3e674d1] Define power requirements
  1 file changed, 0 insertions(+), 0 deletions(-)
- create mode 100644 README.md
+ create mode 100644 REQUIREMENTS
 ```
 
 Once the code is ready, we open (or create) a patch with our changes for the project.
@@ -32,10 +32,10 @@ $ rad patch open --message "define power requirements" --no-confirm
 ok Pushing HEAD to storage...
 ok Analyzing remotes...
 
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master (cdf76ce) <- z6MknSL…StBU8Vi/flux-capacitor-power (9dad201)
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master (f2de534) <- z6MknSL…StBU8Vi/flux-capacitor-power (3e674d1)
 1 commit(s) ahead, 0 commit(s) behind
 
-9dad201 Define power requirements
+3e674d1 Define power requirements
 
 
 ╭─ define power requirements ───────
@@ -45,7 +45,7 @@ No description provided.
 ╰───────────────────────────────────
 
 
-ok Patch b9bb418c6f504ee91e54c555bdc8fc37b4d9b28b created 🌱
+ok Patch c3bd983b5cf9643f7e98a2e6ee216d6794bac16b created 🌱
 ```
 
 It will now be listed as one of the project's open patches.
@@ -55,16 +55,16 @@ $ rad patch
 
 - YOU PROPOSED -
 
-define power requirements b9bb418c6f5 R0 9dad201 (flux-capacitor-power) ahead 1, behind 0
+define power requirements c3bd983b5cf R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0
 └─ * opened by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..]
 
 - OTHERS PROPOSED -
 
 Nothing to show.
 
-$ rad patch show b9bb418c6f504ee91e54c555bdc8fc37b4d9b28b
+$ rad patch show c3bd983b5cf9643f7e98a2e6ee216d6794bac16b
 
-patch b9bb418c6f504ee91e54c555bdc8fc37b4d9b28b
+patch c3bd983b5cf9643f7e98a2e6ee216d6794bac16b
 
 ╭─ define power requirements ───────
 
@@ -72,13 +72,13 @@ No description provided.
 
 ╰───────────────────────────────────
 
-commit 9dad201e2cb3306dd708b4a9ebe811b293e27196
+commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
 Author: radicle <radicle@localhost>
 Date:   Thu Dec 15 17:28:04 2022 +0000
 
     Define power requirements
 
-diff --git a/README.md b/README.md
+diff --git a/REQUIREMENTS b/REQUIREMENTS
 new file mode 100644
 index 0000000..e69de29
 
