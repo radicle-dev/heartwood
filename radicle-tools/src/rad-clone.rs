@@ -10,7 +10,7 @@ fn main() -> anyhow::Result<()> {
 
     if let Some(id) = env::args().nth(1) {
         let id = Id::from_urn(&id)?;
-        let mut node = radicle::node::connect(profile.socket())?;
+        let mut node = radicle::Node::new(profile.socket());
         let repo = radicle::rad::clone(id, &cwd, &signer, &profile.storage, &mut node)?;
 
         println!(

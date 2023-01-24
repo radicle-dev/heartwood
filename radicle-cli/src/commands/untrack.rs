@@ -88,6 +88,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 pub fn untrack(id: Id, profile: &Profile) -> anyhow::Result<bool> {
-    let mut node = radicle::node::connect(profile.socket())?;
+    let mut node = radicle::Node::new(profile.socket());
     node.untrack_repo(id).map_err(|e| anyhow!(e))
 }

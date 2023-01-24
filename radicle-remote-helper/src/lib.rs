@@ -11,6 +11,8 @@ use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
 
 /// The service invoked by git on the remote repository, during a push.
 const GIT_RECEIVE_PACK: &str = "git-receive-pack";
+/// The service invoked by git on the remote repository, during a fetch.
+const GIT_UPLOAD_PACK: &str = "git-upload-pack";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -82,7 +84,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                 //    won't match the remote we're pushing to.
                 let signer = if *service == GIT_RECEIVE_PACK {
                     if profile.public_key != namespace {
-                        return Err(Error::KeyMismatch(namespace).into());
+                        return Err(Error::KeyMismatch(profile.public_key).into());
                     }
                     let signer = profile.signer()?;
 
@@ -90,6 +92,10 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                 } else {
                     None
                 };
+
+                if *service == GIT_UPLOAD_PACK {
+                    // TODO: Fetch from network.
+                }
                 println!(); // Empty line signifies connection is established.
 
                 let mut child = process::Command::new(service)
@@ -101,15 +107,16 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                     .stdin(process::Stdio::inherit())
                     .spawn()?;
 
-                if child.wait()?.success() {
+                if child.wait()?.success() && *service == GIT_RECEIVE_PACK {
                     if let Some(signer) = signer {
                         proj.sign_refs(&signer)?;
                         proj.set_head()?;
                         // Connect to local node and announce refs to the network.
                         // If our node is not running, we simply skip this step, as the
                         // refs will be announced eventually, when the node restarts.
-                        if let Ok(mut conn) = radicle::node::connect(profile.socket()) {
-                            conn.announce_refs(url.repo)?;
+                        let mut node = radicle::Node::new(profile.socket());
+                        if node.is_running() {
+                            node.announce_refs(url.repo)?;
                         }
                     }
                 }

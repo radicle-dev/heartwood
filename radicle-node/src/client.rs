@@ -1,3 +1,4 @@
+use std::os::unix::net::UnixListener;
 use std::{io, net, thread, time};
 
 use crossbeam_channel as chan;
@@ -127,9 +128,13 @@ impl<G: Signer + EcSign> Runtime<G> {
         }
         let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
         let handle = Handle::new(home, reactor.controller());
+
+        log::info!("Binding control socket {}..", node_sock.display());
+
+        let listener = UnixListener::bind(&node_sock)?;
         let control = thread::spawn({
             let handle = handle.clone();
-            move || control::listen(node_sock, handle)
+            move || control::listen(listener, handle)
         });
 
         let pool = WorkerPool::with(

@@ -5,6 +5,8 @@ use anyhow::anyhow;
 use anyhow::Context as _;
 
 use radicle::prelude::*;
+use radicle::storage::git::transport;
+use radicle::storage::RemoteId;
 use radicle::storage::WriteStorage;
 
 use crate::project;
@@ -22,6 +24,7 @@ Usage
 
 Options
 
+    --remote <id>   Remote namespace to checkout
     --no-confirm    Don't ask for confirmation during checkout
     --help          Print help
 "#,
@@ -29,6 +32,7 @@ Options
 
 pub struct Options {
     pub id: Id,
+    pub remote: Option<RemoteId>,
 }
 
 impl Args for Options {
@@ -38,6 +42,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut id = None;
+        let mut remote = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -45,6 +50,16 @@ impl Args for Options {
                     // Ignored for now.
                 }
                 Long("help") => return Err(Error::Help.into()),
+                Long("remote") => {
+                    let val = parser.value().unwrap();
+                    let val = val.to_string_lossy();
+
+                    if let Ok(val) = NodeId::from_str(&val) {
+                        remote = Some(val);
+                    } else {
+                        return Err(anyhow!("invalid Node ID '{}'", val));
+                    }
+                }
                 Value(val) if id.is_none() => {
                     let val = val.to_string_lossy();
                     let val = Id::from_str(&val).context(format!("invalid id '{}'", val))?;
@@ -58,6 +73,7 @@ impl Args for Options {
         Ok((
             Options {
                 id: id.ok_or_else(|| anyhow!("a project id to checkout must be provided"))?,
+                remote,
             },
             vec![],
         ))
@@ -79,12 +95,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     let id = options.id;
     let storage = &profile.storage;
+    let remote = options.remote.unwrap_or(*profile.id());
     let doc = storage
         .repository(id)?
-        .identity_of(profile.id())
+        .identity_of(&remote)
         .context("project could not be found in local storage")?;
     let payload = doc.project()?;
     let path = PathBuf::from(payload.name().clone());
+
+    transport::local::register(storage.clone());
 
     if path.exists() {
         anyhow::bail!("the local path {:?} already exists", path.as_path());
@@ -97,7 +116,7 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     ));
 
     let spinner = term::spinner("Performing checkout...");
-    let repo = match radicle::rad::checkout(options.id, profile.id(), path.clone(), &storage) {
+    let repo = match radicle::rad::checkout(options.id, &remote, path.clone(), &storage) {
         Ok(repo) => repo,
         Err(err) => {
             spinner.failed();

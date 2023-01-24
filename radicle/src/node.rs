@@ -4,7 +4,7 @@ use amplify::WrapperMut;
 use std::io::{BufRead, BufReader, Write};
 use std::ops::Deref;
 use std::os::unix::net::UnixStream;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{io, net};
 
 use crossbeam_channel as chan;
@@ -122,6 +122,8 @@ pub trait Handle {
     /// The error returned by all methods.
     type Error: std::error::Error;
 
+    /// Check if the node is running. to a peer.
+    fn is_running(&self) -> bool;
     /// Connect to a peer.
     fn connect(&mut self, node: NodeId, addr: Address) -> Result<(), Self::Error>;
     /// Retrieve or update the project from network.
@@ -153,15 +155,15 @@ pub type NodeId = PublicKey;
 /// Node controller.
 #[derive(Debug)]
 pub struct Node {
-    stream: UnixStream,
+    socket: PathBuf,
 }
 
 impl Node {
     /// Connect to the node, via the socket at the given path.
-    pub fn connect<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let stream = UnixStream::connect(path).map_err(Error::Connect)?;
-
-        Ok(Self { stream })
+    pub fn new<P: AsRef<Path>>(path: P) -> Self {
+        Self {
+            socket: path.as_ref().to_path_buf(),
+        }
     }
 
     /// Call a command on the node.
@@ -169,21 +171,36 @@ impl Node {
         &self,
         cmd: &str,
         args: &[A],
-    ) -> Result<impl Iterator<Item = Result<String, io::Error>> + '_, io::Error> {
+    ) -> Result<impl Iterator<Item = Result<String, io::Error>>, io::Error> {
+        let stream = UnixStream::connect(&self.socket)?;
         let args = args
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .join(" ");
-        writeln!(&self.stream, "{cmd} {args}")?;
 
-        Ok(BufReader::new(&self.stream).lines())
+        if args.is_empty() {
+            writeln!(&stream, "{cmd}")?;
+        } else {
+            writeln!(&stream, "{cmd} {args}")?;
+        }
+        Ok(BufReader::new(stream).lines())
     }
 }
 
 impl Handle for Node {
     type Sessions = ();
     type Error = Error;
+
+    fn is_running(&self) -> bool {
+        let Ok(mut lines) = self.call::<&str>("status", &[]) else {
+            return false;
+        };
+        let Some(Ok(line)) = lines.next() else {
+            return false;
+        };
+        line == RESPONSE_OK
+    }
 
     fn connect(&mut self, _node: NodeId, _addr: Address) -> Result<(), Error> {
         todo!()
@@ -194,7 +211,8 @@ impl Handle for Node {
             let line = line?;
             log::debug!("node: {}", line);
         }
-        todo!()
+        // TODO: Return parsed lookup results.
+        Ok(FetchLookup::NotFound)
     }
 
     fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {
@@ -297,9 +315,4 @@ impl Handle for Node {
     fn shutdown(self) -> Result<(), Error> {
         todo!();
     }
-}
-
-/// Connect to the local node.
-pub fn connect<P: AsRef<Path>>(path: P) -> Result<Node, Error> {
-    Node::connect(path)
 }

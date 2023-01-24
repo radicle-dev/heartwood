@@ -90,6 +90,9 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             let result = self.fetch(fetch, &mut tunnel);
             let session = tunnel.into_session();
 
+            if let Err(err) = &result {
+                log::error!(target: "worker", "Fetch error: {err}");
+            }
             (session, result)
         } else {
             log::debug!(target: "worker", "Worker processing incoming fetch for {}", fetch.repo);
@@ -106,6 +109,9 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             let result = self.upload_pack(fetch, drain, &mut stream_r, &mut stream_w);
             let session = WireSession::from_split_io(stream_r, stream_w);
 
+            if let Err(err) = &result {
+                log::error!(target: "worker", "Upload-pack error: {err}");
+            }
             (session, result)
         }
     }
@@ -141,8 +147,6 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         let status = child.wait()?;
 
         // TODO: Parse fetch output to return updates.
-        log::debug!(target: "worker", "Fetch for {} exited with status {:?}", fetch.repo, status.code());
-
         if let Some(status) = status.code() {
             log::debug!(target: "worker", "Fetch for {} exited with status {:?}", fetch.repo, status);
         } else {
@@ -210,6 +214,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         thread::scope(|scope| {
             // Data coming from the remote peer is written to the standard input of the
             // `upload-pack` process.
+            // FIXME: This sometimes returns a `WouldBlock`.
             let t = scope.spawn(move || io::copy(&mut reader, &mut stdin));
             // Output of `upload-pack` is sent back to the remote peer.
             io::copy(&mut stdout, stream_w)?;

@@ -20,6 +20,10 @@ impl radicle::node::Handle for Handle {
     type Error = Error;
     type Sessions = service::Sessions;
 
+    fn is_running(&self) -> bool {
+        true
+    }
+
     fn connect(&mut self, _node: NodeId, _addr: radicle::node::Address) -> Result<(), Error> {
         unimplemented!();
     }

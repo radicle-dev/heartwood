@@ -108,6 +108,10 @@ impl<G: Signer + EcSign + 'static> radicle::node::Handle for Handle<G> {
     type Sessions = Sessions;
     type Error = Error;
 
+    fn is_running(&self) -> bool {
+        true
+    }
+
     fn connect(&mut self, node: NodeId, addr: radicle::node::Address) -> Result<(), Error> {
         self.command(service::Command::Connect(node, addr))?;
 

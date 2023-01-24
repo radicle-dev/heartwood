@@ -300,7 +300,7 @@ pub fn configure_remote<'r>(
     url: &Url,
 ) -> Result<git2::Remote<'r>, git2::Error> {
     let fetch = format!("+refs/heads/*:refs/remotes/{name}/*");
-    let remote = repo.remote_with_fetch(name, dbg!(url.to_string().as_str()), &fetch)?;
+    let remote = repo.remote_with_fetch(name, url.to_string().as_str(), &fetch)?;
 
     Ok(remote)
 }

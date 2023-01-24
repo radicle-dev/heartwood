@@ -522,7 +522,19 @@ where
                 log::error!(target: "wire", "Received error: peer {} disconnected: {}", id, err);
                 self.actions.push_back(Action::UnregisterTransport(*id));
             }
+            // TODO: Why is the error an `i16`?
             reactor::Error::TransportDisconnect(id, _, err) => {
+                if let Some(remote) = self.peers.get(id) {
+                    if let Some(id) = remote.id() {
+                        self.service.disconnected(
+                            *id,
+                            &DisconnectReason::Connection(Arc::new(io::Error::from(
+                                io::ErrorKind::ConnectionReset,
+                            ))),
+                        );
+                    }
+                }
+                // TODO: Notify service.
                 log::error!(target: "wire", "Received error: peer {} disconnected: {}", id, err);
             }
             reactor::Error::WriteFailure(id, err) => {

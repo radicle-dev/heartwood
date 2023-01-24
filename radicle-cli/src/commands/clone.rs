@@ -80,15 +80,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 pub fn clone(id: Id, _interactive: Interactive, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let mut node = radicle::node::connect(profile.socket())?;
     let signer = term::signer(&profile)?;
+    let mut node = radicle::Node::new(profile.socket());
 
     // Track & fetch project.
     node.track_repo(id).context("track")?;
-    node.fetch(id).context("fetch")?;
+    node.fetch(id).context("fetch")?; // FIXME: Handle output
 
     // Create a local fork of the project, under our own id.
-    rad::fork(id, &signer, &profile.storage).context("fork")?;
+    rad::fork(id, &signer, &profile.storage).context("fork error")?;
 
     let doc = profile
         .storage

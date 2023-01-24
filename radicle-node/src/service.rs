@@ -405,7 +405,10 @@ where
                 }
 
                 let seeds = match self.routing.get(&id) {
-                    Ok(seeds) => seeds,
+                    Ok(seeds) => seeds
+                        .into_iter()
+                        .filter(|node| *node != self.node_id())
+                        .collect(),
                     Err(err) => {
                         log::error!("Error reading routing table for {id}: {err}");
                         resp.send(FetchLookup::NotFound).ok();
@@ -413,13 +416,14 @@ where
                         return;
                     }
                 };
-                let Some(seeds) = NonEmpty::from_vec(seeds.into_iter().collect()) else {
-                    log::warn!("No seeds found for {}", id);
+
+                let Some(seeds) = NonEmpty::from_vec(seeds) else {
+                    log::warn!("No seeds found to fetch from, for {}", id);
                     resp.send(FetchLookup::NotFound).ok();
 
                     return;
                 };
-                log::debug!("Found {} seed(s) for {}", seeds.len(), id);
+                log::debug!("Found {} seed(s) to fetch from, for {}", seeds.len(), id);
 
                 let (results_send, results) = chan::bounded(seeds.len());
                 resp.send(FetchLookup::Found {
@@ -432,7 +436,11 @@ where
 
                 // TODO: Limit the number of seeds we fetch from? Randomize?
                 for seed in seeds {
-                    self.fetch(id, &seed);
+                    if let Some(session) = self.sessions.get_mut(&seed) {
+                        Self::fetch(id, session, &mut self.reactor);
+                    } else {
+                        // TODO: Establish connection?
+                    }
                 }
             }
             Command::TrackRepo(id, resp) => {
@@ -472,15 +480,13 @@ where
         }
     }
 
-    pub fn fetch(&mut self, rid: Id, seed: &NodeId) {
-        let Some(session) = self.sessions.get_mut(seed) else {
-            panic!("Service::fetch: attempted to fetch from unknown peer {seed}");
-        };
+    pub fn fetch(rid: Id, session: &mut Session, reactor: &mut Reactor) {
+        let seed = session.id;
 
         if let Some(fetch) = session.fetch(rid) {
             debug!("Fetch initiated for {rid} with {seed}..");
 
-            self.reactor.write(session.id, fetch);
+            reactor.write(session.id, fetch);
         } else {
             // TODO: If we can't fetch, it's because we're already fetching from
             // this peer. So we need to queue the request, or find another peer.
@@ -709,7 +715,10 @@ where
                     // Refs are only supposed to be relayed by peers who are tracking
                     // the resource. Therefore, it's safe to fetch from the remote
                     // peer, even though it isn't the announcer.
-                    self.fetch(message.id, relayer);
+                    let Some(session) = self.sessions.get_mut(relayer) else {
+                        panic!(); // TODO
+                    };
+                    Self::fetch(message.id, session, &mut self.reactor);
 
                     return Ok(true);
                 } else {
@@ -1140,7 +1149,7 @@ pub enum DisconnectReason {
     /// Error with an underlying established connection. Sometimes, reconnecting
     /// after such an error is possible.
     Connection(Arc<dyn std::error::Error + Sync + Send>),
-    // Session error.
+    /// Session error.
     Session(session::Error),
 }
 

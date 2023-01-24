@@ -4,8 +4,8 @@ use std::io::BufReader;
 use std::io::LineWriter;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
-use std::path::{Path, PathBuf};
-use std::{fs, io, net};
+use std::path::PathBuf;
+use std::{io, net};
 
 use radicle::node::Handle;
 
@@ -23,21 +23,10 @@ pub enum Error {
 }
 
 /// Listen for commands on the control socket, and process them.
-pub fn listen<P: AsRef<Path>, H: Handle<Error = client::handle::Error>>(
-    path: P,
+pub fn listen<H: Handle<Error = client::handle::Error>>(
+    listener: UnixListener,
     mut handle: H,
 ) -> Result<(), Error> {
-    fs::create_dir_all(
-        path.as_ref()
-            .parent()
-            .ok_or_else(|| Error::InvalidPath(path.as_ref().to_path_buf()))?,
-    )
-    .ok();
-
-    log::info!("Binding control socket {}..", path.as_ref().display());
-
-    // TODO: Move socket binding to main thread.
-    let listener = UnixListener::bind(&path).map_err(Error::Bind)?;
     for incoming in listener.incoming() {
         match incoming {
             Ok(mut stream) => {
@@ -55,23 +44,20 @@ pub fn listen<P: AsRef<Path>, H: Handle<Error = client::handle::Error>>(
 
                     stream.flush().ok();
                     stream.shutdown(net::Shutdown::Both).ok();
-                } else {
-                    writeln!(stream, "ok").ok();
                 }
             }
             Err(e) => log::error!("Failed to accept incoming connection: {}", e),
         }
     }
     log::debug!("Exiting control loop..");
-    fs::remove_file(&path).ok();
 
     Ok(())
 }
 
 #[derive(thiserror::Error, Debug)]
 enum DrainError {
-    #[error("invalid command argument `{0}`")]
-    InvalidCommandArg(String),
+    #[error("invalid command argument `{0}`, {1}")]
+    InvalidCommandArg(String, Box<dyn std::error::Error>),
     #[error("unknown command `{0}`")]
     UnknownCommand(String),
     #[error("client error: {0}")]
@@ -88,132 +74,142 @@ fn drain<H: Handle<Error = client::handle::Error>>(
 ) -> Result<(), DrainError> {
     let mut reader = BufReader::new(stream);
     let mut writer = LineWriter::new(stream);
+    let mut line = String::new();
+
+    reader.read_line(&mut line)?;
+
+    let cmd = line.trim_end();
 
     // TODO: refactor to include helper
-    for line in reader.by_ref().lines().flatten() {
-        match line.split_once(' ') {
-            Some(("fetch", arg)) => {
-                if let Ok(id) = arg.parse() {
-                    fetch(id, LineWriter::new(stream), handle)?;
-                } else {
-                    return Err(DrainError::InvalidCommandArg(arg.to_owned()));
-                }
+    match cmd.split_once(' ') {
+        Some(("fetch", arg)) => match arg.parse() {
+            Ok(id) => {
+                fetch(id, LineWriter::new(stream), handle)?;
             }
-            Some(("track-repo", arg)) => {
-                if let Ok(id) = arg.parse() {
-                    match handle.track_repo(id) {
-                        Ok(updated) => {
-                            if updated {
-                                writeln!(writer, "{}", node::RESPONSE_OK)?;
-                            } else {
-                                writeln!(writer, "{}", node::RESPONSE_NOOP)?;
-                            }
-                        }
-                        Err(e) => {
-                            return Err(DrainError::Client(e));
-                        }
-                    }
-                } else {
-                    return Err(DrainError::InvalidCommandArg(arg.to_owned()));
-                }
+            Err(err) => {
+                return Err(DrainError::InvalidCommandArg(arg.to_owned(), Box::new(err)));
             }
-            Some(("untrack-repo", arg)) => {
-                if let Ok(id) = arg.parse() {
-                    match handle.untrack_repo(id) {
-                        Ok(updated) => {
-                            if updated {
-                                writeln!(writer, "{}", node::RESPONSE_OK)?;
-                            } else {
-                                writeln!(writer, "{}", node::RESPONSE_NOOP)?;
-                            }
-                        }
-                        Err(e) => {
-                            return Err(DrainError::Client(e));
-                        }
+        },
+        Some(("track-repo", arg)) => match arg.parse() {
+            Ok(id) => match handle.track_repo(id) {
+                Ok(updated) => {
+                    if updated {
+                        writeln!(writer, "{}", node::RESPONSE_OK)?;
+                    } else {
+                        writeln!(writer, "{}", node::RESPONSE_NOOP)?;
                     }
-                } else {
-                    return Err(DrainError::InvalidCommandArg(arg.to_owned()));
                 }
-            }
-            Some(("track-node", args)) => {
-                let (peer, alias) = if let Some((peer, alias)) = args.split_once(' ') {
-                    (peer, Some(alias.to_owned()))
-                } else {
-                    (args, None)
-                };
-                if let Ok(id) = peer.parse() {
-                    match handle.track_node(id, alias) {
-                        Ok(updated) => {
-                            if updated {
-                                writeln!(writer, "{}", node::RESPONSE_OK)?;
-                            } else {
-                                writeln!(writer, "{}", node::RESPONSE_NOOP)?;
-                            }
-                        }
-                        Err(e) => {
-                            return Err(DrainError::Client(e));
-                        }
-                    }
-                } else {
-                    return Err(DrainError::InvalidCommandArg(args.to_owned()));
-                }
-            }
-            Some(("untrack-node", arg)) => {
-                if let Ok(id) = arg.parse() {
-                    match handle.untrack_node(id) {
-                        Ok(updated) => {
-                            if updated {
-                                writeln!(writer, "{}", node::RESPONSE_OK)?;
-                            } else {
-                                writeln!(writer, "{}", node::RESPONSE_NOOP)?;
-                            }
-                        }
-                        Err(e) => {
-                            return Err(DrainError::Client(e));
-                        }
-                    }
-                } else {
-                    return Err(DrainError::InvalidCommandArg(arg.to_owned()));
-                }
-            }
-            Some(("announce-refs", arg)) => {
-                if let Ok(id) = arg.parse() {
-                    if let Err(e) = handle.announce_refs(id) {
-                        return Err(DrainError::Client(e));
-                    }
-                    writeln!(writer, "{}", node::RESPONSE_OK)?;
-                } else {
-                    return Err(DrainError::InvalidCommandArg(arg.to_owned()));
-                }
-            }
-            Some((cmd, _)) => return Err(DrainError::UnknownCommand(cmd.to_owned())),
-
-            // Commands with no arguments.
-            None => match line.as_str() {
-                "routing" => match handle.routing() {
-                    Ok(c) => {
-                        for (id, seed) in c.iter() {
-                            writeln!(writer, "{id} {seed}",)?;
-                        }
-                    }
-                    Err(e) => return Err(DrainError::Client(e)),
-                },
-                "inventory" => match handle.inventory() {
-                    Ok(c) => {
-                        for id in c.iter() {
-                            writeln!(writer, "{id}")?;
-                        }
-                    }
-                    Err(e) => return Err(DrainError::Client(e)),
-                },
-                "shutdown" => {
-                    return Err(DrainError::Shutdown);
-                }
-                _ => {
-                    return Err(DrainError::UnknownCommand(line));
+                Err(e) => {
+                    return Err(DrainError::Client(e));
                 }
             },
+            Err(err) => {
+                return Err(DrainError::InvalidCommandArg(arg.to_owned(), Box::new(err)));
+            }
+        },
+        Some(("untrack-repo", arg)) => match arg.parse() {
+            Ok(id) => match handle.untrack_repo(id) {
+                Ok(updated) => {
+                    if updated {
+                        writeln!(writer, "{}", node::RESPONSE_OK)?;
+                    } else {
+                        writeln!(writer, "{}", node::RESPONSE_NOOP)?;
+                    }
+                }
+                Err(e) => {
+                    return Err(DrainError::Client(e));
+                }
+            },
+            Err(err) => {
+                return Err(DrainError::InvalidCommandArg(arg.to_owned(), Box::new(err)));
+            }
+        },
+        Some(("track-node", args)) => {
+            let (peer, alias) = if let Some((peer, alias)) = args.split_once(' ') {
+                (peer, Some(alias.to_owned()))
+            } else {
+                (args, None)
+            };
+            match peer.parse() {
+                Ok(id) => match handle.track_node(id, alias) {
+                    Ok(updated) => {
+                        if updated {
+                            writeln!(writer, "{}", node::RESPONSE_OK)?;
+                        } else {
+                            writeln!(writer, "{}", node::RESPONSE_NOOP)?;
+                        }
+                    }
+                    Err(e) => {
+                        return Err(DrainError::Client(e));
+                    }
+                },
+                Err(err) => {
+                    return Err(DrainError::InvalidCommandArg(
+                        args.to_owned(),
+                        Box::new(err),
+                    ));
+                }
+            }
         }
+        Some(("untrack-node", arg)) => match arg.parse() {
+            Ok(id) => match handle.untrack_node(id) {
+                Ok(updated) => {
+                    if updated {
+                        writeln!(writer, "{}", node::RESPONSE_OK)?;
+                    } else {
+                        writeln!(writer, "{}", node::RESPONSE_NOOP)?;
+                    }
+                }
+                Err(e) => {
+                    return Err(DrainError::Client(e));
+                }
+            },
+            Err(err) => {
+                return Err(DrainError::InvalidCommandArg(arg.to_owned(), Box::new(err)));
+            }
+        },
+        Some(("announce-refs", arg)) => match arg.parse() {
+            Ok(id) => {
+                if let Err(e) = handle.announce_refs(id) {
+                    return Err(DrainError::Client(e));
+                }
+                writeln!(writer, "{}", node::RESPONSE_OK)?;
+            }
+            Err(err) => {
+                return Err(DrainError::InvalidCommandArg(arg.to_owned(), Box::new(err)));
+            }
+        },
+        Some((cmd, _)) => return Err(DrainError::UnknownCommand(cmd.to_owned())),
+
+        // Commands with no arguments.
+        None => match cmd {
+            "status" => {
+                println!("RECEIVED 'status'");
+                writeln!(writer, "{}", node::RESPONSE_OK).ok();
+            }
+            "routing" => match handle.routing() {
+                Ok(c) => {
+                    for (id, seed) in c.iter() {
+                        writeln!(writer, "{id} {seed}",)?;
+                    }
+                }
+                Err(e) => return Err(DrainError::Client(e)),
+            },
+            "inventory" => match handle.inventory() {
+                Ok(c) => {
+                    for id in c.iter() {
+                        writeln!(writer, "{id}")?;
+                    }
+                }
+                Err(e) => return Err(DrainError::Client(e)),
+            },
+            "shutdown" => {
+                return Err(DrainError::Shutdown);
+            }
+            _ => {
+                return Err(DrainError::UnknownCommand(line));
+            }
+        },
     }
     Ok(())
 }
@@ -232,13 +228,16 @@ fn fetch<W: Write, H: Handle<Error = client::handle::Error>>(
 
             writeln!(
                 writer,
-                "ok: found {} seeds for {} ({:?})",
+                "ok: found {} seeds for {} ({:?})", // TODO: Better output
                 seeds.len(),
                 &id,
                 &seeds,
             )?;
 
-            for result in results.iter() {
+            for result in results
+                .iter()
+                .take(results.capacity().unwrap_or(seeds.len()))
+            {
                 match result.result {
                     Ok(updated) => {
                         writeln!(writer, "ok: {} fetched from {}", &id, result.remote)?;
@@ -274,7 +273,7 @@ fn fetch<W: Write, H: Handle<Error = client::handle::Error>>(
 mod tests {
     use std::io::prelude::*;
     use std::os::unix::net::UnixStream;
-    use std::{net, thread};
+    use std::thread;
 
     use super::*;
     use crate::identity::Id;
@@ -288,28 +287,26 @@ mod tests {
         let handle = test::handle::Handle::default();
         let socket = tmp.path().join("alice.sock");
         let projs = test::arbitrary::set::<Id>(1..3);
+        let listener = UnixListener::bind(&socket).unwrap();
 
         thread::spawn({
-            let socket = socket.clone();
             let handle = handle.clone();
 
-            move || listen(socket, handle)
+            move || listen(listener, handle)
         });
 
-        let mut stream = loop {
-            if let Ok(stream) = UnixStream::connect(&socket) {
-                break stream;
-            }
-        };
         for proj in &projs {
-            writeln!(&stream, "announce-refs {}", proj).unwrap();
+            let mut buf = [0; 2];
+            let mut stream = loop {
+                if let Ok(stream) = UnixStream::connect(&socket) {
+                    break stream;
+                }
+            };
+            writeln!(&stream, "announce-refs {proj}").unwrap();
+            stream.read_exact(&mut buf).unwrap();
+            assert_eq!(&buf, &[b'o', b'k']);
         }
 
-        let mut buf = [0; 2];
-        stream.shutdown(net::Shutdown::Write).unwrap();
-        stream.read_exact(&mut buf).unwrap();
-
-        assert_eq!(&buf, &[b'o', b'k']);
         for proj in &projs {
             assert!(handle.updates.lock().unwrap().contains(proj));
         }
@@ -321,19 +318,17 @@ mod tests {
         let socket = tmp.path().join("node.sock");
         let proj = test::arbitrary::gen::<Id>(1);
         let peer = test::arbitrary::gen::<NodeId>(1);
+        let listener = UnixListener::bind(&socket).unwrap();
+        let mut handle = Node::new(&socket);
 
         thread::spawn({
-            let socket = socket.clone();
             let handle = crate::test::handle::Handle::default();
 
-            move || crate::control::listen(socket, handle)
+            move || crate::control::listen(listener, handle)
         });
 
-        let mut handle = loop {
-            if let Ok(conn) = Node::connect(&socket) {
-                break conn;
-            }
-        };
+        // Wait for node to be online.
+        while !handle.is_running() {}
 
         assert!(handle.track_repo(proj).unwrap());
         assert!(!handle.track_repo(proj).unwrap());

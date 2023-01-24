@@ -22,6 +22,7 @@ pub mod storage;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 
+pub use node::Node;
 pub use profile::Profile;
 pub use storage::git::Storage;
 

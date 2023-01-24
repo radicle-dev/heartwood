@@ -178,13 +178,13 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
     raw.reference(
         &canonical_branch.with_namespace(me.into()),
         *canonical_head,
-        false,
+        true,
         &format!("creating default branch for {me}"),
     )?;
     raw.reference(
         &git::refs::storage::id(me),
         canonical_id.into(),
-        false,
+        true,
         &format!("creating identity branch for {me}"),
     )?;
     repository.sign_refs(signer)?;
@@ -242,7 +242,10 @@ pub fn clone<P: AsRef<Path>, G: Signer, H: node::Handle>(
         }
     }
 
+    log::debug!("Creating fork in local storage..");
     let _ = fork(proj, signer, storage)?;
+
+    log::debug!("Creating checkout at {}..", path.as_ref().display());
     let working = checkout(proj, signer.public_key(), path, storage)?;
 
     Ok(working)
