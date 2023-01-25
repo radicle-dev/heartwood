@@ -1654,7 +1654,7 @@ dependencies = [
 [[package]]
 name = "netservices"
 version = "0.1.0"
-source = "git+https://github.com/cyphernet-dao/rust-netservices#ddc1fdfec6ce4ec7f94efb0efefc6cd79048686f"
+source = "git+https://github.com/radicle-dev/rust-netservices#485a81c49adb4ced02aad7df7c9a70cd13d66df2"
 dependencies = [
  "amplify",
  "cyphernet",

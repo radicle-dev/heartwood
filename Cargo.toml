@@ -29,7 +29,7 @@ debug = true
 incremental = false
 
 [patch.crates-io.netservices]
-git = "https://github.com/cyphernet-dao/rust-netservices"
+git = "https://github.com/radicle-dev/rust-netservices"
 version = "0.1.0"
 
 [patch.crates-io.radicle-git-ext]
