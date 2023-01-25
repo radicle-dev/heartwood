@@ -11,7 +11,6 @@ use crate::git;
 use crate::identity::doc;
 use crate::identity::doc::{DocError, Id};
 use crate::identity::project::Project;
-use crate::node::{self, FetchLookup};
 use crate::storage::git::transport::{self, remote};
 use crate::storage::git::{ProjectError, Repository, Storage};
 use crate::storage::refs::SignedRefs;
@@ -184,65 +183,6 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
     repository.sign_refs(signer)?;
 
     Ok(())
-}
-
-#[derive(Error, Debug)]
-pub enum CloneError<H: node::Handle> {
-    #[error("node: {0}")]
-    Node(#[from] node::Error),
-    #[error("fetch: {0}")]
-    Fetch(#[from] node::FetchError),
-    #[error("fork: {0}")]
-    Fork(#[from] ForkError),
-    #[error("checkout: {0}")]
-    Checkout(#[from] CheckoutError),
-    #[error("identity document error: {0}")]
-    Doc(#[from] DocError),
-    #[error("handle error: {0}")]
-    Handle(H::Error),
-}
-
-pub fn clone<P: AsRef<Path>, G: Signer, H: node::Handle>(
-    proj: Id,
-    path: P,
-    signer: &G,
-    storage: &Storage,
-    handle: &mut H,
-) -> Result<git2::Repository, CloneError<H>> {
-    let _ = handle.track_repo(proj).map_err(CloneError::Handle)?;
-    let lookup = handle.fetch(proj).map_err(CloneError::Handle)?;
-
-    match lookup {
-        FetchLookup::Found { seeds, results } => {
-            // TODO: If none of them succeeds, output an error. Otherwise tell the caller
-            // how many succeeded.
-            for result in results.iter().take(seeds.len()) {
-                match &*result {
-                    Ok(_updates) => {}
-                    Err(_err) => {}
-                }
-            }
-        }
-        FetchLookup::NotFound => {
-            // TODO: Return error instead.
-            panic!("clone: Repository not found in routing table");
-        }
-        FetchLookup::NotTracking => {
-            // SAFETY: Since we track it above, this shouldn't trigger unless there's a bug.
-            panic!("clone: Repository is not tracked");
-        }
-        FetchLookup::Error(err) => {
-            return Err(err.into());
-        }
-    }
-
-    log::debug!("Creating fork in local storage..");
-    let _ = fork(proj, signer, storage)?;
-
-    log::debug!("Creating checkout at {}..", path.as_ref().display());
-    let working = checkout(proj, signer.public_key(), path, storage)?;
-
-    Ok(working)
 }
 
 #[derive(Error, Debug)]

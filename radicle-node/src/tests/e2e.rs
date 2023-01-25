@@ -394,19 +394,30 @@ fn test_clone() {
 
     transport::local::register(alice.storage.clone());
 
-    let repo = rad::clone(
+    let _ = alice.handle.track_repo(acme).unwrap();
+    let lookup = alice.handle.fetch(acme).unwrap();
+
+    match lookup {
+        // Drain the channel.
+        FetchLookup::Found { seeds, results } => for _ in results.iter().take(seeds.len()) {},
+        other => {
+            panic!("Unexpected fetch lookup: {:?}", other);
+        }
+    }
+    rad::fork(acme, &alice.signer, &alice.storage).unwrap();
+
+    let working = rad::checkout(
         acme,
+        alice.signer.public_key(),
         tmp.path().join("clone"),
-        &alice.signer,
         &alice.storage,
-        &mut (*alice.handle),
     )
     .unwrap();
 
     // Makes test finish faster.
     drop(alice);
 
-    let head = repo.head().unwrap();
+    let head = working.head().unwrap();
     let oid = head.target().unwrap();
 
     let (_, canonical) = bob
