@@ -27,7 +27,10 @@ pub fn seed(dir: &Path) -> Context {
     let rad_home = dir.join("radicle");
 
     env::set_var("RAD_PASSPHRASE", PASSWORD);
-    env::set_var("RAD_DEBUG", "1");
+    env::set_var(
+        "RAD_SEED",
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    );
 
     fs::create_dir_all(&workdir).unwrap();
     fs::create_dir_all(&rad_home).unwrap();

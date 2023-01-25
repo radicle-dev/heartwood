@@ -94,7 +94,10 @@ fn rad_auth() {
         "examples/rad-auth.md",
         Path::new("."),
         None,
-        [("RAD_DEBUG", "1")],
+        [(
+            "RAD_SEED",
+            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        )],
     )
     .unwrap();
 }

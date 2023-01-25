@@ -499,11 +499,20 @@ pub mod keypair {
     /// Generate a new keypair using OS randomness.
     pub fn generate() -> KeyPair {
         #[cfg(debug_assertions)]
-        if std::env::var("RAD_DEBUG").is_ok() {
-            // Generate a test keypair that is always the same.
+        if let Ok(seed) = std::env::var("RAD_SEED") {
+            // Generate a keypair based on the given environment variable.
             // This is useful for debugging and testing, since the
-            // public key is known in advance.
-            return KeyPair::from_seed(Seed::new([0xff; 32]));
+            // public key can be known in advance.
+            let seed = (0..seed.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&seed[i..i + 2], 16))
+                .collect::<Result<Vec<u8>, _>>()
+                .expect("generate: invalid hexadecimal value set in `RAD_SEED`");
+            let seed: [u8; 32] = seed
+                .try_into()
+                .expect("generate: invalid seed length set in `RAD_SEED`");
+
+            return KeyPair::from_seed(Seed::new(seed));
         }
         KeyPair::generate()
     }
