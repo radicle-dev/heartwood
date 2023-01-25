@@ -81,7 +81,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let id = options.id;
 
     if let Ok(Some(_)) = storage.get(signer.public_key(), id.to_owned()) {
-        let namespace = profile.paths().storage().join(id.urn());
+        let namespace = profile.home.storage().join(id.urn());
 
         if !options.confirm
             || term::confirm(format!(

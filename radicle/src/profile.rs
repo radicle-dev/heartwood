@@ -137,11 +137,6 @@ impl Profile {
     pub fn socket(&self) -> PathBuf {
         self.home.socket()
     }
-
-    /// Get `Paths` of profile
-    pub fn paths(&self) -> &Home {
-        &self.home
-    }
 }
 
 /// Get the path to the radicle home folder.

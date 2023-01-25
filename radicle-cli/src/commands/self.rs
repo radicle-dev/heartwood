@@ -86,19 +86,19 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
     let ssh_long = ssh::fmt::key(node_id);
     table.push(["Key (full)", &term::format::tertiary(ssh_long)]);
 
-    let storage_path = profile.paths().storage();
+    let storage_path = profile.home.storage();
     table.push([
         "Storage (git)",
         &term::format::tertiary(storage_path.display()),
     ]);
 
-    let keys_path = profile.paths().keys();
+    let keys_path = profile.home.keys();
     table.push([
         "Storage (keys)",
         &term::format::tertiary(keys_path.display()),
     ]);
 
-    let node_path = profile.paths().node();
+    let node_path = profile.home.node();
     table.push([
         "Node (socket)",
         &term::format::tertiary(node_path.join("radicle.sock").display()),
