@@ -28,10 +28,6 @@ inherits = "release"
 debug = true
 incremental = false
 
-[patch.crates-io.netservices]
-git = "https://github.com/radicle-dev/rust-netservices"
-version = "0.1.0"
-
 [patch.crates-io.radicle-git-ext]
 git = "https://github.com/radicle-dev/radicle-git"
 rev = "016ece66474edf45d2d304141515152e6f7b37a3"
