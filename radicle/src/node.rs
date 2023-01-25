@@ -120,7 +120,7 @@ pub trait Handle {
     /// The peer sessions type.
     type Sessions;
     /// The error returned by all methods.
-    type Error: std::error::Error;
+    type Error: std::error::Error + Send + Sync + 'static;
 
     /// Check if the node is running. to a peer.
     fn is_running(&self) -> bool;

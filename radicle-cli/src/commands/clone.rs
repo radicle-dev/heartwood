@@ -4,11 +4,17 @@ use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use anyhow::Context as _;
+use thiserror::Error;
 
-use radicle::node::Handle;
+use radicle::git::raw;
+use radicle::identity::doc;
+use radicle::identity::doc::{DocError, Id};
+use radicle::node;
+use radicle::node::{FetchLookup, Handle};
 use radicle::prelude::*;
 use radicle::rad;
+use radicle::storage;
+use radicle::storage::git::{ProjectError, Storage};
 use radicle::storage::WriteStorage;
 
 use crate::commands::rad_checkout as checkout;
@@ -37,6 +43,7 @@ Options
 #[derive(Debug)]
 pub struct Options {
     id: Id,
+    #[allow(dead_code)]
     interactive: Interactive,
 }
 
@@ -75,30 +82,10 @@ impl Args for Options {
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
-    clone(options.id, options.interactive, ctx)
-}
-
-pub fn clone(id: Id, _interactive: Interactive, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let signer = term::signer(&profile)?;
     let mut node = radicle::Node::new(profile.socket());
-
-    // Track & fetch project.
-    node.track_repo(id).context("track")?;
-    node.fetch(id).context("fetch")?; // FIXME: Handle output
-
-    // Create a local fork of the project, under our own id.
-    rad::fork(id, &signer, &profile.storage).context("fork error")?;
-
-    let doc = profile
-        .storage
-        .repository(id)?
-        .identity_of(profile.id())
-        .map_err(|_e| anyhow!("couldn't load project {} from local state", id))?;
-    let proj = doc.project()?;
-
-    let path = Path::new(proj.name());
-    let repo = rad::checkout(id, profile.id(), path, &profile.storage)?;
+    let (working, doc, proj) = clone(options.id, &signer, &profile.storage, &mut node)?;
     let delegates = doc
         .delegates
         .iter()
@@ -106,13 +93,14 @@ pub fn clone(id: Id, _interactive: Interactive, ctx: impl term::Context) -> anyh
         .filter(|id| id != profile.id())
         .collect::<Vec<_>>();
     let default_branch = proj.default_branch().clone();
+    let path = working.workdir().unwrap(); // SAFETY: The working copy is not bare.
 
     // Setup tracking for project delegates.
     checkout::setup_remotes(
         project::SetupRemote {
-            project: id,
+            project: options.id,
             default_branch,
-            repo: &repo,
+            repo: &working,
             fetch: true,
             tracking: true,
         },
@@ -125,4 +113,94 @@ pub fn clone(id: Id, _interactive: Interactive, ctx: impl term::Context) -> anyh
     ));
 
     Ok(())
+}
+
+#[derive(Error, Debug)]
+pub enum CloneError<H: node::Handle> {
+    #[error("node: {0}")]
+    Node(#[from] node::Error),
+    #[error("fetch: {0}")]
+    Fetch(#[from] node::FetchError),
+    #[error("fork: {0}")]
+    Fork(#[from] rad::ForkError),
+    #[error("storage: {0}")]
+    Storage(#[from] storage::Error),
+    #[error("checkout: {0}")]
+    Checkout(#[from] rad::CheckoutError),
+    #[error("identity document error: {0}")]
+    Doc(#[from] DocError),
+    #[error("payload: {0}")]
+    Payload(#[from] doc::PayloadError),
+    #[error("project error: {0}")]
+    Project(#[from] ProjectError),
+    #[error("handle error: {0}")]
+    Handle(H::Error),
+}
+
+pub fn clone<G: Signer, H: Handle>(
+    id: Id,
+    signer: &G,
+    storage: &Storage,
+    node: &mut H,
+) -> Result<(raw::Repository, Doc<Verified>, Project), CloneError<H>> {
+    let me = *signer.public_key();
+
+    // Track & fetch project.
+    if node.track_repo(id).map_err(CloneError::Handle)? {
+        term::success!(
+            "Tracking relationship restablished for {}",
+            term::format::tertiary(id)
+        );
+    }
+
+    let spinner = term::spinner(format!("Fetching {}..", term::format::tertiary(id)));
+    match node.fetch(id).map_err(CloneError::Handle)? {
+        FetchLookup::Found { seeds, results } => {
+            // TODO: If none of them succeeds, output an error. Otherwise tell the caller
+            // how many succeeded.
+            for result in results.iter().take(seeds.len()) {
+                match &*result {
+                    Ok(_updates) => {}
+                    Err(_err) => {}
+                }
+            }
+        }
+        FetchLookup::NotFound => {
+            // TODO: Return error.
+        }
+        FetchLookup::NotTracking => {
+            // SAFETY: Since we track it above, this shouldn't trigger unless there's a bug.
+            panic!("clone: Repository is not tracked");
+        }
+        FetchLookup::Error(err) => {
+            return Err(err.into());
+        }
+    }
+    spinner.finish();
+
+    // Create a local fork of the project, under our own id.
+    {
+        let spinner = term::spinner(format!(
+            "Forking under {}..",
+            term::format::tertiary(term::format::node(&me))
+        ));
+        rad::fork(id, signer, &storage)?;
+
+        spinner.finish();
+    }
+
+    let doc = storage.repository(id)?.identity_of(&me)?;
+    let proj = doc.project()?;
+    let path = Path::new(proj.name());
+
+    // Checkout.
+    let spinner = term::spinner(format!(
+        "Creating checkout in ./{}..",
+        term::format::tertiary(path.display())
+    ));
+    let repo = rad::checkout(id, &me, path, &storage)?;
+
+    spinner.finish();
+
+    Ok((repo, doc, proj))
 }
