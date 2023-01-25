@@ -30,7 +30,7 @@ incremental = false
 
 [patch.crates-io.io-reactor]
 git = "https://github.com/rust-amplify/io-reactor"
-rev = "6148aec926c82f08373687d1a9da07a2bca67ea3"
+rev = "9a2e787621c78987c866b13ff820bafce248ddc5"
 version = "0.1.0"
 
 [patch.crates-io.netservices]
