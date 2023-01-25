@@ -128,7 +128,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     if options.refs {
         let path = profile
-            .paths()
+            .home
             .storage()
             .join(id.urn())
             .join("refs")
