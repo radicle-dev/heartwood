@@ -11,7 +11,6 @@ use crate::git;
 use crate::identity::doc;
 use crate::identity::doc::{DocError, Id};
 use crate::identity::project::Project;
-use crate::node::NodeId;
 use crate::node::{self, FetchLookup};
 use crate::storage::git::transport::{self, remote};
 use crate::storage::git::{ProjectError, Repository, Storage};
@@ -21,11 +20,6 @@ use crate::{identity, storage};
 
 /// Name of the radicle storage remote.
 pub static REMOTE_NAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("rad"));
-
-/// Radicle remote name for peer, eg. `rad/<node-id>`
-pub fn peer_remote(peer: &NodeId) -> String {
-    format!("rad/{peer}")
-}
 
 #[derive(Error, Debug)]
 pub enum InitError {

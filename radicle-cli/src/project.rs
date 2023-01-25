@@ -1,6 +1,6 @@
 use radicle::git::raw::Remote;
+use radicle::git::RefString;
 use radicle::prelude::*;
-use radicle::rad;
 
 use crate::git;
 
@@ -20,10 +20,9 @@ pub struct SetupRemote<'a> {
 
 impl<'a> SetupRemote<'a> {
     /// Run the setup for the given peer.
-    pub fn run(&self, node: NodeId) -> anyhow::Result<Option<(Remote, String)>> {
+    pub fn run(&self, node: NodeId) -> anyhow::Result<Option<(Remote, RefString)>> {
         let url = radicle::git::Url::from(self.project).with_namespace(node);
-        let mut remote =
-            radicle::git::configure_remote(self.repo, rad::peer_remote(&node).as_str(), &url)?;
+        let mut remote = radicle::git::configure_remote(self.repo, &node.to_string(), &url)?;
 
         // Fetch the refs into the working copy.
         if self.fetch {
@@ -31,9 +30,16 @@ impl<'a> SetupRemote<'a> {
         }
         // Setup remote-tracking branch.
         if self.tracking {
-            let branch = git::set_tracking(self.repo, &node, &self.default_branch)?;
+            // SAFETY: Node IDs are valid ref strings.
+            let node_ref = RefString::try_from(node.to_string()).unwrap();
+            let node_ref = node_ref.as_refstr();
+            let branch_name = node_ref.join(&self.default_branch);
+            let local_branch = radicle::git::refs::workdir::branch(
+                node_ref.join(&self.default_branch).as_refstr(),
+            );
+            radicle::git::set_upstream(self.repo, &node.to_string(), &branch_name, &local_branch)?;
 
-            return Ok(Some((remote, branch)));
+            return Ok(Some((remote, branch_name)));
         }
         Ok(None)
     }
