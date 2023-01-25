@@ -28,11 +28,6 @@ inherits = "release"
 debug = true
 incremental = false
 
-[patch.crates-io.io-reactor]
-git = "https://github.com/rust-amplify/io-reactor"
-rev = "9a2e787621c78987c866b13ff820bafce248ddc5"
-version = "0.1.0"
-
 [patch.crates-io.netservices]
 git = "https://github.com/cyphernet-dao/rust-netservices"
 version = "0.1.0"

@@ -362,7 +362,7 @@ where
         self.service.tick(LocalTime::from(SystemTime::now()));
     }
 
-    fn handle_wakeup(&mut self) {
+    fn handle_timer(&mut self) {
         self.service.wake()
     }
 
