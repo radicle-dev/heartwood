@@ -7,7 +7,6 @@ $ rad checkout rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Initializing local checkout for 🌱 rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji (heartwood)
 
 ok Performing checkout...
-ok Setting up remotes...
 
 🌱 Project checkout successful under ./heartwood
 

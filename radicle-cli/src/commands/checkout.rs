@@ -151,14 +151,11 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
 
 /// Setup a remote and tracking branch for each given remote.
 pub fn setup_remotes(setup: project::SetupRemote, remotes: &[NodeId]) -> anyhow::Result<()> {
-    let mut spinner = term::spinner("Setting up remotes...");
     for remote_id in remotes {
-        spinner.message(format!("Setting up remote {remote_id}.."));
-
         if let Some((remote, branch)) = setup.run(*remote_id)? {
             let remote = remote.name().unwrap(); // Only valid UTF-8 is used.
 
-            term::success!("Remote {} set", term::format::highlight(remote));
+            term::success!("Remote {} created", term::format::tertiary(remote));
             term::success!(
                 "Remote-tracking branch {} created for {}",
                 term::format::highlight(branch),
@@ -166,7 +163,5 @@ pub fn setup_remotes(setup: project::SetupRemote, remotes: &[NodeId]) -> anyhow:
             );
         }
     }
-    spinner.finish();
-
     Ok(())
 }
