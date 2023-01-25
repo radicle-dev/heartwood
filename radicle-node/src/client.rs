@@ -1,5 +1,6 @@
 use std::os::unix::net::UnixListener;
-use std::{io, net, thread, time};
+use std::path::PathBuf;
+use std::{fs, io, net, thread, time};
 
 use crossbeam_channel as chan;
 use cyphernet::{Cert, EcSign};
@@ -50,11 +51,19 @@ pub enum Error {
     /// A control socket error.
     #[error("control socket error: {0}")]
     Control(#[from] control::Error),
+    /// Another node is already running.
+    #[error(
+        "another node appears to be running; \
+        if this isn't the case, delete the socket file at '{0}' \
+        and restart the node"
+    )]
+    AlreadyRunning(PathBuf),
 }
 
 /// Holds join handles to the client threads, as well as a client handle.
 pub struct Runtime<G: Signer + EcSign> {
     pub id: NodeId,
+    pub home: Home,
     pub handle: Handle<G>,
     pub control: thread::JoinHandle<Result<(), control::Error>>,
     pub reactor: Reactor<wire::Control<G>>,
@@ -127,11 +136,19 @@ impl<G: Signer + EcSign> Runtime<G> {
             log::info!("Listening on {local_addr}..");
         }
         let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
-        let handle = Handle::new(home, reactor.controller());
+        let handle = Handle::new(home.clone(), reactor.controller());
 
         log::info!("Binding control socket {}..", node_sock.display());
 
-        let listener = UnixListener::bind(&node_sock)?;
+        let listener = match UnixListener::bind(&node_sock) {
+            Ok(sock) => sock,
+            Err(err) if err.kind() == io::ErrorKind::AddrInUse => {
+                return Err(Error::AlreadyRunning(node_sock));
+            }
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
         let control = thread::spawn({
             let handle = handle.clone();
             move || control::listen(listener, handle)
@@ -148,6 +165,7 @@ impl<G: Signer + EcSign> Runtime<G> {
 
         Ok(Runtime {
             id,
+            home,
             control,
             reactor,
             handle,
@@ -162,6 +180,8 @@ impl<G: Signer + EcSign> Runtime<G> {
         self.pool.run().unwrap();
         self.reactor.join().unwrap();
         self.control.join().unwrap()?;
+
+        fs::remove_file(self.home.socket()).ok();
 
         log::debug!("Node shutdown completed for {}", self.id);
 
