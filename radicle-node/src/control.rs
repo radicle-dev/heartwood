@@ -27,14 +27,16 @@ pub fn listen<H: Handle<Error = client::handle::Error>>(
     listener: UnixListener,
     mut handle: H,
 ) -> Result<(), Error> {
+    log::debug!(target: "control", "Control thread listening on socket..");
+
     for incoming in listener.incoming() {
         match incoming {
             Ok(mut stream) => {
                 if let Err(e) = drain(&stream, &mut handle) {
-                    log::debug!("Received {} on control socket", e);
+                    log::debug!(target: "control", "Received {} on control socket", e);
 
                     if let DrainError::Shutdown = e {
-                        log::debug!("Shutdown requested..");
+                        log::debug!(target: "control", "Shutdown requested..");
                         // Channel might already be disconnected if shutdown
                         // came from somewhere else. Ignore errors.
                         handle.shutdown().ok();
@@ -46,10 +48,10 @@ pub fn listen<H: Handle<Error = client::handle::Error>>(
                     stream.shutdown(net::Shutdown::Both).ok();
                 }
             }
-            Err(e) => log::error!("Failed to accept incoming connection: {}", e),
+            Err(e) => log::error!(target: "control", "Failed to accept incoming connection: {}", e),
         }
     }
-    log::debug!("Exiting control loop..");
+    log::debug!(target: "control", "Exiting control loop..");
 
     Ok(())
 }

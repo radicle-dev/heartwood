@@ -96,16 +96,16 @@ impl<G: Signer + EcSign> Runtime<G> {
         let routing_db = node_dir.join(ROUTING_DB_FILE);
         let tracking_db = node_dir.join(TRACKING_DB_FILE);
 
-        log::info!("Opening address book {}..", address_db.display());
+        log::info!(target: "node", "Opening address book {}..", address_db.display());
         let addresses = address::Book::open(address_db)?;
 
-        log::info!("Opening routing table {}..", routing_db.display());
+        log::info!(target: "node", "Opening routing table {}..", routing_db.display());
         let routing = routing::Table::open(routing_db)?;
 
-        log::info!("Opening tracking policy table {}..", tracking_db.display());
+        log::info!(target: "node", "Opening tracking policy table {}..", tracking_db.display());
         let tracking = tracking::Config::open(tracking_db)?;
 
-        log::info!("Initializing service ({:?})..", network);
+        log::info!(target: "node", "Initializing service ({:?})..", network);
         let service = service::Service::new(
             config,
             clock,
@@ -133,12 +133,12 @@ impl<G: Signer + EcSign> Runtime<G> {
             local_addrs.push(local_addr);
             wire.listen(listener);
 
-            log::info!("Listening on {local_addr}..");
+            log::info!(target: "node", "Listening on {local_addr}..");
         }
         let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
         let handle = Handle::new(home.clone(), reactor.controller());
 
-        log::info!("Binding control socket {}..", node_sock.display());
+        log::info!(target: "node", "Binding control socket {}..", node_sock.display());
 
         let listener = match UnixListener::bind(&node_sock) {
             Ok(sock) => sock,
@@ -175,7 +175,7 @@ impl<G: Signer + EcSign> Runtime<G> {
     }
 
     pub fn run(self) -> Result<(), Error> {
-        log::info!("Running node {}..", self.id);
+        log::info!(target: "node", "Running node {}..", self.id);
 
         self.pool.run().unwrap();
         self.reactor.join().unwrap();
@@ -183,7 +183,7 @@ impl<G: Signer + EcSign> Runtime<G> {
 
         fs::remove_file(self.home.socket()).ok();
 
-        log::debug!("Node shutdown completed for {}", self.id);
+        log::debug!(target: "node", "Node shutdown completed for {}", self.id);
 
         Ok(())
     }

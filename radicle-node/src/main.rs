@@ -73,7 +73,7 @@ impl Options {
     }
 }
 
-fn main() -> anyhow::Result<()> {
+fn execute() -> anyhow::Result<()> {
     logger::init(log::Level::Debug)?;
 
     let options = Options::from_env()?;
@@ -95,4 +95,11 @@ fn main() -> anyhow::Result<()> {
     runtime.run()?;
 
     Ok(())
+}
+
+fn main() {
+    if let Err(err) = execute() {
+        log::error!(target: "node", "Fatal: {}", err);
+        process::exit(1);
+    }
 }

@@ -326,7 +326,7 @@ where
     }
 
     pub fn initialize(&mut self, time: LocalTime) -> Result<(), Error> {
-        debug!("Init @{}", time.as_secs());
+        debug!(target: "service", "Init @{}", time.as_secs());
 
         self.start_time = time;
 
@@ -354,7 +354,7 @@ where
         trace!("Wake +{}", now - self.start_time);
 
         if now - self.last_idle >= IDLE_INTERVAL {
-            debug!("Running 'idle' task...");
+            debug!(target: "service", "Running 'idle' task...");
 
             self.keep_alive(&now);
             self.disconnect_unresponsive_peers(&now);
@@ -363,7 +363,7 @@ where
             self.last_idle = now;
         }
         if now - self.last_sync >= SYNC_INTERVAL {
-            debug!("Running 'sync' task...");
+            debug!(target: "service", "Running 'sync' task...");
 
             // TODO: What do we do here?
             self.reactor.wakeup(SYNC_INTERVAL);
@@ -379,7 +379,7 @@ where
             self.last_announce = now;
         }
         if now - self.last_prune >= PRUNE_INTERVAL {
-            debug!("Running 'prune' task...");
+            debug!(target: "service", "Running 'prune' task...");
 
             if let Err(err) = self.prune_routing_entries(&now) {
                 error!("Error pruning routing entries: {}", err);
@@ -390,7 +390,7 @@ where
     }
 
     pub fn command(&mut self, cmd: Command) {
-        debug!("Received command {:?}", cmd);
+        debug!(target: "service", "Received command {:?}", cmd);
 
         match cmd {
             Command::Connect(id, addr) => self.reactor.connect(id, addr),
@@ -410,7 +410,7 @@ where
                         .filter(|node| *node != self.node_id())
                         .collect(),
                     Err(err) => {
-                        log::error!("Error reading routing table for {id}: {err}");
+                        error!(target: "service", "Error reading routing table for {id}: {err}");
                         resp.send(FetchLookup::NotFound).ok();
 
                         return;
@@ -418,12 +418,12 @@ where
                 };
 
                 let Some(seeds) = NonEmpty::from_vec(seeds) else {
-                    log::warn!("No seeds found to fetch from, for {}", id);
+                    warn!(target: "service", "No seeds found to fetch from, for {}", id);
                     resp.send(FetchLookup::NotFound).ok();
 
                     return;
                 };
-                log::debug!("Found {} seed(s) to fetch from, for {}", seeds.len(), id);
+                debug!(target: "service", "Found {} seed(s) to fetch from, for {}", seeds.len(), id);
 
                 let (results_send, results) = chan::bounded(seeds.len());
                 resp.send(FetchLookup::Found {
@@ -484,13 +484,13 @@ where
         let seed = session.id;
 
         if let Some(fetch) = session.fetch(rid) {
-            debug!("Fetch initiated for {rid} with {seed}..");
+            debug!(target: "service", "Fetch initiated for {rid} with {seed}..");
 
             reactor.write(session.id, fetch);
         } else {
             // TODO: If we can't fetch, it's because we're already fetching from
             // this peer. So we need to queue the request, or find another peer.
-            log::error!(
+            error!(target: "service",
                 "Unable to fetch {rid} from peer {seed} that is already being fetched from"
             );
         }
@@ -538,7 +538,7 @@ where
     }
 
     pub fn attempted(&mut self, id: NodeId, addr: &Address) {
-        debug!("Attempted connection to {id} ({addr})");
+        debug!(target: "service", "Attempted connection to {id} ({addr})");
 
         let persistent = self.config.is_persistent(&id);
         self.sessions
@@ -548,7 +548,7 @@ where
     }
 
     pub fn connected(&mut self, remote: NodeId, link: Link) {
-        info!("Connected to {} ({:?})", remote, link);
+        info!(target: "service", "Connected to {} ({:?})", remote, link);
 
         // For outbound connections, we are the first to say "Hello".
         // For inbound connections, we wait for the remote to say "Hello" first.
@@ -584,7 +584,7 @@ where
     pub fn disconnected(&mut self, remote: NodeId, reason: &DisconnectReason) {
         let since = self.local_time();
 
-        debug!("Disconnected from {} ({})", remote, reason);
+        debug!(target: "service", "Disconnected from {} ({})", remote, reason);
 
         if let Some(session) = self.sessions.get_mut(&remote) {
             session.to_disconnected(since);
@@ -600,7 +600,7 @@ where
                     }
                     // TODO: Eventually we want a delay before attempting a reconnection,
                     // with exponential back-off.
-                    debug!(
+                    debug!(target: "service",
                         "Reconnecting to {} (attempts={})...",
                         remote,
                         session.attempts()
@@ -673,7 +673,7 @@ where
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
                 if !peer.inventory_announced(timestamp) {
-                    debug!("Ignoring stale inventory announcement from {announcer}");
+                    debug!(target: "service", "Ignoring stale inventory announcement from {announcer}");
                     return Ok(false);
                 }
 
@@ -708,7 +708,7 @@ where
                     // Discard inventory messages we've already seen, otherwise update
                     // out last seen time.
                     if !peer.refs_announced(message.id, timestamp) {
-                        debug!("Ignoring stale refs announcement from {announcer}");
+                        debug!(target: "service", "Ignoring stale refs announcement from {announcer}");
                         return Ok(false);
                     }
                     // TODO: Check refs to see if we should try to fetch or not.
@@ -722,7 +722,7 @@ where
 
                     return Ok(true);
                 } else {
-                    log::debug!(
+                    debug!(target: "service",
                         "Ignoring refs announcement from {announcer}: repository {} isn't tracked",
                         message.id
                     );
@@ -739,19 +739,19 @@ where
                 // Discard node messages we've already seen, otherwise update
                 // our last seen time.
                 if !peer.node_announced(timestamp) {
-                    debug!("Ignoring stale node announcement from {announcer}");
+                    debug!(target: "service", "Ignoring stale node announcement from {announcer}");
                     return Ok(false);
                 }
 
                 if !ann.validate() {
-                    warn!("Dropping node announcement from {announcer}: invalid proof-of-work");
+                    warn!(target: "service", "Dropping node announcement from {announcer}: invalid proof-of-work");
                     return Ok(false);
                 }
 
                 let alias = match str::from_utf8(alias) {
                     Ok(s) => s,
                     Err(e) => {
-                        warn!("Dropping node announcement from {announcer}: invalid alias: {e}");
+                        warn!(target: "service", "Dropping node announcement from {announcer}: invalid alias: {e}");
                         return Ok(false);
                     }
                 };
@@ -774,7 +774,7 @@ where
                     Ok(updated) => {
                         // Only relay if we received new information.
                         if updated {
-                            debug!(
+                            debug!(target: "service",
                                 "Address store entry for node {announcer} updated at {timestamp}"
                             );
                             return Ok(relay);
@@ -800,7 +800,7 @@ where
         };
         peer.last_active = self.clock;
 
-        debug!("Received message {:?} from {}", &message, peer.id);
+        debug!(target: "service", "Received message {:?} from {}", &message, peer.id);
 
         match (&mut peer.state, message) {
             (
@@ -812,7 +812,7 @@ where
             ) => {
                 // This should never happen if the service is properly configured, since all
                 // incoming data is sent directly to the Git worker.
-                log::error!("Received gossip message from {remote} during git fetch");
+                log::error!(target: "service", "Received gossip message from {remote} during git fetch");
 
                 return Err(session::Error::Misbehavior);
             }
@@ -820,6 +820,7 @@ where
                 // Already initialized!
                 if *initialized {
                     debug!(
+                        target: "service",
                         "Disconnecting peer {} for initializing already initialized session",
                         peer.id
                     );
@@ -895,7 +896,7 @@ where
                 }
             }
             (session::State::Connected { protocol, .. }, Message::Fetch { rid }) => {
-                debug!("Fetch requested for {rid} from {remote}..");
+                debug!(target: "service", "Fetch requested for {rid} from {remote}..");
 
                 // TODO: Check that we have the repo first?
 
@@ -919,7 +920,7 @@ where
                     );
                     return Err(session::Error::Misbehavior);
                 }
-                debug!("Fetch accepted for {rid} from {remote}..");
+                debug!(target: "service", "Fetch accepted for {rid} from {remote}..");
 
                 *protocol = Protocol::Fetch;
                 // Instruct the transport to handover the socket to the worker.
@@ -930,7 +931,7 @@ where
                 error!("Received {:?} from connecting peer {}", msg, peer.id);
             }
             (session::State::Disconnected { .. }, msg) => {
-                debug!("Ignoring {:?} from disconnected peer {}", msg, peer.id);
+                debug!(target: "service", "Ignoring {:?} from disconnected peer {}", msg, peer.id);
             }
         }
         Ok(())
@@ -947,7 +948,7 @@ where
         for proj_id in inventory {
             included.insert(proj_id);
             if self.routing.insert(*proj_id, from, *timestamp)? {
-                log::info!("Routing table updated for {proj_id} with seed {from}");
+                info!(target: "service", "Routing table updated for {proj_id} with seed {from}");
 
                 if self
                     .tracking
@@ -978,7 +979,8 @@ where
         let timestamp = self.clock.as_secs();
 
         if remote.refs.len() > Refs::max() {
-            log::error!(
+            error!(
+                target: "service",
                 "refs announcement limit ({}) exceeded, other nodes will see only some of your project references",
                 Refs::max(),
             );
@@ -1079,7 +1081,7 @@ where
     fn maintain_connections(&mut self) {
         let addrs = self.choose_addresses();
         if addrs.is_empty() {
-            debug!("No eligible peers available to connect to");
+            debug!(target: "service", "No eligible peers available to connect to");
         }
         for (id, addr) in addrs {
             self.reactor.connect(id, addr.clone());
@@ -1393,7 +1395,8 @@ mod gossip {
         type Inventory = BoundedVec<Id, INVENTORY_LIMIT>;
 
         if inventory.len() > Inventory::max() {
-            log::error!(
+            error!(
+                target: "service",
                 "inventory announcement limit ({}) exceeded, other nodes will see only some of your projects",
                 inventory.len()
             );
