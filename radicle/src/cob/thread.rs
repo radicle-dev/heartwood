@@ -203,11 +203,12 @@ impl Thread {
         }
     }
 
-    pub fn root(&self) -> Option<(&CommentId, &Comment)> {
-        self.comments
-            .iter()
-            .filter_map(|(id, r)| r.get().map(|comment| (id, comment)))
-            .next()
+    pub fn first(&self) -> Option<(&CommentId, &Comment)> {
+        self.comments().next()
+    }
+
+    pub fn last(&self) -> Option<(&CommentId, &Comment)> {
+        self.comments().next_back()
     }
 
     pub fn replies<'a>(
@@ -235,14 +236,10 @@ impl Thread {
             .map(|(a, r)| (a, r))
     }
 
-    pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &Comment)> + '_ {
-        self.comments.iter().filter_map(|(id, comment)| {
-            if let Redactable::Present(c) = comment {
-                Some((id, c))
-            } else {
-                None
-            }
-        })
+    pub fn comments(&self) -> impl DoubleEndedIterator<Item = (&CommentId, &Comment)> + '_ {
+        self.comments
+            .iter()
+            .filter_map(|(id, comment)| comment.get().map(|comment| (id, comment)))
     }
 }
 

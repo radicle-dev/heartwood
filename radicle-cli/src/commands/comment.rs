@@ -97,9 +97,10 @@ fn comment(
         store::Error::NotFound(_, _) => anyhow::anyhow!("Could not find issue {}", options.id),
         _ => e.into(),
     })?;
-    let (comment_id, _) = issue.root().expect("root comment always exists");
+    let (comment_id, _) = issue.comments().next().expect("root comment always exists");
 
     issue.comment(message, *comment_id, &signer)?;
+
     Ok(())
 }
 

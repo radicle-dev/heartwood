@@ -353,7 +353,7 @@ impl Revision {
     }
 
     pub fn description(&self) -> Option<&str> {
-        let (_, comment) = self.discussion.root()?;
+        let (_, comment) = self.discussion.first()?;
         Some(comment.body())
     }
 }
