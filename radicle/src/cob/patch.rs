@@ -83,6 +83,7 @@ pub enum Action {
         remove: Vec<Tag>,
     },
     Revision {
+        description: String,
         base: git::Oid,
         oid: git::Oid,
     },
@@ -260,10 +261,20 @@ impl store::FromHistory for Patch {
                         self.tags.remove(tag, op.clock);
                     }
                 }
-                Action::Revision { base, oid } => {
+                Action::Revision {
+                    description,
+                    base,
+                    oid,
+                } => {
                     self.revisions.insert(
                         id,
-                        Redactable::Present(Revision::new(author, base, oid, timestamp)),
+                        Redactable::Present(Revision::new(
+                            author,
+                            description,
+                            base,
+                            oid,
+                            timestamp,
+                        )),
                     );
                 }
                 Action::Redact { revision } => {
@@ -325,6 +336,8 @@ impl store::FromHistory for Patch {
 pub struct Revision {
     /// Author of the revision.
     pub author: Author,
+    /// Revision description.
+    pub description: LWWReg<Max<String>>,
     /// Base branch commit, used as a merge base.
     pub base: git::Oid,
     /// Reference to the Git object containing the code (revision head).
@@ -340,9 +353,16 @@ pub struct Revision {
 }
 
 impl Revision {
-    pub fn new(author: Author, base: git::Oid, oid: git::Oid, timestamp: Timestamp) -> Self {
+    pub fn new(
+        author: Author,
+        description: String,
+        base: git::Oid,
+        oid: git::Oid,
+        timestamp: Timestamp,
+    ) -> Self {
         Self {
             author,
+            description: LWWReg::from(Max::from(description)),
             base,
             oid,
             discussion: Thread::default(),
@@ -352,9 +372,8 @@ impl Revision {
         }
     }
 
-    pub fn description(&self) -> Option<&str> {
-        let (_, comment) = self.discussion.first()?;
-        Some(comment.body())
+    pub fn description(&self) -> &str {
+        self.description.get()
     }
 }
 
@@ -564,25 +583,18 @@ impl store::Transaction<Patch> {
         self.push(Action::Merge { revision, commit })
     }
 
-    /// Add a patch revision.
-    pub fn revision(&mut self, base: impl Into<git::Oid>, oid: impl Into<git::Oid>) -> OpId {
-        self.push(Action::Revision {
-            base: base.into(),
-            oid: oid.into(),
-        })
-    }
-
     /// Update a patch with a new revision.
-    pub fn update(
+    pub fn revision(
         &mut self,
         description: impl ToString,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
-    ) -> (OpId, OpId) {
-        let revision = self.revision(base, oid);
-        let comment = self.thread(revision, description);
-
-        (revision, comment)
+    ) -> OpId {
+        self.push(Action::Revision {
+            description: description.to_string(),
+            base: base.into(),
+            oid: oid.into(),
+        })
     }
 
     /// Tag a patch.
@@ -699,12 +711,9 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         signer: &G,
-    ) -> Result<(OpId, OpId), Error> {
+    ) -> Result<OpId, Error> {
         self.transaction("Add revision", signer, |tx| {
-            let r = tx.revision(base, oid);
-            let c = tx.thread(r, description);
-
-            (r, c)
+            tx.revision(description, base, oid)
         })
     }
 
@@ -763,7 +772,7 @@ impl<'a> Patches<'a> {
     ) -> Result<PatchMut<'a, 'g>, Error> {
         let (id, patch, clock) =
             Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
-                tx.revision(base, oid);
+                tx.revision(String::default(), base, oid);
                 tx.edit(title, description, target);
                 tx.tag(tags.to_owned(), []);
             })?;
@@ -913,11 +922,19 @@ mod test {
                 .variant(1, |(clock, revisions, _), rng| {
                     let oid = oids[rng.usize(..oids.len())];
                     let base = oids[rng.usize(..oids.len())];
+                    let description = iter::repeat_with(|| rng.alphabetic()).take(6).collect();
 
                     if rng.bool() {
                         revisions.push(OpId::new(clock.tick(), author));
                     }
-                    Some((*clock, Action::Revision { base, oid }))
+                    Some((
+                        *clock,
+                        Action::Revision {
+                            description,
+                            base,
+                            oid,
+                        },
+                    ))
                 });
 
             let mut changes = Vec::new();
@@ -1019,7 +1036,7 @@ mod test {
         let (_, revision) = patch.latest().unwrap();
 
         assert_eq!(revision.author.id(), &author);
-        assert_eq!(revision.description(), None);
+        assert_eq!(revision.description(), "");
         assert_eq!(revision.discussion.len(), 0);
         assert_eq!(revision.oid, oid);
         assert_eq!(revision.base, base);
@@ -1106,7 +1123,11 @@ mod test {
         let mut alice = Actor::<_, Action>::new(MockSigner::default());
         let mut patch = Patch::default();
 
-        let a1 = alice.op(Action::Revision { base, oid });
+        let a1 = alice.op(Action::Revision {
+            description: String::new(),
+            base,
+            oid,
+        });
         let a2 = alice.op(Action::Redact { revision: a1.id() });
         let a3 = alice.op(Action::Review {
             revision: a1.id(),
@@ -1137,7 +1158,11 @@ mod test {
         let mut p1 = Patch::default();
         let mut p2 = Patch::default();
 
-        let a1 = alice.op(Action::Revision { base, oid });
+        let a1 = alice.op(Action::Revision {
+            description: String::new(),
+            base,
+            oid,
+        });
         let a2 = alice.op(Action::Redact { revision: a1.id() });
 
         p1.apply([a1.clone(), a2.clone(), a1.clone()]).unwrap();
@@ -1223,11 +1248,10 @@ mod test {
         assert_eq!(patch.description(), Some("Blah blah blah."));
         assert_eq!(patch.version(), 0);
 
-        let (r1, t1) = patch
+        let r1 = patch
             .update("I've made changes.", base, rev1_oid, &signer)
             .unwrap();
         assert_eq!(r1.clock().get(), 4);
-        assert_eq!(t1.clock().get(), 5);
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();
@@ -1238,6 +1262,6 @@ mod test {
 
         assert_eq!(patch.version(), 1);
         assert_eq!(revision.oid, rev1_oid);
-        assert_eq!(revision.description(), Some("I've made changes."));
+        assert_eq!(revision.description(), "I've made changes.");
     }
 }

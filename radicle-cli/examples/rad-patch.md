@@ -45,7 +45,7 @@ No description provided.
 ╰───────────────────────────────────
 
 
-ok Patch c3bd983b5cf9643f7e98a2e6ee216d6794bac16b created 🌱
+ok Patch 15141cf1497627e2db54362972dd9533f62d1dcb created 🌱
 ```
 
 It will now be listed as one of the project's open patches.
@@ -55,16 +55,16 @@ $ rad patch
 
 - YOU PROPOSED -
 
-define power requirements c3bd983b5cf R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0
+define power requirements 15141cf1497 R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0
 └─ * opened by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..]
 
 - OTHERS PROPOSED -
 
 Nothing to show.
 
-$ rad patch show c3bd983b5cf9643f7e98a2e6ee216d6794bac16b
+$ rad patch show 15141cf1497627e2db54362972dd9533f62d1dcb
 
-patch c3bd983b5cf9643f7e98a2e6ee216d6794bac16b
+patch 15141cf1497627e2db54362972dd9533f62d1dcb
 
 ╭─ define power requirements ───────
 
