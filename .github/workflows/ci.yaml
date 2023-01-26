@@ -12,17 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.66
-      - name: Build
-        run: cargo build --verbose --all-features
+      - uses: dtolnay/rust-toolchain@1.66
+      - run: cargo build --all-features
         env:
           RUSTFLAGS: -D warnings
       - name: Run tests
         run: |
-          cargo test --all --verbose --all-features
+          cargo test --all --all-features
 
           # Workaround for client document tests dependent on the remote
           # helper. Tests which rely on these should be marked #[ignore] and
@@ -32,16 +28,15 @@ jobs:
           # expected, yet allow these document tests to be covered during
           # integration testing.
           cargo install --locked --debug --path ./radicle-remote-helper
-          cargo test --all --verbose --all-features rad_patch -- --ignored
+          cargo test --all --all-features rad_patch -- --ignored
 
   docs:
     name: Docs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-      - name: Docs
-        run: cargo doc --all --all-features
+      - uses: dtolnay/rust-toolchain@1.66
+      - run: cargo doc --all --all-features
         env:
           RUSTDOCFLAGS: -D warnings
 
@@ -50,25 +45,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/cache@v3
         with:
-          profile: minimal
-          components: clippy, rustfmt
-          toolchain: 1.66
-      - name: Cache cargo registry
-        uses: actions/cache@v3
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Run clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all --tests
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.rustup/toolchains
+            target
+          key: ci-lint-${{ hashFiles('**/Cargo.lock') }}
+      - run: rustup component add clippy rustfmt
+      - run: cargo clippy --all --tests
         env:
           RUSTFLAGS: -D warnings
-      - name: Check formating
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - run: cargo fmt --all -- --check
