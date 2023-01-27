@@ -87,12 +87,10 @@ jobs:
             ~/.cargo/git
             target
           key: cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          target: ${{ matrix.target }}
+      - uses: dtolnay/rust-toolchain@1.67
       - name: Build the release binaries
         run: |
+          rustup target add ${{ matrix.target }}
           cargo build --target ${{ matrix.target }} --package=radicle-httpd --release
           cargo build --target ${{ matrix.target }} --package=radicle-node --release
           cargo build --target ${{ matrix.target }} --bin rad --release
