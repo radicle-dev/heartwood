@@ -1,4 +1,4 @@
-use std::io::prelude::*;
+use std::io::{prelude::*, BufReader};
 use std::thread::JoinHandle;
 use std::{env, io, net, process, thread, time};
 
@@ -37,6 +37,7 @@ struct Worker<G: Signer + EcSign> {
     tasks: chan::Receiver<WorkerReq<G>>,
     timeout: time::Duration,
     handle: Handle<G>,
+    name: String,
 }
 
 impl<G: Signer + EcSign + 'static> Worker<G> {
@@ -129,7 +130,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
             .args(["-c", "protocol.version=2"])
             .arg("fetch")
-            .arg("--atomic")
+            .arg("--atomic") // FIXME: Not available on 2.30 (debian standard)
             .arg("--verbose")
             .arg(format!("git://{tunnel_addr}/{}", repo.id))
             // FIXME: We need to omit our own namespace from this refspec in case we're fetching '*'.
@@ -141,27 +142,25 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         log::debug!(target: "worker", "Running command: {:?}", cmd);
 
         let mut child = cmd.spawn()?;
-        let mut stderr = child.stderr.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+
+        thread::Builder::new().name(self.name.clone()).spawn(|| {
+            for line in BufReader::new(stderr).lines().flatten() {
+                log::error!(target: "worker", "Git: {}", line);
+            }
+        })?;
 
         let _ = tunnel.tunnel_once(popol::Poller::new(), self.timeout)?;
-        let status = child.wait()?;
 
         // TODO: Parse fetch output to return updates.
-        if let Some(status) = status.code() {
-            log::debug!(target: "worker", "Fetch for {} exited with status {:?}", fetch.repo, status);
+        if child.wait()?.success() {
+            log::debug!(target: "worker", "Fetch for {} exited successfully", fetch.repo);
         } else {
-            log::debug!(target: "worker", "Fetch for {} exited with unknown status", fetch.repo);
-        }
-
-        if !status.success() {
-            let mut err = Vec::new();
-            stderr.read_to_end(&mut err)?;
-
-            let err = String::from_utf8_lossy(&err);
-            log::debug!(target: "worker", "Fetch for {}: stderr: {err}", fetch.repo);
+            log::error!(target: "worker", "Fetch for {} failed", fetch.repo);
         }
         let head = repo.set_head()?;
-        log::debug!(target: "worker", "Setting head for {} to {head}", fetch.repo);
+
+        log::debug!(target: "worker", "Head for {} set to {head}", fetch.repo);
 
         Ok(vec![])
     }
@@ -189,8 +188,14 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
 
         let mut stdin = child.stdin.take().unwrap();
         let mut stdout = child.stdout.take().unwrap();
-        let mut stderr = child.stderr.take().unwrap();
         let mut reader = pktline::GitReader::new(drain, stream_r);
+        let stderr = child.stderr.take().unwrap();
+
+        thread::Builder::new().name(self.name.clone()).spawn(|| {
+            for line in BufReader::new(stderr).lines().flatten() {
+                log::error!(target: "worker", "Git: {}", line);
+            }
+        })?;
 
         match reader.read_command_pkt_line() {
             Ok((cmd, _pktline)) => {
@@ -231,19 +236,10 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             // SAFETY: The thread should not panic, but if it does, we bubble up the panic.
             outgoing.join().unwrap()?;
 
-            let status = child.wait()?;
-            if let Some(status) = status.code() {
-                log::debug!(target: "worker", "Upload-pack for {} exited with status {:?}", fetch.repo, status);
+            if child.wait()?.success() {
+                log::debug!(target: "worker", "Upload-pack for {} exited successfully", fetch.repo);
             } else {
-                log::debug!(target: "worker", "Upload-pack for {} exited with unknown status", fetch.repo);
-            }
-
-            if !status.success() {
-                let mut err = Vec::new();
-                stderr.read_to_end(&mut err)?;
-
-                let err = String::from_utf8_lossy(&err);
-                log::debug!(target: "worker", "Upload-pack for {}: stderr: {}", fetch.repo, err);
+                log::error!(target: "worker", "Upload-pack for {} exited with error", fetch.repo);
             }
             Ok(vec![])
         })
@@ -272,6 +268,7 @@ impl WorkerPool {
                 storage: storage.clone(),
                 handle: handle.clone(),
                 timeout,
+                name: name.clone(),
             };
             let thread = thread::Builder::new()
                 .name(name.clone())
