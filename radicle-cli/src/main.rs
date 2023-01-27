@@ -278,6 +278,12 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "web" => term::run_command_args::<rad_web::Options, _>(
+            rad_web::HELP,
+            "Web",
+            rad_web::run,
+            args.to_vec(),
+        ),
         _ => {
             let exe = format!("{}-{}", NAME, exe);
             let status = process::Command::new(exe.clone()).args(args).status();

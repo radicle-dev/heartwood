@@ -24,6 +24,7 @@ serde_json = { version = "1" }
 serde_yaml = { version = "0.8" }
 thiserror = { version = "1" }
 timeago = { version = "0.3", default-features = false }
+ureq = { version = "2.6.1", default-features = false, features = ["json"] }
 zeroize = { version = "1.1" }
 
 [dependencies.radicle]

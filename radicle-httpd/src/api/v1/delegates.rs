@@ -69,13 +69,13 @@ mod routes {
     use axum::http::StatusCode;
     use serde_json::json;
 
-    use crate::api::test::{self, request, HEAD};
+    use crate::api::test::{self, get, HEAD};
 
     #[tokio::test]
     async fn test_delegates_projects() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(
+        let response = get(
             &app,
             "/delegates/did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/projects",
         )

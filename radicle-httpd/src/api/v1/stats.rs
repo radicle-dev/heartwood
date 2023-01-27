@@ -29,13 +29,13 @@ mod routes {
     use axum::http::StatusCode;
     use serde_json::json;
 
-    use crate::api::test::{self, request};
+    use crate::api::test::{self, get};
 
     #[tokio::test]
     async fn test_stats() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(&app, "/stats").await;
+        let response = get(&app, "/stats").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(

@@ -465,13 +465,13 @@ mod routes {
     use axum::http::StatusCode;
     use serde_json::json;
 
-    use crate::api::test::{self, request, HEAD, HEAD_1};
+    use crate::api::test::{self, get, HEAD, HEAD_1};
 
     #[tokio::test]
     async fn test_projects_root() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(&app, "/projects").await;
+        let response = get(&app, "/projects").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -494,7 +494,7 @@ mod routes {
     async fn test_projects() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp").await;
+        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -515,7 +515,7 @@ mod routes {
     async fn test_projects_commits_root() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/commits").await;
+        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/commits").await;
 
         assert_eq!(response.status(), StatusCode::FOUND);
         assert_eq!(
@@ -637,7 +637,7 @@ mod routes {
     async fn test_projects_commits() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(
+        let response = get(
             &app,
             format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/commits/{HEAD}"),
         )
@@ -703,7 +703,7 @@ mod routes {
     async fn test_projects_tree() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(
+        let response = get(
             &app,
             format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/tree/{HEAD}/"),
         )
@@ -750,7 +750,7 @@ mod routes {
             )
         );
 
-        let response = request(
+        let response = get(
             &app,
             format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/tree/{HEAD}/dir1"),
         )
@@ -796,7 +796,7 @@ mod routes {
     async fn test_projects_remotes_root() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/remotes").await;
+        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/remotes").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -817,7 +817,7 @@ mod routes {
     async fn test_projects_remotes() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/remotes/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi").await;
+        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/remotes/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -836,7 +836,7 @@ mod routes {
     async fn test_projects_blob() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(
+        let response = get(
             &app,
             format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/blob/{HEAD}/README"),
         )
@@ -872,7 +872,7 @@ mod routes {
     async fn test_projects_readme() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(
+        let response = get(
             &app,
             format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/readme/{HEAD}"),
         )
@@ -908,7 +908,7 @@ mod routes {
     async fn test_projects_issues_root() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = request(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues").await;
+        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues").await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(

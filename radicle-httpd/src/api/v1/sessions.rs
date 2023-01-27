@@ -1,131 +1,135 @@
-use std::collections::HashMap;
-use std::convert::TryInto;
-use std::env;
 use std::iter::repeat_with;
-use std::str::FromStr;
 
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::routing::{get, post};
+use axum::routing::{post, put};
 use axum::{Json, Router};
-use ethers_core::utils::hex;
-use hyper::http::uri::Authority;
+use radicle::crypto::{PublicKey, Signature};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use siwe::Message;
 use time::{Duration, OffsetDateTime};
 
-use crate::api::auth::{AuthRequest, AuthState, DateTime, Session};
+use crate::api::auth::{AuthState, DateTime, Session};
 use crate::api::axum_extra::Path;
 use crate::api::error::Error;
 use crate::api::Context;
 
 pub const UNAUTHORIZED_SESSIONS_EXPIRATION: Duration = Duration::seconds(60);
+pub const AUTHORIZED_SESSIONS_EXPIRATION: Duration = Duration::weeks(1);
 
 pub fn router(ctx: Context) -> Router {
     Router::new()
         .route("/sessions", post(session_create_handler))
-        .route(
-            "/sessions/:id",
-            get(session_get_handler).put(session_signin_handler),
-        )
+        .route("/sessions/:id", put(session_signin_handler))
         .with_state(ctx)
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct AuthChallenge {
+    sig: Signature,
+    pk: PublicKey,
 }
 
 /// Create session.
 /// `POST /sessions`
 async fn session_create_handler(State(ctx): State<Context>) -> impl IntoResponse {
+    let rng = fastrand::Rng::new();
+    let session_id = repeat_with(|| rng.alphanumeric())
+        .take(32)
+        .collect::<String>();
+    let signer = ctx.profile.signer().map_err(Error::from)?;
     let expiration_time = OffsetDateTime::now_utc()
         .checked_add(UNAUTHORIZED_SESSIONS_EXPIRATION)
         .unwrap();
+    let auth_state = AuthState::Unauthorized {
+        public_key: *signer.public_key(),
+        expires_at: DateTime(expiration_time),
+    };
     let mut sessions = ctx.sessions.write().await;
-    let (session_id, nonce) = create_session(&mut sessions, DateTime(expiration_time));
+    sessions.insert(session_id.clone(), auth_state);
 
-    Json(json!({ "id": session_id, "nonce": nonce }))
-}
-
-/// Get session.
-/// `GET /sessions/:id`
-async fn session_get_handler(
-    State(ctx): State<Context>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
-    let sessions = ctx.sessions.read().await;
-    let session = sessions.get(&id).ok_or(Error::NotFound)?;
-
-    match session {
-        AuthState::Authorized(session) => {
-            Ok::<_, Error>(Json(json!({ "id": id, "session": session })))
-        }
-        AuthState::Unauthorized {
-            nonce,
-            expiration_time,
-        } => Ok::<_, Error>(Json(
-            json!({ "id": id, "nonce": nonce, "expirationTime": expiration_time }),
-        )),
-    }
+    Ok::<_, Error>(Json(
+        json!({"sessionId": session_id, "publicKey": signer.public_key()}),
+    ))
 }
 
 /// Update session.
 /// `PUT /sessions/:id`
 async fn session_signin_handler(
     State(ctx): State<Context>,
-    Path(id): Path<String>,
-    Json(request): Json<AuthRequest>,
+    Path(session_id): Path<String>,
+    Json(request): Json<AuthChallenge>,
 ) -> impl IntoResponse {
-    // Get unauthenticated session data, return early if not found
     let mut sessions = ctx.sessions.write().await;
-    let session = sessions.get(&id).ok_or(Error::NotFound)?;
-
-    if let AuthState::Unauthorized { nonce, .. } = session {
-        let message = Message::from_str(request.message.as_str()).map_err(Error::from)?;
-
-        let host = env::var("RADICLE_DOMAIN").map_err(Error::from)?;
-
-        // Validate nonce
-        if *nonce != message.nonce {
-            return Err(Error::Auth("Invalid nonce"));
+    let session = sessions.get(&session_id).ok_or(Error::NotFound)?;
+    if let AuthState::Unauthorized {
+        public_key,
+        expires_at,
+    } = session
+    {
+        if public_key != &request.pk {
+            return Err(Error::Auth("Invalid public key"));
         }
-
-        // Verify that domain is the correct one
-        let authority = Authority::from_str(&host).map_err(|_| Error::Auth("Invalid host"))?;
-        if authority != message.domain {
-            return Err(Error::Auth("Invalid domain"));
+        if expires_at <= &DateTime(OffsetDateTime::now_utc()) {
+            return Err(Error::Auth("Session expired"));
         }
-
-        // Verifies the following:
-        // - AuthRequest sig matches the address passed in the AuthRequest message.
-        // - expirationTime is not in the past.
-        // - notBefore time is in the future.
-        message
-            .verify(&request.signature.to_vec(), &Default::default())
-            .await
+        let payload = format!("{}:{}", session_id, request.pk);
+        request
+            .pk
+            .verify(payload.as_bytes(), &request.sig)
             .map_err(Error::from)?;
+        let expiration_time = OffsetDateTime::now_utc()
+            .checked_add(AUTHORIZED_SESSIONS_EXPIRATION)
+            .unwrap();
+        let session = Session {
+            public_key: request.pk,
+            issued_at: DateTime(OffsetDateTime::now_utc()),
+            expires_at: DateTime(expiration_time),
+        };
+        sessions.insert(session_id.clone(), AuthState::Authorized(session));
 
-        let session: Session = message.try_into()?;
-        sessions.insert(id.clone(), AuthState::Authorized(session.clone()));
-
-        return Ok::<_, Error>(Json(json!({ "id": id, "session": session })));
+        return Ok::<_, Error>(());
     }
 
     Err(Error::Auth("Session already authorized"))
 }
 
-fn create_session(
-    map: &mut HashMap<String, AuthState>,
-    expiration_time: DateTime,
-) -> (String, String) {
-    let nonce = siwe::generate_nonce();
+#[cfg(test)]
+mod routes {
+    use axum::body::Body;
+    use axum::http::StatusCode;
+    use radicle_cli::commands::rad_web::{self, SessionInfo};
 
-    // We generate a value from the RNG for the session id
-    let rng = fastrand::Rng::new();
-    let id = hex::encode(repeat_with(|| rng.u8(..)).take(32).collect::<Vec<u8>>());
+    use crate::api::test::{self, post, put};
 
-    let auth_state = AuthState::Unauthorized {
-        nonce: nonce.clone(),
-        expiration_time,
-    };
+    #[tokio::test]
+    async fn test_session() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = test::seed(tmp.path());
+        let app = super::router(ctx.to_owned());
 
-    map.insert(id.clone(), auth_state);
+        // Create session
+        let response = post(&app, "/sessions", None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = response.json().await;
+        let session_info: SessionInfo = serde_json::from_value(json).unwrap();
 
-    (id, nonce)
+        // Create request body
+        let signer = ctx.profile.signer().unwrap();
+        let signature = rad_web::sign(signer, &session_info).unwrap();
+        let body = serde_json::to_vec(&super::AuthChallenge {
+            sig: signature,
+            pk: session_info.public_key,
+        })
+        .unwrap();
+
+        let response = put(
+            &app,
+            format!("/sessions/{}", session_info.session_id),
+            Some(Body::from(body)),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
 }

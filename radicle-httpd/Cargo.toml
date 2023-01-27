@@ -19,14 +19,12 @@ anyhow = { version = "1" }
 axum = { version = "0.6.2", default-features = false, features = ["headers", "json", "query", "tokio"] }
 axum-server = { version = "0.4.4", default-features = false }
 chrono = { version = "0.4.22" }
-ethers-core = { version = "1.0" }
 fastrand = { version = "1.7.0" }
 flate2 = { version = "1" }
 hyper = { version = "0.14.17", default-features = false }
 lexopt = { version = "0.2.1" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-siwe = { version = "0.5" }
 thiserror = { version = "1" }
 time = { version = "0.3.17" }
 tokio = { version = "1.21", default-features = false, features = ["macros", "rt-multi-thread"] }

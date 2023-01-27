@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::{env, fs};
 
 use axum::body::Body;
-use axum::http::Request;
+use axum::http::{Method, Request};
 use axum::Router;
 use serde_json::Value;
 use tower::ServiceExt;
@@ -116,18 +116,40 @@ pub fn seed(dir: &Path) -> Context {
     }
 }
 
-pub async fn request(app: &Router, path: impl ToString) -> Response {
+pub async fn get(app: &Router, path: impl ToString) -> Response {
     Response(
         app.clone()
-            .oneshot(
-                Request::builder()
-                    .uri(path.to_string())
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(request(path, Method::GET, None))
             .await
             .unwrap(),
     )
+}
+
+pub async fn post(app: &Router, path: impl ToString, body: Option<Body>) -> Response {
+    Response(
+        app.clone()
+            .oneshot(request(path, Method::POST, body))
+            .await
+            .unwrap(),
+    )
+}
+
+pub async fn put(app: &Router, path: impl ToString, body: Option<Body>) -> Response {
+    Response(
+        app.clone()
+            .oneshot(request(path, Method::PUT, body))
+            .await
+            .unwrap(),
+    )
+}
+
+fn request(path: impl ToString, method: Method, body: Option<Body>) -> Request<Body> {
+    Request::builder()
+        .method(method)
+        .uri(path.to_string())
+        .header("Content-Type", "application/json")
+        .body(body.unwrap_or_else(Body::empty))
+        .unwrap()
 }
 
 pub struct Response(axum::response::Response);

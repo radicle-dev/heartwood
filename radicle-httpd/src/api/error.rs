@@ -18,13 +18,13 @@ pub enum Error {
     #[error(transparent)]
     Env(#[from] std::env::VarError),
 
-    /// An error occurred while verifying the siwe message.
+    /// Profile error.
     #[error(transparent)]
-    SiweVerification(#[from] siwe::VerificationError),
+    Profile(#[from] radicle::profile::Error),
 
-    /// An error occurred while parsing the siwe message.
+    /// Crypto error.
     #[error(transparent)]
-    SiweParse(#[from] siwe::ParseError),
+    Crypto(#[from] radicle::crypto::Error),
 
     /// Storage error.
     #[error(transparent)]
@@ -60,8 +60,7 @@ impl IntoResponse for Error {
         let (status, msg) = match &self {
             Error::NotFound => (StatusCode::NOT_FOUND, None),
             Error::Auth(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
-            Error::SiweParse(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
-            Error::SiweVerification(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
+            Error::Crypto(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
             Error::Git2(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Some(e.message().to_owned()),
