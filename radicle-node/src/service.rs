@@ -27,7 +27,7 @@ use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::identity::{Doc, Id};
 use crate::node;
-use crate::node::{Address, Features, FetchLookup, FetchResult};
+use crate::node::{Address, Features, FetchError, FetchLookup, FetchResult};
 use crate::prelude::*;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
@@ -499,22 +499,39 @@ where
     pub fn fetched(&mut self, result: FetchResult) {
         let remote = result.remote;
         let rid = result.rid;
-
-        match &result.result {
+        let namespaces = result.namespaces;
+        let result = match result.result {
             Ok(updated) => {
                 self.reactor.event(Event::RefsFetched {
                     remote,
                     rid,
                     updated: updated.clone(),
                 });
+                Ok(updated)
             }
             Err(err) => {
-                error!("Fetch failed for {rid} from {remote}: {err}");
+                error!(target: "service", "Fetch failed for {rid} from {remote}: {err}");
+
+                if let FetchError::Io(_) = err {
+                    self.reactor
+                        .disconnect(result.remote, DisconnectReason::Fetch(err));
+                    return;
+                } else {
+                    Err(err)
+                }
             }
-        }
+        };
 
         if let Some(results) = self.fetch_reqs.get(&rid) {
-            if results.send(result).is_err() {
+            if results
+                .send(FetchResult {
+                    rid,
+                    remote,
+                    namespaces,
+                    result,
+                })
+                .is_err()
+            {
                 self.fetch_reqs.remove(&rid);
             }
         }
@@ -1151,6 +1168,8 @@ pub enum DisconnectReason {
     /// Error with an underlying established connection. Sometimes, reconnecting
     /// after such an error is possible.
     Connection(Arc<dyn std::error::Error + Sync + Send>),
+    /// Error with a fetch.
+    Fetch(FetchError),
     /// Session error.
     Session(session::Error),
 }
@@ -1169,6 +1188,7 @@ impl DisconnectReason {
             Self::Dial(_) => false,
             Self::Connection(_) => true,
             Self::Session(..) => false,
+            Self::Fetch(_) => true,
         }
     }
 }
@@ -1179,6 +1199,7 @@ impl fmt::Display for DisconnectReason {
             Self::Dial(err) => write!(f, "{}", err),
             Self::Connection(err) => write!(f, "{}", err),
             Self::Session(err) => write!(f, "error: {}", err),
+            Self::Fetch(err) => write!(f, "fetch: {}", err),
         }
     }
 }

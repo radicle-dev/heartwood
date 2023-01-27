@@ -63,7 +63,7 @@ impl Reactor {
     }
 
     pub fn write(&mut self, remote: NodeId, msg: Message) {
-        debug!("Write {:?} to {}", &msg, remote);
+        debug!(target: "service", "Write {:?} to {}", &msg, remote);
 
         self.io.push_back(Io::Write(remote, vec![msg]));
     }
@@ -72,6 +72,7 @@ impl Reactor {
         let msgs = msgs.into_iter().collect::<Vec<_>>();
         for (ix, msg) in msgs.iter().enumerate() {
             debug!(
+                target: "service",
                 "Write {:?} message to {} ({}/{})",
                 msg,
                 remote,
