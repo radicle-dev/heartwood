@@ -1886,6 +1886,7 @@ dependencies = [
  "radicle-crypto",
  "serde",
  "tempfile",
+ "thiserror",
 ]
 
 [[package]]

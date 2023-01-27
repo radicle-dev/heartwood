@@ -1,4 +1,7 @@
 use std::collections::BTreeMap;
+use std::fmt;
+use std::str;
+use std::str::FromStr;
 
 use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
@@ -31,6 +34,47 @@ impl OpId {
     /// Get operation id clock.
     pub fn clock(&self) -> Lamport {
         self.0
+    }
+}
+
+impl fmt::Display for OpId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}/{}", self.1, self.0)
+    }
+}
+
+/// Error decoding an operation from an entry.
+#[derive(Error, Debug)]
+pub enum OpIdError {
+    #[error("cannot parse op id from empty string")]
+    Empty,
+    #[error("badly formatted op id")]
+    BadFormat,
+}
+
+impl FromStr for OpId {
+    type Err = OpIdError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_from(s)
+    }
+}
+
+impl TryFrom<&str> for OpId {
+    type Error = OpIdError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        if s.is_empty() {
+            return Err(OpIdError::Empty);
+        }
+
+        let Some((actor_id, clock)) = s.split_once('/') else {
+            return Err(OpIdError::BadFormat);
+        };
+        Ok(Self(
+            Lamport::from_str(clock).map_err(|_| OpIdError::BadFormat)?,
+            ActorId::from_str(actor_id).map_err(|_| OpIdError::BadFormat)?,
+        ))
     }
 }
 
@@ -180,5 +224,23 @@ impl<G: Signer, A: Clone> Actor<G, A> {
         self.ops.insert((self.clock, author), op.clone());
 
         op
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_opid_try_from_str() {
+        let str = "z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT/12";
+        let id = OpId::try_from(str).expect("Op ID parses string");
+        assert_eq!(str, id.to_string(), "string conversion is consistent");
+
+        let str = "";
+        assert!(OpId::try_from(str).is_err(), "empty strings are invalid");
+
+        let str = "jlkjfksgi";
+        assert!(OpId::try_from(str).is_err(), "badly formatted string");
     }
 }
