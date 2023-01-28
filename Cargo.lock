@@ -913,7 +913,7 @@ dependencies = [
 [[package]]
 name = "git-ref-format"
 version = "0.1.0"
-source = "git+https://github.com/radicle-dev/radicle-git?rev=016ece66474edf45d2d304141515152e6f7b37a3#016ece66474edf45d2d304141515152e6f7b37a3"
+source = "git+https://github.com/radicle-dev/radicle-git?rev=48022590d0439e7fb196605a573a725bbbf0e4d2#48022590d0439e7fb196605a573a725bbbf0e4d2"
 dependencies = [
  "git-ref-format-core",
  "git-ref-format-macro",
@@ -922,7 +922,7 @@ dependencies = [
 [[package]]
 name = "git-ref-format-core"
 version = "0.1.0"
-source = "git+https://github.com/radicle-dev/radicle-git?rev=016ece66474edf45d2d304141515152e6f7b37a3#016ece66474edf45d2d304141515152e6f7b37a3"
+source = "git+https://github.com/radicle-dev/radicle-git?rev=48022590d0439e7fb196605a573a725bbbf0e4d2#48022590d0439e7fb196605a573a725bbbf0e4d2"
 dependencies = [
  "serde",
  "thiserror",
@@ -931,7 +931,7 @@ dependencies = [
 [[package]]
 name = "git-ref-format-macro"
 version = "0.1.0"
-source = "git+https://github.com/radicle-dev/radicle-git?rev=016ece66474edf45d2d304141515152e6f7b37a3#016ece66474edf45d2d304141515152e6f7b37a3"
+source = "git+https://github.com/radicle-dev/radicle-git?rev=48022590d0439e7fb196605a573a725bbbf0e4d2#48022590d0439e7fb196605a573a725bbbf0e4d2"
 dependencies = [
  "git-ref-format-core",
  "proc-macro-error",
@@ -1921,7 +1921,7 @@ dependencies = [
 [[package]]
 name = "radicle-git-ext"
 version = "0.2.0"
-source = "git+https://github.com/radicle-dev/radicle-git?rev=016ece66474edf45d2d304141515152e6f7b37a3#016ece66474edf45d2d304141515152e6f7b37a3"
+source = "git+https://github.com/radicle-dev/radicle-git?rev=48022590d0439e7fb196605a573a725bbbf0e4d2#48022590d0439e7fb196605a573a725bbbf0e4d2"
 dependencies = [
  "git-ref-format",
  "git2",
@@ -2015,12 +2015,12 @@ dependencies = [
 [[package]]
 name = "radicle-std-ext"
 version = "0.1.0"
-source = "git+https://github.com/radicle-dev/radicle-git?rev=016ece66474edf45d2d304141515152e6f7b37a3#016ece66474edf45d2d304141515152e6f7b37a3"
+source = "git+https://github.com/radicle-dev/radicle-git?rev=48022590d0439e7fb196605a573a725bbbf0e4d2#48022590d0439e7fb196605a573a725bbbf0e4d2"
 
 [[package]]
 name = "radicle-surf"
 version = "0.8.0"
-source = "git+https://github.com/radicle-dev/radicle-git?rev=016ece66474edf45d2d304141515152e6f7b37a3#016ece66474edf45d2d304141515152e6f7b37a3"
+source = "git+https://github.com/radicle-dev/radicle-git?rev=48022590d0439e7fb196605a573a725bbbf0e4d2#48022590d0439e7fb196605a573a725bbbf0e4d2"
 dependencies = [
  "anyhow",
  "base64",

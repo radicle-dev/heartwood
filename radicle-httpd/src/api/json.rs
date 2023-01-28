@@ -4,7 +4,8 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use radicle_surf::object::{Blob, Tree};
+use radicle_surf::blob::Blob;
+use radicle_surf::tree::Tree;
 use radicle_surf::{Commit, Stats};
 
 /// Returns JSON of a commit.

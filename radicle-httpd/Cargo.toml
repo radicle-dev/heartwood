@@ -40,7 +40,7 @@ version = "0.2.0"
 [dependencies.radicle-surf]
 git = "https://github.com/radicle-dev/radicle-git"
 features = ["serde"]
-rev = "016ece66474edf45d2d304141515152e6f7b37a3"
+rev = "48022590d0439e7fb196605a573a725bbbf0e4d2"
 
 [dev-dependencies]
 hyper = { version = "0.14.17", default-features = false, features = ["client"] }
