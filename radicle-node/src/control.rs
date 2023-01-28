@@ -32,6 +32,8 @@ pub fn listen<H: Handle<Error = client::handle::Error>>(
     for incoming in listener.incoming() {
         match incoming {
             Ok(mut stream) => {
+                log::debug!(target: "control", "Accepted new client on control socket..");
+
                 if let Err(e) = drain(&stream, &mut handle) {
                     log::debug!(target: "control", "Received {} on control socket", e);
 
@@ -81,6 +83,8 @@ fn drain<H: Handle<Error = client::handle::Error>>(
     reader.read_line(&mut line)?;
 
     let cmd = line.trim_end();
+
+    log::debug!(target: "control", "Received `{cmd}` on control socket");
 
     // TODO: refactor to include helper
     match cmd.split_once(' ') {

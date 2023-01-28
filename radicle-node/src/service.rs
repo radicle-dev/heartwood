@@ -500,6 +500,12 @@ where
         let remote = result.remote;
         let rid = result.rid;
         let namespaces = result.namespaces;
+
+        log::debug!(
+            target: "service",
+            "Fetched {rid} {remote} (error={:?})", result.result.as_ref().err()
+        );
+
         let result = match result.result {
             Ok(updated) => {
                 self.reactor.event(Event::RefsFetched {
@@ -523,6 +529,8 @@ where
         };
 
         if let Some(results) = self.fetch_reqs.get(&rid) {
+            log::debug!(target: "service", "Found existing fetch request, sending result..");
+
             if results
                 .send(FetchResult {
                     rid,
@@ -532,8 +540,13 @@ where
                 })
                 .is_err()
             {
+                log::error!(target: "service", "Error sending fetch result for {rid}..");
                 self.fetch_reqs.remove(&rid);
+            } else {
+                log::debug!(target: "service", "Sent fetch result for {rid}..");
             }
+        } else {
+            log::debug!(target: "service", "No fetch requests found for {rid}..");
         }
 
         if let Some(session) = self.sessions.get_mut(&remote) {
@@ -547,6 +560,8 @@ where
                     );
                 }
             }
+        } else {
+            log::debug!(target: "service", "Session not found for {remote}");
         }
     }
 

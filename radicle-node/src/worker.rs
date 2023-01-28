@@ -146,7 +146,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
 
         thread::Builder::new().name(self.name.clone()).spawn(|| {
             for line in BufReader::new(stderr).lines().flatten() {
-                log::error!(target: "worker", "Git: {}", line);
+                log::debug!(target: "worker", "Git: {}", line);
             }
         })?;
 
