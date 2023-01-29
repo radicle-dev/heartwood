@@ -18,6 +18,22 @@ use crate::runtime::Handle;
 use crate::service::reactor::Fetch;
 use crate::wire::{WireReader, WireSession, WireWriter};
 
+/// Worker pool configuration.
+pub struct Config {
+    /// Number of worker threads.
+    pub capacity: usize,
+    /// Whether to use atomic fetches.
+    pub atomic: bool,
+    /// Thread name.
+    pub name: String,
+    /// Timeout for all operations.
+    pub timeout: time::Duration,
+    /// Git daemon address.
+    pub daemon: net::SocketAddr,
+    /// Git storage.
+    pub storage: Storage,
+}
+
 /// Worker request.
 pub struct WorkerReq<G: Signer + EcSign> {
     pub fetch: Fetch,
@@ -38,6 +54,7 @@ struct Worker<G: Signer + EcSign> {
     daemon: net::SocketAddr,
     timeout: time::Duration,
     handle: Handle<G>,
+    atomic: bool,
     name: String,
 }
 
@@ -134,9 +151,13 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
             .args(["-c", "protocol.version=2"])
             .arg("fetch")
-            .arg("--atomic") // FIXME: Not available on 2.30 (debian standard)
-            .arg("--verbose")
-            .arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()))
+            .arg("--verbose");
+
+        if self.atomic {
+            // Enable atomic fetch. Only works with Git 2.31 and later.
+            cmd.arg("--atomic");
+        }
+        cmd.arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()))
             // FIXME: We need to omit our own namespace from this refspec in case we're fetching '*'.
             .arg(fetch.namespaces.as_fetchspec())
             .stdout(process::Stdio::piped())
@@ -233,26 +254,23 @@ pub struct WorkerPool {
 impl WorkerPool {
     /// Create a new worker pool with the given parameters.
     pub fn with<G: Signer + EcSign + 'static>(
-        capacity: usize,
-        timeout: time::Duration,
-        storage: Storage,
-        daemon: net::SocketAddr,
         tasks: chan::Receiver<WorkerReq<G>>,
         handle: Handle<G>,
-        name: String,
+        config: Config,
     ) -> Self {
-        let mut pool = Vec::with_capacity(capacity);
-        for _ in 0..capacity {
+        let mut pool = Vec::with_capacity(config.capacity);
+        for _ in 0..config.capacity {
             let worker = Worker {
                 tasks: tasks.clone(),
-                storage: storage.clone(),
-                daemon,
                 handle: handle.clone(),
-                timeout,
-                name: name.clone(),
+                storage: config.storage.clone(),
+                daemon: config.daemon,
+                timeout: config.timeout,
+                name: config.name.clone(),
+                atomic: config.atomic,
             };
             let thread = thread::Builder::new()
-                .name(name.clone())
+                .name(config.name.clone())
                 .spawn(|| worker.run())
                 .unwrap();
 

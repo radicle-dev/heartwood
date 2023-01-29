@@ -11,7 +11,9 @@ use anyhow::anyhow;
 use anyhow::Context as _;
 
 use radicle::crypto::ssh;
+use radicle::git;
 use radicle::git::raw as git2;
+use radicle::git::{Version, VERSION_REQUIRED};
 use radicle::prelude::{Id, NodeId};
 
 pub use radicle::git::raw::{
@@ -24,78 +26,6 @@ pub const CONFIG_SIGNING_KEY: &str = "user.signingkey";
 pub const CONFIG_GPG_FORMAT: &str = "gpg.format";
 pub const CONFIG_GPG_SSH_PROGRAM: &str = "gpg.ssh.program";
 pub const CONFIG_GPG_SSH_ALLOWED_SIGNERS: &str = "gpg.ssh.allowedSignersFile";
-
-/// Minimum required git version.
-pub const VERSION_REQUIRED: Version = Version {
-    major: 2,
-    minor: 34,
-    patch: 0,
-};
-
-/// A parsed git version.
-#[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
-pub struct Version {
-    pub major: u8,
-    pub minor: u8,
-    pub patch: u8,
-}
-
-impl std::fmt::Display for Version {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
-    }
-}
-
-impl std::str::FromStr for Version {
-    type Err = anyhow::Error;
-
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let rest = input
-            .strip_prefix("git version ")
-            .ok_or_else(|| anyhow!("malformed git version string"))?;
-        let rest = rest
-            .split(' ')
-            .next()
-            .ok_or_else(|| anyhow!("malformed git version string"))?;
-        let rest = rest.trim_end();
-
-        let mut parts = rest.split('.');
-        let major = parts
-            .next()
-            .ok_or_else(|| anyhow!("malformed git version string"))?
-            .parse()?;
-        let minor = parts
-            .next()
-            .ok_or_else(|| anyhow!("malformed git version string"))?
-            .parse()?;
-
-        let patch = match parts.next() {
-            None => 0,
-            Some(patch) => patch.parse()?,
-        };
-
-        Ok(Self {
-            major,
-            minor,
-            patch,
-        })
-    }
-}
-
-/// Get the system's git version.
-pub fn version() -> Result<Version, anyhow::Error> {
-    let output = Command::new("git").arg("version").output()?;
-
-    if output.status.success() {
-        let output = String::from_utf8(output.stdout)?;
-        let version = output
-            .parse()
-            .with_context(|| format!("unable to parse git version string {:?}", output))?;
-
-        return Ok(version);
-    }
-    Err(anyhow!("failed to run `git version`"))
-}
 
 /// Get the git repository in the current directory.
 pub fn repository() -> Result<Repository, anyhow::Error> {
@@ -289,7 +219,7 @@ pub fn clone(repo: &str, destination: &Path) -> Result<String, io::Error> {
 
 /// Check that the system's git version is supported. Returns an error otherwise.
 pub fn check_version() -> Result<Version, anyhow::Error> {
-    let git_version = self::version()?;
+    let git_version = git::version()?;
 
     if git_version < VERSION_REQUIRED {
         anyhow::bail!("a minimum git version of {} is required", VERSION_REQUIRED);
@@ -381,68 +311,4 @@ pub fn commit_ssh_fingerprint(path: &Path, sha1: &str) -> Result<Option<String>,
     }
 
     Ok(None)
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use std::str::FromStr;
-
-    #[test]
-    fn test_version_ord() {
-        assert!(
-            Version {
-                major: 2,
-                minor: 34,
-                patch: 1
-            } > Version {
-                major: 2,
-                minor: 34,
-                patch: 0
-            }
-        );
-        assert!(
-            Version {
-                major: 2,
-                minor: 24,
-                patch: 12
-            } < Version {
-                major: 2,
-                minor: 34,
-                patch: 0
-            }
-        );
-    }
-
-    #[test]
-    fn test_version_from_str() {
-        assert_eq!(
-            Version::from_str("git version 2.34.1\n").ok(),
-            Some(Version {
-                major: 2,
-                minor: 34,
-                patch: 1
-            })
-        );
-
-        assert_eq!(
-            Version::from_str("git version 2.34.1 (macOS)").ok(),
-            Some(Version {
-                major: 2,
-                minor: 34,
-                patch: 1
-            })
-        );
-
-        assert_eq!(
-            Version::from_str("git version 2.34").ok(),
-            Some(Version {
-                major: 2,
-                minor: 34,
-                patch: 0
-            })
-        );
-
-        assert!(Version::from_str("2.34").is_err());
-    }
 }

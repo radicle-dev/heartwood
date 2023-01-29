@@ -134,13 +134,6 @@ impl Args for Options {
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
-    if git::check_version().is_err() {
-        term::warning(&format!(
-            "Your git version is unsupported, please upgrade to {} or later",
-            git::VERSION_REQUIRED,
-        ));
-        term::blank();
-    }
     init(options, &profile)
 }
 

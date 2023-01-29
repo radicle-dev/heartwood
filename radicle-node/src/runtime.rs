@@ -8,6 +8,7 @@ use std::{fs, io, net, thread, time};
 use crossbeam_channel as chan;
 use cyphernet::{Cert, EcSign};
 use netservices::resource::NetAccept;
+use radicle::git;
 use radicle::profile::Home;
 use radicle::Storage;
 use reactor::poller::popol;
@@ -21,6 +22,7 @@ use crate::node::NodeId;
 use crate::service::{routing, tracking};
 use crate::wire;
 use crate::wire::Wire;
+use crate::worker;
 use crate::worker::{WorkerPool, WorkerReq};
 use crate::{service, LocalTime};
 
@@ -61,6 +63,9 @@ pub enum Error {
         and restart the node"
     )]
     AlreadyRunning(PathBuf),
+    /// A git version error.
+    #[error("git version error: {0}")]
+    GitVersion(#[from] git::VersionError),
 }
 
 /// Holds join handles to the client threads, as well as a client handle.
@@ -141,15 +146,26 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
         }
         let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
         let handle = Handle::new(home.clone(), reactor.controller());
+        let atomic = git::version()? >= git::VERSION_REQUIRED;
+
+        if !atomic {
+            log::warn!(
+                target: "node",
+                "Disabling atomic fetches; git version >= {} required", git::VERSION_REQUIRED
+            );
+        }
 
         let pool = WorkerPool::with(
-            8,
-            time::Duration::from_secs(9),
-            storage.clone(),
-            daemon,
             worker_recv,
             handle.clone(),
-            id.to_human(),
+            worker::Config {
+                capacity: 8,
+                name: id.to_human(),
+                timeout: time::Duration::from_secs(9),
+                storage: storage.clone(),
+                daemon,
+                atomic,
+            },
         );
 
         Ok(Runtime {

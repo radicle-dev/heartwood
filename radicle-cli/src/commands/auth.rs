@@ -6,7 +6,6 @@ use anyhow::anyhow;
 use radicle::crypto::ssh;
 use radicle::{profile, Profile};
 
-use crate::git;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
@@ -68,12 +67,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 pub fn init(options: Options) -> anyhow::Result<()> {
     term::headline("Initializing your 🌱 profile and identity");
 
-    if git::check_version().is_err() {
-        term::warning(&format!(
-            "Your git version is unsupported, please upgrade to {} or later",
-            git::VERSION_REQUIRED,
-        ));
-        term::blank();
+    if let Ok(version) = radicle::git::version() {
+        if version < radicle::git::VERSION_REQUIRED {
+            term::warning(&format!(
+                "Your git version is unsupported, please upgrade to {} or later",
+                radicle::git::VERSION_REQUIRED,
+            ));
+            term::blank();
+        }
+    } else {
+        anyhow::bail!("Error retrieving git version; please check your installation");
     }
 
     let home = profile::home()?;
