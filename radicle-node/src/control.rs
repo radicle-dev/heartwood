@@ -9,10 +9,10 @@ use std::{io, net};
 
 use radicle::node::Handle;
 
-use crate::client;
 use crate::identity::Id;
 use crate::node;
 use crate::node::FetchLookup;
+use crate::runtime;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -23,7 +23,7 @@ pub enum Error {
 }
 
 /// Listen for commands on the control socket, and process them.
-pub fn listen<H: Handle<Error = client::handle::Error>>(
+pub fn listen<H: Handle<Error = runtime::HandleError>>(
     listener: UnixListener,
     mut handle: H,
 ) -> Result<(), Error> {
@@ -62,15 +62,15 @@ enum DrainError {
     InvalidCommandArg(String, Box<dyn std::error::Error>),
     #[error("unknown command `{0}`")]
     UnknownCommand(String),
-    #[error("client error: {0}")]
-    Client(#[from] client::handle::Error),
+    #[error("runtime error: {0}")]
+    Runtime(#[from] runtime::HandleError),
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
     #[error("shutdown requested")]
     Shutdown,
 }
 
-fn drain<H: Handle<Error = client::handle::Error>>(
+fn drain<H: Handle<Error = runtime::HandleError>>(
     stream: &UnixStream,
     handle: &mut H,
 ) -> Result<(), DrainError> {
@@ -104,7 +104,7 @@ fn drain<H: Handle<Error = client::handle::Error>>(
                     }
                 }
                 Err(e) => {
-                    return Err(DrainError::Client(e));
+                    return Err(DrainError::Runtime(e));
                 }
             },
             Err(err) => {
@@ -121,7 +121,7 @@ fn drain<H: Handle<Error = client::handle::Error>>(
                     }
                 }
                 Err(e) => {
-                    return Err(DrainError::Client(e));
+                    return Err(DrainError::Runtime(e));
                 }
             },
             Err(err) => {
@@ -144,7 +144,7 @@ fn drain<H: Handle<Error = client::handle::Error>>(
                         }
                     }
                     Err(e) => {
-                        return Err(DrainError::Client(e));
+                        return Err(DrainError::Runtime(e));
                     }
                 },
                 Err(err) => {
@@ -165,7 +165,7 @@ fn drain<H: Handle<Error = client::handle::Error>>(
                     }
                 }
                 Err(e) => {
-                    return Err(DrainError::Client(e));
+                    return Err(DrainError::Runtime(e));
                 }
             },
             Err(err) => {
@@ -175,7 +175,7 @@ fn drain<H: Handle<Error = client::handle::Error>>(
         Some(("announce-refs", arg)) => match arg.parse() {
             Ok(id) => {
                 if let Err(e) = handle.announce_refs(id) {
-                    return Err(DrainError::Client(e));
+                    return Err(DrainError::Runtime(e));
                 }
                 writeln!(writer, "{}", node::RESPONSE_OK)?;
             }
@@ -197,7 +197,7 @@ fn drain<H: Handle<Error = client::handle::Error>>(
                         writeln!(writer, "{id} {seed}",)?;
                     }
                 }
-                Err(e) => return Err(DrainError::Client(e)),
+                Err(e) => return Err(DrainError::Runtime(e)),
             },
             "inventory" => match handle.inventory() {
                 Ok(c) => {
@@ -205,7 +205,7 @@ fn drain<H: Handle<Error = client::handle::Error>>(
                         writeln!(writer, "{id}")?;
                     }
                 }
-                Err(e) => return Err(DrainError::Client(e)),
+                Err(e) => return Err(DrainError::Runtime(e)),
             },
             "shutdown" => {
                 return Err(DrainError::Shutdown);
@@ -218,14 +218,14 @@ fn drain<H: Handle<Error = client::handle::Error>>(
     Ok(())
 }
 
-fn fetch<W: Write, H: Handle<Error = client::handle::Error>>(
+fn fetch<W: Write, H: Handle<Error = runtime::HandleError>>(
     id: Id,
     mut writer: W,
     handle: &mut H,
 ) -> Result<(), DrainError> {
     match handle.fetch(id) {
         Err(e) => {
-            return Err(DrainError::Client(e));
+            return Err(DrainError::Runtime(e));
         }
         Ok(FetchLookup::Found { seeds, results }) => {
             let seeds = Vec::from(seeds);

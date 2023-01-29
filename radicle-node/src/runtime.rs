@@ -1,3 +1,5 @@
+mod handle;
+
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
@@ -22,8 +24,8 @@ use crate::wire::Wire;
 use crate::worker::{WorkerPool, WorkerReq};
 use crate::{crypto, service, LocalTime};
 
-pub mod handle;
-use handle::Handle;
+pub use handle::Error as HandleError;
+pub use handle::Handle;
 
 /// Directory in `$RAD_HOME` under which node-specific files are stored.
 pub const NODE_DIR: &str = "node";

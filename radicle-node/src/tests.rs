@@ -33,7 +33,7 @@ use crate::test::storage::MockStorage;
 use crate::wire::Decode;
 use crate::wire::Encode;
 use crate::LocalTime;
-use crate::{client, git, identity, rad, service, test};
+use crate::{git, identity, rad, runtime, service, test};
 
 // NOTE
 //
@@ -343,19 +343,13 @@ fn test_tracking() {
 
     let (sender, receiver) = chan::bounded(1);
     alice.command(Command::TrackRepo(proj_id, sender));
-    let policy_change = receiver
-        .recv()
-        .map_err(client::handle::Error::from)
-        .unwrap();
+    let policy_change = receiver.recv().map_err(runtime::HandleError::from).unwrap();
     assert!(policy_change);
     assert!(alice.tracking().is_repo_tracked(&proj_id).unwrap());
 
     let (sender, receiver) = chan::bounded(1);
     alice.command(Command::UntrackRepo(proj_id, sender));
-    let policy_change = receiver
-        .recv()
-        .map_err(client::handle::Error::from)
-        .unwrap();
+    let policy_change = receiver.recv().map_err(runtime::HandleError::from).unwrap();
     assert!(policy_change);
     assert!(!alice.tracking().is_repo_tracked(&proj_id).unwrap());
 }

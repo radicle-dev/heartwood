@@ -21,7 +21,7 @@ use radicle::{assert_matches, rad};
 use crate::node::NodeId;
 use crate::storage::git::transport;
 use crate::test::logger;
-use crate::{client, client::handle::Handle, client::Runtime, service};
+use crate::{runtime, runtime::Handle, service, Runtime};
 
 /// A node that can be run.
 struct Node {
@@ -36,7 +36,7 @@ struct NodeHandle {
     storage: Storage,
     signer: MockSigner,
     addr: net::SocketAddr,
-    thread: ManuallyDrop<thread::JoinHandle<Result<(), client::Error>>>,
+    thread: ManuallyDrop<thread::JoinHandle<Result<(), runtime::Error>>>,
     handle: ManuallyDrop<Handle<MockSigner>>,
 }
 

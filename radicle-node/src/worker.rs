@@ -13,8 +13,8 @@ use radicle::storage::{ReadRepository, RefUpdate, WriteRepository, WriteStorage}
 use radicle::{git, Storage};
 use reactor::poller::popol;
 
-use crate::client::handle::Handle;
 use crate::node::{FetchError, FetchResult};
+use crate::runtime::Handle;
 use crate::service::reactor::Fetch;
 use crate::wire::{WireReader, WireSession, WireWriter};
 

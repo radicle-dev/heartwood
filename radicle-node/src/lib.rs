@@ -1,10 +1,10 @@
 pub mod address;
 pub mod bounded;
-pub mod client;
 pub mod clock;
 pub mod control;
 pub mod deserializer;
 pub mod logger;
+pub mod runtime;
 pub mod service;
 pub mod sql;
 #[cfg(any(test, feature = "test"))]
@@ -17,6 +17,7 @@ pub mod worker;
 pub use localtime::{LocalDuration, LocalTime};
 pub use netservices::LinkDirection as Link;
 pub use radicle::{collections, crypto, git, identity, node, profile, rad, storage};
+pub use runtime::Runtime;
 
 pub mod prelude {
     pub use crate::bounded::BoundedVec;

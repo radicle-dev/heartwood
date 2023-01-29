@@ -5,9 +5,9 @@ use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
 
 use radicle::profile;
-use radicle_node::client::Runtime;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::prelude::{Address, NodeId};
+use radicle_node::Runtime;
 use radicle_node::{logger, service};
 
 #[derive(Debug)]
