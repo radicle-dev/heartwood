@@ -27,7 +27,7 @@ use crate::crypto::Signer;
 use crate::service::reactor::{Fetch, Io};
 use crate::service::{routing, session, DisconnectReason, Message, Service};
 use crate::wire::{Decode, Encode};
-use crate::worker::{WorkerReq, WorkerResp};
+use crate::worker::{Task, TaskResult};
 use crate::Link;
 use crate::{address, service};
 
@@ -37,7 +37,7 @@ pub enum Control<G: Signer + EcSign> {
     /// Message from the user to the service.
     User(service::Command),
     /// Message from a worker to the service.
-    Worker(WorkerResp<G>),
+    Worker(TaskResult<G>),
 }
 
 impl<G: Signer + EcSign> fmt::Debug for Control<G> {
@@ -186,7 +186,7 @@ pub struct Wire<R, S, W, G: Signer + EcSign> {
     /// Backing service instance.
     service: Service<R, S, W, G>,
     /// Worker pool interface.
-    worker: chan::Sender<WorkerReq<G>>,
+    worker: chan::Sender<Task<G>>,
     /// Used for authentication; keeps local identity.
     cert: Cert<Signature>,
     /// Used for authentication.
@@ -210,7 +210,7 @@ where
 {
     pub fn new(
         mut service: Service<R, S, W, G>,
-        worker: chan::Sender<WorkerReq<G>>,
+        worker: chan::Sender<Task<G>>,
         cert: Cert<Signature>,
         signer: G,
         proxy: net::SocketAddr,
@@ -307,7 +307,7 @@ where
 
         if self
             .worker
-            .send(WorkerReq {
+            .send(Task {
                 fetch,
                 session,
                 drain: self.read_queue.drain(..).collect(),
@@ -318,10 +318,10 @@ where
         }
     }
 
-    fn worker_result(&mut self, resp: WorkerResp<G>) {
-        log::debug!(target: "wire", "Fetch completed: {:?}", resp.result);
+    fn worker_result(&mut self, task: TaskResult<G>) {
+        log::debug!(target: "wire", "Fetch completed: {:?}", task.result);
 
-        let session = resp.session;
+        let session = task.session;
         let fd = session.as_connection().as_raw_fd();
         let peer = self.peer_mut_by_fd(fd);
 
@@ -342,7 +342,7 @@ where
         peer.downgrade();
 
         self.actions.push_back(Action::RegisterTransport(session));
-        self.service.fetched(resp.result);
+        self.service.fetched(task.result);
     }
 }
 
@@ -488,7 +488,7 @@ where
     fn handle_command(&mut self, cmd: Self::Command) {
         match cmd {
             Control::User(cmd) => self.service.command(cmd),
-            Control::Worker(resp) => self.worker_result(resp),
+            Control::Worker(result) => self.worker_result(result),
         }
     }
 

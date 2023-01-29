@@ -34,15 +34,16 @@ pub struct Config {
     pub storage: Storage,
 }
 
-/// Worker request.
-pub struct WorkerReq<G: Signer + EcSign> {
+/// Task to be accomplished on a worker thread.
+/// This is either going to be an outgoing or incoming fetch.
+pub struct Task<G: Signer + EcSign> {
     pub fetch: Fetch,
     pub session: WireSession<G>,
     pub drain: Vec<u8>,
 }
 
 /// Worker response.
-pub struct WorkerResp<G: Signer + EcSign> {
+pub struct TaskResult<G: Signer + EcSign> {
     pub result: FetchResult,
     pub session: WireSession<G>,
 }
@@ -50,7 +51,7 @@ pub struct WorkerResp<G: Signer + EcSign> {
 /// A worker that replicates git objects.
 struct Worker<G: Signer + EcSign> {
     storage: Storage,
-    tasks: chan::Receiver<WorkerReq<G>>,
+    tasks: chan::Receiver<Task<G>>,
     daemon: net::SocketAddr,
     timeout: time::Duration,
     handle: Handle<G>,
@@ -68,8 +69,8 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         }
     }
 
-    fn process(&mut self, task: WorkerReq<G>) {
-        let WorkerReq {
+    fn process(&mut self, task: Task<G>) {
+        let Task {
             fetch,
             session,
             drain,
@@ -86,7 +87,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
 
         if self
             .handle
-            .worker_result(WorkerResp { result, session })
+            .worker_result(TaskResult { result, session })
             .is_err()
         {
             log::error!(target: "worker", "Unable to report fetch result: worker channel disconnected");
@@ -256,14 +257,14 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
 }
 
 /// A pool of workers. One thread is allocated for each worker.
-pub struct WorkerPool {
+pub struct Pool {
     pool: Vec<JoinHandle<Result<(), chan::RecvError>>>,
 }
 
-impl WorkerPool {
+impl Pool {
     /// Create a new worker pool with the given parameters.
     pub fn with<G: Signer + EcSign + 'static>(
-        tasks: chan::Receiver<WorkerReq<G>>,
+        tasks: chan::Receiver<Task<G>>,
         handle: Handle<G>,
         config: Config,
     ) -> Self {

@@ -16,7 +16,7 @@ use crate::service;
 use crate::service::{CommandError, QueryState};
 use crate::service::{NodeId, Sessions};
 use crate::wire;
-use crate::worker::WorkerResp;
+use crate::worker::TaskResult;
 
 /// An error resulting from a handle method.
 #[derive(Error, Debug)]
@@ -89,7 +89,7 @@ impl<G: Signer + EcSign + 'static> Handle<G> {
         }
     }
 
-    pub fn worker_result(&mut self, resp: WorkerResp<G>) -> Result<(), Error> {
+    pub fn worker_result(&mut self, resp: TaskResult<G>) -> Result<(), Error> {
         match self.controller.cmd(wire::Control::Worker(resp)) {
             Ok(()) => {}
             Err(err) if err.kind() == io::ErrorKind::BrokenPipe => return Err(Error::NotConnected),

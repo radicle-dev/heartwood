@@ -23,7 +23,6 @@ use crate::service::{routing, tracking};
 use crate::wire;
 use crate::wire::Wire;
 use crate::worker;
-use crate::worker::{WorkerPool, WorkerReq};
 use crate::{service, LocalTime};
 
 pub use handle::Error as HandleError;
@@ -76,7 +75,7 @@ pub struct Runtime<G: Signer + EcSign> {
     pub storage: Storage,
     pub reactor: Reactor<wire::Control<G>>,
     pub daemon: net::SocketAddr,
-    pub pool: WorkerPool,
+    pub pool: worker::Pool,
     pub local_addrs: Vec<net::SocketAddr>,
 }
 
@@ -131,7 +130,7 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
             sig: EcSign::sign(&signer, id.as_slice()),
         };
 
-        let (worker_send, worker_recv) = chan::unbounded::<WorkerReq<G>>();
+        let (worker_send, worker_recv) = chan::unbounded::<worker::Task<G>>();
         let mut wire = Wire::new(service, worker_send, cert, signer, proxy, clock);
         let mut local_addrs = Vec::new();
 
@@ -155,7 +154,7 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
             );
         }
 
-        let pool = WorkerPool::with(
+        let pool = worker::Pool::with(
             worker_recv,
             handle.clone(),
             worker::Config {
