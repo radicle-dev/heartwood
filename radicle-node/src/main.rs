@@ -90,7 +90,8 @@ fn execute() -> anyhow::Result<()> {
         ..service::Config::default()
     };
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
-    let runtime = Runtime::with(home, config, options.listen, proxy, signer)?;
+    let daemon = ([0, 0, 0, 0], 9418).into();
+    let runtime = Runtime::with(home, config, options.listen, proxy, daemon, signer)?;
 
     runtime.run()?;
 

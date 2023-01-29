@@ -35,6 +35,7 @@ pub struct WorkerResp<G: Signer + EcSign> {
 struct Worker<G: Signer + EcSign> {
     storage: Storage,
     tasks: chan::Receiver<WorkerReq<G>>,
+    daemon: net::SocketAddr,
     timeout: time::Duration,
     handle: Handle<G>,
     name: String,
@@ -89,8 +90,11 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
                 Err((session, err)) => return (session, Err(err.into())),
             };
             let result = self.fetch(fetch, &mut tunnel);
-            let session = tunnel.into_session();
+            let mut session = tunnel.into_session();
 
+            if let Err(err) = pktline::flush(&mut session) {
+                log::error!(target: "worker", "Fetch error: {err}");
+            }
             if let Err(err) = &result {
                 log::error!(target: "worker", "Fetch error: {err}");
             }
@@ -132,7 +136,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             .arg("fetch")
             .arg("--atomic") // FIXME: Not available on 2.30 (debian standard)
             .arg("--verbose")
-            .arg(format!("git://{tunnel_addr}/{}", repo.id))
+            .arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()))
             // FIXME: We need to omit our own namespace from this refspec in case we're fetching '*'.
             .arg(fetch.namespaces.as_fetchspec())
             .stdout(process::Stdio::piped())
@@ -172,77 +176,52 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         stream_r: &mut WireReader,
         stream_w: &mut WireWriter<G>,
     ) -> Result<Vec<RefUpdate>, FetchError> {
-        let repo = self.storage.repository(fetch.repo)?;
-        let mut child = process::Command::new("git")
-            .current_dir(repo.path())
-            .env_clear()
-            .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
-            .args(["-c", "protocol.version=2"])
-            .arg("upload-pack")
-            .arg("--strict") // The path to the git repo must be exact.
-            .arg(".")
-            .stdout(process::Stdio::piped())
-            .stderr(process::Stdio::piped())
-            .stdin(process::Stdio::piped())
-            .spawn()?;
+        let daemon = net::TcpStream::connect_timeout(&self.daemon, self.timeout)?;
+        let (mut daemon_r, mut daemon_w) = (daemon.try_clone().unwrap(), daemon);
+        let mut stream_reader = pktline::GitReader::new(drain, stream_r);
+        let mut daemon_reader = pktline::GitReader::new(vec![], &mut daemon_r);
+        let mut buffer = [0; u16::MAX as usize + 1];
 
-        let mut stdin = child.stdin.take().unwrap();
-        let mut stdout = child.stdout.take().unwrap();
-        let mut reader = pktline::GitReader::new(drain, stream_r);
-        let stderr = child.stderr.take().unwrap();
-
-        thread::Builder::new().name(self.name.clone()).spawn(|| {
-            for line in BufReader::new(stderr).lines().flatten() {
-                log::error!(target: "worker", "Git: {}", line);
-            }
-        })?;
-
-        match reader.read_command_pkt_line() {
-            Ok((cmd, _pktline)) => {
+        let request = match stream_reader.read_request_pkt_line() {
+            Ok((req, pktline)) => {
                 log::debug!(
                     target: "worker",
-                    "Parsed git command packet-line for {}: {:?}", fetch.repo, cmd
+                    "Parsed git command packet-line for {}: {:?}", fetch.repo, req
                 );
-                if cmd.repo != fetch.repo {
+                if req.repo != fetch.repo {
                     return Err(FetchError::Git(git::raw::Error::from_str(
                         "git pkt-line command does not match fetch request",
                     )));
                 }
+                pktline
             }
             Err(err) => {
                 return Err(FetchError::Git(git::raw::Error::from_str(&format!(
                     "error parsing git command packet-line: {err}"
                 ))));
             }
-        }
+        };
+        daemon_w.write_all(&request)?;
 
-        thread::scope::<_, Result<Vec<RefUpdate>, FetchError>>(|scope| {
-            // Output of `upload-pack` is sent back to the remote peer.
-            let outgoing = scope.spawn(move || io::copy(&mut stdout, stream_w));
-
-            let mut buf = [0; 65536];
-            // Data coming from the remote peer is written to the standard input of the
-            // `upload-pack` process.
-            while !outgoing.is_finished() {
-                let n = reader.read_pkt_line(&mut buf)?;
-
-                stdin.write_all(&buf[..n]).unwrap();
-                log::trace!(target: "worker", "Received {:?}", String::from_utf8_lossy(&buf[..n]));
-
-                if &buf[..n] == pktline::DONE {
+        loop {
+            if let Err(e) = daemon_reader.read_pkt_lines(stream_w, &mut buffer) {
+                // This is the expected error when the remote disconnects.
+                if e.kind() == io::ErrorKind::UnexpectedEof {
                     break;
                 }
-            }
-            // SAFETY: The thread should not panic, but if it does, we bubble up the panic.
-            outgoing.join().unwrap()?;
+                log::debug!(target: "worker", "Upload of {} to {} returned error: {e}", fetch.repo, fetch.remote);
 
-            if child.wait()?.success() {
-                log::debug!(target: "worker", "Upload-pack for {} exited successfully", fetch.repo);
-            } else {
-                log::error!(target: "worker", "Upload-pack for {} exited with error", fetch.repo);
+                return Err(e.into());
             }
-            Ok(vec![])
-        })
+            if let Err(e) = stream_reader.read_pkt_lines(&mut daemon_w, &mut buffer) {
+                log::debug!(target: "worker", "Remote returned error: {e}");
+                break;
+            }
+        }
+        log::debug!(target: "worker", "Upload of {} to {} exited successfully", fetch.repo, fetch.remote);
+
+        // TODO: Don't return anything when uploading.
+        Ok(vec![])
     }
 }
 
@@ -257,6 +236,7 @@ impl WorkerPool {
         capacity: usize,
         timeout: time::Duration,
         storage: Storage,
+        daemon: net::SocketAddr,
         tasks: chan::Receiver<WorkerReq<G>>,
         handle: Handle<G>,
         name: String,
@@ -266,6 +246,7 @@ impl WorkerPool {
             let worker = Worker {
                 tasks: tasks.clone(),
                 storage: storage.clone(),
+                daemon,
                 handle: handle.clone(),
                 timeout,
                 name: name.clone(),
@@ -306,7 +287,10 @@ mod pktline {
     pub const FLUSH_PKT: &[u8; HEADER_LEN] = b"0000";
     pub const DELIM_PKT: &[u8; HEADER_LEN] = b"0001";
     pub const RESPONSE_END_PKT: &[u8; HEADER_LEN] = b"0002";
-    pub const DONE: &[u8] = b"0009done\n";
+
+    pub fn flush<W: io::Write>(w: &mut W) -> io::Result<()> {
+        write!(w, "0000")
+    }
 
     pub struct GitReader<'a, R> {
         drain: Vec<u8>,
@@ -318,16 +302,16 @@ mod pktline {
             Self { drain, stream }
         }
 
-        /// Parse a Git command packet-line.
+        /// Parse a Git request packet-line.
         ///
         /// Example: `0032git-upload-pack /project.git\0host=myserver.com\0`
         ///
-        pub fn read_command_pkt_line(&mut self) -> io::Result<(GitCommand, Vec<u8>)> {
+        pub fn read_request_pkt_line(&mut self) -> io::Result<(GitRequest, Vec<u8>)> {
             let mut pktline = [0u8; 1024];
             let length = self.read_pkt_line(&mut pktline)?;
-            let Some(cmd) = GitCommand::parse(&pktline[4..length]) else {
-            return Err(io::ErrorKind::InvalidInput.into());
-        };
+            let Some(cmd) = GitRequest::parse(&pktline[4..length]) else {
+                return Err(io::ErrorKind::InvalidInput.into());
+            };
             Ok((cmd, Vec::from(&pktline[..length])))
         }
 
@@ -350,6 +334,25 @@ mod pktline {
 
             Ok(length)
         }
+
+        pub fn read_pkt_lines<W: io::Write>(
+            &mut self,
+            w: &mut W,
+            buf: &mut [u8],
+        ) -> io::Result<()> {
+            loop {
+                let n = self.read_pkt_line(buf)?;
+                if n == 0 {
+                    break;
+                }
+                w.write_all(&buf[..n])?;
+
+                if &buf[..n] == FLUSH_PKT {
+                    return Ok(());
+                }
+            }
+            Ok(())
+        }
     }
 
     impl<'a, R: io::Read> io::Read for GitReader<'a, R> {
@@ -366,14 +369,14 @@ mod pktline {
     }
 
     #[derive(Debug)]
-    pub struct GitCommand {
+    pub struct GitRequest {
         pub repo: Id,
         pub path: String,
         pub host: Option<(String, Option<u16>)>,
         pub extra: Vec<(String, Option<String>)>,
     }
 
-    impl GitCommand {
+    impl GitRequest {
         /// Parse a Git command from a packet-line.
         fn parse(input: &[u8]) -> Option<Self> {
             let input = str::from_utf8(input).ok()?;

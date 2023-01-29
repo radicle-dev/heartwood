@@ -1,3 +1,4 @@
+use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::{fs, io, net, thread, time};
@@ -66,13 +67,15 @@ pub struct Runtime<G: Signer + EcSign> {
     pub home: Home,
     pub handle: Handle<G>,
     pub control: thread::JoinHandle<Result<(), control::Error>>,
+    pub storage: Storage,
     pub reactor: Reactor<wire::Control<G>>,
+    pub daemon: net::SocketAddr,
     pub pool: WorkerPool,
     pub local_addrs: Vec<net::SocketAddr>,
 }
 
 impl<G: Signer + EcSign> Runtime<G> {
-    /// Run the client.
+    /// Initialize the runtime.
     ///
     /// This function spawns threads.
     pub fn with(
@@ -80,6 +83,7 @@ impl<G: Signer + EcSign> Runtime<G> {
         config: service::Config,
         listen: Vec<net::SocketAddr>,
         proxy: net::SocketAddr,
+        daemon: net::SocketAddr,
         signer: G,
     ) -> Result<Runtime<G>, Error>
     where
@@ -140,6 +144,8 @@ impl<G: Signer + EcSign> Runtime<G> {
 
         log::info!(target: "node", "Binding control socket {}..", node_sock.display());
 
+        // TODO: Move this stuff to `run` function.
+
         let listener = match UnixListener::bind(&node_sock) {
             Ok(sock) => sock,
             Err(err) if err.kind() == io::ErrorKind::AddrInUse => {
@@ -157,7 +163,8 @@ impl<G: Signer + EcSign> Runtime<G> {
         let pool = WorkerPool::with(
             8,
             time::Duration::from_secs(9),
-            storage,
+            storage.clone(),
+            daemon,
             worker_recv,
             handle.clone(),
             id.to_human(),
@@ -167,7 +174,9 @@ impl<G: Signer + EcSign> Runtime<G> {
             id,
             home,
             control,
+            storage,
             reactor,
+            daemon,
             handle,
             pool,
             local_addrs,
@@ -176,15 +185,67 @@ impl<G: Signer + EcSign> Runtime<G> {
 
     pub fn run(self) -> Result<(), Error> {
         log::info!(target: "node", "Running node {}..", self.id);
+        log::info!(target: "node", "Spawning git daemon at {}..", self.storage.path().display());
+
+        let mut daemon = daemon::spawn(self.storage.path(), self.daemon)?;
+        thread::Builder::new().name(self.id.to_human()).spawn({
+            let stderr = daemon.stderr.take().unwrap();
+            || {
+                for line in BufReader::new(stderr).lines().flatten() {
+                    log::debug!(target: "daemon", "{line}");
+                }
+            }
+        })?;
 
         self.pool.run().unwrap();
         self.reactor.join().unwrap();
         self.control.join().unwrap()?;
+
+        daemon.kill().ok(); // Ignore error if daemon has already exited, for whatever reason.
+        daemon.wait()?;
 
         fs::remove_file(self.home.socket()).ok();
 
         log::debug!(target: "node", "Node shutdown completed for {}", self.id);
 
         Ok(())
+    }
+}
+
+pub mod daemon {
+    use std::path::Path;
+    use std::process::{Child, Command, Stdio};
+    use std::{env, io, net};
+
+    pub fn spawn(storage: &Path, addr: net::SocketAddr) -> io::Result<Child> {
+        let storage = storage.canonicalize()?;
+        let listen = format!("--listen={}", addr.ip());
+        let port = format!("--port={}", addr.port());
+        let child = Command::new("git")
+            .env_clear()
+            .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT")))
+            .env("GIT_PROTOCOL", "version=2")
+            .current_dir(storage)
+            .arg("daemon")
+            // Make all git directories available.
+            .arg("--export-all")
+            .arg("--verbose")
+            // The git "root". Should be our storage path.
+            .arg("--base-path=.")
+            // Timeout (in seconds) between the moment the connection is established
+            // and the client request is received (typically a rather low value,
+            // since that should be basically immediate).
+            .arg("--init-timeout=3")
+            // Timeout (in seconds) for specific client sub-requests.
+            // This includes the time it takes for the server to process the sub-request
+            // and the time spent waiting for the next client’s request.
+            .arg("--timeout=9")
+            .arg("--log-destination=stderr")
+            .arg(listen)
+            .arg(port)
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        Ok(child)
     }
 }

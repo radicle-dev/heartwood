@@ -104,7 +104,16 @@ impl Node {
     fn spawn(self, config: service::Config) -> NodeHandle {
         let listen = vec![([0, 0, 0, 0], 0).into()];
         let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
-        let rt = Runtime::with(self.home, config, listen, proxy, self.signer.clone()).unwrap();
+        let daemon = ([0, 0, 0, 0], fastrand::u16(1025..)).into();
+        let rt = Runtime::with(
+            self.home,
+            config,
+            listen,
+            proxy,
+            daemon,
+            self.signer.clone(),
+        )
+        .unwrap();
         let addr = *rt.local_addrs.first().unwrap();
         let id = *self.signer.public_key();
         let handle = ManuallyDrop::new(rt.handle.clone());
@@ -400,9 +409,7 @@ fn test_clone() {
     match lookup {
         // Drain the channel.
         FetchLookup::Found { seeds, results } => for _ in results.iter().take(seeds.len()) {},
-        other => {
-            panic!("Unexpected fetch lookup: {:?}", other);
-        }
+        other => panic!("Unexpected fetch lookup: {:?}", other),
     }
     rad::fork(acme, &alice.signer, &alice.storage).unwrap();
 
@@ -428,4 +435,35 @@ fn test_clone() {
         .unwrap();
 
     assert_eq!(oid, *canonical);
+}
+
+#[test]
+fn test_fetch_up_to_date() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let alice = Node::new(tmp.path());
+    let mut bob = Node::new(tmp.path());
+    let acme = bob.project("acme");
+
+    let mut alice = alice.spawn(service::Config::default());
+    let bob = bob.spawn(service::Config::default());
+
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    transport::local::register(alice.storage.clone());
+
+    let _ = alice.handle.track_repo(acme).unwrap();
+
+    match alice.handle.fetch(acme).unwrap() {
+        FetchLookup::Found { seeds, results } => for _ in results.iter().take(seeds.len()) {},
+        other => panic!("Unexpected fetch lookup: {:?}", other),
+    }
+
+    // Fetch again! This time, everything's up to date.
+    match alice.handle.fetch(acme).unwrap() {
+        FetchLookup::Found { seeds, results } => for _ in results.iter().take(seeds.len()) {},
+        other => panic!("Unexpected fetch lookup: {:?}", other),
+    }
 }

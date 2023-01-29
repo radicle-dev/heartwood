@@ -35,8 +35,6 @@ pub fn listen<H: Handle<Error = client::handle::Error>>(
                 log::debug!(target: "control", "Accepted new client on control socket..");
 
                 if let Err(e) = drain(&stream, &mut handle) {
-                    log::debug!(target: "control", "Received {} on control socket", e);
-
                     if let DrainError::Shutdown = e {
                         log::debug!(target: "control", "Shutdown requested..");
                         // Channel might already be disconnected if shutdown
