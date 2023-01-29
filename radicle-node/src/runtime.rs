@@ -22,7 +22,7 @@ use crate::service::{routing, tracking};
 use crate::wire;
 use crate::wire::Wire;
 use crate::worker::{WorkerPool, WorkerReq};
-use crate::{crypto, service, LocalTime};
+use crate::{service, LocalTime};
 
 pub use handle::Error as HandleError;
 pub use handle::Handle;
@@ -68,7 +68,6 @@ pub struct Runtime<G: Signer + EcSign> {
     pub id: NodeId,
     pub home: Home,
     pub handle: Handle<G>,
-    pub control: thread::JoinHandle<Result<(), control::Error>>,
     pub storage: Storage,
     pub reactor: Reactor<wire::Control<G>>,
     pub daemon: net::SocketAddr,
@@ -76,11 +75,11 @@ pub struct Runtime<G: Signer + EcSign> {
     pub local_addrs: Vec<net::SocketAddr>,
 }
 
-impl<G: Signer + EcSign> Runtime<G> {
+impl<G: Signer + EcSign + 'static> Runtime<G> {
     /// Initialize the runtime.
     ///
     /// This function spawns threads.
-    pub fn with(
+    pub fn init(
         home: Home,
         config: service::Config,
         listen: Vec<net::SocketAddr>,
@@ -89,10 +88,9 @@ impl<G: Signer + EcSign> Runtime<G> {
         signer: G,
     ) -> Result<Runtime<G>, Error>
     where
-        G: crypto::Signer + EcSign<Sig = Signature, Pk = NodeId> + Clone + 'static,
+        G: EcSign<Sig = Signature, Pk = NodeId> + Clone,
     {
         let id = *signer.public_key();
-        let node_sock = home.socket();
         let node_dir = home.node();
         let network = config.network;
         let rng = fastrand::Rng::new();
@@ -144,24 +142,6 @@ impl<G: Signer + EcSign> Runtime<G> {
         let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
         let handle = Handle::new(home.clone(), reactor.controller());
 
-        log::info!(target: "node", "Binding control socket {}..", node_sock.display());
-
-        // TODO: Move this stuff to `run` function.
-
-        let listener = match UnixListener::bind(&node_sock) {
-            Ok(sock) => sock,
-            Err(err) if err.kind() == io::ErrorKind::AddrInUse => {
-                return Err(Error::AlreadyRunning(node_sock));
-            }
-            Err(err) => {
-                return Err(err.into());
-            }
-        };
-        let control = thread::spawn({
-            let handle = handle.clone();
-            move || control::listen(listener, handle)
-        });
-
         let pool = WorkerPool::with(
             8,
             time::Duration::from_secs(9),
@@ -175,7 +155,6 @@ impl<G: Signer + EcSign> Runtime<G> {
         Ok(Runtime {
             id,
             home,
-            control,
             storage,
             reactor,
             daemon,
@@ -186,7 +165,22 @@ impl<G: Signer + EcSign> Runtime<G> {
     }
 
     pub fn run(self) -> Result<(), Error> {
-        log::info!(target: "node", "Running node {}..", self.id);
+        let home = self.home;
+
+        log::info!(target: "node", "Running node {} in {}..", self.id, home.path().display());
+        log::info!(target: "node", "Binding control socket {}..", home.socket().display());
+
+        let listener = match UnixListener::bind(home.socket()) {
+            Ok(sock) => sock,
+            Err(err) if err.kind() == io::ErrorKind::AddrInUse => {
+                return Err(Error::AlreadyRunning(home.socket()));
+            }
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
+        let control = thread::spawn(move || control::listen(listener, self.handle));
+
         log::info!(target: "node", "Spawning git daemon at {}..", self.storage.path().display());
 
         let mut daemon = daemon::spawn(self.storage.path(), self.daemon)?;
@@ -201,12 +195,12 @@ impl<G: Signer + EcSign> Runtime<G> {
 
         self.pool.run().unwrap();
         self.reactor.join().unwrap();
-        self.control.join().unwrap()?;
+        control.join().unwrap()?;
 
         daemon.kill().ok(); // Ignore error if daemon has already exited, for whatever reason.
         daemon.wait()?;
 
-        fs::remove_file(self.home.socket()).ok();
+        fs::remove_file(home.socket()).ok();
 
         log::debug!(target: "node", "Node shutdown completed for {}", self.id);
 

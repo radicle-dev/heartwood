@@ -91,9 +91,8 @@ fn execute() -> anyhow::Result<()> {
     };
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
     let daemon = ([0, 0, 0, 0], 9418).into();
-    let runtime = Runtime::with(home, config, options.listen, proxy, daemon, signer)?;
 
-    runtime.run()?;
+    Runtime::init(home, config, options.listen, proxy, daemon, signer)?.run()?;
 
     Ok(())
 }

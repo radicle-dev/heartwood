@@ -105,7 +105,7 @@ impl Node {
         let listen = vec![([0, 0, 0, 0], 0).into()];
         let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
         let daemon = ([0, 0, 0, 0], fastrand::u16(1025..)).into();
-        let rt = Runtime::with(
+        let rt = Runtime::init(
             self.home,
             config,
             listen,
