@@ -14,6 +14,7 @@ use radicle_node::{logger, service};
 struct Options {
     connect: Vec<(NodeId, Address)>,
     external_addresses: Vec<Address>,
+    daemon: Option<net::SocketAddr>,
     limits: service::config::Limits,
     listen: Vec<net::SocketAddr>,
 }
@@ -27,6 +28,7 @@ impl Options {
         let mut external_addresses = Vec::new();
         let mut limits = service::config::Limits::default();
         let mut listen = Vec::new();
+        let mut daemon = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -37,6 +39,10 @@ impl Options {
                 Long("external-address") => {
                     let addr = parser.value()?.parse()?;
                     external_addresses.push(addr);
+                }
+                Long("git-daemon") => {
+                    let addr = parser.value()?.parse()?;
+                    daemon = Some(addr);
                 }
                 Long("limit-routing-max-age") => {
                     let secs: u64 = parser.value()?.parse()?;
@@ -66,6 +72,7 @@ impl Options {
 
         Ok(Self {
             connect,
+            daemon,
             external_addresses,
             limits,
             listen,
@@ -90,7 +97,12 @@ fn execute() -> anyhow::Result<()> {
         ..service::Config::default()
     };
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
-    let daemon = ([0, 0, 0, 0], 9418).into();
+    let daemon = options.daemon.unwrap_or_else(|| {
+        net::SocketAddr::new(
+            net::Ipv4Addr::UNSPECIFIED.into(),
+            radicle::git::PROTOCOL_PORT,
+        )
+    });
 
     Runtime::init(home, config, options.listen, proxy, daemon, signer)?.run()?;
 
