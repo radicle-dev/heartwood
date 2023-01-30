@@ -153,6 +153,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         cmd.current_dir(repo.path())
             .env_clear()
             .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
+            .envs(git::env::GIT_RESET)
             .args(["-c", "protocol.version=2"])
             .arg("fetch")
             .arg("--verbose");

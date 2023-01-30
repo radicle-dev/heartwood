@@ -507,6 +507,16 @@ pub mod url {
     }
 }
 
+/// Git environment variables.
+pub mod env {
+    /// Set of environment vars to reset git's configuration to default.
+    pub const GIT_RESET: [(&str, &str); 3] = [
+        ("GIT_CONFIG", "/dev/null"),
+        ("GIT_CONFIG_GLOBAL", "/dev/null"),
+        ("GIT_CONFIG_NOSYSTEM", "1"),
+    ];
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

@@ -235,6 +235,7 @@ pub mod daemon {
         let child = Command::new("git")
             .env_clear()
             .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT")))
+            .envs(radicle::git::env::GIT_RESET)
             .env("GIT_PROTOCOL", "version=2")
             .current_dir(storage)
             .arg("daemon")
