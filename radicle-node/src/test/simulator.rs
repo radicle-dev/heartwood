@@ -13,10 +13,12 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 
 use crate::crypto::Signer;
+use crate::git::raw as git;
 use crate::node::{FetchError, FetchResult};
 use crate::prelude::Address;
 use crate::service::reactor::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
+use crate::storage::{Namespaces, RefUpdate};
 use crate::storage::{WriteRepository, WriteStorage};
 use crate::test::peer::Service;
 use crate::Link;
@@ -413,8 +415,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         let result = Arc::try_unwrap(result).unwrap();
                         let mut repo = p.storage().repository(result.rid).unwrap();
 
-                        repo.fetch(&result.remote, result.namespaces.clone())
-                            .unwrap();
+                        fetch(&mut repo, &result.remote, result.namespaces.clone()).unwrap();
                         p.fetched(result);
                     }
                 }
@@ -654,4 +655,58 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
     fn is_partitioned(&self, a: NodeId, b: NodeId) -> bool {
         self.partitions.contains(&(a, b)) || self.partitions.contains(&(b, a))
     }
+}
+
+/// Perform a fetch between two local repositories.
+/// This has the same outcome as doing a "real" fetch, but suffices for the simulation, and
+/// doesn't require running nodes.
+fn fetch<W: WriteRepository>(
+    repo: &mut W,
+    node: &NodeId,
+    namespaces: impl Into<Namespaces>,
+) -> Result<Vec<RefUpdate>, radicle::storage::FetchError> {
+    let namespace = match namespaces.into() {
+        Namespaces::All => None,
+        Namespaces::One(ns) => Some(ns),
+    };
+    let mut updates = Vec::new();
+    let mut callbacks = git::RemoteCallbacks::new();
+    let mut opts = git::FetchOptions::default();
+    let refspec = if let Some(namespace) = namespace {
+        opts.prune(git::FetchPrune::On);
+        format!("refs/namespaces/{namespace}/refs/*:refs/namespaces/{namespace}/refs/*")
+    } else {
+        opts.prune(git::FetchPrune::Off);
+        "refs/namespaces/*:refs/namespaces/*".to_owned()
+    };
+
+    callbacks.update_tips(|name, old, new| {
+        if let Ok(name) = radicle::git::RefString::try_from(name) {
+            if name.to_namespaced().is_some() {
+                updates.push(RefUpdate::from(name, old, new));
+                // Returning `true` ensures the process is not aborted.
+                return true;
+            }
+        }
+        false
+    });
+    opts.remote_callbacks(callbacks);
+
+    // Fetch from the remote into the staging copy.
+    let mut remote = repo.raw().remote_anonymous(
+        radicle::storage::git::transport::remote::Url {
+            node: *node,
+            repo: repo.id(),
+            namespace,
+        }
+        .to_string()
+        .as_str(),
+    )?;
+    remote.fetch(&[refspec], Some(&mut opts), None)?;
+    drop(opts);
+
+    repo.verify()?;
+    repo.set_head()?;
+
+    Ok(updates)
 }

@@ -11,7 +11,7 @@ use crate::git;
 use crate::identity::doc;
 use crate::identity::doc::{DocError, Id};
 use crate::identity::project::Project;
-use crate::storage::git::transport::{self, remote};
+use crate::storage::git::transport;
 use crate::storage::git::{ProjectError, Repository, Storage};
 use crate::storage::refs::SignedRefs;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId, WriteRepository as _};
@@ -183,35 +183,6 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
     repository.sign_refs(signer)?;
 
     Ok(())
-}
-
-#[derive(Error, Debug)]
-pub enum CloneUrlError {
-    #[error("missing namespace in url")]
-    MissingNamespace,
-    #[error("storage: {0}")]
-    Storage(#[from] storage::Error),
-    #[error("fetch: {0}")]
-    Fetch(#[from] storage::FetchError),
-    #[error("fork: {0}")]
-    Fork(#[from] ForkError),
-    #[error("checkout: {0}")]
-    Checkout(#[from] CheckoutError),
-}
-
-pub fn clone_url<P: AsRef<Path>, G: Signer, S: storage::WriteStorage>(
-    url: &remote::Url,
-    path: P,
-    signer: &G,
-    storage: &S,
-) -> Result<git2::Repository, CloneUrlError> {
-    let namespace = url.namespace.ok_or(CloneUrlError::MissingNamespace)?;
-    let mut project = storage.repository(url.repo)?;
-    let _updates = project.fetch(&url.node, namespace)?;
-    let _ = fork(url.repo, signer, storage)?;
-    let working = checkout(url.repo, signer.public_key(), path, storage)?;
-
-    Ok(working)
 }
 
 #[derive(Error, Debug)]

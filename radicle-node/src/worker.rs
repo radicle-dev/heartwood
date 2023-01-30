@@ -9,7 +9,7 @@ use netservices::{NetSession, SplitIo};
 
 use radicle::crypto::Signer;
 use radicle::identity::Id;
-use radicle::storage::{ReadRepository, RefUpdate, WriteRepository, WriteStorage};
+use radicle::storage::{Namespaces, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 use radicle::{git, Storage};
 use reactor::poller::popol;
 
@@ -156,6 +156,18 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             .args(["-c", "protocol.version=2"])
             .arg("fetch")
             .arg("--verbose");
+
+        match fetch.namespaces {
+            Namespaces::All => {
+                // We should not prune in this case, because it would mean that namespaces that
+                // don't exit on the remote would be deleted locally.
+            }
+            Namespaces::One(_) => {
+                // TODO: Make sure we verify before pruning, as pruning may get us into
+                // a state we can't roll back.
+                cmd.arg("--prune");
+            }
+        }
 
         if self.atomic {
             // Enable atomic fetch. Only works with Git 2.31 and later.

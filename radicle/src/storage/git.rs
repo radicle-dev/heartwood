@@ -16,14 +16,12 @@ use crate::identity::{Identity, IdentityError, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
-    Error, FetchError, Inventory, ReadRepository, ReadStorage, Remote, Remotes, WriteRepository,
-    WriteStorage,
+    Error, Inventory, ReadRepository, ReadStorage, Remote, Remotes, WriteRepository, WriteStorage,
 };
 
 pub use crate::git::*;
 
-use super::{Namespaces, RefUpdate, RemoteId};
-use transport::remote;
+use super::RemoteId;
 
 pub static NAMESPACES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*"));
@@ -179,7 +177,7 @@ impl Storage {
 
 pub struct Repository {
     pub id: Id,
-    pub(crate) backend: git2::Repository,
+    pub backend: git2::Repository,
 }
 
 #[derive(Debug, Error)]
@@ -246,9 +244,6 @@ impl Repository {
         Ok((repo, oid))
     }
 
-    /// Verify all references in the repository, checking that they are signed
-    /// as part of 'sigrefs'. Also verify that no signed reference is missing
-    /// from the repository.
     pub fn verify(&self) -> Result<(), VerifyError> {
         let mut remotes: HashMap<RemoteId, Refs> = self
             .remotes()?
@@ -451,6 +446,10 @@ impl Repository {
 }
 
 impl ReadRepository for Repository {
+    fn id(&self) -> Id {
+        self.id
+    }
+
     fn is_empty(&self) -> Result<bool, git2::Error> {
         Ok(self.remotes()?.next().is_none())
     }
@@ -465,6 +464,10 @@ impl ReadRepository for Repository {
             path,
         }
         .get(&self.backend)
+    }
+
+    fn verify(&self) -> Result<(), VerifyError> {
+        Repository::verify(self)
     }
 
     fn reference(
@@ -572,140 +575,6 @@ impl ReadRepository for Repository {
 }
 
 impl WriteRepository for Repository {
-    /// Fetch all remotes of a project from the given URL.
-    /// This is the primary way in which projects are updated on the network.
-    ///
-    /// Since we're operating in an untrusted network, we have to be take some precautions
-    /// when fetching from a remote. We don't want to fetch straight into a public facing
-    /// repository because if the updates were to be invalid, we'd be allowing others to
-    /// read this invalid state. We also don't want to lock our repositories during the fetch
-    /// or verification, as this will make the repositories unavailable. Therefore, we choose
-    /// to perform the fetch into a "staging" copy of the given repository we're fetching, and
-    /// then transfer the changes to the canonical, public copy of the repository.
-    ///
-    /// To do this, we first create a temporary directory, and clone the canonical repo into it.
-    /// This local clone takes advantage of the fact that both repositories live on the same
-    /// host (or even file-system). We now have a "staging" copy and the canonical copy.
-    ///
-    /// We then fetch the *remote* repo into the *staging* copy. We turn off pruning because we
-    /// don't want to accidentally delete any objects before verification is complete.
-    ///
-    /// We proceed to verify the staging copy through the usual verification process.
-    ///
-    /// If verification succeeds, we fetch from the staging copy into the canonical repo,
-    /// with pruning *on*, and discard the staging copy. If it fails, we just discard the
-    /// staging copy.
-    ///
-    fn fetch(
-        &mut self,
-        node: &RemoteId,
-        namespaces: impl Into<Namespaces>,
-    ) -> Result<Vec<RefUpdate>, FetchError> {
-        // The steps are summarized in the following diagram:
-        //
-        //     staging <- git-clone -- local (canonical) # create staging copy
-        //     staging <- git-fetch -- remote            # fetch from remote
-        //
-        //     ... verify ...
-        //
-        //     local <- git-fetch -- staging             # fetch from staging copy
-        //
-
-        let namespace = match namespaces.into() {
-            Namespaces::All => None,
-            Namespaces::One(ns) => Some(ns),
-        };
-
-        let mut updates = Vec::new();
-        let mut callbacks = git2::RemoteCallbacks::new();
-        let tempdir = tempfile::tempdir()?;
-
-        // Create staging copy.
-        let staging = {
-            let mut builder = git2::build::RepoBuilder::new();
-            let path = tempdir.path().join("git");
-            let staging_repo = builder
-                .bare(true)
-                // Using `clone_local` will try to hard-link the ODBs for better performance.
-                // TODO: Due to this, I think we'll have to run GC when there is a failure.
-                .clone_local(git2::build::CloneLocal::Local)
-                .clone(
-                    git::url::File::new(self.backend.path().to_path_buf())
-                        .to_string()
-                        .as_str(),
-                    &path,
-                )?;
-
-            // In case we fetch an invalid update, we want to make sure nothing is deleted.
-            let mut opts = git2::FetchOptions::default();
-            opts.prune(git2::FetchPrune::Off);
-
-            // Fetch from the remote into the staging copy.
-            staging_repo
-                .remote_anonymous(
-                    remote::Url {
-                        node: *node,
-                        repo: self.id,
-                        namespace,
-                    }
-                    .to_string()
-                    .as_str(),
-                )?
-                .fetch(&["refs/*:refs/*"], Some(&mut opts), None)?;
-
-            // Verify the staging copy as if it was the canonical copy.
-            Repository {
-                id: self.id,
-                backend: staging_repo,
-            }
-            .verify()?;
-
-            path
-        };
-
-        callbacks.update_tips(|name, old, new| {
-            if let Ok(name) = git::RefString::try_from(name) {
-                if name.to_namespaced().is_some() {
-                    updates.push(RefUpdate::from(name, old, new));
-                    // Returning `true` ensures the process is not aborted.
-                    return true;
-                }
-            }
-            log::warn!(target: "storage", "Invalid ref `{}` detected; aborting fetch", name);
-
-            false
-        });
-
-        {
-            let mut remote = self
-                .backend
-                .remote_anonymous(git::url::File::new(staging).to_string().as_str())?;
-            let mut opts = git2::FetchOptions::default();
-            opts.remote_callbacks(callbacks);
-
-            let refspec = if let Some(namespace) = namespace {
-                // TODO: Make sure we verify before pruning, as pruning may get us into
-                // a state we can't roll back.
-                opts.prune(git2::FetchPrune::On);
-
-                format!("refs/namespaces/{namespace}/refs/*:refs/namespaces/{namespace}/refs/*")
-            } else {
-                // We should not prune in this case, because it would mean that namespaces that
-                // don't exit on the remote would be deleted locally.
-                opts.prune(git2::FetchPrune::Off);
-
-                // FIXME: We need to omit our own namespace from this refspec.
-                "refs/namespaces/*:refs/namespaces/*".to_owned()
-            };
-            // Fetch from the staging copy into the canonical repo.
-            remote.fetch(&[refspec], Some(&mut opts), None)?;
-        }
-        // Set repository HEAD for git cloning support.
-        self.set_head()?;
-
-        Ok(updates)
-    }
-
     fn set_head(&self) -> Result<Oid, ProjectError> {
         let head_ref = refname!("HEAD");
         let (branch_ref, head) = self.canonical_head()?;
@@ -794,10 +663,9 @@ mod tests {
     use crypto::test::signer::MockSigner;
 
     use super::*;
-    use crate::assert_matches;
     use crate::git;
     use crate::storage::refs::SIGREFS_BRANCH;
-    use crate::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
+    use crate::storage::{ReadRepository, ReadStorage, WriteRepository};
     use crate::test::arbitrary;
     use crate::test::fixtures;
 
@@ -825,118 +693,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(refs, remotes);
-    }
-
-    #[test]
-    fn test_fetch() {
-        let tmp = tempfile::tempdir().unwrap();
-        let alice_signer = MockSigner::default();
-        let alice_pk = *alice_signer.public_key();
-        let alice = fixtures::storage(tmp.path().join("alice"), &alice_signer).unwrap();
-        let bob = Storage::open(tmp.path().join("bob")).unwrap();
-        let inventory = alice.inventory().unwrap();
-        let proj = *inventory.first().unwrap();
-        let repo = alice.repository(proj).unwrap();
-        let remotes = repo.remotes().unwrap().collect::<Vec<_>>();
-        let refname = Qualified::from_refstr(git::refname!("refs/heads/master")).unwrap();
-
-        // Have Bob fetch Alice's refs.
-        let updates = bob
-            .repository(proj)
-            .unwrap()
-            .fetch(&alice_pk, alice_pk)
-            .unwrap();
-
-        // Three refs are created for each remote.
-        assert_eq!(updates.len(), remotes.len() * 3);
-
-        for update in updates {
-            assert_matches!(
-                update,
-                RefUpdate::Created { name, .. } if name.starts_with("refs/namespaces")
-            );
-        }
-
-        for remote in remotes {
-            let (id, _) = remote.unwrap();
-            let alice_repo = alice.repository(proj).unwrap();
-            let alice_oid = alice_repo.reference(&id, &refname).unwrap();
-
-            let bob_repo = bob.repository(proj).unwrap();
-            let bob_oid = bob_repo.reference(&id, &refname).unwrap();
-
-            assert_eq!(alice_oid.target(), bob_oid.target());
-        }
-
-        // Canonical HEAD is set correctly.
-        let alice_repo = alice.repository(proj).unwrap();
-        let bob_repo = bob.repository(proj).unwrap();
-
-        assert_eq!(
-            bob_repo.backend.head().unwrap().target().unwrap(),
-            alice_repo.backend.head().unwrap().target().unwrap()
-        );
-    }
-
-    #[test]
-    fn test_fetch_update() {
-        let tmp = tempfile::tempdir().unwrap();
-        let alice = Storage::open(tmp.path().join("alice/storage")).unwrap();
-        let bob = Storage::open(tmp.path().join("bob/storage")).unwrap();
-        let alice_signer = MockSigner::new(&mut fastrand::Rng::new());
-        let alice_id = alice_signer.public_key();
-        let (proj_id, _, proj_repo, alice_head) =
-            fixtures::project(tmp.path().join("alice/project"), &alice, &alice_signer).unwrap();
-        let refname = Qualified::from_refstr(git::refname!("refs/heads/master")).unwrap();
-
-        transport::remote::mock::register(alice_id, alice.path());
-
-        // Have Bob fetch Alice's refs.
-        let updates = bob
-            .repository(proj_id)
-            .unwrap()
-            .fetch(alice_signer.public_key(), *alice_signer.public_key())
-            .unwrap();
-        // Three refs are created: the branch, the signature and the id.
-        assert_eq!(updates.len(), 3);
-
-        let alice_proj_storage = alice.repository(proj_id).unwrap();
-        let alice_head = proj_repo.find_commit(alice_head).unwrap();
-        let alice_sig = git2::Signature::now("Alice", "alice@radicle.xyz").unwrap();
-        let alice_tree = proj_repo
-            .find_tree(proj_repo.index().unwrap().write_tree().unwrap())
-            .unwrap();
-        let alice_head = git::commit(
-            &proj_repo,
-            &alice_head,
-            &refname,
-            "Making changes",
-            &alice_sig,
-            &alice_tree,
-        )
-        .unwrap()
-        .id();
-        git::push(&proj_repo, "rad", [(&refname, &refname)]).unwrap();
-        alice_proj_storage.sign_refs(&alice_signer).unwrap();
-        alice_proj_storage.set_head().unwrap();
-
-        // Have Bob fetch Alice's new commit.
-        let updates = bob
-            .repository(proj_id)
-            .unwrap()
-            .fetch(alice_signer.public_key(), *alice_signer.public_key())
-            .unwrap();
-        // The branch and signature refs are updated.
-        assert_matches!(
-            updates.as_slice(),
-            &[RefUpdate::Updated { .. }, RefUpdate::Updated { .. }]
-        );
-
-        // Bob's storage is updated.
-        let bob_repo = bob.repository(proj_id).unwrap();
-        let bob_master = bob_repo.reference(alice_id, &refname).unwrap();
-
-        assert_eq!(bob_master.target().unwrap(), alice_head);
     }
 
     #[test]

@@ -60,6 +60,10 @@ impl WriteStorage for MockStorage {
 pub struct MockRepository {}
 
 impl ReadRepository for MockRepository {
+    fn id(&self) -> Id {
+        todo!()
+    }
+
     fn is_empty(&self) -> Result<bool, git2::Error> {
         Ok(true)
     }
@@ -70,6 +74,10 @@ impl ReadRepository for MockRepository {
 
     fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), ProjectError> {
         todo!()
+    }
+
+    fn verify(&self) -> Result<(), VerifyError> {
+        Ok(())
     }
 
     fn path(&self) -> &std::path::Path {
@@ -128,14 +136,6 @@ impl ReadRepository for MockRepository {
 }
 
 impl WriteRepository for MockRepository {
-    fn fetch(
-        &mut self,
-        _node: &RemoteId,
-        _namespaces: impl Into<Namespaces>,
-    ) -> Result<Vec<RefUpdate>, FetchError> {
-        Ok(vec![])
-    }
-
     fn raw(&self) -> &git2::Repository {
         todo!()
     }

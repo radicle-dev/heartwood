@@ -260,6 +260,9 @@ pub trait WriteStorage: ReadStorage {
 }
 
 pub trait ReadRepository {
+    /// Return the repository id.
+    fn id(&self) -> Id;
+
     /// Returns `true` if there are no references in the repository.
     fn is_empty(&self) -> Result<bool, git2::Error>;
 
@@ -269,6 +272,11 @@ pub trait ReadRepository {
     /// Get a blob in this repository at the given commit and path.
     fn blob_at<'a>(&'a self, commit: Oid, path: &'a Path)
         -> Result<git2::Blob<'a>, git_ext::Error>;
+
+    /// Verify all references in the repository, checking that they are signed
+    /// as part of 'sigrefs'. Also verify that no signed reference is missing
+    /// from the repository.
+    fn verify(&self) -> Result<(), VerifyError>;
 
     /// Get the head of this repository.
     ///
@@ -323,11 +331,6 @@ pub trait ReadRepository {
 }
 
 pub trait WriteRepository: ReadRepository {
-    fn fetch(
-        &mut self,
-        node: &RemoteId,
-        namespaces: impl Into<Namespaces>,
-    ) -> Result<Vec<RefUpdate>, FetchError>;
     fn set_head(&self) -> Result<Oid, ProjectError>;
     fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error>;
     fn raw(&self) -> &git2::Repository;
