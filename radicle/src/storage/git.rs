@@ -63,8 +63,8 @@ impl<'a> TryFrom<git2::Reference<'a>> for Ref {
 pub enum ProjectError {
     #[error("identity branches diverge from each other")]
     BranchesDiverge,
-    #[error("identity branches are in an invalid state")]
-    InvalidState,
+    #[error("identity branches missing")]
+    MissingHeads,
     #[error("storage error: {0}")]
     Storage(#[from] Error),
     #[error("identity document error: {0}")]
@@ -304,7 +304,7 @@ impl Repository {
             heads.push(oid.into());
         }
         // Keep track of the longest identity branch.
-        let mut longest = heads.pop().ok_or(ProjectError::InvalidState)?;
+        let mut longest = heads.pop().ok_or(ProjectError::MissingHeads)?;
 
         for head in &heads {
             let base = self.raw().merge_base(*head, longest)?;
