@@ -216,7 +216,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
     ) -> Result<Vec<RefUpdate>, FetchError> {
         // Connect to our local git daemon, running as a child process.
         let daemon = net::TcpStream::connect_timeout(&self.daemon, self.timeout)?;
-        let (mut daemon_r, mut daemon_w) = (daemon.try_clone().unwrap(), daemon);
+        let (mut daemon_r, mut daemon_w) = (daemon.try_clone()?, daemon);
         let mut stream_r = pktline::Reader::new(drain, stream_r);
         let mut daemon_r = pktline::Reader::new(vec![], &mut daemon_r);
         let mut buffer = [0; u16::MAX as usize + 1];
@@ -258,8 +258,9 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
                 return Err(e.into());
             }
             if let Err(e) = stream_r.read_pktlines(&mut daemon_w, &mut buffer) {
-                log::debug!(target: "worker", "Remote returned error: {e}");
-                break;
+                log::error!(target: "worker", "Remote returned error for {}: {e}", fetch.repo);
+
+                return Err(e.into());
             }
         }
         log::debug!(target: "worker", "Upload of {} to {} exited successfully", fetch.repo, fetch.remote);

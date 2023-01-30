@@ -451,6 +451,7 @@ where
                 let tracked = self
                     .track_repo(&id, tracking::Scope::All)
                     .expect("Service::command: error tracking repository");
+                // TODO: Try to fetch project if we weren't tracking it.
                 resp.send(tracked).ok();
             }
             Command::UntrackRepo(id, resp) => {
