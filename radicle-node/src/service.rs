@@ -101,15 +101,15 @@ pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Se
 
 /// Commands sent to the service by the operator.
 pub enum Command {
-    /// Announce repository references for given project id to peers.
+    /// Announce repository references for given repository to peers.
     AnnounceRefs(Id),
     /// Connect to node with the given address.
     Connect(NodeId, Address),
-    /// Fetch the given project from the network.
+    /// Fetch the given repository from the network.
     Fetch(Id, chan::Sender<FetchLookup>),
-    /// Track the given project.
+    /// Track the given repository.
     TrackRepo(Id, chan::Sender<bool>),
-    /// Untrack the given project.
+    /// Untrack the given repository.
     UntrackRepo(Id, chan::Sender<bool>),
     /// Track the given node.
     TrackNode(NodeId, Option<String>, chan::Sender<bool>),
