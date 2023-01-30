@@ -203,7 +203,11 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
             let stderr = daemon.stderr.take().unwrap();
             || {
                 for line in BufReader::new(stderr).lines().flatten() {
-                    log::debug!(target: "daemon", "{line}");
+                    if line.starts_with("fatal") {
+                        log::error!(target: "daemon", "{line}");
+                    } else {
+                        log::debug!(target: "daemon", "{line}");
+                    }
                 }
             }
         })?;
