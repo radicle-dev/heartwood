@@ -120,11 +120,7 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn project(&self) -> Result<Doc<Verified>, Error> {
-        todo!()
-    }
-
-    fn project_identity(
+    fn identity_doc(
         &self,
     ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), git::ProjectError> {
         todo!()

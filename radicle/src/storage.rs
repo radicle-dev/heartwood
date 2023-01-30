@@ -266,7 +266,9 @@ pub trait ReadRepository {
     /// The [`Path`] to the git repository.
     fn path(&self) -> &Path;
 
-    fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git_ext::Error>;
+    /// Get a blob in this repository at the given commit and path.
+    fn blob_at<'a>(&'a self, commit: Oid, path: &'a Path)
+        -> Result<git2::Blob<'a>, git_ext::Error>;
 
     /// Get the head of this repository.
     ///
@@ -297,18 +299,27 @@ pub trait ReadRepository {
     /// Returns `None` if the commit did not exist.
     fn commit(&self, oid: Oid) -> Result<git2::Commit, git_ext::Error>;
 
+    /// Perform a revision walk of a commit history starting from the given head.
     fn revwalk(&self, head: Oid) -> Result<git2::Revwalk, git2::Error>;
+
+    /// Get the object id of a reference under the given remote.
     fn reference_oid(
         &self,
         remote: &RemoteId,
         reference: &Qualified,
     ) -> Result<Oid, git_ext::Error>;
+
+    /// Get all references of the given remote.
     fn references_of(&self, remote: &RemoteId) -> Result<Refs, Error>;
+
+    /// Get the given remote.
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error>;
+
+    /// Get all remotes.
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;
-    /// Return the project associated with this repository.
-    fn project(&self) -> Result<identity::Doc<Verified>, Error>;
-    fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError>;
+
+    /// Get the repository's identity document.
+    fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError>;
 }
 
 pub trait WriteRepository: ReadRepository {

@@ -531,11 +531,7 @@ impl ReadRepository for Repository {
         Ok(Remotes::from_iter(remotes))
     }
 
-    fn project(&self) -> Result<Doc<Verified>, Error> {
-        todo!()
-    }
-
-    fn project_identity(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError> {
+    fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError> {
         Repository::identity_doc(self)
     }
 
@@ -552,7 +548,7 @@ impl ReadRepository for Repository {
     fn canonical_head(&self) -> Result<(Qualified, Oid), ProjectError> {
         // TODO: In the `fork` function for example, we call Repository::project_identity again,
         // This should only be necessary once.
-        let (_, doc) = self.project_identity()?;
+        let (_, doc) = self.identity_doc()?;
         let doc = doc.verified()?;
         let project = doc.project()?;
         let branch_ref = Qualified::from(lit::refs_heads(&project.default_branch()));
