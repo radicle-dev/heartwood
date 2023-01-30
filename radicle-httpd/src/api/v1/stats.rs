@@ -17,7 +17,7 @@ pub fn router(ctx: Context) -> Router {
 /// `GET /stats`
 async fn stats_handler(State(ctx): State<Context>) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
-    let projects = storage.projects()?.len();
+    let projects = storage.repositories()?.len();
 
     Ok::<_, Error>(Json(
         json!({ "projects": { "count": projects }, "users": { "count": 0 } }),

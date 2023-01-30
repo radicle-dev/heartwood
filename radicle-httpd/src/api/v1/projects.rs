@@ -63,7 +63,7 @@ async fn project_root_handler(
     let per_page = per_page.unwrap_or(10);
     let storage = &ctx.profile.storage;
     let projects = storage
-        .projects()?
+        .repositories()?
         .into_iter()
         .filter_map(|id| {
             let Ok(repo) = storage.repository(id) else { return None };

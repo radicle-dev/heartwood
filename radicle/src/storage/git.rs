@@ -113,15 +113,15 @@ impl ReadStorage for Storage {
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
-        self.projects()
+        self.repositories()
     }
 }
 
 impl WriteStorage for Storage {
     type Repository = Repository;
 
-    fn repository(&self, proj: Id) -> Result<Self::Repository, Error> {
-        Repository::open(paths::repository(self, &proj), proj)
+    fn repository(&self, rid: Id) -> Result<Self::Repository, Error> {
+        Repository::open(paths::repository(self, &rid), rid)
     }
 }
 
@@ -143,20 +143,26 @@ impl Storage {
         self.path.as_path()
     }
 
-    pub fn projects(&self) -> Result<Vec<Id>, Error> {
-        let mut projects = Vec::new();
+    pub fn repositories(&self) -> Result<Vec<Id>, Error> {
+        let mut repos = Vec::new();
 
         for result in fs::read_dir(&self.path)? {
             let path = result?;
-            let id = Id::try_from(path.file_name())?;
+            let rid = Id::try_from(path.file_name())?;
+            let repo = self.repository(rid)?;
 
-            projects.push(id);
+            // For performance reasons, we don't do a full repository check here.
+            if let Err(e) = repo.head() {
+                log::error!(target: "storage", "Repository {rid} is corrupted: looking up head: {e}");
+                continue;
+            }
+            repos.push(rid);
         }
-        Ok(projects)
+        Ok(repos)
     }
 
     pub fn inspect(&self) -> Result<(), Error> {
-        for proj in self.projects()? {
+        for proj in self.repositories()? {
             let repo = self.repository(proj)?;
 
             for r in repo.raw().references()? {

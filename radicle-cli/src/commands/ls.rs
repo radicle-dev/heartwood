@@ -46,7 +46,7 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let mut table = term::Table::default();
 
-    storage.projects()?.into_iter().for_each(|id| {
+    storage.repositories()?.into_iter().for_each(|id| {
         let Ok(repo) = storage.repository(id) else { return };
         let Ok((_, head)) = repo.head() else { return };
         let Ok(proj) = repo.project_of(profile.id()) else { return };
