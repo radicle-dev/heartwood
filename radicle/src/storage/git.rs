@@ -244,43 +244,6 @@ impl Repository {
         Ok((repo, oid))
     }
 
-    pub fn verify(&self) -> Result<(), VerifyError> {
-        let mut remotes: HashMap<RemoteId, Refs> = self
-            .remotes()?
-            .map(|remote| {
-                let (id, remote) = remote?;
-                Ok((id, remote.refs.into()))
-            })
-            .collect::<Result<_, VerifyError>>()?;
-
-        for entry in self.namespaced_references()? {
-            let (remote_id, refname, oid) = entry?;
-            let remote = remotes
-                .get_mut(&remote_id)
-                .ok_or(VerifyError::InvalidRemote(remote_id))?;
-            let refname = RefString::from(refname);
-            let signed_oid = remote
-                .remove(&refname)
-                .ok_or_else(|| VerifyError::UnknownRef(remote_id, refname.clone()))?;
-
-            if oid != signed_oid {
-                return Err(VerifyError::InvalidRefTarget(remote_id, refname, *oid));
-            }
-        }
-
-        for (remote, refs) in remotes.into_iter() {
-            // The refs that are left in the map, are ones that were signed, but are not
-            // in the repository.
-            if let Some((name, _)) = refs.into_iter().next() {
-                return Err(VerifyError::MissingRef(remote, name));
-            }
-            // Verify identity history of remote.
-            self.identity(&remote)?.verified(self.id)?;
-        }
-
-        Ok(())
-    }
-
     pub fn inspect(&self) -> Result<(), Error> {
         for r in self.backend.references()? {
             let r = r?;
@@ -467,7 +430,40 @@ impl ReadRepository for Repository {
     }
 
     fn verify(&self) -> Result<(), VerifyError> {
-        Repository::verify(self)
+        let mut remotes: HashMap<RemoteId, Refs> = self
+            .remotes()?
+            .map(|remote| {
+                let (id, remote) = remote?;
+                Ok((id, remote.refs.into()))
+            })
+            .collect::<Result<_, VerifyError>>()?;
+
+        for entry in self.namespaced_references()? {
+            let (remote_id, refname, oid) = entry?;
+            let remote = remotes
+                .get_mut(&remote_id)
+                .ok_or(VerifyError::InvalidRemote(remote_id))?;
+            let refname = RefString::from(refname);
+            let signed_oid = remote
+                .remove(&refname)
+                .ok_or_else(|| VerifyError::UnknownRef(remote_id, refname.clone()))?;
+
+            if oid != signed_oid {
+                return Err(VerifyError::InvalidRefTarget(remote_id, refname, *oid));
+            }
+        }
+
+        for (remote, refs) in remotes.into_iter() {
+            // The refs that are left in the map, are ones that were signed, but are not
+            // in the repository.
+            if let Some((name, _)) = refs.into_iter().next() {
+                return Err(VerifyError::MissingRef(remote, name));
+            }
+            // Verify identity history of remote.
+            self.identity(&remote)?.verified(self.id)?;
+        }
+
+        Ok(())
     }
 
     fn reference(
