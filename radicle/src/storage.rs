@@ -243,22 +243,28 @@ impl Remote<Verified> {
     }
 }
 
+/// Read-only operations on a storage instance.
 pub trait ReadStorage {
+    /// Get the storage base path.
     fn path(&self) -> &Path;
+    /// Get an identity document of a repository under a given remote.
     fn get(
         &self,
         remote: &RemoteId,
-        proj: Id,
+        rid: Id,
     ) -> Result<Option<identity::Doc<Verified>>, ProjectError>;
+    /// Get the inventory of repositories hosted under this storage.
     fn inventory(&self) -> Result<Inventory, Error>;
 }
 
+/// Allows access to individual storage repositories.
 pub trait WriteStorage: ReadStorage {
     type Repository: WriteRepository;
 
     fn repository(&self, proj: Id) -> Result<Self::Repository, Error>;
 }
 
+/// Allows read-only access to a repository.
 pub trait ReadRepository {
     /// Return the repository id.
     fn id(&self) -> Id;
@@ -330,9 +336,14 @@ pub trait ReadRepository {
     fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError>;
 }
 
+/// Allows read-write access to a repository.
 pub trait WriteRepository: ReadRepository {
+    /// Set the repository head to the canonical branch.
+    /// This computes the head based on the delegate set.
     fn set_head(&self) -> Result<Oid, ProjectError>;
+    /// Sign the repository's refs under the `refs/rad/sigrefs` branch.
     fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error>;
+    /// Get the underlying git repository.
     fn raw(&self) -> &git2::Repository;
 }
 
