@@ -136,6 +136,16 @@ impl Session {
         matches!(self.state, State::Connected { .. })
     }
 
+    pub fn is_negotiated(&self) -> bool {
+        matches!(
+            self.state,
+            State::Connected {
+                initialized: true,
+                ..
+            }
+        )
+    }
+
     pub fn attempts(&self) -> usize {
         self.attempts
     }
