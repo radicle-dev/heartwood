@@ -512,53 +512,56 @@ where
         let remote = result.remote;
         let rid = result.rid;
         let namespaces = result.namespaces;
+        let initiated = result.initiated;
 
-        log::debug!(
-            target: "service",
-            "Fetched {rid} {remote} (error={:?})", result.result.as_ref().err()
-        );
-
-        let result = match result.result {
-            Ok(updated) => {
-                self.reactor.event(Event::RefsFetched {
-                    remote,
-                    rid,
-                    updated: updated.clone(),
-                });
-                Ok(updated)
-            }
-            Err(err) => {
-                error!(target: "service", "Fetch failed for {rid} from {remote}: {err}");
-
-                if let FetchError::Io(_) = err {
-                    self.reactor
-                        .disconnect(result.remote, DisconnectReason::Fetch(err));
-                    return;
-                } else {
-                    Err(err)
+        if initiated {
+            log::debug!(
+                target: "service",
+                "Fetched {rid} {remote} (error={:?})", result.result.as_ref().err()
+            );
+            let result = match result.result {
+                Ok(updated) => {
+                    self.reactor.event(Event::RefsFetched {
+                        remote,
+                        rid,
+                        updated: updated.clone(),
+                    });
+                    Ok(updated)
                 }
-            }
-        };
+                Err(err) => {
+                    error!(target: "service", "Fetch failed for {rid} from {remote}: {err}");
 
-        if let Some(results) = self.fetch_reqs.get(&rid) {
-            log::debug!(target: "service", "Found existing fetch request, sending result..");
+                    if let FetchError::Io(_) = err {
+                        self.reactor
+                            .disconnect(result.remote, DisconnectReason::Fetch(err));
+                        return;
+                    } else {
+                        Err(err)
+                    }
+                }
+            };
 
-            if results
-                .send(FetchResult {
-                    rid,
-                    remote,
-                    namespaces,
-                    result,
-                })
-                .is_err()
-            {
-                log::error!(target: "service", "Error sending fetch result for {rid}..");
-                self.fetch_reqs.remove(&rid);
+            if let Some(results) = self.fetch_reqs.get(&rid) {
+                log::debug!(target: "service", "Found existing fetch request, sending result..");
+
+                if results
+                    .send(FetchResult {
+                        rid,
+                        initiated,
+                        remote,
+                        namespaces,
+                        result,
+                    })
+                    .is_err()
+                {
+                    log::error!(target: "service", "Error sending fetch result for {rid}..");
+                    self.fetch_reqs.remove(&rid);
+                } else {
+                    log::debug!(target: "service", "Sent fetch result for {rid}..");
+                }
             } else {
-                log::debug!(target: "service", "Sent fetch result for {rid}..");
+                log::debug!(target: "service", "No fetch requests found for {rid}..");
             }
-        } else {
-            log::debug!(target: "service", "No fetch requests found for {rid}..");
         }
 
         if let Some(session) = self.sessions.get_mut(&remote) {

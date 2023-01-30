@@ -61,6 +61,7 @@ impl From<net::SocketAddr> for Address {
 pub struct FetchResult {
     pub rid: Id,
     pub remote: NodeId,
+    pub initiated: bool,
     pub namespaces: Namespaces,
     pub result: Result<Vec<RefUpdate>, FetchError>,
 }

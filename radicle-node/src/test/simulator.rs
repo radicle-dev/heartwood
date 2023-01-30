@@ -621,6 +621,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             remote: fetch.remote,
                             input: Input::Fetched(Arc::new(FetchResult {
                                 rid: fetch.repo,
+                                initiated: fetch.initiated,
                                 remote: fetch.remote,
                                 namespaces: fetch.namespaces,
                                 result: Err(FetchError::Io(io::ErrorKind::Other.into())),
@@ -635,6 +636,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             remote: fetch.remote,
                             input: Input::Fetched(Arc::new(FetchResult {
                                 rid: fetch.repo,
+                                initiated: fetch.initiated,
                                 remote: fetch.remote,
                                 namespaces: fetch.namespaces,
                                 result: Ok(vec![]),

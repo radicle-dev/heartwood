@@ -81,6 +81,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             rid: fetch.repo,
             remote: fetch.remote,
             namespaces: fetch.namespaces,
+            initiated: fetch.initiated,
             result,
         };
         log::debug!(target: "worker", "Sending response back to service..");
