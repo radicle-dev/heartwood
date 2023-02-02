@@ -33,7 +33,7 @@ type SessionId = String;
 #[derive(Clone)]
 pub struct Context {
     profile: Arc<Profile>,
-    sessions: Arc<RwLock<HashMap<SessionId, auth::AuthState>>>,
+    sessions: Arc<RwLock<HashMap<SessionId, auth::Session>>>,
 }
 
 impl Context {

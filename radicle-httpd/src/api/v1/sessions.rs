@@ -1,4 +1,3 @@
-use std::convert::Into;
 use std::iter::repeat_with;
 
 use axum::extract::State;
@@ -46,17 +45,20 @@ async fn session_create_handler(State(ctx): State<Context>) -> impl IntoResponse
         .checked_add(UNAUTHORIZED_SESSIONS_EXPIRATION)
         .unwrap();
     let session = Session {
-        status: String::from("unauthorized"),
+        status: AuthState::Unauthorized,
         public_key: *signer.public_key(),
         issued_at: DateTime(OffsetDateTime::now_utc()),
         expires_at: DateTime(expiration_time),
     };
     let mut sessions = ctx.sessions.write().await;
-    sessions.insert(session_id.clone(), AuthState::Unauthorized(session));
+    sessions.insert(session_id.clone(), session.clone());
 
-    Ok::<_, Error>(Json(
-        json!({"sessionId": session_id, "publicKey": signer.public_key()}),
-    ))
+    Ok::<_, Error>(Json(json!({
+        "sessionId": session_id,
+        "publicKey": session.public_key,
+        "issuedAt": session.issued_at,
+        "expiresAt": session.expires_at
+    })))
 }
 
 /// Get a session.
@@ -66,12 +68,14 @@ async fn session_handler(
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
     let sessions = ctx.sessions.read().await;
-    let auth_state = sessions.get(&session_id).ok_or(Error::NotFound)?;
-    let session = Session::from(auth_state.clone());
+    let session = sessions.get(&session_id).ok_or(Error::NotFound)?;
 
-    Ok::<_, Error>(Json(
-        json!({"publicKey": session.public_key, "issuedAt": session.issued_at, "expiresAt": session.expires_at}),
-    ))
+    Ok::<_, Error>(Json(json!({
+        "status": session.status,
+        "publicKey": session.public_key,
+        "issuedAt": session.issued_at,
+        "expiresAt": session.expires_at
+    })))
 }
 
 /// Update session.
@@ -83,11 +87,11 @@ async fn session_signin_handler(
 ) -> impl IntoResponse {
     let mut sessions = ctx.sessions.write().await;
     let session = sessions.get(&session_id).ok_or(Error::NotFound)?;
-    if let AuthState::Unauthorized(s) = session {
-        if s.public_key != request.pk {
+    if session.status == AuthState::Unauthorized {
+        if session.public_key != request.pk {
             return Err(Error::Auth("Invalid public key"));
         }
-        if s.expires_at <= DateTime(OffsetDateTime::now_utc()) {
+        if session.expires_at <= DateTime(OffsetDateTime::now_utc()) {
             return Err(Error::Auth("Session expired"));
         }
         let payload = format!("{}:{}", session_id, request.pk);
@@ -99,14 +103,14 @@ async fn session_signin_handler(
             .checked_add(AUTHORIZED_SESSIONS_EXPIRATION)
             .unwrap();
         let session = Session {
-            status: String::from("authorized"),
+            status: AuthState::Authorized,
             public_key: request.pk,
-            issued_at: DateTime(OffsetDateTime::now_utc()),
+            issued_at: session.issued_at.to_owned(),
             expires_at: DateTime(expiration_time),
         };
-        sessions.insert(session_id.clone(), AuthState::Authorized(session));
+        sessions.insert(session_id.clone(), session);
 
-        return Ok::<_, Error>(());
+        return Ok::<_, Error>(Json(json!({ "success": true })));
     }
 
     Err(Error::Auth("Session already authorized"))

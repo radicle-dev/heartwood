@@ -11,25 +11,17 @@ impl Serialize for DateTime {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum AuthState {
-    Authorized(Session),
-    Unauthorized(Session),
+    Authorized,
+    Unauthorized,
 }
 
 #[derive(Clone)]
 pub struct Session {
-    pub status: String,
+    pub status: AuthState,
     pub public_key: PublicKey,
     pub issued_at: DateTime,
     pub expires_at: DateTime,
-}
-
-impl From<AuthState> for Session {
-    fn from(other: AuthState) -> Self {
-        match other {
-            AuthState::Authorized(s) => s,
-            AuthState::Unauthorized(s) => s,
-        }
-    }
 }
