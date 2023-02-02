@@ -10,6 +10,19 @@ use radicle_node::prelude::{Address, NodeId};
 use radicle_node::Runtime;
 use radicle_node::{logger, service};
 
+pub const HELP_MSG: &str = r#"
+Usage
+
+   radicle-node [<option>...]
+
+Options
+
+    --connect          <peer>        Connect to the given peer address on start
+    --external-address <address>     Publicly accessible address
+    --help                           Print help
+    --listen           <address>     Address to listen on
+"#;
+
 #[derive(Debug)]
 struct Options {
     connect: Vec<(NodeId, Address)>,
@@ -56,7 +69,7 @@ impl Options {
                     listen.push(addr);
                 }
                 Long("help") => {
-                    println!("usage: radicle-node [--connect <addr>]..");
+                    println!("{HELP_MSG}");
                     process::exit(0);
                 }
                 _ => anyhow::bail!(arg.unexpected()),
