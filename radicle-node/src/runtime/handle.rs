@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use crate::crypto::Signer;
 use crate::identity::Id;
-use crate::node::FetchLookup;
+use crate::node::FetchResult;
 use crate::profile::Home;
 use crate::service;
 use crate::service::{CommandError, QueryState};
@@ -107,6 +107,7 @@ impl<G: Signer + EcSign + 'static> Handle<G> {
 impl<G: Signer + EcSign + 'static> radicle::node::Handle for Handle<G> {
     type Sessions = Sessions;
     type Error = Error;
+    type FetchResult = FetchResult;
 
     fn is_running(&self) -> bool {
         true
@@ -118,9 +119,15 @@ impl<G: Signer + EcSign + 'static> radicle::node::Handle for Handle<G> {
         Ok(())
     }
 
-    fn fetch(&mut self, id: Id) -> Result<FetchLookup, Error> {
+    fn seeds(&mut self, id: Id) -> Result<Vec<NodeId>, Self::Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::Fetch(id, sender))?;
+        self.command(service::Command::Seeds(id, sender))?;
+        receiver.recv().map_err(Error::from)
+    }
+
+    fn fetch(&mut self, id: Id, from: NodeId) -> Result<FetchResult, Error> {
+        let (sender, receiver) = chan::bounded(1);
+        self.command(service::Command::Fetch(id, from, sender))?;
         receiver.recv().map_err(Error::from)
     }
 

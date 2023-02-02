@@ -117,7 +117,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     if options.fetch {
-        node.fetch(rid)?;
+        // TODO: Run a proper fetch here.
+        term::warning("fetch after track is not yet supported");
     }
 
     Ok(())

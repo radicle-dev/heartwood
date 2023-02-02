@@ -10,8 +10,7 @@ use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::Signer;
 use radicle::git::refname;
 use radicle::identity::Id;
-use radicle::node::FetchLookup;
-use radicle::node::Handle as _;
+use radicle::node::{FetchResult, Handle as _};
 use radicle::profile::Home;
 use radicle::storage::{ReadRepository, ReadStorage, WriteStorage};
 use radicle::test::fixtures;
@@ -348,23 +347,21 @@ fn test_replication() {
     let tracked = alice.handle.track_repo(acme).unwrap();
     assert!(tracked);
 
-    let (seeds, results) = match alice.handle.fetch(acme).unwrap() {
-        FetchLookup::Found { seeds, results } => (seeds, results),
-        other => panic!("Fetch lookup failed, got {other:?}"),
-    };
-    assert_eq!(seeds, nonempty::NonEmpty::new(bob.id));
+    let seeds = alice.handle.seeds(acme).unwrap();
+    assert!(seeds.contains(&bob.id));
 
-    let result = results.recv_timeout(Duration::from_secs(6)).unwrap();
-    let updated = match result.result {
-        Ok(updated) => updated,
-        Err(err) => {
-            panic!("Fetch failed from {}: {err}", result.remote);
+    let result = alice.handle.fetch(acme, bob.id).unwrap();
+    assert!(result.is_success());
+
+    let updated = match result {
+        FetchResult::Success { updated } => updated,
+        FetchResult::Failed { reason } => {
+            panic!("Fetch failed from {}: {reason}", bob.id);
         }
     };
-    assert_eq!(result.remote, bob.id);
-    assert_eq!(updated, vec![]);
+    assert_eq!(*updated, vec![]);
 
-    log::debug!(target: "test", "Fetch complete with {}", result.remote);
+    log::debug!(target: "test", "Fetch complete with {}", bob.id);
 
     let inventory = alice.handle.inventory().unwrap();
     let alice_repo = alice.storage.repository(acme).unwrap();
@@ -404,13 +401,12 @@ fn test_clone() {
     transport::local::register(alice.storage.clone());
 
     let _ = alice.handle.track_repo(acme).unwrap();
-    let lookup = alice.handle.fetch(acme).unwrap();
+    let seeds = alice.handle.seeds(acme).unwrap();
+    assert!(seeds.contains(&bob.id));
 
-    match lookup {
-        // Drain the channel.
-        FetchLookup::Found { seeds, results } => for _ in results.iter().take(seeds.len()) {},
-        other => panic!("Unexpected fetch lookup: {other:?}"),
-    }
+    let result = alice.handle.fetch(acme, bob.id).unwrap();
+    assert!(result.is_success());
+
     rad::fork(acme, &alice.signer, &alice.storage).unwrap();
 
     let working = rad::checkout(
@@ -455,15 +451,10 @@ fn test_fetch_up_to_date() {
     transport::local::register(alice.storage.clone());
 
     let _ = alice.handle.track_repo(acme).unwrap();
-
-    match alice.handle.fetch(acme).unwrap() {
-        FetchLookup::Found { seeds, results } => for _ in results.iter().take(seeds.len()) {},
-        other => panic!("Unexpected fetch lookup: {other:?}"),
-    }
+    let result = alice.handle.fetch(acme, bob.id).unwrap();
+    assert!(result.is_success());
 
     // Fetch again! This time, everything's up to date.
-    match alice.handle.fetch(acme).unwrap() {
-        FetchLookup::Found { seeds, results } => for _ in results.iter().take(seeds.len()) {},
-        other => panic!("Unexpected fetch lookup: {other:?}"),
-    }
+    let result = alice.handle.fetch(acme, bob.id).unwrap();
+    assert_eq!(result.success(), Some(vec![]));
 }

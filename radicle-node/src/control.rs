@@ -8,10 +8,12 @@ use std::path::PathBuf;
 use std::{io, net};
 
 use radicle::node::Handle;
+use serde_json as json;
 
 use crate::identity::Id;
 use crate::node;
-use crate::node::FetchLookup;
+use crate::node::FetchResult;
+use crate::node::NodeId;
 use crate::runtime;
 
 #[derive(thiserror::Error, Debug)]
@@ -23,7 +25,7 @@ pub enum Error {
 }
 
 /// Listen for commands on the control socket, and process them.
-pub fn listen<H: Handle<Error = runtime::HandleError>>(
+pub fn listen<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
     listener: UnixListener,
     mut handle: H,
 ) -> Result<(), Error> {
@@ -34,8 +36,8 @@ pub fn listen<H: Handle<Error = runtime::HandleError>>(
             Ok(mut stream) => {
                 log::debug!(target: "control", "Accepted new client on control socket..");
 
-                if let Err(e) = drain(&stream, &mut handle) {
-                    if let DrainError::Shutdown = e {
+                if let Err(e) = command(&stream, &mut handle) {
+                    if let CommandError::Shutdown = e {
                         log::debug!(target: "control", "Shutdown requested..");
                         // Channel might already be disconnected if shutdown
                         // came from somewhere else. Ignore errors.
@@ -57,11 +59,13 @@ pub fn listen<H: Handle<Error = runtime::HandleError>>(
 }
 
 #[derive(thiserror::Error, Debug)]
-enum DrainError {
+enum CommandError {
     #[error("invalid command argument `{0}`, {1}")]
     InvalidCommandArg(String, Box<dyn std::error::Error>),
     #[error("unknown command `{0}`")]
     UnknownCommand(String),
+    #[error("serialization failed: {0}")]
+    Serialization(#[from] json::Error),
     #[error("runtime error: {0}")]
     Runtime(#[from] runtime::HandleError),
     #[error("i/o error: {0}")]
@@ -70,10 +74,10 @@ enum DrainError {
     Shutdown,
 }
 
-fn drain<H: Handle<Error = runtime::HandleError>>(
+fn command<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
     stream: &UnixStream,
     handle: &mut H,
-) -> Result<(), DrainError> {
+) -> Result<(), CommandError> {
     let mut reader = BufReader::new(stream);
     let mut writer = LineWriter::new(stream);
     let mut line = String::new();
@@ -86,14 +90,18 @@ fn drain<H: Handle<Error = runtime::HandleError>>(
 
     // TODO: refactor to include helper
     match cmd.split_once(' ') {
-        Some(("fetch", arg)) => match arg.parse() {
-            Ok(id) => {
-                fetch(id, LineWriter::new(stream), handle)?;
+        Some(("fetch", args)) => {
+            if let Some((rid, node)) = args.split_once(' ') {
+                let rid: Id = rid
+                    .parse()
+                    .map_err(|e| CommandError::InvalidCommandArg(rid.to_owned(), Box::new(e)))?;
+                let node: NodeId = node
+                    .parse()
+                    .map_err(|e| CommandError::InvalidCommandArg(node.to_owned(), Box::new(e)))?;
+
+                fetch(rid, node, LineWriter::new(stream), handle)?;
             }
-            Err(err) => {
-                return Err(DrainError::InvalidCommandArg(arg.to_owned(), Box::new(err)));
-            }
-        },
+        }
         Some(("track-repo", arg)) => match arg.parse() {
             Ok(id) => match handle.track_repo(id) {
                 Ok(updated) => {
@@ -104,11 +112,14 @@ fn drain<H: Handle<Error = runtime::HandleError>>(
                     }
                 }
                 Err(e) => {
-                    return Err(DrainError::Runtime(e));
+                    return Err(CommandError::Runtime(e));
                 }
             },
             Err(err) => {
-                return Err(DrainError::InvalidCommandArg(arg.to_owned(), Box::new(err)));
+                return Err(CommandError::InvalidCommandArg(
+                    arg.to_owned(),
+                    Box::new(err),
+                ));
             }
         },
         Some(("untrack-repo", arg)) => match arg.parse() {
@@ -121,11 +132,14 @@ fn drain<H: Handle<Error = runtime::HandleError>>(
                     }
                 }
                 Err(e) => {
-                    return Err(DrainError::Runtime(e));
+                    return Err(CommandError::Runtime(e));
                 }
             },
             Err(err) => {
-                return Err(DrainError::InvalidCommandArg(arg.to_owned(), Box::new(err)));
+                return Err(CommandError::InvalidCommandArg(
+                    arg.to_owned(),
+                    Box::new(err),
+                ));
             }
         },
         Some(("track-node", args)) => {
@@ -144,11 +158,11 @@ fn drain<H: Handle<Error = runtime::HandleError>>(
                         }
                     }
                     Err(e) => {
-                        return Err(DrainError::Runtime(e));
+                        return Err(CommandError::Runtime(e));
                     }
                 },
                 Err(err) => {
-                    return Err(DrainError::InvalidCommandArg(
+                    return Err(CommandError::InvalidCommandArg(
                         args.to_owned(),
                         Box::new(err),
                     ));
@@ -165,30 +179,35 @@ fn drain<H: Handle<Error = runtime::HandleError>>(
                     }
                 }
                 Err(e) => {
-                    return Err(DrainError::Runtime(e));
+                    return Err(CommandError::Runtime(e));
                 }
             },
             Err(err) => {
-                return Err(DrainError::InvalidCommandArg(arg.to_owned(), Box::new(err)));
+                return Err(CommandError::InvalidCommandArg(
+                    arg.to_owned(),
+                    Box::new(err),
+                ));
             }
         },
         Some(("announce-refs", arg)) => match arg.parse() {
             Ok(id) => {
                 if let Err(e) = handle.announce_refs(id) {
-                    return Err(DrainError::Runtime(e));
+                    return Err(CommandError::Runtime(e));
                 }
                 writeln!(writer, "{}", node::RESPONSE_OK)?;
             }
             Err(err) => {
-                return Err(DrainError::InvalidCommandArg(arg.to_owned(), Box::new(err)));
+                return Err(CommandError::InvalidCommandArg(
+                    arg.to_owned(),
+                    Box::new(err),
+                ));
             }
         },
-        Some((cmd, _)) => return Err(DrainError::UnknownCommand(cmd.to_owned())),
+        Some((cmd, _)) => return Err(CommandError::UnknownCommand(cmd.to_owned())),
 
         // Commands with no arguments.
         None => match cmd {
             "status" => {
-                println!("RECEIVED 'status'");
                 writeln!(writer, "{}", node::RESPONSE_OK).ok();
             }
             "routing" => match handle.routing() {
@@ -197,7 +216,7 @@ fn drain<H: Handle<Error = runtime::HandleError>>(
                         writeln!(writer, "{id} {seed}",)?;
                     }
                 }
-                Err(e) => return Err(DrainError::Runtime(e)),
+                Err(e) => return Err(CommandError::Runtime(e)),
             },
             "inventory" => match handle.inventory() {
                 Ok(c) => {
@@ -205,68 +224,31 @@ fn drain<H: Handle<Error = runtime::HandleError>>(
                         writeln!(writer, "{id}")?;
                     }
                 }
-                Err(e) => return Err(DrainError::Runtime(e)),
+                Err(e) => return Err(CommandError::Runtime(e)),
             },
             "shutdown" => {
-                return Err(DrainError::Shutdown);
+                return Err(CommandError::Shutdown);
             }
             _ => {
-                return Err(DrainError::UnknownCommand(line));
+                return Err(CommandError::UnknownCommand(line));
             }
         },
     }
     Ok(())
 }
 
-fn fetch<W: Write, H: Handle<Error = runtime::HandleError>>(
+fn fetch<W: Write, H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
     id: Id,
+    node: NodeId,
     mut writer: W,
     handle: &mut H,
-) -> Result<(), DrainError> {
-    match handle.fetch(id) {
+) -> Result<(), CommandError> {
+    match handle.fetch(id, node) {
+        Ok(result) => {
+            json::to_writer(&mut writer, &result)?;
+        }
         Err(e) => {
-            return Err(DrainError::Runtime(e));
-        }
-        Ok(FetchLookup::Found { seeds, results }) => {
-            let seeds = Vec::from(seeds);
-
-            writeln!(
-                writer,
-                "ok: found {} seeds for {} ({:?})", // TODO: Better output
-                seeds.len(),
-                &id,
-                &seeds,
-            )?;
-
-            for result in results
-                .iter()
-                .take(results.capacity().unwrap_or(seeds.len()))
-            {
-                match result.result {
-                    Ok(updated) => {
-                        writeln!(writer, "ok: {id} fetched from {}", result.remote)?;
-                        for update in updated {
-                            writeln!(writer, "{update}")?;
-                        }
-                    }
-                    Err(err) => {
-                        writeln!(
-                            writer,
-                            "error: {id} failed to fetch from {}: {err}",
-                            result.remote
-                        )?;
-                    }
-                }
-            }
-        }
-        Ok(FetchLookup::NotFound) => {
-            writeln!(writer, "error: {id} was not found")?;
-        }
-        Ok(FetchLookup::NotTracking) => {
-            writeln!(writer, "error: {id} is not tracked")?;
-        }
-        Ok(FetchLookup::Error(err)) => {
-            writeln!(writer, "error: {err}")?;
+            return Err(CommandError::Runtime(e));
         }
     }
     Ok(())

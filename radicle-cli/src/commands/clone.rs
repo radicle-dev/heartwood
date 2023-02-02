@@ -10,7 +10,7 @@ use radicle::git::raw;
 use radicle::identity::doc;
 use radicle::identity::doc::{DocError, Id};
 use radicle::node;
-use radicle::node::{FetchLookup, Handle};
+use radicle::node::{FetchResult, Handle as _, Node};
 use radicle::prelude::*;
 use radicle::rad;
 use radicle::storage;
@@ -116,11 +116,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 #[derive(Error, Debug)]
-pub enum CloneError<H: node::Handle> {
+pub enum CloneError {
     #[error("node: {0}")]
     Node(#[from] node::Error),
-    #[error("fetch: {0}")]
-    Fetch(#[from] node::FetchError),
     #[error("fork: {0}")]
     Fork(#[from] rad::ForkError),
     #[error("storage: {0}")]
@@ -133,50 +131,45 @@ pub enum CloneError<H: node::Handle> {
     Payload(#[from] doc::PayloadError),
     #[error("project error: {0}")]
     Project(#[from] ProjectError),
-    #[error("handle error: {0}")]
-    Handle(H::Error),
 }
 
-pub fn clone<G: Signer, H: Handle>(
+pub fn clone<G: Signer>(
     id: Id,
     signer: &G,
     storage: &Storage,
-    node: &mut H,
-) -> Result<(raw::Repository, Doc<Verified>, Project), CloneError<H>> {
+    node: &mut Node,
+) -> Result<(raw::Repository, Doc<Verified>, Project), CloneError> {
     let me = *signer.public_key();
 
-    // Track & fetch project.
-    if node.track_repo(id).map_err(CloneError::Handle)? {
+    // Track.
+    if node.track_repo(id)? {
         term::success!(
             "Tracking relationship restablished for {}",
             term::format::tertiary(id)
         );
     }
 
-    let spinner = term::spinner(format!("Fetching {}..", term::format::tertiary(id)));
-    match node.fetch(id).map_err(CloneError::Handle)? {
-        FetchLookup::Found { seeds, results } => {
-            // TODO: If none of them succeeds, output an error. Otherwise tell the caller
-            // how many succeeded.
-            for result in results.iter().take(seeds.len()) {
-                match &*result {
-                    Ok(_updates) => {}
-                    Err(_err) => {}
-                }
+    // Get seeds.
+    let seeds = node.seeds(id)?;
+    // Fetch from all seeds.
+    for seed in seeds {
+        let spinner = term::spinner(format!(
+            "Fetching {} from {}..",
+            term::format::tertiary(id),
+            term::format::tertiary(term::format::node(&seed))
+        ));
+
+        // TODO: If none of them succeeds, output an error. Otherwise tell the caller
+        // how many succeeded.
+        match node.fetch(id, seed)? {
+            FetchResult::Success { .. } => {
+                spinner.finish();
+            }
+            FetchResult::Failed { reason } => {
+                spinner.error(reason);
             }
         }
-        FetchLookup::NotFound => {
-            // TODO: Return error.
-        }
-        FetchLookup::NotTracking => {
-            // SAFETY: Since we track it above, this shouldn't trigger unless there's a bug.
-            panic!("clone: Repository is not tracked");
-        }
-        FetchLookup::Error(err) => {
-            return Err(err.into());
-        }
     }
-    spinner.finish();
 
     // Create a local fork of the project, under our own id.
     {

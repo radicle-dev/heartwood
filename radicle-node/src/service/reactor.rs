@@ -29,7 +29,7 @@ pub enum Io {
 #[derive(Debug, Clone)]
 pub struct Fetch {
     /// Repo to fetch.
-    pub repo: Id,
+    pub rid: Id,
     /// Namespaces to fetch.
     pub namespaces: Namespaces,
     /// Remote peer we are interacting with.
@@ -87,9 +87,9 @@ impl Reactor {
         self.io.push_back(Io::Wakeup(after));
     }
 
-    pub fn fetch(&mut self, remote: NodeId, repo: Id, namespaces: Namespaces, initiated: bool) {
+    pub fn fetch(&mut self, remote: NodeId, rid: Id, namespaces: Namespaces, initiated: bool) {
         self.io.push_back(Io::Fetch(Fetch {
-            repo,
+            rid,
             namespaces,
             remote,
             initiated,

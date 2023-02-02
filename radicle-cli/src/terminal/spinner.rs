@@ -32,19 +32,19 @@ impl Spinner {
         self.set_failed();
     }
 
-    pub fn error(self, err: anyhow::Error) -> anyhow::Error {
-        self.progress.finish_and_clear();
-        term::eprintln(style("!!").red().reverse(), style(&err).red());
+    pub fn error(mut self, msg: impl ToString) {
+        let msg = msg.to_string();
 
-        err
+        self.message = format!("{} ({})", self.message, msg);
+        self.set_failed();
     }
 
     pub fn clear(self) {
         self.progress.finish_and_clear();
     }
 
-    pub fn message(&mut self, msg: impl Into<String>) {
-        let msg = msg.into();
+    pub fn message(&mut self, msg: impl ToString) {
+        let msg = msg.to_string();
 
         self.progress.set_message(msg.clone());
         self.message = msg;

@@ -18,7 +18,6 @@ use crossbeam_channel as chan;
 use fastrand::Rng;
 use localtime::{LocalDuration, LocalTime};
 use log::*;
-use nonempty::NonEmpty;
 
 use crate::address;
 use crate::address::AddressBook;
@@ -27,7 +26,7 @@ use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::identity::{Doc, Id};
 use crate::node;
-use crate::node::{Address, Features, FetchError, FetchLookup, FetchResult};
+use crate::node::{Address, Features};
 use crate::prelude::*;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
@@ -35,6 +34,8 @@ use crate::service::session::Protocol;
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteStorage};
 use crate::storage::{Namespaces, ReadStorage};
+use crate::worker;
+use crate::worker::FetchError;
 use crate::Link;
 
 pub use crate::node::NodeId;
@@ -105,8 +106,10 @@ pub enum Command {
     AnnounceRefs(Id),
     /// Connect to node with the given address.
     Connect(NodeId, Address),
+    /// Lookup seeds for the given repository in the routing table.
+    Seeds(Id, chan::Sender<Vec<NodeId>>),
     /// Fetch the given repository from the network.
-    Fetch(Id, chan::Sender<FetchLookup>),
+    Fetch(Id, NodeId, chan::Sender<node::FetchResult>),
     /// Track the given repository.
     TrackRepo(Id, chan::Sender<bool>),
     /// Untrack the given repository.
@@ -124,7 +127,8 @@ impl fmt::Debug for Command {
         match self {
             Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({id})"),
             Self::Connect(id, addr) => write!(f, "Connect({id}, {addr})"),
-            Self::Fetch(id, _) => write!(f, "Fetch({id})"),
+            Self::Seeds(id, _) => write!(f, "Seeds({id})"),
+            Self::Fetch(id, node, _) => write!(f, "Fetch({id}, {node})"),
             Self::TrackRepo(id, _) => write!(f, "TrackRepo({id})"),
             Self::UntrackRepo(id, _) => write!(f, "UntrackRepo({id})"),
             Self::TrackNode(id, _, _) => write!(f, "TrackNode({id})"),
@@ -172,7 +176,7 @@ pub struct Service<R, A, S, G> {
     /// Whether our local inventory no long represents what we have announced to the network.
     out_of_sync: bool,
     /// Fetch requests initiated by user, which are waiting for results.
-    fetch_reqs: HashMap<Id, chan::Sender<FetchResult>>,
+    fetch_reqs: HashMap<Id, chan::Sender<node::FetchResult>>,
     /// Current tracked repository bloom filter.
     filter: Filter,
     /// Last time the service was idle.
@@ -394,16 +398,7 @@ where
 
         match cmd {
             Command::Connect(id, addr) => self.reactor.connect(id, addr),
-            Command::Fetch(rid, resp) => {
-                if !self
-                    .tracking
-                    .is_repo_tracked(&rid)
-                    .expect("Service::command: error accessing tracking configuration")
-                {
-                    resp.send(FetchLookup::NotTracking).ok();
-                    return;
-                }
-
+            Command::Seeds(rid, resp) => {
                 let (connected, unconnected) = match self.routing.get(&rid) {
                     Ok(seeds) => seeds
                         .into_iter()
@@ -411,47 +406,30 @@ where
                         .partition::<Vec<_>, _>(|node| self.sessions.is_negotiated(node)),
                     Err(err) => {
                         error!(target: "service", "Error reading routing table for {rid}: {err}");
-                        resp.send(FetchLookup::NotFound).ok();
+                        drop(resp);
 
                         return;
                     }
                 };
-
                 debug!(
                     target: "service",
                     "Found {} connected seed(s) and {} unconnected seed(s) for {}",
                     connected.len(), unconnected.len(), rid
                 );
-
-                let Some(seeds) = NonEmpty::from_vec(connected) else {
-                    warn!(target: "service", "No connected seeds found for {}", rid);
-                    resp.send(FetchLookup::NotFound).ok();
-
-                    // TODO: Establish connections to unconnected seeds, and retry.
-                    // TODO: Fetch requests should be queued and re-checked to see if they can
-                    //       be fulfilled everytime a new node connects.
-                    return;
-                };
-
-                let (results_send, results) = chan::bounded(seeds.len());
-                resp.send(FetchLookup::Found {
-                    seeds: seeds.clone(),
-                    results,
-                })
-                .ok();
-
-                self.fetch_reqs.insert(rid, results_send);
-
-                // TODO: Limit the number of seeds we fetch from? Randomize?
-                for seed in seeds {
-                    self.fetch(rid, &seed);
-                }
+                resp.send(connected).ok();
+            }
+            Command::Fetch(rid, seed, resp) => {
+                // TODO: Establish connections to unconnected seeds, and retry.
+                // TODO: Fetch requests should be queued and re-checked to see if they can
+                //       be fulfilled everytime a new node connects.
+                self.fetch_reqs.insert(rid, resp);
+                self.fetch(rid, &seed);
             }
             Command::TrackRepo(id, resp) => {
                 let tracked = self
                     .track_repo(&id, tracking::Scope::All)
                     .expect("Service::command: error tracking repository");
-                // TODO: Try to fetch project if we weren't tracking it.
+                // TODO: Try to fetch project if we weren't tracking it before.
                 resp.send(tracked).ok();
             }
             Command::UntrackRepo(id, resp) => {
@@ -508,11 +486,10 @@ where
         }
     }
 
-    pub fn fetched(&mut self, result: FetchResult) {
-        let remote = result.remote;
-        let rid = result.rid;
-        let namespaces = result.namespaces;
-        let initiated = result.initiated;
+    pub fn fetched(&mut self, result: worker::FetchResult) {
+        let remote = result.fetch.remote;
+        let rid = result.fetch.rid;
+        let initiated = result.fetch.initiated;
 
         if initiated {
             log::debug!(
@@ -533,7 +510,7 @@ where
 
                     if let FetchError::Io(_) = err {
                         self.reactor
-                            .disconnect(result.remote, DisconnectReason::Fetch(err));
+                            .disconnect(remote, DisconnectReason::Fetch(err));
                         return;
                     } else {
                         Err(err)
@@ -544,16 +521,7 @@ where
             if let Some(results) = self.fetch_reqs.get(&rid) {
                 log::debug!(target: "service", "Found existing fetch request, sending result..");
 
-                if results
-                    .send(FetchResult {
-                        rid,
-                        initiated,
-                        remote,
-                        namespaces,
-                        result,
-                    })
-                    .is_err()
-                {
+                if results.send(node::FetchResult::from(result)).is_err() {
                     log::error!(target: "service", "Error sending fetch result for {rid}..");
                     self.fetch_reqs.remove(&rid);
                 } else {

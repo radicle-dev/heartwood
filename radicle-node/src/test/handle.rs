@@ -4,10 +4,11 @@ use std::sync::{Arc, Mutex};
 use crossbeam_channel as chan;
 
 use crate::identity::Id;
-use crate::node::FetchLookup;
+use crate::node::FetchResult;
 use crate::runtime::HandleError;
 use crate::service;
 use crate::service::NodeId;
+use crate::storage::RefUpdate;
 
 #[derive(Default, Clone)]
 pub struct Handle {
@@ -19,6 +20,7 @@ pub struct Handle {
 impl radicle::node::Handle for Handle {
     type Error = HandleError;
     type Sessions = service::Sessions;
+    type FetchResult = FetchResult;
 
     fn is_running(&self) -> bool {
         true
@@ -28,8 +30,12 @@ impl radicle::node::Handle for Handle {
         unimplemented!();
     }
 
-    fn fetch(&mut self, _id: Id) -> Result<FetchLookup, Self::Error> {
-        Ok(FetchLookup::NotFound)
+    fn seeds(&mut self, _id: Id) -> Result<Vec<NodeId>, Self::Error> {
+        unimplemented!();
+    }
+
+    fn fetch(&mut self, _id: Id, _from: NodeId) -> Result<FetchResult, Self::Error> {
+        Ok(FetchResult::from(Ok::<Vec<RefUpdate>, Self::Error>(vec![])))
     }
 
     fn track_repo(&mut self, id: Id) -> Result<bool, Self::Error> {

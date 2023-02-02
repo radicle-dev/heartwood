@@ -156,7 +156,7 @@ impl Peer {
     fn upgraded(&mut self) -> Fetch {
         if let Self::Upgrading { fetch, id, link } = self {
             let fetch = fetch.clone();
-            log::debug!(target: "wire", "Peer {id} upgraded for fetch {}", fetch.repo);
+            log::debug!(target: "wire", "Peer {id} upgraded for fetch {}", fetch.rid);
 
             *self = Self::Upgraded {
                 id: *id,

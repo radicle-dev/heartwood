@@ -14,13 +14,13 @@ use log::*;
 
 use crate::crypto::Signer;
 use crate::git::raw as git;
-use crate::node::{FetchError, FetchResult};
 use crate::prelude::Address;
 use crate::service::reactor::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
 use crate::storage::{Namespaces, RefUpdate};
 use crate::storage::{WriteRepository, WriteStorage};
 use crate::test::peer::Service;
+use crate::worker::{FetchError, FetchResult};
 use crate::Link;
 
 /// Minimum latency between peers.
@@ -112,7 +112,7 @@ impl fmt::Display for Scheduled {
                 write!(
                     f,
                     "{} <~ {} ({}): FetchCompleted",
-                    self.node, result.remote, result.rid
+                    self.node, result.fetch.remote, result.fetch.rid
                 )
             }
         }
@@ -413,9 +413,14 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     }
                     Input::Fetched(result) => {
                         let result = Arc::try_unwrap(result).unwrap();
-                        let mut repo = p.storage().repository(result.rid).unwrap();
+                        let mut repo = p.storage().repository(result.fetch.rid).unwrap();
 
-                        fetch(&mut repo, &result.remote, result.namespaces.clone()).unwrap();
+                        fetch(
+                            &mut repo,
+                            &result.fetch.remote,
+                            result.fetch.namespaces.clone(),
+                        )
+                        .unwrap();
                         p.fetched(result);
                     }
                 }
@@ -617,10 +622,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             node,
                             remote: fetch.remote,
                             input: Input::Fetched(Arc::new(FetchResult {
-                                rid: fetch.repo,
-                                initiated: fetch.initiated,
-                                remote: fetch.remote,
-                                namespaces: fetch.namespaces,
+                                fetch,
                                 result: Err(FetchError::Io(io::ErrorKind::Other.into())),
                             })),
                         },
@@ -632,10 +634,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             node,
                             remote: fetch.remote,
                             input: Input::Fetched(Arc::new(FetchResult {
-                                rid: fetch.repo,
-                                initiated: fetch.initiated,
-                                remote: fetch.remote,
-                                namespaces: fetch.namespaces,
+                                fetch,
                                 result: Ok(vec![]),
                             })),
                         },

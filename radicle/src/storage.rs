@@ -6,7 +6,7 @@ use std::ops::Deref;
 use std::path::Path;
 use std::{fmt, io};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crypto::{PublicKey, Signer, Unverified, Verified};
@@ -92,7 +92,8 @@ pub enum FetchError {
 pub type RemoteId = PublicKey;
 
 /// An update to a reference.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum RefUpdate {
     Updated { name: RefString, old: Oid, new: Oid },
     Created { name: RefString, oid: Oid },

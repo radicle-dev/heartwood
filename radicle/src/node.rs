@@ -1,21 +1,20 @@
 mod features;
 
-use amplify::WrapperMut;
 use std::io::{BufRead, BufReader, Write};
-use std::ops::Deref;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::{io, net};
 
+use amplify::WrapperMut;
 use crossbeam_channel as chan;
 use cyphernet::addr::{HostName, NetAddr};
-use nonempty::NonEmpty;
+use serde::{Deserialize, Serialize};
+use serde_json as json;
 
 use crate::crypto::PublicKey;
-use crate::git;
 use crate::identity::Id;
-use crate::storage;
-use crate::storage::{Namespaces, RefUpdate};
+use crate::storage::RefUpdate;
 
 pub use features::Features;
 
@@ -55,55 +54,35 @@ impl From<net::SocketAddr> for Address {
     }
 }
 
-/// Result of a fetch request from a specific seed.
-#[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-pub struct FetchResult {
-    pub rid: Id,
-    pub remote: NodeId,
-    pub initiated: bool,
-    pub namespaces: Namespaces,
-    pub result: Result<Vec<RefUpdate>, FetchError>,
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum FetchResult {
+    Success { updated: Vec<RefUpdate> },
+    Failed { reason: String },
 }
 
-impl Deref for FetchResult {
-    type Target = Result<Vec<RefUpdate>, FetchError>;
+impl FetchResult {
+    pub fn is_success(&self) -> bool {
+        matches!(self, FetchResult::Success { .. })
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.result
+    pub fn success(self) -> Option<Vec<RefUpdate>> {
+        match self {
+            Self::Success { updated } => Some(updated),
+            _ => None,
+        }
     }
 }
 
-/// Error returned by fetch.
-#[derive(thiserror::Error, Debug)]
-pub enum FetchError {
-    #[error(transparent)]
-    Git(#[from] git::raw::Error),
-    #[error(transparent)]
-    Storage(#[from] storage::Error),
-    #[error(transparent)]
-    Fetch(#[from] storage::FetchError),
-    #[error(transparent)]
-    Io(#[from] io::Error),
-    #[error(transparent)]
-    Project(#[from] storage::ProjectError),
-}
-
-/// Result of looking up seeds in our routing table.
-/// This object is sent back to the caller who initiated the fetch.
-#[derive(Debug)]
-pub enum FetchLookup {
-    /// Found seeds for the given project.
-    Found {
-        seeds: NonEmpty<NodeId>,
-        results: chan::Receiver<FetchResult>,
-    },
-    /// Can't fetch because no seeds were found for this project.
-    NotFound,
-    /// Can't fetch because the project isn't tracked.
-    NotTracking,
-    /// Error trying to find seeds.
-    Error(FetchError),
+impl<S: ToString> From<Result<Vec<RefUpdate>, S>> for FetchResult {
+    fn from(value: Result<Vec<RefUpdate>, S>) -> Self {
+        match value {
+            Ok(updated) => Self::Success { updated },
+            Err(err) => Self::Failed {
+                reason: err.to_string(),
+            },
+        }
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -112,6 +91,12 @@ pub enum Error {
     Connect(#[from] io::Error),
     #[error("received invalid response for `{cmd}` command: '{response}'")]
     InvalidResponse { cmd: &'static str, response: String },
+    #[error("received invalid json in response for `{cmd}` command: '{response}': {error}")]
+    InvalidJson {
+        cmd: &'static str,
+        response: String,
+        error: json::Error,
+    },
     #[error("received empty response for `{cmd}` command")]
     EmptyResponse { cmd: &'static str },
 }
@@ -122,13 +107,17 @@ pub trait Handle {
     type Sessions;
     /// The error returned by all methods.
     type Error: std::error::Error + Send + Sync + 'static;
+    /// Result of a fetch.
+    type FetchResult;
 
     /// Check if the node is running. to a peer.
     fn is_running(&self) -> bool;
     /// Connect to a peer.
     fn connect(&mut self, node: NodeId, addr: Address) -> Result<(), Self::Error>;
-    /// Retrieve or update the project from network.
-    fn fetch(&mut self, id: Id) -> Result<FetchLookup, Self::Error>;
+    /// Lookup the seeds of a given repository in the routing table.
+    fn seeds(&mut self, id: Id) -> Result<Vec<NodeId>, Self::Error>;
+    /// Fetch a repository from the network.
+    fn fetch(&mut self, id: Id, from: NodeId) -> Result<Self::FetchResult, Self::Error>;
     /// Start tracking the given project. Doesn't do anything if the project is already
     /// tracked.
     fn track_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
@@ -192,6 +181,7 @@ impl Node {
 impl Handle for Node {
     type Sessions = ();
     type Error = Error;
+    type FetchResult = FetchResult;
 
     fn is_running(&self) -> bool {
         let Ok(mut lines) = self.call::<&str>("status", &[]) else {
@@ -207,13 +197,31 @@ impl Handle for Node {
         todo!()
     }
 
-    fn fetch(&mut self, id: Id) -> Result<FetchLookup, Error> {
-        for line in self.call("fetch", &[id.urn()])? {
-            let line = line?;
-            log::debug!("node: {}", line);
-        }
-        // TODO: Return parsed lookup results.
-        Ok(FetchLookup::NotFound)
+    fn seeds(&mut self, id: Id) -> Result<Vec<NodeId>, Error> {
+        self.call("seeds", &[id.urn()])?
+            .map(|line| {
+                let line = line?;
+                let node = NodeId::from_str(&line).map_err(|_| Error::InvalidResponse {
+                    cmd: "seeds",
+                    response: line,
+                })?;
+                Ok(node)
+            })
+            .collect()
+    }
+
+    fn fetch(&mut self, id: Id, from: NodeId) -> Result<Self::FetchResult, Error> {
+        let result = self
+            .call("fetch", &[id.urn(), from.to_human()])?
+            .next()
+            .ok_or(Error::EmptyResponse { cmd: "fetch" })??;
+        let lookup = json::from_str(&result).map_err(|e| Error::InvalidJson {
+            cmd: "fetch",
+            response: result,
+            error: e,
+        })?;
+
+        Ok(lookup)
     }
 
     fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {

@@ -1,4 +1,5 @@
 use std::io::{prelude::*, BufReader};
+use std::ops::Deref;
 use std::thread::JoinHandle;
 use std::{env, io, net, process, thread, time};
 
@@ -13,9 +14,9 @@ use radicle::storage::{Namespaces, ReadRepository, RefUpdate, WriteRepository, W
 use radicle::{git, Storage};
 use reactor::poller::popol;
 
-use crate::node::{FetchError, FetchResult};
 use crate::runtime::Handle;
 use crate::service::reactor::Fetch;
+use crate::storage;
 use crate::wire::{WireReader, WireSession, WireWriter};
 
 /// Worker pool configuration.
@@ -32,6 +33,36 @@ pub struct Config {
     pub daemon: net::SocketAddr,
     /// Git storage.
     pub storage: Storage,
+}
+
+/// Result of a fetch request from a specific seed.
+#[derive(Debug)]
+pub struct FetchResult {
+    pub fetch: Fetch,
+    pub result: Result<Vec<RefUpdate>, FetchError>,
+}
+
+impl Deref for FetchResult {
+    type Target = Result<Vec<RefUpdate>, FetchError>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.result
+    }
+}
+
+/// Error returned by fetch.
+#[derive(thiserror::Error, Debug)]
+pub enum FetchError {
+    #[error(transparent)]
+    Git(#[from] git::raw::Error),
+    #[error(transparent)]
+    Storage(#[from] storage::Error),
+    #[error(transparent)]
+    Fetch(#[from] storage::FetchError),
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    #[error(transparent)]
+    Project(#[from] storage::ProjectError),
 }
 
 /// Task to be accomplished on a worker thread.
@@ -77,13 +108,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         } = task;
 
         let (session, result) = self._process(&fetch, drain, session);
-        let result = FetchResult {
-            rid: fetch.repo,
-            remote: fetch.remote,
-            namespaces: fetch.namespaces,
-            initiated: fetch.initiated,
-            result,
-        };
+        let result = FetchResult { fetch, result };
         log::debug!(target: "worker", "Sending response back to service..");
 
         if self
@@ -102,7 +127,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         mut session: WireSession<G>,
     ) -> (WireSession<G>, Result<Vec<RefUpdate>, FetchError>) {
         if fetch.initiated {
-            log::debug!(target: "worker", "Worker processing outgoing fetch for {}", fetch.repo);
+            log::debug!(target: "worker", "Worker processing outgoing fetch for {}", fetch.rid);
 
             let mut tunnel = match Tunnel::with(session, net::SocketAddr::from(([0, 0, 0, 0], 0))) {
                 Ok(tunnel) => tunnel,
@@ -122,7 +147,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             }
             (session, result)
         } else {
-            log::debug!(target: "worker", "Worker processing incoming fetch for {}", fetch.repo);
+            log::debug!(target: "worker", "Worker processing incoming fetch for {}", fetch.rid);
 
             if let Err(err) = session.as_connection_mut().set_nonblocking(false) {
                 return (session, Err(err.into()));
@@ -148,7 +173,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         fetch: &Fetch,
         tunnel: &mut Tunnel<WireSession<G>>,
     ) -> Result<Vec<RefUpdate>, FetchError> {
-        let repo = self.storage.repository(fetch.repo)?;
+        let repo = self.storage.repository(fetch.rid)?;
         let tunnel_addr = tunnel.local_addr()?;
         let mut cmd = process::Command::new("git");
         cmd.current_dir(repo.path())
@@ -197,13 +222,13 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
 
         // TODO: Parse fetch output to return updates.
         if child.wait()?.success() {
-            log::debug!(target: "worker", "Fetch for {} exited successfully", fetch.repo);
+            log::debug!(target: "worker", "Fetch for {} exited successfully", fetch.rid);
         } else {
-            log::error!(target: "worker", "Fetch for {} failed", fetch.repo);
+            log::error!(target: "worker", "Fetch for {} failed", fetch.rid);
         }
         let head = repo.set_head()?;
 
-        log::debug!(target: "worker", "Head for {} set to {head}", fetch.repo);
+        log::debug!(target: "worker", "Head for {} set to {head}", fetch.rid);
 
         Ok(vec![])
     }
@@ -228,9 +253,9 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             Ok((req, pktline)) => {
                 log::debug!(
                     target: "worker",
-                    "Parsed git command packet-line for {}: {:?}", fetch.repo, req
+                    "Parsed git command packet-line for {}: {:?}", fetch.rid, req
                 );
-                if req.repo != fetch.repo {
+                if req.repo != fetch.rid {
                     return Err(FetchError::Git(git::raw::Error::from_str(
                         "git pkt-line command does not match fetch request",
                     )));
@@ -254,17 +279,17 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
                 if e.kind() == io::ErrorKind::UnexpectedEof {
                     break;
                 }
-                log::debug!(target: "worker", "Upload of {} to {} returned error: {e}", fetch.repo, fetch.remote);
+                log::debug!(target: "worker", "Upload of {} to {} returned error: {e}", fetch.rid, fetch.remote);
 
                 return Err(e.into());
             }
             if let Err(e) = stream_r.read_pktlines(&mut daemon_w, &mut buffer) {
-                log::error!(target: "worker", "Remote returned error for {}: {e}", fetch.repo);
+                log::error!(target: "worker", "Remote returned error for {}: {e}", fetch.rid);
 
                 return Err(e.into());
             }
         }
-        log::debug!(target: "worker", "Upload of {} to {} exited successfully", fetch.repo, fetch.remote);
+        log::debug!(target: "worker", "Upload of {} to {} exited successfully", fetch.rid, fetch.remote);
 
         // When we aren't the one fetching, no refs are updated.
         Ok(vec![])
