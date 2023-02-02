@@ -20,7 +20,10 @@ pub const AUTHORIZED_SESSIONS_EXPIRATION: Duration = Duration::weeks(1);
 pub fn router(ctx: Context) -> Router {
     Router::new()
         .route("/sessions", post(session_create_handler))
-        .route("/sessions/:id", put(session_signin_handler))
+        .route(
+            "/sessions/:id",
+            put(session_signin_handler).get(session_handler),
+        )
         .with_state(ctx)
 }
 
@@ -51,6 +54,18 @@ async fn session_create_handler(State(ctx): State<Context>) -> impl IntoResponse
     Ok::<_, Error>(Json(
         json!({"sessionId": session_id, "publicKey": signer.public_key()}),
     ))
+}
+
+/// Get a session.
+/// `GET /sessions/:id`
+async fn session_handler(
+    State(ctx): State<Context>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    let sessions = ctx.sessions.read().await;
+    let session = sessions.get(&session_id).ok_or(Error::NotFound)?.to_owned();
+
+    Ok::<_, Error>(Json(session))
 }
 
 /// Update session.
@@ -100,7 +115,7 @@ mod routes {
     use axum::http::StatusCode;
     use radicle_cli::commands::rad_web::{self, SessionInfo};
 
-    use crate::api::test::{self, post, put};
+    use crate::api::test::{self, get, post, put};
 
     #[tokio::test]
     async fn test_session() {
@@ -130,6 +145,9 @@ mod routes {
         )
         .await;
 
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = get(&app, format!("/sessions/{}", session_info.session_id)).await;
         assert_eq!(response.status(), StatusCode::OK);
     }
 }

@@ -11,6 +11,8 @@ impl Serialize for DateTime {
     }
 }
 
+#[derive(Clone, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum AuthState {
     Authorized(Session),
     Unauthorized {
