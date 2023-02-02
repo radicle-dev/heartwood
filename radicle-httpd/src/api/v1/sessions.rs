@@ -4,12 +4,13 @@ use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::routing::{post, put};
 use axum::{Json, Router};
+use hyper::StatusCode;
 use radicle::crypto::{PublicKey, Signature};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use time::{Duration, OffsetDateTime};
 
-use crate::api::auth::{AuthState, DateTime, Session};
+use crate::api::auth::{AuthState, Session};
 use crate::api::axum_extra::Path;
 use crate::api::error::Error;
 use crate::api::Context;
@@ -41,24 +42,26 @@ async fn session_create_handler(State(ctx): State<Context>) -> impl IntoResponse
         .take(32)
         .collect::<String>();
     let signer = ctx.profile.signer().map_err(Error::from)?;
-    let expiration_time = OffsetDateTime::now_utc()
-        .checked_add(UNAUTHORIZED_SESSIONS_EXPIRATION)
-        .unwrap();
     let session = Session {
         status: AuthState::Unauthorized,
         public_key: *signer.public_key(),
-        issued_at: DateTime(OffsetDateTime::now_utc()),
-        expires_at: DateTime(expiration_time),
+        issued_at: OffsetDateTime::now_utc(),
+        expires_at: OffsetDateTime::now_utc()
+            .checked_add(UNAUTHORIZED_SESSIONS_EXPIRATION)
+            .unwrap(),
     };
     let mut sessions = ctx.sessions.write().await;
     sessions.insert(session_id.clone(), session.clone());
 
-    Ok::<_, Error>(Json(json!({
-        "sessionId": session_id,
-        "publicKey": session.public_key,
-        "issuedAt": session.issued_at,
-        "expiresAt": session.expires_at
-    })))
+    Ok::<_, Error>((
+        StatusCode::CREATED,
+        Json(json!({
+            "sessionId": session_id,
+            "publicKey": session.public_key,
+            "issuedAt": session.issued_at,
+            "expiresAt": session.expires_at
+        })),
+    ))
 }
 
 /// Get a session.
@@ -73,8 +76,8 @@ async fn session_handler(
     Ok::<_, Error>(Json(json!({
         "status": session.status,
         "publicKey": session.public_key,
-        "issuedAt": session.issued_at,
-        "expiresAt": session.expires_at
+        "issuedAt": session.issued_at.unix_timestamp(),
+        "expiresAt": session.expires_at.unix_timestamp()
     })))
 }
 
@@ -86,12 +89,12 @@ async fn session_signin_handler(
     Json(request): Json<AuthChallenge>,
 ) -> impl IntoResponse {
     let mut sessions = ctx.sessions.write().await;
-    let session = sessions.get(&session_id).ok_or(Error::NotFound)?;
+    let session = sessions.get_mut(&session_id).ok_or(Error::NotFound)?;
     if session.status == AuthState::Unauthorized {
         if session.public_key != request.pk {
             return Err(Error::Auth("Invalid public key"));
         }
-        if session.expires_at <= DateTime(OffsetDateTime::now_utc()) {
+        if session.expires_at <= OffsetDateTime::now_utc() {
             return Err(Error::Auth("Session expired"));
         }
         let payload = format!("{}:{}", session_id, request.pk);
@@ -99,16 +102,10 @@ async fn session_signin_handler(
             .pk
             .verify(payload.as_bytes(), &request.sig)
             .map_err(Error::from)?;
-        let expiration_time = OffsetDateTime::now_utc()
+        session.status = AuthState::Authorized;
+        session.expires_at = OffsetDateTime::now_utc()
             .checked_add(AUTHORIZED_SESSIONS_EXPIRATION)
             .unwrap();
-        let session = Session {
-            status: AuthState::Authorized,
-            public_key: request.pk,
-            issued_at: session.issued_at.to_owned(),
-            expires_at: DateTime(expiration_time),
-        };
-        sessions.insert(session_id.clone(), session);
 
         return Ok::<_, Error>(Json(json!({ "success": true })));
     }
@@ -122,7 +119,10 @@ mod routes {
     use axum::http::StatusCode;
     use radicle_cli::commands::rad_web::{self, SessionInfo};
 
-    use crate::api::test::{self, get, post, put};
+    use crate::api::{
+        auth::{AuthState, Session},
+        test::{self, get, post, put},
+    };
 
     #[tokio::test]
     async fn test_session() {
@@ -130,11 +130,18 @@ mod routes {
         let ctx = test::seed(tmp.path());
         let app = super::router(ctx.to_owned());
 
-        // Create session
+        // Create session.
         let response = post(&app, "/sessions", None).await;
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::CREATED);
         let json = response.json().await;
         let session_info: SessionInfo = serde_json::from_value(json).unwrap();
+
+        // Check that an unauthorized session has been created.
+        let response = get(&app, format!("/sessions/{}", session_info.session_id)).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = response.json().await;
+        let body: Session = serde_json::from_value(json).unwrap();
+        assert_eq!(body.status, AuthState::Unauthorized);
 
         // Create request body
         let signer = ctx.profile.signer().unwrap();
@@ -151,10 +158,13 @@ mod routes {
             Some(Body::from(body)),
         )
         .await;
-
         assert_eq!(response.status(), StatusCode::OK);
 
+        // Check that session has been authorized.
         let response = get(&app, format!("/sessions/{}", session_info.session_id)).await;
         assert_eq!(response.status(), StatusCode::OK);
+        let json = response.json().await;
+        let body: Session = serde_json::from_value(json).unwrap();
+        assert_eq!(body.status, AuthState::Authorized);
     }
 }
