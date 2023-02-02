@@ -1,3 +1,4 @@
+use std::convert::Into;
 use std::iter::repeat_with;
 
 use axum::extract::State;
@@ -44,12 +45,14 @@ async fn session_create_handler(State(ctx): State<Context>) -> impl IntoResponse
     let expiration_time = OffsetDateTime::now_utc()
         .checked_add(UNAUTHORIZED_SESSIONS_EXPIRATION)
         .unwrap();
-    let auth_state = AuthState::Unauthorized {
+    let session = Session {
+        status: String::from("unauthorized"),
         public_key: *signer.public_key(),
+        issued_at: DateTime(OffsetDateTime::now_utc()),
         expires_at: DateTime(expiration_time),
     };
     let mut sessions = ctx.sessions.write().await;
-    sessions.insert(session_id.clone(), auth_state);
+    sessions.insert(session_id.clone(), AuthState::Unauthorized(session));
 
     Ok::<_, Error>(Json(
         json!({"sessionId": session_id, "publicKey": signer.public_key()}),
@@ -63,9 +66,12 @@ async fn session_handler(
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
     let sessions = ctx.sessions.read().await;
-    let session = sessions.get(&session_id).ok_or(Error::NotFound)?.to_owned();
+    let auth_state = sessions.get(&session_id).ok_or(Error::NotFound)?;
+    let session = Session::from(auth_state.clone());
 
-    Ok::<_, Error>(Json(session))
+    Ok::<_, Error>(Json(
+        json!({"publicKey": session.public_key, "issuedAt": session.issued_at, "expiresAt": session.expires_at}),
+    ))
 }
 
 /// Update session.
@@ -77,15 +83,11 @@ async fn session_signin_handler(
 ) -> impl IntoResponse {
     let mut sessions = ctx.sessions.write().await;
     let session = sessions.get(&session_id).ok_or(Error::NotFound)?;
-    if let AuthState::Unauthorized {
-        public_key,
-        expires_at,
-    } = session
-    {
-        if public_key != &request.pk {
+    if let AuthState::Unauthorized(s) = session {
+        if s.public_key != request.pk {
             return Err(Error::Auth("Invalid public key"));
         }
-        if expires_at <= &DateTime(OffsetDateTime::now_utc()) {
+        if s.expires_at <= DateTime(OffsetDateTime::now_utc()) {
             return Err(Error::Auth("Session expired"));
         }
         let payload = format!("{}:{}", session_id, request.pk);
@@ -97,6 +99,7 @@ async fn session_signin_handler(
             .checked_add(AUTHORIZED_SESSIONS_EXPIRATION)
             .unwrap();
         let session = Session {
+            status: String::from("authorized"),
             public_key: request.pk,
             issued_at: DateTime(OffsetDateTime::now_utc()),
             expires_at: DateTime(expiration_time),

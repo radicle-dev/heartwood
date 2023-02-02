@@ -11,21 +11,25 @@ impl Serialize for DateTime {
     }
 }
 
-#[derive(Clone, Serialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[derive(Clone)]
 pub enum AuthState {
     Authorized(Session),
-    Unauthorized {
-        public_key: PublicKey,
-        expires_at: DateTime,
-    },
+    Unauthorized(Session),
 }
 
-// We copy the implementation of siwe::Message here to derive Serialization and Debug
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone)]
 pub struct Session {
+    pub status: String,
     pub public_key: PublicKey,
     pub issued_at: DateTime,
     pub expires_at: DateTime,
+}
+
+impl From<AuthState> for Session {
+    fn from(other: AuthState) -> Self {
+        match other {
+            AuthState::Authorized(s) => s,
+            AuthState::Unauthorized(s) => s,
+        }
+    }
 }
