@@ -3,6 +3,7 @@ use std::path::Path;
 
 use radicle::crypto::ssh::Keystore;
 use radicle::crypto::KeyPair;
+use radicle::git;
 use radicle::profile::{Home, Profile};
 use radicle::storage::git::transport;
 use radicle::storage::git::Storage;
@@ -73,13 +74,11 @@ fn test<'a>(
         .env("GIT_COMMITTER_DATE", "1671125284")
         .env("GIT_COMMITTER_EMAIL", "radicle@localhost")
         .env("GIT_COMMITTER_NAME", "radicle")
-        .env("GIT_CONFIG", "/dev/null")
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("RAD_HOME", home.to_string_lossy())
         .env("RAD_PASSPHRASE", "radicle")
         .env("TZ", "UTC")
         .env(radicle_cob::git::RAD_COMMIT_TIME, "1671125284")
+        .envs(git::env::GIT_DEFAULT_CONFIG)
         .envs(envs)
         .cwd(cwd)
         .file(base.join(test))?
