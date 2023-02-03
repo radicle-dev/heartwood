@@ -387,13 +387,13 @@ impl fmt::Debug for Message {
         match self {
             Self::Initialize { .. } => write!(f, "Initialize(..)"),
             Self::Subscribe(Subscribe { since, until, .. }) => {
-                write!(f, "Subscribe({}..{})", since, until)
+                write!(f, "Subscribe({since}..{until})")
             }
             Self::Announcement(Announcement { node, message, .. }) => {
-                write!(f, "Announcement({}, {:?})", node, message)
+                write!(f, "Announcement({node}, {message:?})")
             }
-            Self::Ping(Ping { ponglen, zeroes }) => write!(f, "Ping({ponglen}, {:?})", zeroes),
-            Self::Pong { zeroes } => write!(f, "Pong({:?})", zeroes),
+            Self::Ping(Ping { ponglen, zeroes }) => write!(f, "Ping({ponglen}, {zeroes:?})"),
+            Self::Pong { zeroes } => write!(f, "Pong({zeroes:?})"),
             Self::Fetch { rid } => write!(f, "Fetch({rid})"),
             Self::FetchOk { rid } => write!(f, "FetchOk({rid})"),
         }

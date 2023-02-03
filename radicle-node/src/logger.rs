@@ -45,7 +45,7 @@ impl Log for Logger {
                     Level::Debug => message.dimmed(),
                     Level::Trace => message.white().dimmed(),
                 };
-                writeln!(stream, "{}", message).expect("write shouldn't fail");
+                writeln!(stream, "{message}").expect("write shouldn't fail");
             }
         }
     }

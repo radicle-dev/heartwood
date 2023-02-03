@@ -164,13 +164,13 @@ mod test {
     #[quickcheck]
     fn prop_json_eq_str(pk: PublicKey, proj: Id, did: Did) {
         let json = serde_json::to_string(&pk).unwrap();
-        assert_eq!(format!("\"{}\"", pk), json);
+        assert_eq!(format!("\"{pk}\""), json);
 
         let json = serde_json::to_string(&proj).unwrap();
         assert_eq!(format!("\"{}\"", proj.urn()), json);
 
         let json = serde_json::to_string(&did).unwrap();
-        assert_eq!(format!("\"{}\"", did), json);
+        assert_eq!(format!("\"{did}\""), json);
     }
 
     #[test]

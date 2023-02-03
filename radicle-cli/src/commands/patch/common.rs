@@ -70,7 +70,7 @@ pub fn pretty_sync_status(
     let ahead = term::format::positive(a);
     let behind = term::format::negative(b);
 
-    Ok(format!("ahead {}, behind {}", ahead, behind))
+    Ok(format!("ahead {ahead}, behind {behind}"))
 }
 
 /// Make a human friendly string for commit version information.
@@ -143,7 +143,7 @@ pub fn patch_commits<'a>(
 ) -> anyhow::Result<Vec<git::raw::Commit<'a>>> {
     let mut commits = Vec::new();
     let mut revwalk = repo.revwalk()?;
-    revwalk.push_range(&format!("{}..{}", base, head))?;
+    revwalk.push_range(&format!("{base}..{head}"))?;
 
     for rev in revwalk {
         let commit = repo.find_commit(rev?)?;

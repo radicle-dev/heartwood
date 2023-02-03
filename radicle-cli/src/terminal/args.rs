@@ -56,8 +56,8 @@ where
 
 pub fn format(arg: lexopt::Arg) -> OsString {
     match arg {
-        lexopt::Arg::Long(flag) => format!("--{}", flag).into(),
-        lexopt::Arg::Short(flag) => format!("-{}", flag).into(),
+        lexopt::Arg::Long(flag) => format!("--{flag}").into(),
+        lexopt::Arg::Short(flag) => format!("-{flag}").into(),
         lexopt::Arg::Value(val) => val,
     }
 }

@@ -45,15 +45,11 @@ pub use success;
 pub use tip;
 
 pub fn success_args(args: fmt::Arguments) {
-    println!("{} {}", style("ok").green().reverse(), args);
+    println!("{} {args}", style("ok").green().reverse());
 }
 
 pub fn tip_args(args: fmt::Arguments) {
-    println!(
-        "{} {}",
-        style("=>").blue(),
-        style(format!("{}", args)).dim()
-    );
+    println!("{} {}", style("=>").blue(), style(format!("{args}")).dim());
 }
 
 pub fn width() -> Option<usize> {
@@ -77,34 +73,34 @@ pub fn blank() {
 }
 
 pub fn print(msg: impl fmt::Display) {
-    println!("{}", msg);
+    println!("{msg}");
 }
 
 pub fn prefixed(prefix: &str, text: &str) -> String {
     text.split('\n')
-        .map(|line| format!("{}{}\n", prefix, line))
+        .map(|line| format!("{prefix}{line}\n"))
         .collect()
 }
 
 pub fn help(name: &str, version: &str, description: &str, usage: &str) {
-    println!("rad-{} {}\n{}\n{}", name, version, description, usage);
+    println!("rad-{name} {version}\n{description}\n{usage}");
 }
 
 pub fn usage(name: &str, usage: &str) {
     eprintln!(
         "{} {}\n{}",
         style("==").red(),
-        style(format!("Error: rad-{}: invalid usage", name)).red(),
+        style(format!("Error: rad-{name}: invalid usage")).red(),
         style(prefixed(TAB, usage)).red().dim()
     );
 }
 
 pub fn eprintln(prefix: impl fmt::Display, msg: impl fmt::Display) {
-    eprintln!("{} {}", prefix, msg);
+    eprintln!("{prefix} {msg}");
 }
 
 pub fn indented(msg: impl fmt::Display) {
-    println!("{}{}", TAB, msg);
+    println!("{TAB}{msg}");
 }
 
 pub fn subcommand(msg: impl fmt::Display) {
@@ -233,7 +229,7 @@ pub struct Optional<T> {
 impl<T: fmt::Display> fmt::Display for Optional<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(val) = &self.option {
-            write!(f, "{}", val)
+            write!(f, "{val}")
         } else {
             write!(f, "")
         }
@@ -392,5 +388,5 @@ pub fn markdown(content: &str) {
 }
 
 fn _info(args: std::fmt::Arguments) {
-    println!("{}", args);
+    println!("{args}");
 }

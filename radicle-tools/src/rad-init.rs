@@ -17,7 +17,7 @@ fn main() -> anyhow::Result<()> {
         &profile.storage,
     )?;
 
-    println!("ok: {}", id);
+    println!("ok: {id}");
 
     Ok(())
 }

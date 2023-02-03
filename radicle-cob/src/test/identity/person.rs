@@ -25,7 +25,7 @@ impl Person {
         key: crypto::PublicKey,
     ) -> Result<Self, storage::error::Identity> {
         let repo = repo.as_raw();
-        let refname = format!("refs/rad/identities/{}", name);
+        let refname = format!("refs/rad/identities/{name}");
         let payload = Payload {
             name: Name(name.to_owned()),
             key,

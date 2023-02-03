@@ -87,7 +87,7 @@ pub fn print_commits_ahead_behind(
 
 /// Print title and description in a text box.
 pub fn print_title_desc(title: &str, description: &str) {
-    let title_pretty = &term::format::dim(format!("╭─ {} ───────", title));
+    let title_pretty = &term::format::dim(format!("╭─ {title} ───────"));
     term::print(title_pretty);
     term::blank();
 

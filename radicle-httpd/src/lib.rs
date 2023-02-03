@@ -254,7 +254,7 @@ async fn git_http_backend(
             Err(Error::Backend)
         }
         Err(err) => {
-            panic!("failed to wait for git-http-backend: {}", err);
+            panic!("failed to wait for git-http-backend: {err}");
         }
     }
 }

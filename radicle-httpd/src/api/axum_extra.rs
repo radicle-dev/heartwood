@@ -39,7 +39,7 @@ where
                     }
                     _ => Json(Error {
                         success: false,
-                        error: format!("{}", rejection),
+                        error: format!("{rejection}"),
                     }),
                 };
 
@@ -72,7 +72,7 @@ where
                     }),
                     _ => Json(Error {
                         success: false,
-                        error: format!("{}", rejection),
+                        error: format!("{rejection}"),
                     }),
                 };
 

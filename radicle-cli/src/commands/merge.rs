@@ -138,7 +138,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repository = profile.storage.repository(id)?;
     let _project = repository
         .identity_of(profile.id())
-        .context(format!("couldn't load project {} from local state", id))?;
+        .context(format!("couldn't load project {id} from local state"))?;
     let repository = profile.storage.repository(id)?;
     let mut patches = Patches::open(*profile.id(), &repository)?;
 
@@ -232,7 +232,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         "{} {} {} ({}) by {} into {} ({}) via {}...",
         term::format::bold("Merging"),
         term::format::tertiary(term::format::cob(&patch_id)),
-        term::format::dim(format!("R{}", revision_ix)),
+        term::format::dim(format!("R{revision_ix}")),
         term::format::secondary(term::format::oid(revision.oid)),
         term::format::tertiary(patch.author().id),
         term::format::highlight(branch),
@@ -302,12 +302,12 @@ fn merge_commit(
     write!(&mut merge_msg, "\n\n")?;
 
     if !description.is_empty() {
-        write!(&mut merge_msg, "{}", description)?;
+        write!(&mut merge_msg, "{description}")?;
         write!(&mut merge_msg, "\n\n")?;
     }
-    writeln!(&mut merge_msg, "Rad-Patch: {}", patch_id)?;
+    writeln!(&mut merge_msg, "Rad-Patch: {patch_id}")?;
     writeln!(&mut merge_msg, "Rad-Author: {}", patch.author().id())?;
-    writeln!(&mut merge_msg, "Rad-Committer: {}", whoami)?;
+    writeln!(&mut merge_msg, "Rad-Committer: {whoami}")?;
     writeln!(&mut merge_msg)?;
     writeln!(&mut merge_msg, "{}", MERGE_HELP_MSG.trim())?;
 

@@ -14,7 +14,7 @@ pub fn node(node: &NodeId) -> String {
     let start = node.chars().take(7).collect::<String>();
     let end = node.chars().skip(node.len() - 7).collect::<String>();
 
-    format!("{}…{}", start, end)
+    format!("{start}…{end}")
 }
 
 /// Format a git Oid.
@@ -83,7 +83,7 @@ impl<'a> fmt::Display for Identity<'a> {
                 term::format::dim(username)
             )
         } else {
-            write!(f, "{} {}", node_id, username)
+            write!(f, "{node_id} {username}")
         }
     }
 }
@@ -117,22 +117,19 @@ pub fn highlight<D: std::fmt::Display>(input: D) -> String {
 }
 
 pub fn badge_primary<D: std::fmt::Display>(input: D) -> String {
-    style(format!(" {} ", input))
-        .magenta()
-        .reverse()
-        .to_string()
+    style(format!(" {input} ")).magenta().reverse().to_string()
 }
 
 pub fn badge_positive<D: std::fmt::Display>(input: D) -> String {
-    style(format!(" {} ", input)).green().reverse().to_string()
+    style(format!(" {input} ")).green().reverse().to_string()
 }
 
 pub fn badge_negative<D: std::fmt::Display>(input: D) -> String {
-    style(format!(" {} ", input)).red().reverse().to_string()
+    style(format!(" {input} ")).red().reverse().to_string()
 }
 
 pub fn badge_secondary<D: std::fmt::Display>(input: D) -> String {
-    style(format!(" {} ", input)).blue().reverse().to_string()
+    style(format!(" {input} ")).blue().reverse().to_string()
 }
 
 pub fn bold<D: std::fmt::Display>(input: D) -> String {

@@ -229,7 +229,7 @@ pub fn run(
     let commit_message = head_commit
         .message()
         .ok_or(anyhow!("commit summary is not valid UTF-8; aborting"))?;
-    let message = message.get(&format!("{}{}", commit_message, PATCH_MSG));
+    let message = message.get(&format!("{commit_message}{PATCH_MSG}"));
     let (title, description) = message.split_once("\n\n").unwrap_or((&message, ""));
     let (title, description) = (title.trim(), description.trim());
     let description = description.replace(PATCH_MSG.trim(), ""); // Delete help message.
@@ -289,7 +289,7 @@ fn update<G: Signer>(
     term::info!(
         "{} {} ({}) -> {} ({})",
         term::format::tertiary(term::format::cob(&patch_id)),
-        term::format::dim(format!("R{}", current_version)),
+        term::format::dim(format!("R{current_version}")),
         term::format::secondary(term::format::oid(current_revision.oid)),
         term::format::dim(format!("R{}", current_version + 1)),
         term::format::secondary(term::format::oid(*head)),

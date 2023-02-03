@@ -89,7 +89,7 @@ impl fmt::Display for Signature {
 
 impl fmt::Debug for Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Signature({})", self)
+        write!(f, "Signature({self})")
     }
 }
 
@@ -366,7 +366,7 @@ impl From<PublicKey> for String {
 
 impl fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PublicKey({})", self)
+        write!(f, "PublicKey({self})")
     }
 }
 

@@ -66,7 +66,7 @@ impl<const W: usize> Table<W> {
 
             for (i, cell) in row.iter().enumerate() {
                 if i == cells - 1 || self.opts.overflow {
-                    write!(output, "{}", cell).ok();
+                    write!(output, "{cell}").ok();
                 } else {
                     write!(
                         output,

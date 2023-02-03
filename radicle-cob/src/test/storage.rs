@@ -105,7 +105,7 @@ impl object::Storage for Storage {
         typename: &crate::TypeName,
         object_id: &ObjectId,
     ) -> Result<object::Objects, Self::ObjectsError> {
-        let glob = format!("refs/rad/*/cobs/{}/{}", typename, object_id);
+        let glob = format!("refs/rad/*/cobs/{typename}/{object_id}");
         let remotes = self
             .raw
             .references_glob(&glob)?
@@ -125,7 +125,7 @@ impl object::Storage for Storage {
         for r in self.raw.references_glob("refs/rad/*")? {
             let r = r?;
             let name = r.name().unwrap();
-            println!("NAME: {}", name);
+            println!("NAME: {name}");
             let oid = r
                 .target()
                 .map(ObjectId::from)

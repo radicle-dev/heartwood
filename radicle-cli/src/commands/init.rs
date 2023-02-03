@@ -288,8 +288,8 @@ pub fn setup_signing(
                     git::read_gitsigners(repo).context("error reading .gitsigners file")?;
 
                 if ssh_keys.contains(&ssh_key) {
-                    term::success!("Signing key is already in {} file", gitsigners);
-                } else if term::confirm(format!("Add signing key to {}?", gitsigners)) {
+                    term::success!("Signing key is already in {gitsigners} file");
+                } else if term::confirm(format!("Add signing key to {gitsigners}?")) {
                     git::add_gitsigners(repo, [node_id])?;
                 }
             }

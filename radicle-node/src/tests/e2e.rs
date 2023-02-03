@@ -350,7 +350,7 @@ fn test_replication() {
 
     let (seeds, results) = match alice.handle.fetch(acme).unwrap() {
         FetchLookup::Found { seeds, results } => (seeds, results),
-        other => panic!("Fetch lookup failed, got {:?}", other),
+        other => panic!("Fetch lookup failed, got {other:?}"),
     };
     assert_eq!(seeds, nonempty::NonEmpty::new(bob.id));
 
@@ -409,7 +409,7 @@ fn test_clone() {
     match lookup {
         // Drain the channel.
         FetchLookup::Found { seeds, results } => for _ in results.iter().take(seeds.len()) {},
-        other => panic!("Unexpected fetch lookup: {:?}", other),
+        other => panic!("Unexpected fetch lookup: {other:?}"),
     }
     rad::fork(acme, &alice.signer, &alice.storage).unwrap();
 
@@ -458,12 +458,12 @@ fn test_fetch_up_to_date() {
 
     match alice.handle.fetch(acme).unwrap() {
         FetchLookup::Found { seeds, results } => for _ in results.iter().take(seeds.len()) {},
-        other => panic!("Unexpected fetch lookup: {:?}", other),
+        other => panic!("Unexpected fetch lookup: {other:?}"),
     }
 
     // Fetch again! This time, everything's up to date.
     match alice.handle.fetch(acme).unwrap() {
         FetchLookup::Found { seeds, results } => for _ in results.iter().take(seeds.len()) {},
-        other => panic!("Unexpected fetch lookup: {:?}", other),
+        other => panic!("Unexpected fetch lookup: {other:?}"),
     }
 }

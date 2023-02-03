@@ -9,7 +9,7 @@ fn main() -> anyhow::Result<()> {
     let (_, id) = radicle::rad::remote(&repo)?;
 
     let output = radicle::git::run::<_, _, &str, &str>(&cwd, ["push", "rad"], None)?;
-    println!("{}", output);
+    println!("{output}");
 
     let signer = profile.signer()?;
     let project = profile.storage.repository(id)?;
@@ -18,7 +18,7 @@ fn main() -> anyhow::Result<()> {
 
     radicle::Node::new(profile.socket()).announce_refs(id)?;
 
-    println!("head: {}", head);
+    println!("head: {head}");
     println!("ok: {}", sigrefs.signature);
 
     Ok(())

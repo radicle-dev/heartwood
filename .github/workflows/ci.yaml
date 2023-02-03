@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.66
+      - uses: dtolnay/rust-toolchain@1.67
       - run: cargo build --all-features
         env:
           RUSTFLAGS: -D warnings
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.66
+      - uses: dtolnay/rust-toolchain@1.67
       - run: cargo doc --all --all-features
         env:
           RUSTDOCFLAGS: -D warnings

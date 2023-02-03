@@ -175,10 +175,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 term::format::yellow(oid),
             );
             if let Ok(parent) = tip.parent_id(0) {
-                println!("parent {}", parent);
+                println!("parent {parent}");
             }
             println!("blob   {}", blob.id());
-            println!("date   {}", time);
+            println!("date   {time}");
             println!();
 
             if let Some(msg) = tip.message() {

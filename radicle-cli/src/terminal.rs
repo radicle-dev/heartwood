@@ -114,7 +114,7 @@ where
     match cmd.run(options, self::profile) {
         Ok(()) => process::exit(0),
         Err(err) => {
-            term::fail(&format!("{} failed", action), &err);
+            term::fail(&format!("{action} failed"), &err);
             process::exit(1);
         }
     }

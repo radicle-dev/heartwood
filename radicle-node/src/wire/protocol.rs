@@ -86,7 +86,7 @@ enum Peer {
 impl std::fmt::Debug for Peer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Connecting { link } => write!(f, "Connecting({:?})", link),
+            Self::Connecting { link } => write!(f, "Connecting({link:?})"),
             Self::Connected { link, id } => write!(f, "Connected({link:?}, {id})"),
             Self::Disconnected { reason, id } => write!(f, "Disconnected({reason}, {id:?})"),
             Self::Upgrading { fetch, link, id } => write!(
@@ -121,7 +121,7 @@ impl Peer {
         if let Self::Connecting { link } = self {
             *self = Self::Connected { link: *link, id };
         } else {
-            panic!("Peer::connected: session for {} is already established", id);
+            panic!("Peer::connected: session for {id} is already established");
         }
     }
 
@@ -135,7 +135,7 @@ impl Peer {
         } else if let Self::Connecting { .. } = self {
             *self = Self::Disconnected { id: None, reason };
         } else {
-            panic!("Peer::disconnected: session is not connected ({:?})", self);
+            panic!("Peer::disconnected: session is not connected ({self:?})");
         }
     }
 

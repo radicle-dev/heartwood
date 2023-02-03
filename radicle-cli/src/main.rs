@@ -23,7 +23,7 @@ fn main() {
         Ok(_) => process::exit(0),
         Err(err) => {
             if let Some(err) = err {
-                term::error(format!("Error: rad: {}", err));
+                term::error(format!("Error: rad: {err}"));
             }
             process::exit(1);
         }
@@ -64,15 +64,15 @@ fn parse_args() -> anyhow::Result<Command> {
 
 fn print_version() {
     if VERSION.contains("-dev") {
-        println!("{} {}+{}", NAME, VERSION, GIT_HEAD)
+        println!("{NAME} {VERSION}+{GIT_HEAD}")
     } else {
-        println!("{} {}", NAME, VERSION)
+        println!("{NAME} {VERSION}")
     }
 }
 
 fn print_help() -> anyhow::Result<()> {
     print_version();
-    println!("{}", DESCRIPTION);
+    println!("{DESCRIPTION}");
     println!();
 
     rad_help::run(Default::default(), term::profile)
@@ -285,7 +285,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             args.to_vec(),
         ),
         _ => {
-            let exe = format!("{}-{}", NAME, exe);
+            let exe = format!("{NAME}-{exe}");
             let status = process::Command::new(exe.clone()).args(args).status();
 
             match status {

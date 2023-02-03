@@ -185,7 +185,7 @@ impl<K: Eq + Copy + Hash + fmt::Debug, V> Index<&K> for Dag<K, V> {
 
     fn index(&self, key: &K) -> &Self::Output {
         self.get(key)
-            .unwrap_or_else(|| panic!("Dag::index: node {:?} not found in graph", key))
+            .unwrap_or_else(|| panic!("Dag::index: node {key:?} not found in graph"))
     }
 }
 
@@ -298,7 +298,7 @@ mod tests {
         let expected: &[&[i32]] = &[&[0, 1, 2, 3], &[0, 2, 1, 3]];
         let actual = dag.sorted(fastrand::Rng::new());
 
-        assert!(expected.contains(&actual.as_slice()), "{:?}", actual);
+        assert!(expected.contains(&actual.as_slice()), "{actual:?}");
     }
 
     #[test]

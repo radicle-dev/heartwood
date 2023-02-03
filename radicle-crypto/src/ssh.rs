@@ -44,7 +44,7 @@ pub mod fmt {
         let sha = sha2::Sha256::digest(&buf).to_vec();
         let encoded = base64::encode_config(sha, base64::STANDARD_NO_PAD);
 
-        format!("SHA256:{}", encoded)
+        format!("SHA256:{encoded}")
     }
 
     #[cfg(test)]

@@ -122,13 +122,13 @@ pub enum Command {
 impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({})", id),
-            Self::Connect(id, addr) => write!(f, "Connect({}, {})", id, addr),
-            Self::Fetch(id, _) => write!(f, "Fetch({})", id),
-            Self::TrackRepo(id, _) => write!(f, "TrackRepo({})", id),
-            Self::UntrackRepo(id, _) => write!(f, "UntrackRepo({})", id),
-            Self::TrackNode(id, _, _) => write!(f, "TrackNode({})", id),
-            Self::UntrackNode(id, _) => write!(f, "UntrackNode({})", id),
+            Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({id})"),
+            Self::Connect(id, addr) => write!(f, "Connect({id}, {addr})"),
+            Self::Fetch(id, _) => write!(f, "Fetch({id})"),
+            Self::TrackRepo(id, _) => write!(f, "TrackRepo({id})"),
+            Self::UntrackRepo(id, _) => write!(f, "UntrackRepo({id})"),
+            Self::TrackNode(id, _, _) => write!(f, "TrackNode({id})"),
+            Self::UntrackNode(id, _) => write!(f, "UntrackNode({id})"),
             Self::QueryState { .. } => write!(f, "QueryState(..)"),
         }
     }
@@ -1223,10 +1223,10 @@ impl DisconnectReason {
 impl fmt::Display for DisconnectReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Dial(err) => write!(f, "{}", err),
-            Self::Connection(err) => write!(f, "{}", err),
-            Self::Session(err) => write!(f, "error: {}", err),
-            Self::Fetch(err) => write!(f, "fetch: {}", err),
+            Self::Dial(err) => write!(f, "{err}"),
+            Self::Connection(err) => write!(f, "{err}"),
+            Self::Session(err) => write!(f, "error: {err}"),
+            Self::Fetch(err) => write!(f, "fetch: {err}"),
         }
     }
 }

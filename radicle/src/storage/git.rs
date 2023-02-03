@@ -168,7 +168,7 @@ impl Storage {
                 let name = r.name().ok_or(Error::InvalidRef)?;
                 let oid = r.target().ok_or(Error::InvalidRef)?;
 
-                println!("{} {} {}", proj.urn(), oid, name);
+                println!("{} {oid} {name}", proj.urn());
             }
         }
         Ok(())
@@ -250,7 +250,7 @@ impl Repository {
             let name = r.name().ok_or(Error::InvalidRef)?;
             let oid = r.target().ok_or(Error::InvalidRef)?;
 
-            println!("{} {}", oid, name);
+            println!("{oid} {name}");
         }
         Ok(())
     }

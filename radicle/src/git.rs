@@ -428,8 +428,8 @@ pub fn set_upstream(
     merge: &str,
 ) -> Result<(), git2::Error> {
     let mut config = repo.config()?;
-    let branch_remote = format!("branch.{}.remote", branch);
-    let branch_merge = format!("branch.{}.merge", branch);
+    let branch_remote = format!("branch.{branch}.remote");
+    let branch_merge = format!("branch.{branch}.merge");
 
     config.remove_multivar(&branch_remote, ".*").or_else(|e| {
         if ext::is_not_found_err(&e) {

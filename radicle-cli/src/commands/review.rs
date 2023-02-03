@@ -138,13 +138,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repository = profile.storage.repository(id)?;
     let _project = repository
         .identity_of(profile.id())
-        .context(format!("couldn't load project {} from local state", id))?;
+        .context(format!("couldn't load project {id} from local state"))?;
     let mut patches = Patches::open(*profile.id(), &repository)?;
 
     let patch_id = options.id;
     let mut patch = patches
         .get_mut(&patch_id)
-        .context(format!("couldn't find patch {} locally", patch_id))?;
+        .context(format!("couldn't find patch {patch_id} locally"))?;
     let patch_id_pretty = term::format::tertiary(term::format::cob(&patch_id));
     let revision_ix = options.revision.unwrap_or_else(|| patch.version());
     let (revision_id, _) = patch
@@ -162,7 +162,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         "{} {} {} by {}?",
         verdict_pretty,
         patch_id_pretty,
-        term::format::dim(format!("R{}", revision_ix)),
+        term::format::dim(format!("R{revision_ix}")),
         term::format::tertiary(patch.author().id())
     )) {
         anyhow::bail!("Patch review aborted");

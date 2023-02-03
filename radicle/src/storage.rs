@@ -121,16 +121,16 @@ impl fmt::Display for RefUpdate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Updated { name, old, new } => {
-                write!(f, "~ {:.7}..{:.7} {}", old, new, name)
+                write!(f, "~ {old:.7}..{new:.7} {name}")
             }
             Self::Created { name, oid } => {
-                write!(f, "* 0000000..{:.7} {}", oid, name)
+                write!(f, "* 0000000..{oid:.7} {name}")
             }
             Self::Deleted { name, oid } => {
-                write!(f, "- {:.7}..0000000 {}", oid, name)
+                write!(f, "- {oid:.7}..0000000 {name}")
             }
             Self::Skipped { name, oid } => {
-                write!(f, "= {:.7}..{:.7} {}", oid, oid, name)
+                write!(f, "= {oid:.7}..{oid:.7} {name}")
             }
         }
     }

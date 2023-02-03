@@ -313,7 +313,7 @@ impl SignedRefs<Verified> {
             Some(&sigref),
             &author,
             &author,
-            &format!("Update signature for {}\n", remote),
+            &format!("Update signature for {remote}\n"),
             &tree,
             &parent.iter().collect::<Vec<&git2::Commit>>(),
         );

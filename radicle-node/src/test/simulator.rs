@@ -423,10 +423,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     self.schedule(&node, o);
                 }
             } else {
-                panic!(
-                    "Node {} not found when attempting to schedule {:?}",
-                    node, input
-                );
+                panic!("Node {node} not found when attempting to schedule {input:?}",);
             }
         }
         !self.is_done()

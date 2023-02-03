@@ -22,9 +22,9 @@ impl Log for Logger {
             target => {
                 if self.enabled(record.metadata()) {
                     let current = std::thread::current();
-                    let msg = format!("{:>12} {}", format!("{}:", target), record.args());
+                    let msg = format!("{:>12} {}", format!("{target}:"), record.args());
                     let s = if let Some(name) = current.name() {
-                        format!("{:<16} {msg}", name)
+                        format!("{name:<16} {msg}")
                     } else {
                         msg
                     };

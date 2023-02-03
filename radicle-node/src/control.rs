@@ -42,7 +42,7 @@ pub fn listen<H: Handle<Error = runtime::HandleError>>(
                         handle.shutdown().ok();
                         break;
                     }
-                    writeln!(stream, "error: {}", e).ok();
+                    writeln!(stream, "error: {e}").ok();
 
                     stream.flush().ok();
                     stream.shutdown(net::Shutdown::Both).ok();
@@ -244,30 +244,29 @@ fn fetch<W: Write, H: Handle<Error = runtime::HandleError>>(
             {
                 match result.result {
                     Ok(updated) => {
-                        writeln!(writer, "ok: {} fetched from {}", &id, result.remote)?;
-
+                        writeln!(writer, "ok: {id} fetched from {}", result.remote)?;
                         for update in updated {
-                            writeln!(writer, "{}", update)?;
+                            writeln!(writer, "{update}")?;
                         }
                     }
                     Err(err) => {
                         writeln!(
                             writer,
-                            "error: {} failed to fetch from {}: {}",
-                            &id, result.remote, err
+                            "error: {id} failed to fetch from {}: {err}",
+                            result.remote
                         )?;
                     }
                 }
             }
         }
         Ok(FetchLookup::NotFound) => {
-            writeln!(writer, "error: {} was not found", &id)?;
+            writeln!(writer, "error: {id} was not found")?;
         }
         Ok(FetchLookup::NotTracking) => {
-            writeln!(writer, "error: {} is not tracked", &id)?;
+            writeln!(writer, "error: {id} is not tracked")?;
         }
         Ok(FetchLookup::Error(err)) => {
-            writeln!(writer, "error: {}", err)?;
+            writeln!(writer, "error: {err}")?;
         }
     }
     Ok(())

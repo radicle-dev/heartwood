@@ -195,7 +195,7 @@ pub fn set_tracking(repo: &Repository, remote: &NodeId, branch: &str) -> anyhow:
 /// Get the name of the remote of the given branch, if any.
 pub fn branch_remote(repo: &Repository, branch: &str) -> anyhow::Result<String> {
     let cfg = repo.config()?;
-    let remote = cfg.get_string(&format!("branch.{}.remote", branch))?;
+    let remote = cfg.get_string(&format!("branch.{branch}.remote"))?;
 
     Ok(remote)
 }

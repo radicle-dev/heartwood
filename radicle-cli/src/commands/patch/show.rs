@@ -29,11 +29,11 @@ pub fn run(
 ) -> anyhow::Result<()> {
     let patches = patch::Patches::open(profile.public_key, storage)?;
     let Some(patch) = patches.get(patch_id)? else {
-        anyhow::bail!("Patch `{}` not found", patch_id);
+        anyhow::bail!("Patch `{patch_id}` not found");
     };
 
     term::blank();
-    term::print(format!("patch {}", patch_id));
+    term::print(format!("patch {patch_id}"));
     term::blank();
 
     term::patch::print_title_desc(patch.title(), patch.description().unwrap_or(""));
