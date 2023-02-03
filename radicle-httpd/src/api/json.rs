@@ -14,6 +14,8 @@ use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
 use radicle_surf::{Commit, Stats};
 
+use crate::api::auth::Session;
+
 /// Returns JSON of a commit.
 pub(crate) fn commit(commit: &Commit) -> Value {
     json!({
@@ -29,6 +31,17 @@ pub(crate) fn commit(commit: &Commit) -> Value {
         "email": commit.committer.email,
         "time": commit.committer.time.seconds()
       }
+    })
+}
+
+/// Returns JSON of a session.
+pub(crate) fn session(session_id: String, session: &Session) -> Value {
+    json!({
+      "sessionId": session_id,
+      "status": session.status,
+      "publicKey": session.public_key,
+      "issuedAt": session.issued_at.unix_timestamp(),
+      "expiresAt": session.expires_at.unix_timestamp()
     })
 }
 

@@ -7,12 +7,12 @@ use axum::{Json, Router};
 use hyper::StatusCode;
 use radicle::crypto::{PublicKey, Signature};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use time::{Duration, OffsetDateTime};
 
 use crate::api::auth::{AuthState, Session};
 use crate::api::axum_extra::Path;
 use crate::api::error::Error;
+use crate::api::json;
 use crate::api::Context;
 
 pub const UNAUTHORIZED_SESSIONS_EXPIRATION: Duration = Duration::seconds(60);
@@ -55,12 +55,7 @@ async fn session_create_handler(State(ctx): State<Context>) -> impl IntoResponse
 
     Ok::<_, Error>((
         StatusCode::CREATED,
-        Json(json!({
-            "sessionId": session_id,
-            "publicKey": session.public_key,
-            "issuedAt": session.issued_at,
-            "expiresAt": session.expires_at
-        })),
+        Json(json::session(session_id, &session)),
     ))
 }
 
@@ -73,12 +68,7 @@ async fn session_handler(
     let sessions = ctx.sessions.read().await;
     let session = sessions.get(&session_id).ok_or(Error::NotFound)?;
 
-    Ok::<_, Error>(Json(json!({
-        "status": session.status,
-        "publicKey": session.public_key,
-        "issuedAt": session.issued_at.unix_timestamp(),
-        "expiresAt": session.expires_at.unix_timestamp()
-    })))
+    Ok::<_, Error>(Json(json::session(session_id, session)))
 }
 
 /// Update session.
