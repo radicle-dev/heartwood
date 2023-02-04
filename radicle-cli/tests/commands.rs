@@ -1,56 +1,14 @@
 use std::env;
 use std::path::Path;
 
-use radicle::crypto::ssh::Keystore;
-use radicle::crypto::KeyPair;
 use radicle::git;
-use radicle::profile::{Home, Profile};
-use radicle::storage::git::transport;
-use radicle::storage::git::Storage;
+use radicle::profile::Home;
 use radicle::test::fixtures;
+
+use radicle_node::test::environment::Environment;
 
 mod framework;
 use framework::TestFormula;
-use radicle_crypto::Seed;
-
-/// Test environment.
-pub struct Environment {
-    tempdir: tempfile::TempDir,
-    users: usize,
-}
-
-impl Environment {
-    /// Create a new test environment.
-    fn new() -> Self {
-        Self {
-            tempdir: tempfile::tempdir().unwrap(),
-            users: 0,
-        }
-    }
-
-    /// Create a new profile in this environment.
-    fn profile(&mut self, name: &str) -> Profile {
-        let home = Home::new(self.tempdir.path().join(name)).init().unwrap();
-        let storage = Storage::open(home.storage()).unwrap();
-        let keystore = Keystore::new(&home.keys());
-        let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
-
-        transport::local::register(storage.clone());
-        keystore
-            .store(keypair.clone(), "radicle", "radicle".to_owned())
-            .unwrap();
-
-        // Ensures that each user has a unique but deterministic public key.
-        self.users += 1;
-
-        Profile {
-            home,
-            storage,
-            keystore,
-            public_key: keypair.pk.into(),
-        }
-    }
-}
 
 /// Run a CLI test file.
 fn test<'a>(

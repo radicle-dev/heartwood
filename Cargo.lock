@@ -1852,6 +1852,7 @@ dependencies = [
  "radicle",
  "radicle-cob",
  "radicle-crypto",
+ "radicle-node",
  "serde",
  "serde_json",
  "serde_yaml",
