@@ -4,6 +4,7 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
+use radicle::cob::patch::{Patch, PatchId};
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
 use radicle_surf::{Commit, Stats};
@@ -58,6 +59,26 @@ pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
         "name": name_in_path(path),
         "path": path,
         "stats": stats,
+    })
+}
+
+/// Returns JSON for a `patch`.
+pub(crate) fn patch(id: PatchId, patch: Patch) -> Value {
+    json!({
+        "id": id.to_string(),
+        "author": patch.author(),
+        "title": patch.title(),
+        "description": patch.description(),
+        "state": patch.state(),
+        "target": patch.target(),
+        "tags": patch.tags().collect::<Vec<_>>(),
+        "revisions": patch.revisions().map(|(id, rev)| {
+            json!({
+                "id": id,
+                "description": rev.description(),
+                "reviews": rev.reviews().collect::<Vec<_>>(),
+            })
+        }).collect::<Vec<_>>(),
     })
 }
 

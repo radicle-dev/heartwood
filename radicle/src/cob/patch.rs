@@ -5,6 +5,7 @@ use std::ops::Range;
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
+use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -178,6 +179,10 @@ impl Patch {
             .map(|(_, r)| r)
             .expect("Patch::timestamp: at least one revision is present")
             .timestamp
+    }
+
+    pub fn tags(&self) -> impl Iterator<Item = &Tag> {
+        self.tags.iter()
     }
 
     pub fn description(&self) -> Option<&str> {
@@ -375,6 +380,10 @@ impl Revision {
     pub fn description(&self) -> &str {
         self.description.get()
     }
+
+    pub fn reviews(&self) -> impl DoubleEndedIterator<Item = (&PublicKey, &Review)> {
+        self.reviews.iter()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -477,6 +486,19 @@ pub struct Review {
     pub inline: LWWSet<Max<CodeComment>>,
     /// Review timestamp.
     pub timestamp: Max<Timestamp>,
+}
+
+impl Serialize for Review {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        let mut state = serializer.serialize_struct("Review", 3)?;
+        state.serialize_field("verdict", &self.verdict())?;
+        state.serialize_field("comment", &self.comment())?;
+        state.serialize_field("timestamp", &self.timestamp())?;
+        state.end()
+    }
 }
 
 impl Semilattice for Review {

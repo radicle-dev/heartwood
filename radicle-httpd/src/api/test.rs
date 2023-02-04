@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, fs};
 
@@ -9,6 +10,7 @@ use serde_json::Value;
 use tower::ServiceExt;
 
 use radicle::cob::issue::Issues;
+use radicle::cob::patch::{MergeTarget, Patches};
 use radicle::git::raw as git2;
 use radicle::storage::WriteStorage;
 use radicle_cli::commands::rad_init;
@@ -105,6 +107,22 @@ pub fn seed(dir: &Path) -> Context {
         .create(
             "Issue #1".to_string(),
             "Change 'hello world' to 'hello everyone'".to_string(),
+            &[],
+            &signer,
+        )
+        .unwrap();
+
+    // eq. rad patch open
+    let mut patches = Patches::open(*signer.public_key(), &repo).unwrap();
+    let oid = radicle::git::Oid::from_str(HEAD).unwrap();
+    let base = radicle::git::Oid::from_str(HEAD_1).unwrap();
+    patches
+        .create(
+            "A new `hello word`",
+            "change `hello world` in README to something else",
+            MergeTarget::Delegates,
+            base,
+            oid,
             &[],
             &signer,
         )

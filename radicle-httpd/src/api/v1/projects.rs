@@ -12,6 +12,7 @@ use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use radicle::cob::issue::Issues;
+use radicle::cob::patch::Patches;
 use radicle::cob::thread::{self, CommentId};
 use radicle::cob::Timestamp;
 use radicle::identity::{Id, PublicKey};
@@ -49,6 +50,8 @@ pub fn router(ctx: Context) -> Router {
         .route("/projects/:project/readme/:sha", get(readme_handler))
         .route("/projects/:project/issues", get(issues_handler))
         .route("/projects/:project/issues/:id", get(issue_handler))
+        .route("/projects/:project/patches", get(patches_handler))
+        .route("/projects/:project/patches/:id", get(patch_handler))
         .with_state(ctx)
 }
 
@@ -420,6 +423,46 @@ async fn issue_handler(
     });
 
     Ok::<_, Error>(Json(issue))
+}
+
+/// Get project patches list.
+/// `GET /projects/:project/patches`
+async fn patches_handler(
+    State(ctx): State<Context>,
+    Path(project): Path<Id>,
+    Query(qs): Query<PaginationQuery>,
+) -> impl IntoResponse {
+    let PaginationQuery { page, per_page } = qs;
+    let page = page.unwrap_or(0);
+    let per_page = per_page.unwrap_or(10);
+    let storage = &ctx.profile.storage;
+    let repo = storage.repository(project)?;
+    let patches = Patches::open(ctx.profile.public_key, &repo)?;
+    let patches = patches
+        .all()?
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .map(|(id, patch, _)| api::json::patch(id, patch))
+        .skip(page * per_page)
+        .take(per_page)
+        .collect::<Vec<_>>();
+
+    Ok::<_, Error>(Json(patches))
+}
+
+/// Get project patch.
+/// `GET /projects/:project/patches/:id`
+async fn patch_handler(
+    State(ctx): State<Context>,
+    Path((project, patch_id)): Path<(Id, Oid)>,
+) -> impl IntoResponse {
+    let storage = &ctx.profile.storage;
+    let repo = storage.repository(project)?;
+    let patch = Patches::open(ctx.profile.public_key, &repo)?
+        .get(&patch_id.into())?
+        .ok_or(Error::NotFound)?;
+
+    Ok::<_, Error>(Json(api::json::patch(patch_id.into(), patch)))
 }
 
 #[derive(Serialize)]
@@ -937,6 +980,69 @@ mod routes {
                 "tags": []
               }
             ])
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_patches() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(test::seed(tmp.path()));
+        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches").await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json().await,
+            json!([
+              {
+                "id": "5de9f17ca5326258412ab02f9a5339b6482198ce",
+                "author": {
+                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                },
+                "title": "A new `hello word`",
+                "description": "change `hello world` in README to something else",
+                "state": "proposed",
+                "target": "delegates",
+                "tags": [],
+                "revisions": [
+                    {
+                        "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                        "description": "",
+                        "reviews": [],
+                    }
+                ],
+              }
+            ])
+        );
+
+        let response = get(
+            &app,
+            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches/5de9f17ca5326258412ab02f9a5339b6482198ce",
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json().await,
+            json!(
+              {
+                "id": "5de9f17ca5326258412ab02f9a5339b6482198ce",
+                "author": {
+                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                },
+                "title": "A new `hello word`",
+                "description": "change `hello world` in README to something else",
+                "state": "proposed",
+                "target": "delegates",
+                "tags": [],
+                "revisions": [
+                    {
+                        "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                        "description": "",
+                        "reviews": [],
+                    }
+                ],
+              }
+            )
         );
     }
 }
