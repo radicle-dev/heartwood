@@ -13,9 +13,7 @@ use tower_http::set_header::SetResponseHeaderLayer;
 
 use radicle::cob::issue::Issues;
 use radicle::cob::patch::Patches;
-use radicle::cob::thread::{self, CommentId};
-use radicle::cob::Timestamp;
-use radicle::identity::{Id, PublicKey};
+use radicle::identity::Id;
 use radicle::node::NodeId;
 use radicle::storage::{git::paths, ReadRepository, WriteStorage};
 use radicle_surf::{Glob, Oid, Repository};
@@ -385,16 +383,7 @@ async fn issues_handler(
         .all()?
         .into_iter()
         .filter_map(|r| r.ok())
-        .map(|(id, issue, _)| {
-            json!({
-                "id": id.to_string(),
-                "author": issue.author(),
-                "title": issue.title(),
-                "state": issue.state(),
-                "discussion": issue.comments().collect::<Comments>(),
-                "tags": issue.tags().collect::<Vec<_>>(),
-            })
-        })
+        .map(|(id, issue, _)| api::json::issue(id, issue))
         .skip(page * per_page)
         .take(per_page)
         .collect::<Vec<_>>();
@@ -413,16 +402,8 @@ async fn issue_handler(
     let issue = Issues::open(ctx.profile.public_key, &repo)?
         .get(&issue_id.into())?
         .ok_or(Error::NotFound)?;
-    let issue = json!({
-        "id": issue_id,
-        "author": issue.author(),
-        "title": issue.title(),
-        "state": issue.state(),
-        "discussion": issue.comments().collect::<Comments>(),
-        "tags": issue.tags().collect::<Vec<_>>(),
-    });
 
-    Ok::<_, Error>(Json(issue))
+    Ok::<_, Error>(Json(api::json::issue(issue_id.into(), issue)))
 }
 
 /// Get project patches list.
@@ -463,44 +444,6 @@ async fn patch_handler(
         .ok_or(Error::NotFound)?;
 
     Ok::<_, Error>(Json(api::json::patch(patch_id.into(), patch)))
-}
-
-#[derive(Serialize)]
-struct Author {
-    id: PublicKey,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Comment {
-    author: Author,
-    body: String,
-    reactions: [String; 0],
-    timestamp: Timestamp,
-    reply_to: Option<CommentId>,
-}
-
-#[derive(Serialize)]
-struct Comments(Vec<Comment>);
-
-impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
-    fn from_iter<I: IntoIterator<Item = (&'a CommentId, &'a thread::Comment)>>(iter: I) -> Self {
-        let mut comments = Vec::new();
-
-        for (_, comment) in iter {
-            comments.push(Comment {
-                author: Author {
-                    id: comment.author(),
-                },
-                body: comment.body().to_owned(),
-                reactions: [],
-                timestamp: comment.timestamp(),
-                reply_to: comment.reply_to(),
-            });
-        }
-
-        Comments(comments)
-    }
 }
 
 #[cfg(test)]

@@ -2,9 +2,14 @@
 
 use std::path::Path;
 
+use serde::Serialize;
 use serde_json::{json, Value};
 
+use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
+use radicle::cob::thread::{self, CommentId};
+use radicle::cob::Timestamp;
+use radicle::identity::PublicKey;
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
 use radicle_surf::{Commit, Stats};
@@ -62,6 +67,18 @@ pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
     })
 }
 
+/// Returns JSON for an `issue`.
+pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
+    json!({
+        "id": id.to_string(),
+        "author": issue.author(),
+        "title": issue.title(),
+        "state": issue.state(),
+        "discussion": issue.comments().collect::<Comments>(),
+        "tags": issue.tags().collect::<Vec<_>>(),
+    })
+}
+
 /// Returns JSON for a `patch`.
 pub(crate) fn patch(id: PatchId, patch: Patch) -> Value {
     json!({
@@ -87,5 +104,43 @@ fn name_in_path(path: &str) -> &str {
     match path.rsplit('/').next() {
         Some(name) => name,
         None => path,
+    }
+}
+
+#[derive(Serialize)]
+struct Author {
+    id: PublicKey,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Comment {
+    author: Author,
+    body: String,
+    reactions: [String; 0],
+    timestamp: Timestamp,
+    reply_to: Option<CommentId>,
+}
+
+#[derive(Serialize)]
+struct Comments(Vec<Comment>);
+
+impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
+    fn from_iter<I: IntoIterator<Item = (&'a CommentId, &'a thread::Comment)>>(iter: I) -> Self {
+        let mut comments = Vec::new();
+
+        for (_, comment) in iter {
+            comments.push(Comment {
+                author: Author {
+                    id: comment.author(),
+                },
+                body: comment.body().to_owned(),
+                reactions: [],
+                timestamp: comment.timestamp(),
+                reply_to: comment.reply_to(),
+            });
+        }
+
+        Comments(comments)
     }
 }
