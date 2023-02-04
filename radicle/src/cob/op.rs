@@ -14,6 +14,7 @@ use radicle_crypto::{PublicKey, Signer};
 
 /// Identifies an [`Op`] internally and within the change graph.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(into = "String", try_from = "String")]
 pub struct OpId(Lamport, ActorId);
 
 impl OpId {
@@ -40,6 +41,22 @@ impl OpId {
 impl fmt::Display for OpId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}/{}", self.1, self.0)
+    }
+}
+
+// Used by `serde::Serialize`.
+impl From<OpId> for String {
+    fn from(value: OpId) -> Self {
+        value.to_string()
+    }
+}
+
+// Used by `serde::Deserialize`.
+impl TryFrom<String> for OpId {
+    type Error = OpIdError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.as_str().try_into()
     }
 }
 
@@ -233,14 +250,19 @@ mod test {
 
     #[test]
     fn test_opid_try_from_str() {
-        let str = "z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT/12";
-        let id = OpId::try_from(str).expect("Op ID parses string");
-        assert_eq!(str, id.to_string(), "string conversion is consistent");
+        let s = "z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT/12";
+        let id = OpId::try_from(s).expect("Op ID parses string");
+        assert_eq!(s, id.to_string(), "string conversion is consistent");
 
-        let str = "";
-        assert!(OpId::try_from(str).is_err(), "empty strings are invalid");
+        let s = "";
+        assert!(OpId::try_from(s).is_err(), "empty strings are invalid");
 
-        let str = "jlkjfksgi";
-        assert!(OpId::try_from(str).is_err(), "badly formatted string");
+        let s = "jlkjfksgi";
+        assert!(OpId::try_from(s).is_err(), "badly formatted string");
+
+        assert_eq!(
+            serde_json::from_str::<OpId>(serde_json::to_string(&id).unwrap().as_str()).unwrap(),
+            id
+        );
     }
 }
