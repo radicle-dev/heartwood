@@ -139,6 +139,8 @@ impl TestFormula {
     pub fn run(&mut self) -> Result<bool, io::Error> {
         let assert = Assert::new().substitutions(self.subs.clone());
 
+        fs::create_dir_all(&self.cwd)?;
+
         for test in &self.tests {
             for assertion in &test.assertions {
                 let program = if assertion.program == "rad" {
@@ -162,7 +164,14 @@ impl TestFormula {
                 } else {
                     PathBuf::from(&assertion.program)
                 };
+                log::debug!(target: "test", "Running `{}` in `{}`..", program.display(), self.cwd.display());
 
+                if !program.exists() {
+                    log::error!(target: "test", "Program {} does not exist..", program.display());
+                }
+                if !self.cwd.exists() {
+                    log::error!(target: "test", "Directory {} does not exist..", self.cwd.display());
+                }
                 let result = Command::new(program.clone())
                     .env_clear()
                     .envs(env::vars().filter(|(k, _)| k == "PATH"))

@@ -20,8 +20,8 @@ fn test_inventory_sync_basic() {
     let mut alice = Node::init(tmp.path());
     let mut bob = Node::init(tmp.path());
 
-    alice.project("alice");
-    bob.project("bob");
+    alice.project("alice", "");
+    bob.project("bob", "");
 
     let mut alice = alice.spawn(service::Config::default());
     let bob = bob.spawn(service::Config::default());
@@ -45,9 +45,9 @@ fn test_inventory_sync_bridge() {
     let mut bob = Node::init(tmp.path());
     let mut eve = Node::init(tmp.path());
 
-    alice.project("alice");
-    bob.project("bob");
-    eve.project("eve");
+    alice.project("alice", "");
+    bob.project("bob", "");
+    eve.project("eve", "");
 
     let mut alice = alice.spawn(service::Config::default());
     let mut bob = bob.spawn(service::Config::default());
@@ -76,10 +76,10 @@ fn test_inventory_sync_ring() {
     let mut eve = Node::init(tmp.path());
     let mut carol = Node::init(tmp.path());
 
-    alice.project("alice");
-    bob.project("bob");
-    eve.project("eve");
-    carol.project("carol");
+    alice.project("alice", "");
+    bob.project("bob", "");
+    eve.project("eve", "");
+    carol.project("carol", "");
 
     let mut alice = alice.spawn(service::Config::default());
     let mut bob = bob.spawn(service::Config::default());
@@ -114,11 +114,11 @@ fn test_inventory_sync_star() {
     let mut carol = Node::init(tmp.path());
     let mut dave = Node::init(tmp.path());
 
-    alice.project("alice");
-    bob.project("bob");
-    eve.project("eve");
-    carol.project("carol");
-    dave.project("dave");
+    alice.project("alice", "");
+    bob.project("bob", "");
+    eve.project("eve", "");
+    carol.project("carol", "");
+    dave.project("dave", "");
 
     let alice = alice.spawn(service::Config::default());
     let mut bob = bob.spawn(service::Config::default());
@@ -142,7 +142,7 @@ fn test_replication() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path());
     let mut bob = Node::init(tmp.path());
-    let acme = bob.project("acme");
+    let acme = bob.project("acme", "");
 
     let mut alice = alice.spawn(service::Config::default());
     let bob = bob.spawn(service::Config::default());
@@ -199,7 +199,7 @@ fn test_clone() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path());
     let mut bob = Node::init(tmp.path());
-    let acme = bob.project("acme");
+    let acme = bob.project("acme", "");
 
     let mut alice = alice.spawn(service::Config::default());
     let bob = bob.spawn(service::Config::default());
@@ -249,7 +249,7 @@ fn test_fetch_up_to_date() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path());
     let mut bob = Node::init(tmp.path());
-    let acme = bob.project("acme");
+    let acme = bob.project("acme", "");
 
     let mut alice = alice.spawn(service::Config::default());
     let bob = bob.spawn(service::Config::default());

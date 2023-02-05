@@ -1,5 +1,5 @@
 use std::mem::ManuallyDrop;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{
     collections::{BTreeMap, BTreeSet},
     iter, net, thread,
@@ -23,6 +23,8 @@ use crate::node::NodeId;
 use crate::storage::git::transport;
 use crate::{runtime, runtime::Handle, service, Runtime};
 
+pub use service::Config;
+
 /// Test environment.
 pub struct Environment {
     tempdir: tempfile::TempDir,
@@ -44,6 +46,11 @@ impl Environment {
         Self::default()
     }
 
+    /// Return the temp directory path.
+    pub fn tmp(&self) -> PathBuf {
+        self.tempdir.path().join("misc")
+    }
+
     /// Create a new node in this environment. This should be used when a running node
     /// is required. Use [`Environment::profile`] otherwise.
     pub fn node(&mut self, name: &str) -> Node<MemorySigner> {
@@ -60,7 +67,9 @@ impl Environment {
     /// Create a new profile in this environment.
     /// This should be used when a running node is not required.
     pub fn profile(&mut self, name: &str) -> Profile {
-        let home = Home::new(self.tempdir.path().join(name)).init().unwrap();
+        let home = Home::new(self.tmp().join("home").join(name))
+            .init()
+            .unwrap();
         let storage = Storage::open(home.storage()).unwrap();
         let keystore = Keystore::new(&home.keys());
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
@@ -94,6 +103,7 @@ pub struct NodeHandle<G: Signer + cyphernet::EcSign + 'static> {
     pub id: NodeId,
     pub storage: Storage,
     pub signer: G,
+    pub home: Home,
     pub addr: net::SocketAddr,
     pub thread: ManuallyDrop<thread::JoinHandle<Result<(), runtime::Error>>>,
     pub handle: ManuallyDrop<Handle<G>>,
@@ -115,7 +125,7 @@ impl<G: Signer + cyphernet::EcSign + 'static> Drop for NodeHandle<G> {
 
 impl<G: Signer + cyphernet::EcSign> NodeHandle<G> {
     /// Connect this node to another node, and wait for the connection to be established both ways.
-    pub fn connect(&mut self, remote: &NodeHandle<G>) {
+    pub fn connect(&mut self, remote: &NodeHandle<G>) -> &mut Self {
         self.handle.connect(remote.id, remote.addr.into()).unwrap();
 
         loop {
@@ -137,6 +147,15 @@ impl<G: Signer + cyphernet::EcSign> NodeHandle<G> {
             }
             thread::sleep(Duration::from_millis(100));
         }
+        self
+    }
+
+    /// Wait until this node's routing table matches the remotes.
+    pub fn converge<'a>(
+        &'a self,
+        remotes: impl IntoIterator<Item = &'a NodeHandle<G>>,
+    ) -> BTreeSet<(Id, NodeId)> {
+        converge(iter::once(self).chain(remotes.into_iter()))
     }
 }
 
@@ -167,7 +186,7 @@ impl<G: cyphernet::EcSign<Pk = NodeId, Sig = Signature> + Signer + Clone> Node<G
         let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
         let daemon = ([0, 0, 0, 0], fastrand::u16(1025..)).into();
         let rt = Runtime::init(
-            self.home,
+            self.home.clone(),
             config,
             listen,
             proxy,
@@ -189,6 +208,7 @@ impl<G: cyphernet::EcSign<Pk = NodeId, Sig = Signature> + Signer + Clone> Node<G
             id,
             storage: self.storage,
             signer: self.signer,
+            home: self.home,
             addr,
             handle,
             thread,
@@ -196,18 +216,15 @@ impl<G: cyphernet::EcSign<Pk = NodeId, Sig = Signature> + Signer + Clone> Node<G
     }
 
     /// Populate a storage instance with a project.
-    pub fn project(&mut self, name: &str) -> Id {
+    pub fn project(&mut self, name: &str, description: &str) -> Id {
         transport::local::register(self.storage.clone());
 
         let tmp = tempfile::tempdir().unwrap();
         let (repo, _) = fixtures::gen::repository(tmp.path());
-        let description = iter::repeat_with(fastrand::alphabetic)
-            .take(12)
-            .collect::<String>();
         let id = rad::init(
             &repo,
             name,
-            &description,
+            description,
             refname!("master"),
             &self.signer,
             &self.storage,

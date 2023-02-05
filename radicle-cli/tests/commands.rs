@@ -5,7 +5,10 @@ use radicle::git;
 use radicle::profile::Home;
 use radicle::test::fixtures;
 
-use radicle_node::test::environment::Environment;
+use radicle_node::test::{
+    environment::{Config, Environment},
+    logger,
+};
 
 mod framework;
 use framework::TestFormula;
@@ -64,15 +67,15 @@ fn rad_issue() {
     let mut environment = Environment::new();
     let profile = environment.profile("alice");
     let home = &profile.home;
-    let working = tempfile::tempdir().unwrap();
+    let working = environment.tmp().join("working");
 
     // Setup a test repository.
-    fixtures::repository(working.path());
+    fixtures::repository(&working);
     // Set a fixed commit time.
     env::set_var(radicle_cob::git::RAD_COMMIT_TIME, "1671125284");
 
-    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
-    test("examples/rad-issue.md", working.path(), Some(home), []).unwrap();
+    test("examples/rad-init.md", &working, Some(home), []).unwrap();
+    test("examples/rad-issue.md", &working, Some(home), []).unwrap();
 }
 
 #[test]
@@ -148,4 +151,24 @@ fn rad_patch() {
     test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
     test("examples/rad-issue.md", working.path(), Some(home), []).unwrap();
     test("examples/rad-patch.md", working.path(), Some(home), []).unwrap();
+}
+
+#[test]
+fn rad_clone() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let working = environment.tmp().join("working");
+
+    // Setup a test project.
+    let _ = alice.project("acme", "");
+
+    let alice = alice.spawn(Config::default());
+    let mut bob = bob.spawn(Config::default());
+
+    bob.connect(&alice).converge([&alice]);
+
+    test("examples/rad-clone.md", working, Some(&bob.home), []).unwrap();
 }

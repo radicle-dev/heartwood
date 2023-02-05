@@ -144,7 +144,7 @@ pub fn clone<G: Signer>(
     // Track.
     if node.track_repo(id)? {
         term::success!(
-            "Tracking relationship restablished for {}",
+            "Tracking relationship established for {}",
             term::format::tertiary(id)
         );
     }
