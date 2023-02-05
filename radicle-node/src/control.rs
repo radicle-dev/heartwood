@@ -102,6 +102,15 @@ fn command<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
                 fetch(rid, node, LineWriter::new(stream), handle)?;
             }
         }
+        Some(("seeds", arg)) => {
+            let rid: Id = arg
+                .parse()
+                .map_err(|e| CommandError::InvalidCommandArg(arg.to_owned(), Box::new(e)))?;
+
+            for seed in handle.seeds(rid)? {
+                writeln!(writer, "{seed}")?;
+            }
+        }
         Some(("track-repo", arg)) => match arg.parse() {
             Ok(id) => match handle.track_repo(id) {
                 Ok(updated) => {
