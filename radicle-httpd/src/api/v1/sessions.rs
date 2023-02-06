@@ -4,6 +4,7 @@ use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::routing::{post, put};
 use axum::{Json, Router};
+use axum_auth::AuthBearer;
 use hyper::StatusCode;
 use radicle::crypto::{PublicKey, Signature};
 use serde::{Deserialize, Serialize};
@@ -23,7 +24,9 @@ pub fn router(ctx: Context) -> Router {
         .route("/sessions", post(session_create_handler))
         .route(
             "/sessions/:id",
-            put(session_signin_handler).get(session_handler),
+            put(session_signin_handler)
+                .get(session_handler)
+                .delete(session_delete_handler),
         )
         .with_state(ctx)
 }
@@ -101,6 +104,22 @@ async fn session_signin_handler(
     }
 
     Err(Error::Auth("Session already authorized"))
+}
+
+/// Delete session.
+/// `DELETE /sessions/:id`
+async fn session_delete_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    if token != session_id {
+        return Err(Error::Auth("Not authorized to delete this session"));
+    }
+    let mut sessions = ctx.sessions.write().await;
+    sessions.remove_entry(&token).ok_or(Error::NotFound)?;
+
+    Ok::<_, Error>(Json(json!({ "success": true })))
 }
 
 #[cfg(test)]
