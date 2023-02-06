@@ -397,7 +397,7 @@ impl Handle for Node {
     }
 
     fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
-        for line in self.call(CommandName::AnnounceRefs, [id.urn()])? {
+        for line in self.call::<_, CommandResult>(CommandName::AnnounceRefs, [id.urn()])? {
             line?;
         }
         Ok(())
