@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::service::message;
 use crate::service::message::Message;
 use crate::service::storage;
@@ -52,6 +54,27 @@ pub enum State {
     Disconnected { since: LocalTime },
 }
 
+impl fmt::Display for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Connecting => {
+                write!(f, "connecting")
+            }
+            Self::Connected { protocol, .. } => match protocol {
+                Protocol::Gossip { .. } => {
+                    write!(f, "connected <gossip>")
+                }
+                Protocol::Fetch => {
+                    write!(f, "connected <fetch>")
+                }
+            },
+            Self::Disconnected { .. } => {
+                write!(f, "disconnected")
+            }
+        }
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("wrong protocol version in message: {0}")]
@@ -96,6 +119,25 @@ pub struct Session {
     rng: Rng,
 }
 
+impl fmt::Display for Session {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut attrs = Vec::new();
+        let state = self.state.to_string();
+
+        if self.link.is_inbound() {
+            attrs.push("inbound");
+        } else {
+            attrs.push("outbound");
+        }
+        if self.persistent {
+            attrs.push("persistent");
+        }
+        attrs.push(state.as_str());
+
+        write!(f, "{}", attrs.join(" "))
+    }
+}
+
 impl Session {
     pub fn connecting(id: NodeId, persistent: bool, rng: Rng) -> Self {
         Self {
@@ -105,7 +147,7 @@ impl Session {
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
-            attempts: 0,
+            attempts: 1,
             rng,
         }
     }
@@ -136,6 +178,10 @@ impl Session {
         matches!(self.state, State::Connected { .. })
     }
 
+    pub fn is_disconnected(&self) -> bool {
+        matches!(self.state, State::Disconnected { .. })
+    }
+
     pub fn is_negotiated(&self) -> bool {
         matches!(
             self.state,
@@ -150,10 +196,6 @@ impl Session {
         self.attempts
     }
 
-    pub fn attempted(&mut self) {
-        self.attempts += 1;
-    }
-
     pub fn fetch(&mut self, rid: Id) -> Option<Message> {
         if let State::Connected { protocol, .. } = &mut self.state {
             if *protocol == (Protocol::Gossip { requested: None }) {
@@ -166,6 +208,15 @@ impl Session {
             }
         }
         None
+    }
+
+    pub fn to_connecting(&mut self) {
+        assert!(
+            self.is_disconnected(),
+            "Can only transition to 'connecting' state from 'disconnected' state"
+        );
+        self.state = State::Connecting;
+        self.attempts += 1;
     }
 
     pub fn to_connected(&mut self, since: LocalTime) {

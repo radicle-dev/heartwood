@@ -53,7 +53,6 @@ impl Reactor {
 
     /// Connect to a peer.
     pub fn connect(&mut self, id: NodeId, addr: Address) {
-        // TODO: Make sure we don't try to connect more than once to the same address.
         self.io.push_back(Io::Connect(id, addr));
     }
 

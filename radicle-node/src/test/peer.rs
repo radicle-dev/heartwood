@@ -141,7 +141,10 @@ where
 
     pub fn initialize(&mut self) {
         if !self.initialized {
-            info!("{}: Initializing: address = {}", self.name, self.ip);
+            info!(
+                "{}: Initializing: id = {}, address = {}",
+                self.name, self.id, self.ip
+            );
 
             self.initialized = true;
             self.service.initialize(LocalTime::now()).unwrap();

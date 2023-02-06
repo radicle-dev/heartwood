@@ -337,7 +337,7 @@ where
         // Connect to configured peers.
         let addrs = self.config.connect.clone();
         for (id, addr) in addrs {
-            self.reactor.connect(id, addr);
+            self.connect(id, addr);
         }
         // Ensure that our inventory is recorded in our routing table.
         for id in self.storage.inventory()? {
@@ -397,7 +397,9 @@ where
         debug!(target: "service", "Received command {:?}", cmd);
 
         match cmd {
-            Command::Connect(id, addr) => self.reactor.connect(id, addr),
+            Command::Connect(id, addr) => {
+                self.connect(id, addr);
+            }
             Command::Seeds(rid, resp) => {
                 let (connected, unconnected) = match self.routing.get(&rid) {
                     Ok(seeds) => seeds
@@ -558,8 +560,8 @@ where
         let persistent = self.config.is_persistent(&id);
         self.sessions
             .entry(id)
-            .or_insert_with(|| Session::connecting(id, persistent, self.rng.clone()))
-            .attempted();
+            .and_modify(|sess| sess.to_connecting())
+            .or_insert_with(|| Session::connecting(id, persistent, self.rng.clone()));
     }
 
     pub fn connected(&mut self, remote: NodeId, link: Link) {
@@ -567,7 +569,6 @@ where
 
         // For outbound connections, we are the first to say "Hello".
         // For inbound connections, we wait for the remote to say "Hello" first.
-        // TODO: How should we deal with multiple peers connecting from the same IP address?
         if link.is_outbound() {
             if let Some(peer) = self.sessions.get_mut(&remote) {
                 self.reactor.write_all(
@@ -583,16 +584,23 @@ where
                 peer.to_connected(self.clock);
             }
         } else {
-            self.sessions.insert(
-                remote,
-                Session::connected(
-                    remote,
-                    Link::Inbound,
-                    self.config.is_persistent(&remote),
-                    self.rng.clone(),
-                    self.clock,
-                ),
-            );
+            match self.sessions.entry(remote) {
+                Entry::Occupied(e) => {
+                    error!(
+                        target: "service",
+                        "Connecting peer {remote} already has a session open ({})", e.get()
+                    );
+                }
+                Entry::Vacant(e) => {
+                    e.insert(Session::connected(
+                        remote,
+                        Link::Inbound,
+                        self.config.is_persistent(&remote),
+                        self.rng.clone(),
+                        self.clock,
+                    ));
+                }
+            }
         }
     }
 
@@ -624,7 +632,7 @@ where
                     // TODO: Try to reconnect only if the peer was attempted. A disconnect without
                     // even a successful attempt means that we're unlikely to be able to reconnect.
 
-                    self.reactor.connect(remote, address.clone());
+                    self.connect(remote, address.clone());
                 }
             } else {
                 self.sessions.remove(&remote);
@@ -1010,6 +1018,16 @@ where
         Ok(())
     }
 
+    fn connect(&mut self, node: NodeId, addr: Address) -> bool {
+        if self.sessions.is_unconnected(&node) {
+            self.reactor.connect(node, addr);
+            return true;
+        }
+        log::warn!(target: "service", "Attempted connection to peer {node} which already has a session");
+
+        false
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Periodic tasks
     ////////////////////////////////////////////////////////////////////////////
@@ -1096,7 +1114,7 @@ where
             debug!(target: "service", "No eligible peers available to connect to");
         }
         for (id, addr) in addrs {
-            self.reactor.connect(id, addr.clone());
+            self.connect(id, addr.clone());
         }
     }
 }
@@ -1306,6 +1324,11 @@ impl Sessions {
     /// Return whether this node has a fully established session.
     pub fn is_negotiated(&self, id: &NodeId) -> bool {
         self.0.get(id).map(|s| s.is_connected()).unwrap_or(false)
+    }
+
+    /// Return whether this node can be connected to.
+    pub fn is_unconnected(&self, id: &NodeId) -> bool {
+        self.0.get(id).map(|s| s.is_disconnected()).unwrap_or(true)
     }
 }
 

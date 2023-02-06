@@ -5,6 +5,7 @@ use std::io;
 use std::sync::Arc;
 
 use crossbeam_channel as chan;
+use netservices::LinkDirection as Link;
 
 use crate::collections::{HashMap, HashSet};
 use crate::crypto::test::signer::MockSigner;
@@ -688,7 +689,7 @@ fn test_inventory_relay() {
 }
 
 #[test]
-fn test_persistent_peer_reconnect() {
+fn test_persistent_peer_reconnect_attempt() {
     let mut bob = Peer::new("bob", [8, 8, 8, 8]);
     let mut eve = Peer::new("eve", [9, 9, 9, 9]);
     let mut alice = Peer::config(
@@ -744,6 +745,46 @@ fn test_persistent_peer_reconnect() {
     // After the max connection attempts, a disconnect doesn't trigger a reconnect.
     alice.disconnected(bob.id(), &DisconnectReason::Connection(error));
     assert_matches!(alice.outbox().next(), None);
+}
+
+#[test]
+fn test_persistent_peer_reconnect_success() {
+    let bob = Peer::config(
+        "bob",
+        [9, 9, 9, 9],
+        MockStorage::empty(),
+        peer::Config::default(),
+    );
+    let mut alice = Peer::config(
+        "alice",
+        [7, 7, 7, 7],
+        MockStorage::empty(),
+        peer::Config {
+            config: Config {
+                connect: vec![(bob.id, bob.addr())],
+                ..Config::default()
+            },
+            ..peer::Config::default()
+        },
+    );
+
+    alice.attempted(bob.id(), &bob.addr());
+    alice.connected(bob.id(), Link::Outbound);
+
+    // A transient error such as this will cause Alice to attempt a reconnection.
+    let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
+    alice.disconnected(bob.id(), &DisconnectReason::Connection(error));
+
+    alice
+        .outbox()
+        .find_map(|o| match o {
+            Io::Connect(id, _) => Some(id),
+            _ => None,
+        })
+        .expect("Alice attempts a re-connection");
+
+    alice.attempted(bob.id(), &bob.addr());
+    alice.connected(bob.id(), Link::Outbound);
 }
 
 #[test]
@@ -923,7 +964,6 @@ fn prop_inventory_exchange_dense() {
         bob.command(Command::Connect(alice.id(), alice.address()));
         bob.command(Command::Connect(eve.id(), eve.address()));
         eve.command(Command::Connect(alice.id(), alice.address()));
-        eve.command(Command::Connect(bob.id(), bob.address()));
 
         let mut peers: HashMap<_, _> = [
             (alice.node_id(), alice),
