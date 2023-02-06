@@ -34,8 +34,6 @@ pub fn listen<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>
     for incoming in listener.incoming() {
         match incoming {
             Ok(mut stream) => {
-                log::debug!(target: "control", "Accepted new client on control socket..");
-
                 if let Err(e) = command(&stream, &mut handle) {
                     if let CommandError::Shutdown = e {
                         log::debug!(target: "control", "Shutdown requested..");
