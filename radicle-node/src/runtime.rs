@@ -194,7 +194,9 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
                 return Err(err.into());
             }
         };
-        let control = thread::spawn(move || control::listen(listener, self.handle));
+        let control = thread::Builder::new()
+            .name(self.id.to_human())
+            .spawn(move || control::listen(listener, self.handle))?;
 
         log::info!(target: "node", "Spawning git daemon at {}..", self.storage.path().display());
 

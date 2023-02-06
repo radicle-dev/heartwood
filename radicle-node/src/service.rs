@@ -586,7 +586,7 @@ where
         } else {
             match self.sessions.entry(remote) {
                 Entry::Occupied(e) => {
-                    error!(
+                    warn!(
                         target: "service",
                         "Connecting peer {remote} already has a session open ({})", e.get()
                     );

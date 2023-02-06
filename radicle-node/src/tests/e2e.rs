@@ -1,3 +1,5 @@
+use std::{thread, time};
+
 use radicle::crypto::Signer;
 use radicle::node::{FetchResult, Handle as _};
 use radicle::storage::{ReadRepository, WriteStorage};
@@ -266,4 +268,30 @@ fn test_fetch_up_to_date() {
     // Fetch again! This time, everything's up to date.
     let result = alice.handle.fetch(acme, bob.id).unwrap();
     assert_eq!(result.success(), Some(vec![]));
+}
+
+#[test]
+#[ignore = "failing"]
+#[should_panic]
+// TODO: This test currently passes but the behavior is wrong. The test should not panic.
+// We should figure out why we end up with no sessions established.
+fn test_connection_crossing() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let alice = Node::init(tmp.path());
+    let bob = Node::init(tmp.path());
+
+    let mut alice = alice.spawn(service::Config::default());
+    let mut bob = bob.spawn(service::Config::default());
+
+    alice.handle.connect(bob.id, bob.addr.into()).unwrap();
+    bob.handle.connect(alice.id, alice.addr.into()).unwrap();
+
+    thread::sleep(time::Duration::from_secs(1));
+
+    let s1 = alice.handle.sessions().unwrap().contains_key(&bob.id);
+    let s2 = bob.handle.sessions().unwrap().contains_key(&alice.id);
+
+    assert!(s1 ^ s2, "Exactly one session should be established");
 }

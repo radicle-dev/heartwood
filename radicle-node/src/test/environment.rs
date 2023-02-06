@@ -58,6 +58,7 @@ impl Environment {
         let signer = MemorySigner::load(&profile.keystore, "radicle".to_owned().into()).unwrap();
 
         Node {
+            id: *profile.id(),
             home: profile.home,
             signer,
             storage: profile.storage,
@@ -93,6 +94,7 @@ impl Environment {
 
 /// A node that can be run.
 pub struct Node<G> {
+    pub id: NodeId,
     pub home: Home,
     pub signer: G,
     pub storage: Storage,
@@ -172,6 +174,7 @@ impl Node<MockSigner> {
         let storage = Storage::open(home.storage()).unwrap();
 
         Self {
+            id: *signer.public_key(),
             home,
             signer,
             storage,
