@@ -23,3 +23,8 @@ pub mod string {
             .map_err(de::Error::custom)
     }
 }
+
+/// Return true if the given value is the default for that type.
+pub fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    t == &T::default()
+}

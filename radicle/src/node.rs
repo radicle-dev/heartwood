@@ -1,14 +1,14 @@
 mod features;
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::{io, net};
+use std::{fmt, io, net};
 
 use amplify::WrapperMut;
 use crossbeam_channel as chan;
 use cyphernet::addr::{HostName, NetAddr};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json as json;
 
@@ -22,10 +22,58 @@ pub use features::Features;
 pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
 /// Default radicle protocol port.
 pub const DEFAULT_PORT: u16 = 8776;
-/// Response on node socket indicating that a command was carried out successfully.
-pub const RESPONSE_OK: &str = "ok";
-/// Response on node socket indicating that a command had no effect.
-pub const RESPONSE_NOOP: &str = "noop";
+
+/// Result of a command, on the node control socket.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status")]
+pub enum CommandResult {
+    /// Response on node socket indicating that a command was carried out successfully.
+    #[serde(rename = "ok")]
+    Okay {
+        /// Whether the command had any effect.
+        #[serde(default, skip_serializing_if = "crate::serde_ext::is_default")]
+        updated: bool,
+    },
+    /// Response on node socket indicating that an error occured.
+    Error {
+        /// The reason for the error.
+        reason: String,
+    },
+}
+
+impl CommandResult {
+    /// Create an "updated" response.
+    pub fn updated() -> Self {
+        Self::Okay { updated: true }
+    }
+
+    /// Create an "ok" response.
+    pub fn ok() -> Self {
+        Self::Okay { updated: false }
+    }
+
+    /// Create an error result.
+    pub fn error(err: impl std::error::Error) -> Self {
+        Self::Error {
+            reason: err.to_string(),
+        }
+    }
+
+    /// Write this command result to a stream, including a terminating LF character.
+    pub fn to_writer(&self, mut w: impl io::Write) -> io::Result<()> {
+        json::to_writer(&mut w, self).map_err(|_| io::ErrorKind::InvalidInput)?;
+        w.write_all(b"\n")
+    }
+}
+
+impl From<CommandResult> for Result<bool, Error> {
+    fn from(value: CommandResult) -> Self {
+        match value {
+            CommandResult::Okay { updated } => Ok(updated),
+            CommandResult::Error { reason } => Err(Error::Node(reason)),
+        }
+    }
+}
 
 /// Peer public protocol address.
 #[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, From)]
@@ -51,6 +99,82 @@ impl From<net::SocketAddr> for Address {
             host: HostName::Ip(addr.ip()),
             port: addr.port(),
         })
+    }
+}
+
+/// Command name.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CommandName {
+    /// Announce repository references for given repository to peers.
+    AnnounceRefs,
+    /// Connect to node with the given address.
+    Connect,
+    /// Lookup seeds for the given repository in the routing table.
+    Seeds,
+    /// Fetch the given repository from the network.
+    Fetch,
+    /// Track the given repository.
+    TrackRepo,
+    /// Untrack the given repository.
+    UntrackRepo,
+    /// Track the given node.
+    TrackNode,
+    /// Untrack the given node.
+    UntrackNode,
+    /// Get the node's inventory.
+    Inventory,
+    /// Get the node's routing table.
+    Routing,
+    /// Get the node's status.
+    Status,
+    /// Shutdown the node.
+    Shutdown,
+}
+
+impl fmt::Display for CommandName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // SAFETY: The enum can always be converted to a value.
+        #[allow(clippy::unwrap_used)]
+        let val = json::to_value(self).unwrap();
+        // SAFETY: The value is always a string.
+        #[allow(clippy::unwrap_used)]
+        let s = val.as_str().unwrap();
+
+        write!(f, "{s}")
+    }
+}
+
+/// Commands sent to the node via the control socket.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Command {
+    /// Command name.
+    #[serde(rename = "cmd")]
+    pub name: CommandName,
+    /// Command arguments.
+    #[serde(rename = "args")]
+    pub args: Vec<String>,
+}
+
+impl Command {
+    /// Shutdown command.
+    pub const SHUTDOWN: Self = Self {
+        name: CommandName::Shutdown,
+        args: vec![],
+    };
+
+    /// Create a new command.
+    pub fn new<T: ToString>(name: CommandName, args: impl IntoIterator<Item = T>) -> Self {
+        Self {
+            name,
+            args: args.into_iter().map(|a| a.to_string()).collect(),
+        }
+    }
+
+    /// Write this command to a stream, including a terminating LF character.
+    pub fn to_writer(&self, mut w: impl io::Write) -> io::Result<()> {
+        json::to_writer(&mut w, self).map_err(|_| io::ErrorKind::InvalidInput)?;
+        w.write_all(b"\n")
     }
 }
 
@@ -85,20 +209,30 @@ impl<S: ToString> From<Result<Vec<RefUpdate>, S>> for FetchResult {
     }
 }
 
+/// Error returned by [`Handle`] functions.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("failed to connect to node: {0}")]
     Connect(#[from] io::Error),
-    #[error("received invalid response for `{cmd}` command: '{response}'")]
-    InvalidResponse { cmd: &'static str, response: String },
+    #[error("failed to call node: {0}")]
+    Call(#[from] CallError),
+    #[error("node: {0}")]
+    Node(String),
+    #[error("received empty response for `{cmd}` command")]
+    EmptyResponse { cmd: CommandName },
+}
+
+/// Error returned by [`Node::call`] iterator.
+#[derive(thiserror::Error, Debug)]
+pub enum CallError {
+    #[error("i/o: {0}")]
+    Io(#[from] io::Error),
     #[error("received invalid json in response for `{cmd}` command: '{response}': {error}")]
     InvalidJson {
-        cmd: &'static str,
+        cmd: CommandName,
         response: String,
         error: json::Error,
     },
-    #[error("received empty response for `{cmd}` command")]
-    EmptyResponse { cmd: &'static str },
 }
 
 /// A handle to send commands to the node or request information.
@@ -157,24 +291,24 @@ impl Node {
     }
 
     /// Call a command on the node.
-    pub fn call<A: ToString>(
+    pub fn call<A: ToString, T: DeserializeOwned>(
         &self,
-        cmd: &str,
-        args: &[A],
-    ) -> Result<impl Iterator<Item = Result<String, io::Error>>, io::Error> {
+        name: CommandName,
+        args: impl IntoIterator<Item = A>,
+    ) -> Result<impl Iterator<Item = Result<T, CallError>>, io::Error> {
         let stream = UnixStream::connect(&self.socket)?;
-        let args = args
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(" ");
+        Command::new(name, args).to_writer(&stream)?;
 
-        if args.is_empty() {
-            writeln!(&stream, "{cmd}")?;
-        } else {
-            writeln!(&stream, "{cmd} {args}")?;
-        }
-        Ok(BufReader::new(stream).lines())
+        Ok(BufReader::new(stream).lines().map(move |l| {
+            let l = l?;
+            let v = json::from_str(&l).map_err(|e| CallError::InvalidJson {
+                cmd: name,
+                response: l,
+                error: e,
+            })?;
+
+            Ok(v)
+        }))
     }
 }
 
@@ -184,13 +318,13 @@ impl Handle for Node {
     type FetchResult = FetchResult;
 
     fn is_running(&self) -> bool {
-        let Ok(mut lines) = self.call::<&str>("status", &[]) else {
+        let Ok(mut lines) = self.call::<&str, CommandResult>(CommandName::Status, []) else {
             return false;
         };
-        let Some(Ok(line)) = lines.next() else {
+        let Some(Ok(result)) = lines.next() else {
             return false;
         };
-        line == RESPONSE_OK
+        matches!(result, CommandResult::Okay { .. })
     }
 
     fn connect(&mut self, _node: NodeId, _addr: Address) -> Result<(), Error> {
@@ -198,113 +332,73 @@ impl Handle for Node {
     }
 
     fn seeds(&mut self, id: Id) -> Result<Vec<NodeId>, Error> {
-        self.call("seeds", &[id.urn()])?
-            .map(|line| {
-                let line = line?;
-                let node = NodeId::from_str(&line).map_err(|_| Error::InvalidResponse {
-                    cmd: "seeds",
-                    response: line,
-                })?;
-                Ok(node)
-            })
-            .collect()
+        let seeds: Vec<NodeId> =
+            self.call(CommandName::Seeds, [id.urn()])?
+                .next()
+                .ok_or(Error::EmptyResponse {
+                    cmd: CommandName::Seeds,
+                })??;
+
+        Ok(seeds)
     }
 
     fn fetch(&mut self, id: Id, from: NodeId) -> Result<Self::FetchResult, Error> {
         let result = self
-            .call("fetch", &[id.urn(), from.to_human()])?
+            .call(CommandName::Fetch, [id.urn(), from.to_human()])?
             .next()
-            .ok_or(Error::EmptyResponse { cmd: "fetch" })??;
-        let lookup = json::from_str(&result).map_err(|e| Error::InvalidJson {
-            cmd: "fetch",
-            response: result,
-            error: e,
-        })?;
+            .ok_or(Error::EmptyResponse {
+                cmd: CommandName::Fetch,
+            })??;
 
-        Ok(lookup)
+        Ok(result)
     }
 
     fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {
         let id = id.to_human();
-        let mut line = if let Some(alias) = alias.as_deref() {
-            self.call("track-node", &[id.as_str(), alias])
+        let args = if let Some(alias) = alias.as_deref() {
+            vec![id.as_str(), alias]
         } else {
-            self.call("track-node", &[id.as_str()])
-        }?;
-        let line = line
-            .next()
-            .ok_or(Error::EmptyResponse { cmd: "track-node" })??;
+            vec![id.as_str()]
+        };
 
-        log::debug!("node: {}", line);
+        let mut line = self.call(CommandName::TrackNode, args)?;
+        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
+            cmd: CommandName::TrackNode,
+        })??;
 
-        match line.as_str() {
-            RESPONSE_OK => Ok(true),
-            RESPONSE_NOOP => Ok(false),
-            _ => Err(Error::InvalidResponse {
-                cmd: "track-node",
-                response: line,
-            }),
-        }
+        response.into()
     }
 
     fn track_repo(&mut self, id: Id) -> Result<bool, Error> {
-        let mut line = self.call("track-repo", &[id.urn()])?;
-        let line = line
-            .next()
-            .ok_or(Error::EmptyResponse { cmd: "track-repo" })??;
+        let mut line = self.call(CommandName::TrackRepo, [id.urn()])?;
+        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
+            cmd: CommandName::TrackRepo,
+        })??;
 
-        log::debug!("node: {}", line);
-
-        match line.as_str() {
-            RESPONSE_OK => Ok(true),
-            RESPONSE_NOOP => Ok(false),
-            _ => Err(Error::InvalidResponse {
-                cmd: "track-repo",
-                response: line,
-            }),
-        }
+        response.into()
     }
 
     fn untrack_node(&mut self, id: NodeId) -> Result<bool, Error> {
-        let mut line = self.call("untrack-node", &[id])?;
-        let line = line.next().ok_or(Error::EmptyResponse {
-            cmd: "untrack-node",
+        let mut line = self.call(CommandName::UntrackNode, [id])?;
+        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
+            cmd: CommandName::UntrackNode,
         })??;
 
-        log::debug!("node: {}", line);
-
-        match line.as_str() {
-            RESPONSE_OK => Ok(true),
-            RESPONSE_NOOP => Ok(false),
-            _ => Err(Error::InvalidResponse {
-                cmd: "untrack-node",
-                response: line,
-            }),
-        }
+        response.into()
     }
 
     fn untrack_repo(&mut self, id: Id) -> Result<bool, Error> {
-        let mut line = self.call("untrack-repo", &[id.urn()])?;
-        let line = line.next().ok_or(Error::EmptyResponse {
-            cmd: "untrack-repo",
+        let mut line = self.call(CommandName::UntrackRepo, [id.urn()])?;
+        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
+            cmd: CommandName::UntrackRepo,
         })??;
 
-        log::debug!("node: {}", line);
-
-        match line.as_str() {
-            RESPONSE_OK => Ok(true),
-            RESPONSE_NOOP => Ok(false),
-            _ => Err(Error::InvalidResponse {
-                cmd: "untrack-repo",
-                response: line,
-            }),
-        }
+        response.into()
     }
 
     fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
-        for line in self.call("announce-refs", &[id.urn()])? {
-            let line = line?;
-            log::debug!("node: {}", line);
+        for line in self.call(CommandName::AnnounceRefs, [id.urn()])? {
+            line?;
         }
         Ok(())
     }
@@ -323,5 +417,15 @@ impl Handle for Node {
 
     fn shutdown(self) -> Result<(), Error> {
         todo!();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_command_name_display() {
+        assert_eq!(CommandName::TrackNode.to_string(), "track-node");
     }
 }

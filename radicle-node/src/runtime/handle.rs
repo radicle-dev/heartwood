@@ -1,5 +1,5 @@
 use std::fmt;
-use std::io::{self, Write};
+use std::io;
 use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use crate::crypto::Signer;
 use crate::identity::Id;
-use crate::node::FetchResult;
+use crate::node::{Command, FetchResult};
 use crate::profile::Home;
 use crate::service;
 use crate::service::{CommandError, QueryState};
@@ -221,7 +221,7 @@ impl<G: Signer + EcSign + 'static> radicle::node::Handle for Handle<G> {
         // control thread gracefully. Since the control thread may have called this function,
         // the control socket may already be disconnected. Ignore errors.
         UnixStream::connect(self.home.socket())
-            .and_then(|mut sock| sock.write_all(b"shutdown"))
+            .and_then(|sock| Command::SHUTDOWN.to_writer(sock))
             .ok();
 
         self.controller.shutdown().map_err(|_| Error::NotConnected)

@@ -5,15 +5,15 @@ use std::io::LineWriter;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::{io, net};
 
 use radicle::node::Handle;
 use serde_json as json;
 
 use crate::identity::Id;
-use crate::node;
-use crate::node::FetchResult;
 use crate::node::NodeId;
+use crate::node::{Command, CommandName, CommandResult, FetchResult};
 use crate::runtime;
 
 #[derive(thiserror::Error, Debug)]
@@ -44,7 +44,7 @@ pub fn listen<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>
                         handle.shutdown().ok();
                         break;
                     }
-                    writeln!(stream, "error: {e}").ok();
+                    CommandResult::error(e).to_writer(&mut stream).ok();
 
                     stream.flush().ok();
                     stream.shutdown(net::Shutdown::Both).ok();
@@ -62,6 +62,8 @@ pub fn listen<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>
 enum CommandError {
     #[error("invalid command argument `{0}`, {1}")]
     InvalidCommandArg(String, Box<dyn std::error::Error>),
+    #[error("invalid command arguments `{0:?}`")]
+    InvalidCommandArgs(Vec<String>),
     #[error("unknown command `{0}`")]
     UnknownCommand(String),
     #[error("serialization failed: {0}")]
@@ -83,165 +85,110 @@ fn command<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
     let mut line = String::new();
 
     reader.read_line(&mut line)?;
+    let input = line.trim_end();
 
-    let cmd = line.trim_end();
+    log::debug!(target: "control", "Received `{input}` on control socket");
+    let cmd: Command = json::from_str(input)?;
 
-    log::debug!(target: "control", "Received `{cmd}` on control socket");
-
-    // TODO: refactor to include helper
-    match cmd.split_once(' ') {
-        Some(("fetch", args)) => {
-            if let Some((rid, node)) = args.split_once(' ') {
-                let rid: Id = rid
-                    .parse()
-                    .map_err(|e| CommandError::InvalidCommandArg(rid.to_owned(), Box::new(e)))?;
-                let node: NodeId = node
-                    .parse()
-                    .map_err(|e| CommandError::InvalidCommandArg(node.to_owned(), Box::new(e)))?;
-
-                fetch(rid, node, LineWriter::new(stream), handle)?;
-            }
+    match cmd.name {
+        CommandName::Fetch => {
+            let (rid, nid): (Id, NodeId) = parse::args(cmd)?;
+            fetch(rid, nid, LineWriter::new(stream), handle)?;
         }
-        Some(("seeds", arg)) => {
-            let rid: Id = arg
-                .parse()
-                .map_err(|e| CommandError::InvalidCommandArg(arg.to_owned(), Box::new(e)))?;
+        CommandName::Seeds => {
+            let rid: Id = parse::arg(cmd)?;
+            let seeds = handle.seeds(rid)?;
 
-            for seed in handle.seeds(rid)? {
-                writeln!(writer, "{seed}")?;
-            }
+            json::to_writer(writer, &seeds)?;
         }
-        Some(("track-repo", arg)) => match arg.parse() {
-            Ok(id) => match handle.track_repo(id) {
+        CommandName::TrackRepo => {
+            let rid: Id = parse::arg(cmd)?;
+
+            match handle.track_repo(rid) {
                 Ok(updated) => {
-                    if updated {
-                        writeln!(writer, "{}", node::RESPONSE_OK)?;
-                    } else {
-                        writeln!(writer, "{}", node::RESPONSE_NOOP)?;
-                    }
+                    CommandResult::Okay { updated }.to_writer(writer)?;
                 }
                 Err(e) => {
                     return Err(CommandError::Runtime(e));
                 }
-            },
-            Err(err) => {
-                return Err(CommandError::InvalidCommandArg(
-                    arg.to_owned(),
-                    Box::new(err),
-                ));
             }
-        },
-        Some(("untrack-repo", arg)) => match arg.parse() {
-            Ok(id) => match handle.untrack_repo(id) {
+        }
+        CommandName::UntrackRepo => {
+            let rid: Id = parse::arg(cmd)?;
+
+            match handle.untrack_repo(rid) {
                 Ok(updated) => {
-                    if updated {
-                        writeln!(writer, "{}", node::RESPONSE_OK)?;
-                    } else {
-                        writeln!(writer, "{}", node::RESPONSE_NOOP)?;
-                    }
+                    CommandResult::Okay { updated }.to_writer(writer)?;
                 }
                 Err(e) => {
                     return Err(CommandError::Runtime(e));
                 }
-            },
-            Err(err) => {
-                return Err(CommandError::InvalidCommandArg(
-                    arg.to_owned(),
-                    Box::new(err),
-                ));
             }
-        },
-        Some(("track-node", args)) => {
-            let (peer, alias) = if let Some((peer, alias)) = args.split_once(' ') {
-                (peer, Some(alias.to_owned()))
-            } else {
-                (args, None)
+        }
+        CommandName::TrackNode => {
+            let (node, alias) = match cmd.args.as_slice() {
+                [node] => (node.as_str(), None),
+                [node, alias] => (node.as_str(), Some(alias.to_owned())),
+                _ => return Err(CommandError::InvalidCommandArgs(cmd.args)),
             };
-            match peer.parse() {
-                Ok(id) => match handle.track_node(id, alias) {
-                    Ok(updated) => {
-                        if updated {
-                            writeln!(writer, "{}", node::RESPONSE_OK)?;
-                        } else {
-                            writeln!(writer, "{}", node::RESPONSE_NOOP)?;
-                        }
-                    }
-                    Err(e) => {
-                        return Err(CommandError::Runtime(e));
-                    }
-                },
-                Err(err) => {
-                    return Err(CommandError::InvalidCommandArg(
-                        args.to_owned(),
-                        Box::new(err),
-                    ));
-                }
-            }
-        }
-        Some(("untrack-node", arg)) => match arg.parse() {
-            Ok(id) => match handle.untrack_node(id) {
+            let nid = node
+                .parse()
+                .map_err(|e| CommandError::InvalidCommandArg(node.to_owned(), Box::new(e)))?;
+
+            match handle.track_node(nid, alias) {
                 Ok(updated) => {
-                    if updated {
-                        writeln!(writer, "{}", node::RESPONSE_OK)?;
-                    } else {
-                        writeln!(writer, "{}", node::RESPONSE_NOOP)?;
-                    }
+                    CommandResult::Okay { updated }.to_writer(writer)?;
                 }
                 Err(e) => {
                     return Err(CommandError::Runtime(e));
                 }
-            },
-            Err(err) => {
-                return Err(CommandError::InvalidCommandArg(
-                    arg.to_owned(),
-                    Box::new(err),
-                ));
             }
-        },
-        Some(("announce-refs", arg)) => match arg.parse() {
-            Ok(id) => {
-                if let Err(e) = handle.announce_refs(id) {
+        }
+        CommandName::UntrackNode => {
+            let nid: NodeId = parse::arg(cmd)?;
+
+            match handle.untrack_node(nid) {
+                Ok(updated) => {
+                    CommandResult::Okay { updated }.to_writer(writer)?;
+                }
+                Err(e) => {
                     return Err(CommandError::Runtime(e));
                 }
-                writeln!(writer, "{}", node::RESPONSE_OK)?;
             }
-            Err(err) => {
-                return Err(CommandError::InvalidCommandArg(
-                    arg.to_owned(),
-                    Box::new(err),
-                ));
-            }
-        },
-        Some((cmd, _)) => return Err(CommandError::UnknownCommand(cmd.to_owned())),
+        }
+        CommandName::AnnounceRefs => {
+            let rid: Id = parse::arg(cmd)?;
 
-        // Commands with no arguments.
-        None => match cmd {
-            "status" => {
-                writeln!(writer, "{}", node::RESPONSE_OK).ok();
+            if let Err(e) = handle.announce_refs(rid) {
+                return Err(CommandError::Runtime(e));
             }
-            "routing" => match handle.routing() {
-                Ok(c) => {
-                    for (id, seed) in c.iter() {
-                        writeln!(writer, "{id} {seed}",)?;
-                    }
+            CommandResult::ok().to_writer(writer).ok();
+        }
+        CommandName::Status => {
+            CommandResult::ok().to_writer(writer).ok();
+        }
+        CommandName::Routing => match handle.routing() {
+            Ok(c) => {
+                for (id, seed) in c.iter() {
+                    writeln!(writer, "{id} {seed}")?;
                 }
-                Err(e) => return Err(CommandError::Runtime(e)),
-            },
-            "inventory" => match handle.inventory() {
-                Ok(c) => {
-                    for id in c.iter() {
-                        writeln!(writer, "{id}")?;
-                    }
-                }
-                Err(e) => return Err(CommandError::Runtime(e)),
-            },
-            "shutdown" => {
-                return Err(CommandError::Shutdown);
             }
-            _ => {
-                return Err(CommandError::UnknownCommand(line));
-            }
+            Err(e) => return Err(CommandError::Runtime(e)),
         },
+        CommandName::Inventory => match handle.inventory() {
+            Ok(c) => {
+                for id in c.iter() {
+                    writeln!(writer, "{id}")?;
+                }
+            }
+            Err(e) => return Err(CommandError::Runtime(e)),
+        },
+        CommandName::Shutdown => {
+            return Err(CommandError::Shutdown);
+        }
+        _ => {
+            return Err(CommandError::UnknownCommand(line));
+        }
     }
     Ok(())
 }
@@ -261,6 +208,45 @@ fn fetch<W: Write, H: Handle<Error = runtime::HandleError, FetchResult = FetchRe
         }
     }
     Ok(())
+}
+
+mod parse {
+    use super::*;
+
+    pub(super) fn arg<T: FromStr>(cmd: Command) -> Result<T, CommandError>
+    where
+        <T as FromStr>::Err: std::error::Error + 'static,
+    {
+        let [arg]: [String; 1] = cmd
+            .args
+            .clone()
+            .try_into()
+            .map_err(|_| CommandError::InvalidCommandArgs(cmd.args))?;
+
+        arg.parse()
+            .map_err(|e| CommandError::InvalidCommandArg(arg, Box::new(e)))
+    }
+
+    pub(super) fn args<S: FromStr, T: FromStr>(cmd: Command) -> Result<(S, T), CommandError>
+    where
+        <S as FromStr>::Err: std::error::Error + 'static,
+        <T as FromStr>::Err: std::error::Error + 'static,
+    {
+        let [arg1, arg2]: [String; 2] = cmd
+            .args
+            .clone()
+            .try_into()
+            .map_err(|_| CommandError::InvalidCommandArgs(cmd.args))?;
+
+        let arg1 = arg1
+            .parse()
+            .map_err(|e| CommandError::InvalidCommandArg(arg1, Box::new(e)))?;
+        let arg2 = arg2
+            .parse()
+            .map_err(|e| CommandError::InvalidCommandArg(arg2, Box::new(e)))?;
+
+        Ok((arg1, arg2))
+    }
 }
 
 #[cfg(test)]
@@ -290,15 +276,22 @@ mod tests {
         });
 
         for proj in &projs {
-            let mut buf = [0; 2];
-            let mut stream = loop {
+            let stream = loop {
                 if let Ok(stream) = UnixStream::connect(&socket) {
                     break stream;
                 }
             };
-            writeln!(&stream, "announce-refs {proj}").unwrap();
-            stream.read_exact(&mut buf).unwrap();
-            assert_eq!(&buf, &[b'o', b'k']);
+            writeln!(
+                &stream,
+                "{}",
+                json::to_string(&Command::new(CommandName::AnnounceRefs, [proj])).unwrap()
+            )
+            .unwrap();
+
+            let stream = BufReader::new(stream);
+            let line = stream.lines().next().unwrap().unwrap();
+
+            assert_eq!(line, json::json!({ "status": "ok" }).to_string());
         }
 
         for proj in &projs {
