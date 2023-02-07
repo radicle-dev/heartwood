@@ -45,4 +45,7 @@ It will help whoever works on a fix.
 
 ```
 $ rad comment de81d97d7fe07a80bfb339200c6af862d4526b6a --message 'The flux capacitor needs 1.21 Gigawatts'
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/6
+$ rad comment de81d97d7fe07a80bfb339200c6af862d4526b6a --reply-to z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/6 --message 'More power!'
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/7
 ```

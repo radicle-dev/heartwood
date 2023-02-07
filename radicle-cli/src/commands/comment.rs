@@ -7,6 +7,7 @@ use radicle::cob;
 use radicle::cob::issue::Issues;
 use radicle::cob::patch::Patches;
 use radicle::cob::store;
+use radicle::cob::thread;
 use radicle::prelude::*;
 use radicle::storage;
 use radicle::storage::WriteStorage;
@@ -22,11 +23,12 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad comment <id> [-m <text>]
+    rad comment <id> [options...]
 
 Options
 
     -m, --message               Comment message
+        --reply-to <comment>    Reply to a comment
         --help                  Print help
 "#,
 };
@@ -35,6 +37,7 @@ Options
 pub struct Options {
     pub id: cob::ObjectId,
     pub message: Message,
+    pub reply_to: Option<thread::CommentId>,
 }
 
 #[inline]
@@ -52,6 +55,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<cob::ObjectId> = None;
         let mut message = Message::default();
+        let mut reply_to = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -65,6 +69,11 @@ impl Args for Options {
                 }
                 Long("no-message") => message = Message::Blank,
 
+                Long("reply-to") => {
+                    let txt: String = parser.value()?.to_string_lossy().into();
+                    reply_to = Some(txt.parse()?);
+                }
+
                 // Common.
                 Long("help") => return Err(Error::Help.into()),
 
@@ -77,6 +86,7 @@ impl Args for Options {
             Options {
                 id: id.ok_or_else(|| anyhow!("an issue id to comment on must be provided"))?,
                 message,
+                reply_to,
             },
             vec![],
         ))
@@ -96,8 +106,13 @@ fn comment(
     let mut issues = Issues::open(*signer.public_key(), repo)?;
     match issues.get_mut(&options.id) {
         Ok(mut issue) => {
-            let (comment_id, _) = issue.comments().next().expect("root comment always exists");
-            issue.comment(message, *comment_id, &signer)?;
+            let comment_id = options.reply_to.unwrap_or_else(|| {
+                let (comment_id, _) = issue.comments().next().expect("root comment always exists");
+                *comment_id
+            });
+            let comment_id = issue.comment(message, comment_id, &signer)?;
+
+            term::print(comment_id);
             return Ok(());
         }
         Err(store::Error::NotFound(_, _)) => {}
@@ -108,7 +123,9 @@ fn comment(
     match patches.get_mut(&options.id) {
         Ok(mut patch) => {
             let (revision_id, _) = patch.revisions().last().expect("patch has a revision");
-            patch.comment(*revision_id, message, None, &signer)?;
+            let comment_id = patch.comment(*revision_id, message, options.reply_to, &signer)?;
+
+            term::print(comment_id);
             return Ok(());
         }
         Err(store::Error::NotFound(_, _)) => {}

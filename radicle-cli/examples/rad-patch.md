@@ -112,4 +112,7 @@ And lets leave a quick comment for our team:
 
 ```
 $ rad comment 15141cf1497627e2db54362972dd9533f62d1dcb --message 'I cannot wait to get back to the 90s!'
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5
+$ rad comment 15141cf1497627e2db54362972dd9533f62d1dcb --message 'I cannot wait to get back to the 90s!' --reply-to z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/6
 ```
