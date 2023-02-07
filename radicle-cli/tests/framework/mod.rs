@@ -30,9 +30,9 @@ pub struct Test {
 /// An assertion is a command to run with an expected output.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Assertion {
-    /// Name of program to run, eg. `git`.
-    program: String,
-    /// Program arguments, eg. `["push"]`.
+    /// Name of command to run, eg. `git`.
+    command: String,
+    /// Command arguments, eg. `["push"]`.
     args: Vec<String>,
     /// Expected output (stdout or stderr).
     expected: String,
@@ -106,10 +106,10 @@ impl TestFormula {
                 if let Some(line) = line.strip_prefix('$') {
                     let line = line.trim();
                     let parts = shlex::split(line).ok_or(Error::Parse)?;
-                    let (program, args) = parts.split_first().ok_or(Error::Parse)?;
+                    let (cmd, args) = parts.split_first().ok_or(Error::Parse)?;
 
                     test.assertions.push(Assertion {
-                        program: program.to_owned(),
+                        command: cmd.to_owned(),
                         args: args.to_owned(),
                         expected: String::new(),
                     });
@@ -143,9 +143,9 @@ impl TestFormula {
 
         for test in &self.tests {
             for assertion in &test.assertions {
-                let program = if assertion.program == "rad" {
+                let cmd = if assertion.command == "rad" {
                     snapbox::cmd::cargo_bin("rad")
-                } else if assertion.program == "cd" {
+                } else if assertion.command == "cd" {
                     let path: PathBuf = assertion.args.first().unwrap().into();
                     let path = self.cwd.join(path);
 
@@ -162,17 +162,17 @@ impl TestFormula {
 
                     continue;
                 } else {
-                    PathBuf::from(&assertion.program)
+                    PathBuf::from(&assertion.command)
                 };
-                log::debug!(target: "test", "Running `{}` in `{}`..", program.display(), self.cwd.display());
+                log::debug!(target: "test", "Running `{}` in `{}`..", cmd.display(), self.cwd.display());
 
-                if !program.exists() {
-                    log::error!(target: "test", "Program {} does not exist..", program.display());
+                if !cmd.exists() {
+                    log::error!(target: "test", "Command {} does not exist..", cmd.display());
                 }
                 if !self.cwd.exists() {
                     log::error!(target: "test", "Directory {} does not exist..", self.cwd.display());
                 }
-                let result = Command::new(program.clone())
+                let result = Command::new(cmd.clone())
                     .env_clear()
                     .envs(env::vars().filter(|(k, _)| k == "PATH"))
                     .envs(self.env.clone())
@@ -189,7 +189,7 @@ impl TestFormula {
                     Err(err) => {
                         return Err(io::Error::new(
                             err.kind(),
-                            format!("{err}: `{}`", program.display()),
+                            format!("{err}: `{}`", cmd.display()),
                         ));
                     }
                 }
@@ -241,14 +241,14 @@ $ rad sync
                     context: vec![String::from("Let's try to track @dave and @sean:")],
                     assertions: vec![
                         Assertion {
-                            program: String::from("rad"),
+                            command: String::from("rad"),
                             args: vec![String::from("track"), String::from("@dave")],
                             expected: String::from(
                                 "Tracking relationship established for @dave.\nNothing to do.\n\n",
                             ),
                         },
                         Assertion {
-                            program: String::from("rad"),
+                            command: String::from("rad"),
                             args: vec![String::from("track"), String::from("@sean")],
                             expected: String::from(
                                 "Tracking relationship established for @sean.\nNothing to do.\n",
@@ -259,7 +259,7 @@ $ rad sync
                 Test {
                     context: vec![String::from("Super, now let's move on to the next step.")],
                     assertions: vec![Assertion {
-                        program: String::from("rad"),
+                        command: String::from("rad"),
                         args: vec![String::from("sync")],
                         expected: String::new(),
                     }],
