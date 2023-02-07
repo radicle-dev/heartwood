@@ -38,6 +38,7 @@ fn test<'a>(
         .env("RAD_HOME", home.to_string_lossy())
         .env("RAD_PASSPHRASE", "radicle")
         .env("TZ", "UTC")
+        .env("LANG", "C")
         .env(radicle_cob::git::RAD_COMMIT_TIME, "1671125284")
         .envs(git::env::GIT_DEFAULT_CONFIG)
         .envs(envs)
