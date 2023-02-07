@@ -26,7 +26,7 @@ use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::identity::{Doc, Id};
 use crate::node;
-use crate::node::{Address, Features};
+use crate::node::{Address, Features, FetchResult};
 use crate::prelude::*;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
@@ -34,7 +34,6 @@ use crate::service::session::Protocol;
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteStorage};
 use crate::storage::{Namespaces, ReadStorage};
-use crate::worker;
 use crate::worker::FetchError;
 use crate::Link;
 
@@ -109,7 +108,7 @@ pub enum Command {
     /// Lookup seeds for the given repository in the routing table.
     Seeds(Id, chan::Sender<Vec<NodeId>>),
     /// Fetch the given repository from the network.
-    Fetch(Id, NodeId, chan::Sender<node::FetchResult>),
+    Fetch(Id, NodeId, chan::Sender<FetchResult>),
     /// Track the given repository.
     TrackRepo(Id, chan::Sender<bool>),
     /// Untrack the given repository.
@@ -176,7 +175,7 @@ pub struct Service<R, A, S, G> {
     /// Whether our local inventory no long represents what we have announced to the network.
     out_of_sync: bool,
     /// Fetch requests initiated by user, which are waiting for results.
-    fetch_reqs: HashMap<Id, chan::Sender<node::FetchResult>>,
+    fetch_reqs: HashMap<Id, chan::Sender<FetchResult>>,
     /// Current tracked repository bloom filter.
     filter: Filter,
     /// Last time the service was idle.
@@ -488,43 +487,45 @@ where
         }
     }
 
-    pub fn fetched(&mut self, result: worker::FetchResult) {
-        let remote = result.fetch.remote;
-        let rid = result.fetch.rid;
-        let initiated = result.fetch.initiated;
+    pub fn fetched(&mut self, fetch: Fetch, result: Result<Vec<RefUpdate>, FetchError>) {
+        let remote = fetch.remote;
+        let rid = fetch.rid;
+        let initiated = fetch.initiated;
 
         if initiated {
-            log::debug!(
-                target: "service",
-                "Fetched {rid} {remote} (error={:?})", result.result.as_ref().err()
-            );
-            let result = match result.result {
+            let result = match result {
                 Ok(updated) => {
+                    log::debug!(target: "service", "Fetched {rid} from {remote}");
+
                     self.reactor.event(Event::RefsFetched {
                         remote,
                         rid,
                         updated: updated.clone(),
                     });
-                    Ok(updated)
+                    FetchResult::Success { updated }
                 }
                 Err(err) => {
-                    error!(target: "service", "Fetch failed for {rid} from {remote}: {err}");
+                    let reason = err.to_string();
+                    error!(target: "service", "Fetch failed for {rid} from {remote}: {reason}");
 
-                    if let FetchError::Io(_) = err {
+                    // For now, we only disconnect the remote in case of timeout. In the future,
+                    // there may be other reasons to disconnect.
+                    if err.is_timeout() {
                         self.reactor
                             .disconnect(remote, DisconnectReason::Fetch(err));
-                        return;
-                    } else {
-                        Err(err)
                     }
+                    FetchResult::Failed { reason }
                 }
             };
 
             if let Some(results) = self.fetch_reqs.get(&rid) {
                 log::debug!(target: "service", "Found existing fetch request, sending result..");
 
-                if results.send(node::FetchResult::from(result)).is_err() {
+                if results.send(result).is_err() {
                     log::error!(target: "service", "Error sending fetch result for {rid}..");
+                    // FIXME: We should remove the channel even on success, once all seeds
+                    // were fetched from. Otherwise an organic fetch will try to send on the
+                    // channel.
                     self.fetch_reqs.remove(&rid);
                 } else {
                     log::debug!(target: "service", "Sent fetch result for {rid}..");

@@ -1,5 +1,4 @@
 use std::io::{prelude::*, BufReader};
-use std::ops::Deref;
 use std::thread::JoinHandle;
 use std::{env, io, net, process, thread, time};
 
@@ -35,21 +34,6 @@ pub struct Config {
     pub storage: Storage,
 }
 
-/// Result of a fetch request from a specific seed.
-#[derive(Debug)]
-pub struct FetchResult {
-    pub fetch: Fetch,
-    pub result: Result<Vec<RefUpdate>, FetchError>,
-}
-
-impl Deref for FetchResult {
-    type Target = Result<Vec<RefUpdate>, FetchError>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.result
-    }
-}
-
 /// Error returned by fetch.
 #[derive(thiserror::Error, Debug)]
 pub enum FetchError {
@@ -65,6 +49,13 @@ pub enum FetchError {
     Project(#[from] storage::ProjectError),
 }
 
+impl FetchError {
+    /// Check if it's a timeout error.
+    pub fn is_timeout(&self) -> bool {
+        matches!(self, FetchError::Io(e) if e.kind() == io::ErrorKind::TimedOut)
+    }
+}
+
 /// Task to be accomplished on a worker thread.
 /// This is either going to be an outgoing or incoming fetch.
 pub struct Task<G: Signer + EcSign> {
@@ -75,7 +66,8 @@ pub struct Task<G: Signer + EcSign> {
 
 /// Worker response.
 pub struct TaskResult<G: Signer + EcSign> {
-    pub result: FetchResult,
+    pub fetch: Fetch,
+    pub result: Result<Vec<RefUpdate>, FetchError>,
     pub session: WireSession<G>,
 }
 
@@ -108,12 +100,15 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         } = task;
 
         let (session, result) = self._process(&fetch, drain, session);
-        let result = FetchResult { fetch, result };
         log::debug!(target: "worker", "Sending response back to service..");
 
         if self
             .handle
-            .worker_result(TaskResult { result, session })
+            .worker_result(TaskResult {
+                fetch,
+                result,
+                session,
+            })
             .is_err()
         {
             log::error!(target: "worker", "Unable to report fetch result: worker channel disconnected");
@@ -136,10 +131,11 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             let result = self.fetch(fetch, &mut tunnel);
             let mut session = tunnel.into_session();
 
-            if let Err(err) = pktline::done(&mut session) {
-                log::error!(target: "worker", "Fetch error: {err}");
-            }
+            // If there are no errors, send a `done` special packet. We don't send this on error,
+            // as the remote will not be expecting it.
             if let Err(err) = &result {
+                log::error!(target: "worker", "Fetch error: {err}");
+            } else if let Err(err) = pktline::done(&mut session) {
                 log::error!(target: "worker", "Fetch error: {err}");
             }
             (session, result)
@@ -237,12 +233,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
         stream_r: &mut WireReader,
         stream_w: &mut WireWriter<G>,
     ) -> Result<Vec<RefUpdate>, FetchError> {
-        // Connect to our local git daemon, running as a child process.
-        let daemon = net::TcpStream::connect_timeout(&self.daemon, self.timeout)?;
-        let (mut daemon_r, mut daemon_w) = (daemon.try_clone()?, daemon);
         let mut stream_r = pktline::Reader::new(drain, stream_r);
-        let mut daemon_r = pktline::Reader::new(vec![], &mut daemon_r);
-        let mut buffer = [0; u16::MAX as usize + 1];
 
         // Read the request packet line to make sure the repository being requested matches what
         // we expect, and that the service requested is valid.
@@ -265,11 +256,19 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
                 ))));
             }
         };
+
+        // Connect to our local git daemon, running as a child process.
+        let daemon = net::TcpStream::connect_timeout(&self.daemon, self.timeout)?;
+        let (mut daemon_r, mut daemon_w) = (daemon.try_clone()?, daemon);
+        let mut daemon_r = pktline::Reader::new(vec![], &mut daemon_r);
+
         // Write the raw request to the daemon, once we've verified it.
         daemon_w.write_all(&request)?;
 
         // We now loop, alternating between reading requests from the client, and writing responses
         // back from the daemon.. Requests are delimited with a flush packet (`flush-pkt`).
+        let mut buffer = [0; u16::MAX as usize + 1];
+
         loop {
             if let Err(e) = daemon_r.read_pktlines(stream_w, &mut buffer) {
                 // This is the expected error when the remote disconnects.

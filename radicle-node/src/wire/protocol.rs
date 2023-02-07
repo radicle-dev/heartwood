@@ -354,7 +354,7 @@ where
         peer.downgrade();
 
         self.actions.push_back(Action::RegisterTransport(session));
-        self.service.fetched(task.result);
+        self.service.fetched(task.fetch, task.result);
     }
 }
 

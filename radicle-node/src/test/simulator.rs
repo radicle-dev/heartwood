@@ -16,11 +16,11 @@ use crate::crypto::Signer;
 use crate::git::raw as git;
 use crate::prelude::Address;
 use crate::service::reactor::Io;
-use crate::service::{DisconnectReason, Event, Message, NodeId};
+use crate::service::{DisconnectReason, Event, Fetch, Message, NodeId};
 use crate::storage::{Namespaces, RefUpdate};
 use crate::storage::{WriteRepository, WriteStorage};
 use crate::test::peer::Service;
-use crate::worker::{FetchError, FetchResult};
+use crate::worker::FetchError;
 use crate::Link;
 
 /// Minimum latency between peers.
@@ -63,7 +63,7 @@ pub enum Input {
     /// Received a message from a remote peer.
     Received(NodeId, Vec<Message>),
     /// Fetch completed for a node.
-    Fetched(Arc<FetchResult>),
+    Fetched(Fetch, Rc<Result<Vec<RefUpdate>, FetchError>>),
     /// Used to advance the state machine after some wall time has passed.
     Wake,
 }
@@ -108,11 +108,11 @@ impl fmt::Display for Scheduled {
             Input::Wake => {
                 write!(f, "{}: Tock", self.node)
             }
-            Input::Fetched(result) => {
+            Input::Fetched(fetch, _) => {
                 write!(
                     f,
-                    "{} <~ {} ({}): FetchCompleted",
-                    self.node, result.fetch.remote, result.fetch.rid
+                    "{} <~ {} ({}): Fetched",
+                    self.node, fetch.remote, fetch.rid
                 )
             }
         }
@@ -411,17 +411,13 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             p.received_message(id, msg);
                         }
                     }
-                    Input::Fetched(result) => {
-                        let result = Arc::try_unwrap(result).unwrap();
-                        let mut repo = p.storage().repository(result.fetch.rid).unwrap();
+                    Input::Fetched(f, result) => {
+                        let result = Rc::try_unwrap(result).unwrap();
+                        let mut repo = p.storage().repository(f.rid).unwrap();
 
-                        fetch(
-                            &mut repo,
-                            &result.fetch.remote,
-                            result.fetch.namespaces.clone(),
-                        )
-                        .unwrap();
-                        p.fetched(result);
+                        fetch(&mut repo, &f.remote, f.namespaces.clone()).unwrap();
+
+                        p.fetched(f, result);
                     }
                 }
                 for o in p.by_ref() {
@@ -621,10 +617,10 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         Scheduled {
                             node,
                             remote: fetch.remote,
-                            input: Input::Fetched(Arc::new(FetchResult {
+                            input: Input::Fetched(
                                 fetch,
-                                result: Err(FetchError::Io(io::ErrorKind::Other.into())),
-                            })),
+                                Rc::new(Err(FetchError::Io(io::ErrorKind::Other.into()))),
+                            ),
                         },
                     );
                 } else {
@@ -633,10 +629,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         Scheduled {
                             node,
                             remote: fetch.remote,
-                            input: Input::Fetched(Arc::new(FetchResult {
-                                fetch,
-                                result: Ok(vec![]),
-                            })),
+                            input: Input::Fetched(fetch, Rc::new(Ok(vec![]))),
                         },
                     );
                 }
