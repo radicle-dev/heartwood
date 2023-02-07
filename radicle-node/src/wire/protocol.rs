@@ -26,6 +26,7 @@ use radicle::storage::WriteStorage;
 use crate::crypto::Signer;
 use crate::service::reactor::{Fetch, Io};
 use crate::service::{routing, session, DisconnectReason, Message, Service};
+use crate::wire;
 use crate::wire::{Decode, Encode};
 use crate::worker::{Task, TaskResult};
 use crate::Link;
@@ -479,11 +480,22 @@ where
                                 // Buffer is empty, or message isn't complete.
                                 break;
                             }
-                            Err(err) => {
-                                // TODO(cloudhead): Include error in reason.
-                                log::error!(target: "wire", "Invalid message from {}: {err}", id);
+                            Err(e) => {
+                                log::error!(target: "wire", "Invalid message from {id}: {e}");
+
+                                let mut leftover = if let wire::Error::UnknownMessageType(ty) = e {
+                                    ty.to_ne_bytes().to_vec()
+                                } else {
+                                    vec![]
+                                };
+                                leftover.extend(self.read_queue.drain(..));
+
+                                if !leftover.is_empty() {
+                                    log::debug!(target: "wire", "Dropping read buffer with `{:?}`", &leftover);
+                                }
                                 self.disconnect(
                                     fd,
+                                    // TODO(cloudhead): Include error in reason.
                                     DisconnectReason::Session(session::Error::Misbehavior),
                                 );
                                 break;
