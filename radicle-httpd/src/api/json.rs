@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::cob::thread::{self, CommentId};
-use radicle::cob::Timestamp;
+use radicle::cob::{OpId, Timestamp};
 use radicle::identity::PublicKey;
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
@@ -129,6 +129,7 @@ struct Author {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Comment {
+    id: OpId,
     author: Author,
     body: String,
     reactions: [String; 0],
@@ -143,8 +144,9 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
     fn from_iter<I: IntoIterator<Item = (&'a CommentId, &'a thread::Comment)>>(iter: I) -> Self {
         let mut comments = Vec::new();
 
-        for (_, comment) in iter {
+        for (id, comment) in iter {
             comments.push(Comment {
+                id: id.to_owned(),
                 author: Author {
                     id: comment.author(),
                 },

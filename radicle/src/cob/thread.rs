@@ -133,6 +133,7 @@ impl PartialOrd for Comment {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Action {
     /// Comment on a thread.
+    #[serde(rename_all = "camelCase")]
     Comment {
         /// Comment body.
         body: String,

@@ -11,7 +11,7 @@ The issue is now listed under our project.
 
 ```
 $ rad issue list
-de81d97d7fe07a80bfb339200c6af862d4526b6a "flux capacitor underpowered"
+5bce692884916d8d5f0c05824ce9ff44c04a82a8 "flux capacitor underpowered"
 ```
 
 Great! Now we've documented the issue for ourselves and others.
@@ -22,20 +22,20 @@ others to work on.  This is to ensure work is not duplicated.
 Let's assign ourselves to this one.
 
 ```
-$ rad assign de81d97d7fe07a80bfb339200c6af862d4526b6a z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad assign 5bce692884916d8d5f0c05824ce9ff44c04a82a8 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 It will now show in the list of issues assigned to us.
 
 ```
 $ rad issue list --assigned
-de81d97d7fe07a80bfb339200c6af862d4526b6a "flux capacitor underpowered" z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+5bce692884916d8d5f0c05824ce9ff44c04a82a8 "flux capacitor underpowered" z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Note: this can always be undone with the `unassign` subcommand.
 
 ```
-$ rad unassign de81d97d7fe07a80bfb339200c6af862d4526b6a z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad unassign 5bce692884916d8d5f0c05824ce9ff44c04a82a8 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Great, now we have communicated to the world about our car's defect.
@@ -44,8 +44,8 @@ But wait! We've found an important detail about the car's power requirements.
 It will help whoever works on a fix.
 
 ```
-$ rad comment de81d97d7fe07a80bfb339200c6af862d4526b6a --message 'The flux capacitor needs 1.21 Gigawatts'
+$ rad comment 5bce692884916d8d5f0c05824ce9ff44c04a82a8 --message 'The flux capacitor needs 1.21 Gigawatts'
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/6
-$ rad comment de81d97d7fe07a80bfb339200c6af862d4526b6a --reply-to z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/6 --message 'More power!'
+$ rad comment 5bce692884916d8d5f0c05824ce9ff44c04a82a8 --reply-to z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/6 --message 'More power!'
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/7
 ```

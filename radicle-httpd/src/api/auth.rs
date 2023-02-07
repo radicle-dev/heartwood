@@ -1,6 +1,10 @@
 use radicle::crypto::PublicKey;
 use serde::{Deserialize, Serialize};
-use time::{serde::timestamp, OffsetDateTime};
+use time::serde::timestamp;
+use time::{Duration, OffsetDateTime};
+
+pub const UNAUTHORIZED_SESSIONS_EXPIRATION: Duration = Duration::seconds(60);
+pub const AUTHORIZED_SESSIONS_EXPIRATION: Duration = Duration::weeks(1);
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]

@@ -7,6 +7,7 @@ use axum::body::Body;
 use axum::http::{Method, Request};
 use axum::Router;
 use serde_json::Value;
+use time::OffsetDateTime;
 use tower::ServiceExt;
 
 use radicle::cob::issue::Issues;
@@ -17,7 +18,7 @@ use radicle_cli::commands::rad_init;
 use radicle_crypto::ssh::keystore::MemorySigner;
 use radicle_crypto::Signer;
 
-use crate::api::Context;
+use crate::api::{auth, Context};
 
 pub const HEAD: &str = "1e978d19f251cd9821d9d9a76d1bd436bf0690d5";
 pub const HEAD_1: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
@@ -135,40 +136,89 @@ pub fn seed(dir: &Path) -> Context {
     }
 }
 
+/// Adds an authorized session to the Context::sessions HashMap.
+pub async fn create_session(ctx: Context) {
+    let issued_at = OffsetDateTime::now_utc();
+    let mut sessions = ctx.sessions.write().await;
+    sessions.insert(
+        String::from("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy"),
+        auth::Session {
+            status: auth::AuthState::Authorized,
+            public_key: ctx.profile.public_key,
+            issued_at,
+            expires_at: issued_at
+                .checked_add(auth::AUTHORIZED_SESSIONS_EXPIRATION)
+                .unwrap(),
+        },
+    );
+}
+
 pub async fn get(app: &Router, path: impl ToString) -> Response {
     Response(
         app.clone()
-            .oneshot(request(path, Method::GET, None))
+            .oneshot(request(path, Method::GET, None, None))
             .await
             .unwrap(),
     )
 }
 
-pub async fn post(app: &Router, path: impl ToString, body: Option<Body>) -> Response {
+pub async fn post(
+    app: &Router,
+    path: impl ToString,
+    body: Option<Body>,
+    auth: Option<String>,
+) -> Response {
     Response(
         app.clone()
-            .oneshot(request(path, Method::POST, body))
+            .oneshot(request(path, Method::POST, body, auth))
             .await
             .unwrap(),
     )
 }
 
-pub async fn put(app: &Router, path: impl ToString, body: Option<Body>) -> Response {
+pub async fn patch(
+    app: &Router,
+    path: impl ToString,
+    body: Option<Body>,
+    auth: Option<String>,
+) -> Response {
     Response(
         app.clone()
-            .oneshot(request(path, Method::PUT, body))
+            .oneshot(request(path, Method::PATCH, body, auth))
             .await
             .unwrap(),
     )
 }
 
-fn request(path: impl ToString, method: Method, body: Option<Body>) -> Request<Body> {
-    Request::builder()
+pub async fn put(
+    app: &Router,
+    path: impl ToString,
+    body: Option<Body>,
+    auth: Option<String>,
+) -> Response {
+    Response(
+        app.clone()
+            .oneshot(request(path, Method::PUT, body, auth))
+            .await
+            .unwrap(),
+    )
+}
+
+fn request(
+    path: impl ToString,
+    method: Method,
+    body: Option<Body>,
+    auth: Option<String>,
+) -> Request<Body> {
+    let mut request = Request::builder()
         .method(method)
         .uri(path.to_string())
-        .header("Content-Type", "application/json")
-        .body(body.unwrap_or_else(Body::empty))
-        .unwrap()
+        .header("Content-Type", "application/json");
+    if let Some(token) = auth {
+        request = request.header("Authorization", format!("Bearer {token}"));
+    }
+
+    request.body(body.unwrap_or_else(Body::empty)).unwrap()
 }
 
 pub struct Response(axum::response::Response);

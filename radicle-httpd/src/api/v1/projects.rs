@@ -542,10 +542,11 @@ async fn patch_handler(
 
 #[cfg(test)]
 mod routes {
+    use axum::body::Body;
     use axum::http::StatusCode;
     use serde_json::json;
 
-    use crate::api::test::{self, get, HEAD, HEAD_1};
+    use crate::api::test::{self, get, patch, post, HEAD, HEAD_1};
 
     #[tokio::test]
     async fn test_projects_root() {
@@ -995,7 +996,7 @@ mod routes {
             response.json().await,
             json!([
               {
-                "id": "458bbd9f6d47eed3d60cd905141687ad1f99251e",
+                "id": "90c8f0bab59d9efe35e234acf3abce4168bba6b4",
                 "author": {
                     "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },
@@ -1006,6 +1007,7 @@ mod routes {
                 "assignees": [],
                 "discussion": [
                   {
+                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
                     "author": {
                         "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                     },
@@ -1018,6 +1020,205 @@ mod routes {
                 "tags": []
               }
             ])
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_issues_create() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = test::seed(tmp.path());
+        let app = super::router(ctx.to_owned());
+        test::create_session(ctx).await;
+        let body = serde_json::to_vec(&json!({
+            "title": "Issue #2",
+            "description": "Change 'hello world' to 'hello everyone'",
+            "tags": ["bug"],
+        }))
+        .unwrap();
+        let response = post(
+            &app,
+            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues",
+            Some(Body::from(body)),
+            Some("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy".to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        assert_eq!(response.json().await, json!({ "success": true }));
+
+        let issue_id = "bd2bde30b52db0fc2dae35f4e97ff9fdcc93dead";
+        let response = get(
+            &app,
+            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{issue_id}"),
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": issue_id,
+              "author": {
+                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+              },
+              "assignees": [],
+              "title": "Issue #2",
+              "state": {
+                  "status": "open",
+              },
+              "discussion": [{
+                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                  "author": {
+                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  },
+                  "body": "Change 'hello world' to 'hello everyone'",
+                  "reactions": [],
+                  "timestamp": 1673001014,
+                  "replyTo": null,
+              }],
+              "tags": [
+                  "bug",
+              ],
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_issues_comment() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = test::seed(tmp.path());
+        let app = super::router(ctx.to_owned());
+        test::create_session(ctx).await;
+        let body = serde_json::to_vec(&json!({
+          "type": "thread",
+          "action": {
+            "type": "comment",
+            "body": "This is first-level comment",
+          }
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+            Some(Body::from(body)),
+            Some("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy".to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.json().await, json!({ "success": true }));
+
+        let response = get(
+            &app,
+            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": "90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+              "author": {
+                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+              },
+              "assignees": [],
+              "title": "Issue #1",
+              "state": {
+                  "status": "open",
+              },
+              "discussion": [
+                {
+                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                  "author": {
+                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  },
+                  "body": "Change 'hello world' to 'hello everyone'",
+                  "reactions": [],
+                  "timestamp": 1673001014,
+                  "replyTo": null,
+                },
+                {
+                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/4",
+                  "author": {
+                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  },
+                  "body": "This is first-level comment",
+                  "reactions": [],
+                  "timestamp": 1673001014,
+                  "replyTo": null,
+                },
+              ],
+              "tags": [],
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_issues_reply() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = test::seed(tmp.path());
+        let app = super::router(ctx.to_owned());
+        test::create_session(ctx).await;
+        let body = serde_json::to_vec(&json!({
+          "type":"thread",
+          "action": {
+            "type": "comment",
+            "body": "This is a reply to the first comment",
+            "replyTo": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+        }}))
+        .unwrap();
+        let response = patch(
+            &app,
+            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+            Some(Body::from(body)),
+            Some("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy".to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.json().await, json!({ "success": true }));
+
+        let response = get(
+            &app,
+            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": "90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+              "author": {
+                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+              },
+              "assignees": [],
+              "title": "Issue #1",
+              "state": {
+                  "status": "open",
+              },
+              "discussion": [
+                {
+                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                  "author": {
+                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  },
+                  "body": "Change 'hello world' to 'hello everyone'",
+                  "reactions": [],
+                  "timestamp": 1673001014,
+                  "replyTo": null,
+                },
+                {
+                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/4",
+                  "author": {
+                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  },
+                  "body": "This is a reply to the first comment",
+                  "reactions": [],
+                  "timestamp": 1673001014,
+                  "replyTo": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                },
+              ],
+              "tags": [],
+            })
         );
     }
 

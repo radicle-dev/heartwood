@@ -8,16 +8,13 @@ use axum_auth::AuthBearer;
 use hyper::StatusCode;
 use radicle::crypto::{PublicKey, Signature};
 use serde::{Deserialize, Serialize};
-use time::{Duration, OffsetDateTime};
+use time::OffsetDateTime;
 
-use crate::api::auth::{AuthState, Session};
+use crate::api::auth::{self, AuthState, Session};
 use crate::api::axum_extra::Path;
 use crate::api::error::Error;
 use crate::api::json;
 use crate::api::Context;
-
-pub const UNAUTHORIZED_SESSIONS_EXPIRATION: Duration = Duration::seconds(60);
-pub const AUTHORIZED_SESSIONS_EXPIRATION: Duration = Duration::weeks(1);
 
 pub fn router(ctx: Context) -> Router {
     Router::new()
@@ -50,7 +47,7 @@ async fn session_create_handler(State(ctx): State<Context>) -> impl IntoResponse
         public_key: *signer.public_key(),
         issued_at: OffsetDateTime::now_utc(),
         expires_at: OffsetDateTime::now_utc()
-            .checked_add(UNAUTHORIZED_SESSIONS_EXPIRATION)
+            .checked_add(auth::UNAUTHORIZED_SESSIONS_EXPIRATION)
             .unwrap(),
     };
     let mut sessions = ctx.sessions.write().await;
@@ -97,7 +94,7 @@ async fn session_signin_handler(
             .map_err(Error::from)?;
         session.status = AuthState::Authorized;
         session.expires_at = OffsetDateTime::now_utc()
-            .checked_add(AUTHORIZED_SESSIONS_EXPIRATION)
+            .checked_add(auth::AUTHORIZED_SESSIONS_EXPIRATION)
             .unwrap();
 
         return Ok::<_, Error>(Json(json!({ "success": true })));
@@ -140,16 +137,20 @@ mod routes {
         let app = super::router(ctx.to_owned());
 
         // Create session.
-        let response = post(&app, "/sessions", None).await;
-        assert_eq!(response.status(), StatusCode::CREATED);
+        let response = post(&app, "/sessions", None, None).await;
+        let status = response.status();
         let json = response.json().await;
         let session_info: SessionInfo = serde_json::from_value(json).unwrap();
 
+        assert_eq!(status, StatusCode::CREATED);
+
         // Check that an unauthorized session has been created.
         let response = get(&app, format!("/sessions/{}", session_info.session_id)).await;
-        assert_eq!(response.status(), StatusCode::OK);
+        let status = response.status();
         let json = response.json().await;
         let body: Session = serde_json::from_value(json).unwrap();
+
+        assert_eq!(status, StatusCode::OK);
         assert_eq!(body.status, AuthState::Unauthorized);
 
         // Create request body
@@ -165,15 +166,19 @@ mod routes {
             &app,
             format!("/sessions/{}", session_info.session_id),
             Some(Body::from(body)),
+            None,
         )
         .await;
+
         assert_eq!(response.status(), StatusCode::OK);
 
         // Check that session has been authorized.
         let response = get(&app, format!("/sessions/{}", session_info.session_id)).await;
-        assert_eq!(response.status(), StatusCode::OK);
+        let status = response.status();
         let json = response.json().await;
         let body: Session = serde_json::from_value(json).unwrap();
+
+        assert_eq!(status, StatusCode::OK);
         assert_eq!(body.status, AuthState::Authorized);
     }
 }
