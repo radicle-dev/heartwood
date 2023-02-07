@@ -136,10 +136,7 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
             let result = self.fetch(fetch, &mut tunnel);
             let mut session = tunnel.into_session();
 
-            // A flush after all commands have been sent is optional; we do it because we're not
-            // closing the connection and therefore there's no other way for the server to know
-            // we're done sending commands.
-            if let Err(err) = pktline::flush(&mut session) {
+            if let Err(err) = pktline::done(&mut session) {
                 log::error!(target: "worker", "Fetch error: {err}");
             }
             if let Err(err) = &result {
@@ -284,6 +281,10 @@ impl<G: Signer + EcSign + 'static> Worker<G> {
                 return Err(e.into());
             }
             if let Err(e) = stream_r.read_pktlines(&mut daemon_w, &mut buffer) {
+                // Triggered by a [`pktline::DONE_PKT`] packet.
+                if e.kind() == io::ErrorKind::UnexpectedEof {
+                    break;
+                }
                 log::error!(target: "worker", "Remote returned error for {}: {e}", fetch.rid);
 
                 return Err(e.into());
@@ -355,9 +356,20 @@ mod pktline {
     pub const FLUSH_PKT: &[u8; HEADER_LEN] = b"0000";
     pub const DELIM_PKT: &[u8; HEADER_LEN] = b"0001";
     pub const RESPONSE_END_PKT: &[u8; HEADER_LEN] = b"0002";
+    /// When the remote `fetch` exits, it sends a special `done` packet which triggers
+    /// an EOF. This `done` packet is not part of the git protocol, and so is
+    /// not sent to the deamon.
+    pub const DONE_PKT: &[u8; HEADER_LEN] = b"done";
 
-    pub fn flush<W: io::Write>(w: &mut W) -> io::Result<()> {
-        write!(w, "0000")
+    /// Send a special `done` packet. Since the git protocol is tunneled over an existing
+    /// connection, we can't signal the end of the protocol via the usual means, which is
+    /// to close the connection and trigger an EOF on the other side. Git also doesn't have
+    /// any special message we can send to signal the end of the protocol. Hence, we there's
+    /// no other way for the server to know that we're done sending commands than to send a
+    /// message that is not part of the git protocol. This message can then be processed by
+    /// the remote worker to end the protocol.
+    pub fn done<W: io::Write>(w: &mut W) -> io::Result<()> {
+        w.write_all(DONE_PKT)
     }
 
     pub struct Reader<'a, R> {
@@ -387,6 +399,9 @@ mod pktline {
         pub fn read_pktline(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             self.read_exact(&mut buf[..HEADER_LEN])?;
 
+            if &buf[..HEADER_LEN] == DONE_PKT {
+                return Err(io::ErrorKind::UnexpectedEof.into());
+            }
             if &buf[..HEADER_LEN] == FLUSH_PKT
                 || &buf[..HEADER_LEN] == DELIM_PKT
                 || &buf[..HEADER_LEN] == RESPONSE_END_PKT
