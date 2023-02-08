@@ -35,7 +35,7 @@ impl Spinner {
     pub fn error(mut self, msg: impl ToString) {
         let msg = msg.to_string();
 
-        self.message = format!("{} ({})", self.message, msg);
+        self.message = format!("{} (error: {})", self.message, msg);
         self.set_failed();
     }
 

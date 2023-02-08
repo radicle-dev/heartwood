@@ -8,7 +8,7 @@ use anyhow::{anyhow, bail, Context as _};
 
 use radicle::crypto::ssh;
 use radicle::git::RefString;
-use radicle::node::NodeId;
+use radicle::node::{Handle, NodeId};
 
 use crate::git;
 use crate::terminal as term;
@@ -34,6 +34,7 @@ Options
     --set-upstream, -u   Setup the upstream of the default branch
     --setup-signing      Setup the radicle key as a signing key for this repository
     --no-confirm         Don't ask for confirmation during setup
+    --no-sync            Don't announce the new project to the network
     --help               Print help
 "#,
 };
@@ -47,6 +48,7 @@ pub struct Options {
     pub interactive: Interactive,
     pub setup_signing: bool,
     pub set_upstream: bool,
+    pub sync: bool,
 }
 
 impl Args for Options {
@@ -62,6 +64,7 @@ impl Args for Options {
         let mut interactive = Interactive::Yes;
         let mut set_upstream = false;
         let mut setup_signing = false;
+        let mut sync = true;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -106,6 +109,12 @@ impl Args for Options {
                 Long("no-confirm") => {
                     interactive = Interactive::No;
                 }
+                Long("sync") => {
+                    sync = true;
+                }
+                Long("no-sync") => {
+                    sync = false;
+                }
                 Long("help") => {
                     return Err(Error::Help.into());
                 }
@@ -125,6 +134,7 @@ impl Args for Options {
                 interactive,
                 set_upstream,
                 setup_signing,
+                sync,
             },
             vec![],
         ))
@@ -220,6 +230,14 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             if options.setup_signing {
                 // Setup radicle signing key.
                 self::setup_signing(profile.id(), &repo, interactive)?;
+            }
+            if options.sync {
+                let spinner = term::spinner("Announcing refs..");
+                if let Err(e) = radicle::Node::new(profile.socket()).announce_refs(id) {
+                    spinner.error(e);
+                } else {
+                    spinner.finish();
+                }
             }
 
             term::blank();

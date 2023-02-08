@@ -91,8 +91,6 @@ pub enum Error {
     #[error(transparent)]
     Storage(#[from] storage::Error),
     #[error(transparent)]
-    Fetch(#[from] storage::FetchError),
-    #[error(transparent)]
     Routing(#[from] routing::Error),
 }
 
@@ -701,19 +699,13 @@ where
                     return Ok(false);
                 }
 
-                if let Err(err) = self.process_inventory(
+                if let Err(err) = self.sync_inventory(
                     message.inventory.as_slice(),
                     *announcer,
                     &message.timestamp,
                 ) {
                     error!("Error processing inventory from {}: {}", announcer, err);
 
-                    if let Error::Fetch(storage::FetchError::Verify(err)) = err {
-                        // Disconnect the peer if it is the signer of this message.
-                        if announcer == relayer {
-                            return Err(session::Error::VerificationFailed(err));
-                        }
-                    }
                     // There's not much we can do if the peer sending us this message isn't the
                     // origin of it.
                     return Ok(false);
@@ -722,6 +714,13 @@ where
             }
             // Process a peer inventory update announcement by (maybe) fetching.
             AnnouncementMessage::Refs(message) => {
+                // We update inventories when receiving ref announcements, as these could come
+                // from a new repository being initialized.
+                if let Ok(updated) = self.routing.insert(message.id, *relayer, message.timestamp) {
+                    if updated {
+                        info!(target: "service", "Routing table updated for {} with seed {relayer}", message.id);
+                    }
+                }
                 // TODO: Buffer/throttle fetches.
                 // TODO: Check that we're tracking this user as well.
                 if self
@@ -743,7 +742,8 @@ where
 
                     return Ok(true);
                 } else {
-                    debug!(target: "service",
+                    debug!(
+                        target: "service",
                         "Ignoring refs announcement from {announcer}: repository {} isn't tracked",
                         message.id
                     );
@@ -959,7 +959,9 @@ where
     }
 
     /// Process a peer inventory announcement by updating our routing table.
-    fn process_inventory(
+    /// This function expects the peer's full inventory, and prunes entries that are not in the
+    /// given inventory.
+    fn sync_inventory(
         &mut self,
         inventory: &[Id],
         from: NodeId,
