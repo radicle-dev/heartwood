@@ -43,3 +43,14 @@ rad	rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRq
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi	rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (fetch)
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi	rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (push)
 ```
+
+Let's check the last commit!
+
+```
+$ git log -n 1
+commit f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
+Author: anonymous <anonymous@radicle.xyz>
+Date:   Mon Jan 1 14:39:16 2018 +0000
+
+    Second commit
+```

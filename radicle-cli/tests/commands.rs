@@ -193,7 +193,7 @@ fn rad_clone_unknown() {
 }
 
 #[test]
-fn rad_init_announce_refs() {
+fn rad_init_announce_refs_and_clone() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();

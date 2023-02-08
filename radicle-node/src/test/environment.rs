@@ -223,7 +223,8 @@ impl<G: cyphernet::EcSign<Pk = NodeId, Sig = Signature> + Signer + Clone> Node<G
         transport::local::register(self.storage.clone());
 
         let tmp = tempfile::tempdir().unwrap();
-        let (repo, _) = fixtures::gen::repository(tmp.path());
+        let (repo, _) = fixtures::repository(tmp.path());
+
         let id = rad::init(
             &repo,
             name,
