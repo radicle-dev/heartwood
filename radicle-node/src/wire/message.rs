@@ -194,7 +194,9 @@ impl wire::Encode for Message {
         let mut n = self.type_id().encode(writer)?;
 
         match self {
-            Self::Initialize {} => {}
+            Self::Initialize { node_id } => {
+                n += node_id.encode(writer)?;
+            }
             Self::Subscribe(Subscribe {
                 filter,
                 since,
@@ -243,7 +245,11 @@ impl wire::Decode for Message {
         let type_id = reader.read_u16::<NetworkEndian>()?;
 
         match MessageType::try_from(type_id) {
-            Ok(MessageType::Initialize) => Ok(Self::Initialize {}),
+            Ok(MessageType::Initialize) => {
+                let node_id = NodeId::decode(reader)?;
+
+                Ok(Self::Initialize { node_id })
+            }
             Ok(MessageType::Subscribe) => {
                 let filter = Filter::decode(reader)?;
                 let since = Timestamp::decode(reader)?;

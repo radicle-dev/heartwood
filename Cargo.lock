@@ -31,9 +31,9 @@ dependencies = [
 
 [[package]]
 name = "amplify"
-version = "4.0.0-beta.7"
+version = "4.0.0-beta.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cc8da6203c5311cc0d74155341a5577564b8360976988eeb5ce7ab6903757f1"
+checksum = "72eaf6c304959bf74ba94973ebea642729f583000ef77e7139844642cc066004"
 dependencies = [
  "amplify_derive",
  "amplify_num",
@@ -43,9 +43,9 @@ dependencies = [
 
 [[package]]
 name = "amplify_derive"
-version = "4.0.0-alpha.2"
+version = "4.0.0-alpha.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a258501c851f9dec1549e046d551b645b8b970e30aca85dbec2d6e36cda8e91"
+checksum = "01c4835e964725149d7961ec5af2ca1302f6f68c8c738b4acb06185f596c3333"
 dependencies = [
  "amplify_syn",
  "proc-macro2",
@@ -55,15 +55,15 @@ dependencies = [
 
 [[package]]
 name = "amplify_num"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f27d3d00d3d115395a7a8a4dc045feb7aa82b641e485f7e15f4e67ac16f4f56d"
+checksum = "ddce3bc63e807ea02065e8d8b702695f3d302ae4158baddff8b0ce5c73947251"
 
 [[package]]
 name = "amplify_syn"
-version = "1.1.6"
+version = "2.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da24db1445cc7bc3842fa072c2d51fe5b25b812b6a572d65842a4c72e87221ac"
+checksum = "2e3db5cb96f8f18a9566a975c521b77485f6f8e3e8d866d0f52369446ba31274"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -571,9 +571,9 @@ dependencies = [
 
 [[package]]
 name = "cypheraddr"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe21bd66fbbd74b706a551b0f56d8ee2488300f5a7cff41febce5973fa05cbc7"
+checksum = "41a05c461a9b86ba80542a5204924fd3cae3f47be011e00b1bbef9d71d95b3bb"
 dependencies = [
  "amplify",
  "base32",
@@ -583,21 +583,21 @@ dependencies = [
 
 [[package]]
 name = "cyphergraphy"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c89b94c89b484ddb937306c3ae8122b866749d1d47768b5c4a1e3e8e72ea8270"
+checksum = "3c8e45921460ef188da680742fd641f9b2a85d0de6bce12ce26e64c0f4913b41"
 dependencies = [
  "amplify",
- "ed25519-compact",
+ "ec25519",
  "multibase",
  "sha2 0.10.6",
 ]
 
 [[package]]
 name = "cyphernet"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c479a27a1c33fe0a146b6e7048fd373f48ed11205bb6c956d05d090fe749d2fe"
+checksum = "5c4cd4c5d6937b81f3df6bb26fe94b4d1c52dd2cfd85507d063d9892cd64448d"
 dependencies = [
  "cypheraddr",
  "cyphergraphy",
@@ -683,6 +683,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ec25519"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bdfd533a2fc01178c738c99412ae1f7e1ad2cb37c2e14bfd87e9d4618171c825"
+dependencies = [
+ "ct-codecs",
+ "ed25519",
+ "getrandom 0.2.8",
+]
+
+[[package]]
 name = "ecdsa"
 version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -704,17 +715,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ed25519-compact"
-version = "2.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a3d382e8464107391c8706b4c14b087808ecb909f6c15c34114bc42e53a9e4c"
-dependencies = [
- "ct-codecs",
- "ed25519",
- "getrandom 0.2.8",
-]
-
-[[package]]
 name = "ed25519-dalek"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -730,9 +730,9 @@ dependencies = [
 
 [[package]]
 name = "eidolon-auth"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc7d8d05034e0462d2df39fbbd8dbf24b0c0c4337541850ec17ace0b6b42d787"
+checksum = "4a764411b1ee8bcacb5203d24e9f0b2d192be62b23ea1c16d0e3462e103f3ffc"
 dependencies = [
  "amplify",
  "cyphergraphy",
@@ -1435,13 +1435,12 @@ dependencies = [
 
 [[package]]
 name = "netservices"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c55aa6eb316df39bd0d90c845bd02bc0c10629788aae523a8759c6d3632d568"
+checksum = "dc700700b1a95cd1eafc4c25c48ac42f72a54ab8c5fa809eef630bebbb390312"
 dependencies = [
  "amplify",
  "cyphernet",
- "ed25519-compact",
  "io-reactor",
  "libc",
  "rand 0.8.5",
@@ -1450,9 +1449,9 @@ dependencies = [
 
 [[package]]
 name = "noise-framework"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ce256b1337e403d6576c5af917a2152441e94d430bb3202e13b7f952fa53e49"
+checksum = "daedd5a3c07ef713cb9c4b6f263837822d70412517576dcacd050fa0d1ba99bd"
 dependencies = [
  "amplify",
  "chacha20poly1305",
@@ -1883,7 +1882,6 @@ dependencies = [
 name = "radicle-cob"
 version = "0.1.0"
 dependencies = [
- "ed25519-compact",
  "fastrand",
  "git-commit",
  "git-ref-format",
@@ -1923,7 +1921,7 @@ dependencies = [
  "amplify",
  "base64",
  "cyphernet",
- "ed25519-compact",
+ "ec25519",
  "fastrand",
  "git-ref-format",
  "multibase",
@@ -2491,9 +2489,9 @@ dependencies = [
 
 [[package]]
 name = "socks5-client"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d80f67376257f749cbf2835799705650d76833389e80dabd2986082fb2f42072"
+checksum = "4091196d57cf9436ebecbec4c572b2be61373a7aaa632a3e93a5cb8555ec1b79"
 dependencies = [
  "amplify",
  "cypheraddr",

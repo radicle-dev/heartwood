@@ -304,7 +304,7 @@ impl Announcement {
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     /// The first message sent to a peer after connection.
-    Initialize {},
+    Initialize { node_id: NodeId },
 
     /// Subscribe to gossip messages matching the filter and time range.
     Subscribe(Subscribe),
@@ -333,8 +333,8 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn init() -> Self {
-        Self::Initialize {}
+    pub fn init(node_id: NodeId) -> Self {
+        Self::Initialize { node_id }
     }
 
     pub fn announcement(

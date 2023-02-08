@@ -11,15 +11,16 @@ use std::{fmt, io, net};
 
 use amplify::Wrapper as _;
 use crossbeam_channel as chan;
-use cyphernet::{Cert, Digest, EcSign, Sha256};
+use cyphernet::addr::{HostName, InetHost, NetAddr};
+use cyphernet::encrypt::noise::{HandshakePattern, Keyset, NoiseState};
+use cyphernet::proxy::socks5;
+use cyphernet::{Digest, EcSk, Ecdh, Sha256};
 use localtime::LocalTime;
 use netservices::resource::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
-use netservices::session::ProtocolArtifact;
-use netservices::session::{CypherReader, CypherSession, CypherWriter};
-use netservices::{NetConnection, NetSession};
+use netservices::session::{ProtocolArtifact, Socks5Session};
+use netservices::{NetConnection, NetProtocol, NetReader, NetSession, NetWriter};
 
 use radicle::collections::HashMap;
-use radicle::crypto::Signature;
 use radicle::node::NodeId;
 use radicle::storage::WriteStorage;
 
@@ -32,16 +33,22 @@ use crate::worker::{Task, TaskResult};
 use crate::Link;
 use crate::{address, service};
 
+/// NoiseXK handshake pattern.
+pub const NOISE_XK: HandshakePattern = HandshakePattern {
+    initiator: cyphernet::encrypt::noise::InitiatorPattern::Xmitted,
+    responder: cyphernet::encrypt::noise::OneWayPattern::Known,
+};
+
 #[allow(clippy::large_enum_variant)]
 /// Control message used internally between workers, users, and the service.
-pub enum Control<G: Signer + EcSign> {
+pub enum Control<G: Signer + Ecdh> {
     /// Message from the user to the service.
     User(service::Command),
     /// Message from a worker to the service.
     Worker(TaskResult<G>),
 }
 
-impl<G: Signer + EcSign> fmt::Debug for Control<G> {
+impl<G: Signer + Ecdh> fmt::Debug for Control<G> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::User(cmd) => cmd.fmt(f),
@@ -51,19 +58,21 @@ impl<G: Signer + EcSign> fmt::Debug for Control<G> {
 }
 
 /// Peer session type.
-pub type WireSession<G> = CypherSession<G, Sha256>;
+pub type WireSession<G> = NetProtocol<NoiseState<G, Sha256>, Socks5Session<net::TcpStream>>;
 /// Peer session type (read-only).
-pub type WireReader = CypherReader<Sha256>;
+pub type WireReader = NetReader<Socks5Session<net::TcpStream>>;
 /// Peer session type (write-only).
-pub type WireWriter<G> = CypherWriter<G, Sha256>;
+pub type WireWriter<G> = NetWriter<NoiseState<G, Sha256>, Socks5Session<net::TcpStream>>;
 
 /// Reactor action.
 type Action<G> = reactor::Action<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>;
 
 /// Peer connection state machine.
 enum Peer {
-    /// The initial state before handshake is completed.
-    Connecting { link: Link, id: Option<NodeId> },
+    /// The initial state of an inbound peer before handshake is completed.
+    Inbound {},
+    /// The initial state of an outbound peer before handshake is completed.
+    Outbound { id: NodeId },
     /// The state after handshake is completed.
     /// Peers in this state are handled by the underlying service.
     Connected {
@@ -92,8 +101,8 @@ enum Peer {
 impl std::fmt::Debug for Peer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Connecting { link, id: Some(id) } => write!(f, "Connecting({link:?}, {id})"),
-            Self::Connecting { link, id: None } => write!(f, "Connecting({link:?})"),
+            Self::Inbound {} => write!(f, "Inbound"),
+            Self::Outbound { id } => write!(f, "Outbound({id})"),
             Self::Connected { link, id, .. } => write!(f, "Connected({link:?}, {id})"),
             Self::Disconnected { .. } => write!(f, "Disconnected"),
             Self::Upgrading {
@@ -121,18 +130,36 @@ impl Peer {
     }
 
     /// Return a new inbound connecting peer.
-    fn connecting(link: Link, id: Option<NodeId>) -> Self {
-        Self::Connecting { link, id }
+    fn inbound() -> Self {
+        Self::Inbound {}
+    }
+
+    /// Return a new inbound connecting peer.
+    fn outbound(id: NodeId) -> Self {
+        Self::Outbound { id }
     }
 
     /// Switch to connected state.
-    fn connected(&mut self, id: NodeId) {
-        if let Self::Connecting { link, .. } = self {
+    fn connected(&mut self, id: NodeId) -> Link {
+        if let Self::Inbound {} = self {
+            let link = Link::Inbound;
+
             *self = Self::Connected {
-                link: *link,
+                link,
                 id,
                 inbox: VecDeque::new(),
             };
+            link
+        } else if let Self::Outbound { id: expected } = self {
+            assert_eq!(id, *expected);
+            let link = Link::Outbound;
+
+            *self = Self::Connected {
+                link,
+                id,
+                inbox: VecDeque::new(),
+            };
+            link
         } else {
             panic!("Peer::connected: session for {id} is already established");
         }
@@ -145,8 +172,13 @@ impl Peer {
                 id: Some(*id),
                 reason,
             };
-        } else if let Self::Connecting { id, .. } = self {
-            *self = Self::Disconnected { id: *id, reason };
+        } else if let Self::Inbound {} = self {
+            *self = Self::Disconnected { id: None, reason };
+        } else if let Self::Outbound { id } = self {
+            *self = Self::Disconnected {
+                id: Some(*id),
+                reason,
+            };
         } else {
             panic!("Peer::disconnected: session is not connected ({self:?})");
         }
@@ -162,7 +194,7 @@ impl Peer {
                 inbox: inbox.clone(),
             };
         } else {
-            panic!("Peer::upgrading: session is not connected");
+            panic!("Peer::upgrading: session is not fully connected");
         }
     }
 
@@ -205,13 +237,11 @@ impl Peer {
 }
 
 /// Wire protocol implementation for a set of peers.
-pub struct Wire<R, S, W, G: Signer + EcSign> {
+pub struct Wire<R, S, W, G: Signer + Ecdh> {
     /// Backing service instance.
     service: Service<R, S, W, G>,
     /// Worker pool interface.
     worker: chan::Sender<Task<G>>,
-    /// Used for authentication; keeps local identity.
-    cert: Cert<Signature>,
     /// Used for authentication.
     signer: G,
     /// Internal queue of actions to send to the reactor.
@@ -227,12 +257,11 @@ where
     R: routing::Store,
     S: address::Store,
     W: WriteStorage + 'static,
-    G: Signer + EcSign,
+    G: Signer + Ecdh<Pk = NodeId>,
 {
     pub fn new(
         mut service: Service<R, S, W, G>,
         worker: chan::Sender<Task<G>>,
-        cert: Cert<Signature>,
         signer: G,
         proxy: net::SocketAddr,
         clock: LocalTime,
@@ -244,7 +273,6 @@ where
         Self {
             service,
             worker,
-            cert,
             signer,
             proxy,
             actions: VecDeque::new(),
@@ -284,8 +312,8 @@ where
 
     fn active(&self) -> impl Iterator<Item = (RawFd, &NodeId)> {
         self.peers.iter().filter_map(|(fd, peer)| match peer {
-            Peer::Connecting { id: Some(id), .. } => Some((*fd, id)),
-            Peer::Connecting { id: None, .. } => None,
+            Peer::Inbound {} => None,
+            Peer::Outbound { id } => Some((*fd, id)),
             Peer::Connected { id, .. } => Some((*fd, id)),
             Peer::Upgrading { id, .. } => Some((*fd, id)),
             Peer::Upgraded { id, .. } => Some((*fd, id)),
@@ -382,7 +410,7 @@ where
     R: routing::Store + Send,
     S: address::Store + Send,
     W: WriteStorage + Send + 'static,
-    G: Signer + EcSign<Pk = NodeId, Sig = Signature> + Clone + Send,
+    G: Signer + Ecdh<Pk = NodeId> + Clone + Send,
 {
     type Listener = NetAccept<WireSession<G>>;
     type Transport = NetTransport<WireSession<G>>;
@@ -410,17 +438,9 @@ where
                     "Accepting inbound peer connection from {}..",
                     connection.remote_addr()
                 );
-                self.peers.insert(
-                    connection.as_raw_fd(),
-                    Peer::connecting(Link::Inbound, None),
-                );
+                self.peers.insert(connection.as_raw_fd(), Peer::inbound());
 
-                let session = WireSession::accept::<{ Sha256::OUTPUT_LEN }>(
-                    connection,
-                    self.cert,
-                    vec![],
-                    self.signer.clone(),
-                );
+                let session = accept::<G>(connection, self.signer.clone());
                 let transport = match NetTransport::with_session(session, Link::Inbound) {
                     Ok(transport) => transport,
                     Err(err) => {
@@ -445,21 +465,21 @@ where
         _: Duration,
     ) {
         match event {
-            SessionEvent::Established(ProtocolArtifact {
-                state: Cert { pk: node_id, .. },
-                ..
-            }) => {
-                log::debug!(target: "wire", "Session established with {node_id} (fd={fd})");
+            SessionEvent::Established(ProtocolArtifact { state, .. }) => {
+                // SAFETY: With the NoiseXK protocol, there is always a remote static key.
+                let id: NodeId = state.remote_static_key.unwrap();
+
+                log::debug!(target: "wire", "Session established with {id} (fd={fd})");
 
                 let conflicting = self
                     .active()
-                    .filter(|(other, id)| **id == node_id && *other != fd)
+                    .filter(|(other, d)| **d == id && *other != fd)
                     .map(|(fd, _)| fd)
                     .collect::<Vec<_>>();
 
                 for fd in conflicting {
                     log::warn!(
-                        target: "wire", "Closing conflicting session with {node_id} (fd={fd})"
+                        target: "wire", "Closing conflicting session with {id} (fd={fd})"
                     );
                     self.disconnect(
                         fd,
@@ -473,19 +493,9 @@ where
                     log::error!(target: "wire", "Session not found for fd {fd}");
                     return;
                 };
-                let Peer::Connecting { link, .. } = peer else {
-                    log::error!(
-                        target: "wire",
-                        "Session for {node_id} was either not found, or in an invalid state"
-                    );
-                    return;
-                };
-                log::debug!(target: "wire", "Found connecting peer ({:?})..", link);
+                let link = peer.connected(id);
 
-                let link = *link;
-
-                peer.connected(node_id);
-                self.service.connected(node_id, link);
+                self.service.connected(id, link);
             }
             SessionEvent::Data(data) => {
                 if let Some(Peer::Connected { id, inbox, .. }) = self.peers.get_mut(&fd) {
@@ -594,7 +604,7 @@ where
         log::debug!(target: "wire", "Received transport handover (fd={fd})");
 
         match self.peers.get(&fd) {
-            Some(Peer::Disconnected { id, reason }) => {
+            Some(Peer::Disconnected { id, reason, .. }) => {
                 // Disconnect TCP stream.
                 drop(transport);
 
@@ -623,7 +633,7 @@ where
     R: routing::Store,
     S: address::Store,
     W: WriteStorage + 'static,
-    G: Signer + EcSign<Pk = NodeId, Sig = Signature>,
+    G: Signer + Ecdh<Pk = NodeId>,
 {
     type Item = Action<G>;
 
@@ -664,10 +674,9 @@ where
                         break;
                     }
 
-                    match WireSession::connect_nonblocking::<{ Sha256::OUTPUT_LEN }>(
+                    match dial::<G>(
                         addr.to_inner(),
-                        self.cert,
-                        vec![node_id],
+                        node_id,
                         self.signer.clone(),
                         self.proxy.into(),
                         false,
@@ -679,10 +688,8 @@ where
                             self.service.attempted(node_id, &addr);
                             // TODO: Keep track of peer address for when peer disconnects before
                             // handshake is complete.
-                            self.peers.insert(
-                                transport.as_raw_fd(),
-                                Peer::connecting(Link::Outbound, Some(node_id)),
-                            );
+                            self.peers
+                                .insert(transport.as_raw_fd(), Peer::outbound(node_id));
 
                             self.actions
                                 .push_back(reactor::Action::RegisterTransport(transport));
@@ -712,4 +719,67 @@ where
         }
         self.actions.pop_front()
     }
+}
+
+/// Establish a new outgoing connection.
+pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
+    remote_addr: NetAddr<HostName>,
+    remote_id: <G as EcSk>::Pk,
+    signer: G,
+    proxy_addr: NetAddr<InetHost>,
+    force_proxy: bool,
+) -> io::Result<WireSession<G>> {
+    let connection = if force_proxy {
+        net::TcpStream::connect_nonblocking(proxy_addr)?
+    } else {
+        net::TcpStream::connect_nonblocking(remote_addr.connection_addr(proxy_addr))?
+    };
+    Ok(session::<G>(
+        remote_addr,
+        Some(remote_id),
+        connection,
+        signer,
+        force_proxy,
+    ))
+}
+
+/// Accept a new connection.
+pub fn accept<G: Signer + Ecdh<Pk = NodeId>>(
+    connection: net::TcpStream,
+    signer: G,
+) -> WireSession<G> {
+    session::<G>(
+        connection.remote_addr().into(),
+        None,
+        connection,
+        signer,
+        false,
+    )
+}
+
+/// Create a new [`WireSession`].
+fn session<G: Signer + Ecdh<Pk = NodeId>>(
+    remote_addr: NetAddr<HostName>,
+    remote_id: Option<NodeId>,
+    connection: net::TcpStream,
+    signer: G,
+    force_proxy: bool,
+) -> WireSession<G> {
+    let socks5 = socks5::Socks5::with(remote_addr, force_proxy);
+    let proxy = Socks5Session::with(connection, socks5);
+    let pair = G::generate_keypair();
+    let keyset = Keyset {
+        e: pair.0,
+        s: Some(signer),
+        re: None,
+        rs: remote_id,
+    };
+
+    let noise = NoiseState::initialize::<{ Sha256::OUTPUT_LEN }>(
+        NOISE_XK,
+        remote_id.is_some(),
+        &[],
+        keyset,
+    );
+    WireSession::with(proxy, noise)
 }

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 #[cfg(feature = "cyphernet")]
-use cyphernet::{EcSign, EcSk, EcSkInvalid};
+use cyphernet::{EcSk, EcSkInvalid, Ecdh};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
@@ -163,21 +163,23 @@ impl EcSk for MemorySigner {
     where
         Self: Sized,
     {
-        // TODO(cloudhead): Do we need `EcSk` on `MemorySigner`?
-        todo!()
+        let ms = Self::gen();
+        let pk = ms.public;
+
+        (ms, pk)
     }
 
     fn to_pk(&self) -> Result<Self::Pk, EcSkInvalid> {
-        Ok(*self.public_key())
+        Ok(self.public)
     }
 }
 
 #[cfg(feature = "cyphernet")]
-impl EcSign for MemorySigner {
-    type Sig = Signature;
+impl Ecdh for MemorySigner {
+    type SharedSecret = [u8; 32];
 
-    fn sign(&self, msg: impl AsRef<[u8]>) -> Self::Sig {
-        Signer::sign(self, msg.as_ref())
+    fn ecdh(&self, pk: &Self::Pk) -> Result<Self::SharedSecret, cyphernet::EcdhError> {
+        self.secret.ecdh(pk).map_err(cyphernet::EcdhError::from)
     }
 }
 

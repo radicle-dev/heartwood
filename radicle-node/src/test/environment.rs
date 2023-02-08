@@ -10,7 +10,7 @@ use crossbeam_channel as chan;
 
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::test::signer::MockSigner;
-use radicle::crypto::{KeyPair, Seed, Signature, Signer};
+use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git;
 use radicle::git::refname;
 use radicle::identity::Id;
@@ -104,7 +104,7 @@ pub struct Node<G> {
 }
 
 /// Handle to a running node.
-pub struct NodeHandle<G: Signer + cyphernet::EcSign + 'static> {
+pub struct NodeHandle<G: Signer + cyphernet::Ecdh + 'static> {
     pub id: NodeId,
     pub storage: Storage,
     pub signer: G,
@@ -114,7 +114,7 @@ pub struct NodeHandle<G: Signer + cyphernet::EcSign + 'static> {
     pub handle: ManuallyDrop<Handle<G>>,
 }
 
-impl<G: Signer + cyphernet::EcSign + 'static> Drop for NodeHandle<G> {
+impl<G: Signer + cyphernet::Ecdh + 'static> Drop for NodeHandle<G> {
     fn drop(&mut self) {
         log::debug!(target: "test", "Node {} shutting down..", self.id);
 
@@ -128,7 +128,7 @@ impl<G: Signer + cyphernet::EcSign + 'static> Drop for NodeHandle<G> {
     }
 }
 
-impl<G: Signer + cyphernet::EcSign> NodeHandle<G> {
+impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     /// Connect this node to another node, and wait for the connection to be established both ways.
     pub fn connect(&mut self, remote: &NodeHandle<G>) -> &mut Self {
         self.handle.connect(remote.id, remote.addr.into()).unwrap();
@@ -245,7 +245,7 @@ impl Node<MockSigner> {
     }
 }
 
-impl<G: cyphernet::EcSign<Pk = NodeId, Sig = Signature> + Signer + Clone> Node<G> {
+impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
     /// Spawn a node in its own thread.
     pub fn spawn(self, config: service::Config) -> NodeHandle<G> {
         let listen = vec![([0, 0, 0, 0], 0).into()];
@@ -312,7 +312,7 @@ impl<G: cyphernet::EcSign<Pk = NodeId, Sig = Signature> + Signer + Clone> Node<G
 
 /// Checks whether the nodes have converged in their routing tables.
 #[track_caller]
-pub fn converge<'a, G: Signer + cyphernet::EcSign + 'static>(
+pub fn converge<'a, G: Signer + cyphernet::Ecdh + 'static>(
     nodes: impl IntoIterator<Item = &'a NodeHandle<G>>,
 ) -> BTreeSet<(Id, NodeId)> {
     let nodes = nodes.into_iter().collect::<Vec<_>>();

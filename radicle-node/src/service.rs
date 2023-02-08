@@ -953,7 +953,7 @@ where
 
                 return Err(session::Error::Misbehavior);
             }
-            (session::State::Connected { initialized, .. }, Message::Initialize {}) => {
+            (session::State::Connected { initialized, .. }, Message::Initialize { .. }) => {
                 // Already initialized!
                 if *initialized {
                     debug!(
@@ -1537,7 +1537,7 @@ mod gossip {
         };
 
         let mut msgs = vec![
-            Message::init(),
+            Message::init(*signer.public_key()),
             Message::inventory(gossip::inventory(now, inventory), signer),
             Message::subscribe(
                 filter,

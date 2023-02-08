@@ -2,13 +2,11 @@ use std::cmp::Ordering;
 use std::sync::Arc;
 use std::{fmt, ops::Deref, str::FromStr};
 
-#[cfg(feature = "cyphernet")]
-use cyphernet::{EcSigInvalid, EcSkInvalid, EcVerifyError};
-use ed25519_compact as ed25519;
+use ec25519 as ed25519;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub use ed25519::{Error, KeyPair, Seed};
+pub use ed25519::{edwards25519, Error, KeyPair, Seed};
 
 pub mod hash;
 #[cfg(feature = "ssh")]
@@ -159,12 +157,6 @@ impl TryFrom<String> for Signature {
 #[serde(into = "String", try_from = "String")]
 pub struct PublicKey(pub ed25519::PublicKey);
 
-impl PublicKey {
-    pub fn from_pem(pem: &str) -> Result<Self, ed25519::Error> {
-        ed25519::PublicKey::from_pem(pem).map(Self)
-    }
-}
-
 #[cfg(feature = "cyphernet")]
 impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKey {
     type Display = String;
@@ -175,44 +167,9 @@ impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKe
 }
 
 #[cfg(feature = "cyphernet")]
-impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for Signature {
-    type Display = String;
-
-    fn display_fmt(&self, _: &cyphernet::display::Encoding) -> Self::Display {
-        self.to_string()
-    }
-}
-
-#[cfg(feature = "cyphernet")]
-impl cyphernet::EcSk for SecretKey {
-    type Pk = PublicKey;
-
-    fn generate_keypair() -> (Self, Self::Pk)
-    where
-        Self: Sized,
-    {
-        let pair = KeyPair::generate();
-        (pair.sk.into(), pair.pk.into())
-    }
-
-    fn to_pk(&self) -> Result<Self::Pk, EcSkInvalid> {
-        Ok(self.public_key().into())
-    }
-}
-
-#[cfg(feature = "cyphernet")]
-impl cyphernet::EcSign for SecretKey {
-    type Sig = Signature;
-
-    fn sign(&self, msg: impl AsRef<[u8]>) -> Self::Sig {
-        self.0.sign(msg, None).into()
-    }
-}
-
-#[cfg(feature = "cyphernet")]
 impl cyphernet::EcPk for PublicKey {
     const COMPRESSED_LEN: usize = 32;
-    const CURVE_NAME: &'static str = "Ed25519";
+    const CURVE_NAME: &'static str = "Curve25519";
 
     type Compressed = [u8; 32];
 
@@ -235,34 +192,19 @@ impl cyphernet::EcPk for PublicKey {
     }
 }
 
-#[cfg(feature = "cyphernet")]
-impl cyphernet::EcSig for Signature {
-    const COMPRESSED_LEN: usize = 64;
-    type Pk = PublicKey;
-    type Compressed = [u8; 64];
-
-    fn to_sig_compressed(&self) -> Self::Compressed {
-        *self.0.deref()
-    }
-
-    fn from_sig_compressed(sig: Self::Compressed) -> Result<Self, EcSigInvalid> {
-        Ok(Signature::from(sig))
-    }
-
-    fn from_sig_compressed_slice(slice: &[u8]) -> Result<Self, EcSigInvalid> {
-        ed25519::Signature::from_slice(slice)
-            .map_err(|_| EcSigInvalid::default())
-            .map(Signature)
-    }
-
-    fn verify(&self, pk: &Self::Pk, msg: impl AsRef<[u8]>) -> Result<(), EcVerifyError> {
-        self.0.verify(pk, msg)
-    }
-}
-
 /// The private/signing key.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct SecretKey(ed25519::SecretKey);
+
+impl SecretKey {
+    /// Elliptic-curve Diffie-Hellman.
+    pub fn ecdh(&self, pk: &PublicKey) -> Result<[u8; 32], ed25519::Error> {
+        let scalar = self.seed().scalar();
+        let ge = edwards25519::GeP3::from_bytes_vartime(pk).ok_or(Error::InvalidPublicKey)?;
+
+        Ok(edwards25519::ge_scalarmult(&scalar, &ge).to_bytes())
+    }
+}
 
 impl PartialOrd for SecretKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -520,9 +462,21 @@ pub mod keypair {
 
 #[cfg(test)]
 mod tests {
-    use crate::PublicKey;
+    use super::KeyPair;
+    use crate::{PublicKey, SecretKey};
     use qcheck_macros::quickcheck;
     use std::str::FromStr;
+
+    #[test]
+    fn test_e25519_dh() {
+        let kp_a = KeyPair::generate();
+        let kp_b = KeyPair::generate();
+
+        let output_a = SecretKey::from(kp_b.sk).ecdh(&kp_a.pk.into()).unwrap();
+        let output_b = SecretKey::from(kp_a.sk).ecdh(&kp_b.pk.into()).unwrap();
+
+        assert_eq!(output_a, output_b);
+    }
 
     #[quickcheck]
     fn prop_encode_decode(input: PublicKey) {

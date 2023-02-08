@@ -76,23 +76,27 @@ impl Signer for MockSigner {
 impl cyphernet::EcSk for MockSigner {
     type Pk = PublicKey;
 
+    // TODO: Should be renamed to 'generate'.
     fn generate_keypair() -> (Self, Self::Pk)
     where
         Self: Sized,
     {
-        unimplemented! {}
+        let kp = Self::default();
+        let pk = kp.pk;
+
+        (kp, pk)
     }
 
     fn to_pk(&self) -> Result<Self::Pk, cyphernet::EcSkInvalid> {
-        Ok(*self.public_key())
+        Ok(self.pk)
     }
 }
 
 #[cfg(feature = "cyphernet")]
-impl cyphernet::EcSign for MockSigner {
-    type Sig = Signature;
+impl cyphernet::Ecdh for MockSigner {
+    type SharedSecret = [u8; 32];
 
-    fn sign(&self, msg: impl AsRef<[u8]>) -> Self::Sig {
-        Signer::sign(self, msg.as_ref())
+    fn ecdh(&self, pk: &Self::Pk) -> Result<Self::SharedSecret, cyphernet::EcdhError> {
+        self.sk.ecdh(pk).map_err(|_| cyphernet::EcdhError::WeakPk)
     }
 }

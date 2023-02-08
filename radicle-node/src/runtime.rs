@@ -6,19 +6,20 @@ use std::path::PathBuf;
 use std::{fs, io, net, thread, time};
 
 use crossbeam_channel as chan;
-use cyphernet::{Cert, EcSign};
+use cyphernet::Ecdh;
 use netservices::resource::NetAccept;
-use radicle::git;
-use radicle::node::Handle as _;
-use radicle::profile::Home;
-use radicle::Storage;
 use reactor::poller::popol;
 use reactor::Reactor;
 use thiserror::Error;
 
+use radicle::git;
+use radicle::node::Handle as _;
+use radicle::profile::Home;
+use radicle::Storage;
+
 use crate::address;
 use crate::control;
-use crate::crypto::{Signature, Signer};
+use crate::crypto::Signer;
 use crate::node::NodeId;
 use crate::service::{routing, tracking};
 use crate::wire;
@@ -69,7 +70,7 @@ pub enum Error {
 }
 
 /// Holds join handles to the client threads, as well as a client handle.
-pub struct Runtime<G: Signer + EcSign> {
+pub struct Runtime<G: Signer + Ecdh> {
     pub id: NodeId,
     pub home: Home,
     pub handle: Handle<G>,
@@ -81,7 +82,7 @@ pub struct Runtime<G: Signer + EcSign> {
     pub signals: chan::Receiver<()>,
 }
 
-impl<G: Signer + EcSign + 'static> Runtime<G> {
+impl<G: Signer + Ecdh + 'static> Runtime<G> {
     /// Initialize the runtime.
     ///
     /// This function spawns threads.
@@ -95,7 +96,7 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
         signer: G,
     ) -> Result<Runtime<G>, Error>
     where
-        G: EcSign<Sig = Signature, Pk = NodeId> + Clone,
+        G: Ecdh<Pk = NodeId> + Clone,
     {
         let id = *signer.public_key();
         let node_dir = home.node();
@@ -129,13 +130,8 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
             rng,
         );
 
-        let cert = Cert {
-            pk: id,
-            sig: EcSign::sign(&signer, id.as_slice()),
-        };
-
         let (worker_send, worker_recv) = chan::unbounded::<worker::Task<G>>();
-        let mut wire = Wire::new(service, worker_send, cert, signer, proxy, clock);
+        let mut wire = Wire::new(service, worker_send, signer, proxy, clock);
         let mut local_addrs = Vec::new();
 
         for addr in listen {
