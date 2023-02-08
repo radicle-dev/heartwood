@@ -8,6 +8,9 @@ use snapbox::cmd::{Command, OutputAssert};
 use snapbox::{Assert, Substitutions};
 use thiserror::Error;
 
+/// Error lines in the CLI are prefixed with this string.
+const ERROR_PREFIX: &str = "==";
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("parsing failed")]
@@ -16,6 +19,12 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("snapbox: {0}")]
     Snapbox(#[from] snapbox::Error),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ExitStatus {
+    Success,
+    Failure,
 }
 
 /// A test which may contain multiple assertions.
@@ -36,6 +45,8 @@ pub struct Assertion {
     args: Vec<String>,
     /// Expected output (stdout or stderr).
     expected: String,
+    /// Expected exit status.
+    exit: ExitStatus,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -112,8 +123,12 @@ impl TestFormula {
                         command: cmd.to_owned(),
                         args: args.to_owned(),
                         expected: String::new(),
+                        exit: ExitStatus::Success,
                     });
                 } else if let Some(test) = test.assertions.last_mut() {
+                    if line.starts_with(ERROR_PREFIX) {
+                        test.exit = ExitStatus::Failure;
+                    }
                     test.expected.push_str(line.as_str());
                     test.expected.push('\n');
                 } else {
@@ -181,7 +196,14 @@ impl TestFormula {
                 match result {
                     Ok(output) => {
                         let assert = OutputAssert::new(output).with_assert(assert.clone());
-                        assert.stdout_matches(&assertion.expected).success();
+                        match assertion.exit {
+                            ExitStatus::Success => {
+                                assert.stdout_matches(&assertion.expected).success();
+                            }
+                            ExitStatus::Failure => {
+                                assert.stdout_matches(&assertion.expected).failure();
+                            }
+                        }
                     }
                     Err(err) => {
                         if err.kind() == io::ErrorKind::NotFound {
@@ -246,6 +268,7 @@ $ rad sync
                             expected: String::from(
                                 "Tracking relationship established for @dave.\nNothing to do.\n\n",
                             ),
+                            exit: ExitStatus::Success,
                         },
                         Assertion {
                             command: String::from("rad"),
@@ -253,6 +276,7 @@ $ rad sync
                             expected: String::from(
                                 "Tracking relationship established for @sean.\nNothing to do.\n",
                             ),
+                            exit: ExitStatus::Success,
                         },
                     ],
                 },
@@ -262,6 +286,7 @@ $ rad sync
                         command: String::from("rad"),
                         args: vec![String::from("sync")],
                         expected: String::new(),
+                        exit: ExitStatus::Success,
                     }],
                 },
             ],

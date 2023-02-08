@@ -87,7 +87,7 @@ pub fn help(name: &str, version: &str, description: &str, usage: &str) {
 }
 
 pub fn usage(name: &str, usage: &str) {
-    eprintln!(
+    println!(
         "{} {}\n{}",
         style("==").red(),
         style(format!("Error: rad-{name}: invalid usage")).red(),
@@ -95,8 +95,8 @@ pub fn usage(name: &str, usage: &str) {
     );
 }
 
-pub fn eprintln(prefix: impl fmt::Display, msg: impl fmt::Display) {
-    eprintln!("{prefix} {msg}");
+pub fn println(prefix: impl fmt::Display, msg: impl fmt::Display) {
+    println!("{prefix} {msg}");
 }
 
 pub fn indented(msg: impl fmt::Display) {
@@ -108,7 +108,7 @@ pub fn subcommand(msg: impl fmt::Display) {
 }
 
 pub fn warning(warning: &str) {
-    eprintln!(
+    println!(
         "{} {} {}",
         style("**").yellow(),
         style("Warning:").yellow().bold(),
@@ -117,7 +117,7 @@ pub fn warning(warning: &str) {
 }
 
 pub fn error(error: impl fmt::Display) {
-    eprintln!("{} {}", style("==").red(), style(error).red());
+    println!("{} {}", style("==").red(), style(error).red());
 }
 
 pub fn fail(header: &str, error: &anyhow::Error) {
@@ -129,7 +129,7 @@ pub fn fail(header: &str, error: &anyhow::Error) {
         " "
     };
 
-    eprintln!(
+    println!(
         "{} {}{}{}",
         style("==").red(),
         style(header).red().reverse(),
@@ -139,7 +139,7 @@ pub fn fail(header: &str, error: &anyhow::Error) {
 
     let cause = error.root_cause();
     if cause.to_string() != error.to_string() {
-        eprintln!(
+        println!(
             "{} {}",
             style("==").red().dim(),
             style(error.root_cause()).red().dim()
@@ -148,7 +148,7 @@ pub fn fail(header: &str, error: &anyhow::Error) {
     }
 
     if let Some(Error::WithHint { hint, .. }) = error.downcast_ref::<Error>() {
-        eprintln!("{} {}", style("==").yellow(), style(hint).yellow(),);
+        println!("{} {}", style("==").yellow(), style(hint).yellow(),);
         blank();
     }
 }

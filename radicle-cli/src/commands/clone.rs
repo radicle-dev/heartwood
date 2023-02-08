@@ -131,6 +131,8 @@ pub enum CloneError {
     Payload(#[from] doc::PayloadError),
     #[error("project error: {0}")]
     Project(#[from] ProjectError),
+    #[error("no seeds found for {0}")]
+    NotFound(Id),
 }
 
 pub fn clone<G: Signer>(
@@ -149,8 +151,11 @@ pub fn clone<G: Signer>(
         );
     }
 
-    // Get seeds.
+    // Get seeds. This consults the local routing table only.
     let seeds = node.seeds(id)?;
+    if seeds.is_empty() {
+        return Err(CloneError::NotFound(id));
+    }
     // Fetch from all seeds.
     for seed in seeds {
         let spinner = term::spinner(format!(

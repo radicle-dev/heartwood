@@ -174,6 +174,25 @@ fn rad_clone() {
 }
 
 #[test]
+fn rad_clone_unknown() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let working = environment.tmp().join("working");
+
+    let alice = alice.spawn(Config::default());
+
+    test(
+        "examples/rad-clone-unknown.md",
+        working,
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_init_announce_refs() {
     logger::init(log::Level::Debug);
 

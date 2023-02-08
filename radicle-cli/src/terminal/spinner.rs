@@ -35,7 +35,7 @@ impl Spinner {
     pub fn error(mut self, msg: impl ToString) {
         let msg = msg.to_string();
 
-        self.message = format!("{} (error: {})", self.message, msg);
+        self.message = format!("{} error: {}", self.message, msg);
         self.set_failed();
     }
 
@@ -52,7 +52,7 @@ impl Spinner {
 
     pub fn set_failed(&mut self) {
         self.progress.finish_and_clear();
-        term::eprintln(style("!!").red().reverse(), &self.message);
+        term::println(style("!!").red().reverse(), &self.message);
     }
 }
 
