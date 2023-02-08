@@ -18,8 +18,8 @@ Usage
 
 Options
 
-    --host, -h             httpd host to bind to
-    --web, -w              interface host to bind to
+    --backend, -b          httpd to bind to
+    --frontend, -f         Web interface to bind to
     --verbose, -v          Verbose output
     --help                 Print help
 "#,
@@ -34,8 +34,8 @@ pub struct SessionInfo {
 
 #[derive(Debug)]
 pub struct Options {
-    pub host: String,
-    pub web: String,
+    pub backend: String,
+    pub frontend: String,
     pub verbose: bool,
 }
 
@@ -44,18 +44,18 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut host = None;
-        let mut web = None;
+        let mut backend = None;
+        let mut frontend = None;
         let mut verbose = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("verbose") | Short('v') => verbose = true,
-                Long("host") | Short('h') => {
-                    host = Some(parser.value()?.to_string_lossy().to_string())
+                Long("backend") | Short('b') => {
+                    backend = Some(parser.value()?.to_string_lossy().to_string())
                 }
-                Long("web") | Short('w') => {
-                    web = Some(parser.value()?.to_string_lossy().to_string())
+                Long("frontend") | Short('f') => {
+                    frontend = Some(parser.value()?.to_string_lossy().to_string())
                 }
                 Long("help") => {
                     return Err(Error::Help.into());
@@ -69,8 +69,8 @@ impl Args for Options {
         Ok((
             Options {
                 verbose,
-                host: host.unwrap_or(String::from("0.0.0.0:8080")),
-                web: web.unwrap_or(String::from("localhost:3000")),
+                backend: backend.unwrap_or(String::from("http://0.0.0.0:8080")),
+                frontend: frontend.unwrap_or(String::from("https://app.radicle.xyz")),
             },
             vec![],
         ))
@@ -84,19 +84,22 @@ pub fn sign(signer: Box<dyn Signer>, session: &SessionInfo) -> Result<Signature,
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
-    let session: SessionInfo = ureq::post(&format!("http://{}/api/v1/sessions", options.host))
+    let session: SessionInfo = ureq::post(&format!("{}/api/v1/sessions", options.backend))
         .call()?
         .into_json()?;
     let profile = ctx.profile()?;
     let signer = profile.signer()?;
     let signature = sign(signer, &session)?;
+    term::blank();
+    term::info!("Open the following link to authenticate:");
     term::info!(
-        "http://{}/session/{}?pk={}&sig={}",
-        options.web,
+        "  👉 {}/session/{}?pk={}&sig={}",
+        options.frontend,
         session.session_id,
         session.public_key,
         signature,
     );
+    term::blank();
 
     Ok(())
 }
