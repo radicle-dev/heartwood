@@ -163,7 +163,7 @@ fn rad_clone() {
     let working = environment.tmp().join("working");
 
     // Setup a test project.
-    let _ = alice.project("acme", "");
+    let _ = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
 
     let alice = alice.spawn(Config::default());
     let mut bob = bob.spawn(Config::default());
