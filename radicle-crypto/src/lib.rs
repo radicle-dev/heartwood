@@ -2,14 +2,13 @@ use std::cmp::Ordering;
 use std::sync::Arc;
 use std::{fmt, ops::Deref, str::FromStr};
 
-#[cfg(feature = "cyphernet")]
-use cyphernet::{EcSigInvalid, EcSkInvalid, EcVerifyError};
 use ed25519_compact as ed25519;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub use ed25519::{Error, KeyPair, Seed};
+pub use ed25519::{x25519, Error, KeyPair, Seed};
 
+pub mod dh;
 pub mod hash;
 #[cfg(feature = "ssh")]
 pub mod ssh;
@@ -175,41 +174,6 @@ impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKe
 }
 
 #[cfg(feature = "cyphernet")]
-impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for Signature {
-    type Display = String;
-
-    fn display_fmt(&self, _: &cyphernet::display::Encoding) -> Self::Display {
-        self.to_string()
-    }
-}
-
-#[cfg(feature = "cyphernet")]
-impl cyphernet::EcSk for SecretKey {
-    type Pk = PublicKey;
-
-    fn generate_keypair() -> (Self, Self::Pk)
-    where
-        Self: Sized,
-    {
-        let pair = KeyPair::generate();
-        (pair.sk.into(), pair.pk.into())
-    }
-
-    fn to_pk(&self) -> Result<Self::Pk, EcSkInvalid> {
-        Ok(self.public_key().into())
-    }
-}
-
-#[cfg(feature = "cyphernet")]
-impl cyphernet::EcSign for SecretKey {
-    type Sig = Signature;
-
-    fn sign(&self, msg: impl AsRef<[u8]>) -> Self::Sig {
-        self.0.sign(msg, None).into()
-    }
-}
-
-#[cfg(feature = "cyphernet")]
 impl cyphernet::EcPk for PublicKey {
     const COMPRESSED_LEN: usize = 32;
     const CURVE_NAME: &'static str = "Ed25519";
@@ -232,31 +196,6 @@ impl cyphernet::EcPk for PublicKey {
         ed25519::PublicKey::from_slice(slice)
             .map_err(|_| cyphernet::EcPkInvalid::default())
             .map(Self)
-    }
-}
-
-#[cfg(feature = "cyphernet")]
-impl cyphernet::EcSig for Signature {
-    const COMPRESSED_LEN: usize = 64;
-    type Pk = PublicKey;
-    type Compressed = [u8; 64];
-
-    fn to_sig_compressed(&self) -> Self::Compressed {
-        *self.0.deref()
-    }
-
-    fn from_sig_compressed(sig: Self::Compressed) -> Result<Self, EcSigInvalid> {
-        Ok(Signature::from(sig))
-    }
-
-    fn from_sig_compressed_slice(slice: &[u8]) -> Result<Self, EcSigInvalid> {
-        ed25519::Signature::from_slice(slice)
-            .map_err(|_| EcSigInvalid::default())
-            .map(Signature)
-    }
-
-    fn verify(&self, pk: &Self::Pk, msg: impl AsRef<[u8]>) -> Result<(), EcVerifyError> {
-        self.0.verify(pk, msg)
     }
 }
 

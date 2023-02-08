@@ -1433,8 +1433,7 @@ dependencies = [
 [[package]]
 name = "netservices"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c55aa6eb316df39bd0d90c845bd02bc0c10629788aae523a8759c6d3632d568"
+source = "git+https://github.com/cyphernet-dao/rust-netservices?rev=731678894f875c9c1b976be2cb0804419848b61f#731678894f875c9c1b976be2cb0804419848b61f"
 dependencies = [
  "amplify",
  "cyphernet",
@@ -1447,9 +1446,9 @@ dependencies = [
 
 [[package]]
 name = "noise-framework"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ce256b1337e403d6576c5af917a2152441e94d430bb3202e13b7f952fa53e49"
+checksum = "51c514b8ed037975f84ba057fdf2d5c587cf92f81ee359de73d9ac485a876226"
 dependencies = [
  "amplify",
  "chacha20poly1305",

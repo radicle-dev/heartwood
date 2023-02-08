@@ -4,11 +4,11 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 #[cfg(feature = "cyphernet")]
-use cyphernet::{EcSign, EcSk, EcSkInvalid};
+use cyphernet::{EcSk, EcSkInvalid, Ecdh};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
-use crate::{keypair, KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
+use crate::{dh, keypair, KeyPair, PublicKey, SecretKey, Signature, Signer, SignerError};
 
 /// A secret key passphrase.
 pub type Passphrase = Zeroizing<String>;
@@ -157,27 +157,31 @@ impl Signer for MemorySigner {
 
 #[cfg(feature = "cyphernet")]
 impl EcSk for MemorySigner {
-    type Pk = PublicKey;
+    type Pk = dh::PublicKey;
 
     fn generate_keypair() -> (Self, Self::Pk)
     where
         Self: Sized,
     {
-        // TODO(cloudhead): Do we need `EcSk` on `MemorySigner`?
-        todo!()
+        let ms = Self::gen();
+        let pk = ms.public;
+
+        (ms, pk.into())
     }
 
     fn to_pk(&self) -> Result<Self::Pk, EcSkInvalid> {
-        Ok(*self.public_key())
+        Ok(dh::PublicKey::from(*self.public_key()))
     }
 }
 
 #[cfg(feature = "cyphernet")]
-impl EcSign for MemorySigner {
-    type Sig = Signature;
+impl Ecdh for MemorySigner {
+    type SharedSecret = [u8; 32];
 
-    fn sign(&self, msg: impl AsRef<[u8]>) -> Self::Sig {
-        Signer::sign(self, msg.as_ref())
+    fn ecdh(&self, pk: &Self::Pk) -> Result<Self::SharedSecret, cyphernet::EcdhError> {
+        let sk = crate::x25519::SecretKey::from_ed25519(&self.secret)?;
+
+        sk.ecdh(pk)
     }
 }
 

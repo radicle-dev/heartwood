@@ -35,3 +35,7 @@ rev = "48022590d0439e7fb196605a573a725bbbf0e4d2"
 [patch.crates-io.git-ref-format]
 git = "https://github.com/radicle-dev/radicle-git"
 rev = "48022590d0439e7fb196605a573a725bbbf0e4d2"
+
+[patch.crates-io.netservices]
+git = "https://github.com/cyphernet-dao/rust-netservices"
+rev = "731678894f875c9c1b976be2cb0804419848b61f"

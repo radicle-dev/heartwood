@@ -1,4 +1,4 @@
-use crate::{KeyPair, PublicKey, SecretKey, Seed, Signature, Signer, SignerError};
+use crate::{dh, KeyPair, PublicKey, SecretKey, Seed, Signature, Signer, SignerError};
 
 #[derive(Debug, Clone)]
 pub struct MockSigner {
@@ -74,25 +74,31 @@ impl Signer for MockSigner {
 
 #[cfg(feature = "cyphernet")]
 impl cyphernet::EcSk for MockSigner {
-    type Pk = PublicKey;
+    type Pk = dh::PublicKey;
 
+    // TODO: Should be renamed to 'generate'.
     fn generate_keypair() -> (Self, Self::Pk)
     where
         Self: Sized,
     {
-        unimplemented! {}
+        let kp = Self::default();
+        let pk = kp.pk;
+
+        (kp, pk.into())
     }
 
     fn to_pk(&self) -> Result<Self::Pk, cyphernet::EcSkInvalid> {
-        Ok(*self.public_key())
+        Ok(dh::PublicKey::from(*self.public_key()))
     }
 }
 
 #[cfg(feature = "cyphernet")]
-impl cyphernet::EcSign for MockSigner {
-    type Sig = Signature;
+impl cyphernet::Ecdh for MockSigner {
+    type SharedSecret = [u8; 32];
 
-    fn sign(&self, msg: impl AsRef<[u8]>) -> Self::Sig {
-        Signer::sign(self, msg.as_ref())
+    fn ecdh(&self, pk: &Self::Pk) -> Result<Self::SharedSecret, cyphernet::EcdhError> {
+        let sk = crate::x25519::SecretKey::from_ed25519(&self.sk)?;
+
+        sk.ecdh(pk)
     }
 }

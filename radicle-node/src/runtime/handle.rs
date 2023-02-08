@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crossbeam_channel as chan;
-use cyphernet::EcSign;
+use cyphernet::Ecdh;
 use thiserror::Error;
 
 use crate::crypto::Signer;
@@ -56,7 +56,7 @@ impl<T> From<chan::SendError<T>> for Error {
     }
 }
 
-pub struct Handle<G: Signer + EcSign> {
+pub struct Handle<G: Signer + Ecdh> {
     pub(crate) home: Home,
     pub(crate) controller: reactor::Controller<wire::Control<G>>,
 
@@ -64,13 +64,13 @@ pub struct Handle<G: Signer + EcSign> {
     shutdown: Arc<AtomicBool>,
 }
 
-impl<G: Signer + EcSign> fmt::Debug for Handle<G> {
+impl<G: Signer + Ecdh> fmt::Debug for Handle<G> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Handle").field("home", &self.home).finish()
     }
 }
 
-impl<G: Signer + EcSign> Clone for Handle<G> {
+impl<G: Signer + Ecdh> Clone for Handle<G> {
     fn clone(&self) -> Self {
         Self {
             home: self.home.clone(),
@@ -80,7 +80,7 @@ impl<G: Signer + EcSign> Clone for Handle<G> {
     }
 }
 
-impl<G: Signer + EcSign + 'static> Handle<G> {
+impl<G: Signer + Ecdh + 'static> Handle<G> {
     pub fn new(home: Home, controller: reactor::Controller<wire::Control<G>>) -> Self {
         Self {
             home,
@@ -104,7 +104,7 @@ impl<G: Signer + EcSign + 'static> Handle<G> {
     }
 }
 
-impl<G: Signer + EcSign + 'static> radicle::node::Handle for Handle<G> {
+impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
     type Sessions = Sessions;
     type Error = Error;
     type FetchResult = FetchResult;

@@ -3,7 +3,7 @@ use std::thread::JoinHandle;
 use std::{env, io, net, process, thread, time};
 
 use crossbeam_channel as chan;
-use cyphernet::EcSign;
+use cyphernet::Ecdh;
 use netservices::tunnel::Tunnel;
 use netservices::{NetSession, SplitIo};
 
@@ -58,21 +58,21 @@ impl FetchError {
 
 /// Task to be accomplished on a worker thread.
 /// This is either going to be an outgoing or incoming fetch.
-pub struct Task<G: Signer + EcSign> {
+pub struct Task<G: Signer + Ecdh> {
     pub fetch: Fetch,
     pub session: WireSession<G>,
     pub drain: Vec<u8>,
 }
 
 /// Worker response.
-pub struct TaskResult<G: Signer + EcSign> {
+pub struct TaskResult<G: Signer + Ecdh> {
     pub fetch: Fetch,
     pub result: Result<Vec<RefUpdate>, FetchError>,
     pub session: WireSession<G>,
 }
 
 /// A worker that replicates git objects.
-struct Worker<G: Signer + EcSign> {
+struct Worker<G: Signer + Ecdh> {
     storage: Storage,
     tasks: chan::Receiver<Task<G>>,
     daemon: net::SocketAddr,
@@ -82,7 +82,7 @@ struct Worker<G: Signer + EcSign> {
     name: String,
 }
 
-impl<G: Signer + EcSign + 'static> Worker<G> {
+impl<G: Signer + Ecdh + 'static> Worker<G> {
     /// Waits for tasks and runs them. Blocks indefinitely unless there is an error receiving
     /// the next task.
     fn run(mut self) -> Result<(), chan::RecvError> {
@@ -303,7 +303,7 @@ pub struct Pool {
 
 impl Pool {
     /// Create a new worker pool with the given parameters.
-    pub fn with<G: Signer + EcSign + 'static>(
+    pub fn with<G: Signer + Ecdh + 'static>(
         tasks: chan::Receiver<Task<G>>,
         handle: Handle<G>,
         config: Config,
