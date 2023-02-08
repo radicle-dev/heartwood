@@ -166,9 +166,6 @@ impl TestFormula {
                 };
                 log::debug!(target: "test", "Running `{}` in `{}`..", cmd.display(), self.cwd.display());
 
-                if !cmd.exists() {
-                    log::error!(target: "test", "Command {} does not exist..", cmd.display());
-                }
                 if !self.cwd.exists() {
                     log::error!(target: "test", "Directory {} does not exist..", self.cwd.display());
                 }
@@ -187,6 +184,9 @@ impl TestFormula {
                         assert.stdout_matches(&assertion.expected).success();
                     }
                     Err(err) => {
+                        if err.kind() == io::ErrorKind::NotFound {
+                            log::error!(target: "test", "Command `{}` does not exist..", cmd.display());
+                        }
                         return Err(io::Error::new(
                             err.kind(),
                             format!("{err}: `{}`", cmd.display()),

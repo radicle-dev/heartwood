@@ -1001,6 +1001,11 @@ where
         let peers = self.sessions.negotiated().map(|(_, p)| p);
         let timestamp = self.clock.as_secs();
 
+        // Make sure our local routing table is up to date with new repositories.
+        if let Err(e) = self.routing.insert(id, self.node_id(), timestamp) {
+            log::error!(target: "service", "Failed to update routing table with repository {id}: {e}");
+        }
+
         if remote.refs.len() > Refs::max() {
             error!(
                 target: "service",

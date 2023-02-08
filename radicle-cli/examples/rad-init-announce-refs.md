@@ -13,6 +13,7 @@ ok Project heartwood created
   "description": "Radicle Heartwood Protocol & Stack",
   "defaultBranch": "master"
 }
+ok Announcing refs..
 
 Your project id is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji. You can show it any time by running:
     rad .
@@ -20,11 +21,4 @@ Your project id is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji. You can show it any time b
 To publish your project to the network, run:
     rad push
 
-```
-
-Projects can be listed with the `ls` command:
-
-```
-$ rad ls
-heartwood rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji f2de534 Radicle Heartwood Protocol & Stack
 ```

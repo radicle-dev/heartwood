@@ -212,10 +212,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             ));
             spinner.finish();
 
-            if interactive.no() {
-                term::blob(json::to_string_pretty(&proj)?);
-                term::blank();
-            }
+            term::blob(json::to_string_pretty(&proj)?);
 
             if options.set_upstream || git::branch_remote(&repo, proj.default_branch()).is_err() {
                 // Setup eg. `master` -> `rad/master`

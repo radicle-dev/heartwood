@@ -172,3 +172,40 @@ fn rad_clone() {
 
     test("examples/rad-clone.md", working, Some(&bob.home), []).unwrap();
 }
+
+#[test]
+fn rad_init_announce_refs() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let working = environment.tmp().join("working");
+
+    let alice = alice.spawn(Config::default());
+    let mut bob = bob.spawn(Config::default());
+
+    bob.connect(&alice);
+
+    fixtures::repository(working.join("alice"));
+
+    // Alice initializes a repo after her node has started, and after bob has connected to it.
+    test(
+        "examples/rad-init-announce-refs.md",
+        &working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    // Wait for bob to get any updates to the routing table.
+    bob.converge([&alice]);
+
+    test(
+        "examples/rad-clone.md",
+        working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+}
