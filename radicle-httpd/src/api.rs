@@ -73,7 +73,13 @@ pub fn router(ctx: Context) -> Router {
             CorsLayer::new()
                 .max_age(Duration::from_secs(86400))
                 .allow_origin(cors::Any)
-                .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::PUT])
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PATCH,
+                    Method::PUT,
+                    Method::DELETE,
+                ])
                 .allow_headers([CONTENT_TYPE, AUTHORIZATION]),
         )
 }
