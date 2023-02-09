@@ -218,7 +218,7 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
         self.reactor.join().unwrap();
         control.join().unwrap()?;
 
-        daemon.kill().ok(); // Ignore error if daemon has already exited, for whatever reason.
+        daemon::kill(&daemon).ok(); // Ignore error if daemon has already exited, for whatever reason.
         daemon.wait()?;
 
         fs::remove_file(home.socket()).ok();
@@ -234,6 +234,20 @@ pub mod daemon {
     use std::process::{Child, Command, Stdio};
     use std::{env, io, net};
 
+    /// Kill the daemon process.
+    pub fn kill(child: &Child) -> io::Result<()> {
+        // SAFETY: We use `libc::kill` because `Child::kill` always sends a `SIGKILL` and that doesn't
+        // work for us. We need to send a `SIGTERM` to fully reap the child process. This is because
+        // `git-daemon` spawns its own children, and isn't able to reap them if it receives
+        // a `SIGKILL`.
+        let result = unsafe { libc::kill(child.id() as libc::c_int, libc::SIGTERM) };
+        match result {
+            0 => Ok(()),
+            _ => Err(io::Error::last_os_error()),
+        }
+    }
+
+    /// Spawn the daemon process.
     pub fn spawn(storage: &Path, addr: net::SocketAddr) -> io::Result<Child> {
         let storage = storage.canonicalize()?;
         let listen = format!("--listen={}", addr.ip());
@@ -247,6 +261,9 @@ pub mod daemon {
             .arg("daemon")
             // Make all git directories available.
             .arg("--export-all")
+            .arg("--reuseaddr")
+            .arg("--max-connections=32")
+            .arg("--informative-errors")
             .arg("--verbose")
             // The git "root". Should be our storage path.
             .arg("--base-path=.")

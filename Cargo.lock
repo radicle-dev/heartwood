@@ -1991,6 +1991,7 @@ dependencies = [
  "git-ref-format",
  "io-reactor",
  "lexopt",
+ "libc",
  "localtime",
  "log",
  "netservices",
