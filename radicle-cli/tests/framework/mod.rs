@@ -15,6 +15,8 @@ const ERROR_PREFIX: &str = "==";
 pub enum Error {
     #[error("parsing failed")]
     Parse,
+    #[error("test file not found: {0:?}")]
+    TestNotFound(PathBuf),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
     #[error("snapbox: {0}")]
@@ -92,7 +94,14 @@ impl TestFormula {
     }
 
     pub fn file(&mut self, path: impl AsRef<Path>) -> Result<&mut Self, Error> {
-        let contents = fs::read(path)?;
+        let path = path.as_ref();
+        let contents = match fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                return Err(Error::TestNotFound(path.to_path_buf()));
+            }
+            Err(err) => return Err(err.into()),
+        };
         self.read(io::Cursor::new(contents))
     }
 
