@@ -14,7 +14,7 @@ use tower_http::set_header::SetResponseHeaderLayer;
 
 use radicle::cob::issue::{Action, Issues};
 use radicle::cob::patch::Patches;
-use radicle::cob::{thread, Tag};
+use radicle::cob::{thread, ActorId, Tag};
 use radicle::identity::Id;
 use radicle::node::NodeId;
 use radicle::storage::{git::paths, ReadRepository, WriteStorage};
@@ -404,6 +404,7 @@ pub struct IssueCreate {
     pub title: String,
     pub description: String,
     pub tags: Vec<Tag>,
+    pub assignees: Vec<ActorId>,
 }
 
 /// Create a new issue.
@@ -424,7 +425,13 @@ async fn issue_create_handler(
     let repo = storage.repository(project)?;
     let mut issues = Issues::open(ctx.profile.public_key, &repo)?;
     let issue = issues
-        .create(issue.title, issue.description, &issue.tags, &signer)
+        .create(
+            issue.title,
+            issue.description,
+            &issue.tags,
+            &issue.assignees,
+            &signer,
+        )
         .map_err(Error::from)?;
 
     Ok::<_, Error>((
@@ -551,7 +558,7 @@ mod routes {
 
     use crate::api::test::{self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID};
 
-    const CREATED_ISSUE_ID: &str = "768c6735912a34856552ae6a9ca77d728962bf31";
+    const CREATED_ISSUE_ID: &str = "b56febfba1e7dd20f4aea43ca2fe9dcf1fd448ba";
 
     #[tokio::test]
     async fn test_projects_root() {
@@ -1041,6 +1048,7 @@ mod routes {
             "title": "Issue #2",
             "description": "Change 'hello world' to 'hello everyone'",
             "tags": ["bug"],
+            "assignees": [],
         }))
         .unwrap();
         let response = post(
@@ -1147,7 +1155,7 @@ mod routes {
                   "replyTo": null,
                 },
                 {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/4",
+                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5",
                   "author": {
                       "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
@@ -1217,7 +1225,7 @@ mod routes {
                   "replyTo": null,
                 },
                 {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/4",
+                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5",
                   "author": {
                       "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },

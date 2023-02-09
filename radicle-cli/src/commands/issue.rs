@@ -38,6 +38,7 @@ Options
 pub struct Metadata {
     title: String,
     labels: Vec<Tag>,
+    assignees: Vec<cob::ActorId>,
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
@@ -205,7 +206,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             title: Some(title),
             description: Some(description),
         } => {
-            issues.create(title, description, &[], &signer)?;
+            issues.create(title, description, &[], &[], &signer)?;
         }
         Operation::Show { id } => {
             let issue = issues
@@ -227,6 +228,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let meta = Metadata {
                 title: title.unwrap_or("Enter a title".to_owned()),
                 labels: vec![],
+                assignees: vec![],
             };
             let yaml = serde_yaml::to_string(&meta)?;
             let doc = format!(
@@ -263,6 +265,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     &meta.title,
                     description.trim(),
                     meta.labels.as_slice(),
+                    meta.assignees.as_slice(),
                     &signer,
                 )?;
             }

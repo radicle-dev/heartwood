@@ -193,7 +193,11 @@ impl Deref for Issue {
 }
 
 impl store::Transaction<Issue> {
-    pub fn assign(&mut self, add: Vec<ActorId>, remove: Vec<ActorId>) -> OpId {
+    pub fn assign(
+        &mut self,
+        add: impl IntoIterator<Item = ActorId>,
+        remove: impl IntoIterator<Item = ActorId>,
+    ) -> OpId {
         let add = add.into_iter().collect::<Vec<_>>();
         let remove = remove.into_iter().collect::<Vec<_>>();
 
@@ -273,10 +277,10 @@ impl<'a, 'g> IssueMut<'a, 'g> {
     /// Assign one or more actors to an issue.
     pub fn assign<G: Signer>(
         &mut self,
-        assignees: Vec<ActorId>,
+        assignees: impl IntoIterator<Item = ActorId>,
         signer: &G,
     ) -> Result<OpId, Error> {
-        self.transaction("Assign", signer, |tx| tx.assign(assignees, vec![]))
+        self.transaction("Assign", signer, |tx| tx.assign(assignees, []))
     }
 
     /// Set the issue title.
@@ -332,10 +336,10 @@ impl<'a, 'g> IssueMut<'a, 'g> {
     /// Unassign one or more actors from an issue.
     pub fn unassign<G: Signer>(
         &mut self,
-        assignees: Vec<ActorId>,
+        assignees: impl IntoIterator<Item = ActorId>,
         signer: &G,
     ) -> Result<OpId, Error> {
-        self.transaction("Unassign", signer, |tx| tx.assign(vec![], assignees))
+        self.transaction("Unassign", signer, |tx| tx.assign([], assignees))
     }
 
     pub fn transaction<G, F, T>(
@@ -416,16 +420,18 @@ impl<'a> Issues<'a> {
         title: impl ToString,
         description: impl ToString,
         tags: &[Tag],
+        assignees: &[ActorId],
         signer: &G,
     ) -> Result<IssueMut<'a, 'g>, Error> {
         let (id, issue, clock) =
             Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
                 tx.thread(description);
+                tx.assign(assignees.to_owned(), []);
                 tx.edit(title);
                 tx.tag(tags.to_owned(), []);
             })?;
         // Just a sanity check that our clock is advancing as expected.
-        debug_assert_eq!(clock.get(), 3);
+        debug_assert_eq!(clock.get(), 4);
 
         Ok(IssueMut {
             id,
@@ -498,15 +504,30 @@ mod test {
 
         let assignee: ActorId = arbitrary::gen(1);
         let assignee_two: ActorId = arbitrary::gen(1);
-        let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &signer)
+        let issue = issues
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[assignee],
+                &signer,
+            )
             .unwrap();
-
-        issue.assign(vec![assignee, assignee_two], &signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
         let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+
+        assert_eq!(1, assignees.len());
+        assert!(assignees.contains(&assignee));
+
+        let mut issue = issues.get_mut(&id).unwrap();
+        issue.assign([assignee_two], &signer).unwrap();
+
+        let id = issue.id;
+        let issue = issues.get(&id).unwrap().unwrap();
+        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+
         assert_eq!(2, assignees.len());
         assert!(assignees.contains(&assignee));
         assert!(assignees.contains(&assignee_two));
@@ -519,18 +540,27 @@ mod test {
         let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
 
         let assignee: ActorId = arbitrary::gen(1);
+        let assignee_two: ActorId = arbitrary::gen(1);
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[assignee],
+                &signer,
+            )
             .unwrap();
 
-        issue.assign(vec![assignee], &signer).unwrap();
-        issue.assign(vec![assignee], &signer).unwrap();
+        issue.assign([assignee_two], &signer).unwrap();
+        issue.assign([assignee_two], &signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
         let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
-        assert_eq!(1, assignees.len());
+
+        assert_eq!(2, assignees.len());
         assert!(assignees.contains(&assignee));
+        assert!(assignees.contains(&assignee_two));
     }
 
     #[test]
@@ -539,9 +569,10 @@ mod test {
         let (_, signer, project) = test::setup::context(&tmp);
         let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
         let created = issues
-            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
-        assert_eq!(created.clock().get(), 3);
+
+        assert_eq!(created.clock().get(), 4);
 
         let (id, created) = (created.id, created.issue);
         let issue = issues.get(&id).unwrap().unwrap();
@@ -560,7 +591,7 @@ mod test {
         let (_, signer, project) = test::setup::context(&tmp);
         let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
 
         issue
@@ -574,6 +605,7 @@ mod test {
 
         let id = issue.id;
         let mut issue = issues.get_mut(&id).unwrap();
+
         assert_eq!(
             *issue.state(),
             State::Closed {
@@ -583,6 +615,7 @@ mod test {
 
         issue.lifecycle(State::Open, &signer).unwrap();
         let issue = issues.get(&id).unwrap().unwrap();
+
         assert_eq!(*issue.state(), State::Open);
     }
 
@@ -595,15 +628,21 @@ mod test {
         let assignee: ActorId = arbitrary::gen(1);
         let assignee_two: ActorId = arbitrary::gen(1);
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[assignee, assignee_two],
+                &signer,
+            )
             .unwrap();
 
-        issue.assign(vec![assignee, assignee_two], &signer).unwrap();
-        issue.unassign(vec![assignee], &signer).unwrap();
+        issue.unassign([assignee], &signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
         let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+
         assert_eq!(1, assignees.len());
         assert!(assignees.contains(&assignee_two));
     }
@@ -614,7 +653,7 @@ mod test {
         let (_, signer, project) = test::setup::context(&tmp);
         let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
 
         issue.edit("Sorry typo", &signer).unwrap();
@@ -632,7 +671,7 @@ mod test {
         let (_, signer, project) = test::setup::context(&tmp);
         let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
 
         let comment = OpId::initial(*signer.public_key());
@@ -655,7 +694,7 @@ mod test {
         let author = *signer.public_key();
         let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
         let root = OpId::root(author);
 
@@ -676,6 +715,7 @@ mod test {
         issue.comment("Re: Ha. Ha. Ha.", c2, &signer).unwrap();
 
         let issue = issues.get(&id).unwrap().unwrap();
+
         assert_eq!(issue.replies(&c1).nth(0).unwrap().1.body(), "Re: Hi.");
         assert_eq!(issue.replies(&c2).nth(0).unwrap().1.body(), "Re: Ha.");
         assert_eq!(issue.replies(&c2).nth(1).unwrap().1.body(), "Re: Ha. Ha.");
@@ -690,12 +730,18 @@ mod test {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
         let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
-        let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &signer)
-            .unwrap();
-
         let bug_tag = Tag::new("bug").unwrap();
+        let ux_tag = Tag::new("ux").unwrap();
         let wontfix_tag = Tag::new("wontfix").unwrap();
+        let mut issue = issues
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[ux_tag.clone()],
+                &[],
+                &signer,
+            )
+            .unwrap();
 
         issue.tag([bug_tag.clone()], [], &signer).unwrap();
         issue.tag([wontfix_tag.clone()], [], &signer).unwrap();
@@ -704,6 +750,7 @@ mod test {
         let issue = issues.get(&id).unwrap().unwrap();
         let tags = issue.tags().cloned().collect::<Vec<_>>();
 
+        assert!(tags.contains(&ux_tag));
         assert!(tags.contains(&bug_tag));
         assert!(tags.contains(&wontfix_tag));
     }
@@ -715,7 +762,7 @@ mod test {
         let author = *signer.public_key();
         let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
 
         // The root thread op id is always the same.
@@ -760,9 +807,9 @@ mod test {
         let (_, signer, project) = test::setup::context(&tmp);
         let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
 
-        issues.create("First", "Blah", &[], &signer).unwrap();
-        issues.create("Second", "Blah", &[], &signer).unwrap();
-        issues.create("Third", "Blah", &[], &signer).unwrap();
+        issues.create("First", "Blah", &[], &[], &signer).unwrap();
+        issues.create("Second", "Blah", &[], &[], &signer).unwrap();
+        issues.create("Third", "Blah", &[], &[], &signer).unwrap();
 
         let issues = issues
             .all()
