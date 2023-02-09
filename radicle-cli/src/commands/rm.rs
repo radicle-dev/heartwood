@@ -81,7 +81,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let id = options.id;
 
     if let Ok(Some(_)) = storage.get(signer.public_key(), id.to_owned()) {
-        let namespace = profile.home.storage().join(id.urn());
+        let path = radicle::storage::git::paths::repository(storage, &id);
 
         if !options.confirm
             || term::confirm(format!(
@@ -89,9 +89,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 term::format::dim(id.urn())
             ))
         {
-            rad_untrack::untrack(id.to_owned(), &profile)?;
-            fs::remove_dir_all(namespace)?;
-            term::success!("Successfully removed project {}", &id);
+            if let Err(e) = rad_untrack::untrack(id.to_owned(), &profile) {
+                term::warning(&format!("Failed to untrack repository: {e}"));
+                term::warning("Make sure to untrack this repository when your node is running");
+            }
+            fs::remove_dir_all(path)?;
+            term::success!("Successfully removed project {id} from storage");
         }
     } else {
         anyhow::bail!("project {} does not exist", &id)
