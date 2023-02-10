@@ -122,6 +122,24 @@ fn rad_checkout() {
         [],
     )
     .unwrap();
+
+    if cfg!(target_os = "linux") {
+        test(
+            "examples/rad-checkout-repo-config-linux.md",
+            copy.path(),
+            Some(&profile.home),
+            [],
+        )
+        .unwrap();
+    } else if cfg!(target_os = "macos") {
+        test(
+            "examples/rad-checkout-repo-config-macos.md",
+            copy.path(),
+            Some(&profile.home),
+            [],
+        )
+        .unwrap();
+    }
 }
 
 #[test]
