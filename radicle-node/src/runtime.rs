@@ -111,7 +111,8 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
         let routing = routing::Table::open(routing_db)?;
 
         log::info!(target: "node", "Opening tracking policy table {}..", tracking_db.display());
-        let tracking = tracking::Config::open(tracking_db)?;
+        let tracking = tracking::Store::open(tracking_db)?;
+        let tracking = tracking::Config::new(config.policy, tracking);
 
         log::info!(target: "node", "Initializing service ({:?})..", network);
         let service = service::Service::new(

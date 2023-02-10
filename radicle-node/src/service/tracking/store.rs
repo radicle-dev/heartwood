@@ -8,7 +8,7 @@ use thiserror::Error;
 use crate::prelude::Id;
 use crate::service::NodeId;
 
-use super::{Policy, Scope};
+use super::{Alias, Policy, Scope};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -19,8 +19,6 @@ pub enum Error {
     #[error("internal error: {0}")]
     Internal(#[from] sql::Error),
 }
-
-pub type Alias = String;
 
 impl sqlite::BindableWithIndex for Scope {
     fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {

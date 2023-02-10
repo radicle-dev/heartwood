@@ -92,6 +92,8 @@ pub enum Error {
     Storage(#[from] storage::Error),
     #[error(transparent)]
     Routing(#[from] routing::Error),
+    #[error(transparent)]
+    Tracking(#[from] tracking::Error),
 }
 
 /// Function used to query internal service state.
@@ -261,11 +263,13 @@ where
     /// Note that when untracking, we don't announce anything to the network. This is because by
     /// simply not announcing it anymore, it will eventually be pruned by nodes.
     pub fn untrack_repo(&mut self, id: &Id) -> Result<bool, tracking::Error> {
+        let updated = self.tracking.untrack_repo(id)?;
         // Nb. This is potentially slow if we have lots of projects. We should probably
         // only re-compute the filter when we've untracked a certain amount of projects
         // and the filter is really out of date.
         self.filter = Filter::new(self.tracking.repo_entries()?.map(|(e, _)| e));
-        self.tracking.untrack_repo(id)
+
+        Ok(updated)
     }
 
     /// Check whether we are tracking a certain repository.
@@ -340,6 +344,9 @@ where
         for id in self.storage.inventory()? {
             self.routing.insert(id, self.node_id(), time.as_secs())?;
         }
+        // Setup subscription filter for tracked repos.
+        self.filter = Filter::new(self.tracking.repo_entries()?.map(|(e, _)| e));
+
         Ok(())
     }
 

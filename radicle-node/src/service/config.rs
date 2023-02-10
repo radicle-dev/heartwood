@@ -2,6 +2,7 @@ use localtime::LocalDuration;
 
 use radicle::node::Address;
 
+use crate::service::tracking::Policy;
 use crate::service::NodeId;
 
 /// Peer-to-peer network.
@@ -44,6 +45,8 @@ pub struct Config {
     pub relay: bool,
     /// Configured service limits.
     pub limits: Limits,
+    /// Default tracking policy.
+    pub policy: Policy,
 }
 
 impl Default for Config {
@@ -54,6 +57,7 @@ impl Default for Config {
             network: Network::default(),
             relay: true,
             limits: Limits::default(),
+            policy: Policy::Block,
         }
     }
 }
