@@ -25,7 +25,7 @@ pub enum Protocol {
     /// Git smart protocol. Used for fetching repository data.
     /// This protocol is used after a connection upgrade via the
     /// [`Message::Fetch`] message.
-    Fetch,
+    Fetch { rid: Id },
 }
 
 impl Default for Protocol {
@@ -64,7 +64,7 @@ impl fmt::Display for State {
                 Protocol::Gossip { .. } => {
                     write!(f, "connected <gossip>")
                 }
-                Protocol::Fetch => {
+                Protocol::Fetch { .. } => {
                     write!(f, "connected <fetch>")
                 }
             },
@@ -73,6 +73,17 @@ impl fmt::Display for State {
             }
         }
     }
+}
+
+/// Return value of [`Session::fetch`].
+#[derive(Debug)]
+pub enum FetchResult {
+    /// We are already fetching from this peer.
+    AlreadyFetching(Id),
+    /// Ok, ready to fetch.
+    Ready(Message),
+    /// This peer is not ready to fetch.
+    NotConnected,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -196,18 +207,24 @@ impl Session {
         self.attempts
     }
 
-    pub fn fetch(&mut self, rid: Id) -> Option<Message> {
+    pub fn fetch(&mut self, rid: Id) -> FetchResult {
         if let State::Connected { protocol, .. } = &mut self.state {
-            if *protocol == (Protocol::Gossip { requested: None }) {
-                *protocol = Protocol::Gossip {
-                    requested: Some(rid),
-                };
-                return Some(Message::Fetch { rid });
-            } else {
-                log::error!("Attempted to fetch from peer {} which isn't ready", self.id);
+            match protocol {
+                Protocol::Gossip { requested } => {
+                    if let Some(requested) = requested {
+                        FetchResult::AlreadyFetching(*requested)
+                    } else {
+                        *protocol = Protocol::Gossip {
+                            requested: Some(rid),
+                        };
+                        FetchResult::Ready(Message::Fetch { rid })
+                    }
+                }
+                Protocol::Fetch { rid } => FetchResult::AlreadyFetching(*rid),
             }
+        } else {
+            FetchResult::NotConnected
         }
-        None
     }
 
     pub fn to_connecting(&mut self) {
