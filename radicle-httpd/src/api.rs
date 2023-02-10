@@ -48,11 +48,14 @@ impl Context {
         let storage = &self.profile.storage;
         let repo = storage.repository(id)?;
         let (_, head) = repo.head()?;
-        let payload = repo.project_of(self.profile.id())?;
+        let doc = repo.identity_of(self.profile.id())?;
+        let payload = doc.project()?;
+        let delegates = doc.delegates;
         let issues = (Issues::open(self.profile.public_key, &repo)?).count()?;
 
         Ok(project::Info {
             payload,
+            delegates,
             head,
             issues,
             patches: 0,
@@ -126,10 +129,13 @@ pub struct PaginationQuery {
 }
 
 mod project {
+    use nonempty::NonEmpty;
+    use serde::Serialize;
+
     use radicle::git::Oid;
     use radicle::identity::project::Project;
     use radicle::identity::Id;
-    use serde::Serialize;
+    use radicle::prelude::Did;
 
     /// Project info.
     #[derive(Serialize)]
@@ -138,6 +144,7 @@ mod project {
         /// Project metadata.
         #[serde(flatten)]
         pub payload: Project,
+        pub delegates: NonEmpty<Did>,
         pub head: Oid,
         pub patches: usize,
         pub issues: usize,

@@ -1963,6 +1963,7 @@ dependencies = [
  "flate2",
  "hyper",
  "lexopt",
+ "nonempty 0.8.1",
  "radicle",
  "radicle-cli",
  "radicle-crypto",

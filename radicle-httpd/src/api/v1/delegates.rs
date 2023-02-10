@@ -42,7 +42,8 @@ async fn delegates_projects_handler(
             let Ok(doc) = repo.identity_of(ctx.profile.id()) else { return None };
             let Ok(payload) = doc.project() else { return None };
 
-            if !doc.delegates.iter().any(|d| *d == delegate) {
+            let delegates = doc.delegates;
+            if !delegates.iter().any(|d| *d == delegate) {
                 return None;
             }
 
@@ -51,6 +52,7 @@ async fn delegates_projects_handler(
 
             Some(Info {
                 payload,
+                delegates,
                 head,
                 issues,
                 patches: 0,
@@ -89,6 +91,7 @@ mod routes {
                 "name": "hello-world",
                 "description": "Rad repository for tests",
                 "defaultBranch": "master",
+                "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
                 "head": HEAD,
                 "patches": 0,
                 "issues": 1,

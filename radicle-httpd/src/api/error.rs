@@ -42,6 +42,10 @@ pub enum Error {
     #[error(transparent)]
     GitProject(#[from] radicle::storage::git::ProjectError),
 
+    /// Project doc error.
+    #[error(transparent)]
+    ProjectDoc(#[from] radicle::identity::doc::PayloadError),
+
     /// Surf directory error.
     #[error(transparent)]
     SurfDir(#[from] radicle_surf::fs::error::Directory),

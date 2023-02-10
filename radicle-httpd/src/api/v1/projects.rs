@@ -78,11 +78,14 @@ async fn project_root_handler(
             let Ok(repo) = storage.repository(id) else { return None };
             let Ok((_, head)) = repo.head() else { return None };
             let Ok(payload) = repo.project_of(ctx.profile.id()) else { return None };
+            let Ok(doc) = repo.identity_of(ctx.profile.id()) else { return None };
             let Ok(issues) = Issues::open(ctx.profile.public_key, &repo) else { return None };
             let Ok(issues) = (*issues).count() else { return None };
+            let delegates = doc.delegates;
 
             Some(Info {
                 payload,
+                delegates,
                 head,
                 issues,
                 patches: 0,
@@ -574,6 +577,7 @@ mod routes {
                 "name": "hello-world",
                 "description": "Rad repository for tests",
                 "defaultBranch": "master",
+                "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
                 "head": HEAD,
                 "patches": 0,
                 "issues": 1,
@@ -596,6 +600,7 @@ mod routes {
                "name": "hello-world",
                "description": "Rad repository for tests",
                "defaultBranch": "master",
+               "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
                "head": HEAD,
                "patches": 0,
                "issues": 1,
