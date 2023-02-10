@@ -24,6 +24,7 @@ fastrand = { version = "1.7.0" }
 flate2 = { version = "1" }
 hyper = { version = "0.14.17", default-features = false }
 lexopt = { version = "0.2.1" }
+radicle-surf = { version = "0.9.0", default-features = false, features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = { version = "1" }
@@ -37,11 +38,6 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["s
 [dependencies.radicle]
 path = "../radicle"
 version = "0.2.0"
-
-[dependencies.radicle-surf]
-git = "https://github.com/radicle-dev/radicle-git"
-features = ["serde"]
-rev = "48022590d0439e7fb196605a573a725bbbf0e4d2"
 
 [dev-dependencies]
 hyper = { version = "0.14.17", default-features = false, features = ["client"] }

@@ -423,11 +423,14 @@ async fn issue_create_handler(
         .map_err(|_| Error::Auth("Unauthorized"))?;
     let repo = storage.repository(project)?;
     let mut issues = Issues::open(ctx.profile.public_key, &repo)?;
-    issues
+    let issue = issues
         .create(issue.title, issue.description, &issue.tags, &signer)
         .map_err(Error::from)?;
 
-    Ok::<_, Error>((StatusCode::CREATED, Json(json!({ "success": true }))))
+    Ok::<_, Error>((
+        StatusCode::CREATED,
+        Json(json!({ "success": true, "id": issue.id().to_string() })),
+    ))
 }
 
 /// Update an issue.
@@ -546,7 +549,9 @@ mod routes {
     use axum::http::StatusCode;
     use serde_json::json;
 
-    use crate::api::test::{self, get, patch, post, HEAD, HEAD_1};
+    use crate::api::test::{self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID};
+
+    const CREATED_ISSUE_ID: &str = "768c6735912a34856552ae6a9ca77d728962bf31";
 
     #[tokio::test]
     async fn test_projects_root() {
@@ -635,7 +640,8 @@ mod routes {
                                 }
                               ]
                             }
-                          ]
+                          ],
+                          "eof": "noneMissing",
                         }
                       }
                     ],
@@ -685,7 +691,8 @@ mod routes {
                                 }
                               ]
                             }
-                          ]
+                          ],
+                          "eof": "noneMissing",
                         }
                       }
                     ],
@@ -759,7 +766,8 @@ mod routes {
                             }
                           ]
                         }
-                      ]
+                      ],
+                      "eof": "noneMissing",
                     }
                   }
                 ],
@@ -996,7 +1004,7 @@ mod routes {
             response.json().await,
             json!([
               {
-                "id": "90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+                "id": ISSUE_ID,
                 "author": {
                     "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },
@@ -1044,19 +1052,21 @@ mod routes {
         .await;
 
         assert_eq!(response.status(), StatusCode::CREATED);
-        assert_eq!(response.json().await, json!({ "success": true }));
+        assert_eq!(
+            response.json().await,
+            json!({ "success": true, "id": CREATED_ISSUE_ID })
+        );
 
-        let issue_id = "bd2bde30b52db0fc2dae35f4e97ff9fdcc93dead";
         let response = get(
             &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{issue_id}"),
+            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{CREATED_ISSUE_ID}"),
         )
         .await;
 
         assert_eq!(
             response.json().await,
             json!({
-              "id": issue_id,
+              "id": CREATED_ISSUE_ID,
               "author": {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
               },
@@ -1098,7 +1108,7 @@ mod routes {
         .unwrap();
         let response = patch(
             &app,
-            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{ISSUE_ID}"),
             Some(Body::from(body)),
             Some("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy".to_string()),
         )
@@ -1109,14 +1119,14 @@ mod routes {
 
         let response = get(
             &app,
-            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{ISSUE_ID}"),
         )
         .await;
 
         assert_eq!(
             response.json().await,
             json!({
-              "id": "90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+              "id": ISSUE_ID,
               "author": {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
               },
@@ -1168,7 +1178,7 @@ mod routes {
         .unwrap();
         let response = patch(
             &app,
-            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{ISSUE_ID}"),
             Some(Body::from(body)),
             Some("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy".to_string()),
         )
@@ -1179,14 +1189,14 @@ mod routes {
 
         let response = get(
             &app,
-            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{ISSUE_ID}"),
         )
         .await;
 
         assert_eq!(
             response.json().await,
             json!({
-              "id": "90c8f0bab59d9efe35e234acf3abce4168bba6b4",
+              "id": ISSUE_ID,
               "author": {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
               },
@@ -1233,7 +1243,7 @@ mod routes {
             response.json().await,
             json!([
               {
-                "id": "5de9f17ca5326258412ab02f9a5339b6482198ce",
+                "id": PATCH_ID,
                 "author": {
                     "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },
@@ -1255,7 +1265,7 @@ mod routes {
 
         let response = get(
             &app,
-            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches/5de9f17ca5326258412ab02f9a5339b6482198ce",
+            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches/{PATCH_ID}"),
         )
         .await;
 
@@ -1264,7 +1274,7 @@ mod routes {
             response.json().await,
             json!(
               {
-                "id": "5de9f17ca5326258412ab02f9a5339b6482198ce",
+                "id": PATCH_ID,
                 "author": {
                     "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },

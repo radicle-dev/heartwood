@@ -18,7 +18,7 @@ colored = { version = "1.9.0" }
 crossbeam-channel = { version = "0.5.6" }
 cyphernet = { version = "0.1.0", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
 fastrand = { version = "1.8.0" }
-git-ref-format = { version = "0", features = ["serde", "macro"] }
+git-ref-format = { version = "0.2", features = ["serde", "macro"] }
 lexopt = { version = "0.2.1" }
 libc = { version = "0.2.137" }
 log = { version = "0.4.17", features = ["std"] }

@@ -22,6 +22,8 @@ use crate::api::{auth, Context};
 
 pub const HEAD: &str = "1e978d19f251cd9821d9d9a76d1bd436bf0690d5";
 pub const HEAD_1: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
+pub const PATCH_ID: &str = "4250f0117659ee4de9af99e699a63395cd6ffa1c";
+pub const ISSUE_ID: &str = "d8131af9738258fac139c4c96b71c02411f94892";
 
 const PASSWORD: &str = "radicle";
 

@@ -29,7 +29,7 @@ default-features = false
 optional = true
 
 [dependencies.git-ref-format]
-version = "0.1"
+version = "0.2"
 optional = true
 
 [dependencies.ssh-key]

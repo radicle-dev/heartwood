@@ -260,6 +260,11 @@ pub struct IssueMut<'a, 'g> {
 }
 
 impl<'a, 'g> IssueMut<'a, 'g> {
+    /// Get the issue id.
+    pub fn id(&self) -> &ObjectId {
+        &self.id
+    }
+
     /// Get the internal logical clock.
     pub fn clock(&self) -> &clock::Lamport {
         &self.clock

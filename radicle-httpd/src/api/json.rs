@@ -1,6 +1,7 @@
 //! Utilities for building JSON responses of our API.
 
 use std::path::Path;
+use std::str;
 
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -46,14 +47,22 @@ pub(crate) fn session(session_id: String, session: &Session) -> Value {
 }
 
 /// Returns JSON for a blob with a given `path`.
-pub(crate) fn blob(blob: &Blob, path: &str) -> Value {
-    json!({
+pub(crate) fn blob<T: AsRef<[u8]>>(blob: &Blob<T>, path: &str) -> Value {
+    let mut response = json!({
         "binary": blob.is_binary(),
-        "content": blob.content(),
         "name": name_in_path(path),
         "path": path,
         "lastCommit": commit(blob.commit())
-    })
+    });
+
+    if !blob.is_binary() {
+        match str::from_utf8(blob.content()) {
+            Ok(content) => response["content"] = content.into(),
+            Err(err) => return json!({ "error": err.to_string() }),
+        }
+    }
+
+    response
 }
 
 /// Returns JSON for a tree with a given `path` and `stats`.
@@ -85,9 +94,9 @@ pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
     json!({
         "id": id.to_string(),
         "author": issue.author(),
-        "assignees": issue.assigned().collect::<Vec<_>>(),
         "title": issue.title(),
         "state": issue.state(),
+        "assignees": issue.assigned().collect::<Vec<_>>(),
         "discussion": issue.comments().collect::<Comments>(),
         "tags": issue.tags().collect::<Vec<_>>(),
     })
