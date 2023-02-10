@@ -245,7 +245,7 @@ impl Repository {
         let oid = Doc::init(
             doc.as_slice(),
             remote,
-            &[(signer.public_key(), signer.sign(&doc))],
+            &[(signer.public_key(), signer.sign(doc_oid.as_bytes()))],
             repo.raw(),
         )?;
 

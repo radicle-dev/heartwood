@@ -208,8 +208,8 @@ impl Doc<Verified> {
     }
 
     pub fn sign<G: crypto::Signer>(&self, signer: &G) -> Result<(git::Oid, Signature), DocError> {
-        let (oid, bytes) = self.encode()?;
-        let sig = signer.sign(&bytes);
+        let (oid, _) = self.encode()?;
+        let sig = signer.sign(oid.as_bytes());
 
         Ok((oid, sig))
     }
@@ -224,7 +224,7 @@ impl Doc<Verified> {
         let sigs = trailers::parse_signatures(msg)?;
 
         for (pk, sig) in &sigs {
-            if let Err(err) = pk.verify(blob.content(), sig) {
+            if let Err(err) = pk.verify(blob.id().as_bytes(), sig) {
                 return Err(DocError::Signature(*pk, err));
             }
         }
