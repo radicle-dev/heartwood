@@ -84,10 +84,7 @@ impl fmt::Display for Scheduled {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.input {
             Input::Received(from, msgs) => {
-                for msg in msgs {
-                    write!(f, "{} <- {} ({:?})", self.node, from, msg)?;
-                }
-                Ok(())
+                write!(f, "{} <- {} ({:?})", self.node, from, msgs)
             }
             Input::Connected {
                 id: addr,
@@ -611,6 +608,20 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 }
             }
             Io::Fetch(fetch) => {
+                if fetch.initiated {
+                    log::info!(
+                        target: "sim",
+                        "{:05} {} ~> {} ({})",
+                        self.elapsed().as_millis(), node, fetch.remote, fetch.rid
+                    );
+                } else {
+                    log::info!(
+                        target: "sim",
+                        "{:05} {} <~ {} ({})",
+                        self.elapsed().as_millis(), node, fetch.remote, fetch.rid
+                    );
+                }
+
                 if self.is_fallible() {
                     self.inbox.insert(
                         self.time + LocalDuration::from_secs(3),
