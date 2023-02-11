@@ -112,6 +112,7 @@ fn print(
         common::pretty_sync_status(storage.raw(), *revision.oid, target_head)?,
     );
     term::info!("{}", author_info.join(" "));
+    term::info!("{prefix}* patch id {}", term::format::highlight(patch_id));
 
     let mut timeline = Vec::new();
     for merge in revision.merges.iter() {
