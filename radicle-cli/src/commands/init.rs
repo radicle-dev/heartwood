@@ -242,8 +242,8 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 self::setup_signing(profile.id(), &repo, interactive)?;
             }
             if options.sync {
-                let spinner = term::spinner("Announcing refs..");
-                if let Err(e) = node.announce_refs(id) {
+                let spinner = term::spinner("Syncing inventory..");
+                if let Err(e) = node.sync_inventory() {
                     spinner.error(e);
                 } else {
                     spinner.finish();

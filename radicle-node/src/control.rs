@@ -42,6 +42,8 @@ pub fn listen<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>
                         handle.shutdown().ok();
                         break;
                     }
+                    log::error!(target: "control", "Command returned error: {e}");
+
                     CommandResult::error(e).to_writer(&mut stream).ok();
 
                     stream.flush().ok();

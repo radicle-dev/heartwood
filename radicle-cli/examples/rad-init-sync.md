@@ -13,7 +13,7 @@ ok Project heartwood created
   "description": "Radicle Heartwood Protocol & Stack",
   "defaultBranch": "master"
 }
-ok Announcing refs..
+ok Syncing inventory..
 
 Your project id is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji. You can show it any time by running:
     rad .

@@ -1,5 +1,6 @@
 use std::env;
 use std::path::Path;
+use std::{thread, time};
 
 use radicle::git;
 use radicle::profile::Home;
@@ -226,7 +227,7 @@ fn rad_clone_unknown() {
 }
 
 #[test]
-fn rad_init_announce_refs_and_clone() {
+fn rad_init_sync_and_clone() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
@@ -241,9 +242,14 @@ fn rad_init_announce_refs_and_clone() {
 
     fixtures::repository(working.join("alice"));
 
+    // Necessary for now, if we don't want the new inventry announcement to be considered stale
+    // for Bob.
+    // TODO: Find a way to advance internal clocks instead.
+    thread::sleep(time::Duration::from_secs(1));
+
     // Alice initializes a repo after her node has started, and after bob has connected to it.
     test(
-        "examples/rad-init-announce-refs.md",
+        "examples/rad-init-sync.md",
         &working.join("alice"),
         Some(&alice.home),
         [],

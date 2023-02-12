@@ -579,6 +579,15 @@ where
             } else {
                 log::debug!(target: "service", "No fetch requests found for {rid}..");
             }
+
+            // Announce the newly fetched project to the network, if necessary.
+            // Since this fetch could be either a full clone or simply a ref update, we need to
+            // either announce new inventory, or new refs.
+            //
+            // TODO: Announce new refs? Would require the ability to announce other peer refs.
+            if let Err(e) = self.sync_and_announce_inventory() {
+                error!(target: "service", "Failed to announce new inventory: {e}");
+            }
         }
 
         if let Some(session) = self.sessions.get_mut(&remote) {
@@ -760,6 +769,35 @@ where
                         return Ok(false);
                     }
                 }
+
+                for id in message.inventory.as_slice() {
+                    if let Some(sess) = self.sessions.get_mut(announcer) {
+                        // If we are connected to the announcer of this inventory, update the peer's
+                        // subscription filter to include all inventory items. This way, we'll
+                        // relay messages relating to the peer's inventory.
+                        if let Some(sub) = &mut sess.subscribe {
+                            sub.filter.insert(id);
+                        }
+
+                        // If we're tracking and connected to the announcer, and we don't have
+                        // the inventory, fetch it from the announcer.
+                        if self.tracking.is_repo_tracked(id).expect(
+                            "Service::handle_announcement: error accessing tracking configuration",
+                        ) {
+                            // Only if we do not have the repository locally do we fetch here.
+                            // If we do have it, only fetch after receiving a ref announcement.
+                            if let Ok(true) = self.storage.contains(id) {
+                                // Do nothing.
+                            } else {
+                                // We may hit this branch due to an error returned by storage.
+                                // We attempt to fetch in case of error because it's likely
+                                // the repository was corrupted, and fetching will fix it.
+                                self.fetch(*id, announcer);
+                            }
+                        }
+                    }
+                }
+
                 return Ok(relay);
             }
             // Process a peer inventory update announcement by (maybe) fetching.
@@ -1067,11 +1105,6 @@ where
         let remote = repo.remote(&node)?;
         let peers = self.sessions.negotiated().map(|(_, p)| p);
         let timestamp = self.clock.as_secs();
-
-        // Make sure our local routing table is up to date with new repositories.
-        if let Err(e) = self.routing.insert(id, self.node_id(), timestamp) {
-            log::error!(target: "service", "Failed to update routing table with repository {id}: {e}");
-        }
 
         if remote.refs.len() > Refs::max() {
             error!(

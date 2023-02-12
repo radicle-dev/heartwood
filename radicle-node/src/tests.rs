@@ -548,8 +548,8 @@ fn test_refs_announcement_relay() {
     alice.connect_to(&bob);
     alice.connect_to(&eve);
     alice.receive(eve.id(), Message::Subscribe(Subscribe::all()));
-
     alice.receive(bob.id(), bob.refs_announcement(bob_inv[0]));
+
     assert_matches!(
         alice.messages(eve.id()).next(),
         Some(Message::Announcement(_)),
@@ -896,11 +896,13 @@ fn test_push_and_pull() {
     assert!(eve.get(proj_id).unwrap().is_none());
     assert!(bob.get(proj_id).unwrap().is_none());
 
-    // Alice announces her refs.
+    let (send, _) = chan::bounded(1);
+    // Alice announces her inventory.
     // We now expect Eve to fetch Alice's project from Alice.
     // Then we expect Bob to fetch Alice's project from Eve.
     alice.elapse(LocalDuration::from_secs(1)); // Make sure our announcement is fresh.
-    alice.command(service::Command::AnnounceRefs(proj_id));
+    alice.command(service::Command::SyncInventory(send));
+
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
     // TODO: Refs should be compared between the two peers.

@@ -202,7 +202,7 @@ where
     pub fn inventory_announcement(&self) -> Message {
         Message::inventory(
             InventoryAnnouncement {
-                inventory: arbitrary::gen(3),
+                inventory: arbitrary::vec(3).try_into().unwrap(),
                 timestamp: self.timestamp(),
             },
             self.signer(),

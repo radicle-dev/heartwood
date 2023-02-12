@@ -108,8 +108,8 @@ impl fmt::Display for Scheduled {
             Input::Fetched(fetch, _) => {
                 write!(
                     f,
-                    "{} <~ {} ({}): Fetched",
-                    self.node, fetch.remote, fetch.rid
+                    "{} <<~ {} ({}): Fetched (initiated={})",
+                    self.node, fetch.remote, fetch.rid, fetch.initiated
                 )
             }
         }
@@ -410,10 +410,10 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     }
                     Input::Fetched(f, result) => {
                         let result = Rc::try_unwrap(result).unwrap();
-                        let mut repo = p.storage().repository(f.rid).unwrap();
-
-                        fetch(&mut repo, &f.remote, f.namespaces.clone()).unwrap();
-
+                        if f.initiated {
+                            let mut repo = p.storage().repository(f.rid).unwrap();
+                            fetch(&mut repo, &f.remote, f.namespaces.clone()).unwrap();
+                        }
                         p.fetched(f, result);
                     }
                 }
@@ -608,17 +608,19 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 }
             }
             Io::Fetch(fetch) => {
+                let remote = fetch.remote;
+
                 if fetch.initiated {
                     log::info!(
                         target: "sim",
-                        "{:05} {} ~> {} ({})",
-                        self.elapsed().as_millis(), node, fetch.remote, fetch.rid
+                        "{:05} {} ~> {} ({}): Fetch outgoing",
+                        self.elapsed().as_millis(), node, remote, fetch.rid
                     );
                 } else {
                     log::info!(
                         target: "sim",
-                        "{:05} {} <~ {} ({})",
-                        self.elapsed().as_millis(), node, fetch.remote, fetch.rid
+                        "{:05} {} <~ {} ({}): Fetch incoming",
+                        self.elapsed().as_millis(), node, remote, fetch.rid
                     );
                 }
 
@@ -627,7 +629,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         self.time + LocalDuration::from_secs(3),
                         Scheduled {
                             node,
-                            remote: fetch.remote,
+                            remote,
                             input: Input::Fetched(
                                 fetch,
                                 Rc::new(Err(FetchError::Io(io::ErrorKind::Other.into()))),
@@ -639,7 +641,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         self.time + LocalDuration::from_secs(3),
                         Scheduled {
                             node,
-                            remote: fetch.remote,
+                            remote,
                             input: Input::Fetched(fetch, Rc::new(Ok(vec![]))),
                         },
                     );
@@ -694,7 +696,6 @@ fn fetch<W: WriteRepository>(
     });
     opts.remote_callbacks(callbacks);
 
-    // Fetch from the remote into the staging copy.
     let mut remote = repo.raw().remote_anonymous(
         radicle::storage::git::transport::remote::Url {
             node: *node,
