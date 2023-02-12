@@ -2,13 +2,14 @@ use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    iter, net, thread,
+    env, fs, io, iter, net, process, thread,
     time::Duration,
 };
 
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::{KeyPair, Seed, Signature, Signer};
+use radicle::git;
 use radicle::git::refname;
 use radicle::identity::Id;
 use radicle::node::Handle as _;
@@ -158,6 +159,57 @@ impl<G: Signer + cyphernet::EcSign> NodeHandle<G> {
         remotes: impl IntoIterator<Item = &'a NodeHandle<G>>,
     ) -> BTreeSet<(Id, NodeId)> {
         converge(iter::once(self).chain(remotes.into_iter()))
+    }
+
+    /// Wait until this node's routing table contains the given routes.
+    pub fn routes_to(&self, routes: &[(Id, NodeId)]) {
+        let mut remaining: BTreeSet<_> = routes.iter().collect();
+
+        while !remaining.is_empty() {
+            for (rid, nid) in self.handle.routing().unwrap() {
+                remaining.remove(&(rid, nid));
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        log::debug!(target: "test", "Node {} routes to {:?}", self.id, routes);
+    }
+
+    /// Run a `rad` CLI command.
+    pub fn rad<P: AsRef<Path>>(&self, cmd: &str, args: &[&str], cwd: P) -> io::Result<()> {
+        let cwd = cwd.as_ref();
+        log::debug!(target: "test", "Running `rad {cmd} {args:?}` in {}..", cwd.display());
+
+        fs::create_dir_all(cwd)?;
+
+        let result = process::Command::new(snapbox::cmd::cargo_bin("rad"))
+            .env_clear()
+            .envs(env::vars().filter(|(k, _)| k == "PATH"))
+            .env("GIT_AUTHOR_DATE", "1671125284")
+            .env("GIT_AUTHOR_EMAIL", "radicle@localhost")
+            .env("GIT_AUTHOR_NAME", "radicle")
+            .env("GIT_COMMITTER_DATE", "1671125284")
+            .env("GIT_COMMITTER_EMAIL", "radicle@localhost")
+            .env("GIT_COMMITTER_NAME", "radicle")
+            .env("RAD_HOME", self.home.path().to_string_lossy().to_string())
+            .env("RAD_PASSPHRASE", "radicle")
+            .env("TZ", "UTC")
+            .env("LANG", "C")
+            .envs(git::env::GIT_DEFAULT_CONFIG)
+            .current_dir(cwd)
+            .arg(cmd)
+            .args(args)
+            .output()?;
+
+        log::debug!(
+            target: "test",
+            "Ran command `rad {cmd}` (status={})", result.status.code().unwrap()
+        );
+
+        if !result.status.success() {
+            log::debug!(target: "test", "Command: {result:#?}");
+        }
+
+        Ok(())
     }
 }
 

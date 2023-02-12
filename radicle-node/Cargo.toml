@@ -6,7 +6,7 @@ authors = ["Alexis Sellier <alexis@radicle.xyz>"]
 edition = "2021"
 
 [features]
-test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qcheck"]
+test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qcheck", "snapbox"]
 
 [dependencies]
 amplify = { version = "4.0.0-beta.7" }
@@ -32,6 +32,7 @@ sqlite3-src = { version = "0.4.0", features = ["bundled"] } # Ensures static lin
 scrypt = { version = "0.10.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+snapbox = { version = "0.4.3", optional = true }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
 
@@ -45,3 +46,4 @@ radicle = { path = "../radicle", version = "*", features = ["test"] }
 radicle-crypto = { path = "../radicle-crypto", version = "*", features = ["test", "cyphernet"] }
 qcheck = { version = "1", default-features = false }
 qcheck-macros = { version = "1", default-features = false }
+snapbox = { version = "0.4.3" }

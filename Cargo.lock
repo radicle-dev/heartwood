@@ -2007,6 +2007,7 @@ dependencies = [
  "scrypt",
  "serde",
  "serde_json",
+ "snapbox",
  "sqlite",
  "sqlite3-src",
  "tempfile",
