@@ -36,6 +36,10 @@ impl ReadStorage for MockStorage {
         self.path.as_path()
     }
 
+    fn contains(&self, rid: &Id) -> Result<bool, ProjectError> {
+        Ok(self.inventory.contains_key(rid))
+    }
+
     fn get(
         &self,
         _remote: &RemoteId,

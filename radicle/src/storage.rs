@@ -254,6 +254,8 @@ pub trait ReadStorage {
         remote: &RemoteId,
         rid: Id,
     ) -> Result<Option<identity::Doc<Verified>>, ProjectError>;
+    /// Check whether storage contains a repository.
+    fn contains(&self, rid: &Id) -> Result<bool, ProjectError>;
     /// Get the inventory of repositories hosted under this storage.
     fn inventory(&self) -> Result<Inventory, Error>;
 }
@@ -355,6 +357,10 @@ where
 {
     fn path(&self) -> &Path {
         self.deref().path()
+    }
+
+    fn contains(&self, rid: &Id) -> Result<bool, ProjectError> {
+        self.deref().contains(rid)
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {

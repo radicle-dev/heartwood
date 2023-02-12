@@ -99,6 +99,14 @@ impl ReadStorage for Storage {
         self.path.as_path()
     }
 
+    fn contains(&self, rid: &Id) -> Result<bool, ProjectError> {
+        if paths::repository(&self, rid).exists() {
+            let _ = self.repository(*rid)?.head()?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
     fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, ProjectError> {
         // TODO: Don't create a repo here if it doesn't exist?
         // Perhaps for checking we could have a `contains` method?
