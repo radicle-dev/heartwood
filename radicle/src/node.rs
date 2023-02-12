@@ -108,6 +108,8 @@ impl From<net::SocketAddr> for Address {
 pub enum CommandName {
     /// Announce repository references for given repository to peers.
     AnnounceRefs,
+    /// Sync local inventory with node.
+    SyncInventory,
     /// Connect to node with the given address.
     Connect,
     /// Lookup seeds for the given repository in the routing table.
@@ -261,9 +263,11 @@ pub trait Handle {
     fn untrack_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
     /// Untrack the given node.
     fn untrack_node(&mut self, id: NodeId) -> Result<bool, Self::Error>;
-    /// Notify the client that a project has been updated.
+    /// Notify the service that a project has been updated.
     fn announce_refs(&mut self, id: Id) -> Result<(), Self::Error>;
-    /// Ask the client to shutdown.
+    /// Notify the service that our inventory was updated.
+    fn sync_inventory(&mut self) -> Result<bool, Self::Error>;
+    /// Ask the service to shutdown.
     fn shutdown(self) -> Result<(), Self::Error>;
     /// Query the routing table entries.
     fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Self::Error>;
@@ -401,6 +405,15 @@ impl Handle for Node {
             line?;
         }
         Ok(())
+    }
+
+    fn sync_inventory(&mut self) -> Result<bool, Error> {
+        let mut line = self.call::<&str, _>(CommandName::SyncInventory, [])?;
+        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
+            cmd: CommandName::SyncInventory,
+        })??;
+
+        response.into()
     }
 
     fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Error> {

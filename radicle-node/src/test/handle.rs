@@ -60,6 +60,10 @@ impl radicle::node::Handle for Handle {
         Ok(())
     }
 
+    fn sync_inventory(&mut self) -> Result<bool, Self::Error> {
+        unimplemented!()
+    }
+
     fn routing(&self) -> Result<chan::Receiver<(Id, service::NodeId)>, Self::Error> {
         unimplemented!();
     }

@@ -159,6 +159,12 @@ impl<G: Signer + EcSign + 'static> radicle::node::Handle for Handle<G> {
         self.command(service::Command::AnnounceRefs(id))
     }
 
+    fn sync_inventory(&mut self) -> Result<bool, Error> {
+        let (sender, receiver) = chan::bounded(1);
+        self.command(service::Command::SyncInventory(sender))?;
+        receiver.recv().map_err(Error::from)
+    }
+
     fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Error> {
         let (sender, receiver) = chan::unbounded();
         let query: Arc<QueryState> = Arc::new(move |state| {

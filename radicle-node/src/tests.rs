@@ -598,7 +598,7 @@ fn test_inventory_relay() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let eve = Peer::new("eve", [9, 9, 9, 9]);
-    let inv = BoundedVec::new();
+    let inv = BoundedVec::try_from(arbitrary::vec(1)).unwrap();
     let now = LocalTime::now().as_secs();
 
     // Inventory from Bob relayed to Eve.

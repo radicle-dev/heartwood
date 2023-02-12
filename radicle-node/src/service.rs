@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::collapsible_match)]
+#![allow(clippy::collapsible_if)]
 pub mod config;
 pub mod filter;
 pub mod message;
@@ -103,6 +104,8 @@ pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Se
 pub enum Command {
     /// Announce repository references for given repository to peers.
     AnnounceRefs(Id),
+    /// Announce local inventory to peers.
+    SyncInventory(chan::Sender<bool>),
     /// Connect to node with the given address.
     Connect(NodeId, Address),
     /// Lookup seeds for the given repository in the routing table.
@@ -125,6 +128,7 @@ impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({id})"),
+            Self::SyncInventory(_) => write!(f, "SyncInventory(..)"),
             Self::Connect(id, addr) => write!(f, "Connect({id}, {addr})"),
             Self::Seeds(id, _) => write!(f, "Seeds({id})"),
             Self::Fetch(id, node, _) => write!(f, "Fetch({id}, {node})"),
@@ -396,7 +400,11 @@ where
         }
         if now - self.last_announce >= ANNOUNCE_INTERVAL {
             if self.out_of_sync {
-                if let Err(err) = self.announce_inventory() {
+                if let Err(err) = self
+                    .storage
+                    .inventory()
+                    .and_then(|i| self.announce_inventory(i))
+                {
                     error!("Error announcing inventory: {}", err);
                 }
             }
@@ -479,6 +487,12 @@ where
                 if let Err(err) = self.announce_refs(id) {
                     error!("Error announcing refs: {}", err);
                 }
+            }
+            Command::SyncInventory(resp) => {
+                let updated = self
+                    .sync_and_announce_inventory()
+                    .expect("Service::command: error syncing and announcing inventory");
+                resp.send(updated).ok();
             }
             Command::QueryState(query, sender) => {
                 sender.send(query(self)).ok();
@@ -735,16 +749,16 @@ where
                     return Ok(false);
                 }
 
-                if let Err(err) = self.sync_inventory(
-                    message.inventory.as_slice(),
-                    *announcer,
-                    &message.timestamp,
-                ) {
-                    error!("Error processing inventory from {}: {}", announcer, err);
-
-                    // There's not much we can do if the peer sending us this message isn't the
-                    // origin of it.
-                    return Ok(false);
+                match self.sync_routing(&message.inventory, *announcer, message.timestamp) {
+                    Ok(updated) => {
+                        if !updated {
+                            return Ok(false);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Error processing inventory from {}: {}", announcer, e);
+                        return Ok(false);
+                    }
                 }
                 return Ok(relay);
             }
@@ -995,19 +1009,32 @@ where
         Ok(())
     }
 
+    /// Sync, and if needed, announce our local inventory.
+    fn sync_and_announce_inventory(&mut self) -> Result<bool, Error> {
+        let inventory = self.storage.inventory()?;
+        let updated = self.sync_routing(&inventory, self.node_id(), self.clock.as_secs())?;
+
+        if updated {
+            self.announce_inventory(inventory)?;
+        }
+        Ok(updated)
+    }
+
     /// Process a peer inventory announcement by updating our routing table.
     /// This function expects the peer's full inventory, and prunes entries that are not in the
     /// given inventory.
-    fn sync_inventory(
+    fn sync_routing(
         &mut self,
         inventory: &[Id],
         from: NodeId,
-        timestamp: &Timestamp,
-    ) -> Result<(), Error> {
+        timestamp: Timestamp,
+    ) -> Result<bool, Error> {
+        let mut updated = false;
         let mut included = HashSet::new();
+
         for proj_id in inventory {
             included.insert(proj_id);
-            if self.routing.insert(*proj_id, from, *timestamp)? {
+            if self.routing.insert(*proj_id, from, timestamp)? {
                 info!(target: "service", "Routing table updated for {proj_id} with seed {from}");
 
                 if self
@@ -1018,14 +1045,17 @@ where
                     // TODO: We should fetch here if we're already connected, case this seed has
                     // refs we don't have.
                 }
+                updated = true;
             }
         }
         for id in self.routing.get_resources(&from)?.into_iter() {
             if !included.contains(&id) {
-                self.routing.remove(&id, &from)?;
+                if self.routing.remove(&id, &from)? {
+                    updated = true;
+                }
             }
         }
-        Ok(())
+        Ok(updated)
     }
 
     /// Announce local refs for given id.
@@ -1088,13 +1118,9 @@ where
     ////////////////////////////////////////////////////////////////////////////
 
     /// Announce our inventory to all connected peers.
-    fn announce_inventory(&mut self) -> Result<(), storage::Error> {
-        let inventory = self.storage().inventory()?;
-        let inv = Message::inventory(
-            gossip::inventory(self.clock.as_secs(), inventory),
-            &self.signer,
-        );
-
+    fn announce_inventory(&mut self, inventory: Vec<Id>) -> Result<(), storage::Error> {
+        let time = self.clock.as_secs();
+        let inv = Message::inventory(gossip::inventory(time, inventory), &self.signer);
         for id in self.sessions.negotiated().map(|(id, _)| id) {
             self.reactor.write(*id, inv.clone());
         }

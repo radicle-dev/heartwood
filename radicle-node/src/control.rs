@@ -62,8 +62,6 @@ enum CommandError {
     InvalidCommandArg(String, Box<dyn std::error::Error>),
     #[error("invalid command arguments `{0:?}`")]
     InvalidCommandArgs(Vec<String>),
-    #[error("unknown command `{0}`")]
-    UnknownCommand(String),
     #[error("serialization failed: {0}")]
     Serialization(#[from] json::Error),
     #[error("runtime error: {0}")]
@@ -89,6 +87,9 @@ fn command<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
     let cmd: Command = json::from_str(input)?;
 
     match cmd.name {
+        CommandName::Connect => {
+            todo!();
+        }
         CommandName::Fetch => {
             let (rid, nid): (Id, NodeId) = parse::args(cmd)?;
             fetch(rid, nid, LineWriter::new(stream), handle)?;
@@ -162,6 +163,14 @@ fn command<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
             }
             CommandResult::ok().to_writer(writer).ok();
         }
+        CommandName::SyncInventory => match handle.sync_inventory() {
+            Ok(updated) => {
+                CommandResult::Okay { updated }.to_writer(writer)?;
+            }
+            Err(e) => {
+                return Err(CommandError::Runtime(e));
+            }
+        },
         CommandName::Status => {
             CommandResult::ok().to_writer(writer).ok();
         }
@@ -183,9 +192,6 @@ fn command<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
         },
         CommandName::Shutdown => {
             return Err(CommandError::Shutdown);
-        }
-        _ => {
-            return Err(CommandError::UnknownCommand(line));
         }
     }
     Ok(())
