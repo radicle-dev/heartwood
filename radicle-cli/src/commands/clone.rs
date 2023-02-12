@@ -34,6 +34,7 @@ Usage
 
 Options
 
+    --no-announce   Do not announce our new refs to the network
     --no-confirm    Don't ask for confirmation during clone
     --help          Print help
 
@@ -45,6 +46,7 @@ pub struct Options {
     id: Id,
     #[allow(dead_code)]
     interactive: Interactive,
+    announce: bool,
 }
 
 impl Args for Options {
@@ -54,11 +56,18 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<Id> = None;
         let mut interactive = Interactive::Yes;
+        let mut announce = true;
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("no-confirm") => {
                     interactive = Interactive::No;
+                }
+                Long("no-announce") => {
+                    announce = false;
+                }
+                Long("announce") => {
+                    announce = true;
                 }
                 Long("help") => {
                     return Err(Error::Help.into());
@@ -77,7 +86,14 @@ impl Args for Options {
             anyhow!("to clone, a radicle id must be provided; see `rad clone --help`")
         })?;
 
-        Ok((Options { id, interactive }, vec![]))
+        Ok((
+            Options {
+                id,
+                interactive,
+                announce,
+            },
+            vec![],
+        ))
     }
 }
 
@@ -85,7 +101,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let signer = term::signer(&profile)?;
     let mut node = radicle::Node::new(profile.socket());
-    let (working, doc, proj) = clone(options.id, &signer, &profile.storage, &mut node)?;
+    let (working, doc, proj) = clone(
+        options.id,
+        &signer,
+        &profile.storage,
+        &mut node,
+        options.announce,
+    )?;
     let delegates = doc
         .delegates
         .iter()
@@ -140,6 +162,7 @@ pub fn clone<G: Signer>(
     signer: &G,
     storage: &Storage,
     node: &mut Node,
+    announce: bool,
 ) -> Result<(raw::Repository, Doc<Verified>, Project), CloneError> {
     let me = *signer.public_key();
 
@@ -178,13 +201,22 @@ pub fn clone<G: Signer>(
 
     // Create a local fork of the project, under our own id.
     {
-        let spinner = term::spinner(format!(
+        let mut spinner = term::spinner(format!(
             "Forking under {}..",
             term::format::tertiary(term::format::node(&me))
         ));
         rad::fork(id, signer, &storage)?;
 
-        spinner.finish();
+        if announce {
+            if let Err(e) = node.announce_refs(id) {
+                spinner.message("Announcing fork..");
+                spinner.error(e);
+            } else {
+                spinner.finish();
+            }
+        } else {
+            spinner.finish();
+        }
     }
 
     let doc = storage.repository(id)?.identity_of(&me)?;
