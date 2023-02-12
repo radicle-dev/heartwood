@@ -94,6 +94,7 @@ pub fn seed(dir: &Path) -> Context {
             setup_signing: false,
             set_upstream: false,
             sync: false,
+            track: false,
         },
         &profile,
     )

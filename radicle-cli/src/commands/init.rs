@@ -49,6 +49,7 @@ pub struct Options {
     pub setup_signing: bool,
     pub set_upstream: bool,
     pub sync: bool,
+    pub track: bool,
 }
 
 impl Args for Options {
@@ -65,6 +66,7 @@ impl Args for Options {
         let mut set_upstream = false;
         let mut setup_signing = false;
         let mut sync = true;
+        let mut track = true;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -115,6 +117,9 @@ impl Args for Options {
                 Long("no-sync") => {
                     sync = false;
                 }
+                Long("no-track") => {
+                    track = false;
+                }
                 Long("help") => {
                     return Err(Error::Help.into());
                 }
@@ -135,6 +140,7 @@ impl Args for Options {
                 set_upstream,
                 setup_signing,
                 sync,
+                track,
             },
             vec![],
         ))
@@ -193,6 +199,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     let branch = RefString::try_from(branch.clone())
         .map_err(|e| anyhow!("invalid branch name {:?}: {}", branch, e))?;
 
+    let mut node = radicle::Node::new(profile.socket());
     let mut spinner = term::spinner("Initializing...");
 
     match radicle::rad::init(
@@ -205,6 +212,12 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     ) {
         Ok((id, doc, _)) => {
             let proj = doc.project()?;
+
+            if options.track {
+                // It's important to track our own repositories to make sure that our node signals
+                // interest for them. This ensures that messages relating to them are relayed to us.
+                node.track_repo(id)?;
+            }
 
             spinner.message(format!(
                 "Project {} created",
@@ -230,7 +243,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             }
             if options.sync {
                 let spinner = term::spinner("Announcing refs..");
-                if let Err(e) = radicle::Node::new(profile.socket()).announce_refs(id) {
+                if let Err(e) = node.announce_refs(id) {
                     spinner.error(e);
                 } else {
                     spinner.finish();

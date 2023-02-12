@@ -3,7 +3,7 @@ To create your first radicle project, navigate to a git repository, and run
 the `init` command:
 
 ```
-$ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --no-sync
+$ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" --no-confirm --no-sync --no-track
 
 Initializing local 🌱 project in .
 
