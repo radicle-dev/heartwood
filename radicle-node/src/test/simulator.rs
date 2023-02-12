@@ -346,7 +346,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
         for peer in nodes.values_mut() {
             let id = peer.id();
 
-            for o in peer.by_ref() {
+            while let Some(o) = peer.next() {
                 self.schedule(&id, o);
             }
         }
@@ -417,7 +417,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         p.fetched(f, result);
                     }
                 }
-                for o in p.by_ref() {
+                while let Some(o) = p.next() {
                     self.schedule(&node, o);
                 }
             } else {

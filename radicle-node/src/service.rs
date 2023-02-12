@@ -249,6 +249,12 @@ where
         }
     }
 
+    /// Return the next i/o action to execute.
+    #[allow(clippy::should_implement_trait)]
+    pub fn next(&mut self) -> Option<reactor::Io> {
+        self.reactor.next()
+    }
+
     /// Track a repository.
     /// Returns whether or not the tracking policy was updated.
     pub fn track_repo(&mut self, id: &Id, scope: tracking::Scope) -> Result<bool, tracking::Error> {
@@ -267,8 +273,14 @@ where
         // Nb. This is potentially slow if we have lots of projects. We should probably
         // only re-compute the filter when we've untracked a certain amount of projects
         // and the filter is really out of date.
-        self.filter = Filter::new(self.tracking.repo_entries()?.map(|(e, _)| e));
-
+        //
+        // TODO: Share this code with initialization code.
+        self.filter = Filter::new(
+            self.tracking
+                .repo_entries()?
+                .filter(|(_, _, policy)| *policy == tracking::Policy::Track)
+                .map(|(e, _, _)| e),
+        );
         Ok(updated)
     }
 
@@ -345,7 +357,12 @@ where
             self.routing.insert(id, self.node_id(), time.as_secs())?;
         }
         // Setup subscription filter for tracked repos.
-        self.filter = Filter::new(self.tracking.repo_entries()?.map(|(e, _)| e));
+        self.filter = Filter::new(
+            self.tracking
+                .repo_entries()?
+                .filter(|(_, _, policy)| *policy == tracking::Policy::Track)
+                .map(|(e, _, _)| e),
+        );
 
         Ok(())
     }
@@ -586,6 +603,8 @@ where
         // For outbound connections, we are the first to say "Hello".
         // For inbound connections, we wait for the remote to say "Hello" first.
         if link.is_outbound() {
+            let filter = self.filter();
+
             if let Some(peer) = self.sessions.get_mut(&remote) {
                 self.reactor.write_all(
                     remote,
@@ -593,7 +612,7 @@ where
                         self.clock.as_secs(),
                         &self.storage,
                         &self.signer,
-                        self.filter.clone(),
+                        filter,
                         &self.config,
                     ),
                 );
@@ -833,6 +852,7 @@ where
         remote: &NodeId,
         message: Message,
     ) -> Result<(), session::Error> {
+        let filter = self.filter(); // TODO: Don't call this if it's not used.
         let Some(peer) = self.sessions.get_mut(remote) else {
             return Err(session::Error::NotFound(*remote));
         };
@@ -871,7 +891,7 @@ where
                             self.clock.as_secs(),
                             &self.storage,
                             &self.signer,
-                            self.filter.clone(),
+                            filter,
                             &self.config,
                         ),
                     );
@@ -1051,6 +1071,16 @@ where
         log::warn!(target: "service", "Attempted connection to peer {node} which already has a session");
 
         false
+    }
+
+    /// Return a new filter object, based on our tracking policy.
+    fn filter(&self) -> Filter {
+        if self.config.policy == tracking::Policy::Track {
+            // TODO: Remove bits for blocked repos.
+            Filter::default()
+        } else {
+            self.filter.clone()
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -1239,14 +1269,6 @@ impl fmt::Display for DisconnectReason {
             Self::Session(err) => write!(f, "error: {err}"),
             Self::Fetch(err) => write!(f, "fetch: {err}"),
         }
-    }
-}
-
-impl<R, A, S, G> Iterator for Service<R, A, S, G> {
-    type Item = reactor::Io;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.reactor.next()
     }
 }
 

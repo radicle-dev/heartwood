@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use std::path::Path;
 use std::str::FromStr;
 use std::{fmt, io};
@@ -247,35 +248,37 @@ impl Config {
     }
 
     /// Get node tracking entries.
-    pub fn node_entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, Alias)>>, Error> {
+    pub fn node_entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, Alias, Policy)>>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT id, alias FROM `node-policies`")?
+            .prepare("SELECT id, alias, policy FROM `node-policies`")?
             .into_iter();
         let mut entries = Vec::new();
 
         while let Some(Ok(row)) = stmt.next() {
             let id = row.read("id");
             let alias = row.read::<&str, _>("alias");
+            let policy = row.read::<Policy, _>("policy");
 
-            entries.push((id, alias.to_owned()));
+            entries.push((id, alias.to_owned(), policy));
         }
         Ok(Box::new(entries.into_iter()))
     }
 
     /// Get repository tracking entries.
-    pub fn repo_entries(&self) -> Result<Box<dyn Iterator<Item = (Id, Scope)>>, Error> {
+    pub fn repo_entries(&self) -> Result<Box<dyn Iterator<Item = (Id, Scope, Policy)>>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT id, scope FROM `repo-policies`")?
+            .prepare("SELECT id, scope, policy FROM `repo-policies`")?
             .into_iter();
         let mut entries = Vec::new();
 
         while let Some(Ok(row)) = stmt.next() {
             let id = row.read("id");
             let scope = row.read("scope");
+            let policy = row.read::<Policy, _>("policy");
 
-            entries.push((id, scope));
+            entries.push((id, scope, policy));
         }
         Ok(Box::new(entries.into_iter()))
     }
@@ -321,9 +324,9 @@ mod test {
             assert!(db.track_node(id, None).unwrap());
         }
         let mut entries = db.node_entries().unwrap();
-        assert_matches!(entries.next(), Some((id, _)) if id == ids[0]);
-        assert_matches!(entries.next(), Some((id, _)) if id == ids[1]);
-        assert_matches!(entries.next(), Some((id, _)) if id == ids[2]);
+        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[0]);
+        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[1]);
+        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[2]);
     }
 
     #[test]
@@ -335,9 +338,9 @@ mod test {
             assert!(db.track_repo(id, Scope::All).unwrap());
         }
         let mut entries = db.repo_entries().unwrap();
-        assert_matches!(entries.next(), Some((id, _)) if id == ids[0]);
-        assert_matches!(entries.next(), Some((id, _)) if id == ids[1]);
-        assert_matches!(entries.next(), Some((id, _)) if id == ids[2]);
+        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[0]);
+        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[1]);
+        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[2]);
     }
 
     #[test]

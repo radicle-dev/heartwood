@@ -62,34 +62,30 @@ impl Config {
 
     /// Check if a repository is tracked.
     pub fn is_repo_tracked(&self, id: &Id) -> Result<bool, Error> {
-        if self.default == Policy::Track {
-            return Ok(true);
-        }
-        self.store.is_repo_tracked(id)
+        self.repo_policy(id).map(|policy| policy == Policy::Track)
     }
 
     /// Check if a node is tracked.
     pub fn is_node_tracked(&self, id: &NodeId) -> Result<bool, Error> {
-        if self.default == Policy::Track {
-            return Ok(true);
-        }
-        self.store.is_node_tracked(id)
+        self.node_policy(id).map(|policy| policy == Policy::Track)
     }
 
     /// Get a node's tracking information.
-    pub fn node_entry(&self, id: &NodeId) -> Result<(Option<Alias>, Policy), Error> {
-        if let Some(result) = self.store.node_entry(id)? {
-            return Ok(result);
+    /// Returns the default policy if the node isn't found.
+    pub fn node_policy(&self, id: &NodeId) -> Result<Policy, Error> {
+        if let Some((_, policy)) = self.store.node_entry(id)? {
+            return Ok(policy);
         }
-        Ok((None, self.default))
+        Ok(self.default)
     }
 
     /// Get a repository's tracking information.
-    pub fn repo_entry(&self, id: &Id) -> Result<(Scope, Policy), Error> {
-        if let Some(result) = self.store.repo_entry(id)? {
-            return Ok(result);
+    /// Returns the default policy if the repo isn't found.
+    pub fn repo_policy(&self, id: &Id) -> Result<Policy, Error> {
+        if let Some((_, policy)) = self.store.repo_entry(id)? {
+            return Ok(policy);
         }
-        Ok((Scope::All, self.default))
+        Ok(self.default)
     }
 }
 
