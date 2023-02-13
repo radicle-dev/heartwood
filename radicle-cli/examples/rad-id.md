@@ -208,7 +208,7 @@ At this point, we can commit the proposal and update the identity:
 
 ```
 $ rad id commit 06d9efa2a9aad06bfdf25a25690e1ec7db2c3c39 --rev z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1 --no-confirm
-ok Committed new identity 🌱
+ok Committed new identity 'c96e764965aaeff1c6ea3e5b97e2b9828773c8b0' 🌱
 title: Add Bob
 description: Add Bob as a delegate
 status:  committed 
