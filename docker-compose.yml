@@ -9,7 +9,7 @@ services:
       RUST_LOG: debug
       RAD_PASSPHRASE: seed
     volumes:
-      - /var/opt/radicle:/root/.radicle
+      - /mnt/radicle/heartwood:/root/
     init: true
     container_name: radicle-node
     restart: unless-stopped
@@ -29,7 +29,7 @@ services:
     environment:
       RUST_LOG: debug
     volumes:
-      - /var/opt/radicle:/root/.radicle
+      - /mnt/radicle/heartwood:/root/
     init: true
     container_name: radicle-httpd
     restart: unless-stopped
@@ -46,7 +46,7 @@ services:
       - -euc
       - |
         cat <<EOF >/etc/caddy/Caddyfile
-        {$RADICLE_DOMAIN} {
+        $RADICLE_DOMAIN {
             reverse_proxy radicle-httpd:8080
         }
         EOF
