@@ -6,6 +6,7 @@ pub mod deserializer;
 pub mod logger;
 pub mod runtime;
 pub mod service;
+pub mod signals;
 pub mod sql;
 #[cfg(any(test, feature = "test"))]
 pub mod test;

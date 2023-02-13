@@ -6,6 +6,8 @@ use std::{
     time::Duration,
 };
 
+use crossbeam_channel as chan;
+
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::{KeyPair, Seed, Signature, Signer};
@@ -249,12 +251,14 @@ impl<G: cyphernet::EcSign<Pk = NodeId, Sig = Signature> + Signer + Clone> Node<G
         let listen = vec![([0, 0, 0, 0], 0).into()];
         let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
         let daemon = ([0, 0, 0, 0], fastrand::u16(1025..)).into();
+        let (_, signals) = chan::bounded(1);
         let rt = Runtime::init(
             self.home.clone(),
             config,
             listen,
             proxy,
             daemon,
+            signals,
             self.signer.clone(),
         )
         .unwrap();

@@ -19,13 +19,13 @@ crossbeam-channel = { version = "0.5.6" }
 cyphernet = { version = "0.1.0", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
 fastrand = { version = "1.8.0" }
 git-ref-format = { version = "0.2", features = ["serde", "macro"] }
+io-reactor = { version = "0.1.0", features = ["popol"] }
 lexopt = { version = "0.2.1" }
 libc = { version = "0.2.137" }
 log = { version = "0.4.17", features = ["std"] }
 localtime = { version = "1" }
 netservices = { version = "0.1.0", features = ["io-reactor", "socket2"] }
 nonempty = { version = "0.8.1", features = ["serialize"] }
-io-reactor = { version = "0.1.0", features = ["popol"] }
 qcheck = { version = "1", default-features = false, optional = true }
 sqlite = { version = "0.30.3" }
 sqlite3-src = { version = "0.4.0", features = ["bundled"] } # Ensures static linking

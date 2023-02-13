@@ -9,6 +9,7 @@ use crossbeam_channel as chan;
 use cyphernet::{Cert, EcSign};
 use netservices::resource::NetAccept;
 use radicle::git;
+use radicle::node::Handle as _;
 use radicle::profile::Home;
 use radicle::Storage;
 use reactor::poller::popol;
@@ -77,6 +78,7 @@ pub struct Runtime<G: Signer + EcSign> {
     pub daemon: net::SocketAddr,
     pub pool: worker::Pool,
     pub local_addrs: Vec<net::SocketAddr>,
+    pub signals: chan::Receiver<()>,
 }
 
 impl<G: Signer + EcSign + 'static> Runtime<G> {
@@ -89,6 +91,7 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
         listen: Vec<net::SocketAddr>,
         proxy: net::SocketAddr,
         daemon: net::SocketAddr,
+        signals: chan::Receiver<()>,
         signer: G,
     ) -> Result<Runtime<G>, Error>
     where
@@ -176,6 +179,7 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
             daemon,
             handle,
             pool,
+            signals,
             local_addrs,
         })
     }
@@ -195,9 +199,18 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
                 return Err(err.into());
             }
         };
-        let control = thread::Builder::new()
+        let control = thread::Builder::new().name(self.id.to_human()).spawn({
+            let handle = self.handle.clone();
+            move || control::listen(listener, handle)
+        })?;
+        let _signals = thread::Builder::new()
             .name(self.id.to_human())
-            .spawn(move || control::listen(listener, self.handle))?;
+            .spawn(move || {
+                if let Ok(()) = self.signals.recv() {
+                    log::info!(target: "node", "Termination signal received; shutting down..");
+                    self.handle.shutdown().ok();
+                }
+            })?;
 
         log::info!(target: "node", "Spawning git daemon at {}..", self.storage.path().display());
 

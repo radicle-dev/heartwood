@@ -1,6 +1,7 @@
 use std::{env, net, process};
 
 use anyhow::Context as _;
+use crossbeam_channel as chan;
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
 
@@ -8,7 +9,7 @@ use radicle::profile;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::prelude::{Address, NodeId};
 use radicle_node::Runtime;
-use radicle_node::{logger, service};
+use radicle_node::{logger, service, signals};
 
 pub const HELP_MSG: &str = r#"
 Usage
@@ -117,7 +118,10 @@ fn execute() -> anyhow::Result<()> {
         )
     });
 
-    Runtime::init(home, config, options.listen, proxy, daemon, signer)?.run()?;
+    let (notify, signals) = chan::bounded(1);
+    signals::install(notify)?;
+
+    Runtime::init(home, config, options.listen, proxy, daemon, signals, signer)?.run()?;
 
     Ok(())
 }
