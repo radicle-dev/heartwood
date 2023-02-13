@@ -272,9 +272,15 @@ impl Doc<Verified> {
         signatures: &[(&PublicKey, Signature)],
         repo: &git2::Repository,
     ) -> Result<git::Oid, DocError> {
-        let sig = repo
-            .signature()
-            .or_else(|_| git2::Signature::now("radicle", remote.to_string().as_str()))?;
+        #[cfg(debug_assertions)]
+        let sig = if let Ok(s) = std::env::var("RAD_COMMIT_TIME") {
+            let timestamp = s.trim().parse::<i64>().unwrap();
+            let time = git2::Time::new(timestamp, 0);
+            git2::Signature::new("radicle", remote.to_string().as_str(), &time)?
+        } else {
+            repo.signature()
+                .or_else(|_| git2::Signature::now("radicle", remote.to_string().as_str()))?
+        };
 
         let mut msg = format!("{}\n\n", msg.trim());
         for (key, sig) in signatures {
