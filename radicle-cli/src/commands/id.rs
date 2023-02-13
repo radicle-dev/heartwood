@@ -417,9 +417,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             warn_out_of_date(revision, &previous);
             let yes = confirm(interactive, "Are you sure you want to commit?");
             if yes {
-                Proposal::commit(&proposal, &rid, signer.public_key(), &repo, &signer)?;
+                let id = Proposal::commit(&proposal, &rid, signer.public_key(), &repo, &signer)?;
                 proposal.commit(&signer)?;
-                term::success!("Committed new identity 🌱",);
+                term::success!("Committed new identity '{}' 🌱", id.current);
                 print(&proposal, &previous, None)?;
             }
         }

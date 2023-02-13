@@ -138,7 +138,7 @@ Quorum Reached
 
 ```
 $ rad id commit 57332790a2eabc0b2fd8c7ff48c3579d5812d405 --rev z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1 --no-confirm
-ok Committed new identity 🌱
+ok Committed new identity '29ae4b72f5a315328f06fbd68dc1c396a2d5c45e' 🌱
 title: Add Alice
 description: Add Alice as a delegate
 status:  committed 
@@ -387,7 +387,7 @@ Quorum Reached
 
 ```
 $ rad id commit c3698d4e85f9d4c0ee536b34d6122fc7c81f7e2e --rev z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/6 --no-confirm
-ok Committed new identity 🌱
+ok Committed new identity '60de897bc24898f6908fd1272633c0b15aa4096f' 🌱
 title: Add Bob
 description: Add Bob as a delegate
 status:  committed 
