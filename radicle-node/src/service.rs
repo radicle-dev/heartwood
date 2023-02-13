@@ -754,7 +754,7 @@ where
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
                 if !peer.inventory_announced(timestamp) {
-                    debug!(target: "service", "Ignoring stale inventory announcement from {announcer}");
+                    debug!(target: "service", "Ignoring stale inventory announcement from {announcer} (t={})", self.clock.as_secs());
                     return Ok(false);
                 }
 

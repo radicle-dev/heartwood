@@ -162,12 +162,21 @@ impl<G: Signer + cyphernet::EcSign> NodeHandle<G> {
     }
 
     /// Wait until this node's routing table contains the given routes.
+    #[track_caller]
     pub fn routes_to(&self, routes: &[(Id, NodeId)]) {
-        let mut remaining: BTreeSet<_> = routes.iter().collect();
+        loop {
+            let mut remaining: BTreeSet<_> = routes.iter().collect();
 
-        while !remaining.is_empty() {
             for (rid, nid) in self.handle.routing().unwrap() {
-                remaining.remove(&(rid, nid));
+                if !remaining.remove(&(rid, nid)) {
+                    panic!(
+                        "Node::routes_to: unexpected route for {}: ({rid}, {nid})",
+                        self.id
+                    );
+                }
+            }
+            if remaining.is_empty() {
+                break;
             }
             thread::sleep(Duration::from_millis(100));
         }
@@ -309,9 +318,12 @@ pub fn converge<'a, G: Signer + cyphernet::EcSign + 'static>(
 
     // First build the set of all routes.
     for node in &nodes {
-        let inv = node.storage.inventory().unwrap();
-
-        for rid in inv {
+        // Routes from the routing table.
+        for (rid, seed_id) in node.handle.routing().unwrap() {
+            all_routes.insert((rid, seed_id));
+        }
+        // Routes from the local inventory.
+        for rid in node.storage.inventory().unwrap() {
             all_routes.insert((rid, node.id));
         }
     }

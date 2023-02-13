@@ -1,11 +1,15 @@
 use std::env;
 use std::path::Path;
+use std::str::FromStr;
 use std::{thread, time};
 
 use radicle::git;
+use radicle::prelude::Id;
 use radicle::profile::Home;
+use radicle::storage::{ReadRepository, WriteStorage};
 use radicle::test::fixtures;
 
+use radicle_node::service::tracking::Policy;
 use radicle_node::test::{
     environment::{Config, Environment},
     logger,
@@ -266,4 +270,77 @@ fn rad_init_sync_and_clone() {
         [],
     )
     .unwrap();
+}
+
+#[test]
+//
+//     alice -- seed -- bob
+//
+fn test_replication_via_seed() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let seed = environment.node("seed");
+    let working = environment.tmp().join("working");
+    let rid = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    let mut alice = alice.spawn(Config::default());
+    let mut bob = bob.spawn(Config::default());
+    let seed = seed.spawn(Config {
+        policy: Policy::Track,
+        ..Config::default()
+    });
+
+    alice.connect(&seed);
+    bob.connect(&seed);
+
+    // Enough time for the next inventory from Seed to not be considered stale by Bob.
+    thread::sleep(time::Duration::from_secs(1));
+
+    alice.routes_to(&[]);
+    seed.routes_to(&[]);
+    bob.routes_to(&[]);
+
+    // Initialize a repo as Alice.
+    fixtures::repository(working.join("alice"));
+    alice
+        .rad(
+            "init",
+            &[
+                "--name",
+                "heartwood",
+                "--description",
+                "Radicle Heartwood Protocol & Stack",
+                "--default-branch",
+                "master",
+            ],
+            working.join("alice"),
+        )
+        .unwrap();
+
+    alice.routes_to(&[(rid, alice.id), (rid, seed.id)]);
+    seed.routes_to(&[(rid, alice.id), (rid, seed.id)]);
+    bob.routes_to(&[(rid, alice.id), (rid, seed.id)]);
+
+    bob.rad("clone", &[rid.to_string().as_str()], working.join("bob"))
+        .unwrap();
+
+    alice.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
+    seed.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
+    bob.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
+
+    // Enough time for the Seed to be able to fetch Bob's fork.
+    thread::sleep(time::Duration::from_secs(1));
+
+    seed.storage
+        .repository(rid)
+        .unwrap()
+        .remote(&bob.id)
+        .unwrap();
+
+    // TODO: Seed should send Bob's ref announcement to Alice, after the fetch.
+    // Currently, it is relayed when received from Bob, before the fetch completes,
+    // which means that Alice fetches too early from Seed, and nothing is fetched.
 }
