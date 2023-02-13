@@ -276,6 +276,17 @@ impl Doc<Verified> {
             .signature()
             .or_else(|_| git2::Signature::now("radicle", remote.to_string().as_str()))?;
 
+        #[cfg(debug_assertions)]
+        let sig = if let Ok(s) = std::env::var("RAD_COMMIT_TIME") {
+            // SAFETY: Only used in test code.
+            #[allow(clippy::unwrap_used)]
+            let timestamp = s.trim().parse::<i64>().unwrap();
+            let time = git2::Time::new(timestamp, 0);
+            git2::Signature::new("radicle", remote.to_string().as_str(), &time)?
+        } else {
+            sig
+        };
+
         let mut msg = format!("{}\n\n", msg.trim());
         for (key, sig) in signatures {
             writeln!(&mut msg, "{}: {key} {sig}", trailers::SIGNATURE_TRAILER)
