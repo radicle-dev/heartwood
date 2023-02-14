@@ -1853,20 +1853,30 @@ dependencies = [
  "log",
  "pretty_assertions",
  "radicle",
+ "radicle-cli-test",
  "radicle-cob",
  "radicle-crypto",
  "radicle-node",
  "serde",
  "serde_json",
  "serde_yaml",
- "shlex",
  "similar",
- "snapbox",
  "tempfile",
  "thiserror",
  "timeago",
  "ureq",
  "zeroize",
+]
+
+[[package]]
+name = "radicle-cli-test"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "pretty_assertions",
+ "shlex",
+ "snapbox",
+ "thiserror",
 ]
 
 [[package]]

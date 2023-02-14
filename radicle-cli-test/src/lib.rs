@@ -311,7 +311,7 @@ Running a simple command such as `head`:
 ```
 $ head -n 2 Cargo.toml
 [package]
-name = "radicle-cli"
+name = "radicle-cli-test"
 ```
 "#
         .trim()

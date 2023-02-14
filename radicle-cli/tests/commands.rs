@@ -9,14 +9,12 @@ use radicle::profile::Home;
 use radicle::storage::{ReadRepository, WriteStorage};
 use radicle::test::fixtures;
 
+use radicle_cli_test::TestFormula;
 use radicle_node::service::tracking::Policy;
 use radicle_node::test::{
     environment::{Config, Environment},
     logger,
 };
-
-mod framework;
-use framework::TestFormula;
 
 /// Run a CLI test file.
 fn test<'a>(

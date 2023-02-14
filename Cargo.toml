@@ -3,6 +3,7 @@ members = [
   "radicle",
   "radicle-cob",
   "radicle-cli",
+  "radicle-cli-test",
   "radicle-crdt",
   "radicle-crypto",
   "radicle-dag",
