@@ -230,13 +230,15 @@ impl<G: Signer + EcSign + 'static> Runtime<G> {
 
         self.pool.run().unwrap();
         self.reactor.join().unwrap();
-        control.join().unwrap()?;
 
         daemon::kill(&daemon).ok(); // Ignore error if daemon has already exited, for whatever reason.
         daemon.wait()?;
 
-        fs::remove_file(home.socket()).ok();
-
+        // If the socket file was deleted by some other process, for whatever reason,
+        // the control thread will not be able to join.
+        if fs::remove_file(home.socket()).is_ok() {
+            control.join().unwrap()?;
+        }
         log::debug!(target: "node", "Node shutdown completed for {}", self.id);
 
         Ok(())
