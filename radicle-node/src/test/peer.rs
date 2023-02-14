@@ -180,7 +180,7 @@ where
     }
 
     pub fn timestamp(&self) -> Timestamp {
-        self.clock().as_secs()
+        self.clock().as_millis()
     }
 
     pub fn git_url(&self, repo: Id, namespace: Option<RemoteId>) -> remote::Url {

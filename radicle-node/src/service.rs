@@ -347,7 +347,7 @@ where
     }
 
     pub fn initialize(&mut self, time: LocalTime) -> Result<(), Error> {
-        debug!(target: "service", "Init @{}", time.as_secs());
+        debug!(target: "service", "Init @{}", time.as_millis());
 
         self.start_time = time;
 
@@ -358,7 +358,7 @@ where
         }
         // Ensure that our inventory is recorded in our routing table.
         for id in self.storage.inventory()? {
-            self.routing.insert(id, self.node_id(), time.as_secs())?;
+            self.routing.insert(id, self.node_id(), time.as_millis())?;
         }
         // Setup subscription filter for tracked repos.
         self.filter = Filter::new(
@@ -632,7 +632,7 @@ where
                 self.reactor.write_all(
                     remote,
                     gossip::handshake(
-                        self.clock.as_secs(),
+                        self.clock.as_millis(),
                         &self.storage,
                         &self.signer,
                         filter,
@@ -745,7 +745,7 @@ where
         let peer = self.nodes.entry(*announcer).or_insert_with(Node::default);
 
         // Don't allow messages from too far in the future.
-        if timestamp.saturating_sub(now.as_secs()) > MAX_TIME_DELTA.as_secs() {
+        if timestamp.saturating_sub(now.as_millis()) > MAX_TIME_DELTA.as_millis() as u64 {
             return Err(session::Error::InvalidTimestamp(timestamp));
         }
 
@@ -754,7 +754,7 @@ where
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
                 if !peer.inventory_announced(timestamp) {
-                    debug!(target: "service", "Ignoring stale inventory announcement from {announcer} (t={})", self.clock.as_secs());
+                    debug!(target: "service", "Ignoring stale inventory announcement from {announcer} (t={})", self.clock.as_millis());
                     return Ok(false);
                 }
 
@@ -940,7 +940,7 @@ where
                     self.reactor.write_all(
                         peer.id,
                         gossip::handshake(
-                            self.clock.as_secs(),
+                            self.clock.as_millis(),
                             &self.storage,
                             &self.signer,
                             filter,
@@ -1050,7 +1050,7 @@ where
     /// Sync, and if needed, announce our local inventory.
     fn sync_and_announce_inventory(&mut self) -> Result<bool, Error> {
         let inventory = self.storage.inventory()?;
-        let updated = self.sync_routing(&inventory, self.node_id(), self.clock.as_secs())?;
+        let updated = self.sync_routing(&inventory, self.node_id(), self.clock.as_millis())?;
 
         if updated {
             self.announce_inventory(inventory)?;
@@ -1104,7 +1104,7 @@ where
         let repo = self.storage.repository(id)?;
         let remote = repo.remote(&node)?;
         let peers = self.sessions.negotiated().map(|(_, p)| p);
-        let timestamp = self.clock.as_secs();
+        let timestamp = self.clock.as_millis();
 
         if remote.refs.len() > Refs::max() {
             error!(
@@ -1152,7 +1152,7 @@ where
 
     /// Announce our inventory to all connected peers.
     fn announce_inventory(&mut self, inventory: Vec<Id>) -> Result<(), storage::Error> {
-        let time = self.clock.as_secs();
+        let time = self.clock.as_millis();
         let inv = Message::inventory(gossip::inventory(time, inventory), &self.signer);
         for id in self.sessions.negotiated().map(|(id, _)| id) {
             self.reactor.write(*id, inv.clone());
@@ -1168,7 +1168,7 @@ where
 
         let delta = count - self.config.limits.routing_max_size;
         self.routing.prune(
-            (*now - self.config.limits.routing_max_age).as_secs(),
+            (*now - self.config.limits.routing_max_age).as_millis(),
             Some(delta),
         )?;
         Ok(())
@@ -1505,7 +1505,7 @@ mod gossip {
             Message::inventory(gossip::inventory(now, inventory), signer),
             Message::subscribe(
                 filter,
-                now - SUBSCRIBE_BACKLOG_DELTA.as_secs(),
+                now - SUBSCRIBE_BACKLOG_DELTA.as_millis() as u64,
                 Timestamp::MAX,
             ),
         ];

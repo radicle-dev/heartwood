@@ -1,2 +1,2 @@
-/// Seconds since epoch.
+/// Milliseconds since epoch.
 pub type Timestamp = u64;

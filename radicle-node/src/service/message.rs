@@ -440,7 +440,7 @@ mod tests {
         let msg: Message = AnnouncementMessage::from(RefsAnnouncement {
             id: arbitrary::gen(1),
             refs: bounded_refs,
-            timestamp: LocalTime::now().as_secs(),
+            timestamp: LocalTime::now().as_millis(),
         })
         .signed(&MockSigner::default())
         .into();
@@ -470,7 +470,7 @@ mod tests {
                 inventory: arbitrary::vec(INVENTORY_LIMIT)
                     .try_into()
                     .expect("size within bounds limit"),
-                timestamp: LocalTime::now().as_secs(),
+                timestamp: LocalTime::now().as_millis(),
             },
             &MockSigner::default(),
         );

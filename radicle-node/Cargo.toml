@@ -23,7 +23,7 @@ io-reactor = { version = "0.1.0", features = ["popol"] }
 lexopt = { version = "0.2.1" }
 libc = { version = "0.2.137" }
 log = { version = "0.4.17", features = ["std"] }
-localtime = { version = "1" }
+localtime = { version = "1.1.0" }
 netservices = { version = "0.1.0", features = ["io-reactor", "socket2"] }
 nonempty = { version = "0.8.1", features = ["serialize"] }
 qcheck = { version = "1", default-features = false, optional = true }

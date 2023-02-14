@@ -312,7 +312,7 @@ mod test {
         let node = arbitrary::gen(1);
 
         for id in ids {
-            db.insert(id, node, LocalTime::now().as_secs()).unwrap();
+            db.insert(id, node, LocalTime::now().as_millis()).unwrap();
         }
 
         assert_eq!(10, db.len().unwrap(), "correct number of rows in table");
@@ -328,7 +328,7 @@ mod test {
 
         for id in &ids {
             for node in &nodes {
-                let time = rng.u64(..now.as_secs());
+                let time = rng.u64(..now.as_millis());
                 db.insert(*id, *node, time).unwrap();
             }
         }
@@ -338,18 +338,18 @@ mod test {
 
         for id in &ids {
             for node in &nodes {
-                let time = rng.u64(now.as_secs()..i64::MAX as u64);
+                let time = rng.u64(now.as_millis()..i64::MAX as u64);
                 db.insert(*id, *node, time).unwrap();
             }
         }
 
-        let pruned = db.prune(now.as_secs(), None).unwrap();
+        let pruned = db.prune(now.as_millis(), None).unwrap();
         assert_eq!(pruned, ids.len() * nodes.len());
 
         for id in &ids {
             for node in &nodes {
                 let t = db.entry(id, node).unwrap().unwrap();
-                assert!(t >= now.as_secs());
+                assert!(t >= now.as_millis());
             }
         }
     }

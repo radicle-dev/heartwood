@@ -27,7 +27,7 @@ pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Messa
         msgs.push(Message::inventory(
             InventoryAnnouncement {
                 inventory: arbitrary::vec(3).try_into().unwrap(),
-                timestamp: time.as_secs(),
+                timestamp: time.as_millis(),
             },
             &signer,
         ))

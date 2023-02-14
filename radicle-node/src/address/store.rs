@@ -330,7 +330,7 @@ mod test {
         let alice = arbitrary::gen::<NodeId>(1);
         let mut cache = Book::memory().unwrap();
         let features = node::Features::SEED;
-        let timestamp = LocalTime::now().as_secs();
+        let timestamp = LocalTime::now().as_millis();
 
         let ka = KnownAddress {
             addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
@@ -356,7 +356,7 @@ mod test {
         let alice = arbitrary::gen::<NodeId>(1);
         let mut cache = Book::memory().unwrap();
         let features = node::Features::SEED;
-        let timestamp = LocalTime::now().as_secs();
+        let timestamp = LocalTime::now().as_millis();
 
         let ka = KnownAddress {
             addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
@@ -381,7 +381,7 @@ mod test {
     fn test_insert_and_update() {
         let alice = arbitrary::gen::<NodeId>(1);
         let mut cache = Book::memory().unwrap();
-        let timestamp = LocalTime::now().as_secs();
+        let timestamp = LocalTime::now().as_millis();
         let features = node::Features::SEED;
         let ka = KnownAddress {
             addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
@@ -431,7 +431,7 @@ mod test {
         let alice = arbitrary::gen::<NodeId>(1);
         let bob = arbitrary::gen::<NodeId>(1);
         let mut cache = Book::memory().unwrap();
-        let timestamp = LocalTime::now().as_secs();
+        let timestamp = LocalTime::now().as_millis();
         let features = node::Features::SEED;
 
         for addr in [
@@ -469,7 +469,7 @@ mod test {
         let rng = fastrand::Rng::new();
         let mut cache = Book::memory().unwrap();
         let mut expected = Vec::new();
-        let timestamp = LocalTime::now().as_secs();
+        let timestamp = LocalTime::now().as_millis();
         let features = node::Features::SEED;
 
         for id in ids {

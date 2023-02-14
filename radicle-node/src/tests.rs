@@ -47,7 +47,7 @@ use crate::{git, identity, rad, runtime, service, test};
 #[test]
 fn test_inventory_decode() {
     let inventory: Vec<Id> = arbitrary::gen(300);
-    let timestamp = LocalTime::now().as_secs();
+    let timestamp = LocalTime::now().as_millis();
 
     let mut buf = Vec::new();
     inventory.as_slice().encode(&mut buf).unwrap();
@@ -214,7 +214,7 @@ fn test_inventory_sync() {
     let bob_signer = MockSigner::default();
     let bob_storage = fixtures::storage(tmp.path().join("bob"), &bob_signer).unwrap();
     let bob = Peer::config("bob", [8, 8, 8, 8], bob_storage, peer::Config::default());
-    let now = LocalTime::now().as_secs();
+    let now = LocalTime::now().as_millis();
     let projs = bob.storage().inventory().unwrap();
 
     alice.connect_to(&bob);
@@ -319,7 +319,7 @@ fn test_inventory_pruning() {
                 Message::inventory(
                     InventoryAnnouncement {
                         inventory: test::arbitrary::vec::<Id>(num_projs).try_into().unwrap(),
-                        timestamp: bob.local_time().as_secs(),
+                        timestamp: bob.local_time().as_millis(),
                     },
                     &MockSigner::default(),
                 ),
@@ -359,7 +359,7 @@ fn test_tracking() {
 fn test_inventory_relay_bad_timestamp() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let two_hours = 3600 * 2;
+    let two_hours = 3600 * 1000 * 2;
     let timestamp = alice.timestamp() + two_hours;
 
     alice.connect_to(&bob);
@@ -436,8 +436,8 @@ fn test_announcement_rebroadcast_timestamp_filtered() {
         eve.id(),
         Message::Subscribe(Subscribe {
             filter: Filter::default(),
-            since: alice.local_time().as_secs(),
-            until: (alice.local_time() + delta).as_secs(),
+            since: alice.local_time().as_millis(),
+            until: (alice.local_time() + delta).as_millis(),
         }),
     );
 
@@ -599,7 +599,7 @@ fn test_inventory_relay() {
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let eve = Peer::new("eve", [9, 9, 9, 9]);
     let inv = BoundedVec::try_from(arbitrary::vec(1)).unwrap();
-    let now = LocalTime::now().as_secs();
+    let now = LocalTime::now().as_millis();
 
     // Inventory from Bob relayed to Eve.
     alice.connect_to(&bob);
