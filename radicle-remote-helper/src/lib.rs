@@ -55,7 +55,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
     // Default to profile key.
     let namespace = url.namespace.unwrap_or(profile.public_key);
 
-    let proj = profile.storage.repository(url.repo)?;
+    let proj = profile.storage.repository_mut(url.repo)?;
     if proj.is_empty()? {
         return Err(Error::RepositoryNotFound(proj.path().to_path_buf()).into());
     }

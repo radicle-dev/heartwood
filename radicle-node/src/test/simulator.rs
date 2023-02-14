@@ -411,7 +411,11 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     Input::Fetched(f, result) => {
                         let result = Rc::try_unwrap(result).unwrap();
                         if f.initiated {
-                            let mut repo = p.storage().repository(f.rid).unwrap();
+                            let mut repo = match p.storage().repository_mut(f.rid) {
+                                Ok(repo) => repo,
+                                Err(e) if e.is_not_found() => p.storage().create(f.rid).unwrap(),
+                                Err(e) => panic!("Failed to open repository: {e}"),
+                            };
                             fetch(&mut repo, &f.remote, f.namespaces.clone()).unwrap();
                         }
                         p.fetched(f, result);

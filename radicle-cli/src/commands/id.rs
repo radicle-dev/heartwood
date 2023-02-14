@@ -5,7 +5,7 @@ use radicle::cob::identity::{self, Proposal, ProposalId, Proposals, Revision, Re
 use radicle::git::Oid;
 use radicle::identity::Identity;
 use radicle::prelude::Doc;
-use radicle::storage::WriteStorage as _;
+use radicle::storage::ReadStorage as _;
 use radicle_crypto::{PublicKey, Verified};
 
 use crate::terminal::args::{Args, Error, Help};

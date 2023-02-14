@@ -4,7 +4,7 @@ use std::str::FromStr;
 use anyhow::{anyhow, Context as _};
 
 use radicle::node::{Handle, NodeId};
-use radicle::storage::WriteStorage;
+use radicle::storage::ReadStorage;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};

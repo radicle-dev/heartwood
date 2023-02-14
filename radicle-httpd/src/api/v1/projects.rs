@@ -17,7 +17,7 @@ use radicle::cob::patch::Patches;
 use radicle::cob::{thread, ActorId, Tag};
 use radicle::identity::Id;
 use radicle::node::NodeId;
-use radicle::storage::{git::paths, ReadRepository, WriteStorage};
+use radicle::storage::{git::paths, ReadRepository, ReadStorage};
 use radicle_surf::{Glob, Oid, Repository};
 
 use crate::api::axum_extra::{Path, Query};

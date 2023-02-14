@@ -166,7 +166,11 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
         fetch: &Fetch,
         tunnel: &mut Tunnel<WireSession<G>>,
     ) -> Result<Vec<RefUpdate>, FetchError> {
-        let repo = self.storage.repository(fetch.rid)?;
+        let repo = match self.storage.repository_mut(fetch.rid) {
+            Ok(r) => Ok(r),
+            Err(e) if e.is_not_found() => self.storage.create(fetch.rid),
+            Err(e) => Err(e),
+        }?;
         let tunnel_addr = tunnel.local_addr()?;
         let mut cmd = process::Command::new("git");
         cmd.current_dir(repo.path())

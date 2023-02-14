@@ -10,7 +10,7 @@ use crate::service::filter::Filter;
 use crate::service::{NodeId, Timestamp};
 use crate::storage;
 use crate::storage::refs::SignedRefs;
-use crate::storage::{ReadRepository, WriteStorage};
+use crate::storage::{ReadRepository, ReadStorage};
 use crate::wire;
 
 /// Maximum number of addresses which can be announced to other nodes.
@@ -154,8 +154,14 @@ pub struct RefsAnnouncement {
 
 impl RefsAnnouncement {
     /// Check if this announcement is "fresh", meaning if it contains refs we do not have.
-    pub fn is_fresh<S: WriteStorage>(&self, storage: S) -> Result<bool, storage::Error> {
-        let repo = storage.repository(self.rid)?;
+    pub fn is_fresh<S: ReadStorage>(&self, storage: S) -> Result<bool, storage::Error> {
+        let repo = match storage.repository(self.rid) {
+            // If the repo doesn't exist, we consider this announcement "fresh", since we
+            // obviously don't have the refs.
+            Err(e) if e.is_not_found() => return Ok(true),
+            Err(e) => return Err(e),
+            Ok(r) => r,
+        };
 
         for (remote_id, theirs) in self.refs.iter() {
             if let Ok(ours) = repo.remote(remote_id) {

@@ -13,7 +13,7 @@ use tower::ServiceExt;
 use radicle::cob::issue::Issues;
 use radicle::cob::patch::{MergeTarget, Patches};
 use radicle::git::raw as git2;
-use radicle::storage::WriteStorage;
+use radicle::storage::ReadStorage;
 use radicle_cli::commands::rad_init;
 use radicle_crypto::ssh::keystore::MemorySigner;
 use radicle_crypto::Signer;

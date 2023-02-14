@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
-use radicle::storage::{ReadRepository, WriteStorage};
+use radicle::storage::{ReadRepository, ReadStorage};
 
 pub const HELP: Help = Help {
     name: "ls",

@@ -7,7 +7,6 @@ use anyhow::Context as _;
 use radicle::prelude::*;
 use radicle::storage::git::transport;
 use radicle::storage::RemoteId;
-use radicle::storage::WriteStorage;
 
 use crate::project;
 use crate::terminal as term;

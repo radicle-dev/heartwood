@@ -5,7 +5,7 @@ use axum::{Json, Router};
 
 use radicle::cob::issue::Issues;
 use radicle::identity::Did;
-use radicle::storage::{ReadRepository, WriteStorage};
+use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::api::axum_extra::{Path, Query};
 use crate::api::error::Error;

@@ -154,7 +154,7 @@ mod test {
     use crate::crypto::PublicKey;
     use crate::rad;
     use crate::storage::git::Storage;
-    use crate::storage::{ReadStorage, WriteRepository, WriteStorage};
+    use crate::storage::{ReadStorage, WriteRepository};
     use crate::test::fixtures;
 
     use super::did::Did;

@@ -14,7 +14,7 @@ use tower_http::cors::{self, CorsLayer};
 
 use radicle::cob::issue::Issues;
 use radicle::identity::Id;
-use radicle::storage::{ReadRepository, WriteStorage};
+use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::Profile;
 
 mod auth;

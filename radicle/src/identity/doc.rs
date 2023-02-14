@@ -371,7 +371,7 @@ mod test {
     use crate::rad;
     use crate::storage::git::transport;
     use crate::storage::git::Storage;
-    use crate::storage::WriteStorage;
+    use crate::storage::WriteStorage as _;
     use crate::test::arbitrary;
     use crate::test::fixtures;
 
@@ -414,7 +414,7 @@ mod test {
         let storage = Storage::open(tempdir.path().join("storage")).unwrap();
         let remote = arbitrary::gen::<RemoteId>(1);
         let proj = arbitrary::gen::<Id>(1);
-        let repo = storage.repository(proj).unwrap();
+        let repo = storage.create(proj).unwrap();
         let oid = git2::Oid::from_str("2d52a53ce5e4f141148a5f770cfd3ead2d6a45b8").unwrap();
 
         let err = Doc::<Unverified>::head(&remote, &repo).unwrap_err();

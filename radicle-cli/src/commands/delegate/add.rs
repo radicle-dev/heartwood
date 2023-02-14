@@ -19,7 +19,7 @@ where
         .get(&profile.public_key, id)?
         .context("No project with such ID exists")?;
 
-    let repo = storage.repository(id)?;
+    let repo = storage.repository_mut(id)?;
 
     if !project.is_delegate(me) {
         return Err(anyhow::anyhow!(

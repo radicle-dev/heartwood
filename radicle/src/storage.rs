@@ -70,6 +70,18 @@ pub enum Error {
     Io(#[from] io::Error),
 }
 
+impl Error {
+    /// Whether this error is caused by something not being found.
+    pub fn is_not_found(&self) -> bool {
+        match self {
+            Self::Io(e) if e.kind() == io::ErrorKind::NotFound => true,
+            Self::Git(e) if git::is_not_found_err(e) => true,
+            Self::Doc(e) if e.is_not_found() => true,
+            _ => false,
+        }
+    }
+}
+
 /// Fetch error.
 #[derive(Error, Debug)]
 #[allow(clippy::large_enum_variant)]
@@ -246,6 +258,8 @@ impl Remote<Verified> {
 
 /// Read-only operations on a storage instance.
 pub trait ReadStorage {
+    type Repository: ReadRepository;
+
     /// Get the storage base path.
     fn path(&self) -> &Path;
     /// Get an identity document of a repository under a given remote.
@@ -258,13 +272,18 @@ pub trait ReadStorage {
     fn contains(&self, rid: &Id) -> Result<bool, ProjectError>;
     /// Get the inventory of repositories hosted under this storage.
     fn inventory(&self) -> Result<Inventory, Error>;
+    /// Open or create a read-only repository.
+    fn repository(&self, rid: Id) -> Result<Self::Repository, Error>;
 }
 
 /// Allows access to individual storage repositories.
 pub trait WriteStorage: ReadStorage {
-    type Repository: WriteRepository;
+    type RepositoryMut: WriteRepository;
 
-    fn repository(&self, proj: Id) -> Result<Self::Repository, Error>;
+    /// Open a read-write repository.
+    fn repository_mut(&self, rid: Id) -> Result<Self::RepositoryMut, Error>;
+    /// Create a read-write repository.
+    fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error>;
 }
 
 /// Allows read-only access to a repository.
@@ -355,6 +374,8 @@ where
     T: Deref<Target = S>,
     S: ReadStorage + 'static,
 {
+    type Repository = S::Repository;
+
     fn path(&self) -> &Path {
         self.deref().path()
     }
@@ -374,6 +395,10 @@ where
     ) -> Result<Option<identity::Doc<Verified>>, ProjectError> {
         self.deref().get(remote, proj)
     }
+
+    fn repository(&self, rid: Id) -> Result<Self::Repository, Error> {
+        self.deref().repository(rid)
+    }
 }
 
 impl<T, S> WriteStorage for T
@@ -381,10 +406,14 @@ where
     T: Deref<Target = S>,
     S: WriteStorage + 'static,
 {
-    type Repository = S::Repository;
+    type RepositoryMut = S::RepositoryMut;
 
-    fn repository(&self, proj: Id) -> Result<Self::Repository, Error> {
-        self.deref().repository(proj)
+    fn repository_mut(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
+        self.deref().repository_mut(rid)
+    }
+
+    fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
+        self.deref().create(rid)
     }
 }
 

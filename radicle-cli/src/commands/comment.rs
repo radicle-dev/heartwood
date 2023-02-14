@@ -10,7 +10,6 @@ use radicle::cob::store;
 use radicle::cob::thread;
 use radicle::prelude::*;
 use radicle::storage;
-use radicle::storage::WriteStorage;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};

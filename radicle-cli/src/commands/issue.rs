@@ -198,7 +198,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let signer = term::signer(&profile)?;
     let storage = &profile.storage;
     let (_, id) = radicle::rad::cwd()?;
-    let repo = storage.repository(id)?;
+    let repo = storage.repository_mut(id)?;
     let mut issues = Issues::open(*signer.public_key(), &repo)?;
 
     match options.op {

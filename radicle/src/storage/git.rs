@@ -95,6 +95,8 @@ pub struct Storage {
 }
 
 impl ReadStorage for Storage {
+    type Repository = Repository;
+
     fn path(&self) -> &Path {
         self.path.as_path()
     }
@@ -108,26 +110,36 @@ impl ReadStorage for Storage {
     }
 
     fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, ProjectError> {
-        // TODO: Don't create a repo here if it doesn't exist?
-        // Perhaps for checking we could have a `contains` method?
-        match self.repository(proj)?.identity_of(remote) {
+        let repo = match self.repository(proj) {
+            Ok(doc) => doc,
+            Err(e) if e.is_not_found() => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
+        match repo.identity_of(remote) {
             Ok(doc) => Ok(Some(doc)),
-
-            Err(err) if err.is_not_found() => Ok(None),
-            Err(err) => Err(err),
+            Err(e) if e.is_not_found() => Ok(None),
+            Err(e) => Err(e),
         }
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
         self.repositories()
     }
-}
-
-impl WriteStorage for Storage {
-    type Repository = Repository;
 
     fn repository(&self, rid: Id) -> Result<Self::Repository, Error> {
         Repository::open(paths::repository(self, &rid), rid)
+    }
+}
+
+impl WriteStorage for Storage {
+    type RepositoryMut = Repository;
+
+    fn repository_mut(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
+        Repository::open(paths::repository(self, &rid), rid)
+    }
+
+    fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
+        Repository::create(paths::repository(self, &rid), rid)
     }
 }
 
@@ -207,27 +219,27 @@ pub enum VerifyError {
 }
 
 impl Repository {
+    /// Open an existing repository.
     pub fn open<P: AsRef<Path>>(path: P, id: Id) -> Result<Self, Error> {
-        let backend = match git2::Repository::open_bare(path.as_ref()) {
-            Err(e) if ext::is_not_found_err(&e) => {
-                let backend = git2::Repository::init_opts(
-                    &path,
-                    git2::RepositoryInitOptions::new()
-                        .bare(true)
-                        .no_reinit(true)
-                        .external_template(false),
-                )?;
-                let mut config = backend.config()?;
+        let backend = git2::Repository::open_bare(path.as_ref())?;
 
-                // TODO: Get ahold of user name and/or key.
-                config.set_str("user.name", "radicle")?;
-                config.set_str("user.email", "radicle@localhost")?;
+        Ok(Self { id, backend })
+    }
 
-                Ok(backend)
-            }
-            Ok(repo) => Ok(repo),
-            Err(e) => Err(e),
-        }?;
+    /// Create a new repository.
+    pub fn create<P: AsRef<Path>>(path: P, id: Id) -> Result<Self, Error> {
+        let backend = git2::Repository::init_opts(
+            &path,
+            git2::RepositoryInitOptions::new()
+                .bare(true)
+                .no_reinit(true)
+                .external_template(false),
+        )?;
+        let mut config = backend.config()?;
+
+        // TODO: Get ahold of user name and/or key.
+        config.set_str("user.name", "radicle")?;
+        config.set_str("user.email", "radicle@localhost")?;
 
         Ok(Self { id, backend })
     }
@@ -241,7 +253,7 @@ impl Repository {
     ) -> Result<(Self, git::Oid), Error> {
         let (doc_oid, doc) = doc.encode()?;
         let id = Id::from(doc_oid);
-        let repo = Self::open(paths::repository(storage, &id), id)?;
+        let repo = Self::create(paths::repository(storage, &id), id)?;
         let oid = Doc::init(
             doc.as_slice(),
             remote,
@@ -730,7 +742,7 @@ mod tests {
         let storage = Storage::open(tmp.path()).unwrap();
         let proj_id = arbitrary::gen::<Id>(1);
         let alice = *signer.public_key();
-        let project = storage.repository(proj_id).unwrap();
+        let project = storage.create(proj_id).unwrap();
         let backend = &project.backend;
         let sig = git2::Signature::now(&alice.to_string(), "anonymous@radicle.xyz").unwrap();
         let head = git::initial_commit(backend, &sig).unwrap();

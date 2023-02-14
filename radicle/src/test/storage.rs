@@ -32,6 +32,8 @@ impl MockStorage {
 }
 
 impl ReadStorage for MockStorage {
+    type Repository = MockRepository;
+
     fn path(&self) -> &Path {
         self.path.as_path()
     }
@@ -51,12 +53,20 @@ impl ReadStorage for MockStorage {
     fn inventory(&self) -> Result<Inventory, Error> {
         Ok(self.inventory.keys().cloned().collect::<Vec<_>>())
     }
+
+    fn repository(&self, _proj: Id) -> Result<Self::Repository, Error> {
+        Ok(MockRepository {})
+    }
 }
 
 impl WriteStorage for MockStorage {
-    type Repository = MockRepository;
+    type RepositoryMut = MockRepository;
 
-    fn repository(&self, _proj: Id) -> Result<Self::Repository, Error> {
+    fn repository_mut(&self, _rid: Id) -> Result<Self::RepositoryMut, Error> {
+        Ok(MockRepository {})
+    }
+
+    fn create(&self, _rid: Id) -> Result<Self::RepositoryMut, Error> {
         Ok(MockRepository {})
     }
 }

@@ -15,7 +15,6 @@ use radicle::prelude::*;
 use radicle::rad;
 use radicle::storage;
 use radicle::storage::git::{ProjectError, Storage};
-use radicle::storage::WriteStorage;
 
 use crate::commands::rad_checkout as checkout;
 use crate::project;

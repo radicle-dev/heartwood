@@ -2,7 +2,7 @@ use std::{thread, time};
 
 use radicle::crypto::Signer;
 use radicle::node::{FetchResult, Handle as _};
-use radicle::storage::{ReadRepository, WriteStorage};
+use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{assert_matches, rad};
 
 use crate::service;

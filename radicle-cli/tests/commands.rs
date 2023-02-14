@@ -6,7 +6,7 @@ use std::{thread, time};
 use radicle::git;
 use radicle::prelude::Id;
 use radicle::profile::Home;
-use radicle::storage::{ReadRepository, WriteStorage};
+use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::test::fixtures;
 
 use radicle_cli_test::TestFormula;

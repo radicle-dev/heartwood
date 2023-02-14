@@ -14,7 +14,8 @@ use crate::identity::project::Project;
 use crate::storage::git::transport;
 use crate::storage::git::{ProjectError, Repository, Storage};
 use crate::storage::refs::SignedRefs;
-use crate::storage::{BranchName, ReadRepository as _, RemoteId, WriteRepository as _};
+use crate::storage::WriteRepository;
+use crate::storage::{BranchName, ReadRepository as _, RemoteId};
 use crate::{identity, storage};
 
 /// Name of the radicle storage remote.
@@ -129,7 +130,7 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
         .get(remote, proj)?
         .ok_or(ForkError::NotFound(proj))?;
     let project = doc.project()?;
-    let repository = storage.repository(proj)?;
+    let repository = storage.repository_mut(proj)?;
 
     let raw = repository.raw();
     let remote_head = raw.refname_to_id(&git::refs::storage::branch(
@@ -162,7 +163,7 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
     storage: &S,
 ) -> Result<(), ForkError> {
     let me = signer.public_key();
-    let repository = storage.repository(proj)?;
+    let repository = storage.repository_mut(proj)?;
     // TODO: We should get the id branch pointer from a stored canonical reference.
     let (canonical_id, _) = repository.identity_doc()?;
     let (canonical_branch, canonical_head) = repository.head()?;
@@ -302,7 +303,7 @@ mod tests {
     use crate::identity::Did;
     use crate::storage::git::transport;
     use crate::storage::git::Storage;
-    use crate::storage::{ReadStorage, WriteStorage};
+    use crate::storage::ReadStorage;
     use crate::test::fixtures;
 
     use super::*;

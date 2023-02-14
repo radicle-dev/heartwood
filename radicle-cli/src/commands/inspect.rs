@@ -11,7 +11,7 @@ use json_color::{Color, Colorizer};
 use radicle::crypto::Unverified;
 use radicle::identity::Untrusted;
 use radicle::identity::{Doc, Id};
-use radicle::storage::{ReadRepository, ReadStorage, WriteStorage};
+use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
