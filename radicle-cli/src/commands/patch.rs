@@ -28,6 +28,8 @@ pub const HELP: Help = Help {
 Usage
 
     rad patch
+    rad patch list
+    rad patch show <id>
     rad patch open [<option>...]
     rad patch update <id> [<option>...]
 
