@@ -15,7 +15,9 @@ pub struct BoundedVec<T, const N: usize> {
 impl<T, const N: usize> BoundedVec<T, N> {
     /// Create a new empty `BoundedVec<T,N>`.
     pub fn new() -> Self {
-        BoundedVec { v: Vec::new() }
+        BoundedVec {
+            v: Vec::with_capacity(N),
+        }
     }
 
     /// Build a `BoundedVec` by consuming from the given iterator up to its limit.

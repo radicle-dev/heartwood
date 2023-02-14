@@ -226,10 +226,10 @@ where
         )
     }
 
-    pub fn refs_announcement(&self, id: Id) -> Message {
+    pub fn refs_announcement(&self, rid: Id) -> Message {
         let refs = BoundedVec::new();
         let ann = AnnouncementMessage::from(RefsAnnouncement {
-            id,
+            rid,
             refs,
             timestamp: self.timestamp(),
         });

@@ -368,7 +368,11 @@ fn test_replication_via_seed() {
         .remote(&bob.id)
         .unwrap();
 
-    // TODO: Seed should send Bob's ref announcement to Alice, after the fetch.
-    // Currently, it is relayed when received from Bob, before the fetch completes,
-    // which means that Alice fetches too early from Seed, and nothing is fetched.
+    // Seed should send Bob's ref announcement to Alice, after the fetch.
+    alice
+        .storage
+        .repository(rid)
+        .unwrap()
+        .remote(&bob.id)
+        .unwrap();
 }

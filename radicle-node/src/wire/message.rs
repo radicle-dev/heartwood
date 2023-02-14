@@ -144,7 +144,7 @@ impl wire::Encode for RefsAnnouncement {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         let mut n = 0;
 
-        n += self.id.encode(writer)?;
+        n += self.rid.encode(writer)?;
         n += self.refs.encode(writer)?;
         n += self.timestamp.encode(writer)?;
 
@@ -154,12 +154,12 @@ impl wire::Encode for RefsAnnouncement {
 
 impl wire::Decode for RefsAnnouncement {
     fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
-        let id = Id::decode(reader)?;
+        let rid = Id::decode(reader)?;
         let refs = BoundedVec::decode(reader)?;
         let timestamp = Timestamp::decode(reader)?;
 
         Ok(Self {
-            id,
+            rid,
             refs,
             timestamp,
         })

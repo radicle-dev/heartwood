@@ -74,7 +74,7 @@ pub use message::ADDRESS_LIMIT;
 /// Maximum inventory limit imposed by message size limits.
 pub use message::INVENTORY_LIMIT;
 /// Maximum number of project git references imposed by message size limits.
-pub use message::REF_LIMIT;
+pub use message::REF_REMOTE_LIMIT;
 
 /// A service event.
 #[derive(Debug, Clone)]
@@ -484,7 +484,7 @@ where
                 resp.send(untracked).ok();
             }
             Command::AnnounceRefs(id) => {
-                if let Err(err) = self.announce_refs(id) {
+                if let Err(err) = self.announce_refs(id, Namespaces::One(self.node_id())) {
                     error!("Error announcing refs: {}", err);
                 }
             }
@@ -492,7 +492,7 @@ where
                 let updated = self
                     .sync_and_announce_inventory()
                     .expect("Service::command: error syncing and announcing inventory");
-                resp.send(updated).ok();
+                resp.send(!updated.is_empty()).ok();
             }
             Command::QueryState(query, sender) => {
                 sender.send(query(self)).ok();
@@ -578,15 +578,21 @@ where
                 }
             } else {
                 log::debug!(target: "service", "No fetch requests found for {rid}..");
-            }
 
-            // Announce the newly fetched project to the network, if necessary.
-            // Since this fetch could be either a full clone or simply a ref update, we need to
-            // either announce new inventory, or new refs.
-            //
-            // TODO: Announce new refs? Would require the ability to announce other peer refs.
+                // We only announce refs here when the fetch wasn't user-requested. This is
+                // because the user might want to announce his fork, once he has created one,
+                // or may choose to not announce anything.
+                if let Err(e) = self.announce_refs(rid, fetch.namespaces) {
+                    error!(target: "service", "Failed to announce new refs: {e}");
+                }
+            }
+            // TODO: Since this fetch could be either a full clone or simply a ref update, we need
+            // to either announce new inventory, or new refs. Right now, we announce both in some
+            // cases.
+
+            // Announce the newly fetched repository to the network, if necessary.
             if let Err(e) = self.sync_and_announce_inventory() {
-                error!(target: "service", "Failed to announce new inventory: {e}");
+                error!(target: "service", "Failed to sync announce new inventory: {e}");
             }
         }
 
@@ -760,7 +766,7 @@ where
 
                 match self.sync_routing(&message.inventory, *announcer, message.timestamp) {
                     Ok(updated) => {
-                        if !updated {
+                        if updated.is_empty() {
                             return Ok(false);
                         }
                     }
@@ -771,6 +777,7 @@ where
                 }
 
                 for id in message.inventory.as_slice() {
+                    // TODO: Move this out (good luck with the borrow checker).
                     if let Some(sess) = self.sessions.get_mut(announcer) {
                         // If we are connected to the announcer of this inventory, update the peer's
                         // subscription filter to include all inventory items. This way, we'll
@@ -802,38 +809,58 @@ where
             }
             // Process a peer inventory update announcement by (maybe) fetching.
             AnnouncementMessage::Refs(message) => {
+                for (remote_id, theirs) in message.refs.iter() {
+                    if theirs.verify(remote_id).is_err() {
+                        warn!(target: "service", "Peer {relayer} relayed refs announcement with invalid signature for {remote_id}");
+                        return Err(session::Error::Misbehavior);
+                    }
+                }
+
                 // We update inventories when receiving ref announcements, as these could come
                 // from a new repository being initialized.
-                if let Ok(updated) = self.routing.insert(message.id, *relayer, message.timestamp) {
+                if let Ok(updated) = self
+                    .routing
+                    .insert(message.rid, *relayer, message.timestamp)
+                {
                     if updated {
-                        info!(target: "service", "Routing table updated for {} with seed {relayer}", message.id);
+                        info!(target: "service", "Routing table updated for {} with seed {relayer}", message.rid);
                     }
                 }
                 // TODO: Buffer/throttle fetches.
-                // TODO: Check that we're tracking this user as well.
                 if self
                     .tracking
-                    .is_repo_tracked(&message.id)
+                    .is_repo_tracked(&message.rid)
                     .expect("Service::handle_announcement: error accessing tracking configuration")
                 {
-                    // Discard inventory messages we've already seen, otherwise update
+                    // Discard announcement messages we've already seen, otherwise update
                     // our last seen time.
-                    if !peer.refs_announced(message.id, timestamp) {
+                    if !peer.refs_announced(message.rid, timestamp) {
                         debug!(target: "service", "Ignoring stale refs announcement from {announcer}");
                         return Ok(false);
                     }
-                    // TODO: Check refs to see if we should try to fetch or not.
-                    // Refs are only supposed to be relayed by peers who are tracking
-                    // the resource. Therefore, it's safe to fetch from the remote
-                    // peer, even though it isn't the announcer.
-                    self.fetch(message.id, relayer);
 
-                    return Ok(true);
+                    // Refs can be relayed by peers who don't have the data in storage,
+                    // therefore we only check whether we are connected to the *announcer*,
+                    // which is required by the protocol to only announce refs it has.
+                    if self.sessions.is_negotiated(announcer) {
+                        match message.is_fresh(&self.storage) {
+                            Ok(is_fresh) => {
+                                if is_fresh {
+                                    // TODO: Only fetch if the refs announced are for peers we're tracking.
+                                    self.fetch(message.rid, announcer);
+                                }
+                            }
+                            Err(e) => {
+                                error!(target: "service", "Failed to check ref announcement freshness: {e}");
+                            }
+                        }
+                    }
+                    return Ok(relay);
                 } else {
                     debug!(
                         target: "service",
                         "Ignoring refs announcement from {announcer}: repository {} isn't tracked",
-                        message.id
+                        message.rid
                     );
                 }
             }
@@ -1048,11 +1075,11 @@ where
     }
 
     /// Sync, and if needed, announce our local inventory.
-    fn sync_and_announce_inventory(&mut self) -> Result<bool, Error> {
+    fn sync_and_announce_inventory(&mut self) -> Result<Vec<Id>, Error> {
         let inventory = self.storage.inventory()?;
         let updated = self.sync_routing(&inventory, self.node_id(), self.clock.as_millis())?;
 
-        if updated {
+        if !updated.is_empty() {
             self.announce_inventory(inventory)?;
         }
         Ok(updated)
@@ -1066,8 +1093,8 @@ where
         inventory: &[Id],
         from: NodeId,
         timestamp: Timestamp,
-    ) -> Result<bool, Error> {
-        let mut updated = false;
+    ) -> Result<Vec<Id>, Error> {
+        let mut updated = Vec::new();
         let mut included = HashSet::new();
 
         for proj_id in inventory {
@@ -1083,13 +1110,13 @@ where
                     // TODO: We should fetch here if we're already connected, case this seed has
                     // refs we don't have.
                 }
-                updated = true;
+                updated.push(*proj_id);
             }
         }
         for id in self.routing.get_resources(&from)?.into_iter() {
             if !included.contains(&id) {
                 if self.routing.remove(&id, &from)? {
-                    updated = true;
+                    updated.push(id);
                 }
             }
         }
@@ -1097,25 +1124,34 @@ where
     }
 
     /// Announce local refs for given id.
-    fn announce_refs(&mut self, id: Id) -> Result<(), storage::Error> {
-        type Refs = BoundedVec<Id, REF_LIMIT>;
-
-        let node = self.node_id();
-        let repo = self.storage.repository(id)?;
-        let remote = repo.remote(&node)?;
+    fn announce_refs(&mut self, rid: Id, namespaces: Namespaces) -> Result<(), storage::Error> {
+        let repo = self.storage.repository(rid)?;
         let peers = self.sessions.negotiated().map(|(_, p)| p);
         let timestamp = self.clock.as_millis();
+        let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
 
-        if remote.refs.len() > Refs::max() {
-            error!(
-                target: "service",
-                "refs announcement limit ({}) exceeded, other nodes will see only some of your project references",
-                Refs::max(),
-            );
+        match namespaces {
+            Namespaces::All => {
+                for (remote_id, remote) in repo.remotes()?.into_iter() {
+                    if refs.push((remote_id, remote.refs.unverified())).is_err() {
+                        warn!(
+                            target: "service",
+                            "refs announcement limit ({}) exceeded, peers will see only some of your repository references",
+                            REF_REMOTE_LIMIT,
+                        );
+                        break;
+                    }
+                }
+            }
+            Namespaces::One(pk) => refs
+                .push((pk, repo.remote(&pk)?.refs.unverified()))
+                // SAFETY: `REF_REMOTE_LIMIT` is greater than 1, thus the bounded vec can hold at least
+                // one remote.
+                .unwrap(),
         }
-        let refs = BoundedVec::collect_from(&mut remote.refs.iter().map(|(a, b)| (a.clone(), *b)));
+
         let msg = AnnouncementMessage::from(RefsAnnouncement {
-            id,
+            rid,
             refs,
             timestamp,
         });

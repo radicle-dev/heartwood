@@ -1,19 +1,22 @@
 use std::{fmt, io, mem};
 
 use crate::crypto;
-use crate::git;
+use crate::crypto::Unverified;
 use crate::identity::Id;
 use crate::node;
 use crate::node::Address;
 use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
 use crate::service::{NodeId, Timestamp};
+use crate::storage;
+use crate::storage::refs::SignedRefs;
+use crate::storage::{ReadRepository, WriteStorage};
 use crate::wire;
 
 /// Maximum number of addresses which can be announced to other nodes.
 pub const ADDRESS_LIMIT: usize = 16;
-/// Maximum number of project git references.
-pub const REF_LIMIT: usize = 235;
+/// Maximum number of repository remotes that can be included in a [`RefsAnnouncement`] message.
+pub const REF_REMOTE_LIMIT: usize = 512;
 /// Maximum number of inventory which can be announced to other nodes.
 pub const INVENTORY_LIMIT: usize = 2973;
 
@@ -142,11 +145,29 @@ impl wire::Decode for NodeAnnouncement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RefsAnnouncement {
     /// Repository identifier.
-    pub id: Id,
+    pub rid: Id,
     /// Updated refs.
-    pub refs: BoundedVec<(git::RefString, git::Oid), REF_LIMIT>,
+    pub refs: BoundedVec<(NodeId, SignedRefs<Unverified>), REF_REMOTE_LIMIT>,
     /// Time of announcement.
     pub timestamp: Timestamp,
+}
+
+impl RefsAnnouncement {
+    /// Check if this announcement is "fresh", meaning if it contains refs we do not have.
+    pub fn is_fresh<S: WriteStorage>(&self, storage: S) -> Result<bool, storage::Error> {
+        let repo = storage.repository(self.rid)?;
+
+        for (remote_id, theirs) in self.refs.iter() {
+            if let Ok(ours) = repo.remote(remote_id) {
+                if *ours.refs != theirs.refs {
+                    return Ok(true);
+                }
+            } else {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
 }
 
 /// Node announcing its inventory to the network.
@@ -228,7 +249,7 @@ impl fmt::Debug for AnnouncementMessage {
                 )
             }
             Self::Refs(message) => {
-                write!(f, "Refs({}, {:?})", message.id, message.refs)
+                write!(f, "Refs({}, {:?})", message.rid, message.refs)
             }
         }
     }
@@ -273,7 +294,7 @@ impl Announcement {
         match &self.message {
             AnnouncementMessage::Inventory(_) => true,
             AnnouncementMessage::Node(_) => true,
-            AnnouncementMessage::Refs(RefsAnnouncement { id, .. }) => filter.contains(id),
+            AnnouncementMessage::Refs(RefsAnnouncement { rid, .. }) => filter.contains(rid),
         }
     }
 }
@@ -430,37 +451,33 @@ mod tests {
     use qcheck_macros::quickcheck;
 
     #[test]
-    fn test_ref_limit() {
-        let mut refs = Refs::default();
-        while refs.len() < REF_LIMIT {
-            refs.insert(arbitrary::refstring(u8::MAX as usize), arbitrary::oid());
+    fn test_ref_remote_limit() {
+        let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
+        let rs = Refs::default();
+        let signer = MockSigner::default();
+        let signed_refs = rs.signed(&signer).unwrap().unverified();
+
+        assert_eq!(refs.capacity(), REF_REMOTE_LIMIT);
+
+        for _ in 0..refs.capacity() {
+            refs.push((*signer.public_key(), signed_refs.clone()))
+                .unwrap();
         }
 
-        let bounded_refs = BoundedVec::collect_from(&mut refs.iter().map(|(a, b)| (a.clone(), *b)));
         let msg: Message = AnnouncementMessage::from(RefsAnnouncement {
-            id: arbitrary::gen(1),
-            refs: bounded_refs,
+            rid: arbitrary::gen(1),
+            refs,
             timestamp: LocalTime::now().as_millis(),
         })
         .signed(&MockSigner::default())
         .into();
 
         let mut buf: Vec<u8> = Vec::new();
-        assert!(
-            msg.encode(&mut buf).is_ok(),
-            "REF_LIMIT is too big to support message encoding",
-        );
+        assert!(msg.encode(&mut buf).is_ok());
 
         let decoded = wire::deserialize(buf.as_slice());
-        assert!(
-            decoded.is_ok(),
-            "REF_LIMIT is too big to support message decoding"
-        );
-        assert_eq!(
-            msg,
-            decoded.unwrap(),
-            "encoding and decoding should be safe for message at REF_LIMIT",
-        );
+        assert!(decoded.is_ok());
+        assert_eq!(msg, decoded.unwrap());
     }
 
     #[test]
@@ -493,13 +510,16 @@ mod tests {
     }
 
     #[quickcheck]
-    fn prop_refs_announcement_signing(id: Id, refs: Refs) {
+    fn prop_refs_announcement_signing(rid: Id, refs: Refs) {
         let signer = MockSigner::new(&mut fastrand::Rng::new());
         let timestamp = 0;
-
+        let signed_refs = refs.signed(&signer).unwrap();
+        let refs = BoundedVec::collect_from(
+            &mut [(*signer.public_key(), signed_refs.unverified())].into_iter(),
+        );
         let message = AnnouncementMessage::Refs(RefsAnnouncement {
-            id,
-            refs: BoundedVec::collect_from(&mut refs.iter().map(|(k, v)| (k.clone(), *v))),
+            rid,
+            refs,
             timestamp,
         });
         let ann = message.signed(&signer);

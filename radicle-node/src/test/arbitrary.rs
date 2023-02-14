@@ -2,7 +2,7 @@ use bloomy::BloomFilter;
 use qcheck::Arbitrary;
 
 use crate::crypto;
-use crate::prelude::{BoundedVec, Id, NodeId, Refs, Timestamp};
+use crate::prelude::{BoundedVec, Id, NodeId, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
 use crate::service::message::{
     Announcement, InventoryAnnouncement, Message, NodeAnnouncement, Ping, RefsAnnouncement,
@@ -53,10 +53,8 @@ impl Arbitrary for Message {
             MessageType::RefsAnnouncement => Announcement {
                 node: NodeId::arbitrary(g),
                 message: RefsAnnouncement {
-                    id: Id::arbitrary(g),
-                    refs: BoundedVec::collect_from(
-                        &mut Refs::arbitrary(g).iter().map(|(k, v)| (k.clone(), *v)),
-                    ),
+                    rid: Id::arbitrary(g),
+                    refs: BoundedVec::arbitrary(g),
                     timestamp: Timestamp::arbitrary(g),
                 }
                 .into(),
