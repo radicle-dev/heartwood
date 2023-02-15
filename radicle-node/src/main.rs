@@ -19,9 +19,11 @@ Usage
 Options
 
     --connect          <peer>        Connect to the given peer address on start
-    --external-address <address>     Publicly accessible address
+    --external-address <address>     Publicly accessible address (default 0.0.0.0:8776)
+    --git-daemon       <address>     Address to bind git-daemon to (default 0.0.0.0:9418)
     --help                           Print help
     --listen           <address>     Address to listen on
+
 "#;
 
 #[derive(Debug)]
