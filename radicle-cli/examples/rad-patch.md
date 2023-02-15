@@ -117,3 +117,11 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5
 $ rad comment d4ef85f57a849bd845915d7a66a2192cd23811f6 --message 'I cannot wait to get back to the 90s!' --reply-to z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/6
 ```
+
+Now, let's checkout the patch that we just created:
+
+```
+$ rad patch checkout d4ef85f57a849bd845915d7a66a2192cd23811f6
+ok Performing patch checkout...
+ok Switched to branch patch/d4ef85f57a8
+```

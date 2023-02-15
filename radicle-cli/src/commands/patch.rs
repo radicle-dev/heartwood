@@ -1,3 +1,5 @@
+#[path = "patch/checkout.rs"]
+mod checkout;
 #[path = "patch/common.rs"]
 mod common;
 #[path = "patch/create.rs"]
@@ -32,6 +34,7 @@ Usage
     rad patch show <id>
     rad patch open [<option>...]
     rad patch update <id> [<option>...]
+    rad patch checkout <id>
 
 Create/Update options
 
@@ -52,6 +55,7 @@ pub enum OperationName {
     Open,
     Show,
     Update,
+    Checkout,
     #[default]
     List,
 }
@@ -67,6 +71,9 @@ pub enum Operation {
     Update {
         patch_id: Option<PatchId>,
         message: Message,
+    },
+    Checkout {
+        patch_id: PatchId,
     },
     List,
 }
@@ -140,13 +147,16 @@ impl Args for Options {
                     "o" | "open" => op = Some(OperationName::Open),
                     "s" | "show" => op = Some(OperationName::Show),
                     "u" | "update" => op = Some(OperationName::Update),
-
+                    "c" | "checkout" => op = Some(OperationName::Checkout),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val) if op == Some(OperationName::Show) && patch_id.is_none() => {
                     patch_id = Some(term::cob::parse_patch_id(val)?);
                 }
                 Value(val) if op == Some(OperationName::Update) && patch_id.is_none() => {
+                    patch_id = Some(term::cob::parse_patch_id(val)?);
+                }
+                Value(val) if op == Some(OperationName::Checkout) && patch_id.is_none() => {
                     patch_id = Some(term::cob::parse_patch_id(val)?);
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
@@ -160,6 +170,9 @@ impl Args for Options {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
             },
             OperationName::Update => Operation::Update { patch_id, message },
+            OperationName::Checkout => Operation::Checkout {
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
+            },
         };
 
         Ok((
@@ -204,6 +217,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 message.clone(),
                 &options,
             )?;
+        }
+        Operation::Checkout { ref patch_id } => {
+            checkout::run(&storage, &profile, &workdir, patch_id)?;
         }
     }
     Ok(())
