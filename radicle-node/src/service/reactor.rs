@@ -98,11 +98,12 @@ impl Reactor {
     /// Broadcast a message to a list of peers.
     pub fn broadcast<'a>(
         &mut self,
-        msg: Announcement,
+        msg: impl Into<Message>,
         peers: impl IntoIterator<Item = &'a Session>,
     ) {
+        let msg = msg.into();
         for peer in peers {
-            self.write(peer.id, msg.clone().into());
+            self.write(peer.id, msg.clone());
         }
     }
 

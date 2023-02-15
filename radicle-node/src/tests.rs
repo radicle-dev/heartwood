@@ -836,6 +836,27 @@ fn test_maintain_connections() {
 }
 
 #[test]
+fn test_track_repo_subscribe() {
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let rid = arbitrary::gen::<Id>(1);
+    let (send, recv) = chan::bounded(1);
+
+    alice.connect_to(&bob);
+    alice.command(Command::TrackRepo(rid, send));
+    assert!(recv.recv().unwrap());
+
+    assert_matches!(
+        alice.messages(bob.id).next(),
+        Some(Message::Subscribe(Subscribe {
+            filter,
+            since,
+            ..
+        })) if since == alice.clock().as_millis() && filter.contains(&rid)
+    );
+}
+
+#[test]
 fn test_push_and_pull() {
     let tempdir = tempfile::tempdir().unwrap();
 
