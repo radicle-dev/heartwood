@@ -34,7 +34,7 @@ pub mod env {
     /// Passphrase for the encrypted radicle secret key.
     pub const RAD_PASSPHRASE: &str = "RAD_PASSPHRASE";
 
-    pub fn read_passphrase() -> Option<super::Passphrase> {
+    pub fn passphrase() -> Option<super::Passphrase> {
         let Ok(passphrase) = std::env::var(RAD_PASSPHRASE) else {
             return None;
         };
@@ -109,7 +109,7 @@ impl Profile {
     }
 
     pub fn signer(&self) -> Result<Box<dyn Signer>, Error> {
-        if let Some(passphrase) = env::read_passphrase() {
+        if let Some(passphrase) = env::passphrase() {
             let signer = keystore::MemorySigner::load(&self.keystore, passphrase)?;
             return Ok(signer.boxed());
         }

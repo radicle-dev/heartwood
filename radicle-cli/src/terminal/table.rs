@@ -9,18 +9,31 @@
 //! t.push(["aphid", "lacewing"]);
 //! t.push(["spider mite", "ladybug"]);
 //! t.render();
-//! // pest        biological control
-//! // aphid       ladybug
-//! // spider mite persimilis
 //! ```
-
-use std::fmt::Write;
+//! Output:
+//! ``` plain
+//! pest        biological control
+//! aphid       ladybug
+//! spider mite persimilis
+//! ```
+use std::io;
 
 use crate::terminal as term;
+use crate::terminal::cell::Cell;
+
+/// Used to specify maximum width or height.
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+pub struct Max {
+    width: Option<usize>,
+    height: Option<usize>,
+}
 
 #[derive(Debug, Default)]
 pub struct TableOptions {
+    /// Whether the table should be allowed to overflow.
     pub overflow: bool,
+    /// The maximum width and height.
+    pub max: Max,
 }
 
 #[derive(Debug)]
@@ -49,16 +62,20 @@ impl<const W: usize> Table<W> {
         }
     }
 
-    pub fn push(&mut self, row: [impl ToString; W]) {
+    pub fn push(&mut self, row: [impl Cell; W]) {
         let row = row.map(|s| s.to_string());
         for (i, cell) in row.iter().enumerate() {
-            self.widths[i] = self.widths[i].max(console::measure_text_width(cell));
+            self.widths[i] = self.widths[i].max(cell.width());
         }
         self.rows.push(row);
     }
 
     pub fn render(self) {
-        let width = term::width(); // Terminal width.
+        self.write(io::stdout()).ok();
+    }
+
+    pub fn write<T: io::Write>(self, mut writer: T) -> io::Result<()> {
+        let width = self.opts.max.width.or_else(term::columns);
 
         for row in &self.rows {
             let mut output = String::new();
@@ -66,27 +83,25 @@ impl<const W: usize> Table<W> {
 
             for (i, cell) in row.iter().enumerate() {
                 if i == cells - 1 || self.opts.overflow {
-                    write!(output, "{cell}").ok();
+                    output.push_str(cell.to_string().as_str());
                 } else {
-                    write!(
-                        output,
-                        "{} ",
-                        console::pad_str(cell, self.widths[i], console::Alignment::Left, None)
-                    )
-                    .ok();
+                    output.push_str(cell.pad(self.widths[i]).as_str());
+                    output.push(' ');
                 }
             }
 
             let output = output.trim_end();
-            println!(
+            writeln!(
+                writer,
                 "{}",
                 if let Some(width) = width {
-                    console::truncate_str(output, width - 1, "…")
+                    output.truncate(width, "…")
                 } else {
                     output.into()
                 }
-            );
+            )?;
         }
+        Ok(())
     }
 
     pub fn render_tree(self) {
@@ -97,12 +112,116 @@ impl<const W: usize> Table<W> {
                 print!("└── ");
             }
             for (i, cell) in row.iter().enumerate() {
-                print!(
-                    "{} ",
-                    console::pad_str(cell, self.widths[i], console::Alignment::Left, None)
-                );
+                print!("{} ", cell.pad(self.widths[i]));
             }
             println!();
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_truncate() {
+        assert_eq!("🍍".truncate(1, "…"), String::from("…"));
+        assert_eq!("🍍".truncate(1, ""), String::from(""));
+        assert_eq!("🍍🍍".truncate(2, "…"), String::from("…"));
+        assert_eq!("🍍🍍".truncate(3, "…"), String::from("🍍…"));
+        assert_eq!("🍍".truncate(1, "🍎"), String::from(""));
+        assert_eq!("🍍".truncate(2, "🍎"), String::from("🍍"));
+        assert_eq!("🍍🍍".truncate(3, "🍎"), String::from("🍎"));
+        assert_eq!("🍍🍍🍍".truncate(4, "🍎"), String::from("🍍🍎"));
+        assert_eq!("hello".truncate(3, "…"), String::from("he…"));
+    }
+
+    #[test]
+    fn test_table() {
+        let mut s = Vec::new();
+        let mut t = Table::new(TableOptions::default());
+
+        t.push(["pineapple", "rosemary"]);
+        t.push(["apples", "pears"]);
+        t.write(&mut s).unwrap();
+
+        #[rustfmt::skip]
+        assert_eq!(
+            String::from_utf8_lossy(&s),
+            [
+                "pineapple rosemary\n",
+                "apples    pears\n"
+            ].join("")
+        );
+    }
+
+    #[test]
+    fn test_table_truncate() {
+        let mut s = Vec::new();
+        let mut t = Table::new(TableOptions {
+            max: Max {
+                width: Some(16),
+                height: None,
+            },
+            ..TableOptions::default()
+        });
+
+        t.push(["pineapple", "rosemary"]);
+        t.push(["apples", "pears"]);
+        t.write(&mut s).unwrap();
+
+        #[rustfmt::skip]
+        assert_eq!(
+            String::from_utf8_lossy(&s),
+            [
+                "pineapple rosem…\n",
+                "apples    pears\n"
+            ].join("")
+        );
+    }
+
+    #[test]
+    fn test_table_unicode() {
+        let mut s = Vec::new();
+        let mut t = Table::new(TableOptions::default());
+
+        t.push(["🍍pineapple", "__rosemary", "__sage"]);
+        t.push(["__pears", "🍎apples", "🍌bananas"]);
+        t.write(&mut s).unwrap();
+
+        #[rustfmt::skip]
+        assert_eq!(
+            String::from_utf8_lossy(&s),
+            [
+                "🍍pineapple __rosemary __sage\n",
+                "__pears     🍎apples   🍌bananas\n"
+            ].join("")
+        );
+    }
+
+    #[test]
+    fn test_table_unicode_truncate() {
+        let mut s = Vec::new();
+        let mut t = Table::new(TableOptions {
+            max: Max {
+                width: Some(16),
+                height: None,
+            },
+            ..TableOptions::default()
+        });
+
+        t.push(["🍍pineapple", "__rosemary"]);
+        t.push(["__pears", "🍎apples"]);
+        t.write(&mut s).unwrap();
+
+        #[rustfmt::skip]
+        assert_eq!(
+            String::from_utf8_lossy(&s),
+            [
+                "🍍pineapple __r…\n",
+                "__pears     🍎a…\n"
+            ].join("")
+        );
     }
 }

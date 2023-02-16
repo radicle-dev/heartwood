@@ -127,7 +127,7 @@ pub fn pretty_sync_status(
 ) -> anyhow::Result<String> {
     let (a, b) = repo.graph_ahead_behind(revision_oid, head_oid)?;
     if a == 0 && b == 0 {
-        return Ok(term::format::dim("up to date"));
+        return Ok(term::format::dim("up to date").to_string());
     }
 
     let ahead = term::format::positive(a);
@@ -143,7 +143,7 @@ pub fn pretty_commit_version(
     revision_oid: &Oid,
     repo: &Option<git::raw::Repository>,
 ) -> anyhow::Result<String> {
-    let mut oid = term::format::secondary(term::format::oid(*revision_oid));
+    let mut oid = term::format::secondary(term::format::oid(*revision_oid)).to_string();
     let mut branches: Vec<String> = vec![];
 
     if let Some(repo) = repo {
@@ -216,6 +216,8 @@ pub fn push_to_storage(
         if options.verbose {
             spinner.finish();
             term::blob(output);
+
+            return Ok(());
         }
     }
     spinner.finish();

@@ -16,7 +16,7 @@ work.
 ```
 $ rad delegate add did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG --to rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Added delegate 'did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG'
-ok Update successful!
+✓ Update successful!
 ```
 
 Let's convince ourselves that there's another delegate.
@@ -35,7 +35,7 @@ the torch and remove ourselves from the delegate set.
 ```
 $ rad delegate remove did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --to rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Removed delegate 'did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
-ok Update successful!
+✓ Update successful!
 ```
 
 ```

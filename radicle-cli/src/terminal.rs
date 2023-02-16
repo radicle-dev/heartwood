@@ -1,6 +1,9 @@
+pub mod ansi;
 pub mod args;
+pub mod cell;
 pub mod cob;
 pub mod command;
+pub mod editor;
 pub mod format;
 pub mod io;
 pub mod patch;
@@ -11,12 +14,12 @@ pub mod textbox;
 use std::ffi::OsString;
 use std::process;
 
-use dialoguer::console::style;
 use radicle::profile::Profile;
 
+pub use ansi::{paint, Paint};
 pub use args::{Args, Error, Help};
-pub use console::measure_text_width as text_width;
-pub use dialoguer::Editor;
+pub use editor::Editor;
+pub use inquire::ui::Styled;
 pub use io::*;
 pub use spinner::{spinner, Spinner};
 pub use table::Table;
@@ -97,14 +100,14 @@ where
             };
             eprintln!(
                 "{} {} {} {}",
-                style("==").red(),
-                style("Error:").red(),
-                style(format!("rad-{}:", help.name)).red(),
-                style(&err).red()
+                Paint::red("=="),
+                Paint::red("Error:"),
+                Paint::red(format!("rad-{}:", help.name)),
+                Paint::red(err.to_string()),
             );
 
             if let Some(Error::WithHint { hint, .. }) = err.downcast_ref::<Error>() {
-                eprintln!("{}", style(hint).yellow());
+                eprintln!("{}", Paint::yellow(hint));
             }
 
             process::exit(1);
@@ -172,4 +175,8 @@ impl From<bool> for Interactive {
             Interactive::No
         }
     }
+}
+
+pub fn style<T>(item: T) -> Paint<T> {
+    paint(item)
 }

@@ -71,8 +71,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repo = storage.repository(id)?;
 
     let payload = serde_json::to_string_pretty(&project.payload)?;
-    match term::Editor::new().edit(&payload)? {
-        Some(updated_payload) => {
+    match term::Editor::new().extension("json").edit(payload) {
+        Ok(Some(updated_payload)) => {
             project.payload = serde_json::from_str(&updated_payload)?;
             project.sign(&signer).and_then(|(_, sig)| {
                 project.update(
@@ -83,7 +83,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 )
             })?;
         }
-        None => return Err(anyhow!("Operation aborted!")),
+        _ => return Err(anyhow!("Operation aborted!")),
     }
 
     term::success!("Update successful!");

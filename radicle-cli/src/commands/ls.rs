@@ -53,8 +53,8 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         let head = term::format::oid(head);
         table.push([
             term::format::bold(proj.name()),
-            term::format::tertiary(id.urn()),
-            term::format::secondary(head),
+            term::format::tertiary(id.urn().as_str()),
+            term::format::secondary(head.as_str()),
             term::format::italic(proj.description()),
         ]);
     });

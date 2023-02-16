@@ -97,7 +97,7 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
         .identity_of(&remote)
         .context("project could not be found in local storage")?;
     let payload = doc.project()?;
-    let path = PathBuf::from(payload.name().clone());
+    let path = PathBuf::from(payload.name());
 
     transport::local::register(storage.clone());
 

@@ -162,9 +162,9 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     term::headline(&format!(
         "Initializing local 🌱 project in {}",
         if path == cwd {
-            term::format::highlight(".")
+            term::format::highlight(".").to_string()
         } else {
-            term::format::highlight(path.display())
+            term::format::highlight(path.display()).to_string()
         }
     ));
 
@@ -184,14 +184,14 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
 
     let name = options.name.unwrap_or_else(|| {
         let default = path.file_name().map(|f| f.to_string_lossy().to_string());
-        term::text_input("Name", default).unwrap()
+        term::input("Name", default).unwrap()
     });
     let description = options
         .description
-        .unwrap_or_else(|| term::text_input("Description", None).unwrap());
+        .unwrap_or_else(|| term::input("Description", None).unwrap());
     let branch = options.branch.unwrap_or_else(|| {
         if interactive.yes() {
-            term::text_input("Default branch", Some(head)).unwrap()
+            term::input("Default branch", Some(head)).unwrap()
         } else {
             head
         }

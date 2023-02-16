@@ -3,12 +3,12 @@ To create a local copy of a repository on the radicle network, we use the
 
 ```
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-ok Tracking relationship established for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-ok Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
-ok Forking under z6Mkt67…v4N1tRk..
-ok Creating checkout in ./heartwood..
-ok Remote z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi created
-ok Remote-tracking branch z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
+✓ Tracking relationship established for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
+✓ Forking under z6Mkt67…v4N1tRk..
+✓ Creating checkout in ./heartwood..
+✓ Remote z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi created
+✓ Remote-tracking branch z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
 
 🌱 Project successfully cloned under [..]/heartwood/
 

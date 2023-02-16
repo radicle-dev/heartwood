@@ -1,6 +1,7 @@
 use radicle::git;
 
 use crate::terminal as term;
+use crate::terminal::cell::Cell as _;
 
 /// The user supplied `Patch` description.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,15 +19,14 @@ impl Message {
     pub fn get(self, help: &str) -> String {
         let comment = match self {
             Message::Edit => term::Editor::new()
-                .require_save(true)
-                .trim_newlines(true)
-                .extension(".markdown")
+                .extension("markdown")
                 .edit(help)
-                .unwrap(),
+                .ok()
+                .flatten(),
             Message::Blank => None,
             Message::Text(c) => Some(c),
         };
-        let comment = comment.unwrap_or_default().replace(help, "");
+        let comment = comment.unwrap_or_default();
         let comment = comment.trim();
 
         comment.to_owned()
@@ -57,7 +57,7 @@ pub fn list_commits(commits: &[git::raw::Commit]) -> anyhow::Result<()> {
             .unwrap_or_else(|| commit.message_bytes());
         table.push([
             term::format::secondary(term::format::oid(commit.id())),
-            term::format::italic(String::from_utf8_lossy(message)),
+            term::format::italic(String::from_utf8_lossy(message).to_string()),
         ]);
     }
     table.render();
@@ -100,6 +100,6 @@ pub fn print_title_desc(title: &str, description: &str) {
     term::blank();
     term::print(term::format::dim(format!(
         "╰{}",
-        "─".repeat(term::text_width(title_pretty) - 1)
+        "─".repeat(title_pretty.to_string().width() - 1)
     )));
 }

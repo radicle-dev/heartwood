@@ -1,23 +1,38 @@
 use std::fmt;
-use std::str::FromStr;
 
-use dialoguer::{console::style, console::Style, theme::ColorfulTheme, Input, Password};
+use inquire::ui::{ErrorMessageRenderConfig, StyleSheet, Styled};
+use inquire::InquireError;
+use inquire::{ui::Color, ui::RenderConfig, Confirm, CustomType, Password, Select};
+use once_cell::sync::Lazy;
 
 use radicle::cob::issue::Issue;
-use radicle::cob::thread::CommentId;
-use radicle::crypto::ssh::keystore::Passphrase;
+use radicle::cob::thread::{Comment, CommentId};
+use radicle::crypto::ssh::keystore::{MemorySigner, Passphrase};
 use radicle::crypto::Signer;
 use radicle::profile;
 use radicle::profile::Profile;
-
-use radicle_crypto::ssh::keystore::MemorySigner;
 
 use super::command;
 use super::format;
 use super::spinner::spinner;
 use super::Error;
+use super::{style, Paint};
 
+pub const ERROR_PREFIX: Paint<&str> = Paint::red("✗");
 pub const TAB: &str = "    ";
+
+/// Render configuration.
+pub static CONFIG: Lazy<RenderConfig> = Lazy::new(|| RenderConfig {
+    prompt: StyleSheet::new().with_fg(Color::LightCyan),
+    prompt_prefix: Styled::new("?").with_fg(Color::LightBlue),
+    answered_prompt_prefix: Styled::new("✓").with_fg(Color::LightGreen),
+    answer: StyleSheet::new(),
+    highlighted_option_prefix: Styled::new("*").with_fg(Color::LightYellow),
+    help_message: StyleSheet::new().with_fg(Color::DarkGrey),
+    error_message: ErrorMessageRenderConfig::default_colored()
+        .with_prefix(Styled::new("✗").with_fg(Color::LightRed)),
+    ..RenderConfig::default_colored()
+});
 
 #[macro_export]
 macro_rules! info {
@@ -45,17 +60,15 @@ pub use success;
 pub use tip;
 
 pub fn success_args(args: fmt::Arguments) {
-    println!("{} {args}", style("ok").green().reverse());
+    println!("{} {args}", Paint::green("✓"));
 }
 
 pub fn tip_args(args: fmt::Arguments) {
-    println!("{} {}", style("=>").blue(), style(format!("{args}")).dim());
+    println!("👉 {}", style(format!("{args}")).italic());
 }
 
-pub fn width() -> Option<usize> {
-    console::Term::stdout()
-        .size_checked()
-        .map(|(_, cols)| cols as usize)
+pub fn columns() -> Option<usize> {
+    termion::terminal_size().map(|(cols, _)| cols as usize).ok()
 }
 
 pub fn headline(headline: &str) {
@@ -66,7 +79,7 @@ pub fn headline(headline: &str) {
 
 pub fn header(header: &str) {
     println!();
-    println!("{}", style(format::yellow(header)).bold().underlined());
+    println!("{}", style(format::yellow(header)).bold().underline());
     println!();
 }
 
@@ -95,9 +108,9 @@ pub fn help(name: &str, version: &str, description: &str, usage: &str) {
 pub fn usage(name: &str, usage: &str) {
     println!(
         "{} {}\n{}",
-        style("==").red(),
-        style(format!("Error: rad-{name}: invalid usage")).red(),
-        style(prefixed(TAB, usage)).red().dim()
+        ERROR_PREFIX,
+        Paint::red(format!("Error: rad-{name}: invalid usage")),
+        Paint::red(prefixed(TAB, usage)).dim()
     );
 }
 
@@ -115,57 +128,39 @@ pub fn subcommand(msg: impl fmt::Display) {
 
 pub fn warning(warning: &str) {
     println!(
-        "{} {} {}",
-        style("**").yellow(),
-        style("Warning:").yellow().bold(),
-        style(warning).yellow()
+        "{} {} {warning}",
+        Paint::yellow("!"),
+        Paint::yellow("Warning:").bold(),
     );
 }
 
 pub fn error(error: impl fmt::Display) {
-    println!("{} {}", style("==").red(), style(error).red());
+    println!("{ERROR_PREFIX} {error}");
 }
 
 pub fn fail(header: &str, error: &anyhow::Error) {
     let err = error.to_string();
     let err = err.trim_end();
-    let separator = if err.len() > 160 || err.contains('\n') {
-        "\n"
-    } else {
-        " "
-    };
+    let separator = if err.contains('\n') { ":\n" } else { ": " };
 
     println!(
-        "{} {}{}{}",
-        style("==").red(),
-        style(header).red().reverse(),
-        separator,
-        style(error).red().bold(),
+        "{ERROR_PREFIX} {}{}{error}",
+        Paint::red(header).bold(),
+        Paint::red(separator),
     );
 
-    let cause = error.root_cause();
-    if cause.to_string() != error.to_string() {
-        println!(
-            "{} {}",
-            style("==").red().dim(),
-            style(error.root_cause()).red().dim()
-        );
-        blank();
-    }
-
     if let Some(Error::WithHint { hint, .. }) = error.downcast_ref::<Error>() {
-        println!("{} {}", style("==").yellow(), style(hint).yellow(),);
+        println!("{} {}", Paint::yellow("×"), Paint::yellow(hint));
         blank();
     }
 }
 
 pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {
-    dialoguer::Confirm::new()
-        .with_prompt(format!("{} {}", style(" ⤷".to_owned()).cyan(), prompt))
-        .wait_for_newline(false)
-        .default(true)
-        .default(default)
-        .interact()
+    let prompt = format!("{} {}", Paint::blue("?".to_owned()), prompt);
+
+    Confirm::new(&prompt)
+        .with_default(default)
+        .prompt()
         .unwrap_or_default()
 }
 
@@ -182,219 +177,101 @@ pub fn signer(profile: &Profile) -> anyhow::Result<Box<dyn Signer>> {
     if let Ok(signer) = profile.signer() {
         return Ok(signer);
     }
-
-    let passphrase = secret_input();
+    let passphrase = passphrase()?;
     let spinner = spinner("Unsealing key...");
     let signer = MemorySigner::load(&profile.keystore, passphrase)?;
 
     spinner.finish();
+
     Ok(signer.boxed())
 }
 
-pub fn theme() -> ColorfulTheme {
-    ColorfulTheme {
-        success_prefix: style("ok".to_owned()).for_stderr().green().reverse(),
-        prompt_prefix: style(" ⤷".to_owned()).cyan().dim().for_stderr(),
-        prompt_suffix: style("·".to_owned()).cyan().for_stderr(),
-        prompt_style: Style::new().cyan().bold().for_stderr(),
-        active_item_style: Style::new().for_stderr().yellow().reverse(),
-        active_item_prefix: style("*".to_owned()).yellow().for_stderr(),
-        picked_item_prefix: style("*".to_owned()).yellow().for_stderr(),
-        inactive_item_prefix: style(" ".to_string()).for_stderr(),
-        inactive_item_style: Style::new().yellow().for_stderr(),
-        error_prefix: style("⤹  Error:".to_owned()).red().for_stderr(),
-        success_suffix: style("·".to_owned()).cyan().for_stderr(),
-
-        ..ColorfulTheme::default()
-    }
-}
-
-pub fn text_input<S, E>(message: &str, default: Option<S>) -> anyhow::Result<S>
+pub fn input<S, E>(message: &str, default: Option<S>) -> anyhow::Result<S>
 where
     S: fmt::Display + std::str::FromStr<Err = E> + Clone,
     E: fmt::Debug + fmt::Display,
 {
-    let theme = theme();
-    let mut input: Input<S> = Input::with_theme(&theme);
-
+    let input = CustomType::<S>::new(message).with_render_config(*CONFIG);
     let value = match default {
-        Some(default) => input
-            .with_prompt(message)
-            .with_initial_text(default.to_string())
-            .interact_text()?,
-        None => input.with_prompt(message).interact_text()?,
+        Some(default) => input.with_default(default).prompt()?,
+        None => input.prompt()?,
     };
     Ok(value)
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct Optional<T> {
-    option: Option<T>,
-}
-
-impl<T: fmt::Display> fmt::Display for Optional<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(val) = &self.option {
-            write!(f, "{val}")
-        } else {
-            write!(f, "")
-        }
+pub fn passphrase() -> Result<Passphrase, anyhow::Error> {
+    if let Some(p) = profile::env::passphrase() {
+        Ok(p)
+    } else {
+        Ok(Passphrase::from(
+            Password::new("Passphrase:")
+                .with_render_config(*CONFIG)
+                .with_display_mode(inquire::PasswordDisplayMode::Masked)
+                .without_confirmation()
+                .prompt()?,
+        ))
     }
 }
 
-impl<T: FromStr> FromStr for Optional<T> {
-    type Err = <T as FromStr>::Err;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.is_empty() {
-            return Ok(Optional { option: None });
-        }
-        let val: T = s.parse()?;
-
-        Ok(Self { option: Some(val) })
+pub fn passphrase_confirm() -> Result<Passphrase, anyhow::Error> {
+    if let Some(p) = profile::env::passphrase() {
+        Ok(p)
+    } else {
+        Ok(Passphrase::from(
+            Password::new("Passphrase:")
+                .with_render_config(*CONFIG)
+                .with_display_mode(inquire::PasswordDisplayMode::Masked)
+                .with_custom_confirmation_message("Repeat passphrase:")
+                .with_custom_confirmation_error_message("The passphrases don't match.")
+                .prompt()?,
+        ))
     }
 }
 
-pub fn text_input_optional<S, E>(
-    message: &str,
-    initial: Option<String>,
-) -> anyhow::Result<Option<S>>
-where
-    S: fmt::Display + fmt::Debug + FromStr<Err = E> + Clone,
-    E: fmt::Debug + fmt::Display,
-{
-    let theme = theme();
-    let mut input: Input<Optional<S>> = Input::with_theme(&theme);
-
-    if let Some(init) = initial {
-        input.with_initial_text(init);
-    }
-    let value = input
-        .with_prompt(message)
-        .allow_empty(true)
-        .interact_text()?;
-
-    Ok(value.option)
-}
-
-pub fn secret_input() -> Passphrase {
-    secret_input_with_prompt("Passphrase")
-}
-
-// TODO: This prompt shows success just for entering a password,
-// even if the password is later found out to be wrong.
-// We should handle this differently.
-pub fn secret_input_with_prompt(prompt: &str) -> Passphrase {
-    Passphrase::from(
-        Password::with_theme(&theme())
-            .allow_empty_password(true)
-            .with_prompt(prompt)
-            .interact()
-            .unwrap(),
-    )
-}
-
-pub fn secret_input_with_confirmation() -> Passphrase {
-    Passphrase::from(
-        Password::with_theme(&theme())
-            .with_prompt("Passphrase")
-            .with_confirmation("Repeat passphrase", "Error: the passphrases don't match.")
-            .interact()
-            .unwrap(),
-    )
-}
-
-pub fn secret_stdin() -> Result<Passphrase, anyhow::Error> {
+pub fn passphrase_stdin() -> Result<Passphrase, anyhow::Error> {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
 
     Ok(Passphrase::from(input.trim_end().to_owned()))
 }
 
-pub fn read_passphrase(stdin: bool, confirm: bool) -> Result<Passphrase, anyhow::Error> {
-    let passphrase = match profile::env::read_passphrase() {
-        Some(input) => input,
-        None => {
-            if stdin {
-                secret_stdin()?
-            } else if confirm {
-                secret_input_with_confirmation()
-            } else {
-                secret_input()
-            }
-        }
-    };
-
-    Ok(passphrase)
-}
-
-pub fn select<'a, T>(options: &'a [T], active: &'a T) -> Option<&'a T>
+pub fn select<'a, T>(
+    prompt: &str,
+    options: &'a [T],
+    active: &'a T,
+) -> Result<Option<&'a T>, InquireError>
 where
     T: fmt::Display + Eq + PartialEq,
 {
-    let theme = theme();
     let active = options.iter().position(|o| o == active);
-    let mut selection = dialoguer::Select::with_theme(&theme);
+    let selection =
+        Select::new(prompt, options.iter().collect::<Vec<_>>()).with_render_config(*CONFIG);
 
     if let Some(active) = active {
-        selection.default(active);
+        selection.with_starting_cursor(active).prompt_skippable()
+    } else {
+        selection.prompt_skippable()
     }
-    let result = selection
-        .items(&options.iter().map(|p| p.to_string()).collect::<Vec<_>>())
-        .interact_opt()
-        .unwrap();
-
-    result.map(|i| &options[i])
 }
 
-pub fn select_with_prompt<'a, T>(prompt: &str, options: &'a [T], active: &'a T) -> Option<&'a T>
-where
-    T: fmt::Display + Eq + PartialEq,
-{
-    let theme = theme();
-    let active = options.iter().position(|o| o == active);
-    let mut selection = dialoguer::Select::with_theme(&theme);
+pub fn comment_select(issue: &Issue) -> Option<(&CommentId, &Comment)> {
+    let comments = issue.comments().collect::<Vec<_>>();
+    let selection = Select::new(
+        "Which comment do you want to react to?",
+        (0..comments.len()).collect(),
+    )
+    .with_render_config(*CONFIG)
+    .with_formatter(&|i| comments[i.index].1.body().to_owned())
+    .prompt()
+    .ok()?;
 
-    selection.with_prompt(prompt);
-
-    if let Some(active) = active {
-        selection.default(active);
-    }
-    let result = selection
-        .items(&options.iter().map(|p| p.to_string()).collect::<Vec<_>>())
-        .interact_opt()
-        .unwrap();
-
-    result.map(|i| &options[i])
-}
-
-pub fn comment_select(issue: &Issue) -> Option<CommentId> {
-    let selection = dialoguer::Select::with_theme(&theme())
-        .with_prompt("Which comment do you want to react to?")
-        .item(issue.description().unwrap_or_default())
-        .items(
-            &issue
-                .comments()
-                .map(|(_, i)| i.body().to_owned())
-                .collect::<Vec<_>>(),
-        )
-        .default(0)
-        .interact_opt()
-        .unwrap();
-
-    selection
-        .and_then(|n| issue.comments().nth(n))
-        .map(|(id, _)| *id)
+    comments.get(selection).copied()
 }
 
 pub fn markdown(content: &str) {
     if !content.is_empty() && command::bat(["-p", "-l", "md"], content).is_err() {
         blob(content);
     }
-}
-
-fn _info(args: std::fmt::Arguments) {
-    println!("{args}");
 }
 
 pub mod proposal {
@@ -406,44 +283,44 @@ pub mod proposal {
         identity::Identity,
     };
 
-    use super::{super::format, theme};
+    use super::*;
+    use crate::terminal::format;
 
     pub fn revision_select(
         proposal: &Proposal,
     ) -> Option<(&identity::RevisionId, &identity::Revision)> {
-        let selection = dialoguer::Select::with_theme(&theme())
-            .with_prompt("Which revision do you want to select?")
-            .items(
-                &proposal
-                    .revisions()
-                    .map(|(rid, _)| rid.to_string())
-                    .collect::<Vec<_>>(),
-            )
-            .default(0)
-            .interact_opt()
-            .unwrap();
+        let revisions = proposal.revisions().collect::<Vec<_>>();
+        let selection = Select::new(
+            "Which revision do you want to select?",
+            (0..revisions.len()).collect(),
+        )
+        .with_vim_mode(true)
+        .with_formatter(&|ix| revisions[ix.index].0.to_string())
+        .with_render_config(*CONFIG)
+        .prompt()
+        .ok()?;
 
-        selection.and_then(|n| proposal.revisions().nth(n))
+        revisions.get(selection).copied()
     }
 
     pub fn revision_commit_select<'a>(
         proposal: &'a Proposal,
         previous: &'a Identity<Oid>,
     ) -> Option<(&'a identity::RevisionId, &'a identity::Revision)> {
-        let selection = dialoguer::Select::with_theme(&theme())
-            .with_prompt("Which revision do you want to commit?")
-            .items(
-                &proposal
-                    .revisions()
-                    .filter(|(_, r)| r.is_quorum_reached(previous))
-                    .map(|(rid, _)| rid.to_string())
-                    .collect::<Vec<_>>(),
-            )
-            .default(0)
-            .interact_opt()
-            .unwrap();
+        let revisions = proposal
+            .revisions()
+            .filter(|(_, r)| r.is_quorum_reached(previous))
+            .collect::<Vec<_>>();
+        let selection = Select::new(
+            "Which revision do you want to commit?",
+            (0..revisions.len()).collect(),
+        )
+        .with_formatter(&|ix| revisions[ix.index].0.to_string())
+        .with_render_config(*CONFIG)
+        .prompt()
+        .ok()?;
 
-        selection.and_then(|n| proposal.revisions().nth(n))
+        revisions.get(selection).copied()
     }
 
     pub fn diff(proposal: &identity::Revision, previous: &Identity<Oid>) -> anyhow::Result<String> {

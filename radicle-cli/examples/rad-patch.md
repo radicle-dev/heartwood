@@ -29,8 +29,8 @@ $ rad patch open --message "define power requirements" --no-confirm
 
 🌱 Creating patch for heartwood
 
-ok Pushing HEAD to storage...
-ok Analyzing remotes...
+✓ Pushing HEAD to storage...
+✓ Analyzing remotes...
 
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master (f2de534) <- z6MknSL…StBU8Vi/flux-capacitor-power (3e674d1)
 1 commit(s) ahead, 0 commit(s) behind
@@ -45,7 +45,7 @@ No description provided.
 ╰───────────────────────────────────
 
 
-ok Patch d4ef85f57a849bd845915d7a66a2192cd23811f6 created 🌱
+✓ Patch d4ef85f57a849bd845915d7a66a2192cd23811f6 created 🌱
 ```
 
 It will now be listed as one of the project's open patches.
@@ -53,13 +53,13 @@ It will now be listed as one of the project's open patches.
 ```
 $ rad patch
 
-- YOU PROPOSED -
+❲YOU PROPOSED❳
 
 define power requirements d4ef85f57a8 R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0
 └─ * opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..]
 └─ * patch id d4ef85f57a849bd845915d7a66a2192cd23811f6
 
-- OTHERS PROPOSED -
+❲OTHERS PROPOSED❳
 
 Nothing to show.
 
@@ -98,14 +98,14 @@ $ rad patch update --message "Add README, just for the fun" --no-confirm d4ef85f
 
 🌱 Updating patch for heartwood
 
-ok Pushing HEAD to storage...
-ok Analyzing remotes...
+✓ Pushing HEAD to storage...
+✓ Analyzing remotes...
 
 d4ef85f57a8 R0 (3e674d1) -> R1 (27857ec)
 1 commit(s) ahead, 0 commit(s) behind
 
 
-ok Patch d4ef85f57a849bd845915d7a66a2192cd23811f6 updated 🌱
+✓ Patch d4ef85f57a849bd845915d7a66a2192cd23811f6 updated 🌱
 
 ```
 
@@ -122,6 +122,6 @@ Now, let's checkout the patch that we just created:
 
 ```
 $ rad patch checkout d4ef85f57a849bd845915d7a66a2192cd23811f6
-ok Performing patch checkout...
-ok Switched to branch patch/d4ef85f57a8
+✓ Performing patch checkout...
+✓ Switched to branch patch/d4ef85f57a8
 ```

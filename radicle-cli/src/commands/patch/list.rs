@@ -5,6 +5,7 @@ use radicle::git;
 use radicle::prelude::*;
 use radicle::profile::Profile;
 use radicle::storage::git::Repository;
+use unicode_width::UnicodeWidthStr;
 
 use crate::terminal as term;
 
@@ -39,10 +40,7 @@ pub fn run(
         }
     }
     term::blank();
-    term::print(format!(
-        "-{}-",
-        term::format::badge_secondary("YOU PROPOSED")
-    ));
+    term::print(term::format::badge_secondary("YOU PROPOSED"));
 
     if own.is_empty() {
         term::blank();
@@ -55,10 +53,7 @@ pub fn run(
         }
     }
     term::blank();
-    term::print(format!(
-        "-{}-",
-        term::format::badge_secondary("OTHERS PROPOSED")
-    ));
+    term::print(term::format::badge_secondary("OTHERS PROPOSED"));
 
     if other.is_empty() {
         term::blank();
@@ -94,11 +89,9 @@ fn print(
     )];
 
     if you {
-        author_info.push(term::format::secondary("(you)"));
+        author_info.push(term::format::secondary("(you)").to_string());
     }
-    author_info.push(term::format::dim(term::format::timestamp(
-        &patch.timestamp(),
-    )));
+    author_info.push(term::format::dim(term::format::timestamp(&patch.timestamp())).to_string());
 
     let (_, revision) = patch
         .latest()
@@ -120,17 +113,17 @@ fn print(
         let mut badges = Vec::new();
 
         if peer.delegate {
-            badges.push(term::format::secondary("(delegate)"));
+            badges.push(term::format::secondary("(delegate)").to_string());
         }
         if peer.id == *whoami {
-            badges.push(term::format::secondary("(you)"));
+            badges.push(term::format::secondary("(you)").to_string());
         }
 
         timeline.push((
             merge.timestamp,
             format!(
                 "{}{} by {} {}",
-                " ".repeat(term::text_width(prefix)),
+                " ".repeat(prefix.width()),
                 term::format::secondary(term::format::dim("✓ merged")),
                 term::format::tertiary(peer.id),
                 badges.join(" "),
@@ -147,17 +140,17 @@ fn print(
         let mut badges = Vec::new();
 
         if peer.delegate {
-            badges.push(term::format::secondary("(delegate)"));
+            badges.push(term::format::secondary("(delegate)").to_string());
         }
         if peer.id == *whoami {
-            badges.push(term::format::secondary("(you)"));
+            badges.push(term::format::secondary("(you)").to_string());
         }
 
         timeline.push((
             review.timestamp(),
             format!(
                 "{}{} by {} {}",
-                " ".repeat(term::text_width(prefix)),
+                " ".repeat(prefix.width()),
                 verdict,
                 term::format::tertiary(reviewer),
                 badges.join(" "),

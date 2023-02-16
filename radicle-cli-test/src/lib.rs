@@ -9,7 +9,7 @@ use snapbox::{Assert, Substitutions};
 use thiserror::Error;
 
 /// Error lines in the CLI are prefixed with this string.
-const ERROR_PREFIX: &str = "==";
+const ERROR_PREFIX: &str = "✗";
 
 #[derive(Error, Debug)]
 pub enum Error {

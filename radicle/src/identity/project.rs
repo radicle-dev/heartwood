@@ -178,12 +178,12 @@ impl Project {
     }
 
     #[inline]
-    pub fn name(&self) -> &String {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
     #[inline]
-    pub fn description(&self) -> &String {
+    pub fn description(&self) -> &str {
         &self.description
     }
 

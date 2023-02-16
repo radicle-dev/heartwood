@@ -41,7 +41,7 @@ pub struct Metadata {
 impl Metadata {
     fn edit(self) -> anyhow::Result<Self> {
         let yaml = serde_yaml::to_string(&self)?;
-        match term::Editor::new().edit(&yaml)? {
+        match term::Editor::new().edit(yaml)? {
             Some(meta) => Ok(serde_yaml::from_str(&meta).context("failed to parse proposal meta")?),
             None => return Err(anyhow!("Operation aborted!")),
         }
@@ -261,7 +261,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let yes = confirm(interactive, "Are you sure you want to reject?");
             if yes {
                 proposal.reject(rid, &signer)?;
-                term::success!("Rejected proposal ✗");
+                term::success!("Rejected proposal 👎");
                 print(&proposal, &previous, None)?;
             }
         }
@@ -578,9 +578,9 @@ fn print_revision(revision: &identity::Revision, previous: &Identity<Oid>) -> an
     print!(
         "{}",
         if revision.is_quorum_reached(previous) {
-            term::format::positive("✓ yes")
+            term::format::positive("👍 yes")
         } else {
-            term::format::negative("✗ no")
+            term::format::negative("👎 no")
         }
     );
     term::blank();

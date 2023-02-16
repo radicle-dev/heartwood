@@ -222,8 +222,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             .dim()
             .italic()
             .to_string(),
-        MergeStyle::Commit => term::format::style(merge_style.to_string())
-            .yellow()
+        MergeStyle::Commit => term::format::yellow(merge_style.to_string())
             .italic()
             .to_string(),
     };
@@ -312,19 +311,13 @@ fn merge_commit(
     writeln!(&mut merge_msg, "{}", MERGE_HELP_MSG.trim())?;
 
     // Offer user the chance to edit the message before committing.
-    let merge_msg = match term::Editor::new()
-        .require_save(true)
-        .trim_newlines(true)
-        .extension(".git-commit")
-        .edit(&merge_msg)
-        .unwrap()
-    {
-        Some(s) => s
+    let merge_msg = match term::Editor::new().extension("git-commit").edit(merge_msg) {
+        Ok(Some(s)) => s
             .lines()
             .filter(|l| !l.starts_with('#'))
             .collect::<Vec<_>>()
             .join("\n"),
-        None => anyhow::bail!("user aborted merge"),
+        _ => anyhow::bail!("user aborted merge"),
     };
 
     // Empty message aborts merge.

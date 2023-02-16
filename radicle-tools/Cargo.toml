@@ -13,6 +13,10 @@ git-ref-format = { version = "0", features = ["serde", "macro"] }
 version = "0"
 path = "../radicle"
 
+[dependencies.radicle-cli]
+version = "0"
+path = "../radicle-cli"
+
 [[bin]]
 name = "rad-init"
 path = "src/rad-init.rs"
@@ -32,3 +36,7 @@ path = "src/rad-push.rs"
 [[bin]]
 name = "rad-agent"
 path = "src/rad-agent.rs"
+
+[[bin]]
+name = "rad-cli-demo"
+path = "src/rad-cli-demo.rs"

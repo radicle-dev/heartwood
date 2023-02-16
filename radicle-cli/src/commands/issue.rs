@@ -218,8 +218,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::React { id, reaction } => {
             if let Ok(mut issue) = issues.get_mut(&id) {
-                let comment_id = term::comment_select(&issue).unwrap();
-                issue.react(comment_id, reaction, &signer)?;
+                let (comment_id, _) = term::comment_select(&issue).unwrap();
+                issue.react(*comment_id, reaction, &signer)?;
             }
         }
         Operation::Open { title, description } => {
@@ -235,7 +235,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 description.unwrap_or("Enter a description...".to_owned())
             );
 
-            if let Some(text) = term::Editor::new().edit(&doc)? {
+            if let Ok(Some(text)) = term::Editor::new().edit(&doc) {
                 let mut meta = String::new();
                 let mut frontmatter = false;
                 let mut lines = text.lines();

@@ -1,77 +1,171 @@
-use dialoguer::console::style;
-use indicatif::{ProgressBar, ProgressFinish, ProgressStyle};
+use std::io::Write;
+use std::mem::ManuallyDrop;
+use std::sync::{Arc, Mutex};
+use std::{fmt, io, thread, time};
 
-use crate::terminal as term;
+use crate::terminal::io::ERROR_PREFIX;
+use crate::terminal::Paint;
 
-pub struct Spinner {
-    progress: ProgressBar,
-    message: String,
+/// How much time to wait between spinner animation updates.
+pub const DEFAULT_TICK: time::Duration = time::Duration::from_millis(99);
+/// The spinner animation strings.
+pub const DEFAULT_STYLE: [Paint<&'static str>; 4] = [
+    Paint::magenta("◢"),
+    Paint::cyan("◣"),
+    Paint::magenta("◤"),
+    Paint::blue("◥"),
+];
+
+struct Progress {
+    state: State,
+    message: Paint<String>,
 }
 
-impl Drop for Spinner {
-    fn drop(&mut self) {
-        // TODO: Set error that will be output on fail.
-        if !self.progress.is_finished() {
-            self.set_failed();
+impl Progress {
+    fn new(message: Paint<String>) -> Self {
+        Self {
+            state: State::Running { cursor: 0 },
+            message,
         }
     }
 }
 
-impl Spinner {
-    pub fn finish(&self) {
-        self.progress.finish_and_clear();
-        term::success!("{}", &self.message);
-    }
+enum State {
+    Running { cursor: usize },
+    Canceled,
+    Done,
+    Error,
+}
 
-    pub fn done(self) {
-        self.progress.finish_and_clear();
-        term::info!("{}", &self.message);
-    }
+/// A progress spinner.
+pub struct Spinner {
+    progress: Arc<Mutex<Progress>>,
+    handle: ManuallyDrop<thread::JoinHandle<()>>,
+}
 
-    pub fn failed(mut self) {
-        self.set_failed();
-    }
-
-    pub fn error(mut self, msg: impl ToString) {
-        let msg = msg.to_string();
-
-        self.message = format!("{} error: {}", self.message, msg);
-        self.set_failed();
-    }
-
-    pub fn clear(self) {
-        self.progress.finish_and_clear();
-    }
-
-    pub fn message(&mut self, msg: impl ToString) {
-        let msg = msg.to_string();
-
-        self.progress.set_message(msg.clone());
-        self.message = msg;
-    }
-
-    pub fn set_failed(&mut self) {
-        self.progress.finish_and_clear();
-        term::println(style("!!").red().reverse(), &self.message);
+impl Drop for Spinner {
+    fn drop(&mut self) {
+        if let Ok(mut progress) = self.progress.lock() {
+            if let State::Running { .. } = progress.state {
+                progress.state = State::Canceled;
+            }
+        }
+        unsafe { ManuallyDrop::take(&mut self.handle) }
+            .join()
+            .unwrap();
     }
 }
 
+impl Spinner {
+    /// Mark the spinner as successfully completed.
+    pub fn finish(self) {
+        if let Ok(mut progress) = self.progress.lock() {
+            progress.state = State::Done;
+        }
+    }
+
+    /// Mark the spinner as failed. This cancels the spinner.
+    pub fn failed(self) {
+        if let Ok(mut progress) = self.progress.lock() {
+            progress.state = State::Error;
+        }
+    }
+
+    /// Cancel the spinner with an error.
+    pub fn error(self, msg: impl fmt::Display) {
+        if let Ok(mut progress) = self.progress.lock() {
+            progress.state = State::Error;
+            progress.message = Paint::new(format!(
+                "{} {} {}",
+                progress.message,
+                Paint::red("error:"),
+                msg
+            ));
+        }
+    }
+
+    /// Set the spinner's message.
+    pub fn message(&mut self, msg: impl fmt::Display) {
+        let msg = msg.to_string();
+
+        if let Ok(mut progress) = self.progress.lock() {
+            progress.message = Paint::new(msg);
+        }
+    }
+}
+
+/// Create a new spinner with the given message.
 pub fn spinner(message: impl ToString) -> Spinner {
     let message = message.to_string();
-    let style = ProgressStyle::default_spinner()
-        .tick_strings(&[
-            &style("\\ ").yellow().to_string(),
-            &style("| ").yellow().to_string(),
-            &style("/ ").yellow().to_string(),
-            &style("| ").yellow().to_string(),
-        ])
-        .template("{spinner} {msg}")
-        .on_finish(ProgressFinish::AndClear);
+    let progress = Arc::new(Mutex::new(Progress::new(Paint::new(message))));
+    let handle = thread::spawn({
+        let progress = progress.clone();
 
-    let progress = ProgressBar::new(!0);
-    progress.set_style(style);
-    progress.enable_steady_tick(99);
-    progress.set_message(message.clone());
+        move || {
+            let mut stdout = io::stdout();
+            let mut stderr = termion::cursor::HideCursor::from(io::stderr());
 
-    Spinner { message, progress }
+            loop {
+                let Ok(mut progress) = progress.lock() else {
+                    break;
+                };
+                match &mut *progress {
+                    Progress {
+                        state: State::Running { cursor },
+                        message,
+                    } => {
+                        let spinner = DEFAULT_STYLE[*cursor];
+
+                        write!(
+                            stderr,
+                            "{}{}{spinner} {message}",
+                            termion::cursor::Save,
+                            termion::clear::AfterCursor,
+                        )
+                        .ok();
+
+                        write!(stderr, "{}", termion::cursor::Restore).ok();
+
+                        *cursor += 1;
+                        *cursor %= DEFAULT_STYLE.len();
+                    }
+                    Progress {
+                        state: State::Done,
+                        message,
+                    } => {
+                        write!(stderr, "{}", termion::clear::AfterCursor).ok();
+                        writeln!(stdout, "{} {message}", Paint::green("✓")).ok();
+                        break;
+                    }
+                    Progress {
+                        state: State::Canceled,
+                        message,
+                    } => {
+                        write!(stderr, "{}", termion::clear::AfterCursor).ok();
+                        writeln!(
+                            stdout,
+                            "{ERROR_PREFIX} {message} {}",
+                            Paint::red("<canceled>")
+                        )
+                        .ok();
+                        break;
+                    }
+                    Progress {
+                        state: State::Error,
+                        message,
+                    } => {
+                        writeln!(stdout, "{ERROR_PREFIX} {message}").ok();
+                        break;
+                    }
+                }
+                drop(progress);
+                thread::sleep(DEFAULT_TICK);
+            }
+        }
+    });
+
+    Spinner {
+        progress,
+        handle: ManuallyDrop::new(handle),
+    }
 }
