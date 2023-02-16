@@ -4,11 +4,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::extract::State;
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::http::Method;
 use axum::response::{IntoResponse, Json};
 use axum::routing::get;
-use axum::{Extension, Router};
+use axum::Router;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
@@ -78,7 +79,7 @@ impl Context {
 pub fn router(ctx: Context) -> Router {
     let root_router = Router::new()
         .route("/", get(root_handler))
-        .layer(Extension(ctx.clone()));
+        .with_state(ctx.clone());
 
     Router::new()
         .merge(root_router)
@@ -98,7 +99,7 @@ pub fn router(ctx: Context) -> Router {
         )
 }
 
-async fn root_handler(Extension(ctx): Extension<Context>) -> impl IntoResponse {
+async fn root_handler(State(ctx): State<Context>) -> impl IntoResponse {
     let response = json!({
         "message": "Welcome!",
         "service": "radicle-httpd",
