@@ -12,7 +12,6 @@ use std::{io, mem};
 
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::crypto::hash::Digest;
 use crate::crypto::{PublicKey, Signature, Unverified};
 use crate::git;
 use crate::git::fmt;
@@ -186,12 +185,6 @@ impl Encode for String {
 impl Encode for git::Url {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         self.to_string().encode(writer)
-    }
-}
-
-impl Encode for Digest {
-    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
-        self.as_ref().encode(writer)
     }
 }
 
@@ -396,14 +389,6 @@ impl Decode for Id {
     }
 }
 
-impl Decode for Digest {
-    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
-        let bytes: [u8; 32] = Decode::decode(reader)?;
-
-        Ok(Self::from(bytes))
-    }
-}
-
 impl Encode for filter::Filter {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         let mut n = 0;
@@ -529,11 +514,6 @@ mod tests {
     #[quickcheck]
     fn prop_id(input: Id) {
         assert_eq!(deserialize::<Id>(&serialize(&input)).unwrap(), input);
-    }
-
-    #[quickcheck]
-    fn prop_digest(input: Digest) {
-        assert_eq!(deserialize::<Digest>(&serialize(&input)).unwrap(), input);
     }
 
     #[quickcheck]

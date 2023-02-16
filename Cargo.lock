@@ -1929,7 +1929,6 @@ dependencies = [
  "qcheck-macros",
  "radicle-ssh",
  "serde",
- "sha2 0.10.6",
  "sqlite",
  "ssh-key",
  "tempfile",

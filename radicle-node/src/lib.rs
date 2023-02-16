@@ -23,7 +23,6 @@ pub use runtime::Runtime;
 pub mod prelude {
     pub use crate::bounded::BoundedVec;
     pub use crate::clock::Timestamp;
-    pub use crate::crypto::hash::Digest;
     pub use crate::crypto::{PublicKey, Signature, Signer};
     pub use crate::deserializer::Deserializer;
     pub use crate::identity::{Did, Id};

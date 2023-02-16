@@ -8,7 +8,6 @@ use thiserror::Error;
 
 pub use ed25519::{edwards25519, Error, KeyPair, Seed};
 
-pub mod hash;
 #[cfg(feature = "ssh")]
 pub mod ssh;
 #[cfg(any(test, feature = "test"))]
@@ -163,6 +162,13 @@ impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKe
 
     fn display_fmt(&self, _: &cyphernet::display::Encoding) -> Self::Display {
         self.to_string()
+    }
+}
+
+#[cfg(feature = "ssh")]
+impl From<PublicKey> for ssh_key::PublicKey {
+    fn from(key: PublicKey) -> Self {
+        ssh_key::PublicKey::from(ssh_key::public::Ed25519PublicKey(**key))
     }
 }
 

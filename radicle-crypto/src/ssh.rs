@@ -16,35 +16,20 @@ use crate::PublicKey;
 pub use keystore::{Keystore, Passphrase};
 
 pub mod fmt {
-    use radicle_ssh::encoding::Encoding as _;
-
     use crate::PublicKey;
 
     /// Get the SSH long key from a public key.
     /// This is the output of `ssh-add -L`.
     pub fn key(key: &PublicKey) -> String {
-        let mut buf = Vec::new();
-
-        buf.extend_ssh_string(b"ssh-ed25519");
-        buf.extend_ssh_string(key.as_ref());
-
-        base64::encode_config(buf, base64::STANDARD_NO_PAD)
+        ssh_key::PublicKey::from(*key).to_string()
     }
 
     /// Get the SSH key fingerprint from a public key.
     /// This is the output of `ssh-add -l`.
     pub fn fingerprint(key: &PublicKey) -> String {
-        use sha2::Digest;
-
-        let mut buf = Vec::new();
-
-        buf.extend_ssh_string(b"ssh-ed25519");
-        buf.extend_ssh_string(key.as_ref());
-
-        let sha = sha2::Sha256::digest(&buf).to_vec();
-        let encoded = base64::encode_config(sha, base64::STANDARD_NO_PAD);
-
-        format!("SHA256:{encoded}")
+        ssh_key::PublicKey::from(*key)
+            .fingerprint(Default::default())
+            .to_string()
     }
 
     #[cfg(test)]
@@ -61,7 +46,7 @@ pub mod fmt {
 
             assert_eq!(
                 key(&pk),
-                "AAAAC3NzaC1lZDI1NTE5AAAAINDoXIrhcnRjnLGUXUFdxhkuy08lkTOwrj2IoGsEX6+Q"
+                "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINDoXIrhcnRjnLGUXUFdxhkuy08lkTOwrj2IoGsEX6+Q"
             );
         }
 
@@ -431,7 +416,8 @@ AAAAQI84aPZsXxlQigpy1/Y/iJSmHSS//CIgvqvUMQIb/TM2vhCKruduH0cK02k9G8wOI+
 EUMf2bSDyxbJyZThOEiAs=
 -----END SSH SIGNATURE-----";
 
-        let public_key = "AAAAC3NzaC1lZDI1NTE5AAAAIL460KIEccS4881p7PPpiiQBsxF+H5tgC6De6crw9rbU";
+        let public_key =
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL460KIEccS4881p7PPpiiQBsxF+H5tgC6De6crw9rbU";
         let signature = ExtendedSignature::from_armored(armored).unwrap();
 
         assert_eq!(signature.version, 1);
