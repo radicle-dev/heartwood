@@ -10,7 +10,7 @@ use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::cob::thread::{self, CommentId};
 use radicle::cob::{OpId, Timestamp};
-use radicle::identity::{Did, PublicKey};
+use radicle::identity::PublicKey;
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
 use radicle_surf::{Commit, Stats};
@@ -104,10 +104,9 @@ pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
 
 /// Returns JSON for a `patch`.
 pub(crate) fn patch(id: PatchId, patch: Patch) -> Value {
-
     json!({
         "id": id.to_string(),
-        "author": patch.author().id(),
+        "author": patch.author(),
         "title": patch.title(),
         "description": patch.description(),
         "state": patch.state(),
@@ -157,7 +156,9 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
         for (id, comment) in iter {
             comments.push(Comment {
                 id: id.to_owned(),
-                author: comment.author().into(),
+                author: Author {
+                    id: comment.author(),
+                },
                 body: comment.body().to_owned(),
                 reactions: [],
                 timestamp: comment.timestamp(),
@@ -166,34 +167,5 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
         }
 
         Comments(comments)
-    }
-}
-
-#[derive(Serialize)]
-struct Dids(Vec<Did>);
-
-#[derive(Serialize)]
-struct Dids(Vec<Did>);
-
-impl<'a> FromIterator<&'a PublicKey> for Dids {
-    fn from_iter<I: IntoIterator<Item = &'a PublicKey>>(iter: I) -> Self {
-        let mut dids = Vec::new();
-
-        for pubkey in iter {
-            dids.push(pubkey.into());
-        }
-
-        Dids(dids)
-    }
-}
-impl<'a> FromIterator<&'a PublicKey> for Dids {
-    fn from_iter<I: IntoIterator<Item = &'a PublicKey>>(iter: I) -> Self {
-        let mut dids = Vec::new();
-
-        for pubkey in iter {
-            dids.push(pubkey.into());
-        }
-
-        Dids(dids)
     }
 }
