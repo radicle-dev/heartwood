@@ -10,7 +10,7 @@ use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::cob::thread::{self, CommentId};
 use radicle::cob::{OpId, Timestamp};
-use radicle::identity::PublicKey;
+use radicle::identity::{Did, PublicKey};
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
 use radicle_surf::{Commit, Stats};
@@ -133,6 +133,7 @@ fn name_in_path(path: &str) -> &str {
 #[derive(Serialize)]
 struct Author {
     id: PublicKey,
+    did: Did,
 }
 
 #[derive(Serialize)]
@@ -158,6 +159,7 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
                 id: id.to_owned(),
                 author: Author {
                     id: comment.author(),
+                    did: comment.author().into()
                 },
                 body: comment.body().to_owned(),
                 reactions: [],

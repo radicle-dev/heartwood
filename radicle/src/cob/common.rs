@@ -11,11 +11,12 @@ pub use radicle_crdt::clock::Physical as Timestamp;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Author {
     pub id: NodeId,
+    pub did: Did,
 }
 
 impl Author {
     pub fn new(id: NodeId) -> Self {
-        Self { id }
+        Self { id, did: id.into() }
     }
 
     pub fn id(&self) -> &NodeId {
