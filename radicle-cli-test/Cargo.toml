@@ -1,9 +1,18 @@
 [package]
 name = "radicle-cli-test"
 license = "MIT OR Apache-2.0"
-version = "0.1.0"
-authors = ["Alexis Sellier <alexis@radicle.xyz>"]
+version = "0.1.1"
+authors = [
+  "Alexis Sellier <alexis@radicle.xyz>",
+  "xla <self@xla.is>"
+]
 edition = "2021"
+rust-version = "1.67"
+repository = "https://github.com/radicle-dev/heartwood"
+description = "Test your cli with markdown descriptions"
+categories = ["development-tools::testing"]
+keywords = ["cli", "test", "command"]
+readme = "README.md"
 
 [dependencies]
 log = { version = "0.4", features = ["std"] }
