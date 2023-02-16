@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::str::FromStr;
 
 use anyhow::anyhow;
+use radicle::prelude::Did;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -27,7 +28,7 @@ Options
 #[derive(Debug)]
 pub struct Options {
     pub id: issue::IssueId,
-    pub peer: cob::ActorId,
+    pub peer: Did,
 }
 
 impl Args for Options {
@@ -36,7 +37,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<issue::IssueId> = None;
-        let mut peer: Option<cob::ActorId> = None;
+        let mut peer: Option<Did> = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -52,12 +53,7 @@ impl Args for Options {
 
                         id = Some(val);
                     } else if peer.is_none() {
-                        let val = val.to_string_lossy();
-                        let Ok(val) = cob::ActorId::from_str(&val) else {
-                            return Err(anyhow!("invalid peer ID '{}'", val));
-                        };
-
-                        peer = Some(val);
+                        peer = Some(term::args::did(val)?);
                     } else {
                         return Err(anyhow!(arg.unexpected()));
                     }
@@ -90,7 +86,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         cob::store::Error::NotFound(_, _) => anyhow!("issue '{}' not found", options.id),
         _ => err.into(),
     })?;
-    issue.unassign(vec![options.peer], &signer)?;
+    issue.unassign(vec![*options.peer], &signer)?;
 
     Ok(())
 }

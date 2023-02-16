@@ -16,6 +16,7 @@ use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
 use crate::cob::{store, ActorId, ObjectId, OpId, TypeName};
 use crate::crypto::{PublicKey, Signer};
+use crate::prelude::Did;
 use crate::storage::git as storage;
 
 /// Issue operation.
@@ -152,8 +153,8 @@ impl store::FromHistory for Issue {
 }
 
 impl Issue {
-    pub fn assigned(&self) -> impl Iterator<Item = &ActorId> {
-        self.assignees.iter()
+    pub fn assigned(&self) -> impl Iterator<Item = Did> + '_ {
+        self.assignees.iter().map(Did::from)
     }
 
     pub fn title(&self) -> &str {
@@ -516,21 +517,21 @@ mod test {
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assigned().collect::<Vec<_>>();
 
         assert_eq!(1, assignees.len());
-        assert!(assignees.contains(&assignee));
+        assert!(assignees.contains(&Did::from(assignee)));
 
         let mut issue = issues.get_mut(&id).unwrap();
         issue.assign([assignee_two], &signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assigned().collect::<Vec<_>>();
 
         assert_eq!(2, assignees.len());
-        assert!(assignees.contains(&assignee));
-        assert!(assignees.contains(&assignee_two));
+        assert!(assignees.contains(&Did::from(assignee)));
+        assert!(assignees.contains(&Did::from(assignee_two)));
     }
 
     #[test]
@@ -556,11 +557,11 @@ mod test {
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assigned().collect::<Vec<_>>();
 
         assert_eq!(2, assignees.len());
-        assert!(assignees.contains(&assignee));
-        assert!(assignees.contains(&assignee_two));
+        assert!(assignees.contains(&Did::from(assignee)));
+        assert!(assignees.contains(&Did::from(assignee_two)));
     }
 
     #[test]
@@ -641,10 +642,10 @@ mod test {
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assigned().collect::<Vec<_>>();
 
         assert_eq!(1, assignees.len());
-        assert!(assignees.contains(&assignee_two));
+        assert!(assignees.contains(&Did::from(assignee_two)));
     }
 
     #[test]

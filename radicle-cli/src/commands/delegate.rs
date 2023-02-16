@@ -4,7 +4,7 @@ use std::str::FromStr;
 use anyhow::{anyhow, Context as _};
 
 use radicle::identity::Id;
-use radicle_crypto::PublicKey;
+use radicle::prelude::Did;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -23,7 +23,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad delegate (add|remove) <public key> [--to <id>]
+    rad delegate (add|remove) <did> [--to <id>]
     rad delegate list [<id>]
 
     The `add` and `remove` commands are limited to managing delegates
@@ -47,8 +47,8 @@ pub enum OperationName {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Operation {
-    Add { id: Option<Id>, key: PublicKey },
-    Remove { id: Option<Id>, key: PublicKey },
+    Add { id: Option<Id>, did: Did },
+    Remove { id: Option<Id>, did: Did },
     List { id: Option<Id> },
 }
 
@@ -64,7 +64,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<Id> = None;
         let mut op: Option<OperationName> = None;
-        let mut key: Option<PublicKey> = None;
+        let mut did: Option<Did> = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -81,27 +81,21 @@ impl Args for Options {
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
-                Value(val) if op.is_some() => {
-                    let val = val.to_string_lossy();
-
-                    match op {
-                        Some(OperationName::Add) | Some(OperationName::Remove) => {
-                            if let Ok(val) = PublicKey::from_str(&val) {
-                                key = Some(val);
-                            } else {
-                                return Err(anyhow!("invalid Public Key '{}'", val));
-                            }
-                        }
-                        Some(OperationName::List) => {
-                            if let Ok(val) = Id::from_str(&val) {
-                                id = Some(val);
-                            } else {
-                                return Err(anyhow!("invalid Project ID '{}'", val));
-                            }
-                        }
-                        None => continue,
+                Value(val) if op.is_some() => match op {
+                    Some(OperationName::Add) | Some(OperationName::Remove) => {
+                        did = Some(term::args::did(&val)?);
                     }
-                }
+                    Some(OperationName::List) => {
+                        // TODO: create args::project_id function
+                        let val = val.to_string_lossy();
+                        if let Ok(val) = Id::from_str(&val) {
+                            id = Some(val);
+                        } else {
+                            return Err(anyhow!("invalid Project ID '{}'", val));
+                        }
+                    }
+                    None => continue,
+                },
                 _ => return Err(anyhow!(arg.unexpected())),
             }
         }
@@ -110,11 +104,11 @@ impl Args for Options {
             OperationName::List => Operation::List { id },
             OperationName::Add => Operation::Add {
                 id,
-                key: key.ok_or_else(|| anyhow!("a delegate key must be provided"))?,
+                did: did.ok_or_else(|| anyhow!("a delegate DID must be provided"))?,
             },
             OperationName::Remove => Operation::Remove {
                 id,
-                key: key.ok_or_else(|| anyhow!("a delegate key must be provided"))?,
+                did: did.ok_or_else(|| anyhow!("a delegate DID must be provided"))?,
             },
         };
 
@@ -127,8 +121,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
 
     match options.op {
-        Operation::Add { id, key } => add::run(&profile, storage, get_id(id)?, key)?,
-        Operation::Remove { id, key } => remove::run(&profile, storage, get_id(id)?, &key)?,
+        Operation::Add { id, did } => add::run(&profile, storage, get_id(id)?, *did)?,
+        Operation::Remove { id, did } => remove::run(&profile, storage, get_id(id)?, &did)?,
         Operation::List { id } => list::run(&profile, storage, get_id(id)?)?,
     }
 

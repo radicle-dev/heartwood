@@ -74,7 +74,7 @@ pub fn finish(unparsed: Vec<OsString>) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn did(val: OsString) -> anyhow::Result<Did> {
+pub fn did(val: &OsString) -> anyhow::Result<Did> {
     let val = val.to_string_lossy();
     let Ok(peer) = Did::from_str(&val) else {
         if crypto::PublicKey::from_str(&val).is_ok() {

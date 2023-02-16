@@ -77,8 +77,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 fn all(profile: &Profile) -> anyhow::Result<()> {
     let mut table = term::Table::default();
 
+    let did = profile.did();
+    table.push(["ID", &term::format::tertiary(did)]);
+
     let node_id = profile.id();
-    table.push(["ID", &term::format::tertiary(node_id)]);
+    table.push(["Node ID", &term::format::tertiary(node_id)]);
 
     let ssh_short = ssh::fmt::fingerprint(node_id);
     table.push(["Key (hash)", &term::format::tertiary(ssh_short)]);

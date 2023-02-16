@@ -22,20 +22,20 @@ others to work on.  This is to ensure work is not duplicated.
 Let's assign ourselves to this one.
 
 ```
-$ rad assign 2b4650e3c66d568132034de0d02871a2fbf9c5b5 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad assign 2b4650e3c66d568132034de0d02871a2fbf9c5b5 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 It will now show in the list of issues assigned to us.
 
 ```
 $ rad issue list --assigned
-2b4650e3c66d568132034de0d02871a2fbf9c5b5 "flux capacitor underpowered" z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+2b4650e3c66d568132034de0d02871a2fbf9c5b5 "flux capacitor underpowered" did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Note: this can always be undone with the `unassign` subcommand.
 
 ```
-$ rad unassign 2b4650e3c66d568132034de0d02871a2fbf9c5b5 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad unassign 2b4650e3c66d568132034de0d02871a2fbf9c5b5 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Great, now we have communicated to the world about our car's defect.

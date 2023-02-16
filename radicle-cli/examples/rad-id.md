@@ -9,11 +9,11 @@ delegate` command. For cases where `threshold > 1`, it is necessary to
 gather a quorum of signatures to update the Radicle identity. To do
 this, we use the `rad id` command.
 
-Let's add Bob as a delegate using their key
-`z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn`.
+Let's add Bob as a delegate using their DID
+`did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn`.
 
 ```
-$ rad id edit --title "Add Bob" --description "Add Bob as a delegate" --delegates z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
+$ rad id edit --title "Add Bob" --description "Add Bob as a delegate" --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
 ok Identity proposal '06d9efa2a9aad06bfdf25a25690e1ec7db2c3c39' created 🌱
 title: Add Bob
 description: Add Bob as a delegate

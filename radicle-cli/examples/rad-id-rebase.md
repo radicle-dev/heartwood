@@ -5,7 +5,7 @@ First off, we will create two proposals -- we can imagine two
 delegates creating proposals concurrently.
 
 ```
-$ rad id edit --title "Add Alice" --description "Add Alice as a delegate" --delegates z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
+$ rad id edit --title "Add Alice" --description "Add Alice as a delegate" --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
 ok Identity proposal '57332790a2eabc0b2fd8c7ff48c3579d5812d405' created 🌱
 title: Add Alice
 description: Add Alice as a delegate
@@ -47,7 +47,7 @@ Quorum Reached
 ```
 
 ```
-$ rad id edit --title "Add Bob" --description "Add Bob as a delegate" --delegates z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG --no-confirm
+$ rad id edit --title "Add Bob" --description "Add Bob as a delegate" --delegates did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG --no-confirm
 ok Identity proposal 'c3698d4e85f9d4c0ee536b34d6122fc7c81f7e2e' created 🌱
 title: Add Bob
 description: Add Bob as a delegate
@@ -294,7 +294,7 @@ Quorum Reached
 We can now update the proposal to have both keys in the delegates set:
 
 ```
-$ rad id update c3698d4e85f9d4c0ee536b34d6122fc7c81f7e2e --rev z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/4 --delegates z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
+$ rad id update c3698d4e85f9d4c0ee536b34d6122fc7c81f7e2e --rev z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/4 --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
 ok Identity proposal 'c3698d4e85f9d4c0ee536b34d6122fc7c81f7e2e' updated 🌱
 ok Revision 'z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/6'
 title: Add Bob
