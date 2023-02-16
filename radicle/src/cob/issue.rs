@@ -174,7 +174,7 @@ impl Issue {
             .comments()
             .next()
             .map(|(_, c)| Author::new(c.author()))
-            .expect("Issue::author: at least one thread is present")
+            .expect("Issue::author: at least one comment is present")
     }
 
     pub fn description(&self) -> Option<&str> {

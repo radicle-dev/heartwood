@@ -91,14 +91,12 @@ pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
 
 /// Returns JSON for an `issue`.
 pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
-    let author: Did = issue.author().into();
-
     json!({
         "id": id.to_string(),
-        "author": author,
+        "author": issue.author(),
         "title": issue.title(),
         "state": issue.state(),
-        "assignees": issue.assigned().collect::<Dids>(),
+        "assignees": issue.assigned().collect::<Vec<_>>(),
         "discussion": issue.comments().collect::<Comments>(),
         "tags": issue.tags().collect::<Vec<_>>(),
     })
@@ -106,11 +104,10 @@ pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
 
 /// Returns JSON for a `patch`.
 pub(crate) fn patch(id: PatchId, patch: Patch) -> Value {
-    let author: Did = patch.author().into();
 
     json!({
         "id": id.to_string(),
-        "author": author,
+        "author": patch.author().id(),
         "title": patch.title(),
         "description": patch.description(),
         "state": patch.state(),
@@ -135,10 +132,15 @@ fn name_in_path(path: &str) -> &str {
 }
 
 #[derive(Serialize)]
+struct Author {
+    id: PublicKey,
+}
+
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Comment {
     id: OpId,
-    author: Did,
+    author: Author,
     body: String,
     reactions: [String; 0],
     timestamp: Timestamp,
@@ -170,6 +172,20 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
 #[derive(Serialize)]
 struct Dids(Vec<Did>);
 
+#[derive(Serialize)]
+struct Dids(Vec<Did>);
+
+impl<'a> FromIterator<&'a PublicKey> for Dids {
+    fn from_iter<I: IntoIterator<Item = &'a PublicKey>>(iter: I) -> Self {
+        let mut dids = Vec::new();
+
+        for pubkey in iter {
+            dids.push(pubkey.into());
+        }
+
+        Dids(dids)
+    }
+}
 impl<'a> FromIterator<&'a PublicKey> for Dids {
     fn from_iter<I: IntoIterator<Item = &'a PublicKey>>(iter: I) -> Self {
         let mut dids = Vec::new();

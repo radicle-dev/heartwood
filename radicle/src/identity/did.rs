@@ -4,7 +4,6 @@ use std::{fmt, str::FromStr};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::cob::Author;
 use crate::crypto;
 
 #[derive(Error, Debug)]
