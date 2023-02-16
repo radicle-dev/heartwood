@@ -14,7 +14,7 @@ We want to add a new maintainer to the project to help out with the
 work.
 
 ```
-$ rad delegate add z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG --to rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad delegate add did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG --to rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Added delegate 'did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG'
 ok Update successful!
 ```
@@ -33,7 +33,7 @@ And finally, we no longer want to be part of the project so we pass on
 the torch and remove ourselves from the delegate set.
 
 ```
-$ rad delegate remove z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --to rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad delegate remove did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --to rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Removed delegate 'did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
 ok Update successful!
 ```

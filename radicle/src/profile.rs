@@ -19,6 +19,7 @@ use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
 use crate::node;
+use crate::prelude::Did;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
 
@@ -101,6 +102,10 @@ impl Profile {
 
     pub fn id(&self) -> &PublicKey {
         &self.public_key
+    }
+
+    pub fn did(&self) -> Did {
+        Did::from(self.public_key)
     }
 
     pub fn signer(&self) -> Result<Box<dyn Signer>, Error> {

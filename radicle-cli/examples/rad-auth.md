@@ -7,7 +7,7 @@ $ rad auth
 Initializing your 🌱 profile and identity
 
 ok Creating your 🌱 Ed25519 keypair...
-ok Profile z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi created.
+ok Profile did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi created.
 
 Your radicle Node ID is z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi. This identifies your device.
 
@@ -18,7 +18,8 @@ You can get the above information at all times using the `self` command:
 
 ```
 $ rad self
-ID             z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+ID             did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+Node ID        z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 Key (hash)     SHA256:UIedaL6Cxm6OUErh9GQUzzglSk7VpQlVTI1TAFB/HWA
 Key (full)     AAAAC3NzaC1lZDI1NTE5AAAAIHahWSBEpuT1ESZbynOmBNkLBSnR32Ar4woZqSV2YNH1
 Storage (git)  [..]/storage

@@ -87,7 +87,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 
     term::success!(
         "Profile {} created.",
-        term::format::highlight(profile.id().to_string())
+        term::format::highlight(profile.did().to_string())
     );
 
     term::blank();

@@ -3,6 +3,7 @@ use std::ffi::OsString;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
+use radicle::prelude::Did;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -22,7 +23,7 @@ Usage
 
     rad issue
     rad issue delete <id>
-    rad issue list [--assigned <key>]
+    rad issue list [--assigned <did>]
     rad issue open [--title <title>] [--description <text>]
     rad issue react <id> [--emoji <char>]
     rad issue show <id>
@@ -38,7 +39,7 @@ Options
 pub struct Metadata {
     title: String,
     labels: Vec<Tag>,
-    assignees: Vec<cob::ActorId>,
+    assignees: Vec<Did>,
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
@@ -57,7 +58,7 @@ pub enum OperationName {
 pub enum Assigned {
     #[default]
     Me,
-    Peer(cob::ActorId),
+    Peer(Did),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -135,10 +136,7 @@ impl Args for Options {
                 }
                 Long("assigned") | Short('a') if assigned.is_none() => {
                     if let Ok(val) = parser.value() {
-                        let val = val.to_string_lossy();
-                        let Ok(peer) = cob::ActorId::from_str(&val) else {
-                            return Err(anyhow!("invalid peer ID '{}'", val));
-                        };
+                        let peer = term::args::did(&val)?;
                         assigned = Some(Assigned::Peer(peer));
                     } else {
                         assigned = Some(Assigned::Me);
@@ -265,7 +263,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     &meta.title,
                     description.trim(),
                     meta.labels.as_slice(),
-                    meta.assignees.as_slice(),
+                    meta.assignees
+                        .into_iter()
+                        .map(cob::ActorId::from)
+                        .collect::<Vec<_>>()
+                        .as_slice(),
                     &signer,
                 )?;
             }
@@ -273,7 +275,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::List { assigned } => {
             let assignee = match assigned {
                 Some(Assigned::Me) => Some(*profile.id()),
-                Some(Assigned::Peer(id)) => Some(id),
+                Some(Assigned::Peer(id)) => Some(id.into()),
                 None => None,
             };
 
@@ -282,7 +284,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 let (id, issue, _) = result?;
                 let assigned: Vec<_> = issue.assigned().collect();
 
-                if Some(true) == assignee.map(|a| !assigned.contains(&&a)) {
+                if Some(true) == assignee.map(|a| !assigned.contains(&Did::from(a))) {
                     continue;
                 }
 

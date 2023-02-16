@@ -4,9 +4,9 @@ use anyhow::{anyhow, Context as _};
 use radicle::cob::identity::{self, Proposal, ProposalId, Proposals, Revision, RevisionId};
 use radicle::git::Oid;
 use radicle::identity::Identity;
-use radicle::prelude::Doc;
+use radicle::prelude::{Did, Doc};
 use radicle::storage::ReadStorage as _;
-use radicle_crypto::{PublicKey, Verified};
+use radicle_crypto::Verified;
 
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::{self as term, Interactive};
@@ -19,7 +19,7 @@ pub const HELP: Help = Help {
 Usage
 
     rad id (update|edit) [--title|-t] [--description|-d]
-                         [--delegates <key>] [--threshold <num>]
+                         [--delegates <did>] [--threshold <num>]
                          [--no-confirm]
     rad id list
     rad id (show|rebase) <id> [--rev <revision id>]
@@ -61,7 +61,7 @@ pub enum Operation {
     Edit {
         title: Option<String>,
         description: Option<String>,
-        delegates: Vec<PublicKey>,
+        delegates: Vec<Did>,
         threshold: Option<usize>,
     },
     Update {
@@ -69,7 +69,7 @@ pub enum Operation {
         rev: Option<RevisionId>,
         title: Option<String>,
         description: Option<String>,
-        delegates: Vec<PublicKey>,
+        delegates: Vec<Did>,
         threshold: Option<usize>,
     },
     Rebase {
@@ -121,7 +121,7 @@ impl Args for Options {
         let mut rev: Option<RevisionId> = None;
         let mut title: Option<String> = None;
         let mut description: Option<String> = None;
-        let mut delegates: Vec<PublicKey> = Vec::new();
+        let mut delegates: Vec<Did> = Vec::new();
         let mut threshold: Option<usize> = None;
         let mut interactive = Interactive::Yes;
         let mut show_revisions = false;
@@ -161,11 +161,8 @@ impl Args for Options {
                     );
                 }
                 Long("delegates") => {
-                    let val = String::from(parser.value()?.to_string_lossy());
-                    delegates.push(
-                        PublicKey::from_str(&val)
-                            .map_err(|_| anyhow!("invalid Public Key '{}'", val))?,
-                    )
+                    let did = term::args::did(&parser.value()?)?;
+                    delegates.push(did);
                 }
                 Long("threshold") => {
                     threshold = Some(parser.value()?.to_string_lossy().parse()?);
@@ -277,9 +274,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let proposed = {
                 let mut proposed = previous.doc.clone();
                 proposed.threshold = threshold.unwrap_or(proposed.threshold);
-                proposed
-                    .delegates
-                    .extend(delegates.into_iter().map(|k| k.into()));
+                proposed.delegates.extend(delegates);
                 proposed
             };
 
@@ -320,9 +315,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let proposed = {
                 let mut proposed = revision.proposed.clone();
                 proposed.threshold = threshold.unwrap_or(revision.proposed.threshold);
-                proposed
-                    .delegates
-                    .extend(delegates.into_iter().map(|k| k.into()));
+                proposed.delegates.extend(delegates);
                 proposed
             };
 
