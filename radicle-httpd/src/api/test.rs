@@ -1,3 +1,4 @@
+use std::convert::TryInto as _;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -81,7 +82,8 @@ pub fn seed(dir: &Path) -> Context {
     .unwrap();
 
     // eq. rad auth
-    let profile = radicle::Profile::init(rad_home.into(), PASSWORD.to_owned()).unwrap();
+    let profile =
+        radicle::Profile::init(rad_home.try_into().unwrap(), PASSWORD.to_owned()).unwrap();
 
     // rad init
     rad_init::init(
