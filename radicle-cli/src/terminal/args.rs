@@ -2,6 +2,8 @@ use std::ffi::OsString;
 use std::str::FromStr;
 
 use anyhow::anyhow;
+use radicle::crypto;
+use radicle::prelude::Did;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -70,4 +72,16 @@ pub fn finish(unparsed: Vec<OsString>) -> anyhow::Result<()> {
         ));
     }
     Ok(())
+}
+
+pub fn did(val: OsString) -> anyhow::Result<Did> {
+    let val = val.to_string_lossy();
+    let Ok(peer) = Did::from_str(&val) else {
+        if crypto::PublicKey::from_str(&val).is_ok() {
+            return Err(anyhow!("expected DID, did you mean 'did:key:{val}'?"));
+        } else {
+            return Err(anyhow!("invalid DID '{}', expected 'did:key'", val));
+        }
+    };
+    Ok(peer)
 }
