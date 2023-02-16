@@ -56,7 +56,7 @@ $ rad patch
 - YOU PROPOSED -
 
 define power requirements d4ef85f57a8 R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0
-└─ * opened by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..]
+└─ * opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..]
 └─ * patch id d4ef85f57a849bd845915d7a66a2192cd23811f6
 
 - OTHERS PROPOSED -

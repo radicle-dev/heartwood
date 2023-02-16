@@ -163,9 +163,11 @@ pub struct Home {
     path: PathBuf,
 }
 
-impl From<PathBuf> for Home {
-    fn from(path: PathBuf) -> Self {
-        Self { path }
+impl TryFrom<PathBuf> for Home {
+    type Error = io::Error;
+
+    fn try_from(home: PathBuf) -> Result<Self, Self::Error> {
+        Self::new(home)
     }
 }
 
