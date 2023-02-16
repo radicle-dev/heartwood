@@ -145,7 +145,7 @@ impl fmt::Display for Session {
         }
         attrs.push(state.as_str());
 
-        write!(f, "{}", attrs.join(" "))
+        write!(f, "{} [{}]", self.id, attrs.join(" "))
     }
 }
 
@@ -203,6 +203,16 @@ impl Session {
         )
     }
 
+    pub fn is_gossip_allowed(&self) -> bool {
+        matches!(
+            self.state,
+            State::Connected {
+                protocol: Protocol::Gossip { requested: None },
+                ..
+            }
+        )
+    }
+
     pub fn attempts(&self) -> usize {
         self.attempts
     }
@@ -214,9 +224,6 @@ impl Session {
                     if let Some(requested) = requested {
                         FetchResult::AlreadyFetching(*requested)
                     } else {
-                        *protocol = Protocol::Gossip {
-                            requested: Some(rid),
-                        };
                         FetchResult::Ready(Message::Fetch { rid })
                     }
                 }
@@ -225,6 +232,22 @@ impl Session {
         } else {
             FetchResult::NotConnected
         }
+    }
+
+    pub fn to_requesting(&mut self, rid: Id) {
+        let State::Connected { protocol, .. } = &mut self.state else {
+            panic!("Session::to_requesting: cannot transition to 'requesting': session is not connected");
+        };
+        *protocol = Protocol::Gossip {
+            requested: Some(rid),
+        };
+    }
+
+    pub fn to_fetching(&mut self, rid: Id) {
+        let State::Connected { protocol, .. } = &mut self.state else {
+            panic!("Session::to_fetching: cannot transition to 'fetching': session is not connected");
+        };
+        *protocol = Protocol::Fetch { rid };
     }
 
     pub fn to_connecting(&mut self) {

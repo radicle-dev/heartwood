@@ -1,4 +1,5 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
+use std::mem;
 
 use log::*;
 
@@ -43,6 +44,10 @@ pub struct Fetch {
 pub struct Reactor {
     /// Outgoing I/O queue.
     io: VecDeque<Io>,
+    /// Message outbox for each node.
+    /// If messages can't be sent to a node immediately, they are stored in the outbox.
+    /// This can happen if for eg. a fetch is ongoing with that node.
+    outbox: HashMap<NodeId, Vec<Message>>,
 }
 
 impl Reactor {
@@ -62,35 +67,74 @@ impl Reactor {
     }
 
     pub fn write(&mut self, remote: &Session, msg: Message) {
-        debug!(target: "service", "Write {:?} to {}", &msg, remote);
-
-        self.io.push_back(Io::Write(remote.id, vec![msg]));
+        if remote.is_gossip_allowed() {
+            debug!(target: "service", "Write {:?} to {}", &msg, remote);
+            self.io.push_back(Io::Write(remote.id, vec![msg]));
+        } else {
+            debug!(target: "service", "Queue {:?} for {}", &msg, remote);
+            self.outbox.entry(remote.id).or_default().push(msg);
+        }
     }
 
     pub fn write_all(&mut self, remote: &Session, msgs: impl IntoIterator<Item = Message>) {
         let msgs = msgs.into_iter().collect::<Vec<_>>();
+        let is_gossip_allowed = remote.is_gossip_allowed();
+
         for (ix, msg) in msgs.iter().enumerate() {
-            debug!(
-                target: "service",
-                "Write {:?} message to {} ({}/{})",
-                msg,
-                remote,
-                ix + 1,
-                msgs.len()
-            );
+            if is_gossip_allowed {
+                debug!(
+                    target: "service",
+                    "Write {:?} to {} ({}/{})",
+                    msg,
+                    remote,
+                    ix + 1,
+                    msgs.len()
+                );
+            } else {
+                debug!(
+                    target: "service",
+                    "Queue {:?} for {} ({}/{})",
+                    msg,
+                    remote,
+                    ix + 1,
+                    msgs.len()
+                );
+            }
         }
-        self.io.push_back(Io::Write(remote.id, msgs));
+        if is_gossip_allowed {
+            self.io.push_back(Io::Write(remote.id, msgs));
+        } else {
+            self.outbox.entry(remote.id).or_default().extend(msgs);
+        }
+    }
+
+    pub fn drain(&mut self, remote: &Session) {
+        if let Some(outbox) = self.outbox.get_mut(&remote.id) {
+            debug!(target: "service", "Draining outbox for session {} ({} message(s))", remote.id, outbox.len());
+
+            let msgs = mem::take(outbox);
+            self.write_all(remote, msgs);
+        }
     }
 
     pub fn wakeup(&mut self, after: LocalDuration) {
         self.io.push_back(Io::Wakeup(after));
     }
 
-    pub fn fetch(&mut self, remote: NodeId, rid: Id, namespaces: Namespaces, initiated: bool) {
+    pub fn fetch(
+        &mut self,
+        remote: &mut Session,
+        rid: Id,
+        namespaces: Namespaces,
+        initiated: bool,
+    ) {
+        // Transition the session state machine to "fetching".
+        remote.to_fetching(rid);
+
         self.io.push_back(Io::Fetch(Fetch {
             rid,
             namespaces,
-            remote,
+            remote: remote.id,
             initiated,
         }));
     }

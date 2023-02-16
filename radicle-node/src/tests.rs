@@ -10,6 +10,7 @@ use netservices::LinkDirection as Link;
 use crate::collections::{HashMap, HashSet};
 use crate::crypto::test::signer::MockSigner;
 use crate::identity::Id;
+use crate::node;
 use crate::prelude::*;
 use crate::prelude::{LocalDuration, Timestamp};
 use crate::service::config::*;
@@ -20,7 +21,7 @@ use crate::service::ServiceState as _;
 use crate::service::*;
 use crate::storage::git::transport::{local, remote};
 use crate::storage::git::Storage;
-use crate::storage::ReadStorage;
+use crate::storage::{Namespaces, ReadStorage};
 use crate::test::arbitrary;
 use crate::test::assert_matches;
 use crate::test::fixtures;
@@ -590,6 +591,84 @@ fn test_refs_announcement_no_subscribe() {
     alice.receive(bob.id(), bob.refs_announcement(id));
 
     assert!(alice.messages(eve.id()).next().is_none());
+}
+
+#[test]
+fn test_gossip_during_fetch() {
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let now = LocalTime::now().as_millis();
+    let rid = arbitrary::gen::<Id>(1);
+    let (send, _recv) = chan::bounded::<node::FetchResult>(1);
+    let inventory1 = BoundedVec::try_from(arbitrary::vec(1)).unwrap();
+    let inventory2 = BoundedVec::try_from(arbitrary::vec(1)).unwrap();
+
+    alice.connect_to(&bob);
+    alice.connect_to(&eve);
+    alice.command(Command::Fetch(rid, bob.id, send));
+
+    assert_matches!(alice.messages(bob.id).next(), Some(Message::Fetch { .. }));
+
+    logger::init(log::Level::Debug);
+
+    alice.receive(
+        eve.id(),
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: inventory1.clone(),
+                timestamp: now + 1,
+            },
+            eve.signer(),
+        ),
+    );
+    // We shouldn't relay to Bob while we're fetching from him.
+    assert_matches!(alice.messages(bob.id).next(), None);
+
+    alice.receive(bob.id(), Message::FetchOk { rid });
+    alice.receive(
+        eve.id(),
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: inventory2.clone(),
+                timestamp: now + 2,
+            },
+            eve.signer(),
+        ),
+    );
+    // We shouldn't relay to Bob while we're fetching from him.
+    assert_matches!(alice.messages(bob.id).next(), None);
+
+    // Have enough time pass that Alice sends a "ping" to Bob.
+    alice.elapse(KEEP_ALIVE_DELTA);
+
+    // Now that the fetch is done, the messages Bob missed should be relayed to him.
+    alice.fetched(
+        Fetch {
+            rid,
+            namespaces: Namespaces::All,
+            remote: bob.id,
+            initiated: true,
+        },
+        Ok(vec![]),
+    );
+    let mut messages = alice.messages(bob.id);
+
+    assert_matches!(
+        messages.next(),
+        Some(Message::Announcement(Announcement {
+            message: AnnouncementMessage::Inventory(InventoryAnnouncement { inventory, .. }),
+            ..
+        })) if inventory == inventory1
+    );
+    assert_matches!(
+        messages.next(),
+        Some(Message::Announcement(Announcement {
+            message: AnnouncementMessage::Inventory(InventoryAnnouncement { inventory, .. }),
+            ..
+        })) if inventory == inventory2
+    );
+    assert_matches!(messages.next(), Some(Message::Ping { .. }));
 }
 
 #[test]

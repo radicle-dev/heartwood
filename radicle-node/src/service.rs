@@ -31,7 +31,6 @@ use crate::node::{Address, Features, FetchResult};
 use crate::prelude::*;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
-use crate::service::session::Protocol;
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteStorage};
 use crate::storage::{Namespaces, ReadStorage};
@@ -519,7 +518,8 @@ where
             session::FetchResult::Ready(fetch) => {
                 debug!(target: "service", "Fetch initiated for {rid} with {seed}..");
 
-                self.reactor.write(&session, fetch);
+                self.reactor.write(session, fetch);
+                session.to_requesting(rid);
             }
             session::FetchResult::AlreadyFetching(other) => {
                 if other == rid {
@@ -613,6 +613,9 @@ where
                     );
                 }
             }
+            // Drain any messages in the session's outbox, which might have accumulated during the
+            // fetch, and send them to the peer.
+            self.reactor.drain(session);
         } else {
             log::debug!(target: "service", "Session not found for {remote}");
         }
@@ -641,6 +644,7 @@ where
             let filter = self.filter();
 
             if let Some(peer) = self.sessions.get_mut(&remote) {
+                peer.to_connected(self.clock);
                 self.reactor.write_all(
                     peer,
                     gossip::handshake(
@@ -651,7 +655,6 @@ where
                         &self.config,
                     ),
                 );
-                peer.to_connected(self.clock);
             }
         } else {
             match self.sessions.entry(remote) {
@@ -1026,7 +1029,7 @@ where
                     return Ok(());
                 }
                 self.reactor.write(
-                    &peer,
+                    peer,
                     Message::Pong {
                         zeroes: ZeroBytes::new(ponglen),
                     },
@@ -1039,16 +1042,14 @@ where
                     }
                 }
             }
-            (session::State::Connected { protocol, .. }, Message::Fetch { rid }) => {
+            (session::State::Connected { .. }, Message::Fetch { rid }) => {
                 debug!(target: "service", "Fetch requested for {rid} from {remote}..");
 
                 // TODO: Check that we have the repo first?
 
-                *protocol = Protocol::Fetch { rid };
                 // Accept the request and instruct the transport to handover the socket to the worker.
                 self.reactor.write(peer, Message::FetchOk { rid });
-                self.reactor
-                    .fetch(*remote, rid, Namespaces::default(), false);
+                self.reactor.fetch(peer, rid, Namespaces::default(), false);
             }
             (session::State::Connected { protocol, .. }, Message::FetchOk { rid }) => {
                 if *protocol
@@ -1066,10 +1067,8 @@ where
                 }
                 debug!(target: "service", "Fetch accepted for {rid} from {remote}..");
 
-                *protocol = Protocol::Fetch { rid };
                 // Instruct the transport to handover the socket to the worker.
-                self.reactor
-                    .fetch(*remote, rid, Namespaces::default(), true);
+                self.reactor.fetch(peer, rid, Namespaces::default(), true);
             }
             (session::State::Connecting { .. }, msg) => {
                 error!("Received {:?} from connecting peer {}", msg, peer.id);
@@ -1241,7 +1240,7 @@ where
         let inactive_sessions = self
             .sessions
             .negotiated_mut()
-            .filter(|(_, session)| session.last_active < *now - KEEP_ALIVE_DELTA)
+            .filter(|(_, session)| *now - session.last_active >= KEEP_ALIVE_DELTA)
             .map(|(_, session)| session);
         for session in inactive_sessions {
             session.ping(&mut self.reactor).ok();
