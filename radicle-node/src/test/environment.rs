@@ -138,11 +138,11 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             let remote_sessions = remote.handle.sessions().unwrap();
 
             let local_sessions = local_sessions
-                .negotiated()
+                .connected()
                 .map(|(id, _)| id)
                 .collect::<BTreeSet<_>>();
             let remote_sessions = remote_sessions
-                .negotiated()
+                .connected()
                 .map(|(id, _)| id)
                 .collect::<BTreeSet<_>>();
 

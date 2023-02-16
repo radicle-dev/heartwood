@@ -13,7 +13,6 @@ use crate::wire::{Decode, Encode};
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageType {
-    Initialize = 0,
     NodeAnnouncement = 2,
     InventoryAnnouncement = 4,
     RefsAnnouncement = 6,
@@ -35,7 +34,6 @@ impl TryFrom<u16> for MessageType {
 
     fn try_from(other: u16) -> Result<Self, Self::Error> {
         match other {
-            0 => Ok(MessageType::Initialize),
             2 => Ok(MessageType::NodeAnnouncement),
             4 => Ok(MessageType::InventoryAnnouncement),
             6 => Ok(MessageType::RefsAnnouncement),
@@ -56,7 +54,6 @@ impl Message {
 
     pub fn type_id(&self) -> u16 {
         match self {
-            Self::Initialize { .. } => MessageType::Initialize,
             Self::Subscribe { .. } => MessageType::Subscribe,
             Self::Announcement(Announcement { message, .. }) => match message {
                 AnnouncementMessage::Node(_) => MessageType::NodeAnnouncement,
@@ -194,9 +191,6 @@ impl wire::Encode for Message {
         let mut n = self.type_id().encode(writer)?;
 
         match self {
-            Self::Initialize { node_id } => {
-                n += node_id.encode(writer)?;
-            }
             Self::Subscribe(Subscribe {
                 filter,
                 since,
@@ -245,11 +239,6 @@ impl wire::Decode for Message {
         let type_id = reader.read_u16::<NetworkEndian>()?;
 
         match MessageType::try_from(type_id) {
-            Ok(MessageType::Initialize) => {
-                let node_id = NodeId::decode(reader)?;
-
-                Ok(Self::Initialize { node_id })
-            }
             Ok(MessageType::Subscribe) => {
                 let filter = Filter::decode(reader)?;
                 let since = Timestamp::decode(reader)?;

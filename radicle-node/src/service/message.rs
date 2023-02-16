@@ -309,9 +309,6 @@ impl Announcement {
 /// These are the messages peers send to each other.
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
-    /// The first message sent to a peer after connection.
-    Initialize { node_id: NodeId },
-
     /// Subscribe to gossip messages matching the filter and time range.
     Subscribe(Subscribe),
 
@@ -339,10 +336,6 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn init(node_id: NodeId) -> Self {
-        Self::Initialize { node_id }
-    }
-
     pub fn announcement(
         node: NodeId,
         message: impl Into<AnnouncementMessage>,
@@ -412,7 +405,6 @@ impl From<Announcement> for Message {
 impl fmt::Debug for Message {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Initialize { .. } => write!(f, "Initialize(..)"),
             Self::Subscribe(Subscribe { since, until, .. }) => {
                 write!(f, "Subscribe({since}..{until})")
             }

@@ -100,7 +100,7 @@ fn test_disconnecting_unresponsive_peer() {
     let bob = Peer::new("bob", [9, 9, 9, 9]);
 
     alice.connect_to(&bob);
-    assert_eq!(1, alice.sessions().negotiated().count(), "bob connects");
+    assert_eq!(1, alice.sessions().connected().count(), "bob connects");
     alice.elapse(STALE_CONNECTION_TIMEOUT + LocalDuration::from_secs(1));
     alice
         .outbox()
@@ -122,7 +122,7 @@ fn test_connection_kept_alive() {
 
     alice.command(service::Command::Connect(bob.id(), bob.address()));
     sim.run_while([&mut alice, &mut bob], |s| !s.is_settled());
-    assert_eq!(1, alice.sessions().negotiated().count(), "bob connects");
+    assert_eq!(1, alice.sessions().connected().count(), "bob connects");
 
     let mut elapsed: LocalDuration = LocalDuration::from_secs(0);
     let step: LocalDuration = STALE_CONNECTION_TIMEOUT / 10;
@@ -150,7 +150,7 @@ fn test_outbound_connection() {
     let peers = alice
         .service
         .sessions()
-        .negotiated()
+        .connected()
         .map(|(id, _)| *id)
         .collect::<Vec<_>>();
 
@@ -170,7 +170,7 @@ fn test_inbound_connection() {
     let peers = alice
         .service
         .sessions()
-        .negotiated()
+        .connected()
         .map(|(id, _)| *id)
         .collect::<Vec<_>>();
 
@@ -795,7 +795,7 @@ fn test_persistent_peer_reconnect_attempt() {
 
     let ips = alice
         .sessions()
-        .negotiated()
+        .connected()
         .map(|(id, _)| *id)
         .collect::<Vec<_>>();
     assert!(ips.contains(&bob.id()));

@@ -243,11 +243,8 @@ where
 
         self.initialize();
         self.service.connected(remote_id, Link::Inbound);
-        self.receive(remote_id, Message::init(remote_id));
 
         let mut msgs = self.messages(remote_id);
-        msgs.find(|m| matches!(m, Message::Initialize { .. }))
-            .expect("`initialize` must be sent");
         msgs.find(|m| {
             matches!(
                 m,
@@ -269,8 +266,6 @@ where
         self.service.connected(remote_id, Link::Outbound);
 
         let mut msgs = self.messages(remote_id);
-        msgs.find(|m| matches!(m, Message::Initialize { .. }))
-            .expect("`initialize` must be sent");
         msgs.find(|m| {
             matches!(
                 m,
@@ -281,8 +276,6 @@ where
             )
         })
         .expect("`inventory-announcement` must be sent");
-
-        self.receive(remote_id, Message::init(remote_id));
     }
 
     pub fn elapse(&mut self, duration: LocalDuration) {

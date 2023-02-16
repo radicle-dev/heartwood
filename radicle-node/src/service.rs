@@ -433,7 +433,7 @@ where
                     Ok(seeds) => seeds
                         .into_iter()
                         .filter(|node| *node != self.node_id())
-                        .partition::<Vec<_>, _>(|node| self.sessions.is_negotiated(node)),
+                        .partition::<Vec<_>, _>(|node| self.sessions.is_connected(node)),
                     Err(err) => {
                         error!(target: "service", "Error reading routing table for {rid}: {err}");
                         drop(resp);
@@ -465,7 +465,7 @@ where
                 // Let all our peers know that we're interested in this repo from now on.
                 self.reactor.broadcast(
                     Message::subscribe(self.filter(), self.time(), Timestamp::MAX),
-                    self.sessions.negotiated().map(|(_, s)| s),
+                    self.sessions.connected().map(|(_, s)| s),
                 );
             }
             Command::UntrackRepo(id, resp) => {
@@ -510,7 +510,7 @@ where
             error!(target: "service", "Session {from} does not exist; cannot initiate fetch");
             return;
         };
-        debug_assert!(session.is_negotiated());
+        debug_assert!(session.is_connected());
 
         let seed = session.id;
 
@@ -630,23 +630,12 @@ where
     pub fn connected(&mut self, remote: NodeId, link: Link) {
         info!(target: "service", "Connected to {} ({:?})", remote, link);
 
-        // For outbound connections, we are the first to say "Hello".
-        // For inbound connections, we wait for the remote to say "Hello" first.
-        if link.is_outbound() {
-            let filter = self.filter();
+        let msgs = self.initial(link);
 
+        if link.is_outbound() {
             if let Some(peer) = self.sessions.get_mut(&remote) {
                 peer.to_connected(self.clock);
-                self.reactor.write_all(
-                    peer,
-                    gossip::handshake(
-                        self.clock.as_millis(),
-                        &self.storage,
-                        &self.signer,
-                        filter,
-                        &self.config,
-                    ),
-                );
+                self.reactor.write_all(peer, msgs);
             }
         } else {
             match self.sessions.entry(remote) {
@@ -657,13 +646,14 @@ where
                     );
                 }
                 Entry::Vacant(e) => {
-                    e.insert(Session::connected(
+                    let peer = e.insert(Session::connected(
                         remote,
                         Link::Inbound,
                         self.config.is_persistent(&remote),
                         self.rng.clone(),
                         self.clock,
                     ));
+                    self.reactor.write_all(peer, msgs);
                 }
             }
         }
@@ -843,7 +833,7 @@ where
                     // Refs can be relayed by peers who don't have the data in storage,
                     // therefore we only check whether we are connected to the *announcer*,
                     // which is required by the protocol to only announce refs it has.
-                    if self.sessions.is_negotiated(announcer) {
+                    if self.sessions.is_connected(announcer) {
                         match message.is_fresh(&self.storage) {
                             Ok(is_fresh) => {
                                 if is_fresh {
@@ -932,7 +922,6 @@ where
         remote: &NodeId,
         message: Message,
     ) -> Result<(), session::Error> {
-        let filter = self.filter(); // TODO: Don't call this if it's not used.
         let Some(peer) = self.sessions.get_mut(remote) else {
             return Err(session::Error::NotFound(*remote));
         };
@@ -954,34 +943,6 @@ where
 
                 return Err(session::Error::Misbehavior);
             }
-            (session::State::Connected { initialized, .. }, Message::Initialize { .. }) => {
-                // Already initialized!
-                if *initialized {
-                    debug!(
-                        target: "service",
-                        "Disconnecting peer {} for initializing already initialized session",
-                        peer.id
-                    );
-                    return Err(session::Error::Misbehavior);
-                }
-                *initialized = true;
-
-                if peer.link.is_inbound() {
-                    self.reactor.write_all(
-                        peer,
-                        gossip::handshake(
-                            self.clock.as_millis(),
-                            &self.storage,
-                            &self.signer,
-                            filter,
-                            &self.config,
-                        ),
-                    );
-                }
-                // Nb. we don't set the peer timestamp here, since it is going to be
-                // set after the first message is received only. Setting it here would
-                // mean that messages received right after the handshake could be ignored.
-            }
             // Process a peer announcement.
             (session::State::Connected { .. }, Message::Announcement(ann)) => {
                 let relayer = peer.id;
@@ -995,7 +956,7 @@ where
                     // 2. Don't relay to the peer who signed this announcement.
                     let relay_to = self
                         .sessions
-                        .negotiated()
+                        .connected()
                         .filter(|(id, _)| *id != remote && *id != &ann.node);
 
                     self.reactor.relay(ann.clone(), relay_to.map(|(_, p)| p));
@@ -1072,6 +1033,22 @@ where
         Ok(())
     }
 
+    /// Set of initial messages to send to a peer.
+    fn initial(&self, _link: Link) -> Vec<Message> {
+        let filter = self.filter();
+
+        // TODO: Only subscribe to outbound connections, otherwise we will consume too
+        // much bandwidth.
+
+        gossip::handshake(
+            self.clock.as_millis(),
+            &self.storage,
+            &self.signer,
+            filter,
+            &self.config,
+        )
+    }
+
     /// Sync, and if needed, announce our local inventory.
     fn sync_and_announce_inventory(&mut self) -> Result<Vec<Id>, Error> {
         let inventory = self.storage.inventory()?;
@@ -1124,7 +1101,7 @@ where
     /// Announce local refs for given id.
     fn announce_refs(&mut self, rid: Id, namespaces: Namespaces) -> Result<(), storage::Error> {
         let repo = self.storage.repository(rid)?;
-        let peers = self.sessions.negotiated().map(|(_, p)| p);
+        let peers = self.sessions.connected().map(|(_, p)| p);
         let timestamp = self.time();
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
 
@@ -1193,7 +1170,7 @@ where
     fn announce_inventory(&mut self, inventory: Vec<Id>) -> Result<(), storage::Error> {
         let time = self.time();
         let inv = Message::inventory(gossip::inventory(time, inventory), &self.signer);
-        for (_, sess) in self.sessions.negotiated() {
+        for (_, sess) in self.sessions.connected() {
             self.reactor.write(sess, inv.clone());
         }
         Ok(())
@@ -1216,7 +1193,7 @@ where
     fn disconnect_unresponsive_peers(&mut self, now: &LocalTime) {
         let stale = self
             .sessions
-            .negotiated()
+            .connected()
             .filter(|(_, session)| session.last_active < *now - STALE_CONNECTION_TIMEOUT);
 
         for (_, session) in stale {
@@ -1231,7 +1208,7 @@ where
     fn keep_alive(&mut self, now: &LocalTime) {
         let inactive_sessions = self
             .sessions
-            .negotiated_mut()
+            .connected_mut()
             .filter(|(_, session)| *now - session.last_active >= KEEP_ALIVE_DELTA)
             .map(|(_, session)| session);
         for session in inactive_sessions {
@@ -1451,8 +1428,8 @@ impl Sessions {
         Self(AddressBook::new(rng))
     }
 
-    /// Iterator over fully negotiated peers.
-    pub fn negotiated(&self) -> impl Iterator<Item = (&NodeId, &Session)> + Clone {
+    /// Iterator over fully connected peers.
+    pub fn connected(&self) -> impl Iterator<Item = (&NodeId, &Session)> + Clone {
         self.0
             .iter()
             .filter_map(move |(id, sess)| match &sess.state {
@@ -1461,13 +1438,13 @@ impl Sessions {
             })
     }
 
-    /// Iterator over mutable fully negotiated peers.
-    pub fn negotiated_mut(&mut self) -> impl Iterator<Item = (&NodeId, &mut Session)> {
+    /// Iterator over mutable fully connected peers.
+    pub fn connected_mut(&mut self) -> impl Iterator<Item = (&NodeId, &mut Session)> {
         self.0.iter_mut().filter(move |(_, p)| p.is_connected())
     }
 
     /// Return whether this node has a fully established session.
-    pub fn is_negotiated(&self, id: &NodeId) -> bool {
+    pub fn is_connected(&self, id: &NodeId) -> bool {
         self.0.get(id).map(|s| s.is_connected()).unwrap_or(false)
     }
 
@@ -1540,7 +1517,6 @@ mod gossip {
         };
 
         let mut msgs = vec![
-            Message::init(*signer.public_key()),
             Message::inventory(gossip::inventory(now, inventory), signer),
             Message::subscribe(
                 filter,

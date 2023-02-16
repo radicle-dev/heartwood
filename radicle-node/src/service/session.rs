@@ -41,8 +41,6 @@ pub enum State {
     Connecting,
     /// Initial state after handshake protocol hand-off.
     Connected {
-        /// Whether this session was initialized with a [`Message::Initialize`].
-        initialized: bool,
         /// Connected since this time.
         since: LocalTime,
         /// Ping state.
@@ -167,7 +165,6 @@ impl Session {
         Self {
             id,
             state: State::Connected {
-                initialized: false,
                 since: time,
                 ping: PingState::default(),
                 protocol: Protocol::default(),
@@ -191,16 +188,6 @@ impl Session {
 
     pub fn is_disconnected(&self) -> bool {
         matches!(self.state, State::Disconnected { .. })
-    }
-
-    pub fn is_negotiated(&self) -> bool {
-        matches!(
-            self.state,
-            State::Connected {
-                initialized: true,
-                ..
-            }
-        )
     }
 
     pub fn is_gossip_allowed(&self) -> bool {
@@ -279,7 +266,6 @@ impl Session {
         );
         self.attempts = 0;
         self.state = State::Connected {
-            initialized: false,
             since,
             ping: PingState::default(),
             protocol: Protocol::default(),
