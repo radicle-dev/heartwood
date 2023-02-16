@@ -169,11 +169,12 @@ impl Issue {
         self.tags.iter()
     }
 
-    pub fn author(&self) -> Option<Author> {
+    pub fn author(&self) -> Author {
         self.thread
             .comments()
             .next()
             .map(|(_, c)| Author::new(c.author()))
+            .expect("Issue::author: at least one thread is present")
     }
 
     pub fn description(&self) -> Option<&str> {
@@ -580,7 +581,7 @@ mod test {
 
         assert_eq!(created, issue);
         assert_eq!(issue.title(), "My first issue");
-        assert_eq!(issue.author(), Some(issues.author()));
+        assert_eq!(issue.author(), issues.author());
         assert_eq!(issue.description(), Some("Blah blah blah."));
         assert_eq!(issue.comments().count(), 1);
         assert_eq!(issue.state(), &State::Open);

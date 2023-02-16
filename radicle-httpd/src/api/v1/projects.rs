@@ -1017,9 +1017,7 @@ mod routes {
             json!([
               {
                 "id": ISSUE_ID,
-                "author": {
-                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-                },
+                "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                 "title": "Issue #1",
                 "state": {
                     "status": "open"
@@ -1028,9 +1026,7 @@ mod routes {
                 "discussion": [
                   {
                     "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
-                    "author": {
-                        "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-                    },
+                    "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                     "body": "Change 'hello world' to 'hello everyone'",
                     "reactions": [],
                     "timestamp": 1673001014,
@@ -1080,9 +1076,7 @@ mod routes {
             response.json().await,
             json!({
               "id": CREATED_ISSUE_ID,
-              "author": {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-              },
+              "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
               "assignees": [],
               "title": "Issue #2",
               "state": {
@@ -1090,9 +1084,7 @@ mod routes {
               },
               "discussion": [{
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
-                  "author": {
-                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-                  },
+                  "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
                   "timestamp": 1673001014,
@@ -1140,9 +1132,7 @@ mod routes {
             response.json().await,
             json!({
               "id": ISSUE_ID,
-              "author": {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-              },
+              "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
               "assignees": [],
               "title": "Issue #1",
               "state": {
@@ -1151,9 +1141,7 @@ mod routes {
               "discussion": [
                 {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
-                  "author": {
-                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-                  },
+                  "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
                   "timestamp": 1673001014,
@@ -1161,9 +1149,7 @@ mod routes {
                 },
                 {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5",
-                  "author": {
-                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-                  },
+                  "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   "body": "This is first-level comment",
                   "reactions": [],
                   "timestamp": 1673001014,
@@ -1210,9 +1196,7 @@ mod routes {
             response.json().await,
             json!({
               "id": ISSUE_ID,
-              "author": {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-              },
+              "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
               "assignees": [],
               "title": "Issue #1",
               "state": {
@@ -1221,9 +1205,7 @@ mod routes {
               "discussion": [
                 {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
-                  "author": {
-                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-                  },
+                  "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
                   "timestamp": 1673001014,
@@ -1231,9 +1213,7 @@ mod routes {
                 },
                 {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5",
-                  "author": {
-                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-                  },
+                  "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   "body": "This is a reply to the first comment",
                   "reactions": [],
                   "timestamp": 1673001014,
@@ -1257,9 +1237,7 @@ mod routes {
             json!([
               {
                 "id": PATCH_ID,
-                "author": {
-                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-                },
+                "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                 "title": "A new `hello word`",
                 "description": "change `hello world` in README to something else",
                 "state": "proposed",
@@ -1288,9 +1266,7 @@ mod routes {
             json!(
               {
                 "id": PATCH_ID,
-                "author": {
-                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-                },
+                "author": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                 "title": "A new `hello word`",
                 "description": "change `hello world` in README to something else",
                 "state": "proposed",

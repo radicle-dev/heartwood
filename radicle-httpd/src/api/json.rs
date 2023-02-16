@@ -10,7 +10,7 @@ use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::cob::thread::{self, CommentId};
 use radicle::cob::{OpId, Timestamp};
-use radicle::identity::PublicKey;
+use radicle::identity::{Did, PublicKey};
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
 use radicle_surf::{Commit, Stats};
@@ -91,12 +91,14 @@ pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
 
 /// Returns JSON for an `issue`.
 pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
+    let author: Did = issue.author().into();
+
     json!({
         "id": id.to_string(),
-        "author": issue.author(),
+        "author": author,
         "title": issue.title(),
         "state": issue.state(),
-        "assignees": issue.assigned().collect::<Vec<_>>(),
+        "assignees": issue.assigned().collect::<Dids>(),
         "discussion": issue.comments().collect::<Comments>(),
         "tags": issue.tags().collect::<Vec<_>>(),
     })
@@ -104,9 +106,11 @@ pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
 
 /// Returns JSON for a `patch`.
 pub(crate) fn patch(id: PatchId, patch: Patch) -> Value {
+    let author: Did = patch.author().into();
+
     json!({
         "id": id.to_string(),
-        "author": patch.author(),
+        "author": author,
         "title": patch.title(),
         "description": patch.description(),
         "state": patch.state(),
@@ -131,15 +135,10 @@ fn name_in_path(path: &str) -> &str {
 }
 
 #[derive(Serialize)]
-struct Author {
-    id: PublicKey,
-}
-
-#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Comment {
     id: OpId,
-    author: Author,
+    author: Did,
     body: String,
     reactions: [String; 0],
     timestamp: Timestamp,
@@ -156,9 +155,7 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
         for (id, comment) in iter {
             comments.push(Comment {
                 id: id.to_owned(),
-                author: Author {
-                    id: comment.author(),
-                },
+                author: comment.author().into(),
                 body: comment.body().to_owned(),
                 reactions: [],
                 timestamp: comment.timestamp(),
@@ -167,5 +164,20 @@ impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
         }
 
         Comments(comments)
+    }
+}
+
+#[derive(Serialize)]
+struct Dids(Vec<Did>);
+
+impl<'a> FromIterator<&'a PublicKey> for Dids {
+    fn from_iter<I: IntoIterator<Item = &'a PublicKey>>(iter: I) -> Self {
+        let mut dids = Vec::new();
+
+        for pubkey in iter {
+            dids.push(pubkey.into());
+        }
+
+        Dids(dids)
     }
 }
