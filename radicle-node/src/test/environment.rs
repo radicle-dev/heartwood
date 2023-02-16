@@ -71,9 +71,7 @@ impl Environment {
     /// Create a new profile in this environment.
     /// This should be used when a running node is not required.
     pub fn profile(&mut self, name: &str) -> Profile {
-        let home = Home::new(self.tmp().join("home").join(name))
-            .init()
-            .unwrap();
+        let home = Home::new(self.tmp().join("home").join(name)).unwrap();
         let storage = Storage::open(home.storage()).unwrap();
         let keystore = Keystore::new(&home.keys());
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
@@ -232,7 +230,7 @@ impl Node<MockSigner> {
                 .take(8)
                 .collect::<String>(),
         );
-        let home = Home::new(home).init().unwrap();
+        let home = Home::new(home).unwrap();
         let signer = MockSigner::default();
         let storage = Storage::open(home.storage()).unwrap();
 

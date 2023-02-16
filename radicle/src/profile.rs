@@ -67,7 +67,6 @@ pub struct Profile {
 
 impl Profile {
     pub fn init(home: Home, passphrase: impl Into<Passphrase>) -> Result<Self, Error> {
-        let home = home.init()?;
         let storage = Storage::open(home.storage())?;
         let keystore = Keystore::new(&home.keys());
         let public_key = keystore.init("radicle", passphrase)?;
@@ -142,9 +141,9 @@ impl Profile {
 /// Get the path to the radicle home folder.
 pub fn home() -> Result<Home, io::Error> {
     if let Some(home) = env::var_os(env::RAD_HOME) {
-        Ok(Home::new(PathBuf::from(home)))
+        Ok(Home::new(PathBuf::from(home))?)
     } else if let Some(home) = env::var_os("HOME") {
-        Ok(Home::new(PathBuf::from(home).join(".radicle")))
+        Ok(Home::new(PathBuf::from(home).join(".radicle"))?)
     } else {
         Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -166,14 +165,33 @@ impl From<PathBuf> for Home {
 }
 
 impl Home {
-    pub fn init(self) -> Result<Self, io::Error> {
-        fs::create_dir_all(self.node()).ok();
+    /// Creates the Radicle Home directories.
+    ///
+    /// The `home` path is used as the base directory for all
+    /// necessary subdirectories.
+    ///
+    /// If `home` does not already exist then it and any
+    /// subdirectories are created using [`fs::create_dir_all`].
+    ///
+    /// The `home` path is also canonicalized using [`fs::canonicalize`].
+    ///
+    /// All necessary subdirectories are also created.
+    pub fn new(home: impl Into<PathBuf>) -> Result<Self, io::Error> {
+        let path = home.into();
+        if !path.exists() {
+            fs::create_dir_all(path.clone())?;
+        }
+        let home = Self {
+            path: path.canonicalize()?,
+        };
 
-        Ok(self)
-    }
+        for dir in &[home.storage(), home.keys(), home.node()] {
+            if !dir.exists() {
+                fs::create_dir_all(dir)?;
+            }
+        }
 
-    pub fn new(home: impl Into<PathBuf>) -> Self {
-        Self { path: home.into() }
+        Ok(home)
     }
 
     pub fn path(&self) -> &Path {
@@ -196,5 +214,35 @@ impl Home {
         env::var_os(env::RAD_SOCKET)
             .map(PathBuf::from)
             .unwrap_or_else(|| self.node().join(node::DEFAULT_SOCKET_NAME))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::fs;
+
+    use super::Home;
+
+    // Checks that if we have:
+    // '/run/user/1000/.tmpqfK6ih/../.tmpqfK6ih/Radicle/Home'
+    //
+    // that it gets normalized to:
+    // '/run/user/1000/.tmpqfK6ih/Radicle/Home'
+    #[test]
+    fn canonicalize_home() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("Home").join("Radicle");
+        fs::create_dir_all(path.clone()).unwrap();
+
+        let last = tmp.path().components().last().unwrap();
+        let home = Home::new(
+            tmp.path()
+                .join("..")
+                .join(last)
+                .join("Home")
+                .join("Radicle"),
+        )
+        .unwrap();
+        assert_eq!(home.path, path);
     }
 }

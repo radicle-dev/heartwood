@@ -19,7 +19,7 @@ pub mod setup {
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
         let home = tmp.path().join("home");
-        let paths = Home::new(home.as_path());
+        let paths = Home::new(home.as_path()).unwrap();
         let storage = Storage::open(paths.storage()).unwrap();
         let (id, _, _, _) = fixtures::project(tmp.path().join("copy"), &storage, &signer).unwrap();
         let project = storage.repository(id).unwrap();
