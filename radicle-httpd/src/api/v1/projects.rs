@@ -81,6 +81,8 @@ async fn project_root_handler(
             let Ok(doc) = repo.identity_of(ctx.profile.id()) else { return None };
             let Ok(issues) = Issues::open(ctx.profile.public_key, &repo) else { return None };
             let Ok(issues) = (*issues).count() else { return None };
+            let Ok(patches) = Patches::open(ctx.profile.public_key, &repo) else { return None };
+            let Ok(patches) = (*patches).count() else { return None };
             let delegates = doc.delegates;
 
             Some(Info {
@@ -88,7 +90,7 @@ async fn project_root_handler(
                 delegates,
                 head,
                 issues,
-                patches: 0,
+                patches,
                 id,
             })
         })
@@ -579,7 +581,7 @@ mod routes {
                 "defaultBranch": "master",
                 "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
                 "head": HEAD,
-                "patches": 0,
+                "patches": 1,
                 "issues": 1,
                 "id": "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp"
               }
@@ -602,7 +604,7 @@ mod routes {
                "defaultBranch": "master",
                "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
                "head": HEAD,
-               "patches": 0,
+               "patches": 1,
                "issues": 1,
                "id": "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp"
             })

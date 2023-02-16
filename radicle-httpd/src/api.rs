@@ -13,6 +13,7 @@ use tokio::sync::RwLock;
 use tower_http::cors::{self, CorsLayer};
 
 use radicle::cob::issue::Issues;
+use radicle::cob::patch::Patches;
 use radicle::identity::Id;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::Profile;
@@ -52,13 +53,14 @@ impl Context {
         let payload = doc.project()?;
         let delegates = doc.delegates;
         let issues = (Issues::open(self.profile.public_key, &repo)?).count()?;
+        let patches = (Patches::open(self.profile.public_key, &repo)?).count()?;
 
         Ok(project::Info {
             payload,
             delegates,
             head,
             issues,
-            patches: 0,
+            patches,
             id,
         })
     }

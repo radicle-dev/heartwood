@@ -4,6 +4,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 
 use radicle::cob::issue::Issues;
+use radicle::cob::patch::Patches;
 use radicle::identity::Did;
 use radicle::storage::{ReadRepository, ReadStorage};
 
@@ -49,13 +50,15 @@ async fn delegates_projects_handler(
 
             let Ok(issues) = Issues::open(ctx.profile.public_key, &repo) else { return None };
             let Ok(issues) = (*issues).count() else { return None };
+            let Ok(patches) = Patches::open(ctx.profile.public_key, &repo) else { return None };
+            let Ok(patches) = (*patches).count() else { return None };
 
             Some(Info {
                 payload,
                 delegates,
                 head,
                 issues,
-                patches: 0,
+                patches,
                 id,
             })
         })
@@ -93,7 +96,7 @@ mod routes {
                 "defaultBranch": "master",
                 "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
                 "head": HEAD,
-                "patches": 0,
+                "patches": 1,
                 "issues": 1,
                 "id": "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp"
               }
