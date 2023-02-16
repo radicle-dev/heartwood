@@ -603,16 +603,8 @@ where
         }
 
         if let Some(session) = self.sessions.get_mut(&remote) {
-            if let session::State::Connected { protocol, .. } = &mut session.state {
-                if let session::Protocol::Fetch { .. } = protocol {
-                    *protocol = session::Protocol::default();
-                } else {
-                    panic!(
-                        "Unexpected session state for {}: expected 'fetch' protocol, got 'gossip'",
-                        session.id
-                    );
-                }
-            }
+            // Transition session back to gossip protocol.
+            session.to_gossip();
             // Drain any messages in the session's outbox, which might have accumulated during the
             // fetch, and send them to the peer.
             self.reactor.drain(session);

@@ -250,6 +250,19 @@ impl Session {
         *protocol = Protocol::Fetch { rid };
     }
 
+    pub fn to_gossip(&mut self) {
+        if let State::Connected { protocol, .. } = &mut self.state {
+            if let Protocol::Fetch { .. } = protocol {
+                *protocol = Protocol::default();
+            } else {
+                panic!(
+                    "Unexpected session state for {}: expected 'fetch' protocol, got 'gossip'",
+                    self.id
+                );
+            }
+        }
+    }
+
     pub fn to_connecting(&mut self) {
         assert!(
             self.is_disconnected(),
