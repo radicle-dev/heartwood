@@ -18,7 +18,7 @@ ok Identity proposal '06d9efa2a9aad06bfdf25a25690e1ec7db2c3c39' created 🌱
 title: Add Bob
 description: Add Bob as a delegate
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -69,21 +69,21 @@ Next we have the number of `Accepted` reviews from delegates, starting
 off with none:
 
     Accepted
-    
+
     total: 0
     keys: []
 
 The same with `Rejected` reviews:
 
     Rejected
-    
+
     total: 0
     keys: []
 
 Finally, we can see whether the `Quorum` was reached:
 
     Quorum Reached
-    
+
     ✗ no
 
 Let's see what happens when we reject the change:
@@ -94,7 +94,7 @@ ok Rejected proposal ✗
 title: Add Bob
 description: Add Bob as a delegate
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -124,7 +124,7 @@ Rejected
 
 total: 1
 keys: [
-  "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
 ]
 
 Quorum Reached
@@ -136,7 +136,7 @@ Our key was added to the `Rejected` set of `keys` and the `total`
 increased to `1`.
 
     Rejected
-    
+
     total: 1
     keys: [
       "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
@@ -150,7 +150,7 @@ ok Accepted proposal ✓
 title: Add Bob
 description: Add Bob as a delegate
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -175,7 +175,7 @@ Accepted
 
 total: 1
 keys: [
-  "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
 ]
 
 Rejected
@@ -192,16 +192,16 @@ Our key has changed from the `Rejected` set to the `Accepted` set
 instead:
 
     Accepted
-    
+
     total: 1
     keys: [
-      "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+      "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
     ]
 
 As well as that, the `Quorum` has now been reached:
 
     Quorum Reached
-    
+
     ✓ yes
 
 At this point, we can commit the proposal and update the identity:
@@ -212,7 +212,7 @@ ok Committed new identity 'c96e764965aaeff1c6ea3e5b97e2b9828773c8b0' 🌱
 title: Add Bob
 description: Add Bob as a delegate
 status:  committed 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -237,7 +237,7 @@ Accepted
 
 total: 1
 keys: [
-  "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
 ]
 
 Rejected
@@ -259,7 +259,7 @@ ok Identity proposal 'dc00640d3152ea5f1df59f39f2f5983d2ad21810' created 🌱
 title: Update threshold
 description: Update to safer threshold
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -303,7 +303,7 @@ ok Closed identity proposal 'dc00640d3152ea5f1df59f39f2f5983d2ad21810'
 title: Update threshold
 description: Update to safer threshold
 status:  closed 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -360,7 +360,7 @@ $ rad id show dc00640d3152ea5f1df59f39f2f5983d2ad21810
 title: Update threshold
 description: Update to safer threshold
 status:  closed 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 

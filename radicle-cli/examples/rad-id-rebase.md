@@ -10,7 +10,7 @@ ok Identity proposal '57332790a2eabc0b2fd8c7ff48c3579d5812d405' created 🌱
 title: Add Alice
 description: Add Alice as a delegate
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -52,7 +52,7 @@ ok Identity proposal 'c3698d4e85f9d4c0ee536b34d6122fc7c81f7e2e' created 🌱
 title: Add Bob
 description: Add Bob as a delegate
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -98,7 +98,7 @@ ok Accepted proposal ✓
 title: Add Alice
 description: Add Alice as a delegate
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -123,7 +123,7 @@ Accepted
 
 total: 1
 keys: [
-  "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
 ]
 
 Rejected
@@ -142,7 +142,7 @@ ok Committed new identity '29ae4b72f5a315328f06fbd68dc1c396a2d5c45e' 🌱
 title: Add Alice
 description: Add Alice as a delegate
 status:  committed 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -167,7 +167,7 @@ Accepted
 
 total: 1
 keys: [
-  "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
 ]
 
 Rejected
@@ -191,7 +191,7 @@ ok Accepted proposal ✓
 title: Add Bob
 description: Add Bob as a delegate
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -216,7 +216,7 @@ Accepted
 
 total: 1
 keys: [
-  "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
 ]
 
 Rejected
@@ -255,7 +255,7 @@ ok Revision 'z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/4'
 title: Add Bob
 description: Add Bob as a delegate
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -300,7 +300,7 @@ ok Revision 'z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/6'
 title: Add Bob
 description: Add Bob as a delegate
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -347,7 +347,7 @@ ok Accepted proposal ✓
 title: Add Bob
 description: Add Bob as a delegate
 status:  open 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -372,7 +372,7 @@ Accepted
 
 total: 1
 keys: [
-  "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
 ]
 
 Rejected
@@ -391,7 +391,7 @@ ok Committed new identity '60de897bc24898f6908fd1272633c0b15aa4096f' 🌱
 title: Add Bob
 description: Add Bob as a delegate
 status:  committed 
-author: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Document Diff
 
@@ -416,7 +416,7 @@ Accepted
 
 total: 1
 keys: [
-  "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
 ]
 
 Rejected

@@ -1972,6 +1972,7 @@ dependencies = [
  "hyper",
  "lexopt",
  "nonempty 0.8.1",
+ "pretty_assertions",
  "radicle",
  "radicle-cli",
  "radicle-crypto",

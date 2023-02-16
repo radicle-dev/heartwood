@@ -32,6 +32,10 @@ impl Did {
             .map(Did)
             .map_err(DidError::from)
     }
+
+    pub fn as_key(&self) -> &crypto::PublicKey {
+        self.deref()
+    }
 }
 
 impl From<&crypto::PublicKey> for Did {

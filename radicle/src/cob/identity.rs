@@ -15,7 +15,7 @@ use crate::{
         common::Timestamp,
         store::{self, FromHistory as _, Transaction},
     },
-    identity::{doc::DocError, Identity, IdentityError},
+    identity::{doc::DocError, Did, Identity, IdentityError},
     prelude::Doc,
     storage::{git as storage, RemoteId, WriteRepository},
 };
@@ -277,7 +277,7 @@ impl Proposal {
             })
     }
 
-    pub fn latest_by(&self, who: &PublicKey) -> Option<(&RevisionId, &Revision)> {
+    pub fn latest_by(&self, who: &Did) -> Option<(&RevisionId, &Revision)> {
         self.revisions().rev().find_map(|(rid, r)| {
             if r.author.id() == who {
                 Some((rid, r))
@@ -409,20 +409,20 @@ impl Revision {
             .filter_map(|(key, verdict)| verdict.get().map(|verdict| (key, verdict)))
     }
 
-    pub fn accepted(&self) -> Vec<PublicKey> {
+    pub fn accepted(&self) -> Vec<Did> {
         self.verdicts()
             .filter_map(|(key, v)| match v {
-                Verdict::Accept(_) => Some(*key),
+                Verdict::Accept(_) => Some(key.into()),
                 Verdict::Reject => None,
             })
             .collect()
     }
 
-    pub fn rejected(&self) -> Vec<PublicKey> {
+    pub fn rejected(&self) -> Vec<Did> {
         self.verdicts()
             .filter_map(|(key, v)| match v {
                 Verdict::Accept(_) => None,
-                Verdict::Reject => Some(*key),
+                Verdict::Reject => Some(key.into()),
             })
             .collect()
     }

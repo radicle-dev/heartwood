@@ -559,6 +559,7 @@ async fn patch_handler(
 mod routes {
     use axum::body::Body;
     use axum::http::StatusCode;
+    use pretty_assertions::assert_eq;
     use serde_json::json;
 
     use crate::api::test::{self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID};
@@ -1020,7 +1021,7 @@ mod routes {
               {
                 "id": ISSUE_ID,
                 "author": {
-                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                    "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },
                 "title": "Issue #1",
                 "state": {
@@ -1031,7 +1032,7 @@ mod routes {
                   {
                     "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
                     "author": {
-                        "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                        "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                     },
                     "body": "Change 'hello world' to 'hello everyone'",
                     "reactions": [],
@@ -1083,7 +1084,7 @@ mod routes {
             json!({
               "id": CREATED_ISSUE_ID,
               "author": {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
               },
               "assignees": [],
               "title": "Issue #2",
@@ -1093,7 +1094,7 @@ mod routes {
               "discussion": [{
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
                   "author": {
-                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
@@ -1143,7 +1144,7 @@ mod routes {
             json!({
               "id": ISSUE_ID,
               "author": {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
               },
               "assignees": [],
               "title": "Issue #1",
@@ -1154,7 +1155,7 @@ mod routes {
                 {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
                   "author": {
-                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
@@ -1164,7 +1165,7 @@ mod routes {
                 {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5",
                   "author": {
-                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
                   "body": "This is first-level comment",
                   "reactions": [],
@@ -1213,7 +1214,7 @@ mod routes {
             json!({
               "id": ISSUE_ID,
               "author": {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
               },
               "assignees": [],
               "title": "Issue #1",
@@ -1224,7 +1225,7 @@ mod routes {
                 {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
                   "author": {
-                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
@@ -1234,7 +1235,7 @@ mod routes {
                 {
                   "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5",
                   "author": {
-                      "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
                   "body": "This is a reply to the first comment",
                   "reactions": [],
@@ -1260,7 +1261,7 @@ mod routes {
               {
                 "id": PATCH_ID,
                 "author": {
-                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                    "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },
                 "title": "A new `hello word`",
                 "description": "change `hello world` in README to something else",
@@ -1291,7 +1292,7 @@ mod routes {
               {
                 "id": PATCH_ID,
                 "author": {
-                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                    "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },
                 "title": "A new `hello word`",
                 "description": "change `hello world` in README to something else",

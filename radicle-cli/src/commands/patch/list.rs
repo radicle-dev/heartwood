@@ -32,7 +32,7 @@ pub fn run(
     let mut other = Vec::new();
 
     for (id, patch, _) in proposed {
-        if *patch.author().id() == me {
+        if patch.author().id().as_key() == &me {
             own.push((id, patch));
         } else {
             other.push((id, patch));
@@ -85,7 +85,7 @@ fn print(
 ) -> anyhow::Result<()> {
     let target_head = common::patch_merge_target_oid(patch.target(), storage)?;
 
-    let you = patch.author().id() == whoami;
+    let you = patch.author().id().as_key() == whoami;
     let prefix = "└─ ";
     let mut author_info = vec![format!(
         "{}* opened by {}",

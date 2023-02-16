@@ -839,7 +839,7 @@ impl<'a> Patches<'a> {
     /// Get patches proposed by the given key.
     pub fn proposed_by<'b>(
         &'b self,
-        who: &'b PublicKey,
+        who: &'b Did,
     ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)> + '_, Error> {
         Ok(self
             .proposed()?
@@ -1027,7 +1027,7 @@ mod test {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
         let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
-        let author = *signer.public_key();
+        let author: Did = signer.public_key().into();
         let target = MergeTarget::Delegates;
         let oid = git::Oid::from_str("e2a85016a458cd809c0ecee81f8c99613b0b0945").unwrap();
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
