@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use radicle::crypto;
-use radicle::prelude::Did;
+use radicle::prelude::{Did, Id};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -84,4 +84,9 @@ pub fn did(val: &OsString) -> anyhow::Result<Did> {
         }
     };
     Ok(peer)
+}
+
+pub fn rid(val: &OsString) -> anyhow::Result<Id> {
+    let val = val.to_string_lossy();
+    Id::from_str(&val).map_err(|_| anyhow!("invalid repository ID '{}'", val))
 }

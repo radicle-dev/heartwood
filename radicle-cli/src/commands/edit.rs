@@ -1,5 +1,4 @@
 use std::ffi::OsString;
-use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
 
@@ -45,13 +44,7 @@ impl Args for Options {
                     return Err(Error::Help.into());
                 }
                 Value(val) if id.is_none() => {
-                    let val = val.to_string_lossy();
-
-                    if let Ok(val) = Id::from_str(&val) {
-                        id = Some(val);
-                    } else {
-                        return Err(anyhow!("invalid ID '{}'", val));
-                    }
+                    id = Some(term::args::rid(&val)?);
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }

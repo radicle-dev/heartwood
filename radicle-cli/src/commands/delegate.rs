@@ -1,5 +1,4 @@
 use std::ffi::OsString;
-use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
 
@@ -86,13 +85,7 @@ impl Args for Options {
                         did = Some(term::args::did(&val)?);
                     }
                     Some(OperationName::List) => {
-                        // TODO: create args::project_id function
-                        let val = val.to_string_lossy();
-                        if let Ok(val) = Id::from_str(&val) {
-                            id = Some(val);
-                        } else {
-                            return Err(anyhow!("invalid Project ID '{}'", val));
-                        }
+                        id = Some(term::args::rid(&val)?);
                     }
                     None => continue,
                 },

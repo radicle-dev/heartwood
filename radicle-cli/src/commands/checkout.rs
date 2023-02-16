@@ -60,10 +60,7 @@ impl Args for Options {
                     }
                 }
                 Value(val) if id.is_none() => {
-                    let val = val.to_string_lossy();
-                    let val = Id::from_str(&val).context(format!("invalid id '{val}'"))?;
-
-                    id = Some(val);
+                    id = Some(term::args::rid(&val)?);
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
