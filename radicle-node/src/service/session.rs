@@ -259,7 +259,7 @@ impl Session {
             let msg = message::Ping::new(&mut self.rng);
             *ping = PingState::AwaitingResponse(msg.ponglen);
 
-            reactor.write(self.id, Message::Ping(msg));
+            reactor.write(self, Message::Ping(msg));
         }
         Ok(())
     }

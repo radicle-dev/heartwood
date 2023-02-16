@@ -519,7 +519,7 @@ where
             session::FetchResult::Ready(fetch) => {
                 debug!(target: "service", "Fetch initiated for {rid} with {seed}..");
 
-                self.reactor.write(session.id, fetch);
+                self.reactor.write(&session, fetch);
             }
             session::FetchResult::AlreadyFetching(other) => {
                 if other == rid {
@@ -642,7 +642,7 @@ where
 
             if let Some(peer) = self.sessions.get_mut(&remote) {
                 self.reactor.write_all(
-                    remote,
+                    peer,
                     gossip::handshake(
                         self.clock.as_millis(),
                         &self.storage,
@@ -969,9 +969,11 @@ where
                     );
                     return Err(session::Error::Misbehavior);
                 }
+                *initialized = true;
+
                 if peer.link.is_inbound() {
                     self.reactor.write_all(
-                        peer.id,
+                        peer,
                         gossip::handshake(
                             self.clock.as_millis(),
                             &self.storage,
@@ -981,7 +983,6 @@ where
                         ),
                     );
                 }
-                *initialized = true;
                 // Nb. we don't set the peer timestamp here, since it is going to be
                 // set after the first message is received only. Setting it here would
                 // mean that messages received right after the handshake could be ignored.
@@ -1015,7 +1016,7 @@ where
                     // Don't send announcements authored by the remote, back to the remote.
                     .filter(|ann| &ann.node != remote)
                 {
-                    self.reactor.write(peer.id, ann.into());
+                    self.reactor.write(peer, ann.into());
                 }
                 peer.subscribe = Some(subscribe);
             }
@@ -1025,7 +1026,7 @@ where
                     return Ok(());
                 }
                 self.reactor.write(
-                    peer.id,
+                    &peer,
                     Message::Pong {
                         zeroes: ZeroBytes::new(ponglen),
                     },
@@ -1045,7 +1046,7 @@ where
 
                 *protocol = Protocol::Fetch { rid };
                 // Accept the request and instruct the transport to handover the socket to the worker.
-                self.reactor.write(*remote, Message::FetchOk { rid });
+                self.reactor.write(peer, Message::FetchOk { rid });
                 self.reactor
                     .fetch(*remote, rid, Namespaces::default(), false);
             }
@@ -1201,8 +1202,8 @@ where
     fn announce_inventory(&mut self, inventory: Vec<Id>) -> Result<(), storage::Error> {
         let time = self.time();
         let inv = Message::inventory(gossip::inventory(time, inventory), &self.signer);
-        for id in self.sessions.negotiated().map(|(id, _)| id) {
-            self.reactor.write(*id, inv.clone());
+        for (_, sess) in self.sessions.negotiated() {
+            self.reactor.write(sess, inv.clone());
         }
         Ok(())
     }

@@ -61,13 +61,13 @@ impl Reactor {
         self.io.push_back(Io::Disconnect(id, reason));
     }
 
-    pub fn write(&mut self, remote: NodeId, msg: Message) {
+    pub fn write(&mut self, remote: &Session, msg: Message) {
         debug!(target: "service", "Write {:?} to {}", &msg, remote);
 
-        self.io.push_back(Io::Write(remote, vec![msg]));
+        self.io.push_back(Io::Write(remote.id, vec![msg]));
     }
 
-    pub fn write_all(&mut self, remote: NodeId, msgs: impl IntoIterator<Item = Message>) {
+    pub fn write_all(&mut self, remote: &Session, msgs: impl IntoIterator<Item = Message>) {
         let msgs = msgs.into_iter().collect::<Vec<_>>();
         for (ix, msg) in msgs.iter().enumerate() {
             debug!(
@@ -79,7 +79,7 @@ impl Reactor {
                 msgs.len()
             );
         }
-        self.io.push_back(Io::Write(remote, msgs));
+        self.io.push_back(Io::Write(remote.id, msgs));
     }
 
     pub fn wakeup(&mut self, after: LocalDuration) {
@@ -103,7 +103,7 @@ impl Reactor {
     ) {
         let msg = msg.into();
         for peer in peers {
-            self.write(peer.id, msg.clone());
+            self.write(peer, msg.clone());
         }
     }
 
