@@ -46,9 +46,23 @@ impl From<crypto::PublicKey> for Did {
     }
 }
 
+impl From<Did> for crypto::PublicKey {
+    fn from(Did(key): Did) -> Self {
+        key
+    }
+}
+
 impl From<Did> for String {
     fn from(other: Did) -> Self {
         other.encode()
+    }
+}
+
+impl FromStr for Did {
+    type Err = DidError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::decode(s)
     }
 }
 
