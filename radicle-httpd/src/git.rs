@@ -192,3 +192,35 @@ async fn git_http_backend(
         }
     }
 }
+
+#[cfg(test)]
+mod routes {
+    use std::net::SocketAddr;
+
+    use axum::body::Body;
+    use axum::extract::ConnectInfo;
+    use axum::http::Request;
+    use axum::http::{Method, StatusCode};
+    use tower::ServiceExt;
+
+    use crate::api::test;
+
+    #[tokio::test]
+    async fn test_invalid_route_returns_404() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = test::seed(tmp.path());
+        let app = super::router(ctx.profile().to_owned());
+
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri("/aa/a".to_string());
+
+        let mut request = request.body(Body::empty()).unwrap();
+        let socket_addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        request.extensions_mut().insert(ConnectInfo(socket_addr));
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+}

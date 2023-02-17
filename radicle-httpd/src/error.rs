@@ -38,6 +38,7 @@ impl Error {
         match self {
             Error::ServiceUnavailable(_) => http::StatusCode::SERVICE_UNAVAILABLE,
             Error::InvalidId => http::StatusCode::NOT_FOUND,
+            Error::Id(_) => http::StatusCode::NOT_FOUND,
             _ => http::StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
