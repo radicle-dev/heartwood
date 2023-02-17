@@ -197,29 +197,19 @@ async fn git_http_backend(
 mod routes {
     use std::net::SocketAddr;
 
-    use axum::body::Body;
-    use axum::extract::ConnectInfo;
-    use axum::http::Request;
-    use axum::http::{Method, StatusCode};
-    use tower::ServiceExt;
+    use axum::extract::connect_info::MockConnectInfo;
+    use axum::http::StatusCode;
 
-    use crate::test;
+    use crate::test::{self, get};
 
     #[tokio::test]
     async fn test_invalid_route_returns_404() {
         let tmp = tempfile::tempdir().unwrap();
         let ctx = test::seed(tmp.path());
-        let app = super::router(ctx.profile().to_owned());
+        let app = super::router(ctx.profile().to_owned())
+            .layer(MockConnectInfo(SocketAddr::from(([0, 0, 0, 0], 8080))));
 
-        let request = Request::builder()
-            .method(Method::GET)
-            .uri("/aa/a".to_string());
-
-        let mut request = request.body(Body::empty()).unwrap();
-        let socket_addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
-        request.extensions_mut().insert(ConnectInfo(socket_addr));
-
-        let response = app.oneshot(request).await.unwrap();
+        let response = get(&app, "/aa/a").await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
