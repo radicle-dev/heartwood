@@ -10,7 +10,7 @@ edition = "2021"
 
 [features]
 test = ["fastrand", "qcheck"]
-ssh = ["base64", "radicle-ssh", "ssh-key"]
+ssh = ["radicle-ssh", "ssh-key"]
 
 [dependencies]
 amplify = { version = "4.0.0-beta.4" }
@@ -34,7 +34,7 @@ optional = true
 [dependencies.ssh-key]
 version = "0.5.1"
 default-features = false
-features = ["std", "encryption", "rand_core", "getrandom"]
+features = ["std", "encryption", "getrandom"]
 optional = true
 
 [dependencies.qcheck]
@@ -46,10 +46,6 @@ optional = true
 path = "../radicle-ssh"
 version = "0"
 default-features = false
-optional = true
-
-[dependencies.base64]
-version = "0.13"
 optional = true
 
 [dev-dependencies]

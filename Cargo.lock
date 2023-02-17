@@ -1919,7 +1919,6 @@ name = "radicle-crypto"
 version = "0.1.0"
 dependencies = [
  "amplify",
- "base64",
  "cyphernet",
  "ec25519",
  "fastrand",

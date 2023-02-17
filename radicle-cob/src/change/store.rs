@@ -108,7 +108,7 @@ where
     }
 }
 
-impl<R, Id> Change<R, Id, signatures::Signature>
+impl<R, Id> Change<R, Id, signatures::ExtendedSignature>
 where
     Id: AsRef<[u8]>,
 {

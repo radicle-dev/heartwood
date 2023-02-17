@@ -10,44 +10,14 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crypto::{ssh::ExtendedSignature, PublicKey};
+use crypto::{ssh, PublicKey};
 use git_commit::{
     Commit,
     Signature::{Pgp, Ssh},
 };
 
+pub use ssh::ExtendedSignature;
 pub mod error;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Signature {
-    pub(super) key: PublicKey,
-    pub(super) sig: crypto::Signature,
-}
-
-impl Signature {
-    pub fn verify(&self, payload: &[u8]) -> bool {
-        self.key.verify(payload, &self.sig).is_ok()
-    }
-}
-
-impl From<Signature> for ExtendedSignature {
-    fn from(sig: Signature) -> Self {
-        Self::new(sig.key, sig.sig)
-    }
-}
-
-impl From<ExtendedSignature> for Signature {
-    fn from(ex: ExtendedSignature) -> Self {
-        let (key, sig) = ex.into();
-        Self { key, sig }
-    }
-}
-
-impl From<(PublicKey, crypto::Signature)> for Signature {
-    fn from((key, sig): (PublicKey, crypto::Signature)) -> Self {
-        Self { key, sig }
-    }
-}
 
 // FIXME(kim): This should really be a HashMap with a no-op Hasher -- PublicKey
 // collisions are catastrophic
@@ -68,8 +38,8 @@ impl DerefMut for Signatures {
     }
 }
 
-impl From<Signature> for Signatures {
-    fn from(Signature { key, sig }: Signature) -> Self {
+impl From<ExtendedSignature> for Signatures {
+    fn from(ExtendedSignature { key, sig }: ExtendedSignature) -> Self {
         let mut map = BTreeMap::new();
         map.insert(key, sig);
         map.into()
@@ -98,13 +68,13 @@ impl TryFrom<&Commit> for Signatures {
                 match signature {
                     // Skip PGP signatures
                     Pgp(_) => None,
-                    Ssh(armored) => Some(
-                        ExtendedSignature::from_armored(armored.as_bytes())
+                    Ssh(pem) => Some(
+                        ExtendedSignature::from_pem(pem.as_bytes())
                             .map_err(error::Signatures::from),
                     ),
                 }
             })
-            .map(|ex| ex.map(|ex| ex.into()))
+            .map(|r| r.map(|es| (es.key, es.sig)))
             .collect::<Result<_, _>>()
     }
 }
@@ -127,12 +97,12 @@ impl IntoIterator for Signatures {
     }
 }
 
-impl Extend<Signature> for Signatures {
+impl Extend<ExtendedSignature> for Signatures {
     fn extend<T>(&mut self, iter: T)
     where
-        T: IntoIterator<Item = Signature>,
+        T: IntoIterator<Item = ExtendedSignature>,
     {
-        for Signature { key, sig } in iter {
+        for ExtendedSignature { key, sig } in iter {
             self.insert(key, sig);
         }
     }

@@ -97,7 +97,7 @@ pub use history::{Contents, Entry, History};
 mod pruning_fold;
 
 pub mod signatures;
-use signatures::Signature;
+use signatures::ExtendedSignature;
 
 pub mod type_name;
 pub use type_name::TypeName;
@@ -135,7 +135,7 @@ where
             LoadError = git::change::error::Load,
             ObjectId = git_ext::Oid,
             Resource = git_ext::Oid,
-            Signatures = Signature,
+            Signatures = ExtendedSignature,
         >,
 {
 }

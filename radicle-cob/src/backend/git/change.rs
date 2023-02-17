@@ -12,10 +12,11 @@ use git_trailers::OwnedTrailer;
 use nonempty::NonEmpty;
 
 use crate::history::entry::Timestamp;
+use crate::signatures;
 use crate::{
     change::{self, store, Change},
     history::entry,
-    signatures::{Signature, Signatures},
+    signatures::{ExtendedSignature, Signatures},
     trailers,
 };
 
@@ -39,6 +40,8 @@ pub mod error {
         Git(#[from] git2::Error),
         #[error(transparent)]
         Signer(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
+        #[error(transparent)]
+        Signatures(#[from] Signatures),
         #[error(transparent)]
         Utf8(#[from] Utf8Error),
     }
@@ -84,7 +87,7 @@ impl change::Storage for git2::Repository {
 
     type ObjectId = Oid;
     type Resource = Oid;
-    type Signatures = Signature;
+    type Signatures = ExtendedSignature;
 
     fn store<Signer>(
         &self,
@@ -113,7 +116,7 @@ impl change::Storage for git2::Repository {
         let signature = {
             let sig = signer.sign(revision.as_bytes());
             let key = signer.public_key();
-            Signature::from((*key, sig))
+            ExtendedSignature::new(*key, sig)
         };
 
         let (id, timestamp) = write_commit(self, resource, tips, message, signature.clone(), tree)?;
@@ -135,7 +138,7 @@ impl change::Storage for git2::Repository {
         let mut signatures = Signatures::try_from(&commit)?
             .into_iter()
             .collect::<Vec<_>>();
-        let Some(signature) = signatures.pop() else {
+        let Some((key, sig)) = signatures.pop() else {
             return Err(error::Load::ChangeNotSigned(id));
         };
         if !signatures.is_empty() {
@@ -149,7 +152,7 @@ impl change::Storage for git2::Repository {
         Ok(Change {
             id,
             revision: tree.id().into(),
-            signature: signature.into(),
+            signature: ExtendedSignature::new(key, sig),
             resource,
             manifest,
             contents,
@@ -220,7 +223,7 @@ fn write_commit<O>(
     resource: O,
     tips: Vec<O>,
     message: String,
-    signature: Signature,
+    signature: ExtendedSignature,
     tree: git2::Tree,
 ) -> Result<(Oid, Timestamp), error::Create>
 where
@@ -240,7 +243,10 @@ where
     let mut headers = commit::Headers::new();
     headers.push(
         "gpgsig",
-        &String::from_utf8(crypto::ssh::ExtendedSignature::from(signature).to_armored())?,
+        signature
+            .to_pem()
+            .map_err(signatures::error::Signatures::from)?
+            .as_str(),
     );
     let author = commit::Author::try_from(&author)?;
 

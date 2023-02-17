@@ -9,7 +9,7 @@ use git_ext::Oid;
 use radicle_dag::{Dag, Node};
 
 use crate::{
-    change, object, signatures::Signature, Change, CollaborativeObject, ObjectId, TypeName,
+    change, object, signatures::ExtendedSignature, Change, CollaborativeObject, ObjectId, TypeName,
 };
 
 mod evaluation;
@@ -31,7 +31,7 @@ impl ChangeGraph {
         oid: &ObjectId,
     ) -> Option<ChangeGraph>
     where
-        S: change::Storage<ObjectId = Oid, Resource = Oid, Signatures = Signature>,
+        S: change::Storage<ObjectId = Oid, Resource = Oid, Signatures = ExtendedSignature>,
     {
         log::info!("loading object '{}' '{}'", typename, oid);
         let mut builder = GraphBuilder::default();

@@ -15,6 +15,65 @@ use crate::PublicKey;
 
 pub use keystore::{Keystore, Passphrase};
 
+#[derive(Debug, Error)]
+pub enum ExtendedSignatureError {
+    #[error(transparent)]
+    Ssh(#[from] ssh_key::Error),
+    #[error(transparent)]
+    Crypto(#[from] crypto::Error),
+    #[error("unsupported signature algorithm")]
+    UnsupportedAlgorithm,
+}
+
+/// Signature with public key, used for SSH signing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtendedSignature {
+    pub key: crypto::PublicKey,
+    pub sig: crypto::Signature,
+}
+
+impl ExtendedSignature {
+    /// Create a new extended signature.
+    pub fn new(public_key: crypto::PublicKey, signature: crypto::Signature) -> Self {
+        Self {
+            key: public_key,
+            sig: signature,
+        }
+    }
+
+    /// Convert to OpenSSH standard PEM format.
+    pub fn to_pem(&self) -> Result<String, ExtendedSignatureError> {
+        ssh_key::SshSig::new(
+            ssh_key::public::KeyData::from(ssh_key::public::Ed25519PublicKey(**self.key)),
+            String::from("radicle"),
+            ssh_key::HashAlg::Sha256,
+            ssh_key::Signature::new(ssh_key::Algorithm::Ed25519, **self.sig)?,
+        )?
+        .to_pem(ssh_key::LineEnding::default())
+        .map_err(ExtendedSignatureError::from)
+    }
+
+    /// Create from OpenSSH PEM format.
+    pub fn from_pem(pem: impl AsRef<[u8]>) -> Result<Self, ExtendedSignatureError> {
+        let sig = ssh_key::SshSig::from_pem(pem)?;
+
+        Ok(Self {
+            key: crypto::PublicKey::from(
+                sig.public_key()
+                    .ed25519()
+                    .ok_or(ExtendedSignatureError::UnsupportedAlgorithm)?
+                    .0,
+            ),
+            sig: crypto::Signature::try_from(sig.signature().as_bytes())?,
+        })
+    }
+
+    /// Verify the signature for a given payload.
+    pub fn verify(&self, payload: &[u8]) -> bool {
+        self.key.verify(payload, &self.sig).is_ok()
+    }
+}
+
 pub mod fmt {
     use crate::PublicKey;
 
@@ -179,139 +238,12 @@ impl Encodable for crypto::SecretKey {
     }
 }
 
-#[derive(Debug, Error)]
-pub enum ExtendedSignatureError {
-    #[error(transparent)]
-    Base64Encoding(#[from] base64::DecodeError),
-    #[error("wrong preamble")]
-    MagicPreamble([u8; 6]),
-    #[error("missing armored footer")]
-    MissingFooter,
-    #[error("missing armored header")]
-    MissingHeader,
-    #[error(transparent)]
-    Encoding(#[from] encoding::Error),
-    #[error(transparent)]
-    PublicKey(#[from] PublicKeyError),
-    #[error(transparent)]
-    SignatureError(#[from] SignatureError),
-    #[error("unsupported version '{0}'")]
-    UnsupportedVersion(u32),
-}
-
-/// An SSH signature's decoded format.
-///
-/// See <https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.sshsig>
-#[derive(Clone, Debug)]
-pub struct ExtendedSignature {
-    version: u32,
-    public_key: crypto::PublicKey,
-    /// Unambigious interpretation domain to prevent cross-protocol attacks.
-    namespace: Vec<u8>,
-    reserved: Vec<u8>,
-    /// Hash used for signature. For example 'sha256'.
-    hash_algorithm: Vec<u8>,
-    signature: crypto::Signature,
-}
-
-impl From<ExtendedSignature> for (crypto::PublicKey, crypto::Signature) {
-    fn from(ex: ExtendedSignature) -> Self {
-        (ex.public_key, ex.signature)
-    }
-}
-
-impl Encodable for ExtendedSignature {
-    type Error = ExtendedSignatureError;
-
-    fn read(r: &mut encoding::Cursor) -> Result<Self, Self::Error> {
-        let sig_version = r.read_u32()?;
-        if sig_version > 1 {
-            return Err(ExtendedSignatureError::UnsupportedVersion(sig_version));
-        }
-        let mut pk = r.read_string()?.reader(0);
-
-        Ok(ExtendedSignature {
-            version: sig_version,
-            public_key: PublicKey::read(&mut pk)?,
-            namespace: r.read_string()?.into(),
-            reserved: r.read_string()?.into(),
-            hash_algorithm: r.read_string()?.into(),
-            signature: crypto::Signature::read(r)?,
-        })
-    }
-
-    fn write<E: Encoding>(&self, buf: &mut E) {
-        buf.extend_u32(self.version);
-        let _ = &self.public_key.write(buf);
-        buf.extend_ssh_string(&self.namespace);
-        buf.extend_ssh_string(&self.reserved);
-        buf.extend_ssh_string(&self.hash_algorithm);
-        let _ = &self.signature.write(buf);
-    }
-}
-
-impl ExtendedSignature {
-    const ARMORED_HEADER: &[u8] = b"-----BEGIN SSH SIGNATURE-----";
-    const ARMORED_FOOTER: &[u8] = b"-----END SSH SIGNATURE-----";
-    const ARMORED_WIDTH: usize = 70;
-    const MAGIC_PREAMBLE: &[u8] = b"SSHSIG";
-
-    pub fn new(public_key: crypto::PublicKey, signature: crypto::Signature) -> Self {
-        Self {
-            version: 1,
-            public_key,
-            namespace: b"radicle".to_vec(),
-            reserved: b"".to_vec(),
-            hash_algorithm: b"sha256".to_vec(),
-            signature,
-        }
-    }
-
-    pub fn from_armored(s: &[u8]) -> Result<Self, ExtendedSignatureError> {
-        let s = s
-            .strip_prefix(Self::ARMORED_HEADER)
-            .ok_or(ExtendedSignatureError::MissingHeader)?;
-        let s = s
-            .strip_suffix(Self::ARMORED_FOOTER)
-            .ok_or(ExtendedSignatureError::MissingFooter)?;
-        let s: Vec<u8> = s.iter().filter(|b| *b != &b'\n').copied().collect();
-
-        let buf = base64::decode(s)?;
-        let mut reader = buf.reader(0);
-
-        let preamble: [u8; 6] = reader.read_bytes()?;
-        if preamble != Self::MAGIC_PREAMBLE {
-            return Err(ExtendedSignatureError::MagicPreamble(preamble));
-        }
-
-        ExtendedSignature::read(&mut reader)
-    }
-
-    pub fn to_armored(&self) -> Vec<u8> {
-        let mut buf = encoding::Buffer::from(Self::MAGIC_PREAMBLE.to_vec());
-        self.write(&mut buf);
-
-        let mut armored = Self::ARMORED_HEADER.to_vec();
-        armored.push(b'\n');
-
-        let body = base64::encode(buf);
-        for line in body.as_bytes().chunks(Self::ARMORED_WIDTH) {
-            armored.extend(line);
-            armored.push(b'\n');
-        }
-
-        armored.extend(Self::ARMORED_FOOTER);
-        armored
-    }
-}
-
 #[cfg(test)]
 mod test {
     use std::sync::{Arc, Mutex};
 
     use qcheck_macros::quickcheck;
 
-    use super::{fmt, ExtendedSignature};
     use crate as crypto;
     use crate::{PublicKey, SecretKey};
     use radicle_ssh::agent::client::{AgentClient, ClientStream, Error};
@@ -405,51 +337,5 @@ mod test {
             stream.incoming.lock().unwrap().as_slice(),
             expected.as_slice()
         );
-    }
-
-    #[test]
-    fn test_signature_encode_decode() {
-        let armored: &[u8] = b"-----BEGIN SSH SIGNATURE-----
-U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgvjrQogRxxLjzzWns8+mKJAGzEX
-4fm2ALoN7pyvD2ttQAAAADZ2l0AAAAAAAAAAZzaGE1MTIAAABTAAAAC3NzaC1lZDI1NTE5
-AAAAQI84aPZsXxlQigpy1/Y/iJSmHSS//CIgvqvUMQIb/TM2vhCKruduH0cK02k9G8wOI+
-EUMf2bSDyxbJyZThOEiAs=
------END SSH SIGNATURE-----";
-
-        let public_key =
-            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL460KIEccS4881p7PPpiiQBsxF+H5tgC6De6crw9rbU";
-        let signature = ExtendedSignature::from_armored(armored).unwrap();
-
-        assert_eq!(signature.version, 1);
-        assert_eq!(fmt::key(&signature.public_key), public_key);
-        assert_eq!(
-            String::from_utf8(armored.to_vec()),
-            String::from_utf8(signature.to_armored()),
-            "signature should remain unaltered after decoding"
-        );
-    }
-
-    #[test]
-    fn test_signature_verify() {
-        let seed = crypto::Seed::new([1; 32]);
-        let pair = crypto::KeyPair::from_seed(seed);
-        let message = &[0xff];
-        let sig = pair.sk.sign(message, None);
-        let esig = ExtendedSignature {
-            version: 1,
-            public_key: pair.pk.into(),
-            signature: sig.into(),
-            hash_algorithm: vec![],
-            namespace: vec![],
-            reserved: vec![],
-        };
-
-        let armored = esig.to_armored();
-        let unarmored = ExtendedSignature::from_armored(&armored).unwrap();
-
-        unarmored
-            .public_key
-            .verify(message, &unarmored.signature)
-            .unwrap();
     }
 }
