@@ -29,7 +29,7 @@ mod routes {
     use axum::http::StatusCode;
     use serde_json::json;
 
-    use crate::api::test::{self, get};
+    use crate::test::{self, get};
 
     #[tokio::test]
     async fn test_stats() {

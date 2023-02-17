@@ -74,7 +74,7 @@ mod routes {
     use axum::http::StatusCode;
     use serde_json::json;
 
-    use crate::api::test::{self, get, HEAD};
+    use crate::test::{self, get, HEAD};
 
     #[tokio::test]
     async fn test_delegates_projects() {

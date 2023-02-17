@@ -203,7 +203,7 @@ mod routes {
     use axum::http::{Method, StatusCode};
     use tower::ServiceExt;
 
-    use crate::api::test;
+    use crate::test;
 
     #[tokio::test]
     async fn test_invalid_route_returns_404() {

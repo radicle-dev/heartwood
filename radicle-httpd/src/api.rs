@@ -1,5 +1,4 @@
-#[cfg(test)]
-pub mod test;
+pub mod auth;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -21,7 +20,6 @@ use radicle::identity::Id;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::Profile;
 
-mod auth;
 mod axum_extra;
 mod error;
 mod json;
@@ -69,6 +67,11 @@ impl Context {
     #[cfg(test)]
     pub fn profile(&self) -> &Arc<Profile> {
         &self.profile
+    }
+
+    #[cfg(test)]
+    pub fn sessions(&self) -> &Arc<RwLock<HashMap<SessionId, auth::Session>>> {
+        &self.sessions
     }
 }
 

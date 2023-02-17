@@ -17,6 +17,8 @@ use tracing::Span;
 
 mod api;
 mod git;
+#[cfg(test)]
+mod test;
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -30,9 +32,11 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         .output()
         .context("'git' command must be available")?
         .stdout;
+
     tracing::info!("{}", str::from_utf8(&git_version)?.trim());
 
     let profile = Arc::new(radicle::Profile::load()?);
+
     tracing::info!("using radicle home at {}", profile.home().display());
 
     let ctx = api::Context::new(profile.clone());

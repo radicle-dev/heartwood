@@ -125,10 +125,8 @@ mod routes {
     use axum::http::StatusCode;
     use radicle_cli::commands::rad_web::{self, SessionInfo};
 
-    use crate::api::{
-        auth::{AuthState, Session},
-        test::{self, get, post, put},
-    };
+    use crate::api::auth::{AuthState, Session};
+    use crate::test::{self, get, post, put};
 
     #[tokio::test]
     async fn test_session() {

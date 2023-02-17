@@ -562,7 +562,7 @@ mod routes {
     use pretty_assertions::assert_eq;
     use serde_json::json;
 
-    use crate::api::test::{self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID};
+    use crate::test::{self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID};
 
     const CREATED_ISSUE_ID: &str = "b56febfba1e7dd20f4aea43ca2fe9dcf1fd448ba";
 

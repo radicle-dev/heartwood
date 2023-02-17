@@ -136,21 +136,18 @@ pub fn seed(dir: &Path) -> Context {
         )
         .unwrap();
 
-    Context {
-        profile: Arc::new(profile),
-        sessions: Default::default(),
-    }
+    Context::new(Arc::new(profile))
 }
 
 /// Adds an authorized session to the Context::sessions HashMap.
 pub async fn create_session(ctx: Context) {
     let issued_at = OffsetDateTime::now_utc();
-    let mut sessions = ctx.sessions.write().await;
+    let mut sessions = ctx.sessions().write().await;
     sessions.insert(
         String::from("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy"),
         auth::Session {
             status: auth::AuthState::Authorized,
-            public_key: ctx.profile.public_key,
+            public_key: ctx.profile().public_key,
             issued_at,
             expires_at: issued_at
                 .checked_add(auth::AUTHORIZED_SESSIONS_EXPIRATION)
