@@ -33,6 +33,10 @@ impl<K: Ord, V: Semilattice> GMap<K, V> {
             }
         }
     }
+
+    pub fn contains_key(&self, key: &K) -> bool {
+        self.inner.contains_key(key)
+    }
 }
 
 impl<K: Ord, V: Semilattice> FromIterator<(K, V)> for GMap<K, V> {
