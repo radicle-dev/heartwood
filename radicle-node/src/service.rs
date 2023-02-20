@@ -379,7 +379,7 @@ where
     pub fn wake(&mut self) {
         let now = self.clock;
 
-        trace!("Wake +{}", now - self.start_time);
+        trace!(target: "service", "Wake +{}", now - self.start_time);
 
         if now - self.last_idle >= IDLE_INTERVAL {
             debug!(target: "service", "Running 'idle' task...");

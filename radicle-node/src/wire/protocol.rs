@@ -6,7 +6,6 @@ use std::collections::VecDeque;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
 use std::{fmt, io, net};
 
 use amplify::Wrapper as _;
@@ -19,6 +18,7 @@ use localtime::LocalTime;
 use netservices::resource::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
 use netservices::session::{ProtocolArtifact, Socks5Session};
 use netservices::{NetConnection, NetProtocol, NetReader, NetSession, NetWriter};
+use reactor::Timestamp;
 
 use radicle::collections::HashMap;
 use radicle::node::NodeId;
@@ -416,20 +416,20 @@ where
     type Transport = NetTransport<WireSession<G>>;
     type Command = Control<G>;
 
-    fn tick(&mut self, _time: Duration) {
-        // FIXME: Change this once a proper timestamp is passed into the function.
-        self.service.tick(LocalTime::from(SystemTime::now()));
+    fn tick(&mut self, time: Timestamp) {
+        // TODO: Use millisecond precision.
+        self.service.tick(LocalTime::from_secs(time.as_secs()));
     }
 
     fn handle_timer(&mut self) {
-        self.service.wake()
+        self.service.wake();
     }
 
     fn handle_listener_event(
         &mut self,
         socket_addr: net::SocketAddr,
         event: ListenerEvent<WireSession<G>>,
-        _: Duration,
+        _: Timestamp,
     ) {
         match event {
             ListenerEvent::Accepted(connection) => {
@@ -462,7 +462,7 @@ where
         &mut self,
         fd: RawFd,
         event: SessionEvent<WireSession<G>>,
-        _: Duration,
+        _: Timestamp,
     ) {
         match event {
             SessionEvent::Established(ProtocolArtifact { state, .. }) => {

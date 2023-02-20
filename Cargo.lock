@@ -1215,9 +1215,9 @@ dependencies = [
 
 [[package]]
 name = "io-reactor"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "790a9f1564a15864f28605fb0613dee98c8ebeee0ace7a5c76c2118f0e202f78"
+checksum = "c5673e46c1201c1d8778cef314a91a6072b9f2f5fa4b426eb9a929236c3901b1"
 dependencies = [
  "amplify",
  "crossbeam-channel",
