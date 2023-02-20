@@ -47,6 +47,8 @@ pub type RevisionIx = usize;
 /// Error applying an operation onto a state.
 #[derive(Error, Debug)]
 pub enum ApplyError {
+    #[error("revision for '{0}' already exists")]
+    Exists(OpId),
     /// Causal dependency missing.
     ///
     /// This error indicates that the operations are not being applied
@@ -271,6 +273,9 @@ impl store::FromHistory for Patch {
                     base,
                     oid,
                 } => {
+                    if self.revisions.contains_key(&id) {
+                        return Err(ApplyError::Exists(id));
+                    }
                     self.revisions.insert(
                         id,
                         Redactable::Present(Revision::new(
@@ -1205,24 +1210,19 @@ mod test {
     }
 
     #[test]
-    fn test_revision_redacted_reinsert() {
+    fn test_cannot_reinsert() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let mut alice = Actor::<_, Action>::new(MockSigner::default());
-        let mut p1 = Patch::default();
-        let mut p2 = Patch::default();
+        let mut p = Patch::default();
 
-        let a1 = alice.op(Action::Revision {
+        let a = alice.op(Action::Revision {
             description: String::new(),
             base,
             oid,
         });
-        let a2 = alice.op(Action::Redact { revision: a1.id() });
 
-        p1.apply([a1.clone(), a2.clone(), a1.clone()]).unwrap();
-        p2.apply([a1.clone(), a1, a2]).unwrap();
-
-        assert_eq!(p1, p2);
+        assert!(p.apply([a.clone(), a]).is_err());
     }
 
     #[test]
