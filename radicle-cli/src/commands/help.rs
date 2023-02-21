@@ -13,11 +13,13 @@ pub const HELP: Help = Help {
 };
 
 const COMMANDS: &[Help] = &[
+    rad_assign::HELP,
     rad_auth::HELP,
     rad_checkout::HELP,
     rad_clone::HELP,
     rad_edit::HELP,
     rad_help::HELP,
+    rad_id::HELP,
     rad_init::HELP,
     rad_inspect::HELP,
     rad_issue::HELP,
@@ -30,6 +32,7 @@ const COMMANDS: &[Help] = &[
     rad_rm::HELP,
     rad_self::HELP,
     rad_track::HELP,
+    rad_unassign::HELP,
     rad_untrack::HELP,
 ];
 
