@@ -5,9 +5,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::Semilattice;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Max<T>(T);
+
+impl<T: core::fmt::Debug> core::fmt::Debug for Max<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        // Just like the #[derive(Debug)] formatter, but without newlines to conserve screen space
+        // in large data structures.
+        write!(f, r#"Max({:?})"#, self.0)
+    }
+}
 
 impl<T> Max<T> {
     pub fn get(&self) -> &T {
