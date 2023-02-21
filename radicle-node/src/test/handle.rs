@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use crossbeam_channel as chan;
 
 use crate::identity::Id;
-use crate::node::FetchResult;
+use crate::node::{FetchResult, Seeds};
 use crate::runtime::HandleError;
 use crate::service;
 use crate::service::NodeId;
@@ -29,7 +29,7 @@ impl radicle::node::Handle for Handle {
         unimplemented!();
     }
 
-    fn seeds(&mut self, _id: Id) -> Result<Vec<NodeId>, Self::Error> {
+    fn seeds(&mut self, _id: Id) -> Result<Seeds, Self::Error> {
         unimplemented!();
     }
 

@@ -1,5 +1,6 @@
 mod features;
 
+use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -180,6 +181,64 @@ impl Command {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[serde(tag = "state", content = "id")]
+pub enum Seed {
+    Disconnected(NodeId),
+    Fetching(NodeId),
+    Connected(NodeId),
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Seeds(BTreeSet<Seed>);
+
+impl Seeds {
+    pub fn insert(&mut self, seed: Seed) {
+        self.0.insert(seed);
+    }
+
+    pub fn connected(&mut self) -> impl Iterator<Item = &NodeId> {
+        self.0.iter().filter_map(|s| match s {
+            Seed::Connected(node) => Some(node),
+            Seed::Fetching(_) | Seed::Disconnected(_) => None,
+        })
+    }
+
+    pub fn disconnected(&mut self) -> impl Iterator<Item = &NodeId> {
+        self.0.iter().filter_map(|s| match s {
+            Seed::Disconnected(node) => Some(node),
+            Seed::Fetching(_) | Seed::Connected(_) => None,
+        })
+    }
+
+    pub fn fetching(&mut self) -> impl Iterator<Item = &NodeId> {
+        self.0.iter().filter_map(|s| match s {
+            Seed::Fetching(node) => Some(node),
+            Seed::Connected(_) | Seed::Disconnected(_) => None,
+        })
+    }
+
+    pub fn has_connections(&self) -> bool {
+        self.0.iter().any(|s| match s {
+            Seed::Connected(_) => true,
+            Seed::Disconnected(_) | Seed::Fetching(_) => false,
+        })
+    }
+
+    pub fn is_connected(&self, node: &NodeId) -> bool {
+        self.0.contains(&Seed::Connected(*node))
+    }
+
+    pub fn is_disconnected(&self, node: &NodeId) -> bool {
+        self.0.contains(&Seed::Disconnected(*node))
+    }
+
+    pub fn is_fetching(&self, node: &NodeId) -> bool {
+        self.0.contains(&Seed::Fetching(*node))
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "kebab-case")]
 pub enum FetchResult {
@@ -249,7 +308,7 @@ pub trait Handle {
     /// Connect to a peer.
     fn connect(&mut self, node: NodeId, addr: Address) -> Result<(), Self::Error>;
     /// Lookup the seeds of a given repository in the routing table.
-    fn seeds(&mut self, id: Id) -> Result<Vec<NodeId>, Self::Error>;
+    fn seeds(&mut self, id: Id) -> Result<Seeds, Self::Error>;
     /// Fetch a repository from the network.
     fn fetch(&mut self, id: Id, from: NodeId) -> Result<FetchResult, Self::Error>;
     /// Start tracking the given project. Doesn't do anything if the project is already
@@ -332,8 +391,8 @@ impl Handle for Node {
         todo!()
     }
 
-    fn seeds(&mut self, id: Id) -> Result<Vec<NodeId>, Error> {
-        let seeds: Vec<NodeId> =
+    fn seeds(&mut self, id: Id) -> Result<Seeds, Error> {
+        let seeds: Seeds =
             self.call(CommandName::Seeds, [id.urn()])?
                 .next()
                 .ok_or(Error::EmptyResponse {

@@ -27,7 +27,7 @@ use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::identity::{Doc, Id};
 use crate::node;
-use crate::node::{Address, Features, FetchResult};
+use crate::node::{Address, Features, FetchResult, Seed, Seeds};
 use crate::prelude::*;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
@@ -108,7 +108,7 @@ pub enum Command {
     /// Connect to node with the given address.
     Connect(NodeId, Address),
     /// Lookup seeds for the given repository in the routing table.
-    Seeds(Id, chan::Sender<Vec<NodeId>>),
+    Seeds(Id, chan::Sender<Seeds>),
     /// Fetch the given repository from the network.
     Fetch(Id, NodeId, chan::Sender<FetchResult>),
     /// Track the given repository.
@@ -429,11 +429,33 @@ where
                 self.connect(id, addr);
             }
             Command::Seeds(rid, resp) => {
-                let (connected, unconnected) = match self.routing.get(&rid) {
-                    Ok(seeds) => seeds
-                        .into_iter()
-                        .filter(|node| *node != self.node_id())
-                        .partition::<Vec<_>, _>(|node| self.sessions.is_connected(node)),
+                #[derive(Default)]
+                pub struct Stats {
+                    connected: usize,
+                    disconnected: usize,
+                    fetching: usize,
+                }
+
+                let (stats, seeds) = match self.routing.get(&rid) {
+                    Ok(seeds) => seeds.into_iter().fold(
+                        (Stats::default(), Seeds::default()),
+                        |(mut stats, mut seeds), node| {
+                            if node != self.node_id() {
+                                if self.sessions.is_fetching(&node) {
+                                    seeds.insert(Seed::Fetching(node));
+                                    stats.fetching += 1;
+                                } else if self.sessions.is_connected(&node) {
+                                    seeds.insert(Seed::Connected(node));
+                                    stats.connected += 1;
+                                } else if self.sessions.is_disconnected(&node) {
+                                    seeds.insert(Seed::Disconnected(node));
+                                    stats.connected += 1;
+                                }
+                            }
+
+                            (stats, seeds)
+                        },
+                    ),
                     Err(err) => {
                         error!(target: "service", "Error reading routing table for {rid}: {err}");
                         drop(resp);
@@ -443,10 +465,10 @@ where
                 };
                 debug!(
                     target: "service",
-                    "Found {} connected seed(s) and {} unconnected seed(s) for {}",
-                    connected.len(), unconnected.len(), rid
+                    "Found {} connected seed(s), {} disconnected seed(s), and {} fetching seed(s) for {}",
+                    stats.connected, stats.disconnected, stats.fetching, rid
                 );
-                resp.send(connected).ok();
+                resp.send(seeds).ok();
             }
             Command::Fetch(rid, seed, resp) => {
                 // TODO: Establish connections to unconnected seeds, and retry.
@@ -1138,7 +1160,7 @@ where
     }
 
     fn connect(&mut self, node: NodeId, addr: Address) -> bool {
-        if self.sessions.is_unconnected(&node) {
+        if self.sessions.is_disconnected(&node) {
             self.reactor.connect(node, addr);
             return true;
         }
@@ -1448,8 +1470,12 @@ impl Sessions {
         self.0.get(id).map(|s| s.is_connected()).unwrap_or(false)
     }
 
+    pub fn is_fetching(&self, id: &NodeId) -> bool {
+        self.0.get(id).map(|s| s.is_fetching()).unwrap_or(false)
+    }
+
     /// Return whether this node can be connected to.
-    pub fn is_unconnected(&self, id: &NodeId) -> bool {
+    pub fn is_disconnected(&self, id: &NodeId) -> bool {
         self.0.get(id).map(|s| s.is_disconnected()).unwrap_or(true)
     }
 }

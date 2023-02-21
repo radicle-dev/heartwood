@@ -174,21 +174,21 @@ pub fn clone<G: Signer>(
     }
 
     // Get seeds. This consults the local routing table only.
-    let seeds = node.seeds(id)?;
-    if seeds.is_empty() {
+    let mut seeds = node.seeds(id)?;
+    if !seeds.has_connections() {
         return Err(CloneError::NotFound(id));
     }
     // Fetch from all seeds.
-    for seed in seeds {
+    for seed in seeds.connected() {
         let spinner = term::spinner(format!(
             "Fetching {} from {}..",
             term::format::tertiary(id),
-            term::format::tertiary(term::format::node(&seed))
+            term::format::tertiary(term::format::node(seed))
         ));
 
         // TODO: If none of them succeeds, output an error. Otherwise tell the caller
         // how many succeeded.
-        match node.fetch(id, seed)? {
+        match node.fetch(id, *seed)? {
             FetchResult::Success { .. } => {
                 spinner.finish();
             }

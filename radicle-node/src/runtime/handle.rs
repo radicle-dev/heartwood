@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
+use radicle::node::Seeds;
 use thiserror::Error;
 
 use crate::crypto::Signer;
@@ -118,7 +119,7 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
         Ok(())
     }
 
-    fn seeds(&mut self, id: Id) -> Result<Vec<NodeId>, Self::Error> {
+    fn seeds(&mut self, id: Id) -> Result<Seeds, Self::Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::Seeds(id, sender))?;
         receiver.recv().map_err(Error::from)

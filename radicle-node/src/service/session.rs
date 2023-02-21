@@ -186,6 +186,16 @@ impl Session {
         matches!(self.state, State::Connected { .. })
     }
 
+    pub fn is_fetching(&self) -> bool {
+        matches!(
+            self.state,
+            State::Connected {
+                protocol: Protocol::Fetch { .. },
+                ..
+            }
+        )
+    }
+
     pub fn is_disconnected(&self) -> bool {
         matches!(self.state, State::Disconnected { .. })
     }

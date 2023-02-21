@@ -159,7 +159,7 @@ fn test_replication() {
     assert!(tracked);
 
     let seeds = alice.handle.seeds(acme).unwrap();
-    assert!(seeds.contains(&bob.id));
+    assert!(seeds.is_connected(&bob.id));
 
     let result = alice.handle.fetch(acme, bob.id).unwrap();
     assert!(result.is_success());
@@ -213,7 +213,7 @@ fn test_clone() {
 
     let _ = alice.handle.track_repo(acme).unwrap();
     let seeds = alice.handle.seeds(acme).unwrap();
-    assert!(seeds.contains(&bob.id));
+    assert!(seeds.is_connected(&bob.id));
 
     let result = alice.handle.fetch(acme, bob.id).unwrap();
     assert!(result.is_success());
