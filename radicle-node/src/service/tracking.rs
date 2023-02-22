@@ -1,71 +1,14 @@
 mod store;
 
-use std::str::FromStr;
-use std::{fmt, ops};
+use std::ops;
 
 use crate::prelude::Id;
 use crate::service::NodeId;
 
+pub use crate::node::tracking::{Alias, Node, Policy, Repo, Scope};
+
 pub use store::Config as Store;
 pub use store::Error;
-
-/// Node alias.
-pub type Alias = String;
-
-/// Tracking policy.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Policy {
-    /// The resource is tracked.
-    Track,
-    /// The resource is blocked.
-    #[default]
-    Block,
-}
-
-impl fmt::Display for Policy {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Track => write!(f, "track"),
-            Self::Block => write!(f, "block"),
-        }
-    }
-}
-
-impl FromStr for Policy {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "track" => Ok(Self::Track),
-            "block" => Ok(Self::Block),
-            _ => Err(s.to_owned()),
-        }
-    }
-}
-
-/// Tracking scope of a repository tracking policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Scope {
-    /// Track remotes of nodes that are already tracked.
-    Trusted,
-    /// Track remotes of repository delegates.
-    DelegatesOnly,
-    /// Track all remotes.
-    All,
-}
-
-impl FromStr for Scope {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "trusted" => Ok(Self::Trusted),
-            "delegates-only" => Ok(Self::DelegatesOnly),
-            "all" => Ok(Self::All),
-            _ => Err(()),
-        }
-    }
-}
 
 /// Tracking configuration.
 #[derive(Debug)]

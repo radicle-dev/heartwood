@@ -1,4 +1,5 @@
 mod features;
+pub mod tracking;
 
 use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader};
@@ -124,10 +125,14 @@ pub enum CommandName {
     TrackRepo,
     /// Untrack the given repository.
     UntrackRepo,
+    /// Get the tracked repositories.
+    TrackedRepos,
     /// Track the given node.
     TrackNode,
     /// Untrack the given node.
     UntrackNode,
+    /// Get the tracked nodes.
+    TrackedNodes,
     /// Get the node's inventory.
     Inventory,
     /// Get the node's routing table.
@@ -374,6 +379,10 @@ pub trait Handle {
     /// The error returned by all methods.
     type Error: std::error::Error + Send + Sync + 'static;
 
+    type Routing: IntoIterator<Item = (Id, NodeId)>;
+    type TrackedRepos: IntoIterator<Item = tracking::Repo>;
+    type TrackedNodes: IntoIterator<Item = tracking::Node>;
+
     /// Check if the node is running. to a peer.
     fn is_running(&self) -> bool;
     /// Connect to a peer.
@@ -391,6 +400,10 @@ pub trait Handle {
     fn untrack_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
     /// Untrack the given node.
     fn untrack_node(&mut self, id: NodeId) -> Result<bool, Self::Error>;
+    /// Get the tracking information for all tracked repos in storage.
+    fn tracked_repos(&self) -> Result<Self::TrackedRepos, Self::Error>;
+    /// Get the tracking information for all tracked nodes in storage.
+    fn tracked_nodes(&self) -> Result<Self::TrackedNodes, Self::Error>;
     /// Notify the service that a project has been updated, and announce local refs.
     fn announce_refs(&mut self, id: Id) -> Result<(), Self::Error>;
     /// Announce local inventory.
@@ -400,7 +413,7 @@ pub trait Handle {
     /// Ask the service to shutdown.
     fn shutdown(self) -> Result<(), Self::Error>;
     /// Query the routing table entries.
-    fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Self::Error>;
+    fn routing(&self) -> Result<Self::Routing, Self::Error>;
     /// Query the peer session state.
     fn sessions(&self) -> Result<Self::Sessions, Self::Error>;
     /// Query the inventory.
@@ -446,9 +459,15 @@ impl Node {
     }
 }
 
+// TODO(finto): tracked_repos, tracked_nodes, and routing should all
+// attempt to return iterators instead of allocating vecs.
 impl Handle for Node {
     type Sessions = ();
     type Error = Error;
+
+    type TrackedRepos = Vec<tracking::Repo>;
+    type TrackedNodes = Vec<tracking::Node>;
+    type Routing = Vec<(Id, NodeId)>;
 
     fn is_running(&self) -> bool {
         let Ok(mut lines) = self.call::<&str, CommandResult>(CommandName::Status, []) else {
@@ -484,6 +503,24 @@ impl Handle for Node {
             })??;
 
         Ok(result)
+    }
+
+    fn tracked_repos(&self) -> Result<Vec<tracking::Repo>, Self::Error> {
+        let mut repos = Vec::new();
+        for result in self.call::<&str, _>(CommandName::TrackedRepos, [])? {
+            let repo = result?;
+            repos.push(repo);
+        }
+        Ok(repos)
+    }
+
+    fn tracked_nodes(&self) -> Result<Vec<tracking::Node>, Self::Error> {
+        let mut repos = Vec::new();
+        for result in self.call::<&str, _>(CommandName::TrackedNodes, [])? {
+            let repo = result?;
+            repos.push(repo);
+        }
+        Ok(repos)
     }
 
     fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {
@@ -552,8 +589,13 @@ impl Handle for Node {
         response.into()
     }
 
-    fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Error> {
-        todo!();
+    fn routing(&self) -> Result<Self::Routing, Error> {
+        let mut routes = Vec::new();
+        for result in self.call::<&str, _>(CommandName::Routing, [])? {
+            let route = result?;
+            routes.push(route);
+        }
+        Ok(routes)
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Error> {

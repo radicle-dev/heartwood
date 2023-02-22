@@ -1,6 +1,5 @@
 #![allow(clippy::type_complexity)]
 use std::path::Path;
-use std::str::FromStr;
 use std::{fmt, io};
 
 use sqlite as sql;
@@ -9,7 +8,7 @@ use thiserror::Error;
 use crate::prelude::Id;
 use crate::service::NodeId;
 
-use super::{Alias, Policy, Scope};
+use super::{Alias, Node, Policy, Repo, Scope};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -19,63 +18,6 @@ pub enum Error {
     /// An Internal error.
     #[error("internal error: {0}")]
     Internal(#[from] sql::Error),
-}
-
-impl sqlite::BindableWithIndex for Scope {
-    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
-        let s = match self {
-            Self::Trusted => "trusted",
-            Self::DelegatesOnly => "delegates-only",
-            Self::All => "all",
-        };
-        s.bind(stmt, i)
-    }
-}
-
-impl TryFrom<&sql::Value> for Scope {
-    type Error = sql::Error;
-
-    fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
-        let message = Some("invalid remote scope".to_owned());
-
-        match value {
-            sql::Value::String(scope) => Scope::from_str(scope).map_err(|_| sql::Error {
-                code: None,
-                message,
-            }),
-            _ => Err(sql::Error {
-                code: None,
-                message,
-            }),
-        }
-    }
-}
-
-impl sqlite::BindableWithIndex for Policy {
-    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
-        match self {
-            Self::Track => "track",
-            Self::Block => "block",
-        }
-        .bind(stmt, i)
-    }
-}
-
-impl TryFrom<&sql::Value> for Policy {
-    type Error = sql::Error;
-
-    fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
-        let message = Some("sql: invalid policy".to_owned());
-
-        match value {
-            sql::Value::String(s) if s == "track" => Ok(Policy::Track),
-            sql::Value::String(s) if s == "block" => Ok(Policy::Block),
-            _ => Err(sql::Error {
-                code: None,
-                message,
-            }),
-        }
-    }
 }
 
 /// Tracking configuration.
@@ -248,7 +190,7 @@ impl Config {
     }
 
     /// Get node tracking entries.
-    pub fn node_entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, Alias, Policy)>>, Error> {
+    pub fn node_entries(&self) -> Result<Box<dyn Iterator<Item = Node>>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT id, alias, policy FROM `node-policies`")?
@@ -257,16 +199,17 @@ impl Config {
 
         while let Some(Ok(row)) = stmt.next() {
             let id = row.read("id");
-            let alias = row.read::<&str, _>("alias");
+            let alias = row.read::<&str, _>("alias").to_owned();
             let policy = row.read::<Policy, _>("policy");
 
-            entries.push((id, alias.to_owned(), policy));
+            entries.push(Node { id, alias, policy });
         }
         Ok(Box::new(entries.into_iter()))
     }
 
+    // TODO: see if sql can return iterator directly
     /// Get repository tracking entries.
-    pub fn repo_entries(&self) -> Result<Box<dyn Iterator<Item = (Id, Scope, Policy)>>, Error> {
+    pub fn repo_entries(&self) -> Result<Box<dyn Iterator<Item = Repo>>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT id, scope, policy FROM `repo-policies`")?
@@ -278,7 +221,7 @@ impl Config {
             let scope = row.read("scope");
             let policy = row.read::<Policy, _>("policy");
 
-            entries.push((id, scope, policy));
+            entries.push(Repo { id, scope, policy });
         }
         Ok(Box::new(entries.into_iter()))
     }
@@ -324,9 +267,9 @@ mod test {
             assert!(db.track_node(id, None).unwrap());
         }
         let mut entries = db.node_entries().unwrap();
-        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[0]);
-        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[1]);
-        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[2]);
+        assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[0]);
+        assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[1]);
+        assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[2]);
     }
 
     #[test]
@@ -338,9 +281,9 @@ mod test {
             assert!(db.track_repo(id, Scope::All).unwrap());
         }
         let mut entries = db.repo_entries().unwrap();
-        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[0]);
-        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[1]);
-        assert_matches!(entries.next(), Some((id, _, _)) if id == ids[2]);
+        assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[0]);
+        assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[1]);
+        assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[2]);
     }
 
     #[test]

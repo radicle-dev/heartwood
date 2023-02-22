@@ -151,6 +151,8 @@ pub enum CommandError {
     Storage(#[from] storage::Error),
     #[error(transparent)]
     Routing(#[from] routing::Error),
+    #[error(transparent)]
+    Tracking(#[from] tracking::Error),
 }
 
 #[derive(Debug)]
@@ -285,8 +287,7 @@ where
         self.filter = Filter::new(
             self.tracking
                 .repo_entries()?
-                .filter(|(_, _, policy)| *policy == tracking::Policy::Track)
-                .map(|(e, _, _)| e),
+                .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id)),
         );
         Ok(updated)
     }
@@ -376,8 +377,7 @@ where
         self.filter = Filter::new(
             self.tracking
                 .repo_entries()?
-                .filter(|(_, _, policy)| *policy == tracking::Policy::Track)
-                .map(|(e, _, _)| e),
+                .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id)),
         );
 
         Ok(())
@@ -1319,6 +1319,10 @@ pub trait ServiceState {
     fn config(&self) -> &Config;
     /// Get reference to routing table.
     fn routing(&self) -> &dyn routing::Store;
+    /// Get the tracked repos.
+    fn tracked_repos(&self) -> Result<Vec<tracking::Repo>, tracking::Error>;
+    /// Get the tracked nodes.
+    fn tracked_nodes(&self) -> Result<Vec<tracking::Node>, tracking::Error>;
 }
 
 impl<R, A, S, G> ServiceState for Service<R, A, S, G>
@@ -1353,6 +1357,14 @@ where
 
     fn routing(&self) -> &dyn routing::Store {
         &self.routing
+    }
+
+    fn tracked_repos(&self) -> Result<Vec<tracking::Repo>, tracking::Error> {
+        Ok(self.tracking.repo_entries()?.collect())
+    }
+
+    fn tracked_nodes(&self) -> Result<Vec<tracking::Node>, tracking::Error> {
+        Ok(self.tracking.node_entries()?.collect())
     }
 }
 

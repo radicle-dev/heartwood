@@ -14,6 +14,7 @@ use crate::identity::Id;
 use crate::node::{Command, FetchResult};
 use crate::profile::Home;
 use crate::service;
+use crate::service::tracking;
 use crate::service::{CommandError, QueryState};
 use crate::service::{NodeId, Sessions};
 use crate::wire;
@@ -109,6 +110,10 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
     type Sessions = Sessions;
     type Error = Error;
 
+    type Routing = chan::Receiver<(Id, NodeId)>;
+    type TrackedRepos = chan::Receiver<tracking::Repo>;
+    type TrackedNodes = chan::Receiver<tracking::Node>;
+
     fn is_running(&self) -> bool {
         true
     }
@@ -129,6 +134,40 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::Fetch(id, from, sender))?;
         receiver.recv().map_err(Error::from)
+    }
+
+    fn tracked_repos(&self) -> Result<Self::TrackedRepos, Self::Error> {
+        let (sender, receiver) = chan::unbounded();
+        let query: Arc<QueryState> = Arc::new(move |state| {
+            for t in state.tracked_repos()? {
+                if sender.send(t).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        });
+        let (err_sender, err_receiver) = chan::bounded(1);
+        self.command(service::Command::QueryState(query, err_sender))?;
+        err_receiver.recv()??;
+
+        Ok(receiver)
+    }
+
+    fn tracked_nodes(&self) -> Result<Self::TrackedNodes, Self::Error> {
+        let (sender, receiver) = chan::unbounded();
+        let query: Arc<QueryState> = Arc::new(move |state| {
+            for t in state.tracked_nodes()? {
+                if sender.send(t).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        });
+        let (err_sender, err_receiver) = chan::bounded(1);
+        self.command(service::Command::QueryState(query, err_sender))?;
+        err_receiver.recv()??;
+
+        Ok(receiver)
     }
 
     fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {
@@ -169,7 +208,7 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
         receiver.recv().map_err(Error::from)
     }
 
-    fn routing(&self) -> Result<chan::Receiver<(Id, NodeId)>, Error> {
+    fn routing(&self) -> Result<Self::Routing, Error> {
         let (sender, receiver) = chan::unbounded();
         let query: Arc<QueryState> = Arc::new(move |state| {
             for (id, node) in state.routing().entries()? {

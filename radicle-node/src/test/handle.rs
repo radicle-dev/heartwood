@@ -6,8 +6,8 @@ use crossbeam_channel as chan;
 use crate::identity::Id;
 use crate::node::{FetchResult, Seeds};
 use crate::runtime::HandleError;
-use crate::service;
 use crate::service::NodeId;
+use crate::service::{self, tracking};
 use crate::storage::RefUpdate;
 
 #[derive(Default, Clone)]
@@ -20,6 +20,9 @@ pub struct Handle {
 impl radicle::node::Handle for Handle {
     type Error = HandleError;
     type Sessions = service::Sessions;
+    type Routing = Vec<(Id, NodeId)>;
+    type TrackedRepos = Vec<tracking::Repo>;
+    type TrackedNodes = Vec<tracking::Node>;
 
     fn is_running(&self) -> bool {
         true
@@ -35,6 +38,32 @@ impl radicle::node::Handle for Handle {
 
     fn fetch(&mut self, _id: Id, _from: NodeId) -> Result<FetchResult, Self::Error> {
         Ok(FetchResult::from(Ok::<Vec<RefUpdate>, Self::Error>(vec![])))
+    }
+
+    fn tracked_repos(&self) -> Result<Self::TrackedRepos, Self::Error> {
+        Ok(self
+            .tracking_repos
+            .iter()
+            .copied()
+            .map(|id| tracking::Repo {
+                id,
+                scope: tracking::Scope::All,
+                policy: tracking::Policy::Track,
+            })
+            .collect())
+    }
+
+    fn tracked_nodes(&self) -> Result<Self::TrackedNodes, Self::Error> {
+        Ok(self
+            .tracking_nodes
+            .iter()
+            .copied()
+            .map(|id| tracking::Node {
+                id,
+                alias: "".to_string(),
+                policy: tracking::Policy::Track,
+            })
+            .collect())
     }
 
     fn track_repo(&mut self, id: Id) -> Result<bool, Self::Error> {
@@ -67,7 +96,7 @@ impl radicle::node::Handle for Handle {
         unimplemented!()
     }
 
-    fn routing(&self) -> Result<chan::Receiver<(Id, service::NodeId)>, Self::Error> {
+    fn routing(&self) -> Result<Self::Routing, Self::Error> {
         unimplemented!();
     }
 

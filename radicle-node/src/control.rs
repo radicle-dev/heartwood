@@ -126,6 +126,15 @@ fn command<H: Handle<Error = runtime::HandleError>>(
                 }
             }
         }
+        CommandName::TrackedRepos => match handle.tracked_repos() {
+            Ok(ts) => {
+                for t in ts.into_iter() {
+                    serde_json::to_writer(&mut writer, &t)?;
+                    writeln!(writer)?;
+                }
+            }
+            Err(e) => return Err(CommandError::Runtime(e)),
+        },
         CommandName::TrackNode => {
             let (node, alias) = match cmd.args.as_slice() {
                 [node] => (node.as_str(), None),
@@ -157,6 +166,15 @@ fn command<H: Handle<Error = runtime::HandleError>>(
                 }
             }
         }
+        CommandName::TrackedNodes => match handle.tracked_nodes() {
+            Ok(ts) => {
+                for t in ts.into_iter() {
+                    serde_json::to_writer(&mut writer, &t)?;
+                    writeln!(writer)?;
+                }
+            }
+            Err(e) => return Err(CommandError::Runtime(e)),
+        },
         CommandName::AnnounceRefs => {
             let rid: Id = parse::arg(cmd)?;
 
@@ -184,8 +202,8 @@ fn command<H: Handle<Error = runtime::HandleError>>(
         }
         CommandName::Routing => match handle.routing() {
             Ok(c) => {
-                for (id, seed) in c.iter() {
-                    writeln!(writer, "{id} {seed}")?;
+                for route in c.into_iter() {
+                    serde_json::to_writer(&mut writer, &route)?;
                 }
             }
             Err(e) => return Err(CommandError::Runtime(e)),
