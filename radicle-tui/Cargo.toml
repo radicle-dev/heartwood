@@ -16,6 +16,14 @@ lexopt = { version = "0.2" }
 tuirealm = { version = "1.8.0", default-features = false, features = [ "with-termion" ] }
 tui-realm-stdlib = { version = "1.2.0", default-features = false, features = [ "with-termion" ] }
 
+[dependencies.radicle]
+version = "0"
+path = "../radicle"
+
+[dependencies.radicle-cli]
+version = "0"
+path = "../radicle-cli"
+
 [dependencies.radicle-term]
 version = "0"
 path = "../radicle-term"

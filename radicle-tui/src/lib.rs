@@ -7,7 +7,7 @@ use tuirealm::terminal::TerminalBridge;
 use tuirealm::Frame;
 use tuirealm::{Application, EventListenerCfg, NoUserEvent};
 
-mod ui;
+pub mod ui;
 
 /// Trait that must be implemented by client applications in order to be run
 /// as tui-application using tui-realm. Implementors act as models to the

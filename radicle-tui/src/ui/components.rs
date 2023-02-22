@@ -6,6 +6,9 @@ use tuirealm::{Frame, MockComponent, State, StateValue};
 use super::layout;
 use super::widget::{Widget, WidgetComponent};
 
+/// Some user events need to be handled globally (e.g. user presses key `q` to quit
+/// the application). This component can be used in conjunction with SubEventClause
+/// to handle those events.
 #[derive(Default)]
 pub struct GlobalListener {}
 

@@ -2133,6 +2133,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "lexopt",
+ "radicle",
+ "radicle-cli",
  "radicle-term",
  "tui-realm-stdlib",
  "tuirealm",
