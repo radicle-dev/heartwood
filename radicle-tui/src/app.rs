@@ -9,7 +9,7 @@ use tuirealm::tui::layout::{Constraint, Direction, Layout};
 use tuirealm::{Application, Component, Frame, NoUserEvent, Sub, SubClause, SubEventClause};
 
 use radicle_tui::ui;
-use radicle_tui::ui::components::{GlobalListener, ShortcutBar};
+use radicle_tui::ui::components::{GlobalListener, LabeledContainer, PropertyList, ShortcutBar};
 use radicle_tui::ui::theme;
 use radicle_tui::ui::widget::Widget;
 
@@ -33,6 +33,7 @@ pub enum Message {
 /// All components known to this application.
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum ComponentId {
+    Workspaces,
     ShortcutBar,
     GlobalListener,
 }
@@ -52,6 +53,25 @@ impl App {
 impl Tui<ComponentId, Message> for App {
     fn init(&mut self, app: &mut Application<ComponentId, Message, NoUserEvent>) -> Result<()> {
         let theme = theme::default_dark();
+
+        app.mount(
+            ComponentId::Workspaces,
+            ui::labeled_container(
+                &theme,
+                "about",
+                ui::property_list(
+                    &theme,
+                    vec![
+                        ui::property(&theme, "id", &self.id.to_string()),
+                        ui::property(&theme, "name", self.project.name()),
+                        ui::property(&theme, "description", self.project.description()),
+                    ],
+                )
+                .to_boxed(),
+            )
+            .to_boxed(),
+            vec![],
+        )?;
 
         app.mount(
             ComponentId::ShortcutBar,
@@ -114,6 +134,7 @@ impl Tui<ComponentId, Message> for App {
             )
             .split(area);
 
+        app.view(&ComponentId::Workspaces, frame, layout[0]);
         app.view(&ComponentId::ShortcutBar, frame, layout[1]);
     }
 
@@ -144,6 +165,18 @@ impl Component<Message, NoUserEvent> for Widget<GlobalListener> {
             }) => Some(Message::Quit),
             _ => None,
         }
+    }
+}
+
+impl Component<Message, NoUserEvent> for Widget<LabeledContainer> {
+    fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
+        None
+    }
+}
+
+impl Component<Message, NoUserEvent> for Widget<PropertyList> {
+    fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
+        None
     }
 }
 

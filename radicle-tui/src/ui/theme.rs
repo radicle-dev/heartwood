@@ -3,6 +3,7 @@ use tuirealm::props::Color;
 #[derive(Debug)]
 pub struct Colors {
     pub default_fg: Color,
+    pub labeled_container_bg: Color,
     pub property_name_fg: Color,
     pub property_divider_fg: Color,
     pub shortcut_short_fg: Color,
@@ -43,6 +44,7 @@ pub fn default_dark() -> Theme {
         name: String::from("Radicle Dark"),
         colors: Colors {
             default_fg: Color::Rgb(200, 200, 200),
+            labeled_container_bg: Color::Rgb(20, 20, 20),
             property_name_fg: Color::Rgb(85, 85, 255),
             property_divider_fg: Color::Rgb(10, 206, 209),
             shortcut_short_fg: Color::Rgb(100, 100, 100),

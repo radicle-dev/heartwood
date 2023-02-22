@@ -6,7 +6,10 @@ pub mod widget;
 use tuirealm::props::Attribute;
 use tuirealm::{MockComponent, StateValue};
 
-use components::{GlobalListener, Label, Property, PropertyList, Shortcut, ShortcutBar};
+use components::{
+    ContainerHeader, GlobalListener, Label, LabeledContainer, Property, PropertyList, Shortcut,
+    ShortcutBar,
+};
 use widget::Widget;
 
 pub fn global_listener() -> Widget<GlobalListener> {
@@ -19,6 +22,21 @@ pub fn label(content: &str) -> Widget<Label> {
     let label = Label::new(StateValue::String(content.to_owned()));
 
     Widget::new(label).height(1).width(width)
+}
+
+pub fn labeled_container(
+    theme: &theme::Theme,
+    title: &str,
+    component: Box<dyn MockComponent>,
+) -> Widget<LabeledContainer> {
+    let title = label(&format!(" {} ", title))
+        .foreground(theme.colors.default_fg)
+        .background(theme.colors.labeled_container_bg);
+    let spacer = label("");
+    let header = Widget::new(ContainerHeader::new(title, spacer));
+    let container = LabeledContainer::new(header, component);
+
+    Widget::new(container).background(theme.colors.labeled_container_bg)
 }
 
 pub fn shortcut(theme: &theme::Theme, short: &str, long: &str) -> Widget<Shortcut> {

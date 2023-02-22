@@ -1,8 +1,9 @@
 use tui_realm_stdlib::Phantom;
 
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::{AttrValue, Attribute, Color, Props};
-use tuirealm::tui::layout::Rect;
+use tuirealm::props::{AttrValue, Attribute, Color, Props, Style};
+use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
+use tuirealm::tui::widgets::Block;
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use super::layout;
@@ -57,15 +58,20 @@ impl WidgetComponent for Label {
         let foreground = properties
             .get_or(Attribute::Foreground, AttrValue::Color(Color::Reset))
             .unwrap_color();
+        let background = properties
+            .get_or(Attribute::Background, AttrValue::Color(Color::Reset))
+            .unwrap_color();
 
         if display {
             let mut label = match properties.get(Attribute::TextProps) {
                 Some(modifiers) => Label::default()
                     .foreground(foreground)
+                    .background(background)
                     .modifiers(modifiers.unwrap_text_modifiers())
                     .text(self.content.clone().unwrap_string()),
                 None => Label::default()
                     .foreground(foreground)
+                    .background(background)
                     .text(self.content.clone().unwrap_string()),
             };
 
@@ -79,6 +85,102 @@ impl WidgetComponent for Label {
 
     fn perform(&mut self, _cmd: Cmd) -> CmdResult {
         CmdResult::None
+    }
+}
+
+/// A labeled container header.
+#[derive(Clone)]
+pub struct ContainerHeader {
+    content: Widget<Label>,
+    spacer: Widget<Label>,
+}
+
+impl ContainerHeader {
+    pub fn new(content: Widget<Label>, spacer: Widget<Label>) -> Self {
+        Self { content, spacer }
+    }
+}
+
+impl WidgetComponent for ContainerHeader {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+
+        if display {
+            let labels: Vec<Box<dyn MockComponent>> = vec![
+                self.content.clone().to_boxed(),
+                self.spacer.clone().to_boxed(),
+            ];
+
+            let layout = layout::h_stack(labels, area);
+            for (mut shortcut, area) in layout {
+                shortcut.view(frame, area);
+            }
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _cmd: Cmd) -> CmdResult {
+        CmdResult::None
+    }
+}
+
+pub struct LabeledContainer {
+    header: Widget<ContainerHeader>,
+    component: Box<dyn MockComponent>,
+}
+
+impl LabeledContainer {
+    pub fn new(header: Widget<ContainerHeader>, component: Box<dyn MockComponent>) -> Self {
+        Self { header, component }
+    }
+}
+
+impl WidgetComponent for LabeledContainer {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+        let background = properties
+            .get_or(Attribute::Background, AttrValue::Color(Color::Reset))
+            .unwrap_color();
+        let header_height = self
+            .header
+            .query(Attribute::Height)
+            .unwrap_or(AttrValue::Size(1))
+            .unwrap_size();
+
+        if display {
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(header_height), Constraint::Length(0)].as_ref())
+                .split(area);
+
+            self.header.view(frame, layout[0]);
+
+            // Make some space on the left
+            let inner_layout = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(vec![Constraint::Length(1), Constraint::Min(0)].as_ref())
+                .split(layout[1]);
+            // reverse draw order: child needs to be drawn first?
+            self.component.view(frame, inner_layout[1]);
+
+            let block = Block::default().style(Style::default().bg(background));
+            frame.render_widget(block, layout[1]);
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, cmd: Cmd) -> CmdResult {
+        self.component.perform(cmd)
     }
 }
 
@@ -226,6 +328,8 @@ impl WidgetComponent for Property {
 }
 
 /// A component that can display lists of labeled properties
+#[derive(Default)]
+#[allow(clippy::vec_box)]
 pub struct PropertyList {
     properties: Vec<Widget<Property>>,
 }
