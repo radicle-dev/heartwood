@@ -1,7 +1,5 @@
 use tuirealm::props::{AttrValue, Attribute};
-use tuirealm::tui::layout::Rect;
-
-use tuirealm::tui::layout::{Constraint, Direction, Layout};
+use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::MockComponent;
 
 pub fn v_stack(
