@@ -28,6 +28,8 @@ pub mod rad_issue;
 pub mod rad_ls;
 #[path = "commands/merge.rs"]
 pub mod rad_merge;
+#[path = "commands/node.rs"]
+pub mod rad_node;
 #[path = "commands/patch.rs"]
 pub mod rad_patch;
 #[path = "commands/path.rs"]

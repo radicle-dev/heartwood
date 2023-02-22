@@ -222,6 +222,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "node" => {
+            term::run_command_args::<rad_node::Options, _>(
+                rad_node::HELP,
+                "Node",
+                rad_node::run,
+                args.to_vec(),
+            );
+        }
         "patch" => {
             term::run_command_args::<rad_patch::Options, _>(
                 rad_patch::HELP,

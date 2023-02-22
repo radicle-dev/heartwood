@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use radicle::crypto;
+use radicle::node::Address;
 use radicle::prelude::{Did, Id, NodeId};
 
 #[derive(thiserror::Error, Debug)]
@@ -94,4 +95,9 @@ pub fn nid(val: &OsString) -> anyhow::Result<NodeId> {
 pub fn rid(val: &OsString) -> anyhow::Result<Id> {
     let val = val.to_string_lossy();
     Id::from_str(&val).map_err(|_| anyhow!("invalid Repository ID '{}'", val))
+}
+
+pub fn addr(val: &OsString) -> anyhow::Result<Address> {
+    let val = val.to_string_lossy();
+    Address::from_str(&val).map_err(|_| anyhow!("invalid address '{}'", val))
 }
