@@ -212,6 +212,37 @@ fn rad_id_rebase() {
 }
 
 #[test]
+fn rad_node() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let working = tempfile::tempdir().unwrap();
+
+    let alice = alice.spawn(Config::default());
+    let _bob = bob.spawn(Config::default());
+
+    fixtures::repository(working.path().join("alice"));
+
+    test(
+        "examples/rad-init-sync.md",
+        &working.path().join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    test(
+        "examples/rad-node.md",
+        working.path().join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 #[ignore]
 fn rad_patch() {
     let mut environment = Environment::new();
