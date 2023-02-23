@@ -20,7 +20,6 @@ multibase = { version = "0.9.1" }
 log = { version = "0.4.17", features = ["std"] }
 nonempty = { version = "0.8.1", features = ["serialize"] }
 once_cell = { version = "1.13" }
-olpc-cjson = { version = "0.1.1" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 siphasher = { version = "0.3.10" }
@@ -28,6 +27,7 @@ radicle-git-ext = { version = "0", features = ["serde"] }
 sqlite = { version = "0.30.3", optional = true }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
+unicode-normalization = { version = "0.1" }
 
 [dependencies.git2]
 version = "0.16.1"

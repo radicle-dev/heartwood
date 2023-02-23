@@ -8,6 +8,7 @@ pub extern crate radicle_crypto as crypto;
 #[macro_use]
 extern crate amplify;
 
+mod canonical;
 pub mod cob;
 pub mod collections;
 pub mod git;

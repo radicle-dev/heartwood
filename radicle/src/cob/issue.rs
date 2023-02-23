@@ -826,4 +826,32 @@ mod test {
         issues.iter().find(|i| i.title() == "Second").unwrap();
         issues.iter().find(|i| i.title() == "Third").unwrap();
     }
+
+    #[test]
+    fn test_issue_multilines() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let created = issues
+            .create(
+                "My first issue",
+                "Blah blah blah.\nYah yah yah",
+                &[],
+                &[],
+                &signer,
+            )
+            .unwrap();
+
+        assert_eq!(created.clock().get(), 4);
+
+        let (id, created) = (created.id, created.issue);
+        let issue = issues.get(&id).unwrap().unwrap();
+
+        assert_eq!(created, issue);
+        assert_eq!(issue.title(), "My first issue");
+        assert_eq!(issue.author(), issues.author());
+        assert_eq!(issue.description(), Some("Blah blah blah.\nYah yah yah"));
+        assert_eq!(issue.comments().count(), 1);
+        assert_eq!(issue.state(), &State::Open);
+    }
 }

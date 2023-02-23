@@ -320,11 +320,13 @@ impl<T: FromHistory> Transaction<T> {
 pub mod encoding {
     use serde::Serialize;
 
+    use crate::canonical::formatter::CanonicalFormatter;
+
     /// Serialize the change into a byte string.
     pub fn encode<T: Serialize>(obj: &T) -> Result<Vec<u8>, serde_json::Error> {
         let mut buf = Vec::new();
         let mut serializer =
-            serde_json::Serializer::with_formatter(&mut buf, olpc_cjson::CanonicalFormatter::new());
+            serde_json::Serializer::with_formatter(&mut buf, CanonicalFormatter::new());
 
         obj.serialize(&mut serializer)?;
 

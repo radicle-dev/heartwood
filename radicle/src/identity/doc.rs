@@ -13,6 +13,7 @@ use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::canonical::formatter::CanonicalFormatter;
 use crate::crypto;
 use crate::crypto::{Signature, Unverified, Verified};
 use crate::git;
@@ -160,7 +161,7 @@ impl Doc<Verified> {
     pub fn encode(&self) -> Result<(git::Oid, Vec<u8>), DocError> {
         let mut buf = Vec::new();
         let mut serializer =
-            serde_json::Serializer::with_formatter(&mut buf, olpc_cjson::CanonicalFormatter::new());
+            serde_json::Serializer::with_formatter(&mut buf, CanonicalFormatter::new());
 
         self.serialize(&mut serializer)?;
         let oid = git2::Oid::hash_object(git2::ObjectType::Blob, &buf)?;

@@ -1564,17 +1564,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
-name = "olpc-cjson"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87dc75cf72208cd853671c1abccc5d5d1e43b1e378dde67340ef933219a8c13c"
-dependencies = [
- "serde",
- "serde_json",
- "unicode-normalization",
-]
-
-[[package]]
 name = "once_cell"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1820,7 +1809,6 @@ dependencies = [
  "log",
  "multibase",
  "nonempty 0.8.1",
- "olpc-cjson",
  "once_cell",
  "pretty_assertions",
  "qcheck",
@@ -1836,6 +1824,7 @@ dependencies = [
  "sqlite",
  "tempfile",
  "thiserror",
+ "unicode-normalization",
 ]
 
 [[package]]
