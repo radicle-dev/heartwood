@@ -31,6 +31,10 @@ pub enum Error {
     /// HeaderValue error.
     #[error(transparent)]
     InvalidHeaderValue(#[from] axum::http::header::InvalidHeaderValue),
+
+    /// Surf error.
+    #[error(transparent)]
+    Surf(#[from] radicle_surf::Error),
 }
 
 impl Error {

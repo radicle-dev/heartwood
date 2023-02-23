@@ -8,11 +8,11 @@ use radicle::cob::patch::Patches;
 use radicle::identity::Did;
 use radicle::storage::{ReadRepository, ReadStorage};
 
-use crate::api::axum_extra::{Path, Query};
 use crate::api::error::Error;
 use crate::api::project::Info;
 use crate::api::Context;
 use crate::api::PaginationQuery;
+use crate::axum_extra::{Path, Query};
 
 pub fn router(ctx: Context) -> Router {
     Router::new()

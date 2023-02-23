@@ -11,10 +11,10 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
 use crate::api::auth::{self, AuthState, Session};
-use crate::api::axum_extra::Path;
 use crate::api::error::Error;
 use crate::api::json;
 use crate::api::Context;
+use crate::axum_extra::Path;
 
 pub fn router(ctx: Context) -> Router {
     Router::new()

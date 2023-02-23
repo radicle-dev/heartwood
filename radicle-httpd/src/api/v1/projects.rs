@@ -17,13 +17,14 @@ use radicle::cob::patch::Patches;
 use radicle::cob::{thread, ActorId, Tag};
 use radicle::identity::Id;
 use radicle::node::NodeId;
-use radicle::storage::{git::paths, ReadRepository, ReadStorage};
+use radicle::storage::git::paths;
+use radicle::storage::{ReadRepository, ReadStorage};
 use radicle_surf::{Glob, Oid, Repository};
 
-use crate::api::axum_extra::{Path, Query};
 use crate::api::error::Error;
 use crate::api::project::Info;
 use crate::api::{self, Context, PaginationQuery};
+use crate::axum_extra::{Path, Query};
 
 const CACHE_1_HOUR: &str = "public, max-age=3600, must-revalidate";
 

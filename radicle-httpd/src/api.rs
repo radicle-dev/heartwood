@@ -21,7 +21,6 @@ use radicle::identity::Id;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::Profile;
 
-mod axum_extra;
 mod error;
 mod json;
 mod v1;
