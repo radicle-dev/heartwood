@@ -108,6 +108,8 @@ pub enum Error {
     Timeout,
     #[error("handshake error")]
     Handshake(String),
+    #[error("failed to inspect remotes for fetch: {0}")]
+    Remotes(#[from] storage::refs::Error),
 }
 
 /// A peer session. Each connected peer will have one session.

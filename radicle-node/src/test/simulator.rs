@@ -679,6 +679,7 @@ fn fetch<W: WriteRepository>(
     let namespace = match namespaces.into() {
         Namespaces::All => None,
         Namespaces::One(ns) => Some(ns),
+        Namespaces::Many(ns) => Some(ns.head),
     };
     let mut updates = Vec::new();
     let mut callbacks = git::RemoteCallbacks::new();

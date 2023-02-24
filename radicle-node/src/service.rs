@@ -1072,6 +1072,7 @@ where
                         return Ok(());
                     }
                 }
+
                 // Accept the request and instruct the transport to handover the socket to the worker.
                 self.reactor.write(peer, Message::FetchOk { rid });
                 self.reactor.fetch(peer, rid, FetchDirection::Responder);
@@ -1092,14 +1093,16 @@ where
                 }
                 debug!(target: "service", "Fetch accepted for {rid} from {remote}..");
 
+                let namespaces = if let Ok(_repo) = self.storage.repository(rid) {
+                    // FIXME(finto): using remotes breaks test_gossip_during_fetch, so we use default for now
+                    Namespaces::default()
+                } else {
+                    Namespaces::default()
+                };
+
                 // Instruct the transport to handover the socket to the worker.
-                self.reactor.fetch(
-                    peer,
-                    rid,
-                    FetchDirection::Initiator {
-                        namespaces: Namespaces::default(),
-                    },
-                );
+                self.reactor
+                    .fetch(peer, rid, FetchDirection::Initiator { namespaces });
             }
             (session::State::Connecting { .. }, msg) => {
                 error!(target: "service", "Received {:?} from connecting peer {}", msg, peer.id);
@@ -1198,6 +1201,21 @@ where
                 // SAFETY: `REF_REMOTE_LIMIT` is greater than 1, thus the bounded vec can hold at least
                 // one remote.
                 .unwrap(),
+            Namespaces::Many(pks) => {
+                for remote_id in pks.into_iter() {
+                    if refs
+                        .push((*remote_id, repo.remote(&remote_id)?.refs.unverified()))
+                        .is_err()
+                    {
+                        warn!(
+                            target: "service",
+                            "refs announcement limit ({}) exceeded, peers will see only some of your repository references",
+                            REF_REMOTE_LIMIT,
+                        );
+                        break;
+                    }
+                }
+            }
         }
 
         let msg = AnnouncementMessage::from(RefsAnnouncement {

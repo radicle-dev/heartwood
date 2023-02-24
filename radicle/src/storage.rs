@@ -36,13 +36,35 @@ pub enum Namespaces {
     All,
     /// A single namespace, by public key.
     One(PublicKey),
+    /// Many namespaces, by public keys.
+    Many(NonEmpty<PublicKey>),
 }
 
 impl Namespaces {
-    pub fn as_fetchspec(&self) -> String {
+    pub fn remotes<R>(repo: &R) -> Result<Option<Self>, refs::Error>
+    where
+        R: ReadRepository,
+    {
+        Ok(NonEmpty::collect(repo.remotes()?.keys().copied()).map(Self::Many))
+    }
+
+    pub fn delegates<R>(repo: &R) -> Result<Self, IdentityError>
+    where
+        R: ReadRepository,
+    {
+        Ok(Self::Many(repo.delegates()?.map(PublicKey::from)))
+    }
+
+    pub fn as_fetchspecs(&self) -> Vec<String> {
         match self {
-            Self::All => String::from("refs/namespaces/*:refs/namespaces/*"),
-            Self::One(pk) => format!("refs/namespaces/{pk}/refs/*:refs/namespaces/{pk}/refs/*"),
+            Self::All => vec![String::from("refs/namespaces/*:refs/namespaces/*")],
+            Self::One(pk) => vec![format!(
+                "refs/namespaces/{pk}/refs/*:refs/namespaces/{pk}/refs/*"
+            )],
+            Self::Many(pks) => pks
+                .iter()
+                .map(|pk| format!("refs/namespaces/{pk}/refs/*:refs/namespaces/{pk}/refs/*"))
+                .collect(),
         }
     }
 }
@@ -50,6 +72,12 @@ impl Namespaces {
 impl From<PublicKey> for Namespaces {
     fn from(pk: PublicKey) -> Self {
         Self::One(pk)
+    }
+}
+
+impl From<NonEmpty<PublicKey>> for Namespaces {
+    fn from(pks: NonEmpty<PublicKey>) -> Self {
+        Self::Many(pks)
     }
 }
 

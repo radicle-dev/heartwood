@@ -7,7 +7,7 @@ use cyphernet::Ecdh;
 use netservices::tunnel::Tunnel;
 use netservices::{NetSession, SplitIo};
 
-use radicle::crypto::Signer;
+use radicle::crypto::{PublicKey, Signer};
 use radicle::identity::{Id, IdentityError};
 use radicle::storage::{Namespaces, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 use radicle::{git, Storage};
@@ -37,6 +37,8 @@ pub struct Config {
 /// Error returned by fetch.
 #[derive(thiserror::Error, Debug)]
 pub enum FetchError {
+    #[error("the 'git fetch' command failed with exit code '{code}'")]
+    CommandFailed { code: i32 },
     #[error(transparent)]
     Git(#[from] git::raw::Error),
     #[error(transparent)]
@@ -73,6 +75,7 @@ pub struct TaskResult<G: Signer + Ecdh> {
 
 /// A worker that replicates git objects.
 struct Worker<G: Signer + Ecdh> {
+    local: PublicKey,
     storage: Storage,
     tasks: chan::Receiver<Task<G>>,
     daemon: net::SocketAddr,
@@ -197,15 +200,22 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
                 // a state we can't roll back.
                 cmd.arg("--prune");
             }
+            Namespaces::Many(_) => {
+                // Same case as All
+            }
         }
 
         if self.atomic {
             // Enable atomic fetch. Only works with Git 2.31 and later.
             cmd.arg("--atomic");
         }
+
+        // Ignore our own remote when fetching
+        let mut fetchspecs = namespaces.as_fetchspecs();
+        fetchspecs.push(format!("^refs/namespaces/{}/*", self.local));
+
         cmd.arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()))
-            // FIXME: We need to omit our own namespace from this refspec in case we're fetching '*'.
-            .arg(namespaces.as_fetchspec())
+            .args(&fetchspecs)
             .stdout(process::Stdio::piped())
             .stderr(process::Stdio::piped())
             .stdin(process::Stdio::piped());
@@ -224,16 +234,18 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
         let _ = tunnel.tunnel_once(popol::Poller::new(), self.timeout)?;
 
         // TODO: Parse fetch output to return updates.
-        if child.wait()?.success() {
+        let result = child.wait()?;
+        if result.success() {
             log::debug!(target: "worker", "Fetch for {} exited successfully", rid);
+            let head = repo.set_head()?;
+            log::debug!(target: "worker", "Head for {} set to {head}", rid);
+            Ok(vec![])
         } else {
             log::error!(target: "worker", "Fetch for {} failed", rid);
+            Err(FetchError::CommandFailed {
+                code: result.code().unwrap_or(1),
+            })
         }
-        let head = repo.set_head()?;
-
-        log::debug!(target: "worker", "Head for {} set to {head}", rid);
-
-        Ok(vec![])
     }
 
     fn upload_pack(
@@ -314,6 +326,7 @@ pub struct Pool {
 impl Pool {
     /// Create a new worker pool with the given parameters.
     pub fn with<G: Signer + Ecdh + 'static>(
+        local: PublicKey,
         tasks: chan::Receiver<Task<G>>,
         handle: Handle<G>,
         config: Config,
@@ -321,6 +334,7 @@ impl Pool {
         let mut pool = Vec::with_capacity(config.capacity);
         for _ in 0..config.capacity {
             let worker = Worker {
+                local,
                 tasks: tasks.clone(),
                 handle: handle.clone(),
                 storage: config.storage.clone(),
