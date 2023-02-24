@@ -51,8 +51,8 @@ impl Context {
         let doc = repo.identity_of(self.profile.id())?;
         let payload = doc.project()?;
         let delegates = doc.delegates;
-        let issues = (Issues::open(self.profile.public_key, &repo)?).count()?;
-        let patches = (Patches::open(self.profile.public_key, &repo)?).count()?;
+        let issues = Issues::open(self.profile.public_key, &repo)?.counts()?;
+        let patches = Patches::open(self.profile.public_key, &repo)?.counts()?;
 
         Ok(project::Info {
             payload,
@@ -143,6 +143,7 @@ mod project {
     use nonempty::NonEmpty;
     use serde::Serialize;
 
+    use radicle::cob;
     use radicle::git::Oid;
     use radicle::identity::project::Project;
     use radicle::identity::Id;
@@ -157,8 +158,8 @@ mod project {
         pub payload: Project,
         pub delegates: NonEmpty<Did>,
         pub head: Oid,
-        pub patches: usize,
-        pub issues: usize,
+        pub patches: cob::patch::PatchCounts,
+        pub issues: cob::issue::IssueCounts,
         pub id: Id,
     }
 }

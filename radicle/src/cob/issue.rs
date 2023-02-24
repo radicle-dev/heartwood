@@ -385,6 +385,14 @@ impl<'a> Deref for Issues<'a> {
     }
 }
 
+/// Detailed information on issue states
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueCounts {
+    pub open: usize,
+    pub closed: usize,
+}
+
 impl<'a> Issues<'a> {
     /// Open an issues store.
     pub fn open(
@@ -441,6 +449,22 @@ impl<'a> Issues<'a> {
             issue,
             store: self,
         })
+    }
+
+    /// Issues count by state.
+    pub fn counts(&self) -> Result<IssueCounts, Error> {
+        let all = self.all()?;
+        let state_groups =
+            all.filter_map(|s| s.ok())
+                .fold(IssueCounts::default(), |mut state, (_, p, _)| {
+                    match p.state() {
+                        State::Open => state.open += 1,
+                        State::Closed { .. } => state.closed += 1,
+                    }
+                    state
+                });
+
+        Ok(state_groups)
     }
 
     /// Remove an issue.

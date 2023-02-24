@@ -758,6 +758,15 @@ impl<'a, 'g> Deref for PatchMut<'a, 'g> {
     }
 }
 
+/// Detailed information on patch states
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PatchCounts {
+    pub proposed: usize,
+    pub draft: usize,
+    pub archived: usize,
+}
+
 pub struct Patches<'a> {
     raw: store::Store<'a, Patch>,
 }
@@ -802,6 +811,23 @@ impl<'a> Patches<'a> {
         debug_assert_eq!(clock.get(), 3);
 
         Ok(PatchMut::new(id, patch, clock, self))
+    }
+
+    /// Patches count by state.
+    pub fn counts(&self) -> Result<PatchCounts, store::Error> {
+        let all = self.all()?;
+        let state_groups =
+            all.filter_map(|s| s.ok())
+                .fold(PatchCounts::default(), |mut state, (_, p, _)| {
+                    match p.state() {
+                        State::Draft => state.draft += 1,
+                        State::Proposed => state.proposed += 1,
+                        State::Archived => state.archived += 1,
+                    }
+                    state
+                });
+
+        Ok(state_groups)
     }
 
     /// Get a patch.

@@ -49,9 +49,9 @@ async fn delegates_projects_handler(
             }
 
             let Ok(issues) = Issues::open(ctx.profile.public_key, &repo) else { return None };
-            let Ok(issues) = (*issues).count() else { return None };
+            let Ok(issues) = issues.counts() else { return None };
             let Ok(patches) = Patches::open(ctx.profile.public_key, &repo) else { return None };
-            let Ok(patches) = (*patches).count() else { return None };
+            let Ok(patches) = patches.counts() else { return None };
 
             Some(Info {
                 payload,
@@ -96,8 +96,15 @@ mod routes {
                 "defaultBranch": "master",
                 "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
                 "head": HEAD,
-                "patches": 1,
-                "issues": 1,
+                "patches": {
+                  "proposed": 1,
+                  "draft": 0,
+                  "archived": 0,
+                },
+                "issues": {
+                  "open": 1,
+                  "closed": 0,
+                },
                 "id": "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp"
               }
             ])
