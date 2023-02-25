@@ -5,6 +5,7 @@ use std::ops::{Deref, DerefMut};
 
 use crossbeam_channel as chan;
 use log::*;
+use radicle::storage::ReadRepository;
 
 use crate::address;
 use crate::address::Store;
@@ -250,7 +251,20 @@ where
     }
 
     pub fn refs_announcement(&self, rid: Id) -> Message {
-        let refs = BoundedVec::new();
+        let mut refs = BoundedVec::new();
+        if let Ok(repo) = self.storage().repository(rid) {
+            if let Ok(false) = repo.is_empty() {
+                if let Ok(remotes) = repo.remotes() {
+                    for (remote_id, remote) in remotes.into_iter() {
+                        if let Err(e) = refs.push((remote_id, remote.refs.unverified())) {
+                            debug!(target: "test", "Failed to push {remote_id} to refs: {e}");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         let ann = AnnouncementMessage::from(RefsAnnouncement {
             rid,
             refs,

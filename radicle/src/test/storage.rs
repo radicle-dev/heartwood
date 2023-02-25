@@ -8,6 +8,7 @@ use radicle_git_ext as git_ext;
 use crate::crypto::{Signer, Verified};
 use crate::identity::doc::{Doc, Id};
 use crate::identity::IdentityError;
+use crate::node::NodeId;
 
 pub use crate::storage::*;
 
@@ -15,6 +16,10 @@ pub use crate::storage::*;
 pub struct MockStorage {
     pub path: PathBuf,
     pub inventory: HashMap<Id, Doc<Verified>>,
+
+    /// All refs keyed by RID.
+    /// Each value is a map of refs keyed by node Id (public key).
+    pub remotes: HashMap<Id, HashMap<NodeId, refs::SignedRefs<Verified>>>,
 }
 
 impl MockStorage {
@@ -22,6 +27,7 @@ impl MockStorage {
         Self {
             path: PathBuf::default(),
             inventory: inventory.into_iter().collect(),
+            remotes: HashMap::new(),
         }
     }
 
@@ -29,7 +35,21 @@ impl MockStorage {
         Self {
             path: PathBuf::default(),
             inventory: HashMap::new(),
+            remotes: HashMap::new(),
         }
+    }
+
+    /// Add a remote `node` with `signed_refs` for the repo `rid`.
+    pub fn insert_remote(
+        &mut self,
+        rid: Id,
+        node: NodeId,
+        signed_refs: refs::SignedRefs<Verified>,
+    ) {
+        self.remotes
+            .entry(rid)
+            .or_insert(HashMap::new())
+            .insert(node, signed_refs);
     }
 }
 
@@ -64,6 +84,7 @@ impl ReadStorage for MockStorage {
         Ok(MockRepository {
             id: rid,
             doc: doc.clone(),
+            remotes: self.remotes.get(&rid).cloned().unwrap_or_default(),
         })
     }
 }
@@ -76,6 +97,7 @@ impl WriteStorage for MockStorage {
         Ok(MockRepository {
             id: rid,
             doc: doc.clone(),
+            remotes: self.remotes.get(&rid).cloned().unwrap_or_default(),
         })
     }
 
@@ -84,9 +106,11 @@ impl WriteStorage for MockStorage {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct MockRepository {
     id: Id,
     doc: Doc<Verified>,
+    remotes: HashMap<NodeId, refs::SignedRefs<Verified>>,
 }
 
 impl ReadRepository for MockRepository {
@@ -95,7 +119,7 @@ impl ReadRepository for MockRepository {
     }
 
     fn is_empty(&self) -> Result<bool, git2::Error> {
-        Ok(true)
+        Ok(self.remotes.is_empty())
     }
 
     fn head(&self) -> Result<(fmt::Qualified, Oid), IdentityError> {
@@ -114,12 +138,19 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn remote(&self, _remote: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
-        todo!()
+    fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
+        self.remotes
+            .get(remote)
+            .map(|refs| Remote::new(*remote, refs.clone()))
+            .ok_or(refs::Error::InvalidRef)
     }
 
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
-        todo!()
+        Ok(self
+            .remotes
+            .iter()
+            .map(|(id, refs)| (*id, Remote::new(*id, refs.clone())))
+            .collect())
     }
 
     fn commit(&self, _oid: Oid) -> Result<git2::Commit, git_ext::Error> {

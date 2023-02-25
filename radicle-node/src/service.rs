@@ -50,6 +50,7 @@ pub use crate::service::session::Session;
 use self::gossip::Gossip;
 use self::message::InventoryAnnouncement;
 use self::reactor::Reactor;
+use self::tracking::NamespacesError;
 
 /// Target number of peers to maintain connections to.
 pub const TARGET_OUTBOUND_PEERS: usize = 8;
@@ -102,6 +103,8 @@ pub enum Error {
     Routing(#[from] routing::Error),
     #[error(transparent)]
     Tracking(#[from] tracking::Error),
+    #[error("namespaces error: {0}")]
+    Namespaces(#[from] NamespacesError),
 }
 
 /// Function used to query internal service state.
@@ -871,27 +874,29 @@ where
                 }
 
                 // TODO: Buffer/throttle fetches.
-                if self
-                    .tracking
-                    .is_repo_tracked(&message.rid)
-                    .expect("Service::handle_announcement: error accessing tracking configuration")
-                {
+                let repo_entry = self.tracking.repo_policy(&message.rid).expect(
+                    "Service::handle_announcement: error accessing repo tracking configuration",
+                );
+
+                if repo_entry.policy == tracking::Policy::Track {
                     // Refs can be relayed by peers who don't have the data in storage,
                     // therefore we only check whether we are connected to the *announcer*,
                     // which is required by the protocol to only announce refs it has.
                     if self.sessions.is_connected(announcer) {
-                        match message.is_fresh(&self.storage) {
-                            Ok(is_fresh) => {
-                                if is_fresh {
-                                    // TODO: Only fetch if the refs announced are for peers we're tracking.
-                                    self.fetch(message.rid, announcer);
-                                }
+                        match self.should_fetch_refs_announcement(message, &repo_entry.scope) {
+                            Ok(true) => self.fetch(message.rid, announcer),
+                            Ok(false) => {
+                                debug!(target: "service", "Skip fetch the refs from {announcer}")
                             }
                             Err(e) => {
-                                error!(target: "service", "Failed to check ref announcement freshness: {e}");
+                                error!(target: "service", "Failed to check refs announcement: {e}");
+                                return Err(session::Error::Misbehavior);
                             }
                         }
+                    } else {
+                        debug!(target: "service", "No sessions connected to {announcer}");
                     }
+
                     return Ok(relay);
                 } else {
                     debug!(
@@ -961,6 +966,53 @@ where
             }
         }
         Ok(false)
+    }
+
+    /// A convenient method to check if we should fetch from a `RefsAnnouncement`
+    /// with `scope`.
+    fn should_fetch_refs_announcement(
+        &self,
+        message: &RefsAnnouncement,
+        scope: &tracking::Scope,
+    ) -> Result<bool, Error> {
+        // First, check the freshness.
+        if !message.is_fresh(&self.storage)? {
+            debug!(target: "service", "All refs of {} are already in the local node", &message.rid);
+            return Ok(false);
+        }
+
+        // Second, check the scope.
+        match scope {
+            tracking::Scope::All => Ok(true),
+            tracking::Scope::Trusted => {
+                match self.tracking.namespaces_for(&self.storage, &message.rid) {
+                    Ok(Namespaces::All) => Ok(true),
+                    Ok(Namespaces::Many(nodes)) => {
+                        // Get the set of trusted nodes except self.
+                        let my_id = self.node_id();
+                        let node_set: HashSet<_> =
+                            nodes.iter().filter(|key| *key != &my_id).collect();
+
+                        // Check if there is at least one trusted ref.
+                        Ok(message
+                            .refs
+                            .iter()
+                            .any(|(pub_key, _refs)| node_set.contains(pub_key)))
+                    }
+                    Ok(Namespaces::One(key)) => {
+                        Ok(message.refs.iter().any(|(pub_key, _refs)| pub_key == &key))
+                    }
+                    Err(NamespacesError::NoTrusted { rid }) => {
+                        debug!(target: "service", "No trusted nodes to fetch {}", &rid);
+                        Ok(false)
+                    }
+                    Err(e) => {
+                        error!(target: "service", "Failed to obtain namespaces: {e}");
+                        Err(e.into())
+                    }
+                }
+            }
+        }
     }
 
     pub fn handle_message(

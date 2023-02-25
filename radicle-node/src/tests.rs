@@ -669,6 +669,98 @@ fn test_refs_announcement_relay() {
     );
 }
 
+/// Even if Alice is not tracking Bob, Alice will fetch Bob's refs for a repo she doesn't have.
+#[test]
+fn test_refs_announcement_fetch_trusted_no_inventory() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Peer::config(
+        "alice",
+        [7, 7, 7, 7],
+        Storage::open(tmp.path().join("alice")).unwrap(),
+        peer::Config::default(),
+    );
+    let bob = {
+        let mut rng = fastrand::Rng::new();
+        let signer = MockSigner::new(&mut rng);
+        let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
+
+        Peer::config(
+            "bob",
+            [9, 9, 9, 9],
+            storage,
+            peer::Config {
+                signer,
+                rng,
+                ..peer::Config::default()
+            },
+        )
+    };
+    let bob_inv = bob.storage().inventory().unwrap();
+    let rid = bob_inv[0];
+
+    alice.track_repo(&rid, tracking::Scope::Trusted).unwrap();
+    alice.connect_to(&bob);
+
+    // Alice receives Bob's refs.
+    alice.receive(bob.id(), bob.refs_announcement(rid));
+
+    // Alice fetches Bob's refs as this is a new repo.
+    assert_eq!(
+        alice.messages(bob.id()).next(),
+        Some(Message::Fetch { rid })
+    );
+}
+
+/// Alice and Bob both have the same repo.
+///
+/// First, Alice will not fetch from Bob's `RefsAnnouncement` as Alice does not
+/// track Bob as `Trusted`.
+///
+/// Later Alice tracks Bob, and will be able to fetch Bob's refs.
+#[test]
+fn test_refs_announcement_trusted() {
+    logger::init(log::Level::Debug);
+
+    // Create MockStorage for Alice and Bob. Both will have repo with `rid`.
+    let storage_alice = arbitrary::nonempty_storage(1);
+    let rid = *storage_alice.inventory.keys().next().unwrap();
+    let storage_bob = storage_alice.clone();
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage_alice);
+    let mut bob = Peer::with_storage("bob", [8, 8, 8, 8], storage_bob);
+
+    // Generate some refs for Bob under their own node_id.
+    let refs = arbitrary::gen::<Refs>(8);
+    let signed_refs = refs.signed(bob.signer()).unwrap();
+    let node_id = bob.id;
+    bob.storage_mut().insert_remote(rid, node_id, signed_refs);
+
+    // Alice uses Scope::Trusted, and did not track Bob yet.
+    alice.connect_to(&bob);
+    alice.track_repo(&rid, tracking::Scope::Trusted).unwrap();
+
+    // Alice receives Bob's refs
+    alice.receive(bob.id(), bob.refs_announcement(rid));
+
+    // Alice does not fetch as Alice is not tracking Bob.
+    assert!(
+        alice.messages(bob.id()).next().is_none(),
+        "Alice is not tracking bob yet."
+    );
+
+    // Alice starts to track Bob.
+    let (sender, receiver) = chan::bounded(1);
+    alice.command(Command::TrackNode(bob.id, Some("bob".to_string()), sender));
+    let policy_change = receiver.recv().map_err(runtime::HandleError::from).unwrap();
+    assert!(policy_change);
+
+    // Bob announces refs again.
+    bob.elapse(LocalDuration::from_mins(1)); // Make sure our announcement is fresh.
+    alice.receive(bob.id(), bob.refs_announcement(rid));
+    assert_matches!(alice.messages(bob.id()).next(), Some(Message::Fetch { .. }));
+}
+
 #[test]
 fn test_refs_announcement_no_subscribe() {
     let storage = arbitrary::nonempty_storage(1);
