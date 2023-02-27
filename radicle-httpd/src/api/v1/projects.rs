@@ -454,13 +454,18 @@ async fn issue_update_handler(
     Path((project, issue_id)): Path<(Id, Oid)>,
     Json(action): Json<Action>,
 ) -> impl IntoResponse {
-    let sessions = ctx.sessions.write().await;
-    sessions.get(&token).ok_or(Error::Auth("Unauthorized"))?;
+    ctx.sessions
+        .write()
+        .await
+        .get(&token)
+        .ok_or(Error::Auth("Unauthorized"))?;
+
     let storage = &ctx.profile.storage;
     let signer = ctx.profile.signer().unwrap();
     let repo = storage.repository(project)?;
     let mut issues = Issues::open(ctx.profile.public_key, &repo)?;
     let mut issue = issues.get_mut(&issue_id.into())?;
+
     match action {
         Action::Assign { add, remove } => {
             issue.assign(add, &signer)?;
@@ -475,27 +480,24 @@ async fn issue_update_handler(
         Action::Edit { title } => {
             issue.edit(title, &signer)?;
         }
-        Action::Thread { action } => {
-            let mut actor = thread::Actor::new(ctx.profile.signer().unwrap());
-            match action {
-                thread::Action::Comment { body, reply_to } => {
-                    if let Some(reply_to) = reply_to {
-                        issue.comment(body, reply_to, &signer)?;
-                    } else {
-                        issue.thread(body, &signer)?;
-                    }
-                }
-                thread::Action::React { to, reaction, .. } => {
-                    issue.react(to, reaction, &signer)?;
-                }
-                thread::Action::Edit { id, body } => {
-                    actor.edit(id, &body);
-                }
-                thread::Action::Redact { id } => {
-                    actor.redact(id);
+        Action::Thread { action } => match action {
+            thread::Action::Comment { body, reply_to } => {
+                if let Some(reply_to) = reply_to {
+                    issue.comment(body, reply_to, &signer)?;
+                } else {
+                    issue.thread(body, &signer)?;
                 }
             }
-        }
+            thread::Action::React { to, reaction, .. } => {
+                issue.react(to, reaction, &signer)?;
+            }
+            thread::Action::Edit { .. } => {
+                todo!();
+            }
+            thread::Action::Redact { .. } => {
+                todo!();
+            }
+        },
     };
 
     Ok::<_, Error>(Json(json!({ "success": true })))
@@ -565,7 +567,7 @@ mod routes {
 
     use crate::test::{self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID};
 
-    const CREATED_ISSUE_ID: &str = "b56febfba1e7dd20f4aea43ca2fe9dcf1fd448ba";
+    const CREATED_ISSUE_ID: &str = "745052a1603000b9566445753d7e2fee1ff5041f";
 
     #[tokio::test]
     async fn test_projects_root() {
@@ -1045,7 +1047,7 @@ mod routes {
                 "assignees": [],
                 "discussion": [
                   {
-                    "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                    "id": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
                     "author": {
                         "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                     },
@@ -1107,7 +1109,7 @@ mod routes {
                   "status": "open",
               },
               "discussion": [{
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                  "id": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
                   "author": {
                       "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
@@ -1168,7 +1170,7 @@ mod routes {
               },
               "discussion": [
                 {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                  "id": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
                   "author": {
                       "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
@@ -1178,7 +1180,7 @@ mod routes {
                   "replyTo": null,
                 },
                 {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5",
+                  "id": "f7da49e705f60c39265dbdd748d786a620bc8030",
                   "author": {
                       "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
@@ -1204,7 +1206,7 @@ mod routes {
           "action": {
             "type": "comment",
             "body": "This is a reply to the first comment",
-            "replyTo": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+            "replyTo": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
         }}))
         .unwrap();
         let response = patch(
@@ -1238,7 +1240,7 @@ mod routes {
               },
               "discussion": [
                 {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                  "id": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
                   "author": {
                       "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
@@ -1248,14 +1250,14 @@ mod routes {
                   "replyTo": null,
                 },
                 {
-                  "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/5",
+                  "id": "ab98b5b794d02c23d29769a39fe8e0b74624f3d8",
                   "author": {
                       "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
                   },
                   "body": "This is a reply to the first comment",
                   "reactions": [],
                   "timestamp": 1673001014,
-                  "replyTo": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                  "replyTo": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
                 },
               ],
               "tags": [],
@@ -1285,7 +1287,7 @@ mod routes {
                 "tags": [],
                 "revisions": [
                     {
-                        "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                        "id": "d6ba305f78e2fa1ebcc55d8c3be8806bbce25fb4",
                         "description": "",
                         "reviews": [],
                     }
@@ -1316,7 +1318,7 @@ mod routes {
                 "tags": [],
                 "revisions": [
                     {
-                        "id": "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/1",
+                        "id": "d6ba305f78e2fa1ebcc55d8c3be8806bbce25fb4",
                         "description": "",
                         "reviews": [],
                     }

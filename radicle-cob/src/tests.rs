@@ -201,7 +201,7 @@ fn traverse_cobs() {
     // traverse over the history and filter by changes that were only authorized by terry
     let contents = updated.history().traverse(Vec::new(), |mut acc, entry| {
         if entry.actor() == terry_signer.public_key() {
-            acc.push(entry.contents().head.to_vec());
+            acc.push(entry.contents().head.data.clone());
         }
         ControlFlow::Continue(acc)
     });
@@ -210,7 +210,7 @@ fn traverse_cobs() {
 
     // traverse over the history and filter by changes that were only authorized by neil
     let contents = updated.history().traverse(Vec::new(), |mut acc, entry| {
-        acc.push(entry.contents().head.to_vec());
+        acc.push(entry.contents().head.data.clone());
         ControlFlow::Continue(acc)
     });
 

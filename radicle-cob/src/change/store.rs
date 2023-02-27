@@ -5,6 +5,7 @@
 
 use std::{error::Error, fmt};
 
+use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -46,7 +47,7 @@ pub struct Template<Id> {
     pub history_type: String,
     pub tips: Vec<Id>,
     pub message: String,
-    pub contents: Contents,
+    pub contents: NonEmpty<Vec<u8>>,
 }
 
 #[derive(Clone, Debug)]

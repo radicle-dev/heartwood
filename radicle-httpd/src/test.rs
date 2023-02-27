@@ -23,8 +23,8 @@ use crate::api::{auth, Context};
 
 pub const HEAD: &str = "1e978d19f251cd9821d9d9a76d1bd436bf0690d5";
 pub const HEAD_1: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
-pub const PATCH_ID: &str = "4250f0117659ee4de9af99e699a63395cd6ffa1c";
-pub const ISSUE_ID: &str = "8adca8aad2a2cb99b9847d20193930cde2042a57";
+pub const PATCH_ID: &str = "afb3063f8f0343fa31d2a0d55bac2a6f4a77125e";
+pub const ISSUE_ID: &str = "331569cd5e4dcc55104363ebce92c78b0e5d67d4";
 
 const PASSWORD: &str = "radicle";
 

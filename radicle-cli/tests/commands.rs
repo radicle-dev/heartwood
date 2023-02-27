@@ -16,6 +16,9 @@ use radicle_node::test::{
     logger,
 };
 
+/// Seed used in tests.
+const RAD_SEED: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
 /// Run a CLI test file.
 fn test<'a>(
     test: impl AsRef<Path>,
@@ -40,6 +43,7 @@ fn test<'a>(
         .env("GIT_COMMITTER_NAME", "radicle")
         .env("RAD_HOME", home.to_string_lossy())
         .env("RAD_PASSPHRASE", "radicle")
+        .env("RAD_SEED", RAD_SEED)
         .env("TZ", "UTC")
         .env("LANG", "C")
         .env(radicle_cob::git::RAD_COMMIT_TIME, "1671125284")
@@ -54,16 +58,7 @@ fn test<'a>(
 
 #[test]
 fn rad_auth() {
-    test(
-        "examples/rad-auth.md",
-        Path::new("."),
-        None,
-        [(
-            "RAD_SEED",
-            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-        )],
-    )
-    .unwrap();
+    test("examples/rad-auth.md", Path::new("."), None, []).unwrap();
 }
 
 #[test]

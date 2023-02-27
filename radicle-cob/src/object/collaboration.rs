@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 use git_ext::Oid;
 
 use crate::change::store::Manifest;
-use crate::{change, identity::Identity, Contents, History, ObjectId, TypeName};
+use crate::{change, identity::Identity, History, ObjectId, TypeName};
 
 pub mod error;
 

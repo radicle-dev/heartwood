@@ -110,8 +110,16 @@ impl change::Storage for git2::Repository {
             history_type,
         };
 
-        let revision = write_manifest(self, &manifest, &contents)?;
+        let (revision, blob_oids) = write_manifest(self, &manifest, &contents)?;
         let tree = self.find_tree(revision)?;
+        let contents = NonEmpty::collect(blob_oids.into_iter().zip(contents).map(|(oid, op)| {
+            entry::EntryBlob {
+                oid: oid.into(),
+                data: op,
+            }
+        }))
+        // SAFETY: We know it's not empty because the original `contents` is `NonEmpty`.
+        .unwrap();
 
         let signature = {
             let sig = signer.sign(revision.as_bytes());
@@ -205,10 +213,13 @@ fn load_contents(
             entry.kind().and_then(|kind| match kind {
                 git2::ObjectType::Blob => {
                     let name = entry.name()?.parse::<i8>().ok()?;
-                    let content = entry.to_object(repo).and_then(|object| {
-                        object.peel_to_blob().map(|blob| blob.content().to_owned())
-                    });
-                    Some(content.map(|c| (name, c)))
+                    let blob = entry
+                        .to_object(repo)
+                        .and_then(|object| object.peel_to_blob())
+                        .map(entry::EntryBlob::from)
+                        .map(|b| (name, b));
+
+                    Some(blob)
                 }
                 _ => None,
             })
@@ -279,8 +290,8 @@ where
 fn write_manifest(
     repo: &git2::Repository,
     manifest: &store::Manifest,
-    contents: &entry::Contents,
-) -> Result<git2::Oid, git2::Error> {
+    contents: &NonEmpty<Vec<u8>>,
+) -> Result<(git2::Oid, Vec<git2::Oid>), git2::Error> {
     let mut tb = repo.treebuilder(None)?;
     // SAFETY: we're serializing to an in memory buffer so the only source of
     // errors here is a programming error, which we can't recover from
@@ -292,10 +303,13 @@ fn write_manifest(
         git2::FileMode::Blob.into(),
     )?;
 
+    let mut blob_oids = Vec::new();
     for (ix, op) in contents.iter().enumerate() {
-        let change_blob = repo.blob(op.as_ref())?;
-        tb.insert(&ix.to_string(), change_blob, git2::FileMode::Blob.into())?;
+        let oid = repo.blob(op.as_ref())?;
+        tb.insert(&ix.to_string(), oid, git2::FileMode::Blob.into())?;
+        blob_oids.push(oid);
     }
+    let tree_oid = tb.write()?;
 
-    tb.write()
+    Ok((tree_oid, blob_oids))
 }

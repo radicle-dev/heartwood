@@ -1,13 +1,15 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::ops::{ControlFlow, Deref};
 
 use nonempty::NonEmpty;
 use serde::Serialize;
 
+use crate::cob::common::clock;
 use crate::cob::op::{Op, Ops};
 use crate::cob::store::encoding;
-use crate::cob::History;
+use crate::cob::{EntryBlob, History};
+use crate::crypto::{PublicKey, Signer};
 use crate::git::Oid;
 use crate::test::arbitrary;
 
@@ -28,14 +30,17 @@ where
     pub fn new(op: &Op<T::Action>) -> HistoryBuilder<T> {
         let entry = arbitrary::oid();
         let resource = arbitrary::oid();
-        let contents = encoding::encode(&op.action).unwrap();
+        let (id, data) = encoding::encode(&op.action, op.nonce).unwrap();
 
         Self {
             history: History::new_from_root(
                 entry,
                 op.author,
                 resource,
-                NonEmpty::new(contents),
+                NonEmpty::new(EntryBlob {
+                    oid: id.into(),
+                    data,
+                }),
                 op.timestamp.as_secs(),
             ),
             resource,
@@ -44,11 +49,16 @@ where
     }
 
     pub fn append(&mut self, op: &Op<T::Action>) -> &mut Self {
+        let (id, data) = encoding::encode(&op.action, op.nonce).unwrap();
+
         self.history.extend(
             arbitrary::oid(),
             op.author,
             self.resource,
-            NonEmpty::new(encoding::encode(&op.action).unwrap()),
+            NonEmpty::new(EntryBlob {
+                oid: id.into(),
+                data,
+            }),
             op.timestamp.as_secs(),
         );
         self
@@ -94,4 +104,70 @@ where
     T::Action: Serialize + Eq,
 {
     HistoryBuilder::new(op)
+}
+
+/// An object that can be used to create and sign operations.
+pub struct Actor<G, A> {
+    pub signer: G,
+    pub clock: clock::Lamport,
+    pub ops: BTreeMap<(clock::Lamport, PublicKey), Op<A>>,
+}
+
+impl<G: Default, A> Default for Actor<G, A> {
+    fn default() -> Self {
+        Self::new(G::default())
+    }
+}
+
+impl<G, A> Actor<G, A> {
+    pub fn new(signer: G) -> Self {
+        Self {
+            signer,
+            clock: clock::Lamport::default(),
+            ops: BTreeMap::default(),
+        }
+    }
+}
+
+impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
+    pub fn receive(&mut self, ops: impl IntoIterator<Item = Op<A>>) -> clock::Lamport {
+        for op in ops {
+            let clock = op.clock;
+
+            self.ops.insert((clock, op.author), op);
+            self.clock.merge(clock);
+        }
+        self.clock
+    }
+
+    /// Reset actor state to initial state.
+    pub fn reset(&mut self) {
+        self.ops.clear();
+        self.clock = clock::Lamport::default();
+    }
+
+    /// Returned an ordered list of events.
+    pub fn timeline(&self) -> impl Iterator<Item = &Op<A>> {
+        self.ops.values()
+    }
+
+    /// Create a new operation.
+    pub fn op(&mut self, action: A) -> Op<A> {
+        let author = *self.signer.public_key();
+        let clock = self.clock.tick();
+        let timestamp = clock::Physical::now();
+        let nonce = fastrand::u64(..);
+        let (id, _) = encoding::encode(&action, nonce).unwrap();
+        let op = Op {
+            id,
+            action,
+            nonce,
+            author,
+            clock,
+            timestamp,
+        };
+        self.ops.insert((self.clock, author), op.clone());
+
+        op
+    }
 }

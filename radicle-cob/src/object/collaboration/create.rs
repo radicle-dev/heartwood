@@ -3,6 +3,8 @@
 // This file is part of radicle-link, distributed under the GPLv3 with Radicle
 // Linking Exception. For full terms see the included LICENSE file.
 
+use nonempty::NonEmpty;
+
 use crate::Store;
 
 use super::*;
@@ -12,7 +14,7 @@ pub struct Create {
     /// The type of history that will be used for this object.
     pub history_type: String,
     /// The CRDT history to initialize this object with.
-    pub contents: Contents,
+    pub contents: NonEmpty<Vec<u8>>,
     /// The typename for this object.
     pub typename: TypeName,
     /// The message to add when creating this object.
@@ -61,28 +63,23 @@ where
     G: crypto::Signer,
     Resource: Identity,
 {
-    let Create {
-        ref contents,
-        ref typename,
-        ..
-    } = &args;
-
+    let Create { ref typename, .. } = &args;
     let init_change = storage
         .store(resource.content_id(), signer, args.template())
         .map_err(error::Create::from)?;
+    let object_id = init_change.id().into();
+
+    storage
+        .update(identifier, typename, &object_id, &init_change)
+        .map_err(|err| error::Create::Refs { err: Box::new(err) })?;
 
     let history = History::new_from_root(
         *init_change.id(),
         init_change.signature.key,
         resource.content_id(),
-        contents.clone(),
+        init_change.contents,
         init_change.timestamp,
     );
-
-    let object_id = init_change.id().into();
-    storage
-        .update(identifier, typename, &object_id, &init_change)
-        .map_err(|err| error::Create::Refs { err: Box::new(err) })?;
 
     Ok(CollaborativeObject {
         manifest: Manifest {
@@ -90,6 +87,6 @@ where
             history_type: args.history_type,
         },
         history,
-        id: init_change.id().into(),
+        id: object_id,
     })
 }

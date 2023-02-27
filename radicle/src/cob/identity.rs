@@ -3,7 +3,7 @@ use std::{ops::Deref, str::FromStr};
 use crypto::{PublicKey, Signature};
 use once_cell::sync::Lazy;
 use radicle_cob::{ObjectId, TypeName};
-use radicle_crdt::{clock, GMap, LWWMap, LWWReg, Max, Redactable, Semilattice};
+use radicle_crdt::{clock, GMap, GSet, LWWMap, LWWReg, Max, Redactable, Semilattice};
 use radicle_crypto::{Signer, Verified};
 use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
@@ -144,6 +144,8 @@ pub struct Proposal {
     state: LWWReg<Max<State>>,
     /// List of revisions for this proposal.
     revisions: GMap<RevisionId, Redactable<Revision>>,
+    /// Timeline of events.
+    timeline: GSet<(clock::Lamport, OpId)>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -169,6 +171,7 @@ impl Default for Proposal {
             description: Max::from(String::default()).into(),
             state: Max::from(State::default()).into(),
             revisions: GMap::default(),
+            timeline: GSet::default(),
         }
     }
 }
@@ -270,11 +273,12 @@ impl Proposal {
 
     /// All the [`Revision`]s that have not been redacted.
     pub fn revisions(&self) -> impl DoubleEndedIterator<Item = (&RevisionId, &Revision)> {
-        self.revisions
-            .iter()
-            .filter_map(|(rid, r)| -> Option<(&RevisionId, &Revision)> {
-                r.get().map(|r| (rid, r))
-            })
+        self.timeline.iter().filter_map(|(_, id)| {
+            self.revisions
+                .get(id)
+                .and_then(Redactable::get)
+                .map(|rev| (id, rev))
+        })
     }
 
     pub fn latest_by(&self, who: &Did) -> Option<(&RevisionId, &Revision)> {
@@ -302,9 +306,11 @@ impl store::FromHistory for Proposal {
 
     fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), Self::Error> {
         for op in ops {
-            let id = op.id();
+            let id = op.id;
             let author = Author::new(op.author);
             let timestamp = op.timestamp;
+
+            self.timeline.insert((op.clock, id));
 
             match op.action {
                 Action::Accept {
@@ -335,14 +341,30 @@ impl store::FromHistory for Proposal {
                     Some(Redactable::Redacted) => return Err(ApplyError::Redacted(revision)),
                     None => return Err(ApplyError::Missing(revision)),
                 },
-                Action::Revision { current, proposed } => self.revisions.insert(
-                    id,
-                    Redactable::Present(Revision::new(author, current, proposed, timestamp)),
-                ),
+                Action::Revision { current, proposed } => {
+                    // Since revisions are keyed by content hash, we shouldn't re-insert a revision
+                    // if it already exists, otherwise this will be resolved via the `merge`
+                    // operation of `Redactable`.
+                    if self.revisions.contains_key(&id) {
+                        continue;
+                    }
+                    self.revisions.insert(
+                        id,
+                        Redactable::Present(Revision::new(author, current, proposed, timestamp)),
+                    )
+                }
+
                 Action::Thread { revision, action } => match self.revisions.get_mut(&revision) {
-                    Some(Redactable::Present(revision)) => revision
-                        .discussion
-                        .apply([cob::Op::new(action, op.author, op.timestamp, op.clock)])?,
+                    Some(Redactable::Present(revision)) => {
+                        revision.discussion.apply([cob::Op::new(
+                            op.id,
+                            action,
+                            op.nonce,
+                            op.author,
+                            op.timestamp,
+                            op.clock,
+                        )])?
+                    }
                     Some(Redactable::Redacted) => return Err(ApplyError::Redacted(revision)),
                     None => return Err(ApplyError::Missing(revision)),
                 },
@@ -451,34 +473,50 @@ impl Revision {
 }
 
 impl store::Transaction<Proposal> {
-    pub fn accept(&mut self, revision: RevisionId, signature: Signature) -> OpId {
+    pub fn accept(
+        &mut self,
+        revision: RevisionId,
+        signature: Signature,
+    ) -> Result<OpId, store::Error> {
         self.push(Action::Accept {
             revision,
             signature,
         })
     }
 
-    pub fn reject(&mut self, revision: RevisionId) -> OpId {
+    pub fn reject(&mut self, revision: RevisionId) -> Result<OpId, store::Error> {
         self.push(Action::Reject { revision })
     }
 
-    pub fn edit(&mut self, title: impl ToString, description: impl ToString) -> OpId {
+    pub fn edit(
+        &mut self,
+        title: impl ToString,
+        description: impl ToString,
+    ) -> Result<OpId, store::Error> {
         self.push(Action::Edit {
             title: title.to_string(),
             description: description.to_string(),
         })
     }
 
-    pub fn redact(&mut self, revision: RevisionId) -> OpId {
+    pub fn redact(&mut self, revision: RevisionId) -> Result<OpId, store::Error> {
         self.push(Action::Redact { revision })
     }
 
-    pub fn revision(&mut self, current: Oid, proposed: Doc<Verified>) -> OpId {
+    pub fn revision(
+        &mut self,
+        current: Oid,
+        proposed: Doc<Verified>,
+    ) -> Result<OpId, store::Error> {
         self.push(Action::Revision { current, proposed })
     }
 
     /// Start a proposal revision discussion.
-    pub fn thread<S: ToString>(&mut self, revision: RevisionId, body: S) -> OpId {
+    pub fn thread<S: ToString>(
+        &mut self,
+        revision: RevisionId,
+        body: S,
+    ) -> Result<OpId, store::Error> {
         self.push(Action::Thread {
             revision,
             action: thread::Action::Comment {
@@ -494,7 +532,7 @@ impl store::Transaction<Proposal> {
         revision: RevisionId,
         body: S,
         reply_to: thread::CommentId,
-    ) -> OpId {
+    ) -> Result<OpId, store::Error> {
         self.push(Action::Thread {
             revision,
             action: thread::Action::Comment {
@@ -536,10 +574,10 @@ impl<'a, 'g> ProposalMut<'a, 'g> {
     ) -> Result<T, Error>
     where
         G: Signer,
-        F: FnOnce(&mut Transaction<Proposal>) -> T,
+        F: FnOnce(&mut Transaction<Proposal>) -> Result<T, store::Error>,
     {
-        let mut tx = Transaction::new(*signer.public_key(), self.clock);
-        let output = operations(&mut tx);
+        let mut tx = Transaction::new(*signer.public_key(), self.clock, self.store.rng());
+        let output = operations(&mut tx)?;
         let (ops, clock) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
         self.proposal.apply(ops)?;
@@ -654,8 +692,10 @@ impl<'a> Proposals<'a> {
     ) -> Result<ProposalMut<'a, 'g>, Error> {
         let (id, proposal, clock) =
             Transaction::initial("Create proposal", &mut self.raw, signer, |tx| {
-                tx.revision(current.into(), proposed);
-                tx.edit(title, description);
+                tx.revision(current.into(), proposed)?;
+                tx.edit(title, description)?;
+
+                Ok(())
             })?;
         // Just a sanity check that our clock is advancing as expected.
         debug_assert_eq!(clock.get(), 2);

@@ -3,9 +3,11 @@
 // This file is part of radicle-link, distributed under the GPLv3 with Radicle
 // Linking Exception. For full terms see the included LICENSE file.
 
+use nonempty::NonEmpty;
+
 use crate::{
-    change, change_graph::ChangeGraph, identity::Identity, CollaborativeObject, Contents, ObjectId,
-    Store, TypeName,
+    change, change_graph::ChangeGraph, identity::Identity, CollaborativeObject, ObjectId, Store,
+    TypeName,
 };
 
 use super::error;
@@ -15,7 +17,7 @@ pub struct Update {
     /// The type of history that will be used for this object.
     pub history_type: String,
     /// The CRDT changes to add to the object.
-    pub changes: Contents,
+    pub changes: NonEmpty<Vec<u8>>,
     /// The object ID of the object to be updated.
     pub object_id: ObjectId,
     /// The typename of the object to be updated.
@@ -76,21 +78,23 @@ where
         change::Template {
             tips: object.tips().iter().cloned().collect(),
             history_type,
-            contents: changes.clone(),
+            contents: changes,
             typename: typename.clone(),
             message,
         },
     )?;
+
+    storage
+        .update(identifier, typename, &object_id, &change)
+        .map_err(|err| error::Update::Refs { err: Box::new(err) })?;
+
     object.history.extend(
         change.id,
         change.signature.key,
         change.resource,
-        changes,
+        change.contents,
         change.timestamp,
     );
-    storage
-        .update(identifier, typename, &object_id, &change)
-        .map_err(|err| error::Update::Refs { err: Box::new(err) })?;
 
     Ok(object)
 }

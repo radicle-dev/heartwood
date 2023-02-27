@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
 use std::str::FromStr;
@@ -10,37 +9,49 @@ use thiserror::Error;
 use radicle_cob::history::EntryWithClock;
 use radicle_crdt::clock;
 use radicle_crdt::clock::Lamport;
-use radicle_crypto::{PublicKey, Signer};
+use radicle_crypto::PublicKey;
+
+use crate::git;
 
 /// Identifies an [`Op`] internally and within the change graph.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(into = "String", try_from = "String")]
-pub struct OpId(Lamport, ActorId);
+pub struct OpId(git::Oid);
 
 impl OpId {
     /// Create a new operation id.
-    pub fn new(clock: Lamport, actor: ActorId) -> Self {
-        Self(clock, actor)
-    }
-
-    /// Get the initial operation id for the given actor.
-    pub fn initial(actor: ActorId) -> Self {
-        Self(Lamport::initial(), actor)
-    }
-
-    pub fn root(actor: ActorId) -> Self {
-        Self(Lamport::initial().tick(), actor)
-    }
-
-    /// Get operation id clock.
-    pub fn clock(&self) -> Lamport {
-        self.0
+    pub fn new(oid: git::Oid) -> Self {
+        Self(oid)
     }
 }
 
 impl fmt::Display for OpId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}/{}", self.1, self.0)
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<OpId> for git::Oid {
+    fn from(value: OpId) -> Self {
+        value.0
+    }
+}
+
+impl From<OpId> for git2::Oid {
+    fn from(value: OpId) -> Self {
+        value.0.into()
+    }
+}
+
+impl From<git::Oid> for OpId {
+    fn from(value: git::Oid) -> Self {
+        Self(value)
+    }
+}
+
+impl From<git2::Oid> for OpId {
+    fn from(value: git2::Oid) -> Self {
+        Self(value.into())
     }
 }
 
@@ -53,7 +64,7 @@ impl From<OpId> for String {
 
 // Used by `serde::Deserialize`.
 impl TryFrom<String> for OpId {
-    type Error = OpIdError;
+    type Error = git::raw::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         value.as_str().try_into()
@@ -70,7 +81,7 @@ pub enum OpIdError {
 }
 
 impl FromStr for OpId {
-    type Err = OpIdError;
+    type Err = git::raw::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::try_from(s)
@@ -78,25 +89,18 @@ impl FromStr for OpId {
 }
 
 impl TryFrom<&str> for OpId {
-    type Error = OpIdError;
+    type Error = git::raw::Error;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        if s.is_empty() {
-            return Err(OpIdError::Empty);
-        }
-
-        let Some((actor_id, clock)) = s.split_once('/') else {
-            return Err(OpIdError::BadFormat);
-        };
-        Ok(Self(
-            Lamport::from_str(clock).map_err(|_| OpIdError::BadFormat)?,
-            ActorId::from_str(actor_id).map_err(|_| OpIdError::BadFormat)?,
-        ))
+        git::Oid::try_from(s).map(Self)
     }
 }
 
 /// The author of an [`Op`].
 pub type ActorId = PublicKey;
+
+/// Random number used to prevent op-id collisions.
+pub type Nonce = u64;
 
 /// Error decoding an operation from an entry.
 #[derive(Error, Debug)]
@@ -107,14 +111,29 @@ pub enum OpEncodingError {
     Git(#[from] git2::Error),
 }
 
+/// The operation payload that is actually stored on disk as a git blob.
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpBlob<A> {
+    /// The underlying action.
+    pub action: A,
+    /// A random number used to disambiguate otherwise identical ops (actions).
+    /// Note that since the timestamp and author are not stored at the individual op level,
+    /// but instead at the commit level; individual ops can trivially collide.
+    pub nonce: Nonce,
+}
+
 /// The `Op` is the operation that is applied onto a state to form a CRDT.
 ///
 /// Everything that can be done in the system is represented by an `Op`.
 /// Operations are applied to an accumulator to yield a final state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Op<A> {
+    /// Operation id.
+    pub id: OpId,
     /// The action carried out by this operation.
     pub action: A,
+    /// The nonce from the [`OpBlob`].
+    pub nonce: Nonce,
     /// The author of the operation.
     pub author: ActorId,
     /// Lamport clock.
@@ -125,29 +144,37 @@ pub struct Op<A> {
 
 impl<A: Eq> PartialOrd for Op<A> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.id().partial_cmp(&other.id())
+        self.id.partial_cmp(&other.id)
     }
 }
 
 impl<A: Eq> Ord for Op<A> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.id().cmp(&other.id())
+        self.id.cmp(&other.id)
     }
 }
 
-impl<A: Serialize> Op<A> {
+impl<A> Op<A> {
     pub fn new(
+        id: OpId,
         action: A,
+        nonce: Nonce,
         author: ActorId,
         timestamp: impl Into<clock::Physical>,
         clock: Lamport,
     ) -> Self {
         Self {
+            id,
             action,
+            nonce,
             author,
             clock,
             timestamp: timestamp.into(),
         }
+    }
+
+    pub fn id(&self) -> OpId {
+        self.id
     }
 }
 
@@ -160,109 +187,24 @@ where
     type Error = OpEncodingError;
 
     fn try_from(entry: &'a EntryWithClock) -> Result<Self, Self::Error> {
-        let mut clock = entry.clock().into();
-
-        entry
-            .contents()
-            .clone()
-            .try_map(|op| {
-                let action = serde_json::from_slice(&op)?;
+        let ops = entry
+            .changes()
+            .map(|(clock, blob)| {
+                let OpBlob { action, nonce } = serde_json::from_slice(blob.data.as_slice())?;
                 let op = Op {
+                    id: blob.oid.into(),
                     action,
+                    nonce,
                     author: *entry.actor(),
-                    clock,
+                    clock: clock.into(),
                     timestamp: entry.timestamp().into(),
                 };
-                clock.tick();
-
-                Ok(op)
+                Ok::<_, Self::Error>(op)
             })
-            .map(Self)
-    }
-}
+            .collect::<Result<Vec<_>, _>>()?;
 
-impl<A> Op<A> {
-    /// Get the op id.
-    /// This uniquely identifies each operation in the CRDT.
-    pub fn id(&self) -> OpId {
-        OpId(self.clock, self.author)
-    }
-}
-
-/// An object that can be used to create and sign operations.
-#[derive(Default)]
-pub struct Actor<G, A> {
-    pub signer: G,
-    pub clock: Lamport,
-    pub ops: BTreeMap<(Lamport, PublicKey), Op<A>>,
-}
-
-impl<G: Signer, A: Clone> Actor<G, A> {
-    pub fn new(signer: G) -> Self {
-        Self {
-            signer,
-            clock: Lamport::default(),
-            ops: BTreeMap::default(),
-        }
-    }
-
-    pub fn receive(&mut self, ops: impl IntoIterator<Item = Op<A>>) -> Lamport {
-        for op in ops {
-            let clock = op.clock;
-
-            self.ops.insert((clock, op.author), op);
-            self.clock.merge(clock);
-        }
-        self.clock
-    }
-
-    /// Reset actor state to initial state.
-    pub fn reset(&mut self) {
-        self.ops.clear();
-        self.clock = Lamport::default();
-    }
-
-    /// Returned an ordered list of events.
-    pub fn timeline(&self) -> impl Iterator<Item = &Op<A>> {
-        self.ops.values()
-    }
-
-    /// Create a new operation.
-    pub fn op(&mut self, action: A) -> Op<A> {
-        let author = *self.signer.public_key();
-        let clock = self.clock.tick();
-        let timestamp = clock::Physical::now();
-        let op = Op {
-            action,
-            author,
-            clock,
-            timestamp,
-        };
-        self.ops.insert((self.clock, author), op.clone());
-
-        op
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_opid_try_from_str() {
-        let s = "z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT/12";
-        let id = OpId::try_from(s).expect("Op ID parses string");
-        assert_eq!(s, id.to_string(), "string conversion is consistent");
-
-        let s = "";
-        assert!(OpId::try_from(s).is_err(), "empty strings are invalid");
-
-        let s = "jlkjfksgi";
-        assert!(OpId::try_from(s).is_err(), "badly formatted string");
-
-        assert_eq!(
-            serde_json::from_str::<OpId>(serde_json::to_string(&id).unwrap().as_str()).unwrap(),
-            id
-        );
+        // SAFETY: Entry is guaranteed to have at least one operation.
+        #[allow(clippy::unwrap_used)]
+        Ok(Self(NonEmpty::from_vec(ops).unwrap()))
     }
 }

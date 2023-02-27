@@ -468,12 +468,19 @@ fn select<'a>(
     previous: &Identity<Oid>,
     interactive: &Interactive,
 ) -> anyhow::Result<(RevisionId, &'a identity::Revision)> {
-    let (id, revision) = match id {
-        None => {
+    let (id, revision) = match (id, interactive) {
+        (None, Interactive::Yes) => {
             let (id, revision) = term::proposal::revision_select(proposal).unwrap();
             (*id, revision)
         }
-        Some(id) => {
+        (None, Interactive::No) => {
+            let (id, revision) = proposal
+                .revisions()
+                .next()
+                .ok_or(anyhow!("No revisions found!"))?;
+            (*id, revision)
+        }
+        (Some(id), _) => {
             let revision = proposal
                 .revision(&id)
                 .context(format!("No revision found for {id}"))?
@@ -494,13 +501,20 @@ fn commit_select<'a>(
     previous: &'a Identity<Oid>,
     interactive: &Interactive,
 ) -> anyhow::Result<(RevisionId, &'a identity::Revision)> {
-    let (id, revision) = match id {
-        None => {
+    let (id, revision) = match (id, interactive) {
+        (None, Interactive::Yes) => {
             let (id, revision) =
                 term::proposal::revision_commit_select(proposal, previous).unwrap();
             (*id, revision)
         }
-        Some(id) => {
+        (None, Interactive::No) => {
+            let (id, revision) = proposal
+                .revisions()
+                .find(|(_, r)| r.is_quorum_reached(previous))
+                .ok_or(anyhow!("No revisions with quorum found"))?;
+            (*id, revision)
+        }
+        (Some(id), _) => {
             let revision = proposal
                 .revision(&id)
                 .context(format!("No revision found for {id}"))?

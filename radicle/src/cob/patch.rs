@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use radicle_crdt::clock;
-use radicle_crdt::{GMap, LWWReg, LWWSet, Max, Redactable, Semilattice};
+use radicle_crdt::{GMap, GSet, LWWReg, LWWSet, Lamport, Max, Redactable, Semilattice};
 
 use crate::cob;
 use crate::cob::common::{Author, Tag, Timestamp};
@@ -134,6 +134,8 @@ pub struct Patch {
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
     pub revisions: GMap<RevisionId, Redactable<Revision>>,
+    /// Timeline of operations.
+    pub timeline: GSet<(Lamport, OpId)>,
 }
 
 impl Semilattice for Patch {
@@ -156,6 +158,7 @@ impl Default for Patch {
             target: Max::from(MergeTarget::default()).into(),
             tags: LWWSet::default(),
             revisions: GMap::default(),
+            timeline: GSet::default(),
         }
     }
 }
@@ -199,11 +202,12 @@ impl Patch {
     }
 
     pub fn revisions(&self) -> impl DoubleEndedIterator<Item = (&RevisionId, &Revision)> {
-        self.revisions
-            .iter()
-            .filter_map(|(rid, r)| -> Option<(&RevisionId, &Revision)> {
-                r.get().map(|r| (rid, r))
-            })
+        self.timeline.iter().filter_map(|(_, id)| {
+            self.revisions
+                .get(id)
+                .and_then(Redactable::get)
+                .map(|rev| (id, rev))
+        })
     }
 
     pub fn head(&self) -> &git::Oid {
@@ -244,9 +248,11 @@ impl store::FromHistory for Patch {
 
     fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), ApplyError> {
         for op in ops {
-            let id = op.id();
+            let id = op.id;
             let author = Author::new(op.author);
             let timestamp = op.timestamp;
+
+            self.timeline.insert((op.clock, id));
 
             match op.action {
                 Action::Edit {
@@ -271,6 +277,12 @@ impl store::FromHistory for Patch {
                     base,
                     oid,
                 } => {
+                    // Since revisions are keyed by content hash, we shouldn't re-insert a revision
+                    // if it already exists, otherwise this will be resolved via the `merge`
+                    // operation of `Redactable`.
+                    if self.revisions.contains_key(&id) {
+                        continue;
+                    }
                     self.revisions.insert(
                         id,
                         Redactable::Present(Revision::new(
@@ -323,9 +335,9 @@ impl store::FromHistory for Patch {
                     // TODO(cloudhead): Make sure we can deal with redacted revisions which are added
                     // to out of order, like in the `Merge` case.
                     if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                        revision
-                            .discussion
-                            .apply([cob::Op::new(action, op.author, timestamp, op.clock)])?;
+                        revision.discussion.apply([cob::Op::new(
+                            op.id, action, op.nonce, op.author, timestamp, op.clock,
+                        )])?;
                     } else {
                         return Err(ApplyError::Missing(revision));
                     }
@@ -549,7 +561,7 @@ impl store::Transaction<Patch> {
         title: impl ToString,
         description: impl ToString,
         target: MergeTarget,
-    ) -> OpId {
+    ) -> Result<OpId, store::Error> {
         self.push(Action::Edit {
             title: title.to_string(),
             description: description.to_string(),
@@ -558,7 +570,11 @@ impl store::Transaction<Patch> {
     }
 
     /// Start a patch revision discussion.
-    pub fn thread<S: ToString>(&mut self, revision: RevisionId, body: S) -> OpId {
+    pub fn thread<S: ToString>(
+        &mut self,
+        revision: RevisionId,
+        body: S,
+    ) -> Result<OpId, store::Error> {
         self.push(Action::Thread {
             revision,
             action: thread::Action::Comment {
@@ -574,7 +590,7 @@ impl store::Transaction<Patch> {
         revision: RevisionId,
         body: S,
         reply_to: Option<CommentId>,
-    ) -> OpId {
+    ) -> Result<OpId, store::Error> {
         self.push(Action::Thread {
             revision,
             action: thread::Action::Comment {
@@ -591,7 +607,7 @@ impl store::Transaction<Patch> {
         verdict: Option<Verdict>,
         comment: Option<String>,
         inline: Vec<CodeComment>,
-    ) -> OpId {
+    ) -> Result<OpId, store::Error> {
         self.push(Action::Review {
             revision,
             comment,
@@ -601,7 +617,7 @@ impl store::Transaction<Patch> {
     }
 
     /// Merge a patch revision.
-    pub fn merge(&mut self, revision: RevisionId, commit: git::Oid) -> OpId {
+    pub fn merge(&mut self, revision: RevisionId, commit: git::Oid) -> Result<OpId, store::Error> {
         self.push(Action::Merge { revision, commit })
     }
 
@@ -611,7 +627,7 @@ impl store::Transaction<Patch> {
         description: impl ToString,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
-    ) -> OpId {
+    ) -> Result<OpId, store::Error> {
         self.push(Action::Revision {
             description: description.to_string(),
             base: base.into(),
@@ -624,7 +640,7 @@ impl store::Transaction<Patch> {
         &mut self,
         add: impl IntoIterator<Item = Tag>,
         remove: impl IntoIterator<Item = Tag>,
-    ) -> OpId {
+    ) -> Result<OpId, store::Error> {
         let add = add.into_iter().collect::<Vec<_>>();
         let remove = remove.into_iter().collect::<Vec<_>>();
 
@@ -663,10 +679,10 @@ impl<'a, 'g> PatchMut<'a, 'g> {
     ) -> Result<T, Error>
     where
         G: Signer,
-        F: FnOnce(&mut Transaction<Patch>) -> T,
+        F: FnOnce(&mut Transaction<Patch>) -> Result<T, store::Error>,
     {
-        let mut tx = Transaction::new(*signer.public_key(), self.clock);
-        let output = operations(&mut tx);
+        let mut tx = Transaction::new(*signer.public_key(), self.clock, self.store.rng());
+        let output = operations(&mut tx)?;
         let (ops, clock) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
         self.patch.apply(ops)?;
@@ -803,9 +819,11 @@ impl<'a> Patches<'a> {
     ) -> Result<PatchMut<'a, 'g>, Error> {
         let (id, patch, clock) =
             Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
-                tx.revision(String::default(), base, oid);
-                tx.edit(title, description, target);
-                tx.tag(tags.to_owned(), []);
+                tx.revision(String::default(), base, oid)?;
+                tx.edit(title, description, target)?;
+                tx.tag(tags.to_owned(), [])?;
+
+                Ok(())
             })?;
         // Just a sanity check that our clock is advancing as expected.
         debug_assert_eq!(clock.get(), 3);
@@ -884,7 +902,7 @@ mod test {
     use qcheck::{Arbitrary, TestResult};
 
     use super::*;
-    use crate::cob::op::{Actor, ActorId};
+    use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
     use crate::test;
 
@@ -908,9 +926,13 @@ mod test {
 
     impl<const N: usize> Arbitrary for Changes<N> {
         fn arbitrary(g: &mut qcheck::Gen) -> Self {
-            type State = (clock::Lamport, Vec<OpId>, Vec<Tag>);
+            type State = (
+                Actor<MockSigner, Action>,
+                clock::Lamport,
+                Vec<OpId>,
+                Vec<Tag>,
+            );
 
-            let author = ActorId::from([0; 32]);
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
             let oids = iter::repeat_with(|| {
                 git::Oid::try_from(
@@ -924,35 +946,35 @@ mod test {
             .take(16)
             .collect::<Vec<_>>();
 
-            let gen = WeightedGenerator::<(clock::Lamport, Action), State>::new(rng.clone())
-                .variant(1, |(clock, _, _), rng| {
+            let gen = WeightedGenerator::<(clock::Lamport, Op), State>::new(rng.clone())
+                .variant(1, |(actor, clock, _, _), rng| {
                     Some((
                         clock.tick(),
-                        Action::Edit {
+                        actor.op(Action::Edit {
                             title: iter::repeat_with(|| rng.alphabetic()).take(8).collect(),
                             description: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
                             target: MergeTarget::Delegates,
-                        },
+                        }),
                     ))
                 })
-                .variant(1, |(clock, revisions, _), rng| {
+                .variant(1, |(actor, clock, revisions, _), rng| {
                     if revisions.is_empty() {
                         return None;
                     }
                     let revision = revisions[rng.usize(..revisions.len())];
                     let commit = oids[rng.usize(..oids.len())];
 
-                    Some((clock.tick(), Action::Merge { revision, commit }))
+                    Some((clock.tick(), actor.op(Action::Merge { revision, commit })))
                 })
-                .variant(1, |(clock, revisions, _), rng| {
+                .variant(1, |(actor, clock, revisions, _), rng| {
                     if revisions.is_empty() {
                         return None;
                     }
                     let revision = revisions[rng.usize(..revisions.len())];
 
-                    Some((clock.tick(), Action::Redact { revision }))
+                    Some((clock.tick(), actor.op(Action::Redact { revision })))
                 })
-                .variant(1, |(clock, _, tags), rng| {
+                .variant(1, |(actor, clock, _, tags), rng| {
                     let add = iter::repeat_with(|| rng.alphabetic())
                         .take(rng.usize(0..=3))
                         .map(|c| Tag::new(c).unwrap())
@@ -965,32 +987,29 @@ mod test {
                     for tag in &add {
                         tags.push(tag.clone());
                     }
-                    Some((clock.tick(), Action::Tag { add, remove }))
+                    Some((clock.tick(), actor.op(Action::Tag { add, remove })))
                 })
-                .variant(1, |(clock, revisions, _), rng| {
+                .variant(1, |(actor, clock, revisions, _), rng| {
                     let oid = oids[rng.usize(..oids.len())];
                     let base = oids[rng.usize(..oids.len())];
                     let description = iter::repeat_with(|| rng.alphabetic()).take(6).collect();
+                    let op = actor.op(Action::Revision {
+                        description,
+                        base,
+                        oid,
+                    });
 
                     if rng.bool() {
-                        revisions.push(OpId::new(clock.tick(), author));
+                        revisions.push(op.id);
                     }
-                    Some((
-                        *clock,
-                        Action::Revision {
-                            description,
-                            base,
-                            oid,
-                        },
-                    ))
+                    Some((*clock, op))
                 });
 
             let mut changes = Vec::new();
             let mut permutations: [Vec<Op>; N] = array::from_fn(|_| Vec::new());
-            let timestamp = Timestamp::now() + rng.u64(..60);
 
-            for (clock, action) in gen.take(g.size()) {
-                changes.push(Op::new(action, author, timestamp, clock));
+            for (_, op) in gen.take(g.size()) {
+                changes.push(op);
             }
 
             for p in &mut permutations {
@@ -1231,7 +1250,7 @@ mod test {
     }
 
     #[test]
-    fn test_revision_redacted_reinsert() {
+    fn test_revision_redact_reinsert() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let mut alice = Actor::<_, Action>::new(MockSigner::default());
@@ -1244,6 +1263,30 @@ mod test {
             oid,
         });
         let a2 = alice.op(Action::Redact { revision: a1.id() });
+
+        p1.apply([a1.clone(), a2.clone(), a1.clone()]).unwrap();
+        p2.apply([a1.clone(), a1, a2]).unwrap();
+
+        assert_eq!(p1, p2);
+    }
+
+    #[test]
+    fn test_revision_merge_reinsert() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let mut alice = Actor::<_, Action>::new(MockSigner::default());
+        let mut p1 = Patch::default();
+        let mut p2 = Patch::default();
+
+        let a1 = alice.op(Action::Revision {
+            description: String::new(),
+            base,
+            oid,
+        });
+        let a2 = alice.op(Action::Merge {
+            revision: a1.id(),
+            commit: oid,
+        });
 
         p1.apply([a1.clone(), a2.clone(), a1.clone()]).unwrap();
         p2.apply([a1.clone(), a1, a2]).unwrap();
@@ -1328,10 +1371,9 @@ mod test {
         assert_eq!(patch.description(), Some("Blah blah blah."));
         assert_eq!(patch.version(), 0);
 
-        let r1 = patch
+        let _ = patch
             .update("I've made changes.", base, rev1_oid, &signer)
             .unwrap();
-        assert_eq!(r1.clock().get(), 4);
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();

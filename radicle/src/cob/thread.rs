@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
@@ -10,10 +9,9 @@ use thiserror::Error;
 use crate::cob;
 use crate::cob::common::{Reaction, Timestamp};
 use crate::cob::{ActorId, Op, OpId};
-use crate::crypto::Signer;
 
 use crdt::clock::Lamport;
-use crdt::{GMap, LWWSet, Max, Redactable, Semilattice};
+use crdt::{GMap, GSet, LWWSet, Max, Redactable, Semilattice};
 
 /// Type name of a thread, as well as the domain for all thread operations.
 /// Note that threads are not usually used standalone. They are embeded into other COBs.
@@ -167,12 +165,15 @@ pub struct Thread {
     comments: GMap<CommentId, Redactable<Comment>>,
     /// Reactions to changes.
     reactions: GMap<CommentId, LWWSet<(ActorId, Reaction), Lamport>>,
+    /// Comment timeline.
+    timeline: GSet<(Lamport, OpId)>,
 }
 
 impl Semilattice for Thread {
     fn merge(&mut self, other: Self) {
         self.comments.merge(other.comments);
         self.reactions.merge(other.reactions);
+        self.timeline.merge(other.timeline);
     }
 }
 
@@ -181,6 +182,7 @@ impl Thread {
         Self {
             comments: GMap::singleton(id, Redactable::Present(comment)),
             reactions: GMap::default(),
+            timeline: GSet::default(),
         }
     }
 
@@ -202,6 +204,10 @@ impl Thread {
         } else {
             None
         }
+    }
+
+    pub fn root(&self) -> (&CommentId, &Comment) {
+        self.first().expect("Thread::root: thread is empty")
     }
 
     pub fn first(&self) -> Option<(&CommentId, &Comment)> {
@@ -238,9 +244,12 @@ impl Thread {
     }
 
     pub fn comments(&self) -> impl DoubleEndedIterator<Item = (&CommentId, &Comment)> + '_ {
-        self.comments
-            .iter()
-            .filter_map(|(id, comment)| comment.get().map(|comment| (id, comment)))
+        self.timeline.iter().filter_map(|(_, id)| {
+            self.comments
+                .get(id)
+                .and_then(Redactable::get)
+                .map(|comment| (id, comment))
+        })
     }
 }
 
@@ -254,12 +263,20 @@ impl cob::store::FromHistory for Thread {
 
     fn apply(&mut self, ops: impl IntoIterator<Item = Op<Action>>) -> Result<(), OpError> {
         for op in ops.into_iter() {
-            let id = op.id();
+            let id = op.id;
             let author = op.author;
             let timestamp = op.timestamp;
 
+            self.timeline.insert((op.clock, op.id));
+
             match op.action {
                 Action::Comment { body, reply_to } => {
+                    // Since comments are keyed by content hash, we shouldn't re-insert a comment
+                    // if it already exists, otherwise this will be resolved via the `merge`
+                    // operation of `Redactable`.
+                    if self.comments.contains_key(&id) {
+                        continue;
+                    }
                     self.comments.insert(
                         id,
                         Redactable::Present(Comment::new(author, body, reply_to, timestamp)),
@@ -296,73 +313,12 @@ impl cob::store::FromHistory for Thread {
     }
 }
 
-/// An object that can be used to create and sign changes.
-pub struct Actor<G> {
-    inner: cob::Actor<G, Action>,
-}
-
-impl<G: Default + Signer> Default for Actor<G> {
-    fn default() -> Self {
-        Self {
-            inner: cob::Actor::new(G::default()),
-        }
-    }
-}
-
-impl<G: Signer> Actor<G> {
-    pub fn new(signer: G) -> Self {
-        Self {
-            inner: cob::Actor::new(signer),
-        }
-    }
-
-    /// Create a new thread.
-    pub fn thread(&self) -> Thread {
-        Thread::default()
-    }
-
-    /// Create a new comment.
-    pub fn comment(&mut self, body: &str, reply_to: Option<OpId>) -> Op<Action> {
-        self.op(Action::Comment {
-            body: String::from(body),
-            reply_to,
-        })
-    }
-
-    /// Create a new redaction.
-    pub fn redact(&mut self, id: OpId) -> Op<Action> {
-        self.op(Action::Redact { id })
-    }
-
-    /// Edit a comment.
-    pub fn edit(&mut self, id: OpId, body: &str) -> Op<Action> {
-        self.op(Action::Edit {
-            id,
-            body: body.to_owned(),
-        })
-    }
-}
-
-impl<G> Deref for Actor<G> {
-    type Target = cob::Actor<G, Action>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<G> DerefMut for Actor<G> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
+    use std::ops::{Deref, DerefMut};
     use std::{array, iter};
 
-    use nonempty::NonEmpty;
     use pretty_assertions::assert_eq;
     use qcheck::{Arbitrary, TestResult};
 
@@ -373,6 +329,72 @@ mod tests {
     use crate::cob::store::FromHistory;
     use crate::cob::test;
     use crate::crypto::test::signer::MockSigner;
+    use crate::crypto::Signer;
+
+    /// An object that can be used to create and sign changes.
+    pub struct Actor<G> {
+        inner: cob::test::Actor<G, Action>,
+    }
+
+    impl<G: Default + Signer> Default for Actor<G> {
+        fn default() -> Self {
+            Self {
+                inner: cob::test::Actor::new(G::default()),
+            }
+        }
+    }
+
+    impl<G: Signer> Actor<G> {
+        pub fn new(signer: G) -> Self {
+            Self {
+                inner: cob::test::Actor::new(signer),
+            }
+        }
+
+        /// Create a new comment.
+        pub fn comment(&mut self, body: &str, reply_to: Option<OpId>) -> Op<Action> {
+            self.op(Action::Comment {
+                body: String::from(body),
+                reply_to,
+            })
+        }
+
+        /// Create a new redaction.
+        pub fn redact(&mut self, id: OpId) -> Op<Action> {
+            self.op(Action::Redact { id })
+        }
+
+        /// Edit a comment.
+        pub fn edit(&mut self, id: OpId, body: &str) -> Op<Action> {
+            self.op(Action::Edit {
+                id,
+                body: body.to_owned(),
+            })
+        }
+
+        /// React to a comment.
+        pub fn react(&mut self, to: OpId, reaction: Reaction, active: bool) -> Op<Action> {
+            self.op(Action::React {
+                to,
+                reaction,
+                active,
+            })
+        }
+    }
+
+    impl<G> Deref for Actor<G> {
+        type Target = cob::test::Actor<G, Action>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.inner
+        }
+    }
+
+    impl<G> DerefMut for Actor<G> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.inner
+        }
+    }
 
     #[derive(Clone)]
     struct Changes<const N: usize> {
@@ -394,75 +416,63 @@ mod tests {
 
     impl<const N: usize> Arbitrary for Changes<N> {
         fn arbitrary(g: &mut qcheck::Gen) -> Self {
-            let author = ActorId::from([0; 32]);
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
-            let root = OpId::initial(author);
-            let gen =
-                WeightedGenerator::<(Lamport, Action), (Lamport, BTreeSet<OpId>)>::new(rng.clone())
-                    .variant(3, |(clock, comments), rng| {
-                        comments.insert(OpId::new(clock.tick(), author));
+            let gen = WeightedGenerator::<
+                (Lamport, Op<Action>),
+                (Actor<MockSigner>, Lamport, BTreeSet<OpId>),
+            >::new(rng.clone())
+            .variant(3, |(actor, clock, comments), rng| {
+                let comment = actor.comment(
+                    iter::repeat_with(|| rng.alphabetic())
+                        .take(4)
+                        .collect::<String>()
+                        .as_str(),
+                    None,
+                );
+                comments.insert(comment.id);
 
-                        Some((
-                            *clock,
-                            Action::Comment {
-                                body: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
-                                reply_to: Some(root),
-                            },
-                        ))
-                    })
-                    .variant(2, |(clock, comments), rng| {
-                        if comments.is_empty() {
-                            return None;
-                        }
-                        let id = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
+                Some((*clock, comment))
+            })
+            .variant(2, |(actor, clock, comments), rng| {
+                if comments.is_empty() {
+                    return None;
+                }
+                let id = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
+                let edit = actor.edit(
+                    id,
+                    iter::repeat_with(|| rng.alphabetic())
+                        .take(4)
+                        .collect::<String>()
+                        .as_str(),
+                );
 
-                        Some((
-                            *clock,
-                            Action::Edit {
-                                id,
-                                body: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
-                            },
-                        ))
-                    })
-                    .variant(2, |(clock, comments), rng| {
-                        if comments.is_empty() {
-                            return None;
-                        }
-                        let to = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
+                Some((*clock, edit))
+            })
+            .variant(2, |(actor, clock, comments), rng| {
+                if comments.is_empty() {
+                    return None;
+                }
+                let to = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
+                let react = actor.react(to, Reaction::new('✨').unwrap(), rng.bool());
 
-                        Some((
-                            clock.tick(),
-                            Action::React {
-                                to,
-                                reaction: Reaction::new('✨').unwrap(),
-                                active: rng.bool(),
-                            },
-                        ))
-                    })
-                    .variant(2, |(clock, comments), rng| {
-                        if comments.is_empty() {
-                            return None;
-                        }
-                        let id = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
-                        comments.remove(&id);
+                Some((clock.tick(), react))
+            })
+            .variant(2, |(actor, clock, comments), rng| {
+                if comments.is_empty() {
+                    return None;
+                }
+                let id = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
+                comments.remove(&id);
+                let redact = actor.redact(id);
 
-                        Some((clock.tick(), Action::Redact { id }))
-                    });
+                Some((clock.tick(), redact))
+            });
 
-            let mut ops = vec![Op::new(
-                Action::Comment {
-                    body: String::default(),
-                    reply_to: None,
-                },
-                author,
-                Timestamp::now(),
-                Lamport::initial(),
-            )];
+            let mut ops = vec![Actor::<MockSigner>::default().comment("", None)];
             let mut permutations: [Vec<Op<Action>>; N] = array::from_fn(|_| Vec::new());
 
-            for (clock, action) in gen.take(g.size()) {
-                let timestamp = Timestamp::now() + rng.u64(..60);
-                ops.push(Op::new(action, author, timestamp, clock));
+            for (_, op) in gen.take(g.size()) {
+                ops.push(op);
             }
 
             for p in &mut permutations {
@@ -471,19 +481,6 @@ mod tests {
             }
 
             Changes { permutations }
-        }
-    }
-
-    mod setup {
-        use super::*;
-        use crate::storage::git as storage;
-        use cob::store::Store;
-
-        pub fn store<'a, G: Signer>(
-            signer: &G,
-            repo: &'a storage::Repository,
-        ) -> Store<'a, Thread> {
-            Store::<Thread>::open(*signer.public_key(), repo).unwrap()
         }
     }
 
@@ -536,36 +533,6 @@ mod tests {
         t2.apply([c0, c2, c1]).unwrap(); // Apply in different order.
 
         assert_eq!(t1, t2);
-    }
-
-    #[test]
-    fn test_storage() {
-        let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, repository) = radicle::test::setup::context(&tmp);
-        let store = setup::store(&signer, &repository);
-        let mut alice = Actor::new(signer);
-
-        let a0 = alice.comment("Thread root", None);
-        let a1 = alice.comment("First comment", Some(a0.id()));
-        let a2 = alice.comment("Second comment", Some(a0.id()));
-
-        let mut expected = Thread::default();
-        expected
-            .apply([a0.clone(), a1.clone(), a2.clone()])
-            .unwrap();
-
-        let (id, _, _) = store
-            .create("Thread created", a0.action, &alice.signer)
-            .unwrap();
-
-        let actions = NonEmpty::from_vec(vec![a1.action, a2.action]).unwrap();
-        store
-            .update(id, "Thread updated", actions, &alice.signer)
-            .unwrap();
-
-        let (actual, _) = store.get(&id).unwrap().unwrap();
-
-        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -665,6 +632,84 @@ mod tests {
             let actual = Thread::from_ops(permutation).unwrap();
             assert_eq!(actual, expected);
         }
+    }
+
+    #[test]
+    fn test_duplicate_comments() {
+        let mut alice = Actor::<MockSigner>::default();
+        let mut bob = Actor::<MockSigner>::default();
+
+        let a0 = alice.comment("Hello World!", None);
+        let b0 = bob.comment("Hello World!", None);
+
+        let mut a = test::history::<Thread>(&a0);
+        let mut b = a.clone();
+
+        b.append(&b0);
+        a.merge(b);
+
+        let (thread, _) = Thread::from_history(&a).unwrap();
+
+        assert_eq!(thread.comments().count(), 2);
+
+        let (first_id, first) = thread.comments().nth(0).unwrap();
+        let (second_id, second) = thread.comments().nth(1).unwrap();
+
+        assert!(first_id != second_id); // The ids are not the same,
+        assert_eq!(first.edits, second.edits); // despite the content being the same.
+    }
+
+    #[test]
+    fn test_duplicate_comments_same_author() {
+        let mut alice = Actor::<MockSigner>::default();
+
+        let a0 = alice.comment("Hello World!", None);
+        let a1 = alice.comment("Hello World!", None);
+        let a2 = alice.comment("Hello World!", None);
+
+        // These simulate two devices sharing the same key.
+        let mut h1 = test::history::<Thread>(&a0);
+        let mut h2 = h1.clone();
+        let mut h3 = h1.clone();
+
+        // Alice writes the same comment on both devices, not realizing what she has done.
+        h1.append(&a1);
+        h2.append(&a2);
+
+        // Eventually the histories are merged by a third party.
+        h3.merge(h1);
+        h3.merge(h2);
+
+        let (thread, _) = Thread::from_history(&h3).unwrap();
+
+        // The three comments, distinct yet identical in terms of content, are preserved.
+        assert_eq!(thread.comments().count(), 3);
+
+        let (first_id, first) = thread.comments().nth(0).unwrap();
+        let (second_id, second) = thread.comments().nth(1).unwrap();
+        let (third_id, third) = thread.comments().nth(2).unwrap();
+
+        // Their IDs are not the same.
+        assert!(first_id != second_id);
+        assert!(second_id != third_id);
+        // Their content are the same.
+        assert_eq!(first, second);
+        assert_eq!(second, third);
+    }
+
+    #[test]
+    fn test_comment_edit_reinsert() {
+        let mut alice = Actor::<MockSigner>::default();
+        let mut t1 = Thread::default();
+        let mut t2 = Thread::default();
+
+        let a1 = alice.comment("Hello.", None);
+        let a2 = alice.edit(a1.id(), "Hello World.");
+
+        t1.apply([a1.clone(), a2.clone(), a1.clone()]).unwrap();
+        t2.apply([a1.clone(), a1, a2]).unwrap();
+
+        assert_eq!(t1, t2);
     }
 
     #[test]

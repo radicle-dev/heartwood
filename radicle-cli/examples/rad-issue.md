@@ -11,7 +11,7 @@ The issue is now listed under our project.
 
 ```
 $ rad issue list
-2b4650e3c66d568132034de0d02871a2fbf9c5b5 "flux capacitor underpowered"
+e379d630f91a6082d3c7677467eb0d4875635d74 "flux capacitor underpowered"
 ```
 
 Great! Now we've documented the issue for ourselves and others.
@@ -22,20 +22,20 @@ others to work on.  This is to ensure work is not duplicated.
 Let's assign ourselves to this one.
 
 ```
-$ rad assign 2b4650e3c66d568132034de0d02871a2fbf9c5b5 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad assign e379d630f91a6082d3c7677467eb0d4875635d74 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 It will now show in the list of issues assigned to us.
 
 ```
 $ rad issue list --assigned
-2b4650e3c66d568132034de0d02871a2fbf9c5b5 "flux capacitor underpowered" did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+e379d630f91a6082d3c7677467eb0d4875635d74 "flux capacitor underpowered" did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Note: this can always be undone with the `unassign` subcommand.
 
 ```
-$ rad unassign 2b4650e3c66d568132034de0d02871a2fbf9c5b5 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad unassign e379d630f91a6082d3c7677467eb0d4875635d74 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Great, now we have communicated to the world about our car's defect.
@@ -44,8 +44,8 @@ But wait! We've found an important detail about the car's power requirements.
 It will help whoever works on a fix.
 
 ```
-$ rad comment 2b4650e3c66d568132034de0d02871a2fbf9c5b5 --message 'The flux capacitor needs 1.21 Gigawatts'
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/7
-$ rad comment 2b4650e3c66d568132034de0d02871a2fbf9c5b5 --reply-to z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/7 --message 'More power!'
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/8
+$ rad comment e379d630f91a6082d3c7677467eb0d4875635d74 --message 'The flux capacitor needs 1.21 Gigawatts'
+f1895792f7b1b56590aa21e34454bde74d04649a
+$ rad comment e379d630f91a6082d3c7677467eb0d4875635d74 --reply-to f1895792f7b1b56590aa21e34454bde74d04649a --message 'More power!'
+0bf5f874c57ac0a5cc010a9895dd0fec9edc4f3d
 ```

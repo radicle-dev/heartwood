@@ -9,7 +9,6 @@ use git_ext::Oid;
 use radicle_dag::Dag;
 
 use crate::history::entry::{EntryId, EntryWithClock};
-use crate::history::Clock;
 use crate::{change::Change, history, pruning_fold};
 
 /// # Panics
@@ -43,9 +42,9 @@ pub fn evaluate(root: Oid, graph: &Dag<Oid, Change>, rng: fastrand::Rng) -> hist
                     .iter()
                     .map(|e| {
                         let entry = &entries[&EntryId::from(*e)];
-                        let clock = entry.clock();
+                        let clock = entry.range();
 
-                        clock + entry.contents().len() as Clock - 1
+                        *clock.end()
                     })
                     .max()
                     .unwrap_or_default() // When there are no operations, the clock is zero.

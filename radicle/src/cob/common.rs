@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;
 
+pub use radicle_crdt::clock;
 pub use radicle_crdt::clock::Physical as Timestamp;
 
 /// Author.

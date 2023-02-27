@@ -9,9 +9,27 @@ use radicle_crypto::PublicKey;
 
 use crate::pruning_fold;
 
+/// Blob under an entry.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct EntryBlob {
+    /// The OID of the blob.
+    pub oid: Oid,
+    /// The blob data.
+    pub data: Vec<u8>,
+}
+
+impl<'r> From<git2::Blob<'r>> for EntryBlob {
+    fn from(blob: git2::Blob) -> Self {
+        Self {
+            oid: blob.id().into(),
+            data: blob.content().to_vec(),
+        }
+    }
+}
+
 /// Entry contents.
 /// This is the change payload.
-pub type Contents = NonEmpty<Vec<u8>>;
+pub type Contents = NonEmpty<EntryBlob>;
 
 /// Logical clock used to track causality in change graph.
 pub type Clock = u64;
@@ -145,6 +163,19 @@ impl EntryWithClock {
     /// Get the clock value.
     pub fn clock(&self) -> Clock {
         self.clock
+    }
+
+    /// Get the clock range.
+    pub fn range(&self) -> std::ops::RangeInclusive<Clock> {
+        self.clock..=(self.clock + self.contents.tail.len() as Clock)
+    }
+
+    /// Iterator over the changes, including the clock.
+    pub fn changes(&self) -> impl Iterator<Item = (Clock, &EntryBlob)> {
+        self.contents
+            .iter()
+            .enumerate()
+            .map(|(ix, blob)| (self.clock + ix as u64, blob))
     }
 }
 

@@ -6,11 +6,13 @@ use std::ops::ControlFlow;
 
 use nonempty::NonEmpty;
 use radicle_crdt::Lamport;
+use rand::rngs::StdRng;
+use rand::{RngCore as _, SeedableRng};
 use serde::{Deserialize, Serialize};
 
 use crate::cob;
 use crate::cob::common::Author;
-use crate::cob::op::{Op, OpId, Ops};
+use crate::cob::op::{Nonce, Op, OpId, Ops};
 use crate::cob::CollaborativeObject;
 use crate::cob::{ActorId, Create, History, ObjectId, TypeName, Update};
 use crate::crypto::PublicKey;
@@ -27,7 +29,7 @@ pub const HISTORY_TYPE: &str = "radicle";
 /// All collaborative objects implement this trait.
 pub trait FromHistory: Sized + Default {
     /// The underlying action composing each operation.
-    type Action: for<'de> Deserialize<'de>;
+    type Action: for<'de> Deserialize<'de> + Serialize;
     /// Error returned by `apply` function.
     type Error: std::error::Error;
 
@@ -92,6 +94,7 @@ pub struct Store<'a, T> {
     identity: Identity<git::Oid>,
     raw: &'a storage::Repository,
     witness: PhantomData<T>,
+    rng: StdRng,
 }
 
 impl<'a, T> AsRef<storage::Repository> for Store<'a, T> {
@@ -103,6 +106,7 @@ impl<'a, T> AsRef<storage::Repository> for Store<'a, T> {
 impl<'a, T> Store<'a, T> {
     /// Open a new generic store.
     pub fn open(whoami: PublicKey, store: &'a storage::Repository) -> Result<Self, Error> {
+        let rng = rng::std();
         let identity = Identity::load(&whoami, store)?;
 
         Ok(Self {
@@ -110,6 +114,7 @@ impl<'a, T> Store<'a, T> {
             whoami,
             raw: store,
             witness: PhantomData,
+            rng,
         })
     }
 
@@ -122,6 +127,11 @@ impl<'a, T> Store<'a, T> {
     pub fn public_key(&self) -> &PublicKey {
         &self.whoami
     }
+
+    /// Derive a new RNG from the existing one.
+    pub fn rng(&self) -> StdRng {
+        StdRng::from_rng(self.rng.clone()).expect("Store::rng: failed to derive RNG")
+    }
 }
 
 impl<'a, T: FromHistory> Store<'a, T>
@@ -133,10 +143,10 @@ where
         &self,
         object_id: ObjectId,
         message: &str,
-        actions: impl Into<NonEmpty<T::Action>>,
+        actions: impl Into<NonEmpty<Vec<u8>>>,
         signer: &G,
     ) -> Result<CollaborativeObject, Error> {
-        let changes = actions.into().try_map(|e| encoding::encode(&e))?;
+        let changes = actions.into();
 
         cob::update(
             self.raw,
@@ -158,10 +168,10 @@ where
     pub fn create<G: Signer>(
         &self,
         message: &str,
-        actions: impl Into<NonEmpty<T::Action>>,
+        actions: impl Into<NonEmpty<Vec<u8>>>,
         signer: &G,
     ) -> Result<(ObjectId, T, Lamport), Error> {
-        let contents = actions.into().try_map(|e| encoding::encode(&e))?;
+        let contents = actions.into();
         let cob = cob::create(
             self.raw,
             signer,
@@ -226,18 +236,20 @@ pub struct Transaction<T: FromHistory> {
     actor: ActorId,
     start: Lamport,
     clock: Lamport,
-    actions: Vec<T::Action>,
+    rng: StdRng,
+    actions: Vec<(T::Action, OpId, Nonce, Vec<u8>)>,
 }
 
 impl<T: FromHistory> Transaction<T> {
     /// Create a new transaction.
-    pub fn new(actor: ActorId, clock: Lamport) -> Self {
+    pub fn new(actor: ActorId, clock: Lamport, rng: StdRng) -> Self {
         let start = clock;
 
         Self {
             actor,
             start,
             clock,
+            rng,
             actions: Vec::new(),
         }
     }
@@ -251,7 +263,7 @@ impl<T: FromHistory> Transaction<T> {
     ) -> Result<(ObjectId, T, Lamport), Error>
     where
         G: Signer,
-        F: FnOnce(&mut Self),
+        F: FnOnce(&mut Self) -> Result<(), Error>,
         T::Action: Serialize + Clone,
     {
         let actor = *signer.public_key();
@@ -259,12 +271,14 @@ impl<T: FromHistory> Transaction<T> {
             actor,
             start: Lamport::initial(),
             clock: Lamport::initial(),
+            rng: store.rng(),
             actions: Vec::new(),
         };
-        operations(&mut tx);
+        operations(&mut tx)?;
 
         let actions = NonEmpty::from_vec(tx.actions)
-            .expect("Transaction::initial: transaction must contain at least one operation");
+            .expect("Transaction::initial: transaction must contain at least one operation")
+            .map(|(_, _, _, blob)| blob);
         let (id, cob, clock) = store.create(message, actions, signer)?;
 
         // The history clock should be in sync with the tx clock.
@@ -274,9 +288,14 @@ impl<T: FromHistory> Transaction<T> {
     }
 
     /// Add an operation to this transaction.
-    pub fn push(&mut self, action: T::Action) -> cob::OpId {
-        self.actions.push(action);
-        OpId::new(self.clock.tick(), self.actor)
+    pub fn push(&mut self, action: T::Action) -> Result<cob::OpId, Error> {
+        let nonce = self.rng.next_u64();
+        let (id, blob) = encoding::encode(&action, nonce)?;
+
+        self.actions.push((action, id, nonce, blob));
+        self.clock.tick();
+
+        Ok(id)
     }
 
     /// Commit transaction.
@@ -294,7 +313,7 @@ impl<T: FromHistory> Transaction<T> {
     {
         let actions = NonEmpty::from_vec(self.actions)
             .expect("Transaction::commit: transaction must not be empty");
-        let cob = store.update(id, msg, actions.clone(), signer)?;
+        let cob = store.update(id, msg, actions.clone().map(|(_, _, _, blob)| blob), signer)?;
         let author = self.actor;
         let timestamp = cob.history().timestamp().into();
 
@@ -305,7 +324,9 @@ impl<T: FromHistory> Transaction<T> {
         let mut clock = self.start;
         let ops = actions
             .into_iter()
-            .map(|action| cob::Op {
+            .map(|(action, id, nonce, _)| cob::Op {
+                id,
+                nonce,
                 action,
                 author,
                 clock: clock.tick(),
@@ -321,15 +342,43 @@ pub mod encoding {
     use serde::Serialize;
 
     use crate::canonical::formatter::CanonicalFormatter;
+    use crate::cob::op::{Nonce, OpId};
 
     /// Serialize the change into a byte string.
-    pub fn encode<T: Serialize>(obj: &T) -> Result<Vec<u8>, serde_json::Error> {
+    pub fn encode<A: Serialize>(
+        action: &A,
+        nonce: Nonce,
+    ) -> Result<(OpId, Vec<u8>), serde_json::Error> {
         let mut buf = Vec::new();
         let mut serializer =
             serde_json::Serializer::with_formatter(&mut buf, CanonicalFormatter::new());
 
-        obj.serialize(&mut serializer)?;
+        serde_json::json!({
+            "action": action,
+            "nonce": nonce,
+        })
+        .serialize(&mut serializer)?;
 
-        Ok(buf)
+        // SAFETY: This really shouldn't fail, since we're providing a valid object type.
+        let oid = git2::Oid::hash_object(git2::ObjectType::Blob, buf.as_slice())
+            .expect("encoding::encode: failed to get object hash for change")
+            .into();
+
+        Ok((oid, buf))
+    }
+}
+
+pub mod rng {
+    use crate::env;
+    use rand::{rngs::StdRng, SeedableRng};
+
+    /// Get the "standard" CSPRNG, seeded from OS entropy.
+    /// The seed can be overwritten in debug mode with the `RAD_SEED` environment variable.
+    pub fn std() -> StdRng {
+        #[cfg(debug_assertions)]
+        if let Some(seed) = env::seed() {
+            return StdRng::from_seed(seed);
+        }
+        StdRng::from_entropy()
     }
 }
