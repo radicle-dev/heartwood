@@ -1,4 +1,4 @@
-use std::collections::btree_map::{Entry, IntoIter};
+use std::collections::btree_map::{Entry, IntoIter, IntoKeys};
 use std::collections::BTreeMap;
 use std::ops::Deref;
 
@@ -32,6 +32,12 @@ impl<K: Ord, V: Semilattice> GMap<K, V> {
                 e.insert(value);
             }
         }
+    }
+}
+
+impl<K, V> GMap<K, V> {
+    pub fn into_keys(self) -> IntoKeys<K, V> {
+        self.inner.into_keys()
     }
 }
 
