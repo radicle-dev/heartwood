@@ -57,7 +57,7 @@ impl Default for Config {
             network: Network::default(),
             relay: true,
             limits: Limits::default(),
-            policy: Policy::Block,
+            policy: Policy::default(),
         }
     }
 }

@@ -1,5 +1,6 @@
 use std::{env, net, process};
 
+use anyhow::anyhow;
 use anyhow::Context as _;
 use crossbeam_channel as chan;
 use cyphernet::addr::PeerAddr;
@@ -8,6 +9,7 @@ use localtime::LocalDuration;
 use radicle::profile;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::prelude::{Address, NodeId};
+use radicle_node::service::tracking::Policy;
 use radicle_node::Runtime;
 use radicle_node::{logger, service, signals};
 
@@ -21,6 +23,7 @@ Options
     --connect          <peer>        Connect to the given peer address on start
     --external-address <address>     Publicly accessible address (default 0.0.0.0:8776)
     --git-daemon       <address>     Address to bind git-daemon to (default 0.0.0.0:9418)
+    --tracking-policy  (track|block) Default tracking policy
     --help                           Print help
     --listen           <address>     Address to listen on
 
@@ -33,6 +36,7 @@ struct Options {
     daemon: Option<net::SocketAddr>,
     limits: service::config::Limits,
     listen: Vec<net::SocketAddr>,
+    tracking_policy: Policy,
 }
 
 impl Options {
@@ -45,6 +49,7 @@ impl Options {
         let mut limits = service::config::Limits::default();
         let mut listen = Vec::new();
         let mut daemon = None;
+        let mut tracking_policy = Policy::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -59,6 +64,13 @@ impl Options {
                 Long("git-daemon") => {
                     let addr = parser.value()?.parse()?;
                     daemon = Some(addr);
+                }
+                Long("tracking-policy") => {
+                    let policy = parser
+                        .value()?
+                        .parse()
+                        .map_err(|s| anyhow!("unknown tracking policy {:?}", s))?;
+                    tracking_policy = policy;
                 }
                 Long("limit-routing-max-age") => {
                     let secs: u64 = parser.value()?.parse()?;
@@ -92,6 +104,7 @@ impl Options {
             external_addresses,
             limits,
             listen,
+            tracking_policy,
         })
     }
 }
@@ -110,6 +123,7 @@ fn execute() -> anyhow::Result<()> {
         connect: options.connect.into_iter().collect(),
         external_addresses: options.external_addresses,
         limits: options.limits,
+        policy: options.tracking_policy,
         ..service::Config::default()
     };
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);

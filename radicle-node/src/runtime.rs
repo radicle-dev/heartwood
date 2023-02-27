@@ -118,6 +118,7 @@ impl<G: Signer + Ecdh + 'static> Runtime<G> {
         let tracking = tracking::Store::open(tracking_db)?;
         let tracking = tracking::Config::new(config.policy, tracking);
 
+        log::info!(target: "node", "Default tracking policy set to '{}'", &config.policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);
         let service = service::Service::new(
             config,
