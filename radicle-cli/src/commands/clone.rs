@@ -195,16 +195,16 @@ pub fn clone<G: Signer>(
                 }
             }
         }
+        // TODO: Warn if no seeds were found, and we might be checking out stale data.
     }
-    // TODO: Warn if no seeds were found, and we might be checking out stale data.
-    // If we don't have the project locally, even after attempting to fetch,
-    // there's nothing we can do.
-    if !storage.contains(&id)? {
+    let Ok(repository) = storage.repository(id) else {
+        // If we don't have the project locally, even after attempting to fetch,
+        // there's nothing we can do.
         return Err(CloneError::NotFound(id));
-    }
+    };
 
-    // Create a local fork of the project, under our own id.
-    {
+    // Create a local fork of the project, under our own id, unless we have one already.
+    if repository.remote(signer.public_key()).is_err() {
         let mut spinner = term::spinner(format!(
             "Forking under {}..",
             term::format::tertiary(term::format::node(&me))
@@ -223,7 +223,7 @@ pub fn clone<G: Signer>(
         }
     }
 
-    let doc = storage.repository(id)?.identity_of(&me)?;
+    let doc = repository.identity_of(&me)?;
     let proj = doc.project()?;
     let path = Path::new(proj.name());
 
