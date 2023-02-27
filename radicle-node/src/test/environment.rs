@@ -1,3 +1,4 @@
+use std::io::BufRead as _;
 use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
 use std::{
@@ -209,15 +210,21 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             .args(args)
             .output()?;
 
+        for line in io::BufReader::new(io::Cursor::new(&result.stdout))
+            .lines()
+            .flatten()
+        {
+            log::debug!(target: "test", "rad {cmd}: {line}");
+        }
+
         log::debug!(
             target: "test",
             "Ran command `rad {cmd}` (status={})", result.status.code().unwrap()
         );
 
         if !result.status.success() {
-            log::debug!(target: "test", "Command: {result:#?}");
+            return Err(io::ErrorKind::Other.into());
         }
-
         Ok(())
     }
 }

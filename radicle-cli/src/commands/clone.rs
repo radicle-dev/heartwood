@@ -175,27 +175,32 @@ pub fn clone<G: Signer>(
 
     // Get seeds. This consults the local routing table only.
     let mut seeds = node.seeds(id)?;
-    if !seeds.has_connections() {
-        return Err(CloneError::NotFound(id));
-    }
-    // Fetch from all seeds.
-    for seed in seeds.connected() {
-        let spinner = term::spinner(format!(
-            "Fetching {} from {}..",
-            term::format::tertiary(id),
-            term::format::tertiary(term::format::node(seed))
-        ));
+    if seeds.has_connections() {
+        // Fetch from all seeds.
+        for seed in seeds.connected() {
+            let spinner = term::spinner(format!(
+                "Fetching {} from {}..",
+                term::format::tertiary(id),
+                term::format::tertiary(term::format::node(seed))
+            ));
 
-        // TODO: If none of them succeeds, output an error. Otherwise tell the caller
-        // how many succeeded.
-        match node.fetch(id, *seed)? {
-            FetchResult::Success { .. } => {
-                spinner.finish();
-            }
-            FetchResult::Failed { reason } => {
-                spinner.error(reason);
+            // TODO: If none of them succeeds, output an error. Otherwise tell the caller
+            // how many succeeded.
+            match node.fetch(id, *seed)? {
+                FetchResult::Success { .. } => {
+                    spinner.finish();
+                }
+                FetchResult::Failed { reason } => {
+                    spinner.error(reason);
+                }
             }
         }
+    }
+    // TODO: Warn if no seeds were found, and we might be checking out stale data.
+    // If we don't have the project locally, even after attempting to fetch,
+    // there's nothing we can do.
+    if !storage.contains(&id)? {
+        return Err(CloneError::NotFound(id));
     }
 
     // Create a local fork of the project, under our own id.

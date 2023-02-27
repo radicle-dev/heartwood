@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::{thread, time};
 
 use radicle::git;
+use radicle::node::Handle as _;
 use radicle::prelude::Id;
 use radicle::profile::Home;
 use radicle::storage::{ReadRepository, ReadStorage};
@@ -291,6 +292,29 @@ fn rad_init_sync_and_clone() {
         [],
     )
     .unwrap();
+}
+
+#[test]
+// User tries to clone; no seeds are available, but user has the repo locally.
+fn test_clone_without_seeds() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let mut alice = environment.node("alice");
+    let working = environment.tmp().join("working");
+    let rid = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
+    let mut alice = alice.spawn(Config::default());
+    let seeds = alice.handle.seeds(rid).unwrap();
+
+    assert!(!seeds.has_connections());
+
+    alice
+        .rad("clone", &[rid.to_string().as_str()], working.as_path())
+        .unwrap();
+
+    alice
+        .rad("inspect", &[], working.join("heartwood").as_path())
+        .unwrap();
 }
 
 #[test]
