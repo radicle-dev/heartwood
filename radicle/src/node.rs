@@ -243,8 +243,6 @@ pub trait Handle {
     type Sessions;
     /// The error returned by all methods.
     type Error: std::error::Error + Send + Sync + 'static;
-    /// Result of a fetch.
-    type FetchResult;
 
     /// Check if the node is running. to a peer.
     fn is_running(&self) -> bool;
@@ -253,7 +251,7 @@ pub trait Handle {
     /// Lookup the seeds of a given repository in the routing table.
     fn seeds(&mut self, id: Id) -> Result<Vec<NodeId>, Self::Error>;
     /// Fetch a repository from the network.
-    fn fetch(&mut self, id: Id, from: NodeId) -> Result<Self::FetchResult, Self::Error>;
+    fn fetch(&mut self, id: Id, from: NodeId) -> Result<FetchResult, Self::Error>;
     /// Start tracking the given project. Doesn't do anything if the project is already
     /// tracked.
     fn track_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
@@ -319,7 +317,6 @@ impl Node {
 impl Handle for Node {
     type Sessions = ();
     type Error = Error;
-    type FetchResult = FetchResult;
 
     fn is_running(&self) -> bool {
         let Ok(mut lines) = self.call::<&str, CommandResult>(CommandName::Status, []) else {
@@ -346,7 +343,7 @@ impl Handle for Node {
         Ok(seeds)
     }
 
-    fn fetch(&mut self, id: Id, from: NodeId) -> Result<Self::FetchResult, Error> {
+    fn fetch(&mut self, id: Id, from: NodeId) -> Result<FetchResult, Error> {
         let result = self
             .call(CommandName::Fetch, [id.urn(), from.to_human()])?
             .next()

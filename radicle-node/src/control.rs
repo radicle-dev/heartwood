@@ -13,7 +13,7 @@ use serde_json as json;
 
 use crate::identity::Id;
 use crate::node::NodeId;
-use crate::node::{Command, CommandName, CommandResult, FetchResult};
+use crate::node::{Command, CommandName, CommandResult};
 use crate::runtime;
 
 #[derive(thiserror::Error, Debug)]
@@ -25,7 +25,7 @@ pub enum Error {
 }
 
 /// Listen for commands on the control socket, and process them.
-pub fn listen<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
+pub fn listen<H: Handle<Error = runtime::HandleError>>(
     listener: UnixListener,
     mut handle: H,
 ) -> Result<(), Error> {
@@ -74,7 +74,7 @@ enum CommandError {
     Shutdown,
 }
 
-fn command<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
+fn command<H: Handle<Error = runtime::HandleError>>(
     stream: &UnixStream,
     handle: &mut H,
 ) -> Result<(), CommandError> {
@@ -199,7 +199,7 @@ fn command<H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
     Ok(())
 }
 
-fn fetch<W: Write, H: Handle<Error = runtime::HandleError, FetchResult = FetchResult>>(
+fn fetch<W: Write, H: Handle<Error = runtime::HandleError>>(
     id: Id,
     node: NodeId,
     mut writer: W,

@@ -20,7 +20,6 @@ pub struct Handle {
 impl radicle::node::Handle for Handle {
     type Error = HandleError;
     type Sessions = service::Sessions;
-    type FetchResult = FetchResult;
 
     fn is_running(&self) -> bool {
         true

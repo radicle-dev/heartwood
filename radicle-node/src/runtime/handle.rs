@@ -107,7 +107,6 @@ impl<G: Signer + Ecdh + 'static> Handle<G> {
 impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
     type Sessions = Sessions;
     type Error = Error;
-    type FetchResult = FetchResult;
 
     fn is_running(&self) -> bool {
         true
