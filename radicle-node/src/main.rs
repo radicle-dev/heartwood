@@ -128,10 +128,7 @@ fn execute() -> anyhow::Result<()> {
     };
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
     let daemon = options.daemon.unwrap_or_else(|| {
-        net::SocketAddr::new(
-            net::Ipv4Addr::UNSPECIFIED.into(),
-            radicle::git::PROTOCOL_PORT,
-        )
+        net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), radicle::git::PROTOCOL_PORT)
     });
 
     let (notify, signals) = chan::bounded(1);
