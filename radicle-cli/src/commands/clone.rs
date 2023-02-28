@@ -128,7 +128,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         &delegates,
     )?;
 
-    term::headline(&format!(
+    term::headline(format!(
         "🌱 Project successfully cloned under {}",
         term::format::highlight(Path::new(".").join(path).display())
     ));

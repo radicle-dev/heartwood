@@ -4,9 +4,9 @@ The example below is run with `RAD_PASSPHRASE` set.
 ```
 $ rad auth
 
-Initializing your 🌱 profile and identity
+Initializing your radicle 🌱 identity
 
-✓ Creating your 🌱 Ed25519 keypair...
+✓ Creating your Ed25519 keypair...
 ! Adding your radicle key to ssh-agent...
 ✓ Your Radicle ID is did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi. This identifies your device.
 

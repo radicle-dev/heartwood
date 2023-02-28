@@ -66,7 +66,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 pub fn init(options: Options) -> anyhow::Result<()> {
-    term::headline("Initializing your 🌱 profile and identity");
+    term::headline(format!(
+        "Initializing your {} 🌱 identity",
+        term::format::highlight("radicle")
+    ));
 
     if let Ok(version) = radicle::git::version() {
         if version < radicle::git::VERSION_REQUIRED {
@@ -84,9 +87,9 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     let passphrase = if options.stdin {
         term::passphrase_stdin()
     } else {
-        term::passphrase_confirm()
+        term::passphrase_confirm("Enter a passphrase:")
     }?;
-    let spinner = term::spinner("Creating your 🌱 Ed25519 keypair...");
+    let spinner = term::spinner("Creating your Ed25519 keypair...");
     let profile = Profile::init(home, passphrase.clone())?;
     spinner.finish();
 
@@ -115,7 +118,7 @@ pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
     let agent = ssh::agent::Agent::connect()?;
 
     // TODO: Only show this if we're not authenticated.
-    term::headline(&format!(
+    term::headline(format!(
         "🌱 Authenticating as {}",
         term::format::Identity::new(profile).styled()
     ));

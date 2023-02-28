@@ -95,7 +95,7 @@ pub fn run(
     // `HEAD`; This is what we are proposing as a patch.
     let head_branch = try_branch(workdir.head()?)?;
 
-    term::headline(&format!(
+    term::headline(format!(
         "🌱 Updating patch for {}",
         term::format::highlight(project.name())
     ));

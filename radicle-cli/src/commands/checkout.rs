@@ -80,7 +80,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let path = execute(options, &profile)?;
 
-    term::headline(&format!(
+    term::headline(format!(
         "🌱 Project checkout successful under ./{}",
         term::format::highlight(path.file_name().unwrap_or_default().to_string_lossy())
     ));
@@ -105,7 +105,7 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
         anyhow::bail!("the local path {:?} already exists", path.as_path());
     }
 
-    term::headline(&format!(
+    term::headline(format!(
         "Initializing local checkout for 🌱 {} ({})",
         term::format::highlight(options.id),
         payload.name(),

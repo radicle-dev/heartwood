@@ -159,7 +159,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     let path = path.as_path().canonicalize()?;
     let interactive = options.interactive;
 
-    term::headline(&format!(
+    term::headline(format!(
         "Initializing local 🌱 project in {}",
         if path == cwd {
             term::format::highlight(".").to_string()
@@ -286,7 +286,7 @@ pub fn setup_signing(
         .ok_or(anyhow!("cannot setup signing in bare repository"))?;
     let key = ssh::fmt::fingerprint(node_id);
     let yes = if !git::is_signing_configured(repo)? {
-        term::headline(&format!(
+        term::headline(format!(
             "Configuring 🌱 signing key {}...",
             term::format::tertiary(key)
         ));

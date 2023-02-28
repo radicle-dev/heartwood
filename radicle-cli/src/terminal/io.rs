@@ -72,7 +72,7 @@ pub fn columns() -> Option<usize> {
     termion::terminal_size().map(|(cols, _)| cols as usize).ok()
 }
 
-pub fn headline(headline: &str) {
+pub fn headline(headline: impl fmt::Display) {
     println!();
     println!("{}", style(headline).bold());
     println!();
@@ -214,16 +214,17 @@ pub fn passphrase() -> Result<Passphrase, anyhow::Error> {
     }
 }
 
-pub fn passphrase_confirm() -> Result<Passphrase, anyhow::Error> {
+pub fn passphrase_confirm(prompt: &str) -> Result<Passphrase, anyhow::Error> {
     if let Some(p) = profile::env::passphrase() {
         Ok(p)
     } else {
         Ok(Passphrase::from(
-            Password::new("Passphrase:")
+            Password::new(prompt)
                 .with_render_config(*CONFIG)
                 .with_display_mode(inquire::PasswordDisplayMode::Masked)
                 .with_custom_confirmation_message("Repeat passphrase:")
                 .with_custom_confirmation_error_message("The passphrases don't match.")
+                .with_help_message("This passphrase protects your radicle identity")
                 .prompt()?,
         ))
     }
