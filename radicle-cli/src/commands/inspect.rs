@@ -18,35 +18,41 @@ use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "inspect",
-    description: "Inspect an identity or project directory",
+    description: "Inspect a radicle repository",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
 
     rad inspect <path> [<option>...]
-    rad inspect <id>   [<option>...]
+    rad inspect <rid>  [<option>...]
     rad inspect
 
-    Inspects the given path or ID. If neither is specified,
-    the current project is inspected.
+    Inspects the given path or RID. If neither is specified,
+    the current repository is inspected.
 
 Options
 
-    --id        Return the ID in simplified form
-    --payload   Inspect the object's payload
-    --refs      Inspect the object's refs on the local device (requires `tree`)
-    --history   Show object's history
+    --id        Return the repository identifier (RID)
+    --payload   Inspect the repository's identity payload
+    --refs      Inspect the repository's refs on the local device (requires `tree`)
+    --history   Show the history of the repository identity document
     --help      Print help
 "#,
 };
 
 #[derive(Default, Debug, Eq, PartialEq)]
+pub enum Target {
+    Refs,
+    Payload,
+    History,
+    #[default]
+    Id,
+}
+
+#[derive(Default, Debug, Eq, PartialEq)]
 pub struct Options {
     pub id: Option<Id>,
-    pub refs: bool,
-    pub payload: bool,
-    pub history: bool,
-    pub id_only: bool,
+    pub target: Target,
 }
 
 impl Args for Options {
@@ -55,10 +61,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<Id> = None;
-        let mut refs = false;
-        let mut payload = false;
-        let mut history = false;
-        let mut id_only = false;
+        let mut target = Target::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -66,16 +69,16 @@ impl Args for Options {
                     return Err(Error::Help.into());
                 }
                 Long("refs") => {
-                    refs = true;
+                    target = Target::Refs;
                 }
                 Long("payload") => {
-                    payload = true;
+                    target = Target::Payload;
                 }
                 Long("history") => {
-                    history = true;
+                    target = Target::History;
                 }
                 Long("id") => {
-                    id_only = true;
+                    target = Target::Id;
                 }
                 Value(val) if id.is_none() => {
                     let val = val.to_string_lossy();
@@ -94,24 +97,11 @@ impl Args for Options {
             }
         }
 
-        Ok((
-            Options {
-                id,
-                payload,
-                history,
-                refs,
-                id_only,
-            },
-            vec![],
-        ))
+        Ok((Options { id, target }, vec![]))
     }
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
-    let profile = ctx.profile()?;
-    let storage = &profile.storage;
-    let signer = term::signer(&profile)?;
-
     let id = match options.id {
         Some(id) => id,
         None => {
@@ -122,82 +112,94 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
     };
 
+    if options.target == Target::Id {
+        term::info!("{}", term::format::highlight(id.urn()));
+        return Ok(());
+    }
+
+    let profile = ctx.profile()?;
+    let storage = &profile.storage;
+    let signer = term::signer(&profile)?;
     let project = storage
         .get(signer.public_key(), id)?
         .context("No project with such `id` exists")?;
 
-    if options.refs {
-        let path = profile
-            .home
-            .storage()
-            .join(id.urn())
-            .join("refs")
-            .join("namespaces");
+    match options.target {
+        Target::Refs => {
+            let path = storage.path_of(&id).join("refs").join("namespaces");
 
-        Command::new("tree")
-            .current_dir(path)
-            .args(["--noreport", "--prune"])
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .spawn()?
-            .wait()?;
-    } else if options.payload {
-        println!(
-            "{}",
-            colorizer().colorize_json_str(&serde_json::to_string_pretty(&project.payload)?)?
-        );
-    } else if options.history {
-        let repo = storage.repository(id)?;
-        let head = Doc::<Untrusted>::head(signer.public_key(), &repo)?;
-        let history = repo.revwalk(head)?;
-
-        for oid in history {
-            let oid = oid?.into();
-            let tip = repo.commit(oid)?;
-            let blob = Doc::<Unverified>::blob_at(oid, &repo)?;
-            let content: serde_json::Value = serde_json::from_slice(blob.content())?;
-            let timezone = if tip.time().sign() == '+' {
-                #[allow(deprecated)]
-                FixedOffset::east(tip.time().offset_minutes() * 60)
-            } else {
-                #[allow(deprecated)]
-                FixedOffset::west(tip.time().offset_minutes() * 60)
-            };
-            let time = DateTime::<Utc>::from(
-                std::time::UNIX_EPOCH + std::time::Duration::from_secs(tip.time().seconds() as u64),
-            )
-            .with_timezone(&timezone)
-            .to_rfc2822();
-
-            println!(
-                "{} {}",
-                term::format::yellow("commit"),
-                term::format::yellow(oid),
-            );
-            if let Ok(parent) = tip.parent_id(0) {
-                println!("parent {parent}");
-            }
-            println!("blob   {}", blob.id());
-            println!("date   {time}");
-            println!();
-
-            if let Some(msg) = tip.message() {
-                for line in msg.lines() {
-                    term::indented(term::format::dim(line));
-                }
-                term::blank();
-            }
-
-            let json = colorizer().colorize_json_str(&serde_json::to_string_pretty(&content)?)?;
-            for line in json.lines() {
-                println!(" {line}");
-            }
-            println!();
+            Command::new("tree")
+                .current_dir(path)
+                .args(["--noreport", "--prune"])
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()?
+                .wait()?;
         }
-    } else if options.id_only {
-        term::info!("{}", term::format::highlight(id.urn()));
-    } else {
-        term::info!("{}", term::format::highlight(id));
+        Target::Payload => {
+            println!(
+                "{}",
+                colorizer().colorize_json_str(&serde_json::to_string_pretty(&project.payload)?)?
+            );
+        }
+        Target::History => {
+            let repo = storage.repository(id)?;
+            let head = Doc::<Untrusted>::head(signer.public_key(), &repo)?;
+            let history = repo.revwalk(head)?;
+
+            for oid in history {
+                let oid = oid?.into();
+                let tip = repo.commit(oid)?;
+                let blob = Doc::<Unverified>::blob_at(oid, &repo)?;
+                let content: serde_json::Value = serde_json::from_slice(blob.content())?;
+                let timezone = if tip.time().sign() == '+' {
+                    #[allow(deprecated)]
+                    FixedOffset::east(tip.time().offset_minutes() * 60)
+                } else {
+                    #[allow(deprecated)]
+                    FixedOffset::west(tip.time().offset_minutes() * 60)
+                };
+                let time = DateTime::<Utc>::from(
+                    std::time::UNIX_EPOCH
+                        + std::time::Duration::from_secs(tip.time().seconds() as u64),
+                )
+                .with_timezone(&timezone)
+                .to_rfc2822();
+
+                println!(
+                    "{} {}",
+                    term::format::yellow("commit"),
+                    term::format::yellow(oid),
+                );
+                if let Ok(parent) = tip.parent_id(0) {
+                    println!("parent {parent}");
+                }
+                println!("blob   {}", blob.id());
+                println!("date   {time}");
+                println!();
+
+                if let Some(msg) = tip.message() {
+                    for line in msg.lines() {
+                        if line.is_empty() {
+                            println!();
+                        } else {
+                            term::indented(term::format::dim(line));
+                        }
+                    }
+                    term::blank();
+                }
+
+                let json =
+                    colorizer().colorize_json_str(&serde_json::to_string_pretty(&content)?)?;
+                for line in json.lines() {
+                    println!(" {line}");
+                }
+                println!();
+            }
+        }
+        Target::Id => {
+            // Handled above.
+        }
     }
 
     Ok(())

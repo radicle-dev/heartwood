@@ -101,6 +101,10 @@ impl ReadStorage for Storage {
         self.path.as_path()
     }
 
+    fn path_of(&self, rid: &Id) -> PathBuf {
+        paths::repository(&self, rid)
+    }
+
     fn contains(&self, rid: &Id) -> Result<bool, ProjectError> {
         if paths::repository(&self, rid).exists() {
             let _ = self.repository(*rid)?.head()?;

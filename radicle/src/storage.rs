@@ -3,7 +3,7 @@ pub mod refs;
 
 use std::collections::hash_map;
 use std::ops::Deref;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fmt, io};
 
 use serde::{Deserialize, Serialize};
@@ -262,6 +262,8 @@ pub trait ReadStorage {
 
     /// Get the storage base path.
     fn path(&self) -> &Path;
+    /// Get a repository's path.
+    fn path_of(&self, rid: &Id) -> PathBuf;
     /// Get an identity document of a repository under a given remote.
     fn get(
         &self,
@@ -378,6 +380,10 @@ where
 
     fn path(&self) -> &Path {
         self.deref().path()
+    }
+
+    fn path_of(&self, rid: &Id) -> PathBuf {
+        self.deref().path_of(rid)
     }
 
     fn contains(&self, rid: &Id) -> Result<bool, ProjectError> {

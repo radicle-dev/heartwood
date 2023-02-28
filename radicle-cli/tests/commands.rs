@@ -97,6 +97,34 @@ fn rad_init() {
 }
 
 #[test]
+fn rad_inspect() {
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let working = tempfile::tempdir().unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test(
+        "examples/rad-init.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+
+    test(
+        "examples/rad-inspect.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+
+    test("examples/rad-inspect-noauth.md", working.path(), None, []).unwrap();
+}
+
+#[test]
 fn rad_checkout() {
     let mut environment = Environment::new();
     let profile = environment.profile("alice");

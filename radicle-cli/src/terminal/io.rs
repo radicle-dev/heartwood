@@ -19,6 +19,7 @@ use super::Error;
 use super::{style, Paint};
 
 pub const ERROR_PREFIX: Paint<&str> = Paint::red("✗");
+pub const ERROR_HINT_PREFIX: Paint<&str> = Paint::yellow("✗");
 pub const WARNING_PREFIX: Paint<&str> = Paint::yellow("!");
 pub const TAB: &str = "    ";
 
@@ -151,7 +152,7 @@ pub fn fail(header: &str, error: &anyhow::Error) {
     );
 
     if let Some(Error::WithHint { hint, .. }) = error.downcast_ref::<Error>() {
-        println!("{} {}", Paint::yellow("×"), Paint::yellow(hint));
+        println!("{} {}", ERROR_HINT_PREFIX, Paint::yellow(hint));
         blank();
     }
 }

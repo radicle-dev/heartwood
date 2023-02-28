@@ -38,6 +38,10 @@ impl ReadStorage for MockStorage {
         self.path.as_path()
     }
 
+    fn path_of(&self, rid: &Id) -> PathBuf {
+        self.path().join(rid.canonical())
+    }
+
     fn contains(&self, rid: &Id) -> Result<bool, ProjectError> {
         Ok(self.inventory.contains_key(rid))
     }
