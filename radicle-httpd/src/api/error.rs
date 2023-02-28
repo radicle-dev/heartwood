@@ -61,6 +61,10 @@ pub enum Error {
     /// Storage refs error.
     #[error(transparent)]
     StorageRef(#[from] radicle::storage::refs::Error),
+
+    /// Identity doc error.
+    #[error(transparent)]
+    IdentityDoc(#[from] radicle::identity::doc::DocError),
 }
 
 impl IntoResponse for Error {

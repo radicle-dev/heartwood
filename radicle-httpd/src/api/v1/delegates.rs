@@ -40,7 +40,8 @@ async fn delegates_projects_handler(
         .filter_map(|id| {
             let Ok(repo) = storage.repository(id) else { return None };
             let Ok((_, head)) = repo.head() else { return None };
-            let Ok(doc) = repo.identity_of(ctx.profile.id()) else { return None };
+            let Ok((_, doc)) = repo.identity_doc() else { return None };
+            let Ok(doc) = doc.verified() else { return None };
             let Ok(payload) = doc.project() else { return None };
 
             let delegates = doc.delegates;

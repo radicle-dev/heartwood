@@ -48,7 +48,7 @@ impl Context {
         let storage = &self.profile.storage;
         let repo = storage.repository(id)?;
         let (_, head) = repo.head()?;
-        let doc = repo.identity_of(self.profile.id())?;
+        let doc = repo.identity_doc()?.1.verified()?;
         let payload = doc.project()?;
         let delegates = doc.delegates;
         let issues = Issues::open(self.profile.public_key, &repo)?.counts()?;
