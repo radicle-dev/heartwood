@@ -10,13 +10,14 @@ use radicle::git::raw;
 use radicle::identity::doc::{DocError, Id};
 use radicle::identity::{doc, IdentityError};
 use radicle::node;
-use radicle::node::{FetchResult, Handle as _, Node};
+use radicle::node::{Handle as _, Node};
 use radicle::prelude::*;
 use radicle::rad;
 use radicle::storage;
 use radicle::storage::git::Storage;
 
 use crate::commands::rad_checkout as checkout;
+use crate::commands::rad_fetch as fetch;
 use crate::project;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -29,7 +30,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad clone <id> [<option>...]
+    rad clone <rid> [<option>...]
 
 Options
 
@@ -152,8 +153,10 @@ pub enum CloneError {
     Payload(#[from] doc::PayloadError),
     #[error("project error: {0}")]
     Identity(#[from] IdentityError),
-    #[error("no seeds found for {0}")]
+    #[error("repository {0} not found")]
     NotFound(Id),
+    #[error("no seeds found for {0}")]
+    NoSeeds(Id),
 }
 
 pub fn clone<G: Signer>(
@@ -173,34 +176,15 @@ pub fn clone<G: Signer>(
         );
     }
 
-    // Get seeds. This consults the local routing table only.
-    let mut seeds = node.seeds(id)?;
-    if seeds.has_connections() {
-        // Fetch from all seeds.
-        for seed in seeds.connected() {
-            let spinner = term::spinner(format!(
-                "Fetching {} from {}..",
-                term::format::tertiary(id),
-                term::format::tertiary(term::format::node(seed))
-            ));
-
-            // TODO: If none of them succeeds, output an error. Otherwise tell the caller
-            // how many succeeded.
-            match node.fetch(id, *seed)? {
-                FetchResult::Success { .. } => {
-                    spinner.finish();
-                }
-                FetchResult::Failed { reason } => {
-                    spinner.error(reason);
-                }
-            }
-        }
-        // TODO: Warn if no seeds were found, and we might be checking out stale data.
-    }
+    let results = fetch::fetch(id, node)?;
     let Ok(repository) = storage.repository(id) else {
         // If we don't have the project locally, even after attempting to fetch,
         // there's nothing we can do.
-        return Err(CloneError::NotFound(id));
+        if results.is_empty() {
+            return Err(CloneError::NoSeeds(id));
+        } else {
+            return Err(CloneError::NotFound(id));
+        }
     };
 
     // Create a local fork of the project, under our own id, unless we have one already.
@@ -226,6 +210,14 @@ pub fn clone<G: Signer>(
     let doc = repository.identity_doc_of(&me)?;
     let proj = doc.project()?;
     let path = Path::new(proj.name());
+
+    if results.success().next().is_none() {
+        if results.failed().next().is_some() {
+            term::warning("Fetching failed, local copy is potentially stale");
+        } else {
+            term::warning("No seeds found, local copy is potentially stale");
+        }
+    }
 
     // Checkout.
     let spinner = term::spinner(format!(

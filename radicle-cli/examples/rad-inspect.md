@@ -68,3 +68,6 @@ date   Thu, 15 Dec 2022 17:28:04 +0000
  }
 
 ```
+
+The identity document is the metadata associated with a repository, that is
+only changeable by delegates.

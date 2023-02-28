@@ -2,6 +2,7 @@ mod features;
 
 use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader};
+use std::ops::Deref;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::{fmt, io, net};
@@ -267,6 +268,67 @@ impl<S: ToString> From<Result<Vec<RefUpdate>, S>> for FetchResult {
                 reason: err.to_string(),
             },
         }
+    }
+}
+
+/// Holds multiple fetch results.
+#[derive(Debug, Default)]
+pub struct FetchResults(Vec<(NodeId, FetchResult)>);
+
+impl FetchResults {
+    /// Push a fetch result.
+    pub fn push(&mut self, nid: NodeId, result: FetchResult) {
+        self.0.push((nid, result));
+    }
+
+    /// Iterate over all fetch results.
+    pub fn iter(&self) -> impl Iterator<Item = (&NodeId, &FetchResult)> {
+        self.0.iter().map(|(nid, r)| (nid, r))
+    }
+
+    /// Iterate over successful fetches.
+    pub fn success(&self) -> impl Iterator<Item = (&NodeId, &[RefUpdate])> {
+        self.0.iter().filter_map(|(nid, r)| {
+            if let FetchResult::Success { updated } = r {
+                Some((nid, updated.as_slice()))
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Iterate over failed fetches.
+    pub fn failed(&self) -> impl Iterator<Item = (&NodeId, &str)> {
+        self.0.iter().filter_map(|(nid, r)| {
+            if let FetchResult::Failed { reason } = r {
+                Some((nid, reason.as_str()))
+            } else {
+                None
+            }
+        })
+    }
+}
+
+impl From<Vec<(NodeId, FetchResult)>> for FetchResults {
+    fn from(value: Vec<(NodeId, FetchResult)>) -> Self {
+        Self(value)
+    }
+}
+
+impl Deref for FetchResults {
+    type Target = [(NodeId, FetchResult)];
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_slice()
+    }
+}
+
+impl IntoIterator for FetchResults {
+    type Item = (NodeId, FetchResult);
+    type IntoIter = std::vec::IntoIter<(NodeId, FetchResult)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
