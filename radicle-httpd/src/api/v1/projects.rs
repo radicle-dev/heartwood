@@ -78,9 +78,9 @@ async fn project_root_handler(
         .filter_map(|id| {
             let Ok(repo) = storage.repository(id) else { return None };
             let Ok((_, head)) = repo.head() else { return None };
-            let Ok(payload) = repo.project_of(ctx.profile.id()) else { return None };
             let Ok((_, doc)) = repo.identity_doc() else { return None };
             let Ok(doc) = doc.verified() else { return None };
+            let Ok(payload) = doc.project() else { return None };
             let Ok(issues) = Issues::open(ctx.profile.public_key, &repo) else { return None };
             let Ok(issues) = issues.counts() else { return None };
             let Ok(patches) = Patches::open(ctx.profile.public_key, &repo) else { return None };
