@@ -9,7 +9,7 @@ use radicle_crdt::clock;
 use radicle_crdt::{LWWReg, LWWSet, Max, Semilattice};
 
 use crate::cob;
-use crate::cob::common::{Author, Reaction, Tag};
+use crate::cob::common::{Author, Reaction, Tag, Timestamp};
 use crate::cob::store::FromHistory as _;
 use crate::cob::store::Transaction;
 use crate::cob::thread;
@@ -173,6 +173,15 @@ impl Issue {
 
     pub fn tags(&self) -> impl Iterator<Item = &Tag> {
         self.tags.iter()
+    }
+
+    pub fn timestamp(&self) -> Timestamp {
+        self.thread
+            .comments()
+            .next()
+            .map(|(_, c)| c)
+            .expect("Issue::timestamp: at least one comment is present")
+            .timestamp()
     }
 
     pub fn author(&self) -> Author {
