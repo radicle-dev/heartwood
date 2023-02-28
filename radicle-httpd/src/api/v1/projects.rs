@@ -394,10 +394,10 @@ async fn issues_handler(
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
     let issues = Issues::open(ctx.profile.public_key, &repo)?;
+    let mut issues: Vec<_> = issues.all()?.filter_map(|r| r.ok()).collect::<Vec<_>>();
+    issues.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
     let issues = issues
-        .all()?
         .into_iter()
-        .filter_map(|r| r.ok())
         .map(|(id, issue, _)| api::json::issue(id, issue))
         .skip(page * per_page)
         .take(per_page)
@@ -532,10 +532,10 @@ async fn patches_handler(
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
     let patches = Patches::open(ctx.profile.public_key, &repo)?;
+    let mut patches = patches.all()?.filter_map(|r| r.ok()).collect::<Vec<_>>();
+    patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
     let patches = patches
-        .all()?
         .into_iter()
-        .filter_map(|r| r.ok())
         .map(|(id, patch, _)| api::json::patch(id, patch))
         .skip(page * per_page)
         .take(per_page)
