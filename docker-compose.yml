@@ -2,6 +2,7 @@ version: "3.7"
 services:
   radicle-node:
     image: gcr.io/radicle-services/radicle-node:${RADICLE_IMAGE_TAG:-latest}
+    command: ${RADICLE_NODE_OPTIONS}
     build:
       dockerfile: ./radicle-node/Dockerfile
       context: .
