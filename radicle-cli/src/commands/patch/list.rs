@@ -10,21 +10,15 @@ use unicode_width::UnicodeWidthStr;
 use crate::terminal as term;
 
 use super::common;
-use super::Options;
 
 /// List patches.
 pub fn run(
-    storage: &Repository,
+    repository: &Repository,
     profile: &Profile,
     workdir: Option<git::raw::Repository>,
-    options: Options,
 ) -> anyhow::Result<()> {
-    if options.sync {
-        // TODO: Sync
-    }
-
     let me = *profile.id();
-    let patches = Patches::open(*profile.id(), storage)?;
+    let patches = Patches::open(*profile.id(), repository)?;
     let proposed = patches.proposed()?;
 
     // Patches the user authored.
@@ -49,7 +43,7 @@ pub fn run(
         for (id, patch) in &mut own {
             term::blank();
 
-            print(&me, id, patch, &workdir, storage)?;
+            print(&me, id, patch, &workdir, repository)?;
         }
     }
     term::blank();
@@ -62,7 +56,7 @@ pub fn run(
         for (id, patch) in &mut other {
             term::blank();
 
-            print(patches.public_key(), id, patch, &workdir, storage)?;
+            print(patches.public_key(), id, patch, &workdir, repository)?;
         }
     }
     term::blank();
@@ -76,9 +70,9 @@ fn print(
     patch_id: &PatchId,
     patch: &Patch,
     workdir: &Option<git::raw::Repository>,
-    storage: &Repository,
+    repository: &Repository,
 ) -> anyhow::Result<()> {
-    let target_head = common::patch_merge_target_oid(patch.target(), storage)?;
+    let target_head = common::patch_merge_target_oid(patch.target(), repository)?;
 
     let you = patch.author().id().as_key() == whoami;
     let prefix = "└─ ";
@@ -102,14 +96,14 @@ fn print(
         term::format::highlight(term::format::cob(patch_id)),
         term::format::dim(format!("R{}", patch.version())),
         common::pretty_commit_version(&revision.oid, workdir)?,
-        common::pretty_sync_status(storage.raw(), *revision.oid, target_head)?,
+        common::pretty_sync_status(repository.raw(), *revision.oid, target_head)?,
     );
     term::info!("{}", author_info.join(" "));
     term::info!("{prefix}* patch id {}", term::format::highlight(patch_id));
 
     let mut timeline = Vec::new();
     for merge in revision.merges.iter() {
-        let peer = storage.remote(&merge.node)?;
+        let peer = repository.remote(&merge.node)?;
         let mut badges = Vec::new();
 
         if peer.delegate {
@@ -136,7 +130,7 @@ fn print(
             Some(Verdict::Reject) => term::format::negative(term::format::dim("✗ rejected")),
             None => term::format::negative(term::format::dim("⋄ reviewed")),
         };
-        let peer = storage.remote(reviewer)?;
+        let peer = repository.remote(reviewer)?;
         let mut badges = Vec::new();
 
         if peer.delegate {

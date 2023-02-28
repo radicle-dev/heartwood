@@ -16,8 +16,9 @@ use std::ffi::OsString;
 use anyhow::anyhow;
 
 use radicle::cob::patch::PatchId;
-use radicle::prelude::*;
+use radicle::{prelude::*, Node};
 
+use crate::commands::rad_fetch as fetch;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::patch::Message;
@@ -82,7 +83,8 @@ pub enum Operation {
 pub struct Options {
     pub op: Operation,
     pub confirm: bool,
-    pub sync: bool,
+    pub fetch: bool,
+    pub announce: bool,
     pub push: bool,
     pub verbose: bool,
 }
@@ -95,7 +97,8 @@ impl Args for Options {
         let mut confirm = true;
         let mut op: Option<OperationName> = None;
         let mut verbose = false;
-        let mut sync = true;
+        let mut fetch = false;
+        let mut announce = true;
         let mut patch_id = None;
         let mut message = Message::default();
         let mut push = true;
@@ -119,16 +122,20 @@ impl Args for Options {
                 Long("no-message") => {
                     message = Message::Blank;
                 }
-                Long("sync") => {
-                    // By default it is already true, so
-                    // the only case where this is false,
-                    // is the case where `no-sync` is specified.
+                Long("fetch") => {
+                    fetch = true;
                 }
-                Long("no-sync") => {
-                    sync = false;
+                Long("no-fetch") => {
+                    fetch = false;
+                }
+                Long("announce") => {
+                    announce = true;
+                }
+                Long("no-announce") => {
+                    announce = false;
                 }
                 Long("push") => {
-                    // Skip for the same reason as `sync`.
+                    push = true;
                 }
                 Long("no-push") => {
                     push = false;
@@ -179,9 +186,10 @@ impl Args for Options {
             Options {
                 op,
                 confirm,
-                sync,
+                fetch,
                 push,
                 verbose,
+                announce,
             },
             vec![],
         ))
@@ -193,24 +201,28 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
     let profile = ctx.profile()?;
-    let storage = profile.storage.repository(id)?;
+    let repository = profile.storage.repository(id)?;
+
+    if options.fetch {
+        fetch::fetch(repository.id(), &mut Node::new(profile.socket()))?;
+    }
 
     match options.op {
         Operation::Open { ref message } => {
-            create::run(&storage, &profile, &workdir, message.clone(), options)?;
+            create::run(&repository, &profile, &workdir, message.clone(), options)?;
         }
         Operation::List => {
-            list::run(&storage, &profile, Some(workdir), options)?;
+            list::run(&repository, &profile, Some(workdir))?;
         }
         Operation::Show { ref patch_id } => {
-            show::run(&storage, &profile, &workdir, patch_id)?;
+            show::run(&repository, &profile, &workdir, patch_id)?;
         }
         Operation::Update {
             patch_id,
             ref message,
         } => {
             update::run(
-                &storage,
+                &repository,
                 &profile,
                 &workdir,
                 patch_id,
@@ -219,7 +231,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             )?;
         }
         Operation::Checkout { ref patch_id } => {
-            checkout::run(&storage, &profile, &workdir, patch_id)?;
+            checkout::run(&repository, &profile, &workdir, patch_id)?;
         }
     }
     Ok(())

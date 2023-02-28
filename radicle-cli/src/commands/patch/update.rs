@@ -140,7 +140,7 @@ pub fn run(
     term::success!("Patch {} updated 🌱", term::format::highlight(patch_id));
     term::blank();
 
-    if options.sync {
+    if options.announce {
         // TODO
     }
 

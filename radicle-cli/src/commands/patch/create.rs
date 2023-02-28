@@ -146,7 +146,7 @@ pub fn run(
     term::blank();
     term::success!("Patch {} created 🌱", term::format::highlight(patch.id));
 
-    if options.sync {
+    if options.announce {
         // TODO
     }
 
