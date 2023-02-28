@@ -4,6 +4,7 @@ use std::ffi::OsString;
 use anyhow::anyhow;
 
 use radicle::crypto::ssh;
+use radicle::crypto::ssh::Passphrase;
 use radicle::{profile, Profile};
 
 use crate::terminal as term;
@@ -86,8 +87,15 @@ pub fn init(options: Options) -> anyhow::Result<()> {
         term::passphrase_confirm()
     }?;
     let spinner = term::spinner("Creating your 🌱 Ed25519 keypair...");
-    let profile = Profile::init(home, passphrase)?;
+    let profile = Profile::init(home, passphrase.clone())?;
     spinner.finish();
+
+    let spinner = term::spinner("Adding your radicle key to ssh-agent...");
+    if register(&profile, passphrase).is_ok() {
+        spinner.finish();
+    } else {
+        spinner.warn();
+    }
 
     term::success!(
         "Your Radicle ID is {}. This identifies your device.",
@@ -124,18 +132,26 @@ pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
             term::passphrase()
         }?;
         let spinner = term::spinner("Unlocking...");
-        let mut agent = ssh::agent::Agent::connect()?;
-        let secret = profile
-            .keystore
-            .secret_key(passphrase)?
-            .ok_or_else(|| anyhow!("Key not found in {:?}", profile.keystore.path()))?;
-        agent.register(&secret)?;
+        register(profile, passphrase)?;
         spinner.finish();
 
         term::success!("Radicle key added to ssh-agent");
     } else {
         term::success!("Signing key already in ssh-agent");
     };
+
+    Ok(())
+}
+
+/// Register key with ssh-agent.
+pub fn register(profile: &Profile, passphrase: Passphrase) -> anyhow::Result<()> {
+    let mut agent = ssh::agent::Agent::connect()?;
+    let secret = profile
+        .keystore
+        .secret_key(passphrase)?
+        .ok_or_else(|| anyhow!("Key not found in {:?}", profile.keystore.path()))?;
+
+    agent.register(&secret)?;
 
     Ok(())
 }

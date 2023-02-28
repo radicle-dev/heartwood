@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use std::{fmt, io, thread, time};
 
-use crate::terminal::io::ERROR_PREFIX;
+use crate::terminal::io::{ERROR_PREFIX, WARNING_PREFIX};
 use crate::terminal::Paint;
 
 /// How much time to wait between spinner animation updates.
@@ -34,6 +34,7 @@ enum State {
     Running { cursor: usize },
     Canceled,
     Done,
+    Warn,
     Error,
 }
 
@@ -81,6 +82,13 @@ impl Spinner {
                 Paint::red("error:"),
                 msg
             ));
+        }
+    }
+
+    /// Cancel the spinner with a warning sign.
+    pub fn warn(self) {
+        if let Ok(mut progress) = self.progress.lock() {
+            progress.state = State::Warn;
         }
     }
 
@@ -148,6 +156,13 @@ pub fn spinner(message: impl ToString) -> Spinner {
                             Paint::red("<canceled>")
                         )
                         .ok();
+                        break;
+                    }
+                    Progress {
+                        state: State::Warn,
+                        message,
+                    } => {
+                        writeln!(stdout, "{WARNING_PREFIX} {message}").ok();
                         break;
                     }
                     Progress {

@@ -19,6 +19,7 @@ use super::Error;
 use super::{style, Paint};
 
 pub const ERROR_PREFIX: Paint<&str> = Paint::red("✗");
+pub const WARNING_PREFIX: Paint<&str> = Paint::yellow("!");
 pub const TAB: &str = "    ";
 
 /// Render configuration.
@@ -129,7 +130,7 @@ pub fn subcommand(msg: impl fmt::Display) {
 pub fn warning(warning: &str) {
     println!(
         "{} {} {warning}",
-        Paint::yellow("!"),
+        WARNING_PREFIX,
         Paint::yellow("Warning:").bold(),
     );
 }

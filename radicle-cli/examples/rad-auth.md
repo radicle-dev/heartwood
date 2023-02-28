@@ -7,6 +7,7 @@ $ rad auth
 Initializing your 🌱 profile and identity
 
 ✓ Creating your 🌱 Ed25519 keypair...
+! Adding your radicle key to ssh-agent...
 ✓ Your Radicle ID is did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi. This identifies your device.
 
 👉 To create a radicle project, run `rad init` from a git repository.
