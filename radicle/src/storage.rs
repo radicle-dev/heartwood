@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crypto::{PublicKey, Signer, Unverified, Verified};
-pub use git::{ProjectError, VerifyError};
+pub use git::VerifyError;
 pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
@@ -18,7 +18,7 @@ use crate::git::ext as git_ext;
 use crate::git::{Qualified, RefError, RefString};
 use crate::identity;
 use crate::identity::doc::DocError;
-use crate::identity::{Id, IdError};
+use crate::identity::{Id, IdError, IdentityError};
 use crate::storage::refs::Refs;
 
 use self::refs::SignedRefs;
@@ -98,7 +98,7 @@ pub enum FetchError {
     Storage(#[from] Error),
     // TODO: This should wrap a more specific error.
     #[error("repository head: {0}")]
-    SetHead(#[from] ProjectError),
+    SetHead(#[from] IdentityError),
 }
 
 pub type RemoteId = PublicKey;
@@ -269,9 +269,9 @@ pub trait ReadStorage {
         &self,
         remote: &RemoteId,
         rid: Id,
-    ) -> Result<Option<identity::Doc<Verified>>, ProjectError>;
+    ) -> Result<Option<identity::Doc<Verified>>, IdentityError>;
     /// Check whether storage contains a repository.
-    fn contains(&self, rid: &Id) -> Result<bool, ProjectError>;
+    fn contains(&self, rid: &Id) -> Result<bool, IdentityError>;
     /// Get the inventory of repositories hosted under this storage.
     fn inventory(&self) -> Result<Inventory, Error>;
     /// Open or create a read-only repository.
@@ -314,14 +314,14 @@ pub trait ReadRepository {
     /// head using [`ReadRepository::canonical_head`].
     ///
     /// Returns the [`Oid`] as well as the qualified reference name.
-    fn head(&self) -> Result<(Qualified, Oid), ProjectError>;
+    fn head(&self) -> Result<(Qualified, Oid), IdentityError>;
 
     /// Compute the canonical head of this repository.
     ///
     /// Ignores any existing `HEAD` reference.
     ///
     /// Returns the [`Oid`] as well as the qualified reference name.
-    fn canonical_head(&self) -> Result<(Qualified, Oid), ProjectError>;
+    fn canonical_head(&self) -> Result<(Qualified, Oid), IdentityError>;
 
     /// Get the `reference` for the given `remote`.
     ///
@@ -357,14 +357,14 @@ pub trait ReadRepository {
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;
 
     /// Get the repository's identity document.
-    fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError>;
+    fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError>;
 }
 
 /// Allows read-write access to a repository.
 pub trait WriteRepository: ReadRepository {
     /// Set the repository head to the canonical branch.
     /// This computes the head based on the delegate set.
-    fn set_head(&self) -> Result<Oid, ProjectError>;
+    fn set_head(&self) -> Result<Oid, IdentityError>;
     /// Sign the repository's refs under the `refs/rad/sigrefs` branch.
     fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error>;
     /// Get the underlying git repository.
@@ -386,7 +386,7 @@ where
         self.deref().path_of(rid)
     }
 
-    fn contains(&self, rid: &Id) -> Result<bool, ProjectError> {
+    fn contains(&self, rid: &Id) -> Result<bool, IdentityError> {
         self.deref().contains(rid)
     }
 
@@ -398,7 +398,7 @@ where
         &self,
         remote: &RemoteId,
         proj: Id,
-    ) -> Result<Option<identity::Doc<Verified>>, ProjectError> {
+    ) -> Result<Option<identity::Doc<Verified>>, IdentityError> {
         self.deref().get(remote, proj)
     }
 

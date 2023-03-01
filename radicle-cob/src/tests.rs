@@ -26,7 +26,7 @@ fn roundtrip() {
     let cob = create(
         &storage,
         &signer,
-        &proj,
+        proj.project.content_id,
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
@@ -58,7 +58,7 @@ fn list_cobs() {
     let issue_1 = create(
         &storage,
         &signer,
-        &proj,
+        proj.project.content_id,
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
@@ -72,7 +72,7 @@ fn list_cobs() {
     let issue_2 = create(
         &storage,
         &signer,
-        &proj,
+        proj.project.content_id,
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
@@ -106,7 +106,7 @@ fn update_cob() {
     let cob = create(
         &storage,
         &signer,
-        &proj,
+        proj.project.content_id,
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
@@ -124,7 +124,7 @@ fn update_cob() {
     let updated = update(
         &storage,
         &signer,
-        &proj,
+        proj.project.content_id,
         &proj.identifier(),
         Update {
             changes: nonempty!(b"issue 1".to_vec()),
@@ -164,7 +164,7 @@ fn traverse_cobs() {
     let cob = create(
         &storage,
         &terry_signer,
-        &terry_proj,
+        terry_proj.project.content_id,
         &terry_proj.identifier(),
         Create {
             contents: nonempty!(b"issue 1".to_vec()),
@@ -186,7 +186,7 @@ fn traverse_cobs() {
     let updated = update(
         &storage,
         &neil_signer,
-        &neil_proj,
+        neil_proj.project.content_id,
         &neil_proj.identifier(),
         Update {
             changes: nonempty!(b"issue 2".to_vec()),

@@ -10,11 +10,12 @@ use thiserror::Error;
 use crate::crypto;
 use crate::crypto::{Signature, Verified};
 use crate::git;
-use crate::storage::{ReadRepository, RemoteId};
+use crate::storage;
+use crate::storage::{refs, ReadRepository, RemoteId};
 
 pub use crypto::PublicKey;
 pub use did::Did;
-pub use doc::{Doc, Id, IdError};
+pub use doc::{Doc, Id, IdError, PayloadError};
 pub use project::Project;
 
 /// Untrusted, well-formed input.
@@ -30,18 +31,39 @@ pub enum IdentityError {
     Git(#[from] git2::Error),
     #[error("git: {0}")]
     GitExt(#[from] git::Error),
+    #[error("identity branches diverge from each other")]
+    BranchesDiverge,
     #[error("root hash `{0}` does not match project")]
     MismatchedRoot(Oid),
+    #[error("the identity branch is missing")]
+    MissingBranch,
     #[error("the document root is missing")]
     MissingRoot,
     #[error("root commit is missing one or more delegate signatures")]
     MissingRootSignatures,
+    #[error(transparent)]
+    Payload(#[from] PayloadError),
     #[error("commit signature for {0} is invalid: {1}")]
     InvalidSignature(PublicKey, crypto::Error),
     #[error("threshold not reached: {0} signatures for a threshold of {1}")]
     ThresholdNotReached(usize, usize),
     #[error("identity document error: {0}")]
     Doc(#[from] doc::DocError),
+    #[error(transparent)]
+    Refs(#[from] refs::Error),
+    #[error(transparent)]
+    Storage(#[from] storage::Error),
+}
+
+impl IdentityError {
+    /// Whether this error is caused by something not being found.
+    pub fn is_not_found(&self) -> bool {
+        match self {
+            Self::Doc(doc) => doc.is_not_found(),
+            Self::Refs(refs) => refs.is_not_found(),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,14 +82,6 @@ pub struct Identity<I> {
     pub doc: Doc<Verified>,
     /// Signatures over this identity.
     pub signatures: HashMap<PublicKey, Signature>,
-}
-
-impl radicle_cob::identity::Identity for Identity<Oid> {
-    type Identifier = Oid;
-
-    fn content_id(&self) -> Oid {
-        self.current
-    }
 }
 
 impl Identity<Oid> {
@@ -94,6 +108,11 @@ impl Identity<Untrusted> {
         repo: &R,
     ) -> Result<Identity<Oid>, IdentityError> {
         let head = Doc::<Untrusted>::head(remote, repo)?;
+
+        Self::load_at(head, repo)
+    }
+
+    pub fn load_at<R: ReadRepository>(head: Oid, repo: &R) -> Result<Identity<Oid>, IdentityError> {
         let mut history = repo.revwalk(head)?.collect::<Vec<_>>();
 
         // Retrieve root document.

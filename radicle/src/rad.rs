@@ -8,11 +8,11 @@ use thiserror::Error;
 
 use crate::crypto::{Signer, Verified};
 use crate::git;
-use crate::identity::doc;
 use crate::identity::doc::{DocError, Id};
 use crate::identity::project::Project;
+use crate::identity::{doc, IdentityError};
 use crate::storage::git::transport;
-use crate::storage::git::{ProjectError, Repository, Storage};
+use crate::storage::git::{Repository, Storage};
 use crate::storage::refs::SignedRefs;
 use crate::storage::WriteRepository;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId};
@@ -26,7 +26,7 @@ pub enum InitError {
     #[error("doc: {0}")]
     Doc(#[from] DocError),
     #[error("project: {0}")]
-    Project(#[from] storage::git::ProjectError),
+    Identity(#[from] IdentityError),
     #[error("project payload: {0}")]
     ProjectPayload(String),
     #[error("git: {0}")]
@@ -102,7 +102,7 @@ pub enum ForkError {
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
     #[error("project identity error: {0}")]
-    InvalidIdentity(#[from] storage::git::ProjectError),
+    InvalidIdentity(#[from] IdentityError),
     #[error("project identity document error: {0}")]
     Doc(#[from] DocError),
     #[error("git: invalid reference")]
@@ -199,7 +199,7 @@ pub enum CheckoutError {
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
     #[error("project error: {0}")]
-    Project(#[from] ProjectError),
+    Identity(#[from] IdentityError),
 }
 
 /// Checkout a project from storage as a working copy.

@@ -6,6 +6,7 @@ use radicle_git_ext as git_ext;
 
 use crate::crypto::{Signer, Verified};
 use crate::identity::doc::{Doc, Id};
+use crate::identity::IdentityError;
 
 pub use crate::storage::*;
 
@@ -42,15 +43,11 @@ impl ReadStorage for MockStorage {
         self.path().join(rid.canonical())
     }
 
-    fn contains(&self, rid: &Id) -> Result<bool, ProjectError> {
+    fn contains(&self, rid: &Id) -> Result<bool, IdentityError> {
         Ok(self.inventory.contains_key(rid))
     }
 
-    fn get(
-        &self,
-        _remote: &RemoteId,
-        proj: Id,
-    ) -> Result<Option<Doc<Verified>>, git::ProjectError> {
+    fn get(&self, _remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError> {
         Ok(self.inventory.get(&proj).cloned())
     }
 
@@ -86,11 +83,11 @@ impl ReadRepository for MockRepository {
         Ok(true)
     }
 
-    fn head(&self) -> Result<(fmt::Qualified, Oid), ProjectError> {
+    fn head(&self) -> Result<(fmt::Qualified, Oid), IdentityError> {
         todo!()
     }
 
-    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), ProjectError> {
+    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), IdentityError> {
         todo!()
     }
 
@@ -148,7 +145,7 @@ impl ReadRepository for MockRepository {
 
     fn identity_doc(
         &self,
-    ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), git::ProjectError> {
+    ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), IdentityError> {
         todo!()
     }
 }
@@ -158,7 +155,7 @@ impl WriteRepository for MockRepository {
         todo!()
     }
 
-    fn set_head(&self) -> Result<Oid, ProjectError> {
+    fn set_head(&self) -> Result<Oid, IdentityError> {
         todo!()
     }
 

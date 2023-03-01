@@ -3,7 +3,6 @@ use std::collections::BTreeSet;
 use git_ext::Oid;
 use serde::{Deserialize, Serialize};
 
-use crate::identity::Identity;
 use crate::test;
 use crate::test::storage::{self, Storage};
 
@@ -72,13 +71,5 @@ impl Project {
 
     pub fn name(&self) -> &Name {
         &self.payload.name
-    }
-}
-
-impl Identity for RemoteProject {
-    type Identifier = Urn;
-
-    fn content_id(&self) -> Oid {
-        self.project.content_id
     }
 }

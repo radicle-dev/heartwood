@@ -11,8 +11,8 @@ pub mod test;
 
 pub use cob::{create, get, list, remove, update};
 pub use cob::{
-    history::entry::EntryBlob, identity::Identity, object::collaboration::error,
-    CollaborativeObject, Contents, Create, Entry, History, ObjectId, TypeName, Update,
+    history::entry::EntryBlob, object::collaboration::error, CollaborativeObject, Contents, Create,
+    Entry, History, ObjectId, TypeName, Update,
 };
 pub use common::*;
 pub use op::{ActorId, Op, OpId};

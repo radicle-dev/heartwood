@@ -25,6 +25,7 @@ use crate::address::AddressBook;
 use crate::clock::Timestamp;
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
+use crate::identity::IdentityError;
 use crate::identity::{Doc, Id};
 use crate::node;
 use crate::node::{Address, Features, FetchResult, Seed, Seeds};
@@ -1277,8 +1278,8 @@ pub trait ServiceState {
     fn sessions(&self) -> &Sessions;
     /// Get the current inventory.
     fn inventory(&self) -> Result<Inventory, storage::Error>;
-    /// Get a project from storage, using the local node's key.
-    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::ProjectError>;
+    /// Get a repository from storage, using the local node's key.
+    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError>;
     /// Get the clock.
     fn clock(&self) -> &LocalTime;
     /// Get the clock mutably.
@@ -1303,7 +1304,7 @@ where
         self.storage.inventory()
     }
 
-    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, storage::ProjectError> {
+    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError> {
         self.storage.get(&self.node_id(), proj)
     }
 
@@ -1385,7 +1386,7 @@ pub enum LookupError {
     #[error(transparent)]
     Routing(#[from] routing::Error),
     #[error(transparent)]
-    Project(#[from] storage::ProjectError),
+    Identity(#[from] IdentityError),
 }
 
 /// Information on a peer, that we may or may not be connected to.

@@ -3,12 +3,10 @@
 // This file is part of radicle-link, distributed under the GPLv3 with Radicle
 // Linking Exception. For full terms see the included LICENSE file.
 
+use git_ext::Oid;
 use nonempty::NonEmpty;
 
-use crate::{
-    change, change_graph::ChangeGraph, identity::Identity, CollaborativeObject, ObjectId, Store,
-    TypeName,
-};
+use crate::{change, change_graph::ChangeGraph, CollaborativeObject, ObjectId, Store, TypeName};
 
 use super::error;
 
@@ -44,17 +42,16 @@ pub struct Update {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]
 /// udpate. See [`Update`] for further information.
-pub fn update<S, G, Resource>(
+pub fn update<S, G>(
     storage: &S,
     signer: &G,
-    resource: &Resource,
+    resource: Oid,
     identifier: &S::Identifier,
     args: Update,
 ) -> Result<CollaborativeObject, error::Update>
 where
     S: Store,
     G: crypto::Signer,
-    Resource: Identity,
 {
     let Update {
         ref typename,
@@ -73,7 +70,7 @@ where
         .ok_or(error::Update::NoSuchObject)?;
 
     let change = storage.store(
-        resource.content_id(),
+        resource,
         signer,
         change::Template {
             tips: object.tips().iter().cloned().collect(),

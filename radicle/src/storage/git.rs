@@ -11,7 +11,7 @@ use once_cell::sync::Lazy;
 
 use crate::git;
 use crate::identity;
-use crate::identity::{doc, Doc, Id};
+use crate::identity::{Doc, Id};
 use crate::identity::{Identity, IdentityError, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
@@ -58,37 +58,6 @@ impl<'a> TryFrom<git2::Reference<'a>> for Ref {
     }
 }
 
-// TODO: Is this is the wrong place for this type?
-#[derive(Error, Debug)]
-pub enum ProjectError {
-    #[error("identity branches diverge from each other")]
-    BranchesDiverge,
-    #[error("identity branches missing")]
-    MissingHeads,
-    #[error("storage error: {0}")]
-    Storage(#[from] Error),
-    #[error("identity document error: {0}")]
-    Doc(#[from] doc::DocError),
-    #[error("payload error: {0}")]
-    Payload(#[from] doc::PayloadError),
-    #[error("git: {0}")]
-    Git(#[from] git2::Error),
-    #[error("git: {0}")]
-    GitExt(#[from] git::Error),
-    #[error("refs: {0}")]
-    Refs(#[from] refs::Error),
-}
-
-impl ProjectError {
-    /// Whether this error is caused by the project not being found.
-    pub fn is_not_found(&self) -> bool {
-        match self {
-            Self::Doc(doc) => doc.is_not_found(),
-            _ => false,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Storage {
     path: PathBuf,
@@ -105,7 +74,7 @@ impl ReadStorage for Storage {
         paths::repository(&self, rid)
     }
 
-    fn contains(&self, rid: &Id) -> Result<bool, ProjectError> {
+    fn contains(&self, rid: &Id) -> Result<bool, IdentityError> {
         if paths::repository(&self, rid).exists() {
             let _ = self.repository(*rid)?.head()?;
             return Ok(true);
@@ -113,13 +82,13 @@ impl ReadStorage for Storage {
         Ok(false)
     }
 
-    fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, ProjectError> {
+    fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError> {
         let repo = match self.repository(proj) {
             Ok(doc) => doc,
             Err(e) if e.is_not_found() => return Ok(None),
             Err(e) => return Err(e.into()),
         };
-        match repo.identity_of(remote) {
+        match repo.identity_doc_of(remote) {
             Ok(doc) => Ok(Some(doc)),
             Err(e) if e.is_not_found() => Ok(None),
             Err(e) => Err(e),
@@ -300,18 +269,24 @@ impl Repository {
         Ok(refs)
     }
 
-    pub fn identity(&self, remote: &RemoteId) -> Result<Identity<Oid>, IdentityError> {
+    pub fn identity_of(&self, remote: &RemoteId) -> Result<Identity<Oid>, IdentityError> {
         Identity::load(remote, self)
     }
 
-    pub fn project_of(&self, remote: &RemoteId) -> Result<Project, ProjectError> {
-        let doc = self.identity_of(remote)?;
+    pub fn identity(&self) -> Result<Identity<Oid>, IdentityError> {
+        let head = self.identity_head()?;
+
+        Identity::load_at(head, self)
+    }
+
+    pub fn project_of(&self, remote: &RemoteId) -> Result<Project, IdentityError> {
+        let doc = self.identity_doc_of(remote)?;
         let proj = doc.project()?;
 
         Ok(proj)
     }
 
-    pub fn identity_of(&self, remote: &RemoteId) -> Result<Doc<Verified>, ProjectError> {
+    pub fn identity_doc_of(&self, remote: &RemoteId) -> Result<Doc<Verified>, IdentityError> {
         let (doc, _) = identity::Doc::load(remote, self)?;
         let verified = doc.verified()?;
 
@@ -319,8 +294,18 @@ impl Repository {
     }
 
     /// Return the canonical identity [`git::Oid`] and document.
-    pub fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError> {
+    pub fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
+        let head = self.identity_head()?;
+
+        Doc::<Unverified>::load_at(head, self)
+            .map(|(doc, _)| (head, doc))
+            .map_err(IdentityError::from)
+    }
+
+    /// Return the canonical identity branch head.
+    pub fn identity_head(&self) -> Result<Oid, IdentityError> {
         let mut heads = Vec::new();
+
         for remote in self.remote_ids()? {
             let remote = remote?;
             let oid = Doc::<Unverified>::head(&remote, self)?;
@@ -328,7 +313,7 @@ impl Repository {
             heads.push(oid.into());
         }
         // Keep track of the longest identity branch.
-        let mut longest = heads.pop().ok_or(ProjectError::MissingHeads)?;
+        let mut longest = heads.pop().ok_or(IdentityError::MissingBranch)?;
 
         for head in &heads {
             let base = self.raw().merge_base(*head, longest)?;
@@ -360,13 +345,10 @@ impl Repository {
                 //            o (base)
                 //            |
                 //
-                return Err(ProjectError::BranchesDiverge);
+                return Err(IdentityError::BranchesDiverge);
             }
         }
-
-        Doc::<Unverified>::load_at(longest.into(), self)
-            .map(|(doc, _)| (longest.into(), doc))
-            .map_err(ProjectError::from)
+        Ok(longest.into())
     }
 
     pub fn remote_ids(
@@ -484,7 +466,7 @@ impl ReadRepository for Repository {
                 return Err(VerifyError::MissingRef(remote, name));
             }
             // Verify identity history of remote.
-            self.identity(&remote)?.verified(self.id)?;
+            self.identity_of(&remote)?.verified(self.id)?;
         }
 
         Ok(())
@@ -554,11 +536,11 @@ impl ReadRepository for Repository {
         Ok(Remotes::from_iter(remotes))
     }
 
-    fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), ProjectError> {
+    fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
         Repository::identity_doc(self)
     }
 
-    fn head(&self) -> Result<(Qualified, Oid), ProjectError> {
+    fn head(&self) -> Result<(Qualified, Oid), IdentityError> {
         // If `HEAD` is already set locally, just return that.
         if let Ok(head) = self.backend.head() {
             if let Ok((name, oid)) = git::refs::qualified_from(&head) {
@@ -568,7 +550,7 @@ impl ReadRepository for Repository {
         self.canonical_head()
     }
 
-    fn canonical_head(&self) -> Result<(Qualified, Oid), ProjectError> {
+    fn canonical_head(&self) -> Result<(Qualified, Oid), IdentityError> {
         // TODO: In the `fork` function for example, we call Repository::project_identity again,
         // This should only be necessary once.
         let (_, doc) = self.identity_doc()?;
@@ -595,7 +577,7 @@ impl ReadRepository for Repository {
 }
 
 impl WriteRepository for Repository {
-    fn set_head(&self) -> Result<Oid, ProjectError> {
+    fn set_head(&self) -> Result<Oid, IdentityError> {
         let head_ref = refname!("HEAD");
         let (branch_ref, head) = self.canonical_head()?;
 

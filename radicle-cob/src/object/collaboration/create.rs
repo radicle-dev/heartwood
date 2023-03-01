@@ -51,21 +51,20 @@ impl Create {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]. See
 /// [`Create`] for further information.
-pub fn create<S, G, Resource>(
+pub fn create<S, G>(
     storage: &S,
     signer: &G,
-    resource: &Resource,
+    resource: Oid,
     identifier: &S::Identifier,
     args: Create,
 ) -> Result<CollaborativeObject, error::Create>
 where
     S: Store,
     G: crypto::Signer,
-    Resource: Identity,
 {
     let Create { ref typename, .. } = &args;
     let init_change = storage
-        .store(resource.content_id(), signer, args.template())
+        .store(resource, signer, args.template())
         .map_err(error::Create::from)?;
     let object_id = init_change.id().into();
 
@@ -76,7 +75,7 @@ where
     let history = History::new_from_root(
         *init_change.id(),
         init_change.signature.key,
-        resource.content_id(),
+        resource,
         init_change.contents,
         init_change.timestamp,
     );

@@ -137,7 +137,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let signer = term::signer(&profile)?;
     let repository = profile.storage.repository(id)?;
     let _project = repository
-        .identity_of(profile.id())
+        .identity_doc_of(profile.id())
         .context(format!("couldn't load project {id} from local state"))?;
     let repository = profile.storage.repository(id)?;
     let mut patches = Patches::open(*profile.id(), &repository)?;

@@ -1,10 +1,9 @@
 use git_ext::Oid;
 use serde::{Deserialize, Serialize};
 
-use crate::identity::Identity;
 use crate::test::storage::{self, Storage};
 
-use super::{Name, Urn};
+use super::Name;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Person {
@@ -55,13 +54,5 @@ impl Person {
 
     pub fn name(&self) -> &Name {
         &self.payload.name
-    }
-}
-
-impl Identity for Person {
-    type Identifier = Urn;
-
-    fn content_id(&self) -> Oid {
-        self.content_id
     }
 }

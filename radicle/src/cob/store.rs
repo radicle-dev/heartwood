@@ -10,17 +10,15 @@ use rand::rngs::StdRng;
 use rand::{RngCore as _, SeedableRng};
 use serde::{Deserialize, Serialize};
 
-use crate::cob;
 use crate::cob::common::Author;
 use crate::cob::op::{Nonce, Op, OpId, Ops};
 use crate::cob::CollaborativeObject;
 use crate::cob::{ActorId, Create, History, ObjectId, TypeName, Update};
 use crate::crypto::PublicKey;
 use crate::git;
-use crate::identity;
-use crate::identity::Identity;
 use crate::prelude::*;
 use crate::storage::git as storage;
+use crate::{cob, identity};
 
 /// History type for standard radicle COBs.
 pub const HISTORY_TYPE: &str = "radicle";
@@ -91,7 +89,7 @@ pub enum Error {
 /// Storage for collaborative objects of a specific type `T` in a single repository.
 pub struct Store<'a, T> {
     whoami: PublicKey,
-    identity: Identity<git::Oid>,
+    parent: git::Oid,
     raw: &'a storage::Repository,
     witness: PhantomData<T>,
     rng: StdRng,
@@ -107,10 +105,10 @@ impl<'a, T> Store<'a, T> {
     /// Open a new generic store.
     pub fn open(whoami: PublicKey, store: &'a storage::Repository) -> Result<Self, Error> {
         let rng = rng::std();
-        let identity = Identity::load(&whoami, store)?;
+        let identity = store.identity()?;
 
         Ok(Self {
-            identity,
+            parent: identity.current,
             whoami,
             raw: store,
             witness: PhantomData,
@@ -151,7 +149,7 @@ where
         cob::update(
             self.raw,
             signer,
-            &self.identity,
+            self.parent,
             signer.public_key(),
             Update {
                 object_id,
@@ -175,7 +173,7 @@ where
         let cob = cob::create(
             self.raw,
             signer,
-            &self.identity,
+            self.parent,
             signer.public_key(),
             Create {
                 history_type: HISTORY_TYPE.to_owned(),

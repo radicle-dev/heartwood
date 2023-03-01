@@ -38,9 +38,9 @@ pub enum Error {
     #[error(transparent)]
     CobStore(#[from] radicle::cob::store::Error),
 
-    /// Git project error.
+    /// Identity error.
     #[error(transparent)]
-    GitProject(#[from] radicle::storage::git::ProjectError),
+    Identity(#[from] radicle::identity::IdentityError),
 
     /// Project doc error.
     #[error(transparent)]

@@ -94,7 +94,7 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     let remote = options.remote.unwrap_or(*profile.id());
     let doc = storage
         .repository(id)?
-        .identity_of(&remote)
+        .identity_doc_of(&remote)
         .context("project could not be found in local storage")?;
     let payload = doc.project()?;
     let path = PathBuf::from(payload.name());

@@ -46,10 +46,6 @@
 //! represents the type of resource the collaborative objects are
 //! relating to, for example a software project.
 //!
-//! This `Resource` must implement [`identity::Identity`] to allow the
-//! internal logic to reference the resource's content-address in
-//! `git` as well as the stable identifier used for the resource.
-//!
 //! ## History Traversal
 //!
 //! The [`History`] of a [`CollaborativeObject`] -- accessed via
@@ -88,8 +84,6 @@ mod trailers;
 
 pub mod change;
 pub use change::Change;
-
-pub mod identity;
 
 pub mod history;
 pub use history::{Contents, Entry, History};

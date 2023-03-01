@@ -8,7 +8,7 @@ use netservices::tunnel::Tunnel;
 use netservices::{NetSession, SplitIo};
 
 use radicle::crypto::Signer;
-use radicle::identity::Id;
+use radicle::identity::{Id, IdentityError};
 use radicle::storage::{Namespaces, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 use radicle::{git, Storage};
 use reactor::poller::popol;
@@ -46,7 +46,7 @@ pub enum FetchError {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
-    Project(#[from] storage::ProjectError),
+    Identity(#[from] IdentityError),
 }
 
 impl FetchError {
