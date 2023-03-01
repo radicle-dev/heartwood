@@ -90,7 +90,12 @@ fn command<H: Handle<Error = runtime::HandleError>>(
 
     match cmd.name {
         CommandName::Connect => {
-            todo!();
+            let (nid, addr) = parse::args(cmd)?;
+            if let Err(e) = handle.connect(nid, addr) {
+                return Err(CommandError::Runtime(e));
+            } else {
+                CommandResult::Okay { updated: true }.to_writer(writer)?;
+            }
         }
         CommandName::Fetch => {
             let (rid, nid): (Id, NodeId) = parse::args(cmd)?;

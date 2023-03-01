@@ -479,8 +479,13 @@ impl Handle for Node {
         matches!(result, CommandResult::Okay { .. })
     }
 
-    fn connect(&mut self, _node: NodeId, _addr: Address) -> Result<(), Error> {
-        todo!()
+    fn connect(&mut self, nid: NodeId, addr: Address) -> Result<(), Error> {
+        self.call::<_, CommandResult>(CommandName::Connect, [nid.to_human(), addr.to_string()])?
+            .next()
+            .ok_or(Error::EmptyResponse {
+                cmd: CommandName::Connect,
+            })??;
+        Ok(())
     }
 
     fn seeds(&mut self, id: Id) -> Result<Seeds, Error> {
