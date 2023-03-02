@@ -367,14 +367,13 @@ pub mod encoding {
 }
 
 pub mod rng {
-    use crate::env;
     use rand::{rngs::StdRng, SeedableRng};
 
     /// Get the "standard" CSPRNG, seeded from OS entropy.
     /// The seed can be overwritten in debug mode with the `RAD_SEED` environment variable.
     pub fn std() -> StdRng {
         #[cfg(debug_assertions)]
-        if let Some(seed) = env::seed() {
+        if let Some(seed) = crate::env::seed() {
             return StdRng::from_seed(seed);
         }
         StdRng::from_entropy()
