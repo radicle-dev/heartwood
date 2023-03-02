@@ -2,7 +2,7 @@
 //!
 //! Example:
 //! ```
-//! use radicle_cli::terminal::table::*;
+//! use radicle_term::table::*;
 //!
 //! let mut t = Table::new(TableOptions::default());
 //! t.push(["pest", "biological control"]);
@@ -18,8 +18,8 @@
 //! ```
 use std::io;
 
-use crate::terminal as term;
-use crate::terminal::cell::Cell;
+use crate as term;
+use crate::cell::Cell;
 
 /// Used to specify maximum width or height.
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]

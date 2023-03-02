@@ -1,29 +1,18 @@
-pub mod ansi;
 pub mod args;
-pub mod cell;
+pub use args::{Args, Error, Help};
 pub mod cob;
-pub mod command;
-pub mod editor;
 pub mod format;
 pub mod io;
+pub use io::{proposal, signer};
 pub mod patch;
-pub mod spinner;
-pub mod table;
-pub mod textbox;
+pub use radicle_term::*;
 
 use std::ffi::OsString;
 use std::process;
 
 use radicle::profile::Profile;
 
-pub use ansi::{paint, Paint};
-pub use args::{Args, Error, Help};
-pub use editor::Editor;
-pub use inquire::ui::Styled;
-pub use io::*;
-pub use spinner::{spinner, Spinner};
-pub use table::Table;
-pub use textbox::TextBox;
+use crate::terminal;
 
 /// Context passed to all commands.
 pub trait Context {
@@ -117,7 +106,7 @@ where
     match cmd.run(options, self::profile) {
         Ok(()) => process::exit(0),
         Err(err) => {
-            term::fail(&format!("{action} failed"), &err);
+            terminal::fail(&format!("{action} failed"), &err);
             process::exit(1);
         }
     }
@@ -136,47 +125,19 @@ pub fn profile() -> Result<Profile, anyhow::Error> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum Interactive {
-    Yes,
-    No,
-}
+pub fn fail(header: &str, error: &anyhow::Error) {
+    let err = error.to_string();
+    let err = err.trim_end();
+    let separator = if err.contains('\n') { ":\n" } else { ": " };
 
-impl Default for Interactive {
-    fn default() -> Self {
-        Interactive::No
+    println!(
+        "{ERROR_PREFIX} {}{}{error}",
+        Paint::red(header).bold(),
+        Paint::red(separator),
+    );
+
+    if let Some(Error::WithHint { hint, .. }) = error.downcast_ref::<Error>() {
+        println!("{} {}", ERROR_HINT_PREFIX, Paint::yellow(hint));
+        blank();
     }
-}
-
-impl Interactive {
-    pub fn yes(&self) -> bool {
-        (*self).into()
-    }
-
-    pub fn no(&self) -> bool {
-        !self.yes()
-    }
-}
-
-impl From<Interactive> for bool {
-    fn from(c: Interactive) -> Self {
-        match c {
-            Interactive::Yes => true,
-            Interactive::No => false,
-        }
-    }
-}
-
-impl From<bool> for Interactive {
-    fn from(b: bool) -> Self {
-        if b {
-            Interactive::Yes
-        } else {
-            Interactive::No
-        }
-    }
-}
-
-pub fn style<T>(item: T) -> Paint<T> {
-    paint(item)
 }

@@ -22,6 +22,7 @@ default-members = [
   "radicle-node",
   "radicle-ssh",
   "radicle-remote-helper",
+  "radicle-term",
 ]
 
 [profile.container]

@@ -1835,6 +1835,7 @@ dependencies = [
  "radicle-cob",
  "radicle-crypto",
  "radicle-node",
+ "radicle-term",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2048,6 +2049,22 @@ dependencies = [
  "serde",
  "tar",
  "thiserror",
+]
+
+[[package]]
+name = "radicle-term"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "concolor",
+ "inquire",
+ "once_cell",
+ "pretty_assertions",
+ "tempfile",
+ "termion 2.0.1",
+ "unicode-segmentation",
+ "unicode-width",
+ "zeroize",
 ]
 
 [[package]]

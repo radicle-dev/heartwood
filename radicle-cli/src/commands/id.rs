@@ -8,8 +8,9 @@ use radicle::prelude::{Did, Doc};
 use radicle::storage::ReadStorage as _;
 use radicle_crypto::Verified;
 
+use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::{self as term, Interactive};
+use crate::terminal::Interactive;
 
 pub const HELP: Help = Help {
     name: "id",

@@ -5,6 +5,7 @@ use anyhow::anyhow;
 
 use radicle::crypto::ssh;
 use radicle::crypto::ssh::Passphrase;
+use radicle::profile::env::RAD_PASSPHRASE;
 use radicle::{profile, Profile};
 
 use crate::terminal as term;
@@ -87,7 +88,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     let passphrase = if options.stdin {
         term::passphrase_stdin()
     } else {
-        term::passphrase_confirm("Enter a passphrase:")
+        term::passphrase_confirm("Enter a passphrase:", RAD_PASSPHRASE)
     }?;
     let spinner = term::spinner("Creating your Ed25519 keypair...");
     let profile = Profile::init(home, passphrase.clone())?;
@@ -132,7 +133,7 @@ pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
         let passphrase = if options.stdin {
             term::passphrase_stdin()
         } else {
-            term::passphrase()
+            term::passphrase(RAD_PASSPHRASE)
         }?;
         let spinner = term::spinner("Unlocking...");
         register(profile, passphrase)?;

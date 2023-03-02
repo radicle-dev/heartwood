@@ -3,8 +3,8 @@ use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use std::{fmt, io, thread, time};
 
-use crate::terminal::io::{ERROR_PREFIX, WARNING_PREFIX};
-use crate::terminal::Paint;
+use crate::io::{ERROR_PREFIX, WARNING_PREFIX};
+use crate::Paint;
 
 /// How much time to wait between spinner animation updates.
 pub const DEFAULT_TICK: time::Duration = time::Duration::from_millis(99);

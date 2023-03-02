@@ -1,7 +1,7 @@
 use std::fmt;
 
-use crate::terminal as term;
-use crate::terminal::cell::Cell as _;
+use crate as term;
+use crate::cell::Cell as _;
 
 pub struct TextBox {
     pub body: String,
