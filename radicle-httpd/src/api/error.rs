@@ -34,6 +34,10 @@ pub enum Error {
     #[error(transparent)]
     CobIssue(#[from] radicle::cob::issue::Error),
 
+    /// Cob patch error.
+    #[error(transparent)]
+    CobPatch(#[from] radicle::cob::patch::Error),
+
     /// Cob store error.
     #[error(transparent)]
     CobStore(#[from] radicle::cob::store::Error),

@@ -25,6 +25,7 @@ pub const HEAD: &str = "1e978d19f251cd9821d9d9a76d1bd436bf0690d5";
 pub const HEAD_1: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
 pub const PATCH_ID: &str = "afb3063f8f0343fa31d2a0d55bac2a6f4a77125e";
 pub const ISSUE_ID: &str = "331569cd5e4dcc55104363ebce92c78b0e5d67d4";
+pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
 
 const PASSWORD: &str = "radicle";
 
@@ -144,7 +145,7 @@ pub async fn create_session(ctx: Context) {
     let issued_at = OffsetDateTime::now_utc();
     let mut sessions = ctx.sessions().write().await;
     sessions.insert(
-        String::from("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy"),
+        String::from(SESSION_ID),
         auth::Session {
             status: auth::AuthState::Authorized,
             public_key: ctx.profile().public_key,

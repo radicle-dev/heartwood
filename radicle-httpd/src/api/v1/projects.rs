@@ -12,13 +12,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
-use radicle::cob::issue::{Action, Issues};
-use radicle::cob::patch::Patches;
+use radicle::cob::{issue, patch};
 use radicle::cob::{thread, ActorId, Tag};
 use radicle::identity::Id;
 use radicle::node::NodeId;
 use radicle::storage::git::paths;
-use radicle::storage::{ReadRepository, ReadStorage};
+use radicle::storage::{ReadRepository, ReadStorage, WriteRepository};
 use radicle_surf::{Glob, Oid, Repository};
 
 use crate::api::error::Error;
@@ -57,7 +56,10 @@ pub fn router(ctx: Context) -> Router {
             "/projects/:project/issues/:id",
             patch(issue_update_handler).get(issue_handler),
         )
-        .route("/projects/:project/patches", get(patches_handler))
+        .route(
+            "/projects/:project/patches",
+            post(patch_create_handler).get(patches_handler),
+        )
         .route("/projects/:project/patches/:id", get(patch_handler))
         .with_state(ctx)
 }
@@ -81,9 +83,9 @@ async fn project_root_handler(
             let Ok((_, doc)) = repo.identity_doc() else { return None };
             let Ok(doc) = doc.verified() else { return None };
             let Ok(payload) = doc.project() else { return None };
-            let Ok(issues) = Issues::open(ctx.profile.public_key, &repo) else { return None };
+            let Ok(issues) = issue::Issues::open(ctx.profile.public_key, &repo) else { return None };
             let Ok(issues) = issues.counts() else { return None };
-            let Ok(patches) = Patches::open(ctx.profile.public_key, &repo) else { return None };
+            let Ok(patches) = patch::Patches::open(ctx.profile.public_key, &repo) else { return None };
             let Ok(patches) = patches.counts() else { return None };
             let delegates = doc.delegates;
 
@@ -393,7 +395,7 @@ async fn issues_handler(
     let per_page = per_page.unwrap_or(10);
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let issues = Issues::open(ctx.profile.public_key, &repo)?;
+    let issues = issue::Issues::open(ctx.profile.public_key, &repo)?;
     let mut issues: Vec<_> = issues.all()?.filter_map(|r| r.ok()).collect::<Vec<_>>();
     issues.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
     let issues = issues
@@ -430,7 +432,7 @@ async fn issue_create_handler(
         .signer()
         .map_err(|_| Error::Auth("Unauthorized"))?;
     let repo = storage.repository(project)?;
-    let mut issues = Issues::open(ctx.profile.public_key, &repo)?;
+    let mut issues = issue::Issues::open(ctx.profile.public_key, &repo)?;
     let issue = issues
         .create(
             issue.title,
@@ -453,7 +455,7 @@ async fn issue_update_handler(
     State(ctx): State<Context>,
     AuthBearer(token): AuthBearer,
     Path((project, issue_id)): Path<(Id, Oid)>,
-    Json(action): Json<Action>,
+    Json(action): Json<issue::Action>,
 ) -> impl IntoResponse {
     ctx.sessions
         .write()
@@ -464,24 +466,24 @@ async fn issue_update_handler(
     let storage = &ctx.profile.storage;
     let signer = ctx.profile.signer().unwrap();
     let repo = storage.repository(project)?;
-    let mut issues = Issues::open(ctx.profile.public_key, &repo)?;
+    let mut issues = issue::Issues::open(ctx.profile.public_key, &repo)?;
     let mut issue = issues.get_mut(&issue_id.into())?;
 
     match action {
-        Action::Assign { add, remove } => {
+        issue::Action::Assign { add, remove } => {
             issue.assign(add, &signer)?;
             issue.unassign(remove, &signer)?;
         }
-        Action::Lifecycle { state } => {
+        issue::Action::Lifecycle { state } => {
             issue.lifecycle(state, &signer)?;
         }
-        Action::Tag { add, remove } => {
+        issue::Action::Tag { add, remove } => {
             issue.tag(add, remove, &signer)?;
         }
-        Action::Edit { title } => {
+        issue::Action::Edit { title } => {
             issue.edit(title, &signer)?;
         }
-        Action::Thread { action } => match action {
+        issue::Action::Thread { action } => match action {
             thread::Action::Comment { body, reply_to } => {
                 if let Some(reply_to) = reply_to {
                     issue.comment(body, reply_to, &signer)?;
@@ -512,11 +514,60 @@ async fn issue_handler(
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let issue = Issues::open(ctx.profile.public_key, &repo)?
+    let issue = issue::Issues::open(ctx.profile.public_key, &repo)?
         .get(&issue_id.into())?
         .ok_or(Error::NotFound)?;
 
     Ok::<_, Error>(Json(api::json::issue(issue_id.into(), issue)))
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct PatchCreate {
+    pub title: String,
+    pub description: String,
+    pub target: Oid,
+    pub oid: Oid,
+    pub tags: Vec<Tag>,
+}
+
+/// Create a new patch.
+/// `POST /projects/:project/patches`
+async fn patch_create_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path(project): Path<Id>,
+    Json(patch): Json<PatchCreate>,
+) -> impl IntoResponse {
+    ctx.sessions
+        .read()
+        .await
+        .get(&token)
+        .ok_or(Error::Auth("Unauthorized"))?;
+    let storage = &ctx.profile.storage;
+    let signer = ctx
+        .profile
+        .signer()
+        .map_err(|_| Error::Auth("Unauthorized"))?;
+    let repo = storage.repository(project)?;
+    let mut patches = patch::Patches::open(ctx.profile.public_key, &repo)?;
+    let base_oid = repo.raw().merge_base(*patch.target, *patch.oid)?;
+
+    let patch = patches
+        .create(
+            patch.title,
+            patch.description,
+            patch::MergeTarget::default(),
+            base_oid,
+            patch.oid,
+            &patch.tags,
+            &signer,
+        )
+        .map_err(Error::from)?;
+
+    Ok::<_, Error>((
+        StatusCode::CREATED,
+        Json(json!({ "success": true, "id": patch.id.to_string() })),
+    ))
 }
 
 /// Get project patches list.
@@ -531,7 +582,7 @@ async fn patches_handler(
     let per_page = per_page.unwrap_or(10);
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let patches = Patches::open(ctx.profile.public_key, &repo)?;
+    let patches = patch::Patches::open(ctx.profile.public_key, &repo)?;
     let mut patches = patches.all()?.filter_map(|r| r.ok()).collect::<Vec<_>>();
     patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
     let patches = patches
@@ -552,7 +603,7 @@ async fn patch_handler(
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let patch = Patches::open(ctx.profile.public_key, &repo)?
+    let patch = patch::Patches::open(ctx.profile.public_key, &repo)?
         .get(&patch_id.into())?
         .ok_or(Error::NotFound)?;
 
@@ -566,7 +617,7 @@ mod routes {
     use pretty_assertions::assert_eq;
     use serde_json::json;
 
-    use crate::test::{self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID};
+    use crate::test::{self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID, SESSION_ID};
 
     const CREATED_ISSUE_ID: &str = "745052a1603000b9566445753d7e2fee1ff5041f";
 
@@ -1081,7 +1132,7 @@ mod routes {
             &app,
             "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues",
             Some(Body::from(body)),
-            Some("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy".to_string()),
+            Some(SESSION_ID.to_string()),
         )
         .await;
 
@@ -1144,7 +1195,7 @@ mod routes {
             &app,
             format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{ISSUE_ID}"),
             Some(Body::from(body)),
-            Some("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy".to_string()),
+            Some(SESSION_ID.to_string()),
         )
         .await;
 
@@ -1214,7 +1265,7 @@ mod routes {
             &app,
             format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{ISSUE_ID}"),
             Some(Body::from(body)),
-            Some("u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy".to_string()),
+            Some(SESSION_ID.to_string()),
         )
         .await;
 
@@ -1320,6 +1371,71 @@ mod routes {
                 "revisions": [
                     {
                         "id": "d6ba305f78e2fa1ebcc55d8c3be8806bbce25fb4",
+                        "description": "",
+                        "reviews": [],
+                    }
+                ],
+              }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_create_patches() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = test::seed(tmp.path());
+        let app = super::router(ctx.to_owned());
+        test::create_session(ctx).await;
+        let body = serde_json::to_vec(&json!({
+          "title": "Update README",
+          "description": "Do some changes to README",
+          "target": HEAD,
+          "oid": HEAD_1,
+          "tags": [],
+        }))
+        .unwrap();
+        let response = post(
+            &app,
+            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches",
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        assert_eq!(
+            response.json().await,
+            json!(
+              {
+                "success": true,
+                "id": "cd370c8a263e8b0c9836d6a5dd3bf7a633d69acf",
+              }
+            )
+        );
+
+        let response = get(
+            &app,
+            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches/cd370c8a263e8b0c9836d6a5dd3bf7a633d69acf",
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json().await,
+            json!(
+              {
+                "id": "cd370c8a263e8b0c9836d6a5dd3bf7a633d69acf",
+                "author": {
+                    "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                },
+                "title": "Update README",
+                "description": "Do some changes to README",
+                "state": "proposed",
+                "target": "delegates",
+                "tags": [],
+                "revisions": [
+                    {
+                        "id": "a65512fc3b8ee7ec50f053c40266538fa11b82dd",
                         "description": "",
                         "reviews": [],
                     }
