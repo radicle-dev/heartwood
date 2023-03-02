@@ -88,6 +88,10 @@ impl<'a> fmt::Display for Identity<'a> {
     }
 }
 
+pub fn wrap<D: std::fmt::Display>(msg: D) -> Paint<D> {
+    Paint::wrapping(msg)
+}
+
 pub fn negative<D: std::fmt::Display>(msg: D) -> Paint<D> {
     Paint::red(msg).bold()
 }

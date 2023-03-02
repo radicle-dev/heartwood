@@ -158,20 +158,21 @@ pub fn fail(header: &str, error: &anyhow::Error) {
 }
 
 pub fn ask<D: fmt::Display>(prompt: D, default: bool) -> bool {
-    let prompt = format!("{} {}", Paint::blue("?".to_owned()), prompt);
+    let prompt = prompt.to_string();
 
     Confirm::new(&prompt)
         .with_default(default)
+        .with_render_config(*CONFIG)
         .prompt()
         .unwrap_or_default()
 }
 
 pub fn confirm<D: fmt::Display>(prompt: D) -> bool {
-    ask(format::tertiary(prompt), true)
+    ask(prompt, true)
 }
 
 pub fn abort<D: fmt::Display>(prompt: D) -> bool {
-    ask(format::tertiary(prompt), false)
+    ask(prompt, false)
 }
 
 /// Get the signer. First we try getting it from ssh-agent, otherwise we prompt the user.
