@@ -1996,6 +1996,7 @@ dependencies = [
  "qcheck-macros",
  "radicle",
  "radicle-crypto",
+ "radicle-term",
  "scrypt",
  "serde",
  "serde_json",

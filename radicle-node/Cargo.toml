@@ -41,6 +41,10 @@ path = "../radicle"
 version = "0.2.0"
 features = ["sql"]
 
+[dependencies.radicle-term]
+path = "../radicle-term"
+version = "0"
+
 [dev-dependencies]
 radicle = { path = "../radicle", version = "*", features = ["test"] }
 radicle-crypto = { path = "../radicle-crypto", version = "*", features = ["test", "cyphernet"] }

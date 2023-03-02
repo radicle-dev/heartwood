@@ -1,7 +1,6 @@
-use std::{env, net, process};
+use std::{net, process};
 
-use anyhow::anyhow;
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use crossbeam_channel as chan;
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
@@ -12,6 +11,7 @@ use radicle_node::prelude::{Address, NodeId};
 use radicle_node::service::tracking::Policy;
 use radicle_node::Runtime;
 use radicle_node::{logger, service, signals};
+use radicle_term as term;
 
 pub const HELP_MSG: &str = r#"
 Usage
@@ -112,11 +112,15 @@ impl Options {
 fn execute() -> anyhow::Result<()> {
     logger::init(log::Level::Debug)?;
 
+    log::info!("Starting node..");
+
     let options = Options::from_env()?;
     let home = profile::home()?;
-    let passphrase = env::var(profile::env::RAD_PASSPHRASE)
-        .context("`RAD_PASSPHRASE` is required to be set for the node to establish connections")?
-        .into();
+
+    log::info!("Unlocking node keystore..");
+
+    let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
+        .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
     let keystore = Keystore::new(&home.keys());
     let signer = MemorySigner::load(&keystore, passphrase)?;
     let config = service::Config {
@@ -141,7 +145,11 @@ fn execute() -> anyhow::Result<()> {
 
 fn main() {
     if let Err(err) = execute() {
-        log::error!(target: "node", "Fatal: {}", err);
+        if let Some(src) = err.source() {
+            log::error!(target: "node", "Fatal: {err}: {src}");
+        } else {
+            log::error!(target: "node", "Fatal: {err}");
+        }
         process::exit(1);
     }
 }
