@@ -18,7 +18,9 @@ mod logger {
 #[cfg(not(feature = "logfmt"))]
 mod logger {
     pub fn subscriber() -> impl tracing::Subscriber {
-        tracing_subscriber::FmtSubscriber::new()
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_target(false)
+            .finish()
     }
 }
 

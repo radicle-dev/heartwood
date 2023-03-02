@@ -8,12 +8,15 @@ use std::str;
 use std::sync::Arc;
 use std::time::Duration;
 
+use ::tracing::Span;
 use anyhow::Context as _;
-use axum::body::{Body, BoxBody};
+use axum::body::{Body, BoxBody, HttpBody};
 use axum::http::{Request, Response};
+use axum::middleware;
 use axum::Router;
 use tower_http::trace::TraceLayer;
-use tracing::Span;
+
+use tracing_extra::{tracing_middleware, ColoredStatus, Paint, RequestId, TracingInfo};
 
 mod api;
 mod axum_extra;
@@ -21,6 +24,7 @@ mod git;
 mod raw;
 #[cfg(test)]
 mod test;
+mod tracing_extra;
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -38,6 +42,7 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
     tracing::info!("{}", str::from_utf8(&git_version)?.trim());
 
     let profile = Arc::new(radicle::Profile::load()?);
+    let request_id = RequestId::new();
 
     tracing::info!("using radicle home at {}", profile.home().display());
 
@@ -52,23 +57,36 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         .merge(git_router)
         .nest("/api", api_router)
         .nest("/raw", raw_router)
+        .layer(middleware::from_fn(tracing_middleware))
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(|request: &Request<Body>| {
-                    tracing::info_span!(
-                        "request",
-                        method = %request.method(),
-                        uri = %request.uri(),
-                        status = tracing::field::Empty,
-                        latency = tracing::field::Empty,
-                    )
+                .make_span_with(move |_request: &Request<Body>| {
+                    tracing::info_span!("request", id = %request_id.clone().next())
                 })
                 .on_response(
-                    |response: &Response<BoxBody>, latency: Duration, span: &Span| {
-                        span.record("status", &tracing::field::debug(response.status()));
-                        span.record("latency", &tracing::field::debug(latency));
-
-                        tracing::info!("Processed");
+                    |response: &Response<BoxBody>, latency: Duration, _span: &Span| {
+                        if let Some(info) = response.extensions().get::<TracingInfo>() {
+                            tracing::info!(
+                                "{} \"{} {} {:?}\" {} {:?} {}",
+                                info.connect_info.0,
+                                info.method,
+                                info.uri,
+                                info.version,
+                                ColoredStatus(response.status()),
+                                latency,
+                                Paint::dim(
+                                    response
+                                        .body()
+                                        .size_hint()
+                                        .exact()
+                                        .map(|n| n.to_string())
+                                        .unwrap_or("0".to_string())
+                                        .into()
+                                ),
+                            );
+                        } else {
+                            tracing::info!("Processed");
+                        }
                     },
                 ),
         )
