@@ -6,6 +6,7 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{fmt, io};
 
+use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -18,6 +19,7 @@ use crate::git::ext as git_ext;
 use crate::git::{Qualified, RefError, RefString};
 use crate::identity;
 use crate::identity::doc::DocError;
+use crate::identity::Did;
 use crate::identity::{Id, IdError, IdentityError};
 use crate::storage::refs::Refs;
 
@@ -355,6 +357,14 @@ pub trait ReadRepository {
 
     /// Get all remotes.
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;
+
+    /// Get repository delegates.
+    fn delegates(&self) -> Result<NonEmpty<Did>, IdentityError> {
+        let (_, doc) = self.identity_doc()?;
+        let doc = doc.verified()?;
+
+        Ok(doc.delegates)
+    }
 
     /// Get the repository's identity document.
     fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError>;
