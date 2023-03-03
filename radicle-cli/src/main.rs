@@ -158,6 +158,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "fetch" => {
+            term::run_command_args::<rad_fetch::Options, _>(
+                rad_fetch::HELP,
+                "Fetch",
+                rad_fetch::run,
+                args.to_vec(),
+            );
+        }
         "help" => {
             term::run_command_args::<rad_help::Options, _>(
                 rad_help::HELP,
