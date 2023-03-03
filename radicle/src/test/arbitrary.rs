@@ -58,6 +58,14 @@ pub fn vec<T: Eq + Arbitrary>(size: usize) -> Vec<T> {
     vec
 }
 
+pub fn nonempty_storage(size: usize) -> MockStorage {
+    let mut storage = gen::<MockStorage>(size);
+    storage
+        .inventory
+        .insert(gen::<Id>(size), gen::<Doc<Verified>>(size));
+    storage
+}
+
 pub fn gen<T: Arbitrary>(size: usize) -> T {
     let mut gen = qcheck::Gen::new(size);
 

@@ -75,7 +75,15 @@ impl<S, G> DerefMut for Peer<S, G> {
 
 impl Peer<MockStorage, MockSigner> {
     pub fn new(name: &'static str, ip: impl Into<net::IpAddr>) -> Self {
-        Self::config(name, ip, MockStorage::empty(), Config::default())
+        Self::with_storage(name, ip, MockStorage::empty())
+    }
+
+    pub fn with_storage(
+        name: &'static str,
+        ip: impl Into<net::IpAddr>,
+        storage: MockStorage,
+    ) -> Self {
+        Self::config(name, ip, storage, Config::default())
     }
 }
 

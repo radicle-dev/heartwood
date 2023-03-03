@@ -55,28 +55,42 @@ impl ReadStorage for MockStorage {
         Ok(self.inventory.keys().cloned().collect::<Vec<_>>())
     }
 
-    fn repository(&self, _proj: Id) -> Result<Self::Repository, Error> {
-        Ok(MockRepository {})
+    fn repository(&self, rid: Id) -> Result<Self::Repository, Error> {
+        let doc = self
+            .inventory
+            .get(&rid)
+            .expect("Mockstorage::repository: missing doc");
+        Ok(MockRepository {
+            id: rid,
+            doc: doc.clone(),
+        })
     }
 }
 
 impl WriteStorage for MockStorage {
     type RepositoryMut = MockRepository;
 
-    fn repository_mut(&self, _rid: Id) -> Result<Self::RepositoryMut, Error> {
-        Ok(MockRepository {})
+    fn repository_mut(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
+        let doc = self.inventory.get(&rid).unwrap();
+        Ok(MockRepository {
+            id: rid,
+            doc: doc.clone(),
+        })
     }
 
     fn create(&self, _rid: Id) -> Result<Self::RepositoryMut, Error> {
-        Ok(MockRepository {})
+        todo!()
     }
 }
 
-pub struct MockRepository {}
+pub struct MockRepository {
+    id: Id,
+    doc: Doc<Verified>,
+}
 
 impl ReadRepository for MockRepository {
     fn id(&self) -> Id {
-        todo!()
+        self.id
     }
 
     fn is_empty(&self) -> Result<bool, git2::Error> {
@@ -146,7 +160,7 @@ impl ReadRepository for MockRepository {
     fn identity_doc(
         &self,
     ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), IdentityError> {
-        todo!()
+        Ok((git2::Oid::zero().into(), self.doc.clone().unverified()))
     }
 }
 

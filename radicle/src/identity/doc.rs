@@ -299,6 +299,16 @@ impl Doc<Verified> {
 
         Ok(oid.into())
     }
+
+    #[cfg(any(test, feature = "test"))]
+    pub(crate) fn unverified(self) -> Doc<Unverified> {
+        Doc {
+            payload: self.payload,
+            delegates: self.delegates,
+            threshold: self.threshold,
+            verified: PhantomData,
+        }
+    }
 }
 
 impl Doc<Unverified> {

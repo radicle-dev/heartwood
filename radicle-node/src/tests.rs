@@ -581,7 +581,9 @@ fn test_refs_announcement_relay() {
 
 #[test]
 fn test_refs_announcement_no_subscribe() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let storage = arbitrary::nonempty_storage(1);
+    let rid = *storage.inventory.keys().next().unwrap();
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let eve = Peer::new("eve", [9, 9, 9, 9]);
     let id = arbitrary::gen(1);
@@ -589,18 +591,19 @@ fn test_refs_announcement_no_subscribe() {
     alice.track_repo(&id, tracking::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.connect_to(&eve);
-    alice.receive(bob.id(), bob.refs_announcement(id));
+    alice.receive(bob.id(), bob.refs_announcement(rid));
 
     assert!(alice.messages(eve.id()).next().is_none());
 }
 
 #[test]
 fn test_gossip_during_fetch() {
-    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let storage = arbitrary::nonempty_storage(1);
+    let rid = *storage.inventory.keys().next().unwrap();
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let eve = Peer::new("eve", [9, 9, 9, 9]);
     let now = LocalTime::now().as_millis();
-    let rid = arbitrary::gen::<Id>(1);
     let (send, _recv) = chan::bounded::<node::FetchResult>(1);
     let inventory1 = BoundedVec::try_from(arbitrary::vec(1)).unwrap();
     let inventory2 = BoundedVec::try_from(arbitrary::vec(1)).unwrap();
