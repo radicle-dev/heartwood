@@ -5,6 +5,7 @@ use crossbeam_channel as chan;
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
 
+use radicle::prelude::Signer;
 use radicle::profile;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::prelude::{Address, NodeId};
@@ -112,17 +113,20 @@ impl Options {
 fn execute() -> anyhow::Result<()> {
     logger::init(log::Level::Debug)?;
 
-    log::info!("Starting node..");
+    log::info!(target: "node", "Starting node..");
 
     let options = Options::from_env()?;
     let home = profile::home()?;
 
-    log::info!("Unlocking node keystore..");
+    log::info!(target: "node", "Unlocking node keystore..");
 
     let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
         .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
     let keystore = Keystore::new(&home.keys());
     let signer = MemorySigner::load(&keystore, passphrase)?;
+
+    log::info!(target: "node", "Node ID is {}", signer.public_key());
+
     let config = service::Config {
         connect: options.connect.into_iter().collect(),
         external_addresses: options.external_addresses,
