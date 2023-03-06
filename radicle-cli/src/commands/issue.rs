@@ -220,7 +220,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             title: Some(title),
             description: Some(description),
         } => {
-            issues.create(title, description, &[], &[], &signer)?;
+            let issue = issues.create(title, description, &[], &[], &signer)?;
+            show_issue(&issue)?;
         }
         Operation::Show { id } => {
             let issue = issues
@@ -275,7 +276,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 let meta: Metadata =
                     serde_yaml::from_str(&meta).context("failed to parse yaml front-matter")?;
 
-                issues.create(
+                let issue = issues.create(
                     &meta.title,
                     description.trim(),
                     meta.labels.as_slice(),
@@ -286,6 +287,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                         .as_slice(),
                     &signer,
                 )?;
+                show_issue(&issue)?;
             }
         }
         Operation::List { assigned } => {
@@ -336,15 +338,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 fn show_issue(issue: &issue::Issue) -> anyhow::Result<()> {
+    let tags: Vec<String> = issue.tags().cloned().map(|t| t.into()).collect();
+    let assignees: Vec<String> = issue.assigned().map(|a| a.to_string()).collect();
+
     term::info!("title: {}", issue.title());
     term::info!("state: {}", issue.state());
+    term::info!("tags: [{}]", tags.join(", "));
+    term::info!("assignees: [{}]", assignees.join(", "));
+    term::blank();
+    term::info!("{}", issue.description().unwrap_or_default());
 
-    let tags: Vec<String> = issue.tags().cloned().map(|t| t.into()).collect();
-    term::info!("tags: {}", tags.join(", "));
-
-    let assignees: Vec<String> = issue.assigned().map(|a| a.to_string()).collect();
-    term::info!("assignees: {}", assignees.join(", "));
-
-    term::info!("{}", issue.description().unwrap_or(""));
     Ok(())
 }

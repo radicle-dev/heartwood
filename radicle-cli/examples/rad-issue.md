@@ -5,6 +5,12 @@ Let's say the new car you are designing with your peers has a problem with its f
 
 ```
 $ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
+title: flux capacitor underpowered
+state: open
+tags: []
+assignees: []
+
+Flux capacitor power requirements exceed current supply
 ```
 
 The issue is now listed under our project.
