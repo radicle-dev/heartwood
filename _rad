@@ -1,0 +1,459 @@
+#compdef rad
+
+
+function _rad_id() {
+    local ret=1
+
+    local -a cmds
+    cmds=(
+        update
+        edit
+        list
+        show
+        rebase
+        accept
+        reject
+        close
+        commit
+    )
+
+    _arguments -S -C \
+        --help'[Prints help]' \
+        ": :{ _describe 'rad id commands' cmds }" \
+        '*:: :->args' \
+        && ret=0
+
+    case $state in
+        args)
+
+            case $words[1] in
+                update)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        {--title,-t} \
+                        {--description,-d} \
+                        --delegates:did \
+                        --threshold:number \
+                        --no-confirm \
+                        && ret=0
+                ;;
+
+                edit)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        {--title,-t} \
+                        {--description,-d} \
+                        --delegates:did \
+                        --threshold:number \
+                        --no-confirm \
+                        && ret=0
+                ;;
+
+                list)
+                ;;
+
+                show)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --rev:rev \
+                        && ret=0
+                ;;
+
+                rebase)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --rev:rev \
+                        --no-confirm \
+                        && ret=0
+                ;;
+
+                accept)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --rev:rev \
+                        --no-confirm \
+                        && ret=0
+                ;;
+
+                reject)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --rev:rev \
+                        --no-confirm \
+                        && ret=0
+                ;;
+
+                close)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --rev:rev \
+                        --no-confirm \
+                        && ret=0
+                ;;
+
+                commit)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --rev:rev \
+                        --no-confirm \
+                        && ret=0
+                ;;
+            esac
+
+        ;;
+    esac
+
+    return ret
+}
+
+
+function _rad_issue () {
+    local ret=1
+
+    local -a cmds
+    cmds=(
+        delete
+        list
+        open
+        react
+        show
+        state
+    )
+
+    _arguments -S -C \
+        --help'[Prints help]' \
+        ": :{ _describe 'rad issue commands' cmds }" \
+        '*:: :->args' \
+        && ret=0
+
+    case $state in
+        args)
+            case $words[1] in
+                delete)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        '*:id' \
+                        && ret=0
+                ;;
+
+                list)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --assigned:did \
+                        && ret=0
+                ;;
+
+                open)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --title:title \
+                        --description:text \
+                        && ret=0
+                ;;
+
+                react)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --emoji:char \
+                        '*:id' \
+                        && ret=0
+                ;;
+
+                show)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        '*:id' \
+                        && ret=0
+                ;;
+
+                state)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --closed \
+                        --open \
+                        --solved \
+                        '*:id' \
+                        && ret=0
+                ;;
+            esac
+    esac
+
+    return ret
+}
+
+
+function _rad_patch () {
+    local ret=1
+
+    local -a cmds
+    cmds=(
+        list
+        show
+        open
+        update
+        checkout
+    )
+
+    _arguments -S -C \
+        --help'[Prints help]' \
+        ": :{ _describe 'rad patch commands' cmds }" \
+        '*:: :->args' \
+        && ret=0
+
+    case $state in
+        args)
+            case $words[1] in
+                list)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        && ret=0
+                ;;
+
+                show)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        '*:id' \
+                        && ret=0
+                ;;
+
+                open)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        {--confirm,--no-confirm}"[Don't ask for confirmation during clone]" \
+                        {--sync,--no-sync}'[Sync patch to seed (default: sync)]' \
+                        {--push,--no-push}'[Push patch head to storage (default: true)]' \
+                        --message'[Provide a comment message to the patch or revision (default: prompt)]:string' \
+                        --no-message'[Leave the patch or revision comment message blank]' \
+                        && ret=0
+                ;;
+
+                update)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        {--confirm,--no-confirm}"[Don't ask for confirmation during clone]" \
+                        {--sync,--no-sync}'[Sync patch to seed (default: sync)]' \
+                        {--push,--no-push}'[Push patch head to storage (default: true)]' \
+                        --message'[Provide a comment message to the patch or revision (default: prompt)]:string' \
+                        --no-message'[Leave the patch or revision comment message blank]' \
+                        '*:id' \
+                        && ret=0
+                ;;
+
+                checkout)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        '*:id' \
+                        && ret=0
+                ;;
+            esac
+    esac
+
+    return ret
+}
+
+
+function _rad() {
+    local ret=1
+
+    local -a cmds
+    cmds=(
+        'assign:assign an issue'
+        'auth:Manage identities and profiles'
+        'checkout:Checkout a project into the local directory'
+        'clone:Clone a project'
+        'edit:Edit an identity doc'
+        'fetch:Fetch repository refs from the network'
+        'help:CLI help'
+        'id:Manage identity documents'
+        'init:Initialize a project from a git repository'
+        'inspect:Inspect a radicle repository'
+        'issue:Manage issues'
+        'ls:List projects'
+        'merge:Merge a patch'
+        'patch:Manage patches'
+        'path:Display the radicle home path'
+        'push:Publish a project to the network'
+        'review:Approve or reject a patch'
+        'rm:Remove a project'
+        'self:Show information about your identity and device'
+        'track:Manage project tracking policy'
+        'unassign:unassign an issue'
+        'untrack:Untrack project peers'
+    )
+    _arguments -S -C \
+        ": :{ _describe 'rad commands' cmds }" \
+        '*:: :->args' \
+        && ret=0
+
+    case $state in
+        args)
+
+            case $words[1] in
+                assign)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        && ret=0
+                ;;
+
+                auth)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --stdin'[Read passphrase from stdin (default: false)]' \
+                        && ret=0
+                ;;
+
+                checkout)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --remote'[Remote namespace to checkout]:id' \
+                        --no-confirm"[Don't ask for confirmation during checkout]" \
+                        && ret=0
+                ;;
+
+                clone)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --no-announce'[Do not announce our new refs to the network]' \
+                        --no-confirm"[Don't ask for confirmation during clone]" \
+                        && ret=0
+                ;;
+
+                edit)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        && ret=0
+                ;;
+
+                fetch)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        && ret=0
+                ;;
+
+                help)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        && ret=0
+                ;;
+
+                id)
+                    _rad_id && ret=0
+                ;;
+
+                init)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --name'[Name of the project]:name' \
+                        --description'[Description of the project]:description' \
+                        --default-branch'[The default branch of the project]:branch' \
+                        {--set-upstream,-u}'[Setup the upstream of the default branch]:upstream' \
+                        --setup-signing'[Setup the radicle key as a signing key for this repository]:key' \
+                        --no-confirm"[Don't ask for confirmation during setup]" \
+                        --no-sync"[Don't announce the new project to the network]" \
+                        && ret=0
+                ;;
+
+                inspect)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --id'[Return the repository identifier (RID)]' \
+                        --payload"[Inspect the repository's identity payload]" \
+                        --refs"[Inspect the repository's refs on the local device (requires tree)]" \
+                        --history'[Show the history of the repository identity document]' \
+                        && ret=0
+                ;;
+
+
+                issue)
+                    _rad_issue && ret=0
+                ;;
+
+                ls)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        && ret=0
+                ;;
+
+                merge)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        {-i, --interactive}'[Ask for confirmations]' \
+                        {-r, --revision}'[Revision number to merge, defaults to the latest]:revision' \
+                        && ret=0
+                ;;
+
+                patch)
+                    _rad_patch && ret=0
+                ;;
+
+                path)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        && ret=0
+                ;;
+
+                push)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --all'[Push all branches (default: false)]' \
+                        --sync'[Sync after pushing to the "rad" remote (default: false)]' \
+                        --no-sync'[Do not sync after pushing to the "rad" remote]' \
+                        {-f,--force}'[Force push]' \
+                        {-u,--set-upstream}'[Set upstream tracking branch]' \
+                        && ret=0
+                ;;
+
+                review)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        {-r, --revision}'[Revision number to review, defaults to the latest]:number' \
+                        --no-sync'[Sync review to seed (default: sync)]' \
+                        {-m,--message}'[Provide a comment with the review (default: prompt)]:message' \
+                        --no-message"[Don't provide a comment with the review]" \
+                        && ret=0
+                ;;
+
+                rm)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --no-confirm'[Do not ask for confirmation before removal (default: false)]' \
+                        && ret=0
+                ;;
+
+                self)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --id'[Show ID]' \
+                        && ret=0
+                ;;
+
+                track)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        --alias'[Add an alias to this peer identifier]' \
+                        --fetch"[Fetch the peer's refs into the working copy]" \
+                        {--verbose,-v}'[Verbose output]' \
+                        && ret=0
+                ;;
+
+                unassign)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        && ret=0
+                ;;
+
+                untrack)
+                    _arguments -S \
+                        --help'[Prints help]' \
+                        && ret=0
+                ;;
+            esac
+
+        ;;
+    esac
+
+    return ret
+}
+
+
+_rad "$*"
