@@ -617,9 +617,11 @@ mod routes {
     use pretty_assertions::assert_eq;
     use serde_json::json;
 
-    use crate::test::{self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID, SESSION_ID};
+    use crate::test::{
+        self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID, SESSION_ID, TIMESTAMP,
+    };
 
-    const CREATED_ISSUE_ID: &str = "745052a1603000b9566445753d7e2fee1ff5041f";
+    const CREATED_ISSUE_ID: &str = "7596e4b788c37d633a8bd665e4d3a5a632c90eab";
 
     #[tokio::test]
     async fn test_projects_root() {
@@ -1105,7 +1107,7 @@ mod routes {
                     },
                     "body": "Change 'hello world' to 'hello everyone'",
                     "reactions": [],
-                    "timestamp": 1673001014,
+                    "timestamp": TIMESTAMP,
                     "replyTo": null
                   }
                 ],
@@ -1167,7 +1169,7 @@ mod routes {
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
-                  "timestamp": 1673001014,
+                  "timestamp": TIMESTAMP,
                   "replyTo": null,
               }],
               "tags": [
@@ -1228,7 +1230,7 @@ mod routes {
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
-                  "timestamp": 1673001014,
+                  "timestamp": TIMESTAMP,
                   "replyTo": null,
                 },
                 {
@@ -1238,7 +1240,7 @@ mod routes {
                   },
                   "body": "This is first-level comment",
                   "reactions": [],
-                  "timestamp": 1673001014,
+                  "timestamp": TIMESTAMP,
                   "replyTo": null,
                 },
               ],
@@ -1298,7 +1300,7 @@ mod routes {
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
-                  "timestamp": 1673001014,
+                  "timestamp": TIMESTAMP,
                   "replyTo": null,
                 },
                 {
@@ -1308,7 +1310,7 @@ mod routes {
                   },
                   "body": "This is a reply to the first comment",
                   "reactions": [],
-                  "timestamp": 1673001014,
+                  "timestamp": TIMESTAMP,
                   "replyTo": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
                 },
               ],
@@ -1408,14 +1410,14 @@ mod routes {
             json!(
               {
                 "success": true,
-                "id": "cd370c8a263e8b0c9836d6a5dd3bf7a633d69acf",
+                "id": "48d6d96e1f80b3ccd5bd9675d407e09e7bbaa7ab",
               }
             )
         );
 
         let response = get(
             &app,
-            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches/cd370c8a263e8b0c9836d6a5dd3bf7a633d69acf",
+            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches/48d6d96e1f80b3ccd5bd9675d407e09e7bbaa7ab",
         )
         .await;
 
@@ -1424,7 +1426,7 @@ mod routes {
             response.json().await,
             json!(
               {
-                "id": "cd370c8a263e8b0c9836d6a5dd3bf7a633d69acf",
+                "id": "48d6d96e1f80b3ccd5bd9675d407e09e7bbaa7ab",
                 "author": {
                     "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },

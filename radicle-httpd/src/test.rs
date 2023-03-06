@@ -22,9 +22,10 @@ use crate::api::{auth, Context};
 
 pub const HEAD: &str = "1e978d19f251cd9821d9d9a76d1bd436bf0690d5";
 pub const HEAD_1: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
-pub const PATCH_ID: &str = "afb3063f8f0343fa31d2a0d55bac2a6f4a77125e";
-pub const ISSUE_ID: &str = "331569cd5e4dcc55104363ebce92c78b0e5d67d4";
+pub const PATCH_ID: &str = "3cccb7ac7325215731c62c9c5aef2ec51ba91317";
+pub const ISSUE_ID: &str = "dc368184c379a7802c78b729ed631d2712ce22ab";
 pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
+pub const TIMESTAMP: u64 = 1671125284;
 
 const PASSWORD: &str = "radicle";
 
@@ -32,6 +33,7 @@ pub fn seed(dir: &Path) -> Context {
     let workdir = dir.join("hello-world");
     let rad_home = dir.join("radicle");
 
+    env::set_var("RAD_COMMIT_TIME", TIMESTAMP.to_string());
     env::set_var("RAD_PASSPHRASE", PASSWORD);
     env::set_var(
         "RAD_SEED",
@@ -102,9 +104,6 @@ pub fn seed(dir: &Path) -> Context {
         &profile,
     )
     .unwrap();
-
-    // eq. rad issue new
-    env::set_var("RAD_COMMIT_TIME", "1673001014");
 
     let signer = MemorySigner::load(&profile.keystore, PASSWORD.to_owned().into()).unwrap();
     let storage = &profile.storage;

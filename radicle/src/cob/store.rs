@@ -107,8 +107,8 @@ impl<'a, T> Store<'a, T> {
         let identity = repo.identity()?;
 
         Ok(Self {
-            parent: identity.current,
             repo,
+            parent: identity.head,
             witness: PhantomData,
             rng,
         })
