@@ -116,7 +116,9 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                         // refs will be announced eventually, when the node restarts.
                         let mut node = radicle::Node::new(profile.socket());
                         if node.is_running() {
+                            eprint!("Announcing refs... ");
                             node.announce_refs(url.repo)?;
+                            eprintln!("ok");
                         }
                     }
                 }
