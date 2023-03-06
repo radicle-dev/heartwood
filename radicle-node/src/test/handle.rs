@@ -59,6 +59,10 @@ impl radicle::node::Handle for Handle {
         Ok(())
     }
 
+    fn announce_inventory(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
     fn sync_inventory(&mut self) -> Result<bool, Self::Error> {
         unimplemented!()
     }

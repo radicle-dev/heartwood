@@ -33,8 +33,8 @@ Options
     --default-branch     The default branch of the project
     --set-upstream, -u   Setup the upstream of the default branch
     --setup-signing      Setup the radicle key as a signing key for this repository
+    --announce           Announce the new project to the network
     --no-confirm         Don't ask for confirmation during setup
-    --no-sync            Don't announce the new project to the network
     --help               Print help
 "#,
 };
@@ -48,7 +48,7 @@ pub struct Options {
     pub interactive: Interactive,
     pub setup_signing: bool,
     pub set_upstream: bool,
-    pub sync: bool,
+    pub announce: bool,
     pub track: bool,
 }
 
@@ -65,7 +65,7 @@ impl Args for Options {
         let mut interactive = Interactive::Yes;
         let mut set_upstream = false;
         let mut setup_signing = false;
-        let mut sync = true;
+        let mut announce = false;
         let mut track = true;
 
         while let Some(arg) = parser.next()? {
@@ -108,14 +108,11 @@ impl Args for Options {
                 Long("setup-signing") => {
                     setup_signing = true;
                 }
+                Long("announce") => {
+                    announce = true;
+                }
                 Long("no-confirm") => {
                     interactive = Interactive::No;
-                }
-                Long("sync") => {
-                    sync = true;
-                }
-                Long("no-sync") => {
-                    sync = false;
                 }
                 Long("no-track") => {
                     track = false;
@@ -139,7 +136,7 @@ impl Args for Options {
                 interactive,
                 set_upstream,
                 setup_signing,
-                sync,
+                announce,
                 track,
             },
             vec![],
@@ -241,9 +238,19 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 // Setup radicle signing key.
                 self::setup_signing(profile.id(), &repo, interactive)?;
             }
-            if options.sync {
+
+            if node.is_running() {
                 let spinner = term::spinner("Syncing inventory..");
                 if let Err(e) = node.sync_inventory() {
+                    spinner.error(e);
+                } else {
+                    spinner.finish();
+                }
+            }
+
+            if options.announce {
+                let spinner = term::spinner("Announcing inventory..");
+                if let Err(e) = node.announce_inventory() {
                     spinner.error(e);
                 } else {
                     spinner.finish();
@@ -257,9 +264,11 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             );
             term::indented(term::format::secondary("rad ."));
 
-            term::blank();
-            term::info!("To publish your project to the network, run:");
-            term::indented(term::format::secondary("rad push"));
+            if !options.announce {
+                term::blank();
+                term::info!("To publish your project to the network, run:");
+                term::indented(term::format::secondary("rad push"));
+            }
             term::blank();
         }
         Err(err) => {

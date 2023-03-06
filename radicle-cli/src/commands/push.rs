@@ -15,15 +15,13 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad push [--all] [--[no-]sync] [<option>...]
+    rad push [--all] [<option>...]
 
-    By default, only the current branch is synced.
+    By default, only the current branch is pushed.
 
 Options
 
     --all               Push all branches (default: false)
-    --sync              Sync after pushing to the "rad" remote (default: false)
-    --no-sync           Do not sync after pushing to the "rad" remote
     --help              Print help
 
 Git options
@@ -40,7 +38,6 @@ pub struct Options {
     pub force: bool,
     pub all: bool,
     pub set_upstream: bool,
-    pub sync: bool,
 }
 
 impl Args for Options {
@@ -51,7 +48,6 @@ impl Args for Options {
         let mut verbose = false;
         let mut force = false;
         let mut all = false;
-        let mut sync = None;
         let mut set_upstream = false;
 
         while let Some(arg) = parser.next()? {
@@ -68,16 +64,6 @@ impl Args for Options {
                 Long("set-upstream") | Short('u') => {
                     set_upstream = true;
                 }
-                Long("sync") => {
-                    // Falls back to `--no-sync` in case of ambiguity.
-                    // eg. `rad push --no-sync --sync`
-                    if sync.is_none() {
-                        sync = Some(true);
-                    }
-                }
-                Long("no-sync") => {
-                    sync = Some(false);
-                }
                 Long("force") | Short('f') => {
                     force = true;
                 }
@@ -92,7 +78,6 @@ impl Args for Options {
                 force,
                 all,
                 set_upstream,
-                sync: sync.unwrap_or_default(),
                 verbose,
             },
             vec![],
@@ -128,10 +113,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     match git::run::<_, _, &str, &str>(cwd, args, []) {
         Ok(output) => term::blob(output),
         Err(err) => return Err(err.into()),
-    }
-
-    if options.sync {
-        term::warning("the `--sync` option is not yet supported");
     }
 
     Ok(())

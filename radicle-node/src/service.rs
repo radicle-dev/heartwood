@@ -104,6 +104,8 @@ pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Se
 pub enum Command {
     /// Announce repository references for given repository to peers.
     AnnounceRefs(Id),
+    /// Announce local repositories to peers.
+    AnnounceInventory,
     /// Announce local inventory to peers.
     SyncInventory(chan::Sender<bool>),
     /// Connect to node with the given address.
@@ -128,6 +130,7 @@ impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({id})"),
+            Self::AnnounceInventory => write!(f, "AnnounceInventory"),
             Self::SyncInventory(_) => write!(f, "SyncInventory(..)"),
             Self::Connect(id, addr) => write!(f, "Connect({id}, {addr})"),
             Self::Seeds(id, _) => write!(f, "Seeds({id})"),
@@ -516,10 +519,19 @@ where
                     error!("Error announcing refs: {}", err);
                 }
             }
+            Command::AnnounceInventory => {
+                if let Err(err) = self
+                    .storage
+                    .inventory()
+                    .and_then(|i| self.announce_inventory(i))
+                {
+                    error!("Error announcing inventory: {}", err);
+                }
+            }
             Command::SyncInventory(resp) => {
                 let updated = self
-                    .sync_and_announce_inventory()
-                    .expect("Service::command: error syncing and announcing inventory");
+                    .sync_inventory()
+                    .expect("Service::command: error syncing inventory");
                 resp.send(!updated.is_empty()).ok();
             }
             Command::QueryState(query, sender) => {
@@ -620,8 +632,21 @@ where
             // cases.
 
             // Announce the newly fetched repository to the network, if necessary.
-            if let Err(e) = self.sync_and_announce_inventory() {
-                error!(target: "service", "Failed to sync announce new inventory: {e}");
+            match self.sync_inventory() {
+                Ok(updated) => {
+                    if !updated.is_empty() {
+                        if let Err(e) = self
+                            .storage
+                            .inventory()
+                            .and_then(|i| self.announce_inventory(i))
+                        {
+                            error!(target: "service", "Failed to announce inventory: {e}");
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!(target: "service", "Failed to sync inventory: {e}");
+                }
             }
         }
 
@@ -1073,13 +1098,10 @@ where
     }
 
     /// Sync, and if needed, announce our local inventory.
-    fn sync_and_announce_inventory(&mut self) -> Result<Vec<Id>, Error> {
+    fn sync_inventory(&mut self) -> Result<Vec<Id>, Error> {
         let inventory = self.storage.inventory()?;
         let updated = self.sync_routing(&inventory, self.node_id(), self.time())?;
 
-        if !updated.is_empty() {
-            self.announce_inventory(inventory)?;
-        }
         Ok(updated)
     }
 

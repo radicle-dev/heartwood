@@ -159,6 +159,10 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
         self.command(service::Command::AnnounceRefs(id))
     }
 
+    fn announce_inventory(&mut self) -> Result<(), Error> {
+        self.command(service::Command::AnnounceInventory)
+    }
+
     fn sync_inventory(&mut self) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::SyncInventory(sender))?;

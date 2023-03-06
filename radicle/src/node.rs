@@ -110,6 +110,8 @@ impl From<net::SocketAddr> for Address {
 pub enum CommandName {
     /// Announce repository references for given repository to peers.
     AnnounceRefs,
+    /// Announce local repositories to peers.
+    AnnounceInventory,
     /// Sync local inventory with node.
     SyncInventory,
     /// Connect to node with the given address.
@@ -382,8 +384,10 @@ pub trait Handle {
     fn untrack_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
     /// Untrack the given node.
     fn untrack_node(&mut self, id: NodeId) -> Result<bool, Self::Error>;
-    /// Notify the service that a project has been updated.
+    /// Notify the service that a project has been updated, and announce local refs.
     fn announce_refs(&mut self, id: Id) -> Result<(), Self::Error>;
+    /// Announce local inventory.
+    fn announce_inventory(&mut self) -> Result<(), Self::Error>;
     /// Notify the service that our inventory was updated.
     fn sync_inventory(&mut self) -> Result<bool, Self::Error>;
     /// Ask the service to shutdown.
@@ -520,6 +524,13 @@ impl Handle for Node {
 
     fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
         for line in self.call::<_, CommandResult>(CommandName::AnnounceRefs, [id.urn()])? {
+            line?;
+        }
+        Ok(())
+    }
+
+    fn announce_inventory(&mut self) -> Result<(), Error> {
+        for line in self.call::<&str, CommandResult>(CommandName::AnnounceInventory, [])? {
             line?;
         }
         Ok(())

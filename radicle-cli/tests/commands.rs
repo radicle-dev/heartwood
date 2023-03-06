@@ -388,6 +388,7 @@ fn test_replication_via_seed() {
                 "Radicle Heartwood Protocol & Stack",
                 "--default-branch",
                 "master",
+                "--announce",
             ],
             working.join("alice"),
         )

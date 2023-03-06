@@ -95,7 +95,7 @@ pub fn seed(dir: &Path) -> Context {
             interactive: false.into(),
             setup_signing: false,
             set_upstream: false,
-            sync: false,
+            announce: false,
             track: false,
         },
         &profile,

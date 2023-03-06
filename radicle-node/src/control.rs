@@ -165,6 +165,12 @@ fn command<H: Handle<Error = runtime::HandleError>>(
             }
             CommandResult::ok().to_writer(writer).ok();
         }
+        CommandName::AnnounceInventory => {
+            if let Err(e) = handle.announce_inventory() {
+                return Err(CommandError::Runtime(e));
+            }
+            CommandResult::ok().to_writer(writer).ok();
+        }
         CommandName::SyncInventory => match handle.sync_inventory() {
             Ok(updated) => {
                 CommandResult::Okay { updated }.to_writer(writer)?;
