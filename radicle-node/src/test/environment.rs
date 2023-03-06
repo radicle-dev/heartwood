@@ -165,7 +165,13 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     /// Wait until this node's routing table contains the given routes.
     #[track_caller]
     pub fn routes_to(&self, routes: &[(Id, NodeId)]) {
+        let mut tries = 0;
         loop {
+            // ~3s to converge to the correct routes
+            if tries > 30 {
+                panic!("Node::routes_to: routing tables did not converge to include given routes")
+            }
+
             let mut remaining: BTreeSet<_> = routes.iter().collect();
 
             for (rid, nid) in self.handle.routing().unwrap() {
@@ -179,6 +185,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             if remaining.is_empty() {
                 break;
             }
+            tries += 1;
             thread::sleep(Duration::from_millis(100));
         }
         log::debug!(target: "test", "Node {} routes to {:?}", self.id, routes);
