@@ -106,7 +106,7 @@ impl Default for Config<MockSigner> {
             config: service::Config::default(),
             addrs: address::Book::memory().unwrap(),
             local_time: LocalTime::now(),
-            policy: Policy::Block,
+            policy: Policy::default(),
             scope: Scope::default(),
             signer,
             rng,

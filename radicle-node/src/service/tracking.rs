@@ -2,6 +2,14 @@ mod store;
 
 use std::ops;
 
+use log::{error, warn};
+use nonempty::NonEmpty;
+use thiserror::Error;
+
+use radicle::crypto::PublicKey;
+use radicle::identity::IdentityError;
+use radicle::storage::{Namespaces, ReadRepository as _, ReadStorage};
+
 use crate::prelude::Id;
 use crate::service::NodeId;
 
@@ -9,6 +17,32 @@ pub use crate::node::tracking::{Alias, Node, Policy, Repo, Scope};
 
 pub use store::Config as Store;
 pub use store::Error;
+
+#[derive(Debug, Error)]
+pub enum NamespacesError {
+    #[error("Failed to find tracking policy for {rid}")]
+    FailedPolicy {
+        rid: Id,
+        #[source]
+        err: Error,
+    },
+    #[error("The policy for {rid} is to block fetching")]
+    BlockedPolicy { rid: Id },
+    #[error("Failed to get tracking nodes for {rid}")]
+    FailedNodes {
+        rid: Id,
+        #[source]
+        err: Error,
+    },
+    #[error("Failed to get delegate nodes for {rid}")]
+    FailedDelegates {
+        rid: Id,
+        #[source]
+        err: IdentityError,
+    },
+    #[error("Could not find any trusted nodes for {rid}")]
+    NoTrusted { rid: Id },
+}
 
 /// Tracking configuration.
 #[derive(Debug)]
@@ -61,6 +95,50 @@ impl Config {
             scope: self.scope,
             policy: self.policy,
         }))
+    }
+
+    pub fn namespaces_for<S>(&self, storage: &S, rid: &Id) -> Result<Namespaces, NamespacesError>
+    where
+        S: ReadStorage,
+    {
+        use NamespacesError::*;
+
+        let entry = self
+            .repo_policy(rid)
+            .map_err(|err| FailedPolicy { rid: *rid, err })?;
+        match entry.policy {
+            Policy::Block => {
+                error!(target: "service", "Attempted to fetch blocked repo {rid}");
+                Err(NamespacesError::BlockedPolicy { rid: *rid })
+            }
+            Policy::Track => match self.scope {
+                Scope::All => Ok(Namespaces::All),
+                Scope::Trusted => {
+                    let nodes = self
+                        .node_entries()
+                        .map_err(|err| FailedNodes { rid: *rid, err })?;
+                    let mut trusted: Vec<_> = nodes
+                        .filter_map(|node| (node.policy == Policy::Track).then_some(node.id))
+                        .collect();
+
+                    let ns = if let Ok(repo) = storage.repository(*rid) {
+                        let delegates = repo
+                            .delegates()
+                            .map_err(|err| FailedDelegates { rid: *rid, err })?
+                            .map(PublicKey::from);
+                        trusted.extend(delegates);
+                        NonEmpty::from_vec(trusted).map(Namespaces::Many)
+                    } else {
+                        Some(Namespaces::All)
+                    };
+
+                    ns.ok_or_else(|| {
+                        warn!(target: "service", "Attempted to fetch repo {rid} with no trusted peers");
+                        NoTrusted { rid: *rid }
+                    })
+                }
+            },
+        }
     }
 }
 

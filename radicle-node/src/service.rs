@@ -33,6 +33,7 @@ use crate::prelude::*;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::reactor::FetchDirection;
+use crate::service::tracking::Scope;
 use crate::storage;
 use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteStorage};
 use crate::storage::{Namespaces, ReadStorage};
@@ -116,7 +117,7 @@ pub enum Command {
     /// Fetch the given repository from the network.
     Fetch(Id, NodeId, chan::Sender<FetchResult>),
     /// Track the given repository.
-    TrackRepo(Id, tracking::Scope, chan::Sender<bool>),
+    TrackRepo(Id, Scope, chan::Sender<bool>),
     /// Untrack the given repository.
     UntrackRepo(Id, chan::Sender<bool>),
     /// Track the given node.
@@ -267,7 +268,7 @@ where
 
     /// Track a repository.
     /// Returns whether or not the tracking policy was updated.
-    pub fn track_repo(&mut self, id: &Id, scope: tracking::Scope) -> Result<bool, tracking::Error> {
+    pub fn track_repo(&mut self, id: &Id, scope: Scope) -> Result<bool, tracking::Error> {
         self.out_of_sync = self.tracking.track_repo(id, scope)?;
         self.filter.insert(id);
 
@@ -1093,13 +1094,18 @@ where
                 }
                 debug!(target: "service", "Fetch accepted for {rid} from {remote}..");
 
-                let namespaces = if let Ok(_repo) = self.storage.repository(rid) {
-                    // FIXME(finto): using remotes breaks test_gossip_during_fetch, so we use default for now
-                    Namespaces::default()
-                } else {
-                    Namespaces::default()
+                let namespaces = match self.tracking.namespaces_for(&self.storage, &rid) {
+                    Ok(ns) => ns,
+                    Err(err) => {
+                        if let Some(resp) = self.fetch_reqs.get(&rid) {
+                            resp.send(FetchResult::Failed {
+                                reason: err.to_string(),
+                            })
+                            .ok();
+                        }
+                        return Ok(());
+                    }
                 };
-
                 // Instruct the transport to handover the socket to the worker.
                 self.reactor
                     .fetch(peer, rid, FetchDirection::Initiator { namespaces });
@@ -1204,7 +1210,7 @@ where
             Namespaces::Many(pks) => {
                 for remote_id in pks.into_iter() {
                     if refs
-                        .push((*remote_id, repo.remote(&remote_id)?.refs.unverified()))
+                        .push((*remote_id, repo.remote(remote_id)?.refs.unverified()))
                         .is_err()
                     {
                         warn!(

@@ -476,6 +476,10 @@ fn test_replication_via_seed() {
         )
         .unwrap();
 
+    alice
+        .rad("track", &[&bob.id.to_human()], working.join("alice"))
+        .unwrap();
+
     alice.routes_to(&[(rid, alice.id), (rid, seed.id)]);
     seed.routes_to(&[(rid, alice.id), (rid, seed.id)]);
     bob.routes_to(&[(rid, alice.id), (rid, seed.id)]);
