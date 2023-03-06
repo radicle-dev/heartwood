@@ -251,7 +251,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 description.unwrap_or("Enter a description...".to_owned())
             );
 
-            if let Ok(Some(text)) = term::Editor::new().edit(&doc) {
+            if let Some(text) = term::Editor::new().edit(&doc)? {
                 let mut meta = String::new();
                 let mut frontmatter = false;
                 let mut lines = text.lines();
