@@ -34,19 +34,19 @@ pub fn handle_patch_message(
         .message()
         .ok_or(anyhow!("commit summary is not valid UTF-8; aborting"))?;
     let message = message.get(&format!("{commit_message}{PATCH_MSG}"));
+    let message = message.replace(PATCH_MSG.trim(), ""); // Delete help message.
     let (title, description) = message.split_once("\n\n").unwrap_or((&message, ""));
     let (title, description) = (title.trim(), description.trim());
-    let description = description.replace(PATCH_MSG.trim(), ""); // Delete help message.
 
     if title.is_empty() {
         anyhow::bail!("a title must be given");
     }
 
     term::blank();
-    term::patch::print_title_desc(title, &description);
+    term::patch::print_title_desc(title, description);
     term::blank();
 
-    Ok((title.to_string(), description))
+    Ok((title.to_string(), description.to_owned()))
 }
 
 fn show_patch_commit_info(
