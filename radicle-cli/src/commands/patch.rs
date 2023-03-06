@@ -4,6 +4,8 @@ mod checkout;
 mod common;
 #[path = "patch/create.rs"]
 mod create;
+#[path = "patch/delete.rs"]
+mod delete;
 #[path = "patch/list.rs"]
 mod list;
 #[path = "patch/show.rs"]
@@ -36,6 +38,7 @@ Usage
     rad patch open [<option>...]
     rad patch update <id> [<option>...]
     rad patch checkout <id>
+    rad patch delete <id>
 
 Create/Update options
 
@@ -56,6 +59,7 @@ pub enum OperationName {
     Open,
     Show,
     Update,
+    Delete,
     Checkout,
     #[default]
     List,
@@ -72,6 +76,9 @@ pub enum Operation {
     Update {
         patch_id: Option<PatchId>,
         message: Message,
+    },
+    Delete {
+        patch_id: PatchId,
     },
     Checkout {
         patch_id: PatchId,
@@ -154,6 +161,7 @@ impl Args for Options {
                     "o" | "open" => op = Some(OperationName::Open),
                     "s" | "show" => op = Some(OperationName::Show),
                     "u" | "update" => op = Some(OperationName::Update),
+                    "d" | "delete" => op = Some(OperationName::Delete),
                     "c" | "checkout" => op = Some(OperationName::Checkout),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
@@ -174,6 +182,9 @@ impl Args for Options {
             OperationName::Open => Operation::Open { message },
             OperationName::List => Operation::List,
             OperationName::Show => Operation::Show {
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
+            },
+            OperationName::Delete => Operation::Delete {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
             },
             OperationName::Update => Operation::Update { patch_id, message },
@@ -229,6 +240,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 message.clone(),
                 &options,
             )?;
+        }
+        Operation::Delete { patch_id } => {
+            delete::run(&repository, &profile, &patch_id)?;
         }
         Operation::Checkout { ref patch_id } => {
             checkout::run(&repository, &workdir, patch_id)?;
