@@ -108,9 +108,9 @@ fn command<H: Handle<Error = runtime::HandleError>>(
             json::to_writer(writer, &seeds)?;
         }
         CommandName::TrackRepo => {
-            let rid: Id = parse::arg(cmd)?;
+            let (rid, scope) = parse::args(cmd)?;
 
-            match handle.track_repo(rid) {
+            match handle.track_repo(rid, scope) {
                 Ok(updated) => {
                     CommandResult::Okay { updated }.to_writer(writer)?;
                 }
@@ -294,6 +294,7 @@ mod tests {
     use crate::identity::Id;
     use crate::node::Handle;
     use crate::node::{Node, NodeId};
+    use crate::service::tracking::Scope;
     use crate::test;
 
     #[test]
@@ -352,8 +353,8 @@ mod tests {
         // Wait for node to be online.
         while !handle.is_running() {}
 
-        assert!(handle.track_repo(proj).unwrap());
-        assert!(!handle.track_repo(proj).unwrap());
+        assert!(handle.track_repo(proj, Scope::default()).unwrap());
+        assert!(!handle.track_repo(proj, Scope::default()).unwrap());
         assert!(handle.untrack_repo(proj).unwrap());
         assert!(!handle.untrack_repo(proj).unwrap());
 

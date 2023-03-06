@@ -8,6 +8,7 @@ use anyhow::{anyhow, bail, Context as _};
 
 use radicle::crypto::ssh;
 use radicle::git::RefString;
+use radicle::node::tracking::Scope;
 use radicle::node::{Handle, NodeId};
 
 use crate::git;
@@ -220,7 +221,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             if options.track && node.is_running() {
                 // It's important to track our own repositories to make sure that our node signals
                 // interest for them. This ensures that messages relating to them are relayed to us.
-                node.track_repo(id)?;
+                node.track_repo(id, Scope::default())?;
             }
 
             spinner.message(format!(

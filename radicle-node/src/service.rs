@@ -116,7 +116,7 @@ pub enum Command {
     /// Fetch the given repository from the network.
     Fetch(Id, NodeId, chan::Sender<FetchResult>),
     /// Track the given repository.
-    TrackRepo(Id, chan::Sender<bool>),
+    TrackRepo(Id, tracking::Scope, chan::Sender<bool>),
     /// Untrack the given repository.
     UntrackRepo(Id, chan::Sender<bool>),
     /// Track the given node.
@@ -136,7 +136,7 @@ impl fmt::Debug for Command {
             Self::Connect(id, addr) => write!(f, "Connect({id}, {addr})"),
             Self::Seeds(id, _) => write!(f, "Seeds({id})"),
             Self::Fetch(id, node, _) => write!(f, "Fetch({id}, {node})"),
-            Self::TrackRepo(id, _) => write!(f, "TrackRepo({id})"),
+            Self::TrackRepo(id, scope, _) => write!(f, "TrackRepo({id}, {scope})"),
             Self::UntrackRepo(id, _) => write!(f, "UntrackRepo({id})"),
             Self::TrackNode(id, _, _) => write!(f, "TrackNode({id})"),
             Self::UntrackNode(id, _) => write!(f, "UntrackNode({id})"),
@@ -491,9 +491,9 @@ where
                 self.fetch_reqs.insert(rid, resp);
                 self.fetch(rid, &seed);
             }
-            Command::TrackRepo(rid, resp) => {
+            Command::TrackRepo(rid, scope, resp) => {
                 let tracked = self
-                    .track_repo(&rid, tracking::Scope::All)
+                    .track_repo(&rid, scope)
                     .expect("Service::command: error tracking repository");
                 // TODO: Try to fetch project if we weren't tracking it before.
                 resp.send(tracked).ok();

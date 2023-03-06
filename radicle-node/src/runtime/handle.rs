@@ -182,9 +182,9 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
         receiver.recv().map_err(Error::from)
     }
 
-    fn track_repo(&mut self, id: Id) -> Result<bool, Error> {
+    fn track_repo(&mut self, id: Id, scope: tracking::Scope) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::TrackRepo(id, sender))?;
+        self.command(service::Command::TrackRepo(id, scope, sender))?;
         receiver.recv().map_err(Error::from)
     }
 

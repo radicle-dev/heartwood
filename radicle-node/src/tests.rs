@@ -345,7 +345,11 @@ fn test_tracking() {
     let proj_id: identity::Id = test::arbitrary::gen(1);
 
     let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::TrackRepo(proj_id, sender));
+    alice.command(Command::TrackRepo(
+        proj_id,
+        tracking::Scope::default(),
+        sender,
+    ));
     let policy_change = receiver.recv().map_err(runtime::HandleError::from).unwrap();
     assert!(policy_change);
     assert!(alice.tracking().is_repo_tracked(&proj_id).unwrap());
@@ -927,7 +931,7 @@ fn test_track_repo_subscribe() {
     let (send, recv) = chan::bounded(1);
 
     alice.connect_to(&bob);
-    alice.command(Command::TrackRepo(rid, send));
+    alice.command(Command::TrackRepo(rid, tracking::Scope::default(), send));
     assert!(recv.recv().unwrap());
 
     assert_matches!(
@@ -981,11 +985,19 @@ fn test_push_and_pull() {
 
     // Bob tracks Alice's project.
     let (sender, _) = chan::bounded(1);
-    bob.command(service::Command::TrackRepo(proj_id, sender));
+    bob.command(service::Command::TrackRepo(
+        proj_id,
+        tracking::Scope::default(),
+        sender,
+    ));
 
     // Eve tracks Alice's project.
     let (sender, _) = chan::bounded(1);
-    eve.command(service::Command::TrackRepo(proj_id, sender));
+    eve.command(service::Command::TrackRepo(
+        proj_id,
+        tracking::Scope::default(),
+        sender,
+    ));
 
     let mut sim = Simulation::new(
         LocalTime::now(),

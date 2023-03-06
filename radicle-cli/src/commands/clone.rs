@@ -10,6 +10,7 @@ use radicle::git::raw;
 use radicle::identity::doc::{DocError, Id};
 use radicle::identity::{doc, IdentityError};
 use radicle::node;
+use radicle::node::tracking::Scope;
 use radicle::node::{Handle as _, Node};
 use radicle::prelude::*;
 use radicle::rad;
@@ -169,7 +170,7 @@ pub fn clone<G: Signer>(
     let me = *signer.public_key();
 
     // Track.
-    if node.track_repo(id)? {
+    if node.track_repo(id, Scope::default())? {
         term::success!(
             "Tracking relationship established for {}",
             term::format::tertiary(id)

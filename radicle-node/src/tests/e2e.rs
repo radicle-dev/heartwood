@@ -6,6 +6,7 @@ use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{assert_matches, rad};
 
 use crate::service;
+use crate::service::tracking::Scope;
 use crate::storage::git::transport;
 use crate::test::environment::{converge, Node};
 use crate::test::logger;
@@ -155,7 +156,7 @@ fn test_replication() {
     let inventory = alice.handle.inventory().unwrap();
     assert!(inventory.try_iter().next().is_none());
 
-    let tracked = alice.handle.track_repo(acme).unwrap();
+    let tracked = alice.handle.track_repo(acme, Scope::All).unwrap();
     assert!(tracked);
 
     let seeds = alice.handle.seeds(acme).unwrap();
@@ -211,7 +212,7 @@ fn test_clone() {
 
     transport::local::register(alice.storage.clone());
 
-    let _ = alice.handle.track_repo(acme).unwrap();
+    let _ = alice.handle.track_repo(acme, Scope::All).unwrap();
     let seeds = alice.handle.seeds(acme).unwrap();
     assert!(seeds.is_connected(&bob.id));
 
@@ -261,7 +262,7 @@ fn test_fetch_up_to_date() {
 
     transport::local::register(alice.storage.clone());
 
-    let _ = alice.handle.track_repo(acme).unwrap();
+    let _ = alice.handle.track_repo(acme, Scope::All).unwrap();
     let result = alice.handle.fetch(acme, bob.id).unwrap();
     assert!(result.is_success());
 

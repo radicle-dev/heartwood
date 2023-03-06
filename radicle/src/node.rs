@@ -393,7 +393,7 @@ pub trait Handle {
     fn fetch(&mut self, id: Id, from: NodeId) -> Result<FetchResult, Self::Error>;
     /// Start tracking the given project. Doesn't do anything if the project is already
     /// tracked.
-    fn track_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
+    fn track_repo(&mut self, id: Id, scope: tracking::Scope) -> Result<bool, Self::Error>;
     /// Start tracking the given node.
     fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Self::Error>;
     /// Untrack the given project and delete it from storage.
@@ -544,8 +544,8 @@ impl Handle for Node {
         response.into()
     }
 
-    fn track_repo(&mut self, id: Id) -> Result<bool, Error> {
-        let mut line = self.call(CommandName::TrackRepo, [id.urn()])?;
+    fn track_repo(&mut self, id: Id, scope: tracking::Scope) -> Result<bool, Error> {
+        let mut line = self.call(CommandName::TrackRepo, [id.urn(), scope.to_string()])?;
         let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
             cmd: CommandName::TrackRepo,
         })??;

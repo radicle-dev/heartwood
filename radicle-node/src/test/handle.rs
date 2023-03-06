@@ -66,7 +66,7 @@ impl radicle::node::Handle for Handle {
             .collect())
     }
 
-    fn track_repo(&mut self, id: Id) -> Result<bool, Self::Error> {
+    fn track_repo(&mut self, id: Id, _scope: tracking::Scope) -> Result<bool, Self::Error> {
         Ok(self.tracking_repos.insert(id))
     }
 

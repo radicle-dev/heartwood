@@ -48,9 +48,9 @@ repository that was already created:
 
 ```
 $ rad node tracking
-RID                               Scope Policy
----                               ----- ------
-rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji all   track
+RID                               Scope   Policy
+---                               -----   ------
+rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji trusted track
 ```
 
 This is the same as using the `--repos` flag, but if we wish to see
