@@ -35,6 +35,10 @@ pub enum Error {
     /// Surf error.
     #[error(transparent)]
     Surf(#[from] radicle_surf::Error),
+
+    // Surf file error.
+    #[error(transparent)]
+    SurfFile(#[from] radicle_surf::fs::error::File),
 }
 
 impl Error {
