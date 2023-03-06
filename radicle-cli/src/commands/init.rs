@@ -28,15 +28,15 @@ Usage
 
 Options
 
-    --name               Name of the project
-    --description        Description of the project
-    --default-branch     The default branch of the project
-    --set-upstream, -u   Setup the upstream of the default branch
-    --setup-signing      Setup the radicle key as a signing key for this repository
-    --announce           Announce the new project to the network
-    --no-confirm         Don't ask for confirmation during setup
-    --verbose, -v        Verbose mode
-    --help               Print help
+        --name               Name of the project
+        --description        Description of the project
+        --default-branch     The default branch of the project
+    -u, --set-upstream       Setup the upstream of the default branch
+        --setup-signing      Setup the radicle key as a signing key for this repository
+        --announce           Announce the new project to the network
+        --no-confirm         Don't ask for confirmation during setup
+    -v, --verbose            Verbose mode
+        --help               Print help
 "#,
 };
 
