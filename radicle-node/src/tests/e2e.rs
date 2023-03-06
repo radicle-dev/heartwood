@@ -1,6 +1,6 @@
-use std::{thread, time};
+use std::{collections::HashSet, thread, time};
 
-use radicle::crypto::Signer;
+use radicle::crypto::{test::signer::MockSigner, Signer};
 use radicle::node::{FetchResult, Handle as _};
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{assert_matches, rad};
@@ -193,6 +193,62 @@ fn test_replication() {
     assert_eq!(inventory.try_iter().next(), Some(acme));
     assert_eq!(alice_refs, bob_refs);
     assert_matches!(alice.storage.repository(acme).unwrap().verify(), Ok(()));
+}
+
+#[test]
+#[ignore = "failing"]
+fn test_fetch_trusted_remotes() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Node::init(tmp.path());
+    let bob = Node::init(tmp.path());
+    let acme = alice.project("acme", "");
+    let mut signers = Vec::with_capacity(5);
+    {
+        for _ in 0..5 {
+            let signer = MockSigner::default();
+            rad::fork_remote(acme, &alice.id, &signer, &alice.storage).unwrap();
+            signers.push(signer);
+        }
+    }
+
+    let mut alice = alice.spawn(service::Config::default());
+    let mut bob = bob.spawn(service::Config::default());
+
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    let trusted = signers
+        .iter()
+        .map(|s| *s.public_key())
+        .take(2)
+        .collect::<HashSet<_>>();
+
+    assert!(
+        trusted.len() < signers.len(),
+        "Bob is only trusting a subset of peers"
+    );
+    assert!(bob.handle.track_repo(acme, Scope::Trusted).unwrap());
+    for nid in &trusted {
+        assert!(bob.handle.track_node(*nid, None).unwrap());
+    }
+
+    let result = bob.handle.fetch(acme, alice.id).unwrap();
+    assert!(result.is_success());
+
+    log::debug!(target: "test", "Fetch complete with {}", bob.id);
+
+    let bob_repo = bob.storage.repository(acme).unwrap();
+    let bob_remotes = bob_repo
+        .remote_ids()
+        .unwrap()
+        .collect::<Result<HashSet<_>, _>>()
+        .unwrap();
+    // TODO: This fails because we are fetching all namespaces at the moment.
+    assert_eq!(bob_remotes.len(), trusted.len() + 1);
+    assert!(bob_remotes.is_superset(&trusted));
+    assert!(bob_remotes.contains(&alice.id));
 }
 
 #[test]
