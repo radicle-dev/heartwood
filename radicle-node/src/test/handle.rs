@@ -60,7 +60,7 @@ impl radicle::node::Handle for Handle {
             .copied()
             .map(|id| tracking::Node {
                 id,
-                alias: "".to_string(),
+                alias: None,
                 policy: tracking::Policy::Track,
             })
             .collect())

@@ -36,10 +36,9 @@ fn print_nodes(node: &Node) -> anyhow::Result<()> {
     for tracking::Node { id, alias, policy } in node.tracked_nodes()? {
         t.push([
             term::format::highlight(Did::from(id).to_string()),
-            if alias.is_empty() {
-                term::format::secondary("n/a".to_string())
-            } else {
-                term::format::secondary(alias)
+            match alias {
+                None => term::format::secondary("n/a".to_string()),
+                Some(alias) => term::format::secondary(alias),
             },
             term::format::secondary(policy.to_string()),
         ]);

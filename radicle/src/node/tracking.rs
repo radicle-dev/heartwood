@@ -18,7 +18,7 @@ pub struct Repo {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node {
     pub id: NodeId,
-    pub alias: Alias,
+    pub alias: Option<Alias>,
     pub policy: Policy,
 }
 

@@ -1,6 +1,6 @@
 #![allow(clippy::type_complexity)]
 use std::path::Path;
-use std::{fmt, io};
+use std::{fmt, io, ops::Not as _};
 
 use sqlite as sql;
 use thiserror::Error;
@@ -159,15 +159,10 @@ impl Config {
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
             let alias = row.read::<&str, _>("alias");
+            let alias = alias.is_empty().not().then_some(alias.to_owned());
+            let policy = row.read::<Policy, _>("policy");
 
-            return Ok(Some((
-                if alias.is_empty() {
-                    None
-                } else {
-                    Some(alias.to_owned())
-                },
-                row.read::<Policy, _>("policy"),
-            )));
+            return Ok(Some((alias, policy)));
         }
         Ok(None)
     }
@@ -200,6 +195,7 @@ impl Config {
         while let Some(Ok(row)) = stmt.next() {
             let id = row.read("id");
             let alias = row.read::<&str, _>("alias").to_owned();
+            let alias = alias.is_empty().not().then_some(alias.to_owned());
             let policy = row.read::<Policy, _>("policy");
 
             entries.push(Node { id, alias, policy });
