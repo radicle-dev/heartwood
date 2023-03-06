@@ -491,8 +491,8 @@ impl<'a> Issues<'a> {
     }
 
     /// Remove an issue.
-    pub fn remove(&self, id: &ObjectId) -> Result<(), store::Error> {
-        self.raw.remove(id)
+    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), store::Error> {
+        self.raw.remove(id, signer)
     }
 }
 

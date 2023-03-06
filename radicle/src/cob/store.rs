@@ -84,33 +84,35 @@ pub enum Error {
     HistoryType(String),
     #[error("object `{1}` of type `{0}` was not found")]
     NotFound(TypeName, ObjectId),
+    #[error("signed refs: {0}")]
+    SignRefs(#[from] storage::Error),
 }
 
 /// Storage for collaborative objects of a specific type `T` in a single repository.
 pub struct Store<'a, T> {
     whoami: PublicKey,
     parent: git::Oid,
-    raw: &'a storage::Repository,
+    repo: &'a storage::Repository,
     witness: PhantomData<T>,
     rng: StdRng,
 }
 
 impl<'a, T> AsRef<storage::Repository> for Store<'a, T> {
     fn as_ref(&self) -> &storage::Repository {
-        self.raw
+        self.repo
     }
 }
 
 impl<'a, T> Store<'a, T> {
     /// Open a new generic store.
-    pub fn open(whoami: PublicKey, store: &'a storage::Repository) -> Result<Self, Error> {
+    pub fn open(whoami: PublicKey, repo: &'a storage::Repository) -> Result<Self, Error> {
         let rng = rng::std();
-        let identity = store.identity()?;
+        let identity = repo.identity()?;
 
         Ok(Self {
             parent: identity.current,
             whoami,
-            raw: store,
+            repo,
             witness: PhantomData,
             rng,
         })
@@ -145,9 +147,8 @@ where
         signer: &G,
     ) -> Result<CollaborativeObject, Error> {
         let changes = actions.into();
-
-        cob::update(
-            self.raw,
+        let obj = cob::update(
+            self.repo,
             signer,
             self.parent,
             signer.public_key(),
@@ -158,8 +159,11 @@ where
                 message: message.to_owned(),
                 changes,
             },
-        )
-        .map_err(Error::from)
+        )?;
+
+        self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
+
+        Ok(obj)
     }
 
     /// Create an object.
@@ -171,7 +175,7 @@ where
     ) -> Result<(ObjectId, T, Lamport), Error> {
         let contents = actions.into();
         let cob = cob::create(
-            self.raw,
+            self.repo,
             signer,
             self.parent,
             signer.public_key(),
@@ -184,12 +188,14 @@ where
         )?;
         let (object, clock) = T::from_history(cob.history())?;
 
+        self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
+
         Ok((*cob.id(), object, clock))
     }
 
     /// Get an object.
     pub fn get(&self, id: &ObjectId) -> Result<Option<(T, Lamport)>, Error> {
-        let cob = cob::get(self.raw, T::type_name(), id)?;
+        let cob = cob::get(self.repo, T::type_name(), id)?;
 
         if let Some(cob) = cob {
             if cob.manifest().history_type != HISTORY_TYPE {
@@ -207,7 +213,7 @@ where
     pub fn all(
         &self,
     ) -> Result<impl Iterator<Item = Result<(ObjectId, T, Lamport), Error>>, Error> {
-        let raw = cob::list(self.raw, T::type_name())?;
+        let raw = cob::list(self.repo, T::type_name())?;
 
         Ok(raw.into_iter().map(|o| {
             let (obj, clock) = T::from_history(o.history())?;
@@ -217,14 +223,17 @@ where
 
     /// Return objects count.
     pub fn count(&self) -> Result<usize, Error> {
-        let raw = cob::list(self.raw, T::type_name())?;
+        let raw = cob::list(self.repo, T::type_name())?;
 
         Ok(raw.len())
     }
 
     /// Remove an object.
-    pub fn remove(&self, id: &ObjectId) -> Result<(), Error> {
-        cob::remove(self.raw, &self.whoami, T::type_name(), id).map_err(Error::from)
+    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), Error> {
+        cob::remove(self.repo, &self.whoami, T::type_name(), id)?;
+        self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
+
+        Ok(())
     }
 }
 

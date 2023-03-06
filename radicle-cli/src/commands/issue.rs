@@ -302,7 +302,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             t.render();
         }
         Operation::Delete { id } => {
-            issues.remove(&id)?;
+            issues.remove(&id, &signer)?;
         }
     }
 

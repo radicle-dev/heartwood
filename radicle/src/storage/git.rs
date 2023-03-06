@@ -16,10 +16,11 @@ use crate::identity::{Identity, IdentityError, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
-    Error, Inventory, ReadRepository, ReadStorage, Remote, Remotes, WriteRepository, WriteStorage,
+    Inventory, ReadRepository, ReadStorage, Remote, Remotes, WriteRepository, WriteStorage,
 };
 
 pub use crate::git::*;
+pub use crate::storage::Error;
 
 use super::RemoteId;
 
