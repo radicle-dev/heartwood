@@ -8,11 +8,6 @@ $ rad init --name heartwood --description "Radicle Heartwood Protocol & Stack" -
 Initializing local 🌱 project in .
 
 ✓ Project heartwood created
-{
-  "name": "heartwood",
-  "description": "Radicle Heartwood Protocol & Stack",
-  "defaultBranch": "master"
-}
 ✓ Syncing inventory..
 ✓ Announcing inventory..
 

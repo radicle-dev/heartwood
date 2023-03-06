@@ -97,6 +97,7 @@ pub fn seed(dir: &Path) -> Context {
             set_upstream: false,
             announce: false,
             track: false,
+            verbose: false,
         },
         &profile,
     )

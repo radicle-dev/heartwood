@@ -35,6 +35,7 @@ Options
     --setup-signing      Setup the radicle key as a signing key for this repository
     --announce           Announce the new project to the network
     --no-confirm         Don't ask for confirmation during setup
+    --verbose, -v        Verbose mode
     --help               Print help
 "#,
 };
@@ -49,6 +50,7 @@ pub struct Options {
     pub setup_signing: bool,
     pub set_upstream: bool,
     pub announce: bool,
+    pub verbose: bool,
     pub track: bool,
 }
 
@@ -67,6 +69,7 @@ impl Args for Options {
         let mut setup_signing = false;
         let mut announce = false;
         let mut track = true;
+        let mut verbose = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -117,6 +120,9 @@ impl Args for Options {
                 Long("no-track") => {
                     track = false;
                 }
+                Long("verbose") | Short('v') => {
+                    verbose = true;
+                }
                 Long("help") => {
                     return Err(Error::Help.into());
                 }
@@ -138,6 +144,7 @@ impl Args for Options {
                 setup_signing,
                 announce,
                 track,
+                verbose,
             },
             vec![],
         ))
@@ -222,7 +229,9 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             ));
             spinner.finish();
 
-            term::blob(json::to_string_pretty(&proj)?);
+            if options.verbose {
+                term::blob(json::to_string_pretty(&proj)?);
+            }
 
             if options.set_upstream || git::branch_remote(&repo, proj.default_branch()).is_err() {
                 // Setup eg. `master` -> `rad/master`
