@@ -94,8 +94,6 @@ impl TryFrom<&sqlite::Value> for Policy {
 pub enum Scope {
     /// Track remotes of nodes that are already tracked.
     Trusted,
-    /// Track remotes of repository delegates.
-    DelegatesOnly,
     /// Track all remotes.
     All,
 }
@@ -104,7 +102,6 @@ impl fmt::Display for Scope {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Scope::Trusted => f.write_str("trusted"),
-            Scope::DelegatesOnly => f.write_str("delegates-only"),
             Scope::All => f.write_str("all"),
         }
     }
@@ -120,7 +117,6 @@ impl FromStr for Scope {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "trusted" => Ok(Self::Trusted),
-            "delegates-only" => Ok(Self::DelegatesOnly),
             "all" => Ok(Self::All),
             _ => Err(ParseScopeError(s.to_string())),
         }
@@ -136,7 +132,6 @@ impl sqlite::BindableWithIndex for Scope {
     ) -> sqlite::Result<()> {
         let s = match self {
             Self::Trusted => "trusted",
-            Self::DelegatesOnly => "delegates-only",
             Self::All => "all",
         };
         s.bind(stmt, i)

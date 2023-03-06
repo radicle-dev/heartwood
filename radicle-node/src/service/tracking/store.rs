@@ -309,8 +309,8 @@ mod test {
 
         assert!(db.track_repo(&id, Scope::All).unwrap());
         assert_eq!(db.repo_entry(&id).unwrap().unwrap().0, Scope::All);
-        assert!(db.track_repo(&id, Scope::DelegatesOnly).unwrap());
-        assert_eq!(db.repo_entry(&id).unwrap().unwrap().0, Scope::DelegatesOnly);
+        assert!(db.track_repo(&id, Scope::Trusted).unwrap());
+        assert_eq!(db.repo_entry(&id).unwrap().unwrap().0, Scope::Trusted);
     }
 
     #[test]
