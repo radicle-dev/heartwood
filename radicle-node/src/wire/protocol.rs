@@ -568,21 +568,37 @@ where
                 // TODO: This should be a fatal error, there's nothing we can do here.
                 log::error!(target: "wire", "Can't poll connections: {}", err);
             }
-            reactor::Error::ListenerPollError(id, err) => {
+            reactor::Error::ListenerPollError(id, _) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
-                log::error!(target: "wire", "Received error: listener {} disconnected: {}", id, err);
+                log::error!(target: "wire", "Received error: listener {} disconnected", id);
                 self.actions.push_back(Action::UnregisterListener(*id));
             }
-            reactor::Error::ListenerDisconnect(id, _, err) => {
+            reactor::Error::ListenerDisconnect(id, _, _) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
-                log::error!(target: "wire", "Received error: listener {} disconnected: {}", id, err);
+                log::error!(target: "wire", "Received error: listener {} disconnected", id);
             }
-            reactor::Error::TransportPollError(fd, err) => {
-                log::error!(target: "wire", "Received error: peer (fd={fd}) disconnected: {err}");
+            reactor::Error::TransportPollError(fd, _) => {
+                log::error!(target: "wire", "Received error: peer (fd={fd}) poll error");
                 self.actions.push_back(Action::UnregisterTransport(*fd));
             }
-            reactor::Error::TransportDisconnect(fd, _, err) => {
-                log::error!(target: "wire", "Received error: peer (fd={fd}) disconnected: {err}");
+            reactor::Error::TransportDisconnect(fd, _, _) => {
+                log::error!(target: "wire", "Received error: peer (fd={fd}) disconnected");
+
+                match self.peers.get_mut(fd) {
+                    Some(peer) => {
+                        let reason = DisconnectReason::Connection(Arc::new(io::Error::from(
+                            io::ErrorKind::ConnectionReset,
+                        )));
+
+                        if let Some(id) = peer.id() {
+                            self.service.disconnected(*id, &reason);
+                        }
+                        peer.disconnected(reason);
+                    }
+                    None => {
+                        log::warn!(target: "wire", "Peer with fd {fd} is unknown");
+                    }
+                }
             }
             reactor::Error::WriteFailure(id, err) => {
                 // TODO: Disconnect peer?
