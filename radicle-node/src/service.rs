@@ -359,9 +359,18 @@ where
         for (id, addr) in addrs {
             self.connect(id, addr);
         }
-        // Ensure that our inventory is recorded in our routing table.
-        for id in self.storage.inventory()? {
-            self.routing.insert(id, self.node_id(), time.as_millis())?;
+        // Ensure that our inventory is recorded in our routing table, and we are tracking
+        // all of it. It can happen that inventory is not properly tracked if for eg. the
+        // user creates a new repository while the node is stopped.
+        for rid in self.storage.inventory()? {
+            self.routing.insert(rid, self.node_id(), time.as_millis())?;
+
+            if self
+                .track_repo(&rid, tracking::Scope::All)
+                .expect("Service::command: error tracking repository")
+            {
+                info!(target: "service", "Tracking local repository {rid}");
+            }
         }
         // Setup subscription filter for tracked repos.
         self.filter = Filter::new(
