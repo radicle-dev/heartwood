@@ -90,9 +90,10 @@ impl TryFrom<&sqlite::Value> for Policy {
 }
 
 /// Tracking scope of a repository tracking policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Scope {
     /// Track remotes of nodes that are already tracked.
+    #[default]
     Trusted,
     /// Track all remotes.
     All,

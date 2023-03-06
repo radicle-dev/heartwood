@@ -14,25 +14,32 @@ pub use store::Error;
 #[derive(Debug)]
 pub struct Config {
     /// Default policy, if a policy for a specific node or repository was not found.
-    default: Policy,
+    policy: Policy,
+    #[allow(dead_code)]
+    /// Default scope, if a scope for a specific repository was not found.
+    scope: Scope,
     /// Underlying configuration store.
     store: store::Config,
 }
 
 impl Config {
     /// Create a new tracking configuration.
-    pub fn new(default: Policy, store: store::Config) -> Self {
-        Self { default, store }
+    pub fn new(policy: Policy, scope: Scope, store: store::Config) -> Self {
+        Self {
+            policy,
+            scope,
+            store,
+        }
     }
 
     /// Check if a repository is tracked.
     pub fn is_repo_tracked(&self, id: &Id) -> Result<bool, Error> {
-        self.repo_policy(id).map(|policy| policy == Policy::Track)
+        self.repo_policy(id).map(|entry| entry == Policy::Track)
     }
 
     /// Check if a node is tracked.
     pub fn is_node_tracked(&self, id: &NodeId) -> Result<bool, Error> {
-        self.node_policy(id).map(|policy| policy == Policy::Track)
+        self.node_policy(id).map(|entry| entry == Policy::Track)
     }
 
     /// Get a node's tracking information.
@@ -41,7 +48,7 @@ impl Config {
         if let Some((_, policy)) = self.store.node_entry(id)? {
             return Ok(policy);
         }
-        Ok(self.default)
+        Ok(self.policy)
     }
 
     /// Get a repository's tracking information.
@@ -50,7 +57,7 @@ impl Config {
         if let Some((_, policy)) = self.store.repo_entry(id)? {
             return Ok(policy);
         }
-        Ok(self.default)
+        Ok(self.policy)
     }
 }
 

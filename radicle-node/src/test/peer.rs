@@ -16,7 +16,7 @@ use crate::prelude::*;
 use crate::service;
 use crate::service::message::*;
 use crate::service::reactor::Io;
-use crate::service::tracking::Policy;
+use crate::service::tracking::{Policy, Scope};
 use crate::service::*;
 use crate::storage::git::transport::remote;
 use crate::storage::{RemoteId, WriteStorage};
@@ -92,6 +92,7 @@ pub struct Config<G: Signer + 'static> {
     pub addrs: address::Book,
     pub local_time: LocalTime,
     pub policy: Policy,
+    pub scope: Scope,
     pub signer: G,
     pub rng: fastrand::Rng,
 }
@@ -106,6 +107,7 @@ impl Default for Config<MockSigner> {
             addrs: address::Book::memory().unwrap(),
             local_time: LocalTime::now(),
             policy: Policy::Block,
+            scope: Scope::default(),
             signer,
             rng,
         }
@@ -125,7 +127,7 @@ where
     ) -> Self {
         let routing = routing::Table::memory().unwrap();
         let tracking = tracking::Store::memory().unwrap();
-        let tracking = tracking::Config::new(config.policy, tracking);
+        let tracking = tracking::Config::new(config.policy, config.scope, tracking);
         let id = *config.signer.public_key();
         let service = Service::new(
             config.config,

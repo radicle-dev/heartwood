@@ -11,7 +11,7 @@ use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::test::fixtures;
 
 use radicle_cli_test::TestFormula;
-use radicle_node::service::tracking::Policy;
+use radicle_node::service::tracking::{Policy, Scope};
 use radicle_node::test::{
     environment::{Config, Environment},
     logger,
@@ -444,6 +444,7 @@ fn test_replication_via_seed() {
     let mut bob = bob.spawn(Config::default());
     let seed = seed.spawn(Config {
         policy: Policy::Track,
+        scope: Scope::All,
         ..Config::default()
     });
 
