@@ -3,16 +3,17 @@ use std::ffi::OsString;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
+use radicle::node::Handle;
 use radicle::prelude::Did;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
-use radicle::cob;
 use radicle::cob::common::{Reaction, Tag};
 use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, IssueId, Issues, State};
 use radicle::storage::WriteStorage;
+use radicle::{cob, Node};
 
 pub const HELP: Help = Help {
     name: "issue",
@@ -31,7 +32,8 @@ Usage
 
 Options
 
-    --help      Print help
+    --no-announce     Don't announce issue to peers
+    --help            Print help
 "#,
 };
 
@@ -89,6 +91,7 @@ pub enum Operation {
 #[derive(Debug)]
 pub struct Options {
     pub op: Operation,
+    pub announce: bool,
 }
 
 impl Args for Options {
@@ -103,6 +106,7 @@ impl Args for Options {
         let mut reaction: Option<Reaction> = None;
         let mut description: Option<String> = None;
         let mut state: Option<State> = None;
+        let mut announce = true;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -141,6 +145,9 @@ impl Args for Options {
                     } else {
                         assigned = Some(Assigned::Me);
                     }
+                }
+                Long("no-announce") => {
+                    announce = false;
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "c" | "show" => op = Some(OperationName::Show),
@@ -187,16 +194,25 @@ impl Args for Options {
             OperationName::List => Operation::List { assigned },
         };
 
-        Ok((Options { op }, vec![]))
+        Ok((Options { op, announce }, vec![]))
     }
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let signer = term::signer(&profile)?;
-    let storage = &profile.storage;
-    let (_, id) = radicle::rad::cwd()?;
-    let repo = storage.repository_mut(id)?;
+    let (_, rid) = radicle::rad::cwd()?;
+    let repo = profile.storage.repository_mut(rid)?;
+    let announce = options.announce
+        && matches!(
+            &options.op,
+            Operation::Open { .. }
+                | Operation::React { .. }
+                | Operation::State { .. }
+                | Operation::Delete { .. }
+        );
+
+    let mut node = Node::new(profile.socket());
     let mut issues = Issues::open(&repo)?;
 
     match options.op {
@@ -303,6 +319,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Delete { id } => {
             issues.remove(&id, &signer)?;
+        }
+    }
+
+    if announce {
+        match node.announce_refs(rid) {
+            Ok(()) => {}
+            Err(e) if e.is_connection_err() => {
+                term::warning("Could not announce issue refs: node is not running");
+            }
+            Err(e) => return Err(e.into()),
         }
     }
 

@@ -255,7 +255,11 @@ impl fmt::Debug for AnnouncementMessage {
                 )
             }
             Self::Refs(message) => {
-                write!(f, "Refs({}, {:?})", message.rid, message.refs)
+                write!(
+                    f,
+                    "Refs({}, {}, {:?})",
+                    message.rid, message.timestamp, message.refs
+                )
             }
         }
     }

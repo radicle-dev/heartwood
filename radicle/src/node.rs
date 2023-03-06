@@ -347,6 +347,13 @@ pub enum Error {
     EmptyResponse { cmd: CommandName },
 }
 
+impl Error {
+    /// Check if the error is due to the not being able to connect to the local node.
+    pub fn is_connection_err(&self) -> bool {
+        matches!(self, Self::Connect(_))
+    }
+}
+
 /// Error returned by [`Node::call`] iterator.
 #[derive(thiserror::Error, Debug)]
 pub enum CallError {

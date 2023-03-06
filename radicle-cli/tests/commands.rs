@@ -346,6 +346,56 @@ fn test_clone_without_seeds() {
 }
 
 #[test]
+fn test_cob_replication() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let working = tempfile::tempdir().unwrap();
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
+
+    let rid = alice.project("heartwood", "");
+
+    let mut alice = alice.spawn(Config::default());
+    let mut bob = bob.spawn(Config::default());
+
+    alice.handle.track_node(bob.id, None).unwrap();
+    alice.connect(&bob);
+
+    bob.routes_to(&[(rid, alice.id)]);
+    bob.rad("clone", &[rid.to_string().as_str()], working.path())
+        .unwrap();
+
+    let bob_repo = bob.storage.repository(rid).unwrap();
+    let mut bob_issues = radicle::cob::issue::Issues::open(&bob_repo).unwrap();
+    let issue = bob_issues
+        .create(
+            "Something's fishy",
+            "I don't know what it is",
+            &[],
+            &[],
+            &bob.signer,
+        )
+        .unwrap();
+    log::debug!(target: "test", "Issue {} created", issue.id());
+
+    // Make sure that Bob's issue refs announcement has a different timestamp than his fork's
+    // announcement, otherwise Alice will consider it stale.
+    thread::sleep(time::Duration::from_secs(1));
+
+    bob.handle.announce_refs(rid).unwrap();
+
+    // Wait for Alice to fetch the issue refs.
+    thread::sleep(time::Duration::from_secs(1));
+
+    let alice_repo = alice.storage.repository(rid).unwrap();
+    let alice_issues = radicle::cob::issue::Issues::open(&alice_repo).unwrap();
+    let alice_issue = alice_issues.get(issue.id()).unwrap().unwrap();
+
+    assert_eq!(alice_issue.title(), "Something's fishy");
+}
+
+#[test]
 //
 //     alice -- seed -- bob
 //

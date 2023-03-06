@@ -4,7 +4,7 @@ using the 'issue' subcommand.
 Let's say the new car you are designing with your peers has a problem with its flux capacitor.
 
 ```
-$ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply"
+$ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
 ```
 
 The issue is now listed under our project.

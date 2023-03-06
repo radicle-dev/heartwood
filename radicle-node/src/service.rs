@@ -883,7 +883,7 @@ where
                     // Discard announcement messages we've already seen, otherwise update
                     // our last seen time.
                     if !peer.refs_announced(message.rid, timestamp) {
-                        debug!(target: "service", "Ignoring stale refs announcement from {announcer}");
+                        debug!(target: "service", "Ignoring stale refs announcement from {announcer} (time={timestamp})");
                         return Ok(false);
                     }
 
