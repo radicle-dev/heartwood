@@ -196,6 +196,33 @@ fn test_replication() {
 }
 
 #[test]
+fn test_dont_fetch_owned_refs() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Node::init(tmp.path());
+    let bob = Node::init(tmp.path());
+    let acme = alice.project("acme", "");
+
+    let mut alice = alice.spawn(service::Config::default());
+    let mut bob = bob.spawn(service::Config::default());
+
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    assert!(bob.handle.track_repo(acme, Scope::Trusted).unwrap());
+
+    let result = bob.handle.fetch(acme, alice.id).unwrap();
+    assert!(result.is_success());
+
+    log::debug!(target: "test", "Fetch complete with {}", bob.id);
+
+    alice.issue(acme, "Don't fetch self", "Use ^");
+    let result = alice.handle.fetch(acme, bob.id).unwrap();
+    assert!(result.is_success())
+}
+
+#[test]
 #[ignore = "failing"]
 fn test_fetch_trusted_remotes() {
     logger::init(log::Level::Debug);

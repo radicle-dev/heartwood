@@ -9,6 +9,8 @@ use std::{
 
 use crossbeam_channel as chan;
 
+use radicle::cob;
+use radicle::cob::issue;
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::{KeyPair, Seed, Signer};
@@ -19,7 +21,7 @@ use radicle::node::Handle as _;
 use radicle::profile::Home;
 use radicle::profile::Profile;
 use radicle::rad;
-use radicle::storage::ReadStorage;
+use radicle::storage::ReadStorage as _;
 use radicle::test::fixtures;
 use radicle::Storage;
 
@@ -233,6 +235,16 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             return Err(io::ErrorKind::Other.into());
         }
         Ok(())
+    }
+
+    /// Create an [`issue::Issue`] in the `NodeHandle`'s storage.
+    pub fn issue(&self, rid: Id, title: &str, desc: &str) -> cob::ObjectId {
+        let repo = self.storage.repository(rid).unwrap();
+        let mut issues = issue::Issues::open(&repo).unwrap();
+        *issues
+            .create(title, desc, &[], &[], &self.signer)
+            .unwrap()
+            .id()
     }
 }
 
