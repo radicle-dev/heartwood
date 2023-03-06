@@ -238,7 +238,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let (_, id) = radicle::rad::cwd()?;
     let repo = storage.repository(id)?;
-    let mut proposals = Proposals::open(*signer.public_key(), &repo)?;
+    let mut proposals = Proposals::open(&repo)?;
     let previous = Identity::load(signer.public_key(), &repo)?;
 
     let interactive = &options.interactive;

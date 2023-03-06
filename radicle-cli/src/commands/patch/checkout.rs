@@ -2,16 +2,14 @@ use crate::terminal as term;
 use anyhow::anyhow;
 use radicle::cob::patch::{self, PatchId};
 use radicle::git::{self, RefString};
-use radicle::profile::Profile;
 use radicle::storage::git::Repository;
 
 pub fn run(
     storage: &Repository,
-    profile: &Profile,
     git_workdir: &git::raw::Repository,
     patch_id: &PatchId,
 ) -> anyhow::Result<()> {
-    let patches = patch::Patches::open(profile.public_key, storage)?;
+    let patches = patch::Patches::open(storage)?;
     let patch = patches
         .get(patch_id)?
         .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;

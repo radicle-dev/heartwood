@@ -215,7 +215,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             list::run(&repository, &profile, Some(workdir))?;
         }
         Operation::Show { ref patch_id } => {
-            show::run(&repository, &profile, &workdir, patch_id)?;
+            show::run(&repository, &workdir, patch_id)?;
         }
         Operation::Update {
             patch_id,
@@ -231,7 +231,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             )?;
         }
         Operation::Checkout { ref patch_id } => {
-            checkout::run(&repository, &profile, &workdir, patch_id)?;
+            checkout::run(&repository, &workdir, patch_id)?;
         }
     }
     Ok(())

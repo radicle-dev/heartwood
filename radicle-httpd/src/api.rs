@@ -51,8 +51,8 @@ impl Context {
         let doc = repo.identity_doc()?.1.verified()?;
         let payload = doc.project()?;
         let delegates = doc.delegates;
-        let issues = Issues::open(self.profile.public_key, &repo)?.counts()?;
-        let patches = Patches::open(self.profile.public_key, &repo)?.counts()?;
+        let issues = Issues::open(&repo)?.counts()?;
+        let patches = Patches::open(&repo)?.counts()?;
 
         Ok(project::Info {
             payload,

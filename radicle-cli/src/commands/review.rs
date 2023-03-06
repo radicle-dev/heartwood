@@ -139,7 +139,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let _project = repository
         .identity_doc_of(profile.id())
         .context(format!("couldn't load project {id} from local state"))?;
-    let mut patches = Patches::open(*profile.id(), &repository)?;
+    let mut patches = Patches::open(&repository)?;
 
     let patch_id = options.id;
     let mut patch = patches

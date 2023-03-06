@@ -17,7 +17,6 @@ use radicle::git::raw as git2;
 use radicle::storage::ReadStorage;
 use radicle_cli::commands::rad_init;
 use radicle_crypto::ssh::keystore::MemorySigner;
-use radicle_crypto::Signer;
 
 use crate::api::{auth, Context};
 
@@ -110,7 +109,7 @@ pub fn seed(dir: &Path) -> Context {
     let storage = &profile.storage;
     let (_, id) = radicle::rad::repo(&workdir).unwrap();
     let repo = storage.repository(id).unwrap();
-    let mut issues = Issues::open(*signer.public_key(), &repo).unwrap();
+    let mut issues = Issues::open(&repo).unwrap();
     issues
         .create(
             "Issue #1".to_string(),
@@ -122,7 +121,7 @@ pub fn seed(dir: &Path) -> Context {
         .unwrap();
 
     // eq. rad patch open
-    let mut patches = Patches::open(*signer.public_key(), &repo).unwrap();
+    let mut patches = Patches::open(&repo).unwrap();
     let oid = radicle::git::Oid::from_str(HEAD).unwrap();
     let base = radicle::git::Oid::from_str(HEAD_1).unwrap();
     patches

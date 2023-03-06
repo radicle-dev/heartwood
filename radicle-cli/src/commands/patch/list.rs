@@ -18,7 +18,7 @@ pub fn run(
     workdir: Option<git::raw::Repository>,
 ) -> anyhow::Result<()> {
     let me = *profile.id();
-    let patches = Patches::open(*profile.id(), repository)?;
+    let patches = Patches::open(repository)?;
     let proposed = patches.proposed()?;
 
     // Patches the user authored.
@@ -56,7 +56,7 @@ pub fn run(
         for (id, patch) in &mut other {
             term::blank();
 
-            print(patches.public_key(), id, patch, &workdir, repository)?;
+            print(profile.id(), id, patch, &workdir, repository)?;
         }
     }
     term::blank();

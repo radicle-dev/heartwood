@@ -672,11 +672,8 @@ impl<'a> Deref for Proposals<'a> {
 
 impl<'a> Proposals<'a> {
     /// Open a proposals store.
-    pub fn open(
-        whoami: PublicKey,
-        repository: &'a storage::Repository,
-    ) -> Result<Self, store::Error> {
-        let raw = store::Store::open(whoami, repository)?;
+    pub fn open(repository: &'a storage::Repository) -> Result<Self, store::Error> {
+        let raw = store::Store::open(repository)?;
 
         Ok(Self { raw })
     }

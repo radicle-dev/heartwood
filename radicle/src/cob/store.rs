@@ -10,11 +10,9 @@ use rand::rngs::StdRng;
 use rand::{RngCore as _, SeedableRng};
 use serde::{Deserialize, Serialize};
 
-use crate::cob::common::Author;
 use crate::cob::op::{Nonce, Op, OpId, Ops};
 use crate::cob::CollaborativeObject;
 use crate::cob::{ActorId, Create, History, ObjectId, TypeName, Update};
-use crate::crypto::PublicKey;
 use crate::git;
 use crate::prelude::*;
 use crate::storage::git as storage;
@@ -90,7 +88,6 @@ pub enum Error {
 
 /// Storage for collaborative objects of a specific type `T` in a single repository.
 pub struct Store<'a, T> {
-    whoami: PublicKey,
     parent: git::Oid,
     repo: &'a storage::Repository,
     witness: PhantomData<T>,
@@ -105,27 +102,16 @@ impl<'a, T> AsRef<storage::Repository> for Store<'a, T> {
 
 impl<'a, T> Store<'a, T> {
     /// Open a new generic store.
-    pub fn open(whoami: PublicKey, repo: &'a storage::Repository) -> Result<Self, Error> {
+    pub fn open(repo: &'a storage::Repository) -> Result<Self, Error> {
         let rng = rng::std();
         let identity = repo.identity()?;
 
         Ok(Self {
             parent: identity.current,
-            whoami,
             repo,
             witness: PhantomData,
             rng,
         })
-    }
-
-    /// Get this store's author.
-    pub fn author(&self) -> Author {
-        Author::new(self.whoami)
-    }
-
-    /// Get the public key associated with this store.
-    pub fn public_key(&self) -> &PublicKey {
-        &self.whoami
     }
 
     /// Derive a new RNG from the existing one.
@@ -230,7 +216,7 @@ where
 
     /// Remove an object.
     pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), Error> {
-        cob::remove(self.repo, &self.whoami, T::type_name(), id)?;
+        cob::remove(self.repo, signer.public_key(), T::type_name(), id)?;
         self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
 
         Ok(())

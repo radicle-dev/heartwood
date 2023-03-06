@@ -1,11 +1,11 @@
 use super::common::*;
 use super::*;
 
-use crate::terminal as term;
 use radicle::cob::patch;
 use radicle::git;
-use radicle::prelude::*;
 use radicle::storage::git::Repository;
+
+use crate::terminal as term;
 
 fn show_patch_diff(
     patch: &patch::Patch,
@@ -23,11 +23,10 @@ fn show_patch_diff(
 
 pub fn run(
     storage: &Repository,
-    profile: &Profile,
     workdir: &git::raw::Repository,
     patch_id: &PatchId,
 ) -> anyhow::Result<()> {
-    let patches = patch::Patches::open(profile.public_key, storage)?;
+    let patches = patch::Patches::open(storage)?;
     let Some(patch) = patches.get(patch_id)? else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };

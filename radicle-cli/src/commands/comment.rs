@@ -102,7 +102,7 @@ fn comment(
         return Ok(());
     }
 
-    let mut issues = Issues::open(*signer.public_key(), repo)?;
+    let mut issues = Issues::open(repo)?;
     match issues.get_mut(&options.id) {
         Ok(mut issue) => {
             let comment_id = options.reply_to.unwrap_or_else(|| {
@@ -118,7 +118,7 @@ fn comment(
         Err(e) => return Err(e.into()),
     }
 
-    let mut patches = Patches::open(*signer.public_key(), repo)?;
+    let mut patches = Patches::open(repo)?;
     match patches.get_mut(&options.id) {
         Ok(mut patch) => {
             let (revision_id, _) = patch.revisions().last().expect("patch has a revision");

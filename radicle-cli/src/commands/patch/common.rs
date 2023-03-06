@@ -232,9 +232,10 @@ pub fn find_unmerged_with_base(
     merge_base: Oid,
     patches: &Patches,
     workdir: &git::raw::Repository,
+    whoami: &Did,
 ) -> anyhow::Result<Vec<(PatchId, Patch, Clock)>> {
     // My patches.
-    let proposed: Vec<_> = patches.proposed_by(&patches.public_key().into())?.collect();
+    let proposed: Vec<_> = patches.proposed_by(whoami)?.collect();
     let mut matches = Vec::new();
 
     for (id, patch, clock) in proposed {

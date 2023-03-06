@@ -797,11 +797,8 @@ impl<'a> Deref for Patches<'a> {
 
 impl<'a> Patches<'a> {
     /// Open an patches store.
-    pub fn open(
-        whoami: PublicKey,
-        repository: &'a storage::Repository,
-    ) -> Result<Self, store::Error> {
-        let raw = store::Store::open(whoami, repository)?;
+    pub fn open(repository: &'a storage::Repository) -> Result<Self, store::Error> {
+        let raw = store::Store::open(repository)?;
 
         Ok(Self { raw })
     }
@@ -1071,7 +1068,7 @@ mod test {
     fn test_patch_create_and_get() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let mut patches = Patches::open(&project).unwrap();
         let author: Did = signer.public_key().into();
         let target = MergeTarget::Delegates;
         let oid = git::Oid::from_str("e2a85016a458cd809c0ecee81f8c99613b0b0945").unwrap();
@@ -1113,7 +1110,7 @@ mod test {
     fn test_patch_discussion() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let mut patches = Patches::open(&project).unwrap();
         let patch = patches
             .create(
                 "My first patch",
@@ -1147,7 +1144,7 @@ mod test {
         let (_, signer, project) = test::setup::context(&tmp);
         let oid = git::Oid::from_str("e2a85016a458cd809c0ecee81f8c99613b0b0945").unwrap();
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let mut patches = Patches::open(&project).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
@@ -1181,7 +1178,7 @@ mod test {
         let (_, signer, project) = test::setup::context(&tmp);
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let mut patches = Patches::open(&project).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
@@ -1300,7 +1297,7 @@ mod test {
         let (_, signer, project) = test::setup::context(&tmp);
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let mut patches = Patches::open(&project).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
@@ -1354,7 +1351,7 @@ mod test {
         let base = git::Oid::from_str("af08e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let rev0_oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let rev1_oid = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let mut patches = Patches::open(*signer.public_key(), &project).unwrap();
+        let mut patches = Patches::open(&project).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",

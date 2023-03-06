@@ -15,7 +15,7 @@ use crate::cob::store::Transaction;
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
 use crate::cob::{store, ActorId, ObjectId, OpId, TypeName};
-use crate::crypto::{PublicKey, Signer};
+use crate::crypto::Signer;
 use crate::prelude::Did;
 use crate::storage::git as storage;
 
@@ -416,11 +416,8 @@ pub struct IssueCounts {
 
 impl<'a> Issues<'a> {
     /// Open an issues store.
-    pub fn open(
-        whoami: PublicKey,
-        repository: &'a storage::Repository,
-    ) -> Result<Self, store::Error> {
-        let raw = store::Store::open(whoami, repository)?;
+    pub fn open(repository: &'a storage::Repository) -> Result<Self, store::Error> {
+        let raw = store::Store::open(repository)?;
 
         Ok(Self { raw })
     }
@@ -549,7 +546,7 @@ mod test {
     fn test_issue_create_and_assign() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
 
         let assignee: ActorId = arbitrary::gen(1);
         let assignee_two: ActorId = arbitrary::gen(1);
@@ -586,7 +583,7 @@ mod test {
     fn test_issue_create_and_reassign() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
 
         let assignee: ActorId = arbitrary::gen(1);
         let assignee_two: ActorId = arbitrary::gen(1);
@@ -616,7 +613,7 @@ mod test {
     fn test_issue_create_and_get() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
         let created = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
@@ -628,7 +625,7 @@ mod test {
 
         assert_eq!(created, issue);
         assert_eq!(issue.title(), "My first issue");
-        assert_eq!(issue.author(), issues.author());
+        assert_eq!(issue.author().id, Did::from(signer.public_key()));
         assert_eq!(issue.description(), Some("Blah blah blah."));
         assert_eq!(issue.comments().count(), 1);
         assert_eq!(issue.state(), &State::Open);
@@ -638,7 +635,7 @@ mod test {
     fn test_issue_create_and_change_state() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
@@ -672,7 +669,7 @@ mod test {
     fn test_issue_create_and_unassign() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
 
         let assignee: ActorId = arbitrary::gen(1);
         let assignee_two: ActorId = arbitrary::gen(1);
@@ -700,7 +697,7 @@ mod test {
     fn test_issue_edit_title() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
@@ -718,7 +715,7 @@ mod test {
     fn test_issue_react() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
@@ -741,7 +738,7 @@ mod test {
     fn test_issue_reply() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
@@ -779,7 +776,7 @@ mod test {
     fn test_issue_tag() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
         let bug_tag = Tag::new("bug").unwrap();
         let ux_tag = Tag::new("ux").unwrap();
         let wontfix_tag = Tag::new("wontfix").unwrap();
@@ -810,7 +807,7 @@ mod test {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
         let author = *signer.public_key();
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
@@ -856,7 +853,7 @@ mod test {
     fn test_issue_all() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
 
         issues.create("First", "Blah", &[], &[], &signer).unwrap();
         issues.create("Second", "Blah", &[], &[], &signer).unwrap();
@@ -880,7 +877,7 @@ mod test {
     fn test_issue_multilines() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, project) = test::setup::context(&tmp);
-        let mut issues = Issues::open(*signer.public_key(), &project).unwrap();
+        let mut issues = Issues::open(&project).unwrap();
         let created = issues
             .create(
                 "My first issue",
@@ -898,7 +895,7 @@ mod test {
 
         assert_eq!(created, issue);
         assert_eq!(issue.title(), "My first issue");
-        assert_eq!(issue.author(), issues.author());
+        assert_eq!(issue.author().id, Did::from(signer.public_key()));
         assert_eq!(issue.description(), Some("Blah blah blah.\nYah yah yah"));
         assert_eq!(issue.comments().count(), 1);
         assert_eq!(issue.state(), &State::Open);

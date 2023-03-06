@@ -83,9 +83,9 @@ async fn project_root_handler(
             let Ok((_, doc)) = repo.identity_doc() else { return None };
             let Ok(doc) = doc.verified() else { return None };
             let Ok(payload) = doc.project() else { return None };
-            let Ok(issues) = issue::Issues::open(ctx.profile.public_key, &repo) else { return None };
+            let Ok(issues) = issue::Issues::open(&repo) else { return None };
             let Ok(issues) = issues.counts() else { return None };
-            let Ok(patches) = patch::Patches::open(ctx.profile.public_key, &repo) else { return None };
+            let Ok(patches) = patch::Patches::open(&repo) else { return None };
             let Ok(patches) = patches.counts() else { return None };
             let delegates = doc.delegates;
 
@@ -395,7 +395,7 @@ async fn issues_handler(
     let per_page = per_page.unwrap_or(10);
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let issues = issue::Issues::open(ctx.profile.public_key, &repo)?;
+    let issues = issue::Issues::open(&repo)?;
     let mut issues: Vec<_> = issues.all()?.filter_map(|r| r.ok()).collect::<Vec<_>>();
     issues.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
     let issues = issues
@@ -432,7 +432,7 @@ async fn issue_create_handler(
         .signer()
         .map_err(|_| Error::Auth("Unauthorized"))?;
     let repo = storage.repository(project)?;
-    let mut issues = issue::Issues::open(ctx.profile.public_key, &repo)?;
+    let mut issues = issue::Issues::open(&repo)?;
     let issue = issues
         .create(
             issue.title,
@@ -466,7 +466,7 @@ async fn issue_update_handler(
     let storage = &ctx.profile.storage;
     let signer = ctx.profile.signer().unwrap();
     let repo = storage.repository(project)?;
-    let mut issues = issue::Issues::open(ctx.profile.public_key, &repo)?;
+    let mut issues = issue::Issues::open(&repo)?;
     let mut issue = issues.get_mut(&issue_id.into())?;
 
     match action {
@@ -514,7 +514,7 @@ async fn issue_handler(
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let issue = issue::Issues::open(ctx.profile.public_key, &repo)?
+    let issue = issue::Issues::open(&repo)?
         .get(&issue_id.into())?
         .ok_or(Error::NotFound)?;
 
@@ -549,7 +549,7 @@ async fn patch_create_handler(
         .signer()
         .map_err(|_| Error::Auth("Unauthorized"))?;
     let repo = storage.repository(project)?;
-    let mut patches = patch::Patches::open(ctx.profile.public_key, &repo)?;
+    let mut patches = patch::Patches::open(&repo)?;
     let base_oid = repo.raw().merge_base(*patch.target, *patch.oid)?;
 
     let patch = patches
@@ -582,7 +582,7 @@ async fn patches_handler(
     let per_page = per_page.unwrap_or(10);
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let patches = patch::Patches::open(ctx.profile.public_key, &repo)?;
+    let patches = patch::Patches::open(&repo)?;
     let mut patches = patches.all()?.filter_map(|r| r.ok()).collect::<Vec<_>>();
     patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
     let patches = patches
@@ -603,7 +603,7 @@ async fn patch_handler(
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
-    let patch = patch::Patches::open(ctx.profile.public_key, &repo)?
+    let patch = patch::Patches::open(&repo)?
         .get(&patch_id.into())?
         .ok_or(Error::NotFound)?;
 

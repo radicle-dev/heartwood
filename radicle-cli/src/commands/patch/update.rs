@@ -21,12 +21,14 @@ fn select_patch(
     workdir: &git::raw::Repository,
     head_branch: &git::raw::Branch,
     target_oid: git::Oid,
+    whoami: &Did,
 ) -> anyhow::Result<patch::PatchId> {
     let head_oid = branch_oid(head_branch)?;
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
 
     let mut spinner = term::spinner("Finding patches to update...");
-    let mut result = find_unmerged_with_base(*head_oid, *target_oid, base_oid, patches, workdir)?;
+    let mut result =
+        find_unmerged_with_base(*head_oid, *target_oid, base_oid, patches, workdir, whoami)?;
 
     let Some((id, patch, _)) = result.pop() else {
         spinner.failed();
@@ -103,11 +105,11 @@ pub fn run(
     push_to_storage(storage, &head_branch, options)?;
 
     let (_, target_oid) = get_merge_target(&project, storage, &head_branch)?;
-    let mut patches = patch::Patches::open(profile.public_key, storage)?;
+    let mut patches = patch::Patches::open(storage)?;
 
     let patch_id = match patch_id {
         Some(patch_id) => patch_id,
-        None => select_patch(&patches, workdir, &head_branch, target_oid)?,
+        None => select_patch(&patches, workdir, &head_branch, target_oid, &profile.did())?,
     };
     let Ok(mut patch) = patches.get_mut(&patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");

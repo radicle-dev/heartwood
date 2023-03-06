@@ -94,7 +94,7 @@ pub fn run(
     message: term::patch::Message,
     options: Options,
 ) -> anyhow::Result<()> {
-    let mut patches = patch::Patches::open(profile.public_key, storage)?;
+    let mut patches = patch::Patches::open(storage)?;
     let project = storage.project_of(&profile.public_key).context(format!(
         "couldn't load project {} from local state",
         storage.id
@@ -117,7 +117,7 @@ pub fn run(
     show_patch_commit_info(
         &project,
         workdir,
-        patches.public_key(),
+        profile.id(),
         &head_branch,
         &target_peer,
         target_oid,

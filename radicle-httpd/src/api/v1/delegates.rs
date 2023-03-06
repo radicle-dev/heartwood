@@ -49,9 +49,9 @@ async fn delegates_projects_handler(
                 return None;
             }
 
-            let Ok(issues) = Issues::open(ctx.profile.public_key, &repo) else { return None };
+            let Ok(issues) = Issues::open(&repo) else { return None };
             let Ok(issues) = issues.counts() else { return None };
-            let Ok(patches) = Patches::open(ctx.profile.public_key, &repo) else { return None };
+            let Ok(patches) = Patches::open(&repo) else { return None };
             let Ok(patches) = patches.counts() else { return None };
 
             Some(Info {
