@@ -8,7 +8,7 @@ use thiserror::Error;
 use crate::prelude::Id;
 use crate::service::NodeId;
 
-use super::{Alias, Node, Policy, Repo, Scope};
+use super::{Node, Policy, Repo, Scope};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -141,16 +141,28 @@ impl Config {
 
     /// Check if a node is tracked.
     pub fn is_node_tracked(&self, id: &NodeId) -> Result<bool, Error> {
-        Ok(matches!(self.node_entry(id)?, Some((_, Policy::Track))))
+        Ok(matches!(
+            self.node_entry(id)?,
+            Some(Node {
+                policy: Policy::Track,
+                ..
+            })
+        ))
     }
 
     /// Check if a repository is tracked.
     pub fn is_repo_tracked(&self, id: &Id) -> Result<bool, Error> {
-        Ok(matches!(self.repo_entry(id)?, Some((_, Policy::Track))))
+        Ok(matches!(
+            self.repo_entry(id)?,
+            Some(Repo {
+                policy: Policy::Track,
+                ..
+            })
+        ))
     }
 
     /// Get a node's tracking information.
-    pub fn node_entry(&self, id: &NodeId) -> Result<Option<(Option<Alias>, Policy)>, Error> {
+    pub fn node_entry(&self, id: &NodeId) -> Result<Option<Node>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT alias, policy FROM `node-policies` WHERE id = ?")?;
@@ -162,13 +174,17 @@ impl Config {
             let alias = alias.is_empty().not().then_some(alias.to_owned());
             let policy = row.read::<Policy, _>("policy");
 
-            return Ok(Some((alias, policy)));
+            return Ok(Some(Node {
+                id: *id,
+                alias,
+                policy,
+            }));
         }
         Ok(None)
     }
 
     /// Get a repository's tracking information.
-    pub fn repo_entry(&self, id: &Id) -> Result<Option<(Scope, Policy)>, Error> {
+    pub fn repo_entry(&self, id: &Id) -> Result<Option<Repo>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT scope, policy FROM `repo-policies` WHERE id = ?")?;
@@ -176,10 +192,11 @@ impl Config {
         stmt.bind((1, id))?;
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
-            return Ok(Some((
-                row.read::<Scope, _>("scope"),
-                row.read::<Policy, _>("policy"),
-            )));
+            return Ok(Some(Repo {
+                id: *id,
+                scope: row.read::<Scope, _>("scope"),
+                policy: row.read::<Policy, _>("policy"),
+            }));
         }
         Ok(None)
     }
@@ -289,15 +306,15 @@ mod test {
 
         assert!(db.track_node(&id, Some("eve")).unwrap());
         assert_eq!(
-            db.node_entry(&id).unwrap().unwrap().0,
+            db.node_entry(&id).unwrap().unwrap().alias,
             Some(String::from("eve"))
         );
         assert!(db.track_node(&id, None).unwrap());
-        assert_eq!(db.node_entry(&id).unwrap().unwrap().0, None);
+        assert_eq!(db.node_entry(&id).unwrap().unwrap().alias, None);
         assert!(!db.track_node(&id, None).unwrap());
         assert!(db.track_node(&id, Some("alice")).unwrap());
         assert_eq!(
-            db.node_entry(&id).unwrap().unwrap().0,
+            db.node_entry(&id).unwrap().unwrap().alias,
             Some(String::from("alice"))
         );
     }
@@ -308,9 +325,9 @@ mod test {
         let mut db = Config::open(":memory:").unwrap();
 
         assert!(db.track_repo(&id, Scope::All).unwrap());
-        assert_eq!(db.repo_entry(&id).unwrap().unwrap().0, Scope::All);
+        assert_eq!(db.repo_entry(&id).unwrap().unwrap().scope, Scope::All);
         assert!(db.track_repo(&id, Scope::Trusted).unwrap());
-        assert_eq!(db.repo_entry(&id).unwrap().unwrap().0, Scope::Trusted);
+        assert_eq!(db.repo_entry(&id).unwrap().unwrap().scope, Scope::Trusted);
     }
 
     #[test]
@@ -319,9 +336,9 @@ mod test {
         let mut db = Config::open(":memory:").unwrap();
 
         assert!(db.track_repo(&id, Scope::All).unwrap());
-        assert_eq!(db.repo_entry(&id).unwrap().unwrap().1, Policy::Track);
+        assert_eq!(db.repo_entry(&id).unwrap().unwrap().policy, Policy::Track);
         assert!(db.set_repo_policy(&id, Policy::Block).unwrap());
-        assert_eq!(db.repo_entry(&id).unwrap().unwrap().1, Policy::Block);
+        assert_eq!(db.repo_entry(&id).unwrap().unwrap().policy, Policy::Block);
     }
 
     #[test]
@@ -330,8 +347,8 @@ mod test {
         let mut db = Config::open(":memory:").unwrap();
 
         assert!(db.track_node(&id, None).unwrap());
-        assert_eq!(db.node_entry(&id).unwrap().unwrap().1, Policy::Track);
+        assert_eq!(db.node_entry(&id).unwrap().unwrap().policy, Policy::Track);
         assert!(db.set_node_policy(&id, Policy::Block).unwrap());
-        assert_eq!(db.node_entry(&id).unwrap().unwrap().1, Policy::Block);
+        assert_eq!(db.node_entry(&id).unwrap().unwrap().policy, Policy::Block);
     }
 }

@@ -15,7 +15,6 @@ pub use store::Error;
 pub struct Config {
     /// Default policy, if a policy for a specific node or repository was not found.
     policy: Policy,
-    #[allow(dead_code)]
     /// Default scope, if a scope for a specific repository was not found.
     scope: Scope,
     /// Underlying configuration store.
@@ -34,30 +33,34 @@ impl Config {
 
     /// Check if a repository is tracked.
     pub fn is_repo_tracked(&self, id: &Id) -> Result<bool, Error> {
-        self.repo_policy(id).map(|entry| entry == Policy::Track)
+        self.repo_policy(id)
+            .map(|entry| entry.policy == Policy::Track)
     }
 
     /// Check if a node is tracked.
     pub fn is_node_tracked(&self, id: &NodeId) -> Result<bool, Error> {
-        self.node_policy(id).map(|entry| entry == Policy::Track)
+        self.node_policy(id)
+            .map(|entry| entry.policy == Policy::Track)
     }
 
     /// Get a node's tracking information.
     /// Returns the default policy if the node isn't found.
-    pub fn node_policy(&self, id: &NodeId) -> Result<Policy, Error> {
-        if let Some((_, policy)) = self.store.node_entry(id)? {
-            return Ok(policy);
-        }
-        Ok(self.policy)
+    pub fn node_policy(&self, id: &NodeId) -> Result<Node, Error> {
+        Ok(self.store.node_entry(id)?.unwrap_or(Node {
+            id: *id,
+            alias: None,
+            policy: self.policy,
+        }))
     }
 
     /// Get a repository's tracking information.
     /// Returns the default policy if the repo isn't found.
-    pub fn repo_policy(&self, id: &Id) -> Result<Policy, Error> {
-        if let Some((_, policy)) = self.store.repo_entry(id)? {
-            return Ok(policy);
-        }
-        Ok(self.policy)
+    pub fn repo_policy(&self, id: &Id) -> Result<Repo, Error> {
+        Ok(self.store.repo_entry(id)?.unwrap_or(Repo {
+            id: *id,
+            scope: self.scope,
+            policy: self.policy,
+        }))
     }
 }
 
