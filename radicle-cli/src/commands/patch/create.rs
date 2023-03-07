@@ -42,10 +42,6 @@ pub fn handle_patch_message(
         anyhow::bail!("a title must be given");
     }
 
-    term::blank();
-    term::patch::print_title_desc(title, description);
-    term::blank();
-
     Ok((title.to_string(), description.to_owned()))
 }
 
@@ -65,13 +61,14 @@ fn show_patch_commit_info(
     term::blank();
     term::info!(
         "{}/{} ({}) <- {}/{} ({})",
-        term::format::dim(target_peer.id),
+        term::format::dim(term::format::node(&target_peer.id)),
         term::format::highlight(project.default_branch().to_string()),
         term::format::secondary(term::format::oid(*target_oid)),
         term::format::dim(term::format::node(node_id)),
         term::format::highlight(branch_name(head_branch)?),
         term::format::secondary(term::format::oid(head_oid)),
     );
+    term::blank();
 
     // TODO: Test case where the target branch has been re-written passed the merge-base, since the fork was created
     // This can also happen *after* the patch is created.
@@ -81,7 +78,6 @@ fn show_patch_commit_info(
     // List commits in patch that aren't in the target branch.
     term::blank();
     term::patch::list_commits(&commits)?;
-    term::blank();
 
     Ok(())
 }
@@ -100,12 +96,6 @@ pub fn run(
         storage.id
     ))?;
     let head_branch = try_branch(workdir.head()?)?;
-
-    term::headline(format!(
-        "🌱 Creating patch for {}",
-        term::format::highlight(project.name())
-    ));
-
     push_to_storage(storage, &head_branch, &options)?;
     let (target_peer, target_oid) = get_merge_target(&project, storage, &head_branch)?;
 
@@ -123,16 +113,14 @@ pub fn run(
         target_oid,
     )?;
 
+    term::blank();
+
     // TODO: List matching working copy refs for all targets.
 
     let (title, description) = handle_patch_message(message, workdir, &head_branch)?;
-
-    if !confirm("Continue?", &options) {
-        anyhow::bail!("patch proposal aborted by user");
-    }
-
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
+    let signer = term::signer(profile)?;
     let patch = patches.create(
         title,
         &description,
@@ -140,14 +128,18 @@ pub fn run(
         base_oid,
         head_oid,
         &[],
-        &term::signer(profile)?,
+        &signer,
     )?;
 
-    term::blank();
     term::success!("Patch {} created 🌱", term::format::highlight(patch.id));
+    term::blank();
 
     if options.announce {
         // TODO
+    } else {
+        term::info!("To publish your patch to the network, run:");
+        term::indented(term::format::secondary("rad push"));
+        term::blank();
     }
 
     Ok(())

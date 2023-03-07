@@ -1,7 +1,6 @@
 use radicle::git;
 
 use crate::terminal as term;
-use crate::terminal::cell::Cell as _;
 
 /// The user supplied `Patch` description.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -83,23 +82,4 @@ pub fn print_commits_ahead_behind(
         }
     );
     Ok(())
-}
-
-/// Print title and description in a text box.
-pub fn print_title_desc(title: &str, description: &str) {
-    let title_pretty = &term::format::dim(format!("╭─ {title} ───────"));
-    term::print(title_pretty);
-    term::blank();
-
-    if description.is_empty() {
-        term::print(term::format::italic("No description provided."));
-    } else {
-        term::markdown(description);
-    }
-
-    term::blank();
-    term::print(term::format::dim(format!(
-        "╰{}",
-        "─".repeat(title_pretty.to_string().width() - 1)
-    )));
 }

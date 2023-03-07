@@ -25,27 +25,21 @@ $ git commit -v -m "Define power requirements"
 Once the code is ready, we open (or create) a patch with our changes for the project.
 
 ```
-$ rad patch open --message "define power requirements" --no-confirm
-
-🌱 Creating patch for heartwood
-
+$ rad patch open --message "Define power requirements" --message "See details."
 ✓ Pushing HEAD to storage...
 ✓ Analyzing remotes...
 
-z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master (f2de534) <- z6MknSL…StBU8Vi/flux-capacitor-power (3e674d1)
+z6MknSL…StBU8Vi/master (f2de534) <- z6MknSL…StBU8Vi/flux-capacitor-power (3e674d1)
+
 1 commit(s) ahead, 0 commit(s) behind
 
 3e674d1 Define power requirements
 
+✓ Patch d8584d098142d774211ac5cdc8d1df4a113875dd created 🌱
 
-╭─ define power requirements ───────
+To publish your patch to the network, run:
+    rad push
 
-No description provided.
-
-╰───────────────────────────────────
-
-
-✓ Patch f504e78d71e7c2d70569976ef9f6b37b6a3d0bfd created 🌱
 ```
 
 It will now be listed as one of the project's open patches.
@@ -55,23 +49,19 @@ $ rad patch
 
 ❲YOU PROPOSED❳
 
-define power requirements f504e78d71e R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0
+Define power requirements d8584d09814 R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0
 └─ * opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..]
-└─ * patch id f504e78d71e7c2d70569976ef9f6b37b6a3d0bfd
+└─ * patch id d8584d098142d774211ac5cdc8d1df4a113875dd
 
 ❲OTHERS PROPOSED❳
 
 Nothing to show.
 
-$ rad patch show f504e78d71e7c2d70569976ef9f6b37b6a3d0bfd
+$ rad patch show d8584d098142d774211ac5cdc8d1df4a113875dd
 
-patch f504e78d71e7c2d70569976ef9f6b37b6a3d0bfd
+Define power requirements
 
-╭─ define power requirements ───────
-
-No description provided.
-
-╰───────────────────────────────────
+See details.
 
 commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
 Author: radicle <radicle@localhost>
@@ -94,34 +84,34 @@ $ git commit --message "Add README, just for the fun"
 [flux-capacitor-power 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
-$ rad patch update --message "Add README, just for the fun" --no-confirm f504e78d71e7c2d70569976ef9f6b37b6a3d0bfd
+$ rad patch update --message "Add README, just for the fun" d8584d098142d774211ac5cdc8d1df4a113875dd
 
 🌱 Updating patch for heartwood
 
 ✓ Pushing HEAD to storage...
 ✓ Analyzing remotes...
 
-f504e78d71e R0 (3e674d1) -> R1 (27857ec)
+d8584d09814 R0 (3e674d1) -> R1 (27857ec)
 1 commit(s) ahead, 0 commit(s) behind
 
 
-✓ Patch f504e78d71e7c2d70569976ef9f6b37b6a3d0bfd updated 🌱
+✓ Patch d8584d098142d774211ac5cdc8d1df4a113875dd updated 🌱
 
 ```
 
 And lets leave a quick comment for our team:
 
 ```
-$ rad comment f504e78d71e7c2d70569976ef9f6b37b6a3d0bfd --message 'I cannot wait to get back to the 90s!'
+$ rad comment d8584d098142d774211ac5cdc8d1df4a113875dd --message 'I cannot wait to get back to the 90s!'
 84ef44764de73695cf30e6b284585d2c50d6d0e5
-$ rad comment f504e78d71e7c2d70569976ef9f6b37b6a3d0bfd --message 'I cannot wait to get back to the 90s!' --reply-to 84ef44764de73695cf30e6b284585d2c50d6d0e5
+$ rad comment d8584d098142d774211ac5cdc8d1df4a113875dd --message 'I cannot wait to get back to the 90s!' --reply-to 84ef44764de73695cf30e6b284585d2c50d6d0e5
 2fa3ac18d82ebdafe73484a15fa9823355c4664b
 ```
 
 Now, let's checkout the patch that we just created:
 
 ```
-$ rad patch checkout f504e78d71e7c2d70569976ef9f6b37b6a3d0bfd
+$ rad patch checkout d8584d098142d774211ac5cdc8d1df4a113875dd
 ✓ Performing patch checkout...
-✓ Switched to branch patch/f504e78d71e
+✓ Switched to branch patch/d8584d09814
 ```

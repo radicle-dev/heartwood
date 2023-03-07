@@ -42,8 +42,7 @@ Usage
 
 Create/Update options
 
-        --[no-]confirm         Don't ask for confirmation during clone
-        --[no-]sync            Sync patch to seed (default: sync)
+        --[no-]announce        Announce patch to network (default: false)
         --[no-]push            Push patch head to storage (default: true)
     -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
         --no-message           Leave the patch or revision comment message blank
@@ -89,7 +88,6 @@ pub enum Operation {
 #[derive(Debug)]
 pub struct Options {
     pub op: Operation,
-    pub confirm: bool,
     pub fetch: bool,
     pub announce: bool,
     pub push: bool,
@@ -101,11 +99,10 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut confirm = true;
         let mut op: Option<OperationName> = None;
         let mut verbose = false;
         let mut fetch = false;
-        let mut announce = true;
+        let mut announce = false;
         let mut patch_id = None;
         let mut message = Message::default();
         let mut push = true;
@@ -113,12 +110,6 @@ impl Args for Options {
         while let Some(arg) = parser.next()? {
             match arg {
                 // Options.
-                Long("confirm") => {
-                    confirm = true;
-                }
-                Long("no-confirm") => {
-                    confirm = false;
-                }
                 Long("message") | Short('m') => {
                     if message != Message::Blank {
                         // We skip this code when `no-message` is specified.
@@ -174,6 +165,9 @@ impl Args for Options {
                 Value(val) if op == Some(OperationName::Checkout) && patch_id.is_none() => {
                     patch_id = Some(term::cob::parse_patch_id(val)?);
                 }
+                Value(val) if op == Some(OperationName::Delete) && patch_id.is_none() => {
+                    patch_id = Some(term::cob::parse_patch_id(val)?);
+                }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
         }
@@ -196,7 +190,6 @@ impl Args for Options {
         Ok((
             Options {
                 op,
-                confirm,
                 fetch,
                 push,
                 verbose,

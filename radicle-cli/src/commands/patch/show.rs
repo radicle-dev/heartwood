@@ -1,3 +1,5 @@
+use std::process;
+
 use super::common::*;
 use super::*;
 
@@ -16,8 +18,14 @@ fn show_patch_diff(
     let base_oid = workdir.merge_base(target_head, **patch.head())?;
     let diff = format!("{}..{}", base_oid, patch.head());
 
-    let output = git::run::<_, _, &str, &str>(workdir.path(), ["log", "--patch", &diff], [])?;
-    term::blob(output);
+    process::Command::new("git")
+        .current_dir(workdir.path())
+        .args(["log", "--patch", &diff])
+        .stdout(process::Stdio::inherit())
+        .stderr(process::Stdio::inherit())
+        .spawn()?
+        .wait()?;
+
     Ok(())
 }
 
@@ -32,11 +40,13 @@ pub fn run(
     };
 
     term::blank();
-    term::print(format!("patch {patch_id}"));
+    term::info!("{}", term::format::bold(patch.title()));
     term::blank();
 
-    term::patch::print_title_desc(patch.title(), patch.description().unwrap_or(""));
-    term::blank();
+    if let Some(desc) = patch.description() {
+        term::blob(desc.trim());
+        term::blank();
+    }
 
     show_patch_diff(&patch, storage, workdir)?;
     term::blank();

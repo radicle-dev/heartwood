@@ -6,6 +6,7 @@ fn main() -> anyhow::Result<()> {
     let demo = terminal::io::select(
         "Choose something to try out:",
         &[
+            "confirm",
             "spinner",
             "spinner-drop",
             "spinner-error",
@@ -16,6 +17,11 @@ fn main() -> anyhow::Result<()> {
     )?;
 
     match demo {
+        Some(&"confirm") => {
+            if terminal::confirm("Would you like to proceed?") {
+                terminal::success!("You said 'yes'");
+            }
+        }
         Some(&"editor") => {
             let output = terminal::editor::Editor::new()
                 .extension("rs")

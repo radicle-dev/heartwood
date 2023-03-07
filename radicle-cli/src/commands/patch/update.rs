@@ -115,10 +115,6 @@ pub fn run(
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
-    if !confirm("Update patch?", options) {
-        anyhow::bail!("Patch update aborted by user");
-    }
-
     // TODO(cloudhead): Handle error.
     let (_, current_revision) = patch.latest().unwrap();
     if *current_revision.oid == *branch_oid(&head_branch)? {
@@ -127,10 +123,6 @@ pub fn run(
     }
 
     show_update_commit_info(workdir, &patch_id, &patch, current_revision, &head_branch)?;
-
-    if !confirm("Continue?", options) {
-        anyhow::bail!("patch update aborted by user");
-    }
 
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;

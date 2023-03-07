@@ -1,4 +1,3 @@
-use std::fmt;
 use std::path::Path;
 
 use anyhow::anyhow;
@@ -32,11 +31,6 @@ pub fn branch_oid(branch: &git::raw::Branch) -> anyhow::Result<git::Oid> {
         .target()
         .ok_or(anyhow!("invalid HEAD ref; aborting"))?;
     Ok(oid.into())
-}
-
-#[inline]
-pub fn confirm<D: fmt::Display>(prompt: D, options: &Options) -> bool {
-    !options.confirm || term::confirm(prompt)
 }
 
 /// List of merge targets.
