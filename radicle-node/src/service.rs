@@ -636,6 +636,21 @@ where
                     error!(target: "service", "Failed to announce new refs: {e}");
                 }
             }
+        }
+
+        if let Some(session) = self.sessions.get_mut(&remote) {
+            // Transition session back to gossip protocol.
+            session.to_gossip();
+            // Drain any messages in the session's outbox, which might have accumulated during the
+            // fetch, and send them to the peer.
+            self.reactor.drain(session);
+        } else {
+            log::debug!(target: "service", "Session not found for {remote}");
+        }
+
+        // Nb. This block needs to be run after we've switched back to the gossip protocol,
+        // otherwise the messages will be queued.
+        if initiated {
             // TODO: Since this fetch could be either a full clone or simply a ref update, we need
             // to either announce new inventory, or new refs. Right now, we announce both in some
             // cases.
@@ -657,16 +672,6 @@ where
                     error!(target: "service", "Failed to sync inventory: {e}");
                 }
             }
-        }
-
-        if let Some(session) = self.sessions.get_mut(&remote) {
-            // Transition session back to gossip protocol.
-            session.to_gossip();
-            // Drain any messages in the session's outbox, which might have accumulated during the
-            // fetch, and send them to the peer.
-            self.reactor.drain(session);
-        } else {
-            log::debug!(target: "service", "Session not found for {remote}");
         }
     }
 
