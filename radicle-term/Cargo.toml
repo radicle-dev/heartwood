@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1" }
 concolor = { version = "0", features = ["api_unstable"] }
-inquire = { version = "0.5.3", default-features = false, features = ["termion", "editor"] }
+inquire = { version = "0.6", default-features = false, features = ["termion", "editor"] }
 once_cell = { version = "1.13" }
 termion = { version = "2" }
 unicode-width = { version = "0.1.10", default-features = false }

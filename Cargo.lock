@@ -1159,9 +1159,9 @@ dependencies = [
 
 [[package]]
 name = "inquire"
-version = "0.5.3"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3a94f0659efe59329832ba0452d3ec753145fc1fb12a8e1d60de4ccf99f5364"
+checksum = "fd079157ad94a32f7511b2e13037f3ae417ad80a6a9b0de29154d48b86f5d6c8"
 dependencies = [
  "bitflags",
  "dyn-clone",
@@ -1823,12 +1823,9 @@ version = "0.8.0"
 dependencies = [
  "anyhow",
  "chrono",
- "concolor",
- "inquire",
  "json-color",
  "lexopt",
  "log",
- "once_cell",
  "pretty_assertions",
  "radicle",
  "radicle-cli-test",
@@ -1841,11 +1838,8 @@ dependencies = [
  "serde_yaml",
  "similar",
  "tempfile",
- "termion 2.0.1",
  "thiserror",
  "timeago",
- "unicode-segmentation",
- "unicode-width",
  "ureq",
  "zeroize",
 ]

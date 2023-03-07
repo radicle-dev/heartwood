@@ -5,9 +5,9 @@ use radicle::git;
 use radicle::prelude::*;
 use radicle::profile::Profile;
 use radicle::storage::git::Repository;
-use unicode_width::UnicodeWidthStr;
 
 use crate::terminal as term;
+use term::cell::Cell as _;
 
 use super::common;
 
