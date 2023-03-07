@@ -67,30 +67,23 @@ impl Reactor {
     }
 
     pub fn write(&mut self, remote: &Session, msg: Message) {
-        if remote.is_gossip_allowed() {
-            debug!(target: "service", "Write {:?} to {}", &msg, remote);
-            self.io.push_back(Io::Write(remote.id, vec![msg]));
-        } else {
+        // If we've requested a fetch or are currently fetching, any message to be written
+        // to the remote peer should be queued.
+        if remote.is_requesting() || remote.is_fetching() {
             debug!(target: "service", "Queue {:?} for {}", &msg, remote);
             self.outbox.entry(remote.id).or_default().push(msg);
+        } else {
+            debug!(target: "service", "Write {:?} to {}", &msg, remote);
+            self.io.push_back(Io::Write(remote.id, vec![msg]));
         }
     }
 
     pub fn write_all(&mut self, remote: &Session, msgs: impl IntoIterator<Item = Message>) {
         let msgs = msgs.into_iter().collect::<Vec<_>>();
-        let is_gossip_allowed = remote.is_gossip_allowed();
+        let queue = remote.is_fetching() || remote.is_requesting();
 
         for (ix, msg) in msgs.iter().enumerate() {
-            if is_gossip_allowed {
-                debug!(
-                    target: "service",
-                    "Write {:?} to {} ({}/{})",
-                    msg,
-                    remote,
-                    ix + 1,
-                    msgs.len()
-                );
-            } else {
+            if queue {
                 debug!(
                     target: "service",
                     "Queue {:?} for {} ({}/{})",
@@ -99,12 +92,21 @@ impl Reactor {
                     ix + 1,
                     msgs.len()
                 );
+            } else {
+                debug!(
+                    target: "service",
+                    "Write {:?} to {} ({}/{})",
+                    msg,
+                    remote,
+                    ix + 1,
+                    msgs.len()
+                );
             }
         }
-        if is_gossip_allowed {
-            self.io.push_back(Io::Write(remote.id, msgs));
-        } else {
+        if queue {
             self.outbox.entry(remote.id).or_default().extend(msgs);
+        } else {
+            self.io.push_back(Io::Write(remote.id, msgs));
         }
     }
 

@@ -59,8 +59,16 @@ impl fmt::Display for State {
                 write!(f, "connecting")
             }
             Self::Connected { protocol, .. } => match protocol {
-                Protocol::Gossip { .. } => {
+                Protocol::Gossip {
+                    requested: None, ..
+                } => {
                     write!(f, "connected <gossip>")
+                }
+                Protocol::Gossip {
+                    requested: Some(rid),
+                    ..
+                } => {
+                    write!(f, "connected <gossip> requested={rid}")
                 }
                 Protocol::Fetch { .. } => {
                     write!(f, "connected <fetch>")
@@ -200,11 +208,11 @@ impl Session {
         matches!(self.state, State::Disconnected { .. })
     }
 
-    pub fn is_gossip_allowed(&self) -> bool {
+    pub fn is_requesting(&self) -> bool {
         matches!(
             self.state,
             State::Connected {
-                protocol: Protocol::Gossip { requested: None },
+                protocol: Protocol::Gossip { requested: Some(_) },
                 ..
             }
         )

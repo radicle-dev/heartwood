@@ -1057,11 +1057,39 @@ where
                     }
                 }
             }
-            (session::State::Connected { .. }, Message::Fetch { rid }) => {
+            (
+                session::State::Connected {
+                    protocol: session::Protocol::Gossip { requested },
+                    ..
+                },
+                Message::Fetch { rid },
+            ) => {
                 debug!(target: "service", "Fetch requested for {rid} from {remote}..");
 
                 // TODO: Check that we have the repo first?
 
+                // We got a fetch request right after sending our own. We have to decide on which
+                // fetch to run: our own, or the remote's.
+                if let Some(req) = requested {
+                    debug!(target: "service", "Received fetch request from {remote} while attempting to fetch {req}..");
+
+                    // When fetch requests cross, the inbound peer takes precedence.
+                    if peer.link.is_inbound() {
+                        debug!(target: "service", "Cancelling fetch request to {remote}..");
+
+                        // Cancel our own fetch request. This doesn't send anything to the remote,
+                        // it simply updates the local session's state machine.
+                        *requested = None;
+
+                        // TODO: Queue the fetch request as if we tried to request twice from
+                        // the same node.
+                    } else {
+                        // In this case, the remote node will cancel its request, so we don't
+                        // want to handover the session to the worker here, we will do it when
+                        // we get the `FetchOk` from the remote.
+                        return Ok(());
+                    }
+                }
                 // Accept the request and instruct the transport to handover the socket to the worker.
                 self.reactor.write(peer, Message::FetchOk { rid });
                 self.reactor.fetch(peer, rid, Namespaces::default(), false);
@@ -1086,7 +1114,7 @@ where
                 self.reactor.fetch(peer, rid, Namespaces::default(), true);
             }
             (session::State::Connecting { .. }, msg) => {
-                error!("Received {:?} from connecting peer {}", msg, peer.id);
+                error!(target: "service", "Received {:?} from connecting peer {}", msg, peer.id);
             }
             (session::State::Disconnected { .. }, msg) => {
                 debug!(target: "service", "Ignoring {:?} from disconnected peer {}", msg, peer.id);
