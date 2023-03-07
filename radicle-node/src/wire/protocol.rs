@@ -110,7 +110,7 @@ impl std::fmt::Debug for Peer {
             } => write!(
                 f,
                 "Upgrading(initiated={}, {link:?}, {id})",
-                fetch.initiated
+                fetch.is_initiator(),
             ),
             Self::Upgraded { link, id, .. } => write!(f, "Upgraded({link:?}, {id})"),
         }

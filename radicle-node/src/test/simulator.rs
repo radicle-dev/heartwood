@@ -109,7 +109,10 @@ impl fmt::Display for Scheduled {
                 write!(
                     f,
                     "{} <<~ {} ({}): Fetched (initiated={})",
-                    self.node, fetch.remote, fetch.rid, fetch.initiated
+                    self.node,
+                    fetch.remote,
+                    fetch.rid,
+                    fetch.is_initiator()
                 )
             }
         }
@@ -410,13 +413,13 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     }
                     Input::Fetched(f, result) => {
                         let result = Rc::try_unwrap(result).unwrap();
-                        if f.initiated {
+                        if let Some(namespaces) = f.initiated() {
                             let mut repo = match p.storage().repository_mut(f.rid) {
                                 Ok(repo) => repo,
                                 Err(e) if e.is_not_found() => p.storage().create(f.rid).unwrap(),
                                 Err(e) => panic!("Failed to open repository: {e}"),
                             };
-                            fetch(&mut repo, &f.remote, f.namespaces.clone()).unwrap();
+                            fetch(&mut repo, &f.remote, namespaces.clone()).unwrap();
                         }
                         p.fetched(f, result);
                     }
@@ -614,7 +617,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
             Io::Fetch(fetch) => {
                 let remote = fetch.remote;
 
-                if fetch.initiated {
+                if fetch.is_initiator() {
                     log::info!(
                         target: "sim",
                         "{:05} {} ~> {} ({}): Fetch outgoing",

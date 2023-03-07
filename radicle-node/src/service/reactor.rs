@@ -31,12 +31,42 @@ pub enum Io {
 pub struct Fetch {
     /// Repo to fetch.
     pub rid: Id,
-    /// Namespaces to fetch.
-    pub namespaces: Namespaces,
+    /// Indicates whether the fetch request was initiated or is a response.
+    pub direction: FetchDirection,
     /// Remote peer we are interacting with.
     pub remote: NodeId,
-    /// Indicates whether the fetch request was initiated by us.
-    pub initiated: bool,
+}
+
+impl Fetch {
+    pub fn is_initiator(&self) -> bool {
+        self.direction.is_initiator()
+    }
+
+    pub fn initiated(&self) -> Option<&Namespaces> {
+        match &self.direction {
+            FetchDirection::Initiator { namespaces } => Some(namespaces),
+            FetchDirection::Responder => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum FetchDirection {
+    /// Client is initiating a fetch in order to receive the specified
+    /// `refspecs` determined by [`Namespaces`].
+    Initiator {
+        /// Namespaces to fetch.
+        namespaces: Namespaces,
+    },
+    /// Server is responding to a fetch request by uploading the
+    /// specified `refspecs` sent by the client.
+    Responder,
+}
+
+impl FetchDirection {
+    pub fn is_initiator(&self) -> bool {
+        matches!(self, Self::Initiator { .. })
+    }
 }
 
 /// Interface to the network reactor.
@@ -123,21 +153,14 @@ impl Reactor {
         self.io.push_back(Io::Wakeup(after));
     }
 
-    pub fn fetch(
-        &mut self,
-        remote: &mut Session,
-        rid: Id,
-        namespaces: Namespaces,
-        initiated: bool,
-    ) {
+    pub fn fetch(&mut self, remote: &mut Session, rid: Id, direction: FetchDirection) {
         // Transition the session state machine to "fetching".
         remote.to_fetching(rid);
 
         self.io.push_back(Io::Fetch(Fetch {
             rid,
-            namespaces,
+            direction,
             remote: remote.id,
-            initiated,
         }));
     }
 

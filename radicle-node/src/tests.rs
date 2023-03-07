@@ -16,6 +16,7 @@ use crate::prelude::{LocalDuration, Timestamp};
 use crate::service::config::*;
 use crate::service::filter::Filter;
 use crate::service::message::*;
+use crate::service::reactor::FetchDirection;
 use crate::service::reactor::Io;
 use crate::service::ServiceState as _;
 use crate::service::*;
@@ -646,9 +647,10 @@ fn test_gossip_during_fetch() {
     alice.fetched(
         Fetch {
             rid,
-            namespaces: Namespaces::All,
+            direction: FetchDirection::Initiator {
+                namespaces: Namespaces::All,
+            },
             remote: bob.id,
-            initiated: true,
         },
         Ok(vec![]),
     );

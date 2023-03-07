@@ -14,7 +14,7 @@ use radicle::{git, Storage};
 use reactor::poller::popol;
 
 use crate::runtime::Handle;
-use crate::service::reactor::Fetch;
+use crate::service::reactor::{Fetch, FetchDirection};
 use crate::storage;
 use crate::wire::{WireReader, WireSession, WireWriter};
 
@@ -121,54 +121,60 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
         drain: Vec<u8>,
         mut session: WireSession<G>,
     ) -> (WireSession<G>, Result<Vec<RefUpdate>, FetchError>) {
-        if fetch.initiated {
-            log::debug!(target: "worker", "Worker processing outgoing fetch for {}", fetch.rid);
+        let rid = fetch.rid;
+        match &fetch.direction {
+            FetchDirection::Initiator { namespaces } => {
+                log::debug!(target: "worker", "Worker processing outgoing fetch for {}", fetch.rid);
 
-            let mut tunnel = match Tunnel::with(session, net::SocketAddr::from(([0, 0, 0, 0], 0))) {
-                Ok(tunnel) => tunnel,
-                Err((session, err)) => return (session, Err(err.into())),
-            };
-            let result = self.fetch(fetch, &mut tunnel);
-            let mut session = tunnel.into_session();
+                let mut tunnel =
+                    match Tunnel::with(session, net::SocketAddr::from(([0, 0, 0, 0], 0))) {
+                        Ok(tunnel) => tunnel,
+                        Err((session, err)) => return (session, Err(err.into())),
+                    };
+                let result = self.fetch(rid, namespaces, &mut tunnel);
+                let mut session = tunnel.into_session();
 
-            // If there are no errors, send a `done` special packet. We don't send this on error,
-            // as the remote will not be expecting it.
-            if let Err(err) = &result {
-                log::error!(target: "worker", "Fetch error: {err}");
-            } else if let Err(err) = pktline::done(&mut session) {
-                log::error!(target: "worker", "Fetch error: {err}");
-            }
-            (session, result)
-        } else {
-            log::debug!(target: "worker", "Worker processing incoming fetch for {}", fetch.rid);
-
-            if let Err(err) = session.as_connection_mut().set_nonblocking(false) {
-                return (session, Err(err.into()));
-            }
-            let (mut stream_r, mut stream_w) = match session.split_io() {
-                Ok((r, w)) => (r, w),
-                Err(err) => {
-                    return (err.original, Err(err.error.into()));
+                // If there are no errors, send a `done` special packet. We don't send this on error,
+                // as the remote will not be expecting it.
+                if let Err(err) = &result {
+                    log::error!(target: "worker", "Fetch error: {err}");
+                } else if let Err(err) = pktline::done(&mut session) {
+                    log::error!(target: "worker", "Fetch error: {err}");
                 }
-            };
-            let result = self.upload_pack(fetch, drain, &mut stream_r, &mut stream_w);
-            let session = WireSession::from_split_io(stream_r, stream_w);
-
-            if let Err(err) = &result {
-                log::error!(target: "worker", "Upload-pack error: {err}");
+                (session, result)
             }
-            (session, result)
+            FetchDirection::Responder => {
+                log::debug!(target: "worker", "Worker processing incoming fetch for {}", fetch.rid);
+
+                if let Err(err) = session.as_connection_mut().set_nonblocking(false) {
+                    return (session, Err(err.into()));
+                }
+                let (mut stream_r, mut stream_w) = match session.split_io() {
+                    Ok((r, w)) => (r, w),
+                    Err(err) => {
+                        return (err.original, Err(err.error.into()));
+                    }
+                };
+                let result = self.upload_pack(fetch, drain, &mut stream_r, &mut stream_w);
+                let session = WireSession::from_split_io(stream_r, stream_w);
+
+                if let Err(err) = &result {
+                    log::error!(target: "worker", "Upload-pack error: {err}");
+                }
+                (session, result)
+            }
         }
     }
 
     fn fetch(
         &self,
-        fetch: &Fetch,
+        rid: Id,
+        namespaces: &Namespaces,
         tunnel: &mut Tunnel<WireSession<G>>,
     ) -> Result<Vec<RefUpdate>, FetchError> {
-        let repo = match self.storage.repository_mut(fetch.rid) {
+        let repo = match self.storage.repository_mut(rid) {
             Ok(r) => Ok(r),
-            Err(e) if e.is_not_found() => self.storage.create(fetch.rid),
+            Err(e) if e.is_not_found() => self.storage.create(rid),
             Err(e) => Err(e),
         }?;
         let tunnel_addr = tunnel.local_addr()?;
@@ -181,7 +187,7 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
             .arg("fetch")
             .arg("--verbose");
 
-        match fetch.namespaces {
+        match namespaces {
             Namespaces::All => {
                 // We should not prune in this case, because it would mean that namespaces that
                 // don't exit on the remote would be deleted locally.
@@ -199,7 +205,7 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
         }
         cmd.arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()))
             // FIXME: We need to omit our own namespace from this refspec in case we're fetching '*'.
-            .arg(fetch.namespaces.as_fetchspec())
+            .arg(namespaces.as_fetchspec())
             .stdout(process::Stdio::piped())
             .stderr(process::Stdio::piped())
             .stdin(process::Stdio::piped());
@@ -219,13 +225,13 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
 
         // TODO: Parse fetch output to return updates.
         if child.wait()?.success() {
-            log::debug!(target: "worker", "Fetch for {} exited successfully", fetch.rid);
+            log::debug!(target: "worker", "Fetch for {} exited successfully", rid);
         } else {
-            log::error!(target: "worker", "Fetch for {} failed", fetch.rid);
+            log::error!(target: "worker", "Fetch for {} failed", rid);
         }
         let head = repo.set_head()?;
 
-        log::debug!(target: "worker", "Head for {} set to {head}", fetch.rid);
+        log::debug!(target: "worker", "Head for {} set to {head}", rid);
 
         Ok(vec![])
     }
