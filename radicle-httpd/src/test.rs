@@ -13,9 +13,8 @@ use tower::ServiceExt;
 
 use radicle::cob::issue::Issues;
 use radicle::cob::patch::{MergeTarget, Patches};
-use radicle::git::raw as git2;
+use radicle::git::{raw as git2, RefString};
 use radicle::storage::ReadStorage;
-use radicle_cli::commands::rad_init;
 use radicle_crypto::ssh::keystore::MemorySigner;
 
 use crate::api::{auth, Context};
@@ -88,20 +87,18 @@ pub fn seed(dir: &Path) -> Context {
         radicle::Profile::init(rad_home.try_into().unwrap(), PASSWORD.to_owned()).unwrap();
 
     // rad init
-    rad_init::init(
-        rad_init::Options {
-            path: Some(workdir.clone()),
-            name: Some("hello-world".to_string()),
-            description: Some("Rad repository for tests".to_string()),
-            branch: None,
-            interactive: false.into(),
-            setup_signing: false,
-            set_upstream: false,
-            announce: false,
-            track: false,
-            verbose: false,
-        },
-        &profile,
+    let repo = git2::Repository::open(&workdir).unwrap();
+    let name = "hello-world".to_string();
+    let description = "Rad repository for tests".to_string();
+    let signer = profile.signer().unwrap();
+    let branch = RefString::try_from("master").unwrap();
+    radicle::rad::init(
+        &repo,
+        &name,
+        &description,
+        branch,
+        &signer,
+        &profile.storage,
     )
     .unwrap();
 
