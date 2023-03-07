@@ -1335,9 +1335,9 @@ checksum = "f051f77a7c8e6957c0696eac88f26b0117e54f52d3fc682ab19397a8812846a4"
 
 [[package]]
 name = "localtime"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f752d9826e5de9509879546e12b57259942fcbf2356bc2006f7da5f3fb2be587"
+checksum = "b2f2e37f115cdc432fcf760063d45a928f0ea80bcf10be3a6e516cbba883b15e"
 
 [[package]]
 name = "log"

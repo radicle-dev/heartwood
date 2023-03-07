@@ -417,8 +417,8 @@ where
     type Command = Control<G>;
 
     fn tick(&mut self, time: Timestamp) {
-        // TODO: Use millisecond precision.
-        self.service.tick(LocalTime::from_secs(time.as_secs()));
+        self.service
+            .tick(LocalTime::from_millis(time.as_millis() as u128));
     }
 
     fn handle_timer(&mut self) {
