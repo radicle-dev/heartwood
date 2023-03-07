@@ -40,12 +40,13 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["s
 path = "../radicle"
 version = "0.2.0"
 
-[dependencies.radicle-cli]
-path = "../radicle-cli"
+[dependencies.radicle-term]
+path = "../radicle-term"
 
 [dev-dependencies]
 hyper = { version = "0.14.17", default-features = false, features = ["client"] }
 pretty_assertions = { version = "1.3.0" }
+radicle-cli = { path = "../radicle-cli" }
 radicle-crypto = { path = "../radicle-crypto" }
 tempfile = { version = "3.3.0" }
 tower = { version = "0.4", features = ["util"] }

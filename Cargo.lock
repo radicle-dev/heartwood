@@ -1952,6 +1952,7 @@ dependencies = [
  "radicle-cli",
  "radicle-crypto",
  "radicle-surf",
+ "radicle-term",
  "serde",
  "serde_json",
  "tempfile",

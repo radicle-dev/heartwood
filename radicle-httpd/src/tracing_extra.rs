@@ -10,7 +10,7 @@ use axum::response::IntoResponse;
 use axum::Extension;
 use hyper::{Method, StatusCode, Uri, Version};
 
-pub use radicle_cli::terminal::ansi::Paint;
+pub use radicle_term::ansi::Paint;
 
 #[derive(Clone)]
 pub struct RequestId(Arc<AtomicU64>);
