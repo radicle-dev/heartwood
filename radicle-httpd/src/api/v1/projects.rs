@@ -618,10 +618,9 @@ mod routes {
     use serde_json::json;
 
     use crate::test::{
-        self, get, patch, post, HEAD, HEAD_1, ISSUE_ID, PATCH_ID, SESSION_ID, TIMESTAMP,
+        self, get, patch, post, CONTRIBUTOR_ISSUE_ID, CONTRIBUTOR_PUB_KEY, CONTRIBUTOR_RID, HEAD,
+        HEAD_1, ISSUE_COMMENT_ID, ISSUE_DISCUSSION_ID, ISSUE_ID, PATCH_ID, SESSION_ID, TIMESTAMP,
     };
-
-    const CREATED_ISSUE_ID: &str = "7596e4b788c37d633a8bd665e4d3a5a632c90eab";
 
     #[tokio::test]
     async fn test_projects_root() {
@@ -992,7 +991,11 @@ mod routes {
     async fn test_projects_remotes() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/remotes/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi").await;
+        let response = get(
+            &app,
+            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/remotes/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+        )
+        .await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -1101,7 +1104,7 @@ mod routes {
                 "assignees": [],
                 "discussion": [
                   {
-                    "id": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
+                    "id": ISSUE_DISCUSSION_ID,
                     "author": {
                         "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                     },
@@ -1119,10 +1122,14 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_issues_create() {
+        const CREATED_ISSUE_ID: &str = "1b706bb9af971d43ec38718c71402e36055c5c89";
+
         let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::seed(tmp.path());
+        let ctx = test::contributor(tmp.path());
         let app = super::router(ctx.to_owned());
+
         test::create_session(ctx).await;
+
         let body = serde_json::to_vec(&json!({
             "title": "Issue #2",
             "description": "Change 'hello world' to 'hello everyone'",
@@ -1130,9 +1137,10 @@ mod routes {
             "assignees": [],
         }))
         .unwrap();
+
         let response = post(
             &app,
-            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues",
+            format!("/projects/{CONTRIBUTOR_RID}/issues"),
             Some(Body::from(body)),
             Some(SESSION_ID.to_string()),
         )
@@ -1146,7 +1154,7 @@ mod routes {
 
         let response = get(
             &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{CREATED_ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{CREATED_ISSUE_ID}"),
         )
         .await;
 
@@ -1155,7 +1163,7 @@ mod routes {
             json!({
               "id": CREATED_ISSUE_ID,
               "author": {
-                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  "id": CONTRIBUTOR_PUB_KEY,
               },
               "assignees": [],
               "title": "Issue #2",
@@ -1163,9 +1171,9 @@ mod routes {
                   "status": "open",
               },
               "discussion": [{
-                  "id": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
+                  "id": ISSUE_DISCUSSION_ID,
                   "author": {
-                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                      "id": CONTRIBUTOR_PUB_KEY,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
@@ -1182,9 +1190,11 @@ mod routes {
     #[tokio::test]
     async fn test_projects_issues_comment() {
         let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::seed(tmp.path());
+        let ctx = test::contributor(tmp.path());
         let app = super::router(ctx.to_owned());
+
         test::create_session(ctx).await;
+
         let body = serde_json::to_vec(&json!({
           "type": "thread",
           "action": {
@@ -1193,9 +1203,10 @@ mod routes {
           }
         }))
         .unwrap();
+
         let response = patch(
             &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
             Some(Body::from(body)),
             Some(SESSION_ID.to_string()),
         )
@@ -1206,16 +1217,16 @@ mod routes {
 
         let response = get(
             &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
         )
         .await;
 
         assert_eq!(
             response.json().await,
             json!({
-              "id": ISSUE_ID,
+              "id": CONTRIBUTOR_ISSUE_ID,
               "author": {
-                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  "id": CONTRIBUTOR_PUB_KEY,
               },
               "assignees": [],
               "title": "Issue #1",
@@ -1224,9 +1235,9 @@ mod routes {
               },
               "discussion": [
                 {
-                  "id": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
+                  "id": ISSUE_DISCUSSION_ID,
                   "author": {
-                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                      "id": CONTRIBUTOR_PUB_KEY,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
@@ -1234,9 +1245,9 @@ mod routes {
                   "replyTo": null,
                 },
                 {
-                  "id": "f7da49e705f60c39265dbdd748d786a620bc8030",
+                  "id": "265af21e409eacc8eb150b73882ac3ada9d4aea3",
                   "author": {
-                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                      "id": CONTRIBUTOR_PUB_KEY,
                   },
                   "body": "This is first-level comment",
                   "reactions": [],
@@ -1252,20 +1263,26 @@ mod routes {
     #[tokio::test]
     async fn test_projects_issues_reply() {
         let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::seed(tmp.path());
+        let ctx = test::contributor(tmp.path());
         let app = super::router(ctx.to_owned());
+
         test::create_session(ctx).await;
+
         let body = serde_json::to_vec(&json!({
           "type":"thread",
           "action": {
             "type": "comment",
             "body": "This is a reply to the first comment",
-            "replyTo": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
+            "replyTo": ISSUE_DISCUSSION_ID,
         }}))
         .unwrap();
+
+        let response = get(&app, format!("/projects/{CONTRIBUTOR_RID}/issues")).await;
+        println!("{:?}", response.json().await);
+
         let response = patch(
             &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
             Some(Body::from(body)),
             Some(SESSION_ID.to_string()),
         )
@@ -1276,16 +1293,16 @@ mod routes {
 
         let response = get(
             &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues/{ISSUE_ID}"),
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
         )
         .await;
 
         assert_eq!(
             response.json().await,
             json!({
-              "id": ISSUE_ID,
+              "id": CONTRIBUTOR_ISSUE_ID,
               "author": {
-                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                  "id": CONTRIBUTOR_PUB_KEY,
               },
               "assignees": [],
               "title": "Issue #1",
@@ -1294,9 +1311,9 @@ mod routes {
               },
               "discussion": [
                 {
-                  "id": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
+                  "id": ISSUE_DISCUSSION_ID,
                   "author": {
-                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                      "id": CONTRIBUTOR_PUB_KEY,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
@@ -1304,14 +1321,14 @@ mod routes {
                   "replyTo": null,
                 },
                 {
-                  "id": "ab98b5b794d02c23d29769a39fe8e0b74624f3d8",
+                  "id": ISSUE_COMMENT_ID,
                   "author": {
-                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                      "id": CONTRIBUTOR_PUB_KEY,
                   },
                   "body": "This is a reply to the first comment",
                   "reactions": [],
                   "timestamp": TIMESTAMP,
-                  "replyTo": "f0afe34f5bf4248df432f6b6a8818bcae360bbc2",
+                  "replyTo": ISSUE_DISCUSSION_ID,
                 },
               ],
               "tags": [],
@@ -1341,7 +1358,7 @@ mod routes {
                 "tags": [],
                 "revisions": [
                     {
-                        "id": "d6ba305f78e2fa1ebcc55d8c3be8806bbce25fb4",
+                        "id": "47878ed82515772f4c44e4796c330f4a74473559",
                         "description": "",
                         "reviews": [],
                     }
@@ -1372,7 +1389,7 @@ mod routes {
                 "tags": [],
                 "revisions": [
                     {
-                        "id": "d6ba305f78e2fa1ebcc55d8c3be8806bbce25fb4",
+                        "id": "47878ed82515772f4c44e4796c330f4a74473559",
                         "description": "",
                         "reviews": [],
                     }
@@ -1384,10 +1401,14 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
+        const CREATED_PATCH_ID: &str = "22f8fbe09f7430579dd0730e4f2394362d844647";
+
         let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::seed(tmp.path());
+        let ctx = test::contributor(tmp.path());
         let app = super::router(ctx.to_owned());
+
         test::create_session(ctx).await;
+
         let body = serde_json::to_vec(&json!({
           "title": "Update README",
           "description": "Do some changes to README",
@@ -1396,9 +1417,10 @@ mod routes {
           "tags": [],
         }))
         .unwrap();
+
         let response = post(
             &app,
-            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches",
+            format!("/projects/{CONTRIBUTOR_RID}/patches"),
             Some(Body::from(body)),
             Some(SESSION_ID.to_string()),
         )
@@ -1410,14 +1432,14 @@ mod routes {
             json!(
               {
                 "success": true,
-                "id": "48d6d96e1f80b3ccd5bd9675d407e09e7bbaa7ab",
+                "id": CREATED_PATCH_ID,
               }
             )
         );
 
         let response = get(
             &app,
-            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches/48d6d96e1f80b3ccd5bd9675d407e09e7bbaa7ab",
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CREATED_PATCH_ID}"),
         )
         .await;
 
@@ -1426,9 +1448,9 @@ mod routes {
             response.json().await,
             json!(
               {
-                "id": "48d6d96e1f80b3ccd5bd9675d407e09e7bbaa7ab",
+                "id": CREATED_PATCH_ID,
                 "author": {
-                    "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                    "id": CONTRIBUTOR_PUB_KEY
                 },
                 "title": "Update README",
                 "description": "Do some changes to README",
@@ -1437,7 +1459,7 @@ mod routes {
                 "tags": [],
                 "revisions": [
                     {
-                        "id": "a65512fc3b8ee7ec50f053c40266538fa11b82dd",
+                        "id": "73efc59cd9f787deff0ae1629f47f1d90f307282",
                         "description": "",
                         "reviews": [],
                     }
