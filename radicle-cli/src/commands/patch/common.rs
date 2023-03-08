@@ -49,6 +49,8 @@ pub struct MergeTargets {
 }
 
 /// Find potential merge targets for the given head.
+///
+/// Only delegates can be merge targets.
 pub fn find_merge_targets(
     head: &Oid,
     branch: &git::RefStr,
@@ -56,8 +58,8 @@ pub fn find_merge_targets(
 ) -> anyhow::Result<MergeTargets> {
     let mut targets = MergeTargets::default();
 
-    for remote in storage.remotes()? {
-        let (_, remote) = remote?;
+    for delegate in storage.delegates()? {
+        let remote = storage.remote(&delegate)?;
         let Some(target_oid) = remote.refs.head(branch) else {
             continue;
         };
@@ -89,7 +91,6 @@ pub fn get_merge_target(
     let (target_peer, target_oid) = match targets.not_merged.as_slice() {
         [] => {
             spinner.message("All tracked peers are up to date.");
-            todo!("handle case without target");
         }
         [target] => target,
         _ => {

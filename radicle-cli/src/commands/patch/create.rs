@@ -131,6 +131,14 @@ pub fn run(
         anyhow::bail!("patch proposal aborted by user");
     }
 
+    // o <- target oid
+    // |
+    // o   o <- head oid
+    // |  /
+    // o o
+    // |/
+    // o <- merge base
+    //
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
     let patch = patches.create(
