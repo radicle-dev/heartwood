@@ -6,9 +6,7 @@ use radicle::cob::patch::{Clock, MergeTarget, Patch, PatchId, Patches};
 use radicle::git;
 use radicle::git::raw::Oid;
 use radicle::prelude::*;
-use radicle::storage;
 use radicle::storage::git::Repository;
-use radicle::storage::Remote;
 
 use crate::terminal as term;
 use crate::terminal::args::Error;
@@ -33,68 +31,32 @@ pub fn branch_oid(branch: &git::raw::Branch) -> anyhow::Result<git::Oid> {
     Ok(oid.into())
 }
 
-/// List of merge targets.
-#[derive(Debug, Default)]
-pub struct MergeTargets {
-    /// Merge targets that have already merged the patch.
-    pub merged: Vec<Remote>,
-    /// Merge targets that haven't merged the patch.
-    pub not_merged: Vec<(Remote, git::Oid)>,
-}
-
-/// Find potential merge targets for the given head.
-pub fn find_merge_targets(
-    head: &Oid,
-    branch: &git::RefStr,
-    storage: &Repository,
-) -> anyhow::Result<MergeTargets> {
-    let mut targets = MergeTargets::default();
-
-    for remote in storage.remotes()? {
-        let (_, remote) = remote?;
-        let Some(target_oid) = remote.refs.head(branch) else {
-            continue;
-        };
-
-        if is_merged(storage.raw(), target_oid.into(), *head)? {
-            targets.merged.push(remote);
-        } else {
-            targets.not_merged.push((remote, target_oid));
-        }
-    }
-    Ok(targets)
+#[inline]
+fn get_branch(git_ref: git::Qualified) -> git::RefString {
+    let (_, _, head, tail) = git_ref.non_empty_components();
+    std::iter::once(head).chain(tail).collect()
 }
 
 /// Determine the merge target for this patch. This can ben any tracked remote's "default"
 /// branch, as well as your own (eg. `rad/master`).
 pub fn get_merge_target(
-    project: &Project,
     storage: &Repository,
     head_branch: &git::raw::Branch,
-) -> anyhow::Result<(storage::Remote, git::Oid)> {
-    let head_oid = head_branch
-        .get()
-        .target()
-        .ok_or(anyhow!("invalid HEAD ref; aborting"))?;
-    let mut spinner = term::spinner("Analyzing remotes...");
-    let targets = find_merge_targets(&head_oid, project.default_branch().as_refstr(), storage)?;
+) -> anyhow::Result<(git::RefString, git::Oid)> {
+    let spinner = term::spinner("Analyzing remotes...");
+    let (qualified_ref, target_oid) = storage.canonical_head()?;
+    let head_oid = branch_oid(head_branch)?;
+    let merge_base = storage.raw().merge_base(*head_oid, *target_oid)?;
 
-    // eg. `refs/namespaces/<peer>/refs/heads/master`
-    let (target_peer, target_oid) = match targets.not_merged.as_slice() {
-        [] => {
-            spinner.message("All tracked peers are up to date.");
-            todo!("handle case without target");
-        }
-        [target] => target,
-        _ => {
-            // TODO: Let user select which branch to use as a target.
-            todo!();
-        }
-    };
+    if head_oid == merge_base.into() {
+        anyhow::bail!("commits are already included in the target branch; nothing to do");
+    }
+
     // TODO: Tell user how many peers don't have this change.
     spinner.finish();
 
-    Ok((target_peer.clone(), *target_oid))
+    let branch = get_branch(qualified_ref);
+    Ok((branch, (*target_oid).into()))
 }
 
 /// Return the [`Oid`] of the merge target.
@@ -264,13 +226,4 @@ pub fn patch_commits<'a>(
         commits.push(commit);
     }
     Ok(commits)
-}
-
-/// Check whether a commit has been merged into a target branch.
-pub fn is_merged(repo: &git::raw::Repository, target: Oid, commit: Oid) -> Result<bool, Error> {
-    if let Ok(base) = repo.merge_base(target, commit) {
-        Ok(base == commit)
-    } else {
-        Ok(false)
-    }
 }

@@ -1,9 +1,8 @@
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 
 use radicle::cob::patch;
 use radicle::git;
 use radicle::prelude::*;
-use radicle::storage;
 use radicle::storage::git::Repository;
 
 use crate::terminal as term;
@@ -46,11 +45,10 @@ pub fn handle_patch_message(
 }
 
 fn show_patch_commit_info(
-    project: &Project,
     workdir: &git::raw::Repository,
     node_id: &NodeId,
     head_branch: &git::raw::Branch,
-    target_peer: &storage::Remote,
+    target_ref: &git::RefStr,
     target_oid: git::Oid,
 ) -> anyhow::Result<()> {
     let head_oid = branch_oid(head_branch)?;
@@ -60,9 +58,8 @@ fn show_patch_commit_info(
 
     term::blank();
     term::info!(
-        "{}/{} ({}) <- {}/{} ({})",
-        term::format::dim(term::format::node(&target_peer.id)),
-        term::format::highlight(project.default_branch().to_string()),
+        "{} ({}) <- {}/{} ({})",
+        term::format::highlight(target_ref),
         term::format::secondary(term::format::oid(*target_oid)),
         term::format::dim(term::format::node(node_id)),
         term::format::highlight(branch_name(head_branch)?),
@@ -91,27 +88,16 @@ pub fn run(
     options: Options,
 ) -> anyhow::Result<()> {
     let mut patches = patch::Patches::open(storage)?;
-    let project = storage.project_of(&profile.public_key).context(format!(
-        "couldn't load project {} from local state",
-        storage.id
-    ))?;
     let head_branch = try_branch(workdir.head()?)?;
     push_to_storage(storage, &head_branch, &options)?;
-    let (target_peer, target_oid) = get_merge_target(&project, storage, &head_branch)?;
+    let (target_ref, target_oid) = get_merge_target(storage, &head_branch)?;
 
     // TODO: Handle case where `rad/master` isn't up to date with the target.
     // In that case we should warn the user that their master branch is not up
     // to date, and error out, unless the user specifies manually the merge
     // base.
 
-    show_patch_commit_info(
-        &project,
-        workdir,
-        profile.id(),
-        &head_branch,
-        &target_peer,
-        target_oid,
-    )?;
+    show_patch_commit_info(workdir, profile.id(), &head_branch, &target_ref, target_oid)?;
 
     term::blank();
 
