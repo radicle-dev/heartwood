@@ -35,11 +35,8 @@ those commands we'll first track a peer so that we have something to
 see.
 
 ```
-$ rad track z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias Bob
-Establishing 🌱 tracking relationship for heartwood
-
-✓ Tracking relationship with Bob (z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk) established
-! Warning: fetch after track is not yet supported
+$ rad track did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias Bob --no-fetch
+✓ Tracking policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (Bob)
 ```
 
 Now, when we use the `rad node tracking` command we will see

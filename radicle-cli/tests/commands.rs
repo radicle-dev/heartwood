@@ -273,6 +273,22 @@ fn rad_rm() {
 }
 
 #[test]
+fn rad_track() {
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let working = tempfile::tempdir().unwrap();
+    let alice = alice.spawn(Config::default());
+
+    test(
+        "examples/rad-track.md",
+        working.path(),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_clone() {
     logger::init(log::Level::Debug);
 
