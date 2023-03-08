@@ -710,7 +710,16 @@ where
         debug!(target: "service", "Disconnected from {} ({})", remote, reason);
 
         if let Some(session) = self.sessions.get_mut(&remote) {
-            session.to_disconnected(since);
+            // If the peer disconnected while we were waiting for a [`Message::FetchOk`],
+            // return a failure to any potential fetcher.
+            if let Some(requested) = session.to_disconnected(since) {
+                if let Some(resp) = self.fetch_reqs.remove(&requested) {
+                    resp.send(FetchResult::Failed {
+                        reason: format!("disconnected: {reason}"),
+                    })
+                    .ok();
+                }
+            }
 
             // Attempt to re-connect to persistent peers.
             if let Some(address) = self.config.peer(&remote) {
@@ -1484,7 +1493,7 @@ impl fmt::Display for DisconnectReason {
         match self {
             Self::Dial(err) => write!(f, "{err}"),
             Self::Connection(err) => write!(f, "{err}"),
-            Self::Session(err) => write!(f, "error: {err}"),
+            Self::Session(err) => write!(f, "{err}"),
             Self::Fetch(err) => write!(f, "fetch: {err}"),
         }
     }

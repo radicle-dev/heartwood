@@ -292,8 +292,21 @@ impl Session {
         };
     }
 
-    pub fn to_disconnected(&mut self, since: LocalTime) {
+    /// Move the session state to "disconnected". Returns any pending RID
+    /// that was requested.
+    pub fn to_disconnected(&mut self, since: LocalTime) -> Option<Id> {
+        let request = if let State::Connected {
+            protocol: Protocol::Gossip { requested },
+            ..
+        } = self.state
+        {
+            requested
+        } else {
+            None
+        };
         self.state = State::Disconnected { since };
+
+        request
     }
 
     pub fn ping(&mut self, reactor: &mut Reactor) -> Result<(), Error> {
