@@ -3,10 +3,12 @@ use tui_realm_stdlib::Phantom;
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{AttrValue, Attribute, Color, Props, Style};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
-use tuirealm::tui::widgets::Block;
+use tuirealm::tui::text::{Span, Spans};
+use tuirealm::tui::widgets::{Block, Tabs as TuiTabs};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use super::layout;
+use super::state::TabState;
 use super::widget::{Widget, WidgetComponent};
 
 /// Some user events need to be handled globally (e.g. user presses key `q` to quit
@@ -85,6 +87,12 @@ impl WidgetComponent for Label {
 
     fn perform(&mut self, _cmd: Cmd) -> CmdResult {
         CmdResult::None
+    }
+}
+
+impl From<&Widget<Label>> for Span<'_> {
+    fn from(label: &Widget<Label>) -> Self {
+        Span::styled(label.content.clone().unwrap_string(), Style::default())
     }
 }
 
@@ -366,5 +374,195 @@ impl WidgetComponent for PropertyList {
 
     fn perform(&mut self, _cmd: Cmd) -> CmdResult {
         CmdResult::None
+    }
+}
+
+/// A tab header that displays all labels horizontally aligned and separated
+/// by a divider. Highlights the label defined by the current tab index.
+#[derive(Clone)]
+pub struct Tabs {
+    tabs: Vec<Widget<Label>>,
+    divider: Widget<Label>,
+    state: TabState,
+}
+
+impl Tabs {
+    pub fn new(tabs: Vec<Widget<Label>>, divider: Widget<Label>) -> Self {
+        Self {
+            tabs,
+            divider,
+            state: TabState {
+                selected: 0,
+                len: 3,
+            },
+        }
+    }
+}
+
+impl WidgetComponent for Tabs {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let selected = self.state().unwrap_one().unwrap_u16();
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+        let foreground = properties
+            .get_or(Attribute::Foreground, AttrValue::Color(Color::Reset))
+            .unwrap_color();
+        let highlight = properties
+            .get_or(Attribute::HighlightedColor, AttrValue::Color(Color::Reset))
+            .unwrap_color();
+
+        if display {
+            let spans = self
+                .tabs
+                .iter()
+                .map(|tab| Spans::from(vec![Span::from(tab)]))
+                .collect::<Vec<_>>();
+
+            let tabs = TuiTabs::new(spans)
+                .style(Style::default().fg(foreground))
+                .highlight_style(Style::default().fg(highlight))
+                .divider(Span::from(&self.divider))
+                .select(selected as usize);
+
+            frame.render_widget(tabs, area);
+        }
+    }
+
+    fn state(&self) -> State {
+        State::One(StateValue::U16(self.state.selected))
+    }
+
+    fn perform(&mut self, cmd: Cmd) -> CmdResult {
+        use tuirealm::command::Direction;
+
+        match cmd {
+            Cmd::Move(Direction::Right) => {
+                let prev = self.state.selected;
+                self.state.incr_tab_index(true);
+                if prev != self.state.selected {
+                    CmdResult::Changed(self.state())
+                } else {
+                    CmdResult::None
+                }
+            }
+            _ => CmdResult::None,
+        }
+    }
+}
+
+/// Workspace header that displays all labels horizontally aligned and separated
+/// by a divider. Highlights the label defined by the current tab index.
+#[derive(Clone)]
+pub struct WorkspacesHeader {
+    tabs: Widget<Tabs>,
+    info: Widget<Label>,
+}
+
+impl WorkspacesHeader {
+    pub fn new(tabs: Widget<Tabs>, info: Widget<Label>) -> Self {
+        Self { tabs, info }
+    }
+}
+
+impl WidgetComponent for WorkspacesHeader {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+        let info_width = self
+            .info
+            .query(Attribute::Width)
+            .unwrap_or(AttrValue::Size(1))
+            .unwrap_size();
+        let tabs_width = area.width.saturating_sub(info_width);
+
+        if display {
+            let layout = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(
+                    [
+                        Constraint::Length(tabs_width),
+                        Constraint::Length(info_width),
+                    ]
+                    .as_ref(),
+                )
+                .split(area);
+
+            self.tabs.view(frame, layout[0]);
+            self.info.view(frame, layout[1]);
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, cmd: Cmd) -> CmdResult {
+        self.tabs.perform(cmd)
+    }
+}
+
+/// A container with a tab header. Displays the component selected by the index
+/// held in the header state.
+pub struct Workspaces {
+    header: Widget<WorkspacesHeader>,
+    children: Vec<Box<dyn MockComponent>>,
+}
+
+impl Workspaces {
+    pub fn new(header: Widget<WorkspacesHeader>, children: Vec<Box<dyn MockComponent>>) -> Self {
+        Self { header, children }
+    }
+}
+
+impl WidgetComponent for Workspaces {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+        let header_height = self
+            .header
+            .query(Attribute::Height)
+            .unwrap_or(AttrValue::Size(1))
+            .unwrap_size();
+        let selected = self.header.tabs.state().unwrap_one().unwrap_u16();
+
+        if display {
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(
+                    [
+                        Constraint::Length(header_height),
+                        Constraint::Length(1),
+                        Constraint::Length(0),
+                    ]
+                    .as_ref(),
+                )
+                .split(area);
+
+            self.header.view(frame, layout[0]);
+
+            if let Some(child) = self.children.get_mut(selected as usize) {
+                child.view(frame, layout[2]);
+            }
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, cmd: Cmd) -> CmdResult {
+        CmdResult::Batch(
+            [
+                self.children
+                    .iter_mut()
+                    .map(|child| child.perform(cmd))
+                    .collect(),
+                vec![self.header.perform(cmd)],
+            ]
+            .concat(),
+        )
     }
 }

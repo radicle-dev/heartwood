@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{AttrValue, Attribute, Color, Props};
 use tuirealm::tui::layout::Rect;
@@ -17,6 +19,14 @@ pub trait WidgetComponent {
 pub struct Widget<T: WidgetComponent> {
     component: T,
     properties: Props,
+}
+
+impl<T: WidgetComponent> Deref for Widget<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.component
+    }
 }
 
 impl<T: WidgetComponent> Widget<T> {

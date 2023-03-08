@@ -2,14 +2,20 @@ use std::time::Duration;
 
 use anyhow::Result;
 
+use tui_realm_stdlib::Phantom;
 use tuirealm::application::PollStrategy;
+use tuirealm::command::{Cmd, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
 use tuirealm::props::{AttrValue, Attribute};
 use tuirealm::tui::layout::{Constraint, Direction, Layout};
-use tuirealm::{Application, Component, Frame, NoUserEvent, Sub, SubClause, SubEventClause};
+use tuirealm::{
+    Application, Component, Frame, MockComponent, NoUserEvent, Sub, SubClause, SubEventClause,
+};
 
 use radicle_tui::ui;
-use radicle_tui::ui::components::{GlobalListener, LabeledContainer, PropertyList, ShortcutBar};
+use radicle_tui::ui::components::{
+    GlobalListener, LabeledContainer, PropertyList, ShortcutBar, Workspaces,
+};
 use radicle_tui::ui::theme;
 use radicle_tui::ui::widget::Widget;
 
@@ -34,7 +40,7 @@ pub enum Message {
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum ComponentId {
     Workspaces,
-    ShortcutBar,
+    Shortcuts,
     GlobalListener,
 }
 
@@ -54,27 +60,46 @@ impl Tui<ComponentId, Message> for App {
     fn init(&mut self, app: &mut Application<ComponentId, Message, NoUserEvent>) -> Result<()> {
         let theme = theme::default_dark();
 
+        let dashboard = ui::labeled_container(
+            &theme,
+            "about",
+            ui::property_list(
+                &theme,
+                vec![
+                    ui::property(&theme, "id", &self.id.to_string()),
+                    ui::property(&theme, "name", self.project.name()),
+                    ui::property(&theme, "description", self.project.description()),
+                ],
+            )
+            .to_boxed(),
+        )
+        .to_boxed();
+
         app.mount(
             ComponentId::Workspaces,
-            ui::labeled_container(
+            ui::workspaces(
                 &theme,
-                "about",
-                ui::property_list(
+                self.project.name(),
+                ui::tabs(
                     &theme,
                     vec![
-                        ui::property(&theme, "id", &self.id.to_string()),
-                        ui::property(&theme, "name", self.project.name()),
-                        ui::property(&theme, "description", self.project.description()),
+                        ui::label("dashboard"),
+                        ui::label("issues"),
+                        ui::label("patches"),
                     ],
-                )
-                .to_boxed(),
+                ),
+                vec![
+                    dashboard,
+                    Box::<Phantom>::default(),
+                    Box::<Phantom>::default(),
+                ],
             )
             .to_boxed(),
             vec![],
         )?;
 
         app.mount(
-            ComponentId::ShortcutBar,
+            ComponentId::Shortcuts,
             ui::shortcut_bar(
                 &theme,
                 vec![
@@ -100,7 +125,7 @@ impl Tui<ComponentId, Message> for App {
         )?;
 
         // We need to give focus to a component then
-        app.active(&ComponentId::ShortcutBar)?;
+        app.active(&ComponentId::Workspaces)?;
 
         Ok(())
     }
@@ -113,7 +138,7 @@ impl Tui<ComponentId, Message> for App {
         let area = frame.size();
         let margin_h = 1u16;
         let shortcuts_h = app
-            .query(&ComponentId::ShortcutBar, Attribute::Height)
+            .query(&ComponentId::Shortcuts, Attribute::Height)
             .ok()
             .flatten()
             .unwrap_or(AttrValue::Size(0))
@@ -135,7 +160,7 @@ impl Tui<ComponentId, Message> for App {
             .split(area);
 
         app.view(&ComponentId::Workspaces, frame, layout[0]);
-        app.view(&ComponentId::ShortcutBar, frame, layout[1]);
+        app.view(&ComponentId::Shortcuts, frame, layout[1]);
     }
 
     fn update(&mut self, app: &mut Application<ComponentId, Message, NoUserEvent>, interval: u64) {
@@ -163,6 +188,18 @@ impl Component<Message, NoUserEvent> for Widget<GlobalListener> {
                 code: Key::Char('q'),
                 ..
             }) => Some(Message::Quit),
+            _ => None,
+        }
+    }
+}
+
+impl Component<Message, NoUserEvent> for Widget<Workspaces> {
+    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
+        match event {
+            Event::Keyboard(KeyEvent { code: Key::Tab, .. }) => {
+                self.perform(Cmd::Move(MoveDirection::Right));
+                None
+            }
             _ => None,
         }
     }

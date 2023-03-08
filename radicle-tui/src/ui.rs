@@ -1,5 +1,6 @@
 pub mod components;
 pub mod layout;
+mod state;
 pub mod theme;
 pub mod widget;
 
@@ -8,7 +9,7 @@ use tuirealm::{MockComponent, StateValue};
 
 use components::{
     ContainerHeader, GlobalListener, Label, LabeledContainer, Property, PropertyList, Shortcut,
-    ShortcutBar,
+    ShortcutBar, Tabs, Workspaces, WorkspacesHeader,
 };
 use widget::Widget;
 
@@ -86,4 +87,27 @@ pub fn property_list(
     let property_list = PropertyList::new(properties);
 
     Widget::new(property_list)
+}
+
+pub fn tabs(theme: &theme::Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
+    let divider = label(&theme.icons.tab_divider.to_string());
+    let tabs = Tabs::new(tabs, divider);
+
+    Widget::new(tabs)
+        .height(1)
+        .foreground(theme.colors.tabs_fg)
+        .highlight(theme.colors.tabs_highlighted_fg)
+}
+
+pub fn workspaces(
+    theme: &theme::Theme,
+    info: &str,
+    tabs: Widget<Tabs>,
+    children: Vec<Box<dyn MockComponent>>,
+) -> Widget<Workspaces> {
+    let info = label(info).foreground(theme.colors.workspaces_info_fg);
+    let header = Widget::new(WorkspacesHeader::new(tabs, info));
+    let workspaces = Workspaces::new(header, children);
+
+    Widget::new(workspaces)
 }
