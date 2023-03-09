@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::cob;
 use crate::cob::common::{Reaction, Timestamp};
-use crate::cob::{ActorId, Op, OpId};
+use crate::cob::{ActorId, EntryId, Op};
 
 use crdt::clock::Lamport;
 use crdt::{GMap, GSet, LWWSet, Max, Redactable, Semilattice};
@@ -29,11 +29,11 @@ pub enum OpError {
     /// For example, this can occur if an operation references anothern operation
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
-    Missing(OpId),
+    Missing(EntryId),
 }
 
 /// Identifies a comment.
-pub type CommentId = OpId;
+pub type CommentId = EntryId;
 
 /// A comment edit is just some text and an edit time.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -144,7 +144,7 @@ pub enum Action {
     Edit { id: CommentId, body: String },
     /// Redact a change. Not all changes can be redacted.
     Redact { id: CommentId },
-    /// React to a change.
+    /// React to a comment.
     React {
         to: CommentId,
         reaction: Reaction,
@@ -166,7 +166,7 @@ pub struct Thread {
     /// Reactions to changes.
     reactions: GMap<CommentId, LWWSet<(ActorId, Reaction), Lamport>>,
     /// Comment timeline.
-    timeline: GSet<(Lamport, OpId)>,
+    timeline: GSet<(Lamport, EntryId)>,
 }
 
 impl Semilattice for Thread {
@@ -277,6 +277,7 @@ impl cob::store::FromHistory for Thread {
                     if self.comments.contains_key(&id) {
                         continue;
                     }
+
                     self.comments.insert(
                         id,
                         Redactable::Present(Comment::new(author, body, reply_to, timestamp)),
@@ -352,7 +353,7 @@ mod tests {
         }
 
         /// Create a new comment.
-        pub fn comment(&mut self, body: &str, reply_to: Option<OpId>) -> Op<Action> {
+        pub fn comment(&mut self, body: &str, reply_to: Option<CommentId>) -> Op<Action> {
             self.op(Action::Comment {
                 body: String::from(body),
                 reply_to,
@@ -360,12 +361,12 @@ mod tests {
         }
 
         /// Create a new redaction.
-        pub fn redact(&mut self, id: OpId) -> Op<Action> {
+        pub fn redact(&mut self, id: CommentId) -> Op<Action> {
             self.op(Action::Redact { id })
         }
 
         /// Edit a comment.
-        pub fn edit(&mut self, id: OpId, body: &str) -> Op<Action> {
+        pub fn edit(&mut self, id: CommentId, body: &str) -> Op<Action> {
             self.op(Action::Edit {
                 id,
                 body: body.to_owned(),
@@ -373,7 +374,7 @@ mod tests {
         }
 
         /// React to a comment.
-        pub fn react(&mut self, to: OpId, reaction: Reaction, active: bool) -> Op<Action> {
+        pub fn react(&mut self, to: CommentId, reaction: Reaction, active: bool) -> Op<Action> {
             self.op(Action::React {
                 to,
                 reaction,
@@ -419,7 +420,7 @@ mod tests {
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
             let gen = WeightedGenerator::<
                 (Lamport, Op<Action>),
-                (Actor<MockSigner>, Lamport, BTreeSet<OpId>),
+                (Actor<MockSigner>, Lamport, BTreeSet<EntryId>),
             >::new(rng.clone())
             .variant(3, |(actor, clock, comments), rng| {
                 let comment = actor.comment(

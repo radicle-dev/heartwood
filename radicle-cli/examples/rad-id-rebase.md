@@ -6,7 +6,7 @@ delegates creating proposals concurrently.
 
 ```
 $ rad id edit --title "Add Alice" --description "Add Alice as a delegate" --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
-✓ Identity proposal '6e4dfd0edbb0974f5a4fb0990133e0911b0992c0' created 🌱
+✓ Identity proposal '04603c0d3ea4d137487024a51c9360adfc511114' created 🌱
 title: Add Alice
 description: Add Alice as a delegate
 status: ❲open❳
@@ -48,7 +48,7 @@ Quorum Reached
 
 ```
 $ rad id edit --title "Add Bob" --description "Add Bob as a delegate" --delegates did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG --no-confirm
-✓ Identity proposal '6a687267b5063c036fdde90b75cc5eb153fa25e8' created 🌱
+✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' created 🌱
 title: Add Bob
 description: Add Bob as a delegate
 status: ❲open❳
@@ -93,7 +93,7 @@ second proposal, then the identity would be out of date. So let's run
 through that and see what happens.
 
 ```
-$ rad id accept 6e4dfd0edbb0974f5a4fb0990133e0911b0992c0 --no-confirm
+$ rad id accept 04603c0d3ea4d137487024a51c9360adfc511114 --no-confirm
 ✓ Accepted proposal ✓
 title: Add Alice
 description: Add Alice as a delegate
@@ -137,7 +137,7 @@ Quorum Reached
 ```
 
 ```
-$ rad id commit 6e4dfd0edbb0974f5a4fb0990133e0911b0992c0 --no-confirm
+$ rad id commit 04603c0d3ea4d137487024a51c9360adfc511114 --no-confirm
 ✓ Committed new identity '29ae4b72f5a315328f06fbd68dc1c396a2d5c45e' 🌱
 title: Add Alice
 description: Add Alice as a delegate
@@ -183,7 +183,7 @@ Quorum Reached
 Now, when we go to accept the second proposal:
 
 ```
-$ rad id accept 6a687267b5063c036fdde90b75cc5eb153fa25e8 --no-confirm
+$ rad id accept 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --no-confirm
 ! Warning: Revision is out of date
 ! Warning: d96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f
 👉 Consider using 'rad id rebase' to update the proposal to the latest identity
@@ -238,19 +238,19 @@ Note that a warning was emitted:
 If we attempt to commit this revision, the command will fail:
 
 ```
-$ rad id commit 6a687267b5063c036fdde90b75cc5eb153fa25e8 --no-confirm
+$ rad id commit 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --no-confirm
 ! Warning: Revision is out of date
 ! Warning: d96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f
 👉 Consider using 'rad id rebase' to update the proposal to the latest identity
-✗ Id failed: the identity hashes do match 'd96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f' for the revision '6877dc63e001e7f7fcb285f5f530948b3d96b488'
+✗ Id failed: the identity hashes do match 'd96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f' for the revision '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774'
 ```
 
 So, let's fix this by running a rebase on the proposal's revision:
 
 ```
-$ rad id rebase 6a687267b5063c036fdde90b75cc5eb153fa25e8 --no-confirm
-✓ Identity proposal '6a687267b5063c036fdde90b75cc5eb153fa25e8' rebased 🌱
-✓ Revision 'aaa890c3531f880c9901b162ab38016ceb559c9f'
+$ rad id rebase 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --no-confirm
+✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' rebased 🌱
+✓ Revision '42b9428df59ad349f706b1397750b75ea3b42574'
 title: Add Bob
 description: Add Bob as a delegate
 status: ❲open❳
@@ -293,9 +293,9 @@ Quorum Reached
 We can now update the proposal to have both keys in the delegates set:
 
 ```
-$ rad id update 6a687267b5063c036fdde90b75cc5eb153fa25e8 --rev aaa890c3531f880c9901b162ab38016ceb559c9f --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
-✓ Identity proposal '6a687267b5063c036fdde90b75cc5eb153fa25e8' updated 🌱
-✓ Revision '24ad4a6ce84b1ce4b8cc754494c23f1079020a14'
+$ rad id update 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev 42b9428df59ad349f706b1397750b75ea3b42574 --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
+✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' updated 🌱
+✓ Revision '1b4ded759249e4f76d19c3e580b4736bf2a2d1c4'
 title: Add Bob
 description: Add Bob as a delegate
 status: ❲open❳
@@ -338,10 +338,10 @@ Quorum Reached
 Finally, we can accept and commit this proposal, creating the final
 state of our new Radicle identity:
 
-$ rad id show 6a687267b5063c036fdde90b75cc5eb153fa25e8 --revisions
+$ rad id show 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --revisions
 
 ```
-$ rad id accept 6a687267b5063c036fdde90b75cc5eb153fa25e8 --rev 24ad4a6ce84b1ce4b8cc754494c23f1079020a14 --no-confirm
+$ rad id accept 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev 1b4ded759249e4f76d19c3e580b4736bf2a2d1c4 --no-confirm
 ✓ Accepted proposal ✓
 title: Add Bob
 description: Add Bob as a delegate
@@ -385,7 +385,7 @@ Quorum Reached
 ```
 
 ```
-$ rad id commit 6a687267b5063c036fdde90b75cc5eb153fa25e8 --rev 24ad4a6ce84b1ce4b8cc754494c23f1079020a14 --no-confirm
+$ rad id commit 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev 1b4ded759249e4f76d19c3e580b4736bf2a2d1c4 --no-confirm
 ✓ Committed new identity '60de897bc24898f6908fd1272633c0b15aa4096f' 🌱
 title: Add Bob
 description: Add Bob as a delegate

@@ -14,7 +14,7 @@ use crate::cob::store::FromHistory as _;
 use crate::cob::store::Transaction;
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
-use crate::cob::{store, ActorId, ObjectId, OpId, TypeName};
+use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
 use crate::prelude::Did;
 use crate::storage::git as storage;
@@ -146,7 +146,6 @@ impl store::FromHistory for Issue {
                     self.thread.apply([cob::Op::new(
                         op.id,
                         action,
-                        op.nonce,
                         op.author,
                         op.timestamp,
                         op.clock,
@@ -214,7 +213,7 @@ impl store::Transaction<Issue> {
         &mut self,
         add: impl IntoIterator<Item = ActorId>,
         remove: impl IntoIterator<Item = ActorId>,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         let add = add.into_iter().collect::<Vec<_>>();
         let remove = remove.into_iter().collect::<Vec<_>>();
 
@@ -222,19 +221,19 @@ impl store::Transaction<Issue> {
     }
 
     /// Set the issue title.
-    pub fn edit(&mut self, title: impl ToString) -> Result<OpId, store::Error> {
+    pub fn edit(&mut self, title: impl ToString) -> Result<(), store::Error> {
         self.push(Action::Edit {
             title: title.to_string(),
         })
     }
 
     /// Lifecycle an issue.
-    pub fn lifecycle(&mut self, state: State) -> Result<OpId, store::Error> {
+    pub fn lifecycle(&mut self, state: State) -> Result<(), store::Error> {
         self.push(Action::Lifecycle { state })
     }
 
     /// Create the issue thread.
-    pub fn thread<S: ToString>(&mut self, body: S) -> Result<OpId, store::Error> {
+    pub fn thread<S: ToString>(&mut self, body: S) -> Result<(), store::Error> {
         self.push(Action::from(thread::Action::Comment {
             body: body.to_string(),
             reply_to: None,
@@ -246,7 +245,7 @@ impl store::Transaction<Issue> {
         &mut self,
         body: S,
         reply_to: CommentId,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         self.push(Action::from(thread::Action::Comment {
             body: body.to_string(),
             reply_to: Some(reply_to),
@@ -258,7 +257,7 @@ impl store::Transaction<Issue> {
         &mut self,
         add: impl IntoIterator<Item = Tag>,
         remove: impl IntoIterator<Item = Tag>,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         let add = add.into_iter().collect::<Vec<_>>();
         let remove = remove.into_iter().collect::<Vec<_>>();
 
@@ -266,7 +265,7 @@ impl store::Transaction<Issue> {
     }
 
     /// React to an issue comment.
-    pub fn react(&mut self, to: CommentId, reaction: Reaction) -> Result<OpId, store::Error> {
+    pub fn react(&mut self, to: CommentId, reaction: Reaction) -> Result<(), store::Error> {
         self.push(Action::Thread {
             action: thread::Action::React {
                 to,
@@ -300,17 +299,17 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         &mut self,
         assignees: impl IntoIterator<Item = ActorId>,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Assign", signer, |tx| tx.assign(assignees, []))
     }
 
     /// Set the issue title.
-    pub fn edit<G: Signer>(&mut self, title: impl ToString, signer: &G) -> Result<OpId, Error> {
+    pub fn edit<G: Signer>(&mut self, title: impl ToString, signer: &G) -> Result<EntryId, Error> {
         self.transaction("Edit", signer, |tx| tx.edit(title))
     }
 
     /// Lifecycle an issue.
-    pub fn lifecycle<G: Signer>(&mut self, state: State, signer: &G) -> Result<OpId, Error> {
+    pub fn lifecycle<G: Signer>(&mut self, state: State, signer: &G) -> Result<EntryId, Error> {
         self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
     }
 
@@ -319,7 +318,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         &mut self,
         body: S,
         signer: &G,
-    ) -> Result<CommentId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Create thread", signer, |tx| tx.thread(body))
     }
 
@@ -329,8 +328,11 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         body: S,
         reply_to: CommentId,
         signer: &G,
-    ) -> Result<CommentId, Error> {
-        assert!(self.thread.comment(&reply_to).is_some());
+    ) -> Result<EntryId, Error> {
+        assert!(
+            self.thread.comment(&reply_to).is_some(),
+            "Comment {reply_to} not found"
+        );
         self.transaction("Comment", signer, |tx| tx.comment(body, reply_to))
     }
 
@@ -340,7 +342,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         add: impl IntoIterator<Item = Tag>,
         remove: impl IntoIterator<Item = Tag>,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Tag", signer, |tx| tx.tag(add, remove))
     }
 
@@ -350,7 +352,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         to: CommentId,
         reaction: Reaction,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("React", signer, |tx| tx.react(to, reaction))
     }
 
@@ -359,30 +361,29 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         &mut self,
         assignees: impl IntoIterator<Item = ActorId>,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Unassign", signer, |tx| tx.assign([], assignees))
             .map_err(Error::from)
     }
 
-    pub fn transaction<G, F, T>(
+    pub fn transaction<G, F>(
         &mut self,
         message: &str,
         signer: &G,
         operations: F,
-    ) -> Result<T, Error>
+    ) -> Result<EntryId, Error>
     where
         G: Signer,
-        F: FnOnce(&mut Transaction<Issue>) -> Result<T, store::Error>,
+        F: FnOnce(&mut Transaction<Issue>) -> Result<(), store::Error>,
     {
-        let rng = self.store.rng();
-        let mut tx = Transaction::new(*signer.public_key(), self.clock, rng);
-        let output = operations(&mut tx)?;
-        let (ops, clock) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        let mut tx = Transaction::new(*signer.public_key(), self.clock);
+        operations(&mut tx)?;
+        let (ops, clock, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
         self.issue.apply(ops)?;
         self.clock = clock;
 
-        Ok(output)
+        Ok(commit)
     }
 }
 
@@ -461,7 +462,7 @@ impl<'a> Issues<'a> {
                 Ok(())
             })?;
         // Just a sanity check that our clock is advancing as expected.
-        debug_assert_eq!(clock.get(), 4);
+        debug_assert_eq!(clock.get(), 1);
 
         Ok(IssueMut {
             id,
@@ -618,7 +619,7 @@ mod test {
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
 
-        assert_eq!(created.clock().get(), 4);
+        assert_eq!(created.clock().get(), 1);
 
         let (id, created) = (created.id, created.issue);
         let issue = issues.get(&id).unwrap().unwrap();
@@ -812,12 +813,16 @@ mod test {
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
             .unwrap();
 
+        assert_eq!(issue.clock.get(), 1);
+
         // The root thread op id is always the same.
         let (c0, _) = issue.root();
         let c0 = *c0;
 
         issue.comment("Ho ho ho.", c0, &signer).unwrap();
         issue.comment("Ha ha ha.", c0, &signer).unwrap();
+
+        assert_eq!(issue.clock.get(), 3);
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
@@ -887,8 +892,6 @@ mod test {
                 &signer,
             )
             .unwrap();
-
-        assert_eq!(created.clock().get(), 4);
 
         let (id, created) = (created.id, created.issue);
         let issue = issues.get(&id).unwrap().unwrap();

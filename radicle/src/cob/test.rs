@@ -8,7 +8,7 @@ use serde::Serialize;
 use crate::cob::common::clock;
 use crate::cob::op::{Op, Ops};
 use crate::cob::store::encoding;
-use crate::cob::{EntryBlob, History};
+use crate::cob::History;
 use crate::crypto::{PublicKey, Signer};
 use crate::git::Oid;
 use crate::test::arbitrary;
@@ -30,17 +30,14 @@ where
     pub fn new(op: &Op<T::Action>) -> HistoryBuilder<T> {
         let entry = arbitrary::oid();
         let resource = arbitrary::oid();
-        let (id, data) = encoding::encode(&op.action, op.nonce).unwrap();
+        let data = encoding::encode(&op.action).unwrap();
 
         Self {
             history: History::new_from_root(
                 entry,
                 op.author,
                 resource,
-                NonEmpty::new(EntryBlob {
-                    oid: id.into(),
-                    data,
-                }),
+                NonEmpty::new(data),
                 op.timestamp.as_secs(),
             ),
             resource,
@@ -49,16 +46,13 @@ where
     }
 
     pub fn append(&mut self, op: &Op<T::Action>) -> &mut Self {
-        let (id, data) = encoding::encode(&op.action, op.nonce).unwrap();
+        let data = encoding::encode(&op.action).unwrap();
 
         self.history.extend(
             arbitrary::oid(),
             op.author,
             self.resource,
-            NonEmpty::new(EntryBlob {
-                oid: id.into(),
-                data,
-            }),
+            NonEmpty::new(data),
             op.timestamp.as_secs(),
         );
         self
@@ -153,15 +147,13 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
 
     /// Create a new operation.
     pub fn op(&mut self, action: A) -> Op<A> {
+        let id = arbitrary::oid().into();
         let author = *self.signer.public_key();
         let clock = self.clock.tick();
         let timestamp = clock::Physical::now();
-        let nonce = fastrand::u64(..);
-        let (id, _) = encoding::encode(&action, nonce).unwrap();
         let op = Op {
             id,
             action,
-            nonce,
             author,
             clock,
             timestamp,

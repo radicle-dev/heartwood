@@ -40,12 +40,7 @@ pub fn evaluate(root: Oid, graph: &Dag<Oid, Change>, rng: fastrand::Rng) -> hist
                 let clock = graph[&c.oid]
                     .dependencies
                     .iter()
-                    .map(|e| {
-                        let entry = &entries[&EntryId::from(*e)];
-                        let clock = entry.range();
-
-                        *clock.end()
-                    })
+                    .map(|e| entries[&EntryId::from(*e)].clock())
                     .max()
                     .unwrap_or_default() // When there are no operations, the clock is zero.
                     + 1;

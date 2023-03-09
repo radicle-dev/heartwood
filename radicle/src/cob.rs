@@ -11,10 +11,10 @@ pub mod test;
 
 pub use cob::{create, get, list, remove, update};
 pub use cob::{
-    history::entry::EntryBlob, object::collaboration::error, CollaborativeObject, Contents, Create,
-    Entry, History, ObjectId, TypeName, Update,
+    history::EntryId, object::collaboration::error, CollaborativeObject, Contents, Create, Entry,
+    History, ObjectId, TypeName, Update, Updated,
 };
 pub use common::*;
-pub use op::{ActorId, Op, OpId};
+pub use op::{ActorId, Op};
 
 use radicle_cob as cob;

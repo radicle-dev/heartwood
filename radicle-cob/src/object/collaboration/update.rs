@@ -10,6 +10,15 @@ use crate::{change, change_graph::ChangeGraph, CollaborativeObject, ObjectId, St
 
 use super::error;
 
+/// Result of an `update` operation.
+#[derive(Debug)]
+pub struct Updated {
+    /// The new head commit of the DAG.
+    pub head: Oid,
+    /// The newly updated collaborative object.
+    pub object: CollaborativeObject,
+}
+
 /// The data required to update an object
 pub struct Update {
     /// The type of history that will be used for this object.
@@ -48,7 +57,7 @@ pub fn update<S, G>(
     resource: Oid,
     identifier: &S::Identifier,
     args: Update,
-) -> Result<CollaborativeObject, error::Update>
+) -> Result<Updated, error::Update>
 where
     S: Store,
     G: crypto::Signer,
@@ -93,5 +102,8 @@ where
         change.timestamp,
     );
 
-    Ok(object)
+    Ok(Updated {
+        object,
+        head: change.id,
+    })
 }

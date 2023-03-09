@@ -35,7 +35,7 @@ z6MknSL…StBU8Vi/master (f2de534) <- z6MknSL…StBU8Vi/flux-capacitor-power (3e
 
 3e674d1 Define power requirements
 
-✓ Patch d8584d098142d774211ac5cdc8d1df4a113875dd created 🌱
+✓ Patch 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 created 🌱
 
 To publish your patch to the network, run:
     rad push
@@ -49,15 +49,15 @@ $ rad patch
 
 ❲YOU PROPOSED❳
 
-Define power requirements d8584d09814 R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0
+Define power requirements 191a14e520f R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0
 └─ * opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..]
-└─ * patch id d8584d098142d774211ac5cdc8d1df4a113875dd
+└─ * patch id 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
 
 ❲OTHERS PROPOSED❳
 
 Nothing to show.
 
-$ rad patch show d8584d098142d774211ac5cdc8d1df4a113875dd
+$ rad patch show 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
 
 Define power requirements
 
@@ -84,34 +84,34 @@ $ git commit --message "Add README, just for the fun"
 [flux-capacitor-power 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
-$ rad patch update --message "Add README, just for the fun" d8584d098142d774211ac5cdc8d1df4a113875dd
+$ rad patch update --message "Add README, just for the fun" 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
 
 🌱 Updating patch for heartwood
 
 ✓ Pushing HEAD to storage...
 ✓ Analyzing remotes...
 
-d8584d09814 R0 (3e674d1) -> R1 (27857ec)
+191a14e520f R0 (3e674d1) -> R1 (27857ec)
 1 commit(s) ahead, 0 commit(s) behind
 
 
-✓ Patch d8584d098142d774211ac5cdc8d1df4a113875dd updated 🌱
+✓ Patch 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 updated 🌱
 
 ```
 
 And lets leave a quick comment for our team:
 
 ```
-$ rad comment d8584d098142d774211ac5cdc8d1df4a113875dd --message 'I cannot wait to get back to the 90s!'
-84ef44764de73695cf30e6b284585d2c50d6d0e5
-$ rad comment d8584d098142d774211ac5cdc8d1df4a113875dd --message 'I cannot wait to get back to the 90s!' --reply-to 84ef44764de73695cf30e6b284585d2c50d6d0e5
-2fa3ac18d82ebdafe73484a15fa9823355c4664b
+$ rad comment 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --message 'I cannot wait to get back to the 90s!'
+70fc8b18300096f6f0f919797457244e6e4b2cea
+$ rad comment 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --message 'I cannot wait to get back to the 90s!' --reply-to 70fc8b18300096f6f0f919797457244e6e4b2cea
+7a9f7a6358238f4ff115d2b2a5e522ab93867d38
 ```
 
 Now, let's checkout the patch that we just created:
 
 ```
-$ rad patch checkout d8584d098142d774211ac5cdc8d1df4a113875dd
+$ rad patch checkout 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
 ✓ Performing patch checkout...
-✓ Switched to branch patch/d8584d09814
+✓ Switched to branch patch/191a14e520f
 ```

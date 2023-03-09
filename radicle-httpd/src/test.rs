@@ -1,4 +1,3 @@
-use std::convert::TryInto as _;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -13,47 +12,77 @@ use tower::ServiceExt;
 
 use radicle::cob::issue::Issues;
 use radicle::cob::patch::{MergeTarget, Patches};
+use radicle::crypto::ssh::keystore::MemorySigner;
+use radicle::crypto::ssh::Keystore;
+use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git::{raw as git2, RefString};
+use radicle::profile::Home;
 use radicle::storage::ReadStorage;
+use radicle::Storage;
 use radicle_crypto::test::signer::MockSigner;
 
 use crate::api::{auth, Context};
 
 pub const HEAD: &str = "1e978d19f251cd9821d9d9a76d1bd436bf0690d5";
 pub const HEAD_1: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
-pub const PATCH_ID: &str = "73d5187bb38835a232ce6ff41102a94bb92e5130";
-pub const ISSUE_ID: &str = "959afe03c1dbea4f47462bb7824584a78741f59c";
-pub const ISSUE_DISCUSSION_ID: &str = "e2874702515026daf62d4385cafb88fef1fad0c8";
-pub const ISSUE_COMMENT_ID: &str = "905d72c1f13f282f86cb93ce9f7eb9464a08ba79";
+pub const PATCH_ID: &str = "6ec9a764a888576abc7e582dbf82a31e23a9789d";
+pub const ISSUE_ID: &str = "5ad77fa3f476beed9a26f49b2b3b844e61bef792";
+pub const ISSUE_DISCUSSION_ID: &str = "f1dff128a22e8183a23516dd9812e72e80914c92";
+pub const ISSUE_COMMENT_ID: &str = "845218041bf9eb8155bfa4aaa8f0c91ce18e5c13";
 pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
 pub const TIMESTAMP: u64 = 1671125284;
 pub const CONTRIBUTOR_RID: &str = "rad:z4XaCmN3jLSeiMvW15YTDpNbDHFhG";
 pub const CONTRIBUTOR_PUB_KEY: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
-pub const CONTRIBUTOR_ISSUE_ID: &str = "b991ccfa866e164b81a4aa0a7e082357b6c75306";
+pub const CONTRIBUTOR_ISSUE_ID: &str = "f1dff128a22e8183a23516dd9812e72e80914c92";
 
 const PASSWORD: &str = "radicle";
 
+/// Create a new profile.
+pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
+    let home = Home::new(home).unwrap();
+    let storage = Storage::open(home.storage()).unwrap();
+    let keystore = Keystore::new(&home.keys());
+    let keypair = KeyPair::from_seed(Seed::from(seed));
+
+    radicle::storage::git::transport::local::register(storage.clone());
+    keystore
+        .store(keypair.clone(), "radicle", PASSWORD.to_owned())
+        .unwrap();
+
+    radicle::Profile {
+        home,
+        storage,
+        keystore,
+        public_key: keypair.pk.into(),
+    }
+}
+
 pub fn seed(dir: &Path) -> Context {
-    seed_with_signer(dir, false)
+    let home = dir.join("radicle");
+    let profile = profile(home.as_path(), [0xff; 32]);
+    let signer = Box::new(MockSigner::from_seed([0xff; 32]));
+
+    seed_with_signer(dir, profile, &signer)
 }
 
 pub fn contributor(dir: &Path) -> Context {
-    seed_with_signer(dir, true)
+    let mut seed = [0xff; 32];
+    *seed.last_mut().unwrap() = 0xee;
+
+    let home = dir.join("radicle");
+    let profile = profile(home.as_path(), seed);
+    let signer = MemorySigner::load(&profile.keystore, PASSWORD.to_owned().into()).unwrap();
+
+    seed_with_signer(dir, profile, &signer)
 }
 
-fn seed_with_signer(dir: &Path, self_signer: bool) -> Context {
+fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G) -> Context {
     let workdir = dir.join("hello-world");
-    let rad_home = dir.join("radicle");
 
     env::set_var("RAD_COMMIT_TIME", TIMESTAMP.to_string());
     env::set_var("RAD_PASSPHRASE", PASSWORD);
-    env::set_var(
-        "RAD_SEED",
-        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffee",
-    );
 
     fs::create_dir_all(&workdir).unwrap();
-    fs::create_dir_all(&rad_home).unwrap();
 
     // add commits to workdir (repo)
     let repo = git2::Repository::init(&workdir).unwrap();
@@ -95,42 +124,24 @@ fn seed_with_signer(dir: &Path, self_signer: bool) -> Context {
     )
     .unwrap();
 
-    // eq. rad auth
-    let profile =
-        radicle::Profile::init(rad_home.try_into().unwrap(), PASSWORD.to_owned()).unwrap();
-
-    let mock_signer = MockSigner::from_seed([0xff; 32]);
-
     // rad init
     let repo = git2::Repository::open(&workdir).unwrap();
     let name = "hello-world".to_string();
     let description = "Rad repository for tests".to_string();
-    let signer = if self_signer {
-        profile.signer().unwrap()
-    } else {
-        Box::new(mock_signer)
-    };
     let branch = RefString::try_from("master").unwrap();
-    let (id, _, _) = radicle::rad::init(
-        &repo,
-        &name,
-        &description,
-        branch,
-        &signer,
-        &profile.storage,
-    )
-    .unwrap();
+    let (id, _, _) =
+        radicle::rad::init(&repo, &name, &description, branch, signer, &profile.storage).unwrap();
 
     let storage = &profile.storage;
     let repo = storage.repository(id).unwrap();
     let mut issues = Issues::open(&repo).unwrap();
-    issues
+    let _ = issues
         .create(
             "Issue #1".to_string(),
             "Change 'hello world' to 'hello everyone'".to_string(),
             &[],
             &[],
-            &signer,
+            signer,
         )
         .unwrap();
 
@@ -138,7 +149,7 @@ fn seed_with_signer(dir: &Path, self_signer: bool) -> Context {
     let mut patches = Patches::open(&repo).unwrap();
     let oid = radicle::git::Oid::from_str(HEAD).unwrap();
     let base = radicle::git::Oid::from_str(HEAD_1).unwrap();
-    patches
+    let _ = patches
         .create(
             "A new `hello word`",
             "change `hello world` in README to something else",
@@ -146,7 +157,7 @@ fn seed_with_signer(dir: &Path, self_signer: bool) -> Context {
             base,
             oid,
             &[],
-            &signer,
+            signer,
         )
         .unwrap();
 

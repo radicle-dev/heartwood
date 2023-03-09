@@ -80,7 +80,7 @@ impl History {
     pub fn clock(&self) -> Clock {
         self.graph
             .tips()
-            .map(|(_, node)| node.clock + node.entry.contents.len() as Clock - 1)
+            .map(|(_, node)| node.clock)
             .max()
             .unwrap_or_default()
     }

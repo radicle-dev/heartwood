@@ -81,10 +81,17 @@ impl IntoResponse for Error {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Some(e.message().to_owned()),
             ),
-            _ => {
+            other => {
                 tracing::error!("Error: {:?}", &self);
 
-                (StatusCode::INTERNAL_SERVER_ERROR, None)
+                if cfg!(debug_assertions) {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Some(format!("{other:?}")),
+                    )
+                } else {
+                    (StatusCode::INTERNAL_SERVER_ERROR, None)
+                }
             }
         };
 

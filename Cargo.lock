@@ -1807,7 +1807,6 @@ dependencies = [
  "radicle-crypto",
  "radicle-git-ext",
  "radicle-ssh",
- "rand 0.8.5",
  "serde",
  "serde_json",
  "siphasher",

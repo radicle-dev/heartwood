@@ -13,6 +13,7 @@ use thiserror::Error;
 pub mod collaboration;
 pub use collaboration::{
     create, get, info, list, parse_refstr, remove, update, CollaborativeObject, Create, Update,
+    Updated,
 };
 
 pub mod storage;

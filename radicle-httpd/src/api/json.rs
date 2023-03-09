@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::cob::thread::{self, CommentId};
-use radicle::cob::{Author, OpId, Timestamp};
+use radicle::cob::{Author, Timestamp};
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
 use radicle_surf::{Commit, Stats};
@@ -132,7 +132,7 @@ fn name_in_path(path: &str) -> &str {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Comment {
-    id: OpId,
+    id: CommentId,
     author: Author,
     body: String,
     reactions: [String; 0],

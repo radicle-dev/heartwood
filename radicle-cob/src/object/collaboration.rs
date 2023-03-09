@@ -27,7 +27,7 @@ mod remove;
 pub use remove::remove;
 
 mod update;
-pub use update::{update, Update};
+pub use update::{update, Update, Updated};
 
 /// A collaborative object
 #[derive(Debug, Clone, PartialEq, Eq)]

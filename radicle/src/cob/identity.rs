@@ -22,7 +22,7 @@ use crate::{
 
 use super::{
     thread::{self, Thread},
-    Author, OpId,
+    Author, EntryId,
 };
 
 /// The logical clock we use to order operations to proposals.
@@ -36,7 +36,7 @@ pub type Op = cob::Op<Action>;
 
 pub type ProposalId = ObjectId;
 
-pub type RevisionId = OpId;
+pub type RevisionId = EntryId;
 
 /// Proposal operation.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -79,13 +79,13 @@ pub enum ApplyError {
     /// For example, this can occur if an operation references anothern operation
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
-    Missing(OpId),
+    Missing(EntryId),
     #[error("the proposal is committed")]
     Committed,
     #[error(transparent)]
     Commit(#[from] CommitError),
     #[error("the revision {0:?} is redacted")]
-    Redacted(OpId),
+    Redacted(EntryId),
     /// Error applying an op to the proposal thread.
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::OpError),
@@ -97,21 +97,21 @@ pub enum CommitError {
     #[error(transparent)]
     Identity(#[from] IdentityError),
     #[error("the proposal {0} is closed")]
-    Closed(OpId),
+    Closed(EntryId),
     #[error("the revision {0} is missing")]
-    Missing(OpId),
+    Missing(EntryId),
     #[error(
         "the identity hashes do match '{current} =/= {expected}' for the revision '{revision}'"
     )]
     Mismatch {
         current: Oid,
         expected: Oid,
-        revision: OpId,
+        revision: EntryId,
     },
     #[error("the revision {0} is already committed")]
-    Committed(OpId),
+    Committed(EntryId),
     #[error("the revision {0} is redacted")]
-    Redacted(OpId),
+    Redacted(EntryId),
     #[error(transparent)]
     Doc(#[from] DocError),
     #[error("signatures did not reach quorum threshold: {0}")]
@@ -145,7 +145,7 @@ pub struct Proposal {
     /// List of revisions for this proposal.
     revisions: GMap<RevisionId, Redactable<Revision>>,
     /// Timeline of events.
-    timeline: GSet<(clock::Lamport, OpId)>,
+    timeline: GSet<(clock::Lamport, EntryId)>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -359,7 +359,6 @@ impl store::FromHistory for Proposal {
                         revision.discussion.apply([cob::Op::new(
                             op.id,
                             action,
-                            op.nonce,
                             op.author,
                             op.timestamp,
                             op.clock,
@@ -477,14 +476,14 @@ impl store::Transaction<Proposal> {
         &mut self,
         revision: RevisionId,
         signature: Signature,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         self.push(Action::Accept {
             revision,
             signature,
         })
     }
 
-    pub fn reject(&mut self, revision: RevisionId) -> Result<OpId, store::Error> {
+    pub fn reject(&mut self, revision: RevisionId) -> Result<(), store::Error> {
         self.push(Action::Reject { revision })
     }
 
@@ -492,22 +491,18 @@ impl store::Transaction<Proposal> {
         &mut self,
         title: impl ToString,
         description: impl ToString,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         self.push(Action::Edit {
             title: title.to_string(),
             description: description.to_string(),
         })
     }
 
-    pub fn redact(&mut self, revision: RevisionId) -> Result<OpId, store::Error> {
+    pub fn redact(&mut self, revision: RevisionId) -> Result<(), store::Error> {
         self.push(Action::Redact { revision })
     }
 
-    pub fn revision(
-        &mut self,
-        current: Oid,
-        proposed: Doc<Verified>,
-    ) -> Result<OpId, store::Error> {
+    pub fn revision(&mut self, current: Oid, proposed: Doc<Verified>) -> Result<(), store::Error> {
         self.push(Action::Revision { current, proposed })
     }
 
@@ -516,7 +511,7 @@ impl store::Transaction<Proposal> {
         &mut self,
         revision: RevisionId,
         body: S,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         self.push(Action::Thread {
             revision,
             action: thread::Action::Comment {
@@ -532,7 +527,7 @@ impl store::Transaction<Proposal> {
         revision: RevisionId,
         body: S,
         reply_to: thread::CommentId,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         self.push(Action::Thread {
             revision,
             action: thread::Action::Comment {
@@ -566,24 +561,24 @@ impl<'a, 'g> ProposalMut<'a, 'g> {
         }
     }
 
-    pub fn transaction<G, F, T>(
+    pub fn transaction<G, F>(
         &mut self,
         message: &str,
         signer: &G,
         operations: F,
-    ) -> Result<T, Error>
+    ) -> Result<EntryId, Error>
     where
         G: Signer,
-        F: FnOnce(&mut Transaction<Proposal>) -> Result<T, store::Error>,
+        F: FnOnce(&mut Transaction<Proposal>) -> Result<(), store::Error>,
     {
-        let mut tx = Transaction::new(*signer.public_key(), self.clock, self.store.rng());
-        let output = operations(&mut tx)?;
-        let (ops, clock) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        let mut tx = Transaction::new(*signer.public_key(), self.clock);
+        operations(&mut tx)?;
+        let (ops, clock, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
         self.proposal.apply(ops)?;
         self.clock = clock;
 
-        Ok(output)
+        Ok(commit)
     }
 
     /// Get the internal logical clock.
@@ -597,12 +592,16 @@ impl<'a, 'g> ProposalMut<'a, 'g> {
         revision: RevisionId,
         signature: Signature,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Accept", signer, |tx| tx.accept(revision, signature))
     }
 
     /// Reject a proposal revision.
-    pub fn reject<G: Signer>(&mut self, revision: RevisionId, signer: &G) -> Result<OpId, Error> {
+    pub fn reject<G: Signer>(
+        &mut self,
+        revision: RevisionId,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
         self.transaction("Reject", signer, |tx| tx.reject(revision))
     }
 
@@ -612,17 +611,17 @@ impl<'a, 'g> ProposalMut<'a, 'g> {
         title: String,
         description: String,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Edit", signer, |tx| tx.edit(title, description))
     }
 
     /// Commit a proposal.
-    pub fn commit<G: Signer>(&mut self, signer: &G) -> Result<OpId, Error> {
+    pub fn commit<G: Signer>(&mut self, signer: &G) -> Result<EntryId, Error> {
         self.transaction("Commit", signer, |tx| tx.push(Action::Commit))
     }
 
     /// Close a proposal.
-    pub fn close<G: Signer>(&mut self, signer: &G) -> Result<OpId, Error> {
+    pub fn close<G: Signer>(&mut self, signer: &G) -> Result<EntryId, Error> {
         self.transaction("Close", signer, |tx| tx.push(Action::Close))
     }
 
@@ -633,7 +632,7 @@ impl<'a, 'g> ProposalMut<'a, 'g> {
         body: S,
         reply_to: thread::CommentId,
         signer: &G,
-    ) -> Result<thread::CommentId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Comment", signer, |tx| tx.comment(revision, body, reply_to))
     }
 
@@ -643,7 +642,7 @@ impl<'a, 'g> ProposalMut<'a, 'g> {
         current: impl Into<Oid>,
         proposed: Doc<Verified>,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Add revision", signer, |tx| {
             tx.revision(current.into(), proposed)
         })
@@ -695,7 +694,7 @@ impl<'a> Proposals<'a> {
                 Ok(())
             })?;
         // Just a sanity check that our clock is advancing as expected.
-        debug_assert_eq!(clock.get(), 2);
+        debug_assert_eq!(clock.get(), 1);
 
         Ok(ProposalMut::new(id, proposal, clock, self))
     }

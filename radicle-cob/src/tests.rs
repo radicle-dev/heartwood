@@ -7,7 +7,8 @@ use qcheck::Arbitrary;
 use radicle_crypto::Signer;
 
 use crate::{
-    create, get, list, object, test::arbitrary::Invalid, update, Create, ObjectId, TypeName, Update,
+    create, get, list, object, test::arbitrary::Invalid, update, Create, ObjectId, TypeName,
+    Update, Updated,
 };
 
 use super::test;
@@ -121,7 +122,7 @@ fn update_cob() {
         .unwrap()
         .expect("BUG: cob was missing");
 
-    let updated = update(
+    let Updated { object, .. } = update(
         &storage,
         &signer,
         proj.project.content_id,
@@ -136,12 +137,12 @@ fn update_cob() {
     )
     .unwrap();
 
-    let expected = get(&storage, &typename, updated.id())
+    let expected = get(&storage, &typename, object.id())
         .unwrap()
         .expect("BUG: cob was missing");
 
-    assert_ne!(updated, not_expected);
-    assert_eq!(updated, expected);
+    assert_ne!(object, not_expected);
+    assert_eq!(object, expected);
 }
 
 #[test]
@@ -183,7 +184,7 @@ fn traverse_cobs() {
     )
     .unwrap();
 
-    let updated = update(
+    let Updated { object, .. } = update(
         &storage,
         &neil_signer,
         neil_proj.project.content_id,
@@ -199,9 +200,9 @@ fn traverse_cobs() {
     .unwrap();
 
     // traverse over the history and filter by changes that were only authorized by terry
-    let contents = updated.history().traverse(Vec::new(), |mut acc, entry| {
+    let contents = object.history().traverse(Vec::new(), |mut acc, entry| {
         if entry.actor() == terry_signer.public_key() {
-            acc.push(entry.contents().head.data.clone());
+            acc.push(entry.contents().head.clone());
         }
         ControlFlow::Continue(acc)
     });
@@ -209,8 +210,8 @@ fn traverse_cobs() {
     assert_eq!(contents, vec![b"issue 1".to_vec()]);
 
     // traverse over the history and filter by changes that were only authorized by neil
-    let contents = updated.history().traverse(Vec::new(), |mut acc, entry| {
-        acc.push(entry.contents().head.data.clone());
+    let contents = object.history().traverse(Vec::new(), |mut acc, entry| {
+        acc.push(entry.contents().head.clone());
         ControlFlow::Continue(acc)
     });
 

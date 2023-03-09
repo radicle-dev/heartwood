@@ -19,7 +19,7 @@ use crate::cob::store::Transaction;
 use crate::cob::thread;
 use crate::cob::thread::CommentId;
 use crate::cob::thread::Thread;
-use crate::cob::{store, ActorId, ObjectId, OpId, TypeName};
+use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
 use crate::prelude::*;
@@ -39,13 +39,13 @@ pub type Op = cob::Op<Action>;
 pub type PatchId = ObjectId;
 
 /// Unique identifier for a patch revision.
-pub type RevisionId = OpId;
+pub type RevisionId = EntryId;
 
 /// Index of a revision in the revisions list.
 pub type RevisionIx = usize;
 
 /// Error applying an operation onto a state.
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub enum ApplyError {
     /// Causal dependency missing.
     ///
@@ -55,7 +55,7 @@ pub enum ApplyError {
     /// For example, this can occur if an operation references anothern operation
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
-    Missing(OpId),
+    Missing(EntryId),
     /// Error applying an op to the patch thread.
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::OpError),
@@ -135,7 +135,7 @@ pub struct Patch {
     /// first revision.
     pub revisions: GMap<RevisionId, Redactable<Revision>>,
     /// Timeline of operations.
-    pub timeline: GSet<(Lamport, OpId)>,
+    pub timeline: GSet<(Lamport, EntryId)>,
 }
 
 impl Semilattice for Patch {
@@ -335,9 +335,9 @@ impl store::FromHistory for Patch {
                     // TODO(cloudhead): Make sure we can deal with redacted revisions which are added
                     // to out of order, like in the `Merge` case.
                     if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                        revision.discussion.apply([cob::Op::new(
-                            op.id, action, op.nonce, op.author, timestamp, op.clock,
-                        )])?;
+                        revision
+                            .discussion
+                            .apply([cob::Op::new(op.id, action, op.author, timestamp, op.clock)])?;
                     } else {
                         return Err(ApplyError::Missing(revision));
                     }
@@ -561,7 +561,7 @@ impl store::Transaction<Patch> {
         title: impl ToString,
         description: impl ToString,
         target: MergeTarget,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         self.push(Action::Edit {
             title: title.to_string(),
             description: description.to_string(),
@@ -574,7 +574,7 @@ impl store::Transaction<Patch> {
         &mut self,
         revision: RevisionId,
         body: S,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         self.push(Action::Thread {
             revision,
             action: thread::Action::Comment {
@@ -590,7 +590,7 @@ impl store::Transaction<Patch> {
         revision: RevisionId,
         body: S,
         reply_to: Option<CommentId>,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         self.push(Action::Thread {
             revision,
             action: thread::Action::Comment {
@@ -607,7 +607,7 @@ impl store::Transaction<Patch> {
         verdict: Option<Verdict>,
         comment: Option<String>,
         inline: Vec<CodeComment>,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         self.push(Action::Review {
             revision,
             comment,
@@ -617,7 +617,7 @@ impl store::Transaction<Patch> {
     }
 
     /// Merge a patch revision.
-    pub fn merge(&mut self, revision: RevisionId, commit: git::Oid) -> Result<OpId, store::Error> {
+    pub fn merge(&mut self, revision: RevisionId, commit: git::Oid) -> Result<(), store::Error> {
         self.push(Action::Merge { revision, commit })
     }
 
@@ -627,7 +627,7 @@ impl store::Transaction<Patch> {
         description: impl ToString,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         self.push(Action::Revision {
             description: description.to_string(),
             base: base.into(),
@@ -640,7 +640,7 @@ impl store::Transaction<Patch> {
         &mut self,
         add: impl IntoIterator<Item = Tag>,
         remove: impl IntoIterator<Item = Tag>,
-    ) -> Result<OpId, store::Error> {
+    ) -> Result<(), store::Error> {
         let add = add.into_iter().collect::<Vec<_>>();
         let remove = remove.into_iter().collect::<Vec<_>>();
 
@@ -671,24 +671,24 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         }
     }
 
-    pub fn transaction<G, F, T>(
+    pub fn transaction<G, F>(
         &mut self,
         message: &str,
         signer: &G,
         operations: F,
-    ) -> Result<T, Error>
+    ) -> Result<EntryId, Error>
     where
         G: Signer,
-        F: FnOnce(&mut Transaction<Patch>) -> Result<T, store::Error>,
+        F: FnOnce(&mut Transaction<Patch>) -> Result<(), store::Error>,
     {
-        let mut tx = Transaction::new(*signer.public_key(), self.clock, self.store.rng());
-        let output = operations(&mut tx)?;
-        let (ops, clock) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        let mut tx = Transaction::new(*signer.public_key(), self.clock);
+        operations(&mut tx)?;
+        let (ops, clock, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
         self.patch.apply(ops)?;
         self.clock = clock;
 
-        Ok(output)
+        Ok(commit)
     }
 
     /// Get the internal logical clock.
@@ -703,7 +703,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         description: String,
         target: MergeTarget,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Edit", signer, |tx| tx.edit(title, description, target))
     }
 
@@ -714,7 +714,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         body: S,
         reply_to: Option<CommentId>,
         signer: &G,
-    ) -> Result<CommentId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Comment", signer, |tx| tx.comment(revision, body, reply_to))
     }
 
@@ -726,7 +726,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         comment: Option<String>,
         inline: Vec<CodeComment>,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Review", signer, |tx| {
             tx.review(revision, verdict, comment, inline)
         })
@@ -738,7 +738,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         revision: RevisionId,
         commit: git::Oid,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Merge revision", signer, |tx| tx.merge(revision, commit))
     }
 
@@ -749,7 +749,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Add revision", signer, |tx| {
             tx.revision(description, base, oid)
         })
@@ -761,7 +761,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         add: impl IntoIterator<Item = Tag>,
         remove: impl IntoIterator<Item = Tag>,
         signer: &G,
-    ) -> Result<OpId, Error> {
+    ) -> Result<EntryId, Error> {
         self.transaction("Tag", signer, |tx| tx.tag(add, remove))
     }
 }
@@ -823,7 +823,7 @@ impl<'a> Patches<'a> {
                 Ok(())
             })?;
         // Just a sanity check that our clock is advancing as expected.
-        debug_assert_eq!(clock.get(), 3);
+        debug_assert_eq!(clock.get(), 1);
 
         Ok(PatchMut::new(id, patch, clock, self))
     }
@@ -926,7 +926,7 @@ mod test {
             type State = (
                 Actor<MockSigner, Action>,
                 clock::Lamport,
-                Vec<OpId>,
+                Vec<EntryId>,
                 Vec<Tag>,
             );
 
@@ -1085,7 +1085,7 @@ mod test {
             )
             .unwrap();
 
-        assert_eq!(patch.clock.get(), 3);
+        assert_eq!(patch.clock.get(), 1);
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();
@@ -1364,18 +1364,25 @@ mod test {
             )
             .unwrap();
 
-        assert_eq!(patch.clock.get(), 3);
+        assert_eq!(patch.clock.get(), 1);
         assert_eq!(patch.description(), Some("Blah blah blah."));
         assert_eq!(patch.version(), 0);
 
         let _ = patch
             .update("I've made changes.", base, rev1_oid, &signer)
             .unwrap();
+        assert_eq!(patch.clock.get(), 2);
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();
         assert_eq!(patch.version(), 1);
         assert_eq!(patch.revisions.len(), 2);
+        assert_eq!(patch.revisions().count(), 2);
+        assert_eq!(patch.revisions().nth(0).unwrap().1.description(), "");
+        assert_eq!(
+            patch.revisions().nth(1).unwrap().1.description(),
+            "I've made changes."
+        );
 
         let (_, revision) = patch.latest().unwrap();
 

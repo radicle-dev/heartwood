@@ -1104,7 +1104,7 @@ mod routes {
                 "assignees": [],
                 "discussion": [
                   {
-                    "id": ISSUE_DISCUSSION_ID,
+                    "id": ISSUE_ID,
                     "author": {
                         "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                     },
@@ -1122,7 +1122,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_issues_create() {
-        const CREATED_ISSUE_ID: &str = "1b706bb9af971d43ec38718c71402e36055c5c89";
+        const CREATED_ISSUE_ID: &str = "b457364fbe2ef0eac69a835a087f60ee13ccb367";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = test::contributor(tmp.path());
@@ -1171,7 +1171,7 @@ mod routes {
                   "status": "open",
               },
               "discussion": [{
-                  "id": ISSUE_DISCUSSION_ID,
+                  "id": CREATED_ISSUE_ID,
                   "author": {
                       "id": CONTRIBUTOR_PUB_KEY,
                   },
@@ -1245,7 +1245,7 @@ mod routes {
                   "replyTo": null,
                 },
                 {
-                  "id": "265af21e409eacc8eb150b73882ac3ada9d4aea3",
+                  "id": "9685b141c2e939c3d60f8ca34f8c7bf01a609af1",
                   "author": {
                       "id": CONTRIBUTOR_PUB_KEY,
                   },
@@ -1269,7 +1269,7 @@ mod routes {
         test::create_session(ctx).await;
 
         let body = serde_json::to_vec(&json!({
-          "type":"thread",
+          "type": "thread",
           "action": {
             "type": "comment",
             "body": "This is a reply to the first comment",
@@ -1277,9 +1277,7 @@ mod routes {
         }}))
         .unwrap();
 
-        let response = get(&app, format!("/projects/{CONTRIBUTOR_RID}/issues")).await;
-        println!("{:?}", response.json().await);
-
+        let _ = get(&app, format!("/projects/{CONTRIBUTOR_RID}/issues")).await;
         let response = patch(
             &app,
             format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
@@ -1358,7 +1356,7 @@ mod routes {
                 "tags": [],
                 "revisions": [
                     {
-                        "id": "47878ed82515772f4c44e4796c330f4a74473559",
+                        "id": PATCH_ID,
                         "description": "",
                         "reviews": [],
                     }
@@ -1389,7 +1387,7 @@ mod routes {
                 "tags": [],
                 "revisions": [
                     {
-                        "id": "47878ed82515772f4c44e4796c330f4a74473559",
+                        "id": PATCH_ID,
                         "description": "",
                         "reviews": [],
                     }
@@ -1401,7 +1399,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
-        const CREATED_PATCH_ID: &str = "22f8fbe09f7430579dd0730e4f2394362d844647";
+        const CREATED_PATCH_ID: &str = "54505091ff3561466cfbe83e7e23c21cb1bb8a17";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = test::contributor(tmp.path());
@@ -1459,7 +1457,7 @@ mod routes {
                 "tags": [],
                 "revisions": [
                     {
-                        "id": "73efc59cd9f787deff0ae1629f47f1d90f307282",
+                        "id": CREATED_PATCH_ID,
                         "description": "",
                         "reviews": [],
                     }
