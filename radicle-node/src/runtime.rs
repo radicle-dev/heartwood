@@ -73,6 +73,7 @@ pub enum Error {
 pub struct Runtime<G: Signer + Ecdh> {
     pub id: NodeId,
     pub home: Home,
+    pub control: UnixListener,
     pub handle: Handle<G>,
     pub storage: Storage,
     pub reactor: Reactor<wire::Control<G>>,
@@ -168,10 +169,20 @@ impl<G: Signer + Ecdh + 'static> Runtime<G> {
                 atomic,
             },
         );
+        let control = match UnixListener::bind(home.socket()) {
+            Ok(sock) => sock,
+            Err(err) if err.kind() == io::ErrorKind::AddrInUse => {
+                return Err(Error::AlreadyRunning(home.socket()));
+            }
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
 
         Ok(Runtime {
             id,
             home,
+            control,
             storage,
             reactor,
             daemon,
@@ -188,18 +199,9 @@ impl<G: Signer + Ecdh + 'static> Runtime<G> {
         log::info!(target: "node", "Running node {} in {}..", self.id, home.path().display());
         log::info!(target: "node", "Binding control socket {}..", home.socket().display());
 
-        let listener = match UnixListener::bind(home.socket()) {
-            Ok(sock) => sock,
-            Err(err) if err.kind() == io::ErrorKind::AddrInUse => {
-                return Err(Error::AlreadyRunning(home.socket()));
-            }
-            Err(err) => {
-                return Err(err.into());
-            }
-        };
         let control = thread::Builder::new().name(self.id.to_human()).spawn({
             let handle = self.handle.clone();
-            move || control::listen(listener, handle)
+            move || control::listen(self.control, handle)
         })?;
         let _signals = thread::Builder::new()
             .name(self.id.to_human())
