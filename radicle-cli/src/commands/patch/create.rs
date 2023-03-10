@@ -58,9 +58,8 @@ fn show_patch_commit_info(
 
     term::blank();
     term::info!(
-        "{} ({}) <- {}/{} ({})",
+        "{} <- {}/{} ({})",
         term::format::highlight(target_ref),
-        term::format::secondary(term::format::oid(*target_oid)),
         term::format::dim(term::format::node(node_id)),
         term::format::highlight(branch_name(head_branch)?),
         term::format::secondary(term::format::oid(head_oid)),

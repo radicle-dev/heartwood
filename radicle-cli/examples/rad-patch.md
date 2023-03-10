@@ -29,7 +29,7 @@ $ rad patch open --message "Define power requirements" --message "See details."
 ✓ Pushing HEAD to storage...
 ✓ Analyzing remotes...
 
-master (f2de534) <- z6MknSL…StBU8Vi/flux-capacitor-power (3e674d1)
+master <- z6MknSL…StBU8Vi/flux-capacitor-power (3e674d1)
 
 1 commit(s) ahead, 0 commit(s) behind
 
