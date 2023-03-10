@@ -29,6 +29,7 @@ jobs:
           # integration testing.
           cargo install --locked --debug --path ./radicle-remote-helper
           cargo test --all --all-features rad_patch -- --ignored
+          cargo test --all --all-features rad_workflow -- --ignored
 
   docs:
     name: Docs

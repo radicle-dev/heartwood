@@ -546,3 +546,63 @@ fn test_replication_via_seed() {
         .remote(&bob.id)
         .unwrap();
 }
+
+#[test]
+#[ignore]
+fn rad_workflow() {
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/workflow/1-new-project.md",
+        &working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn(Config::default());
+    let mut bob = bob.spawn(Config::default());
+
+    bob.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/workflow/2-cloning.md",
+        &working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+
+    bob.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/workflow/3-issues.md",
+        &working.join("bob").join("heartwood"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+
+    test(
+        "examples/workflow/4-patching-contributor.md",
+        &working.join("bob").join("heartwood"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+
+    bob.converge([&alice]);
+
+    test(
+        "examples/workflow/5-patching-maintainer.md",
+        &working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
