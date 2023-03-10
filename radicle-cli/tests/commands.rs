@@ -71,8 +71,6 @@ fn rad_issue() {
 
     // Setup a test repository.
     fixtures::repository(&working);
-    // Set a fixed commit time.
-    env::set_var(radicle_cob::git::RAD_COMMIT_TIME, "1671125284");
 
     test("examples/rad-init.md", &working, Some(home), []).unwrap();
     test("examples/rad-issue.md", &working, Some(home), []).unwrap();

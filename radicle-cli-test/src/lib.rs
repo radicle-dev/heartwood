@@ -41,6 +41,8 @@ pub struct Test {
 /// An assertion is a command to run with an expected output.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Assertion {
+    /// The test file that contains this assertion.
+    path: PathBuf,
     /// Name of command to run, eg. `git`.
     command: String,
     /// Command arguments, eg. `["push"]`.
@@ -102,10 +104,10 @@ impl TestFormula {
             }
             Err(err) => return Err(err.into()),
         };
-        self.read(io::Cursor::new(contents))
+        self.read(path, io::Cursor::new(contents))
     }
 
-    pub fn read(&mut self, r: impl io::BufRead) -> Result<&mut Self, Error> {
+    pub fn read(&mut self, path: &Path, r: impl io::BufRead) -> Result<&mut Self, Error> {
         let mut test = Test::default();
         let mut fenced = false; // Whether we're inside a fenced code block.
 
@@ -129,6 +131,7 @@ impl TestFormula {
                     let (cmd, args) = parts.split_first().ok_or(Error::Parse)?;
 
                     test.assertions.push(Assertion {
+                        path: path.to_path_buf(),
                         command: cmd.to_owned(),
                         args: args.to_owned(),
                         expected: String::new(),
@@ -167,6 +170,11 @@ impl TestFormula {
 
         for test in &self.tests {
             for assertion in &test.assertions {
+                let path = assertion
+                    .path
+                    .file_name()
+                    .map(|f| f.to_string_lossy().to_string())
+                    .unwrap_or(String::from("<none>"));
                 let cmd = if assertion.command == "rad" {
                     snapbox::cmd::cargo_bin("rad")
                 } else if assertion.command == "cd" {
@@ -188,10 +196,10 @@ impl TestFormula {
                 } else {
                     PathBuf::from(&assertion.command)
                 };
-                log::debug!(target: "test", "Running `{}` in `{}`..", cmd.display(), self.cwd.display());
+                log::debug!(target: "test", "{path}: Running `{}` in `{}`..", cmd.display(), self.cwd.display());
 
                 if !self.cwd.exists() {
-                    log::error!(target: "test", "Directory {} does not exist..", self.cwd.display());
+                    log::error!(target: "test", "{path}: Directory {} does not exist..", self.cwd.display());
                 }
                 let result = Command::new(cmd.clone())
                     .env_clear()
@@ -216,11 +224,11 @@ impl TestFormula {
                     }
                     Err(err) => {
                         if err.kind() == io::ErrorKind::NotFound {
-                            log::error!(target: "test", "Command `{}` does not exist..", cmd.display());
+                            log::error!(target: "test", "{path}: Command `{}` does not exist..", cmd.display());
                         }
                         return Err(io::Error::new(
                             err.kind(),
-                            format!("{err}: `{}`", cmd.display()),
+                            format!("{path}: {err}: `{}`", cmd.display()),
                         ));
                     }
                 }
@@ -259,8 +267,9 @@ $ rad sync
         .to_owned();
 
         let mut actual = TestFormula::new();
+        let path = Path::new("test.md").to_path_buf();
         actual
-            .read(io::BufReader::new(io::Cursor::new(input)))
+            .read(path.as_path(), io::BufReader::new(io::Cursor::new(input)))
             .unwrap();
 
         let expected = TestFormula {
@@ -272,6 +281,7 @@ $ rad sync
                     context: vec![String::from("Let's try to track @dave and @sean:")],
                     assertions: vec![
                         Assertion {
+                            path: path.clone(),
                             command: String::from("rad"),
                             args: vec![String::from("track"), String::from("@dave")],
                             expected: String::from(
@@ -280,6 +290,7 @@ $ rad sync
                             exit: ExitStatus::Success,
                         },
                         Assertion {
+                            path: path.clone(),
                             command: String::from("rad"),
                             args: vec![String::from("track"), String::from("@sean")],
                             expected: String::from(
@@ -292,6 +303,7 @@ $ rad sync
                 Test {
                     context: vec![String::from("Super, now let's move on to the next step.")],
                     assertions: vec![Assertion {
+                        path: path.clone(),
                         command: String::from("rad"),
                         args: vec![String::from("sync")],
                         expected: String::new(),
@@ -321,7 +333,10 @@ name = "radicle-cli-test"
         let mut formula = TestFormula::new();
         formula
             .cwd(env!("CARGO_MANIFEST_DIR"))
-            .read(io::BufReader::new(io::Cursor::new(input)))
+            .read(
+                Path::new("test.md"),
+                io::BufReader::new(io::Cursor::new(input)),
+            )
             .unwrap();
         formula.run().unwrap();
     }
