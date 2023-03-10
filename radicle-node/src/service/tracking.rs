@@ -97,7 +97,13 @@ impl Config {
         }))
     }
 
-    pub fn namespaces_for<S>(&self, storage: &S, rid: &Id) -> Result<Namespaces, NamespacesError>
+    /// Retrieve namespaces in `storage` for `rid` when in session with `remote`.
+    pub fn namespaces_for<S>(
+        &self,
+        storage: &S,
+        rid: &Id,
+        remote: &NodeId,
+    ) -> Result<Namespaces, NamespacesError>
     where
         S: ReadStorage,
     {
@@ -121,17 +127,19 @@ impl Config {
                         .filter_map(|node| (node.policy == Policy::Track).then_some(node.id))
                         .collect();
 
-                    let ns = if let Ok(repo) = storage.repository(*rid) {
+                    if let Ok(repo) = storage.repository(*rid) {
                         let delegates = repo
                             .delegates()
                             .map_err(|err| FailedDelegates { rid: *rid, err })?
                             .map(PublicKey::from);
                         trusted.extend(delegates);
-                        NonEmpty::from_vec(trusted).map(Namespaces::Many)
                     } else {
-                        Some(Namespaces::All)
-                    };
+                        // We don't have this repo yet, we should include the `remote`
+                        // in addition to `trusted`.
+                        trusted.push(*remote);
+                    }
 
+                    let ns = NonEmpty::from_vec(trusted).map(Namespaces::Many);
                     ns.ok_or_else(|| {
                         warn!(target: "service", "Attempted to fetch repo {rid} with no trusted peers");
                         NoTrusted { rid: *rid }

@@ -1103,7 +1103,7 @@ where
                 }
                 debug!(target: "service", "Fetch accepted for {rid} from {remote}..");
 
-                let namespaces = match self.tracking.namespaces_for(&self.storage, &rid) {
+                let namespaces = match self.tracking.namespaces_for(&self.storage, &rid, remote) {
                     Ok(ns) => ns,
                     Err(err) => {
                         if let Some(resp) = self.fetch_reqs.get(&rid) {

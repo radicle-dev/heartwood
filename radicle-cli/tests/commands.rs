@@ -496,6 +496,15 @@ fn test_replication_via_seed() {
         .rad("track", &[&bob.id.to_human()], working.join("alice"))
         .unwrap();
 
+    // Track nodes as the default scope is Trusted.
+    alice
+        .handle
+        .track_node(bob.id, Some("bob".to_string()))
+        .unwrap();
+    bob.handle
+        .track_node(alice.id, Some("alice".to_string()))
+        .unwrap();
+
     alice.routes_to(&[(rid, alice.id), (rid, seed.id)]);
     seed.routes_to(&[(rid, alice.id), (rid, seed.id)]);
     bob.routes_to(&[(rid, alice.id), (rid, seed.id)]);

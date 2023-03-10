@@ -142,7 +142,7 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
                 if let Err(err) = &result {
                     log::error!(target: "worker", "Fetch error: {err}");
                 } else if let Err(err) = pktline::done(&mut session) {
-                    log::error!(target: "worker", "Fetch error: {err}");
+                    log::error!(target: "worker", "pktline::done error: {err}");
                 }
                 (session, result)
             }

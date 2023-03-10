@@ -991,6 +991,15 @@ fn test_push_and_pull() {
         sender,
     ));
 
+    // Bob tracks Alice the node.
+    // This is needed as the default scope is `Trusted`.
+    let (sender, _) = chan::bounded(1);
+    bob.command(service::Command::TrackNode(
+        alice.id(),
+        Some("alice".to_string()),
+        sender,
+    ));
+
     // Eve tracks Alice's project.
     let (sender, _) = chan::bounded(1);
     eve.command(service::Command::TrackRepo(

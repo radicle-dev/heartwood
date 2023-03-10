@@ -223,7 +223,6 @@ fn test_dont_fetch_owned_refs() {
 }
 
 #[test]
-#[ignore = "failing"]
 fn test_fetch_trusted_remotes() {
     logger::init(log::Level::Debug);
 
