@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::State;
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::http::Method;
 use axum::response::{IntoResponse, Json};
@@ -76,12 +75,8 @@ impl Context {
 }
 
 pub fn router(ctx: Context) -> Router {
-    let root_router = Router::new()
-        .route("/", get(root_handler))
-        .with_state(ctx.clone());
-
     Router::new()
-        .merge(root_router)
+        .route("/", get(root_handler))
         .merge(v1::router(ctx))
         .layer(
             CorsLayer::new()
@@ -98,32 +93,13 @@ pub fn router(ctx: Context) -> Router {
         )
 }
 
-async fn root_handler(State(ctx): State<Context>) -> impl IntoResponse {
+async fn root_handler() -> impl IntoResponse {
     let response = json!({
-        "message": "Welcome!",
-        "service": "radicle-httpd",
-        "version": format!("{}-{}", VERSION, env!("GIT_HEAD")),
-        "node": { "id": ctx.profile.public_key },
-        "path": "/",
+        "path": "/api",
         "links": [
             {
-                "href": "/v1/projects",
-                "rel": "projects",
-                "type": "GET"
-            },
-            {
-                "href": "/v1/node",
-                "rel": "node",
-                "type": "GET"
-            },
-            {
-                "href": "/v1/delegates/:did/projects",
-                "rel": "projects",
-                "type": "GET"
-            },
-            {
-                "href": "/v1/stats",
-                "rel": "stats",
+                "href": "/v1",
+                "rel": "v1",
                 "type": "GET"
             }
         ]
