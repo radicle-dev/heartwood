@@ -18,7 +18,7 @@ fn print_repos(node: &Node) -> anyhow::Result<()> {
     let mut t = term::Table::new(term::table::TableOptions::default());
     t.push(["RID", "Scope", "Policy"]);
     t.push(["---", "-----", "------"]);
-    for tracking::Repo { id, scope, policy } in node.tracked_repos()? {
+    for tracking::Repo { id, scope, policy } in node.repo_policies()? {
         t.push([
             term::format::highlight(id.to_string()),
             term::format::secondary(scope.to_string()),
@@ -33,7 +33,7 @@ fn print_nodes(node: &Node) -> anyhow::Result<()> {
     let mut t = term::Table::new(term::table::TableOptions::default());
     t.push(["DID", "Alias", "Policy"]);
     t.push(["---", "-----", "------"]);
-    for tracking::Node { id, alias, policy } in node.tracked_nodes()? {
+    for tracking::Node { id, alias, policy } in node.node_policies()? {
         t.push([
             term::format::highlight(Did::from(id).to_string()),
             match alias {

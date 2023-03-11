@@ -125,14 +125,14 @@ pub enum CommandName {
     TrackRepo,
     /// Untrack the given repository.
     UntrackRepo,
-    /// Get the tracked repositories.
-    TrackedRepos,
+    /// Get the repository tracking policies.
+    RepoPolicies,
     /// Track the given node.
     TrackNode,
     /// Untrack the given node.
     UntrackNode,
-    /// Get the tracked nodes.
-    TrackedNodes,
+    /// Get the node tracking policies.
+    NodePolicies,
     /// Get the node's inventory.
     Inventory,
     /// Get the node's routing table.
@@ -380,8 +380,8 @@ pub trait Handle {
     type Error: std::error::Error + Send + Sync + 'static;
 
     type Routing: IntoIterator<Item = (Id, NodeId)>;
-    type TrackedRepos: IntoIterator<Item = tracking::Repo>;
-    type TrackedNodes: IntoIterator<Item = tracking::Node>;
+    type RepoPolicies: IntoIterator<Item = tracking::Repo>;
+    type NodePolicies: IntoIterator<Item = tracking::Node>;
 
     /// Check if the node is running. to a peer.
     fn is_running(&self) -> bool;
@@ -400,10 +400,10 @@ pub trait Handle {
     fn untrack_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
     /// Untrack the given node.
     fn untrack_node(&mut self, id: NodeId) -> Result<bool, Self::Error>;
-    /// Get the tracking information for all tracked repos in storage.
-    fn tracked_repos(&self) -> Result<Self::TrackedRepos, Self::Error>;
-    /// Get the tracking information for all tracked nodes in storage.
-    fn tracked_nodes(&self) -> Result<Self::TrackedNodes, Self::Error>;
+    /// Get the tracking information for all tracked or blocked repos in storage.
+    fn repo_policies(&self) -> Result<Self::RepoPolicies, Self::Error>;
+    /// Get the tracking information for all tracked or blocked nodes in storage.
+    fn node_policies(&self) -> Result<Self::NodePolicies, Self::Error>;
     /// Notify the service that a project has been updated, and announce local refs.
     fn announce_refs(&mut self, id: Id) -> Result<(), Self::Error>;
     /// Announce local inventory.
@@ -459,14 +459,14 @@ impl Node {
     }
 }
 
-// TODO(finto): tracked_repos, tracked_nodes, and routing should all
+// TODO(finto): repo_policies, node_policies, and routing should all
 // attempt to return iterators instead of allocating vecs.
 impl Handle for Node {
     type Sessions = ();
     type Error = Error;
 
-    type TrackedRepos = Vec<tracking::Repo>;
-    type TrackedNodes = Vec<tracking::Node>;
+    type RepoPolicies = Vec<tracking::Repo>;
+    type NodePolicies = Vec<tracking::Node>;
     type Routing = Vec<(Id, NodeId)>;
 
     fn is_running(&self) -> bool {
@@ -510,18 +510,18 @@ impl Handle for Node {
         Ok(result)
     }
 
-    fn tracked_repos(&self) -> Result<Vec<tracking::Repo>, Self::Error> {
+    fn repo_policies(&self) -> Result<Vec<tracking::Repo>, Self::Error> {
         let mut repos = Vec::new();
-        for result in self.call::<&str, _>(CommandName::TrackedRepos, [])? {
+        for result in self.call::<&str, _>(CommandName::RepoPolicies, [])? {
             let repo = result?;
             repos.push(repo);
         }
         Ok(repos)
     }
 
-    fn tracked_nodes(&self) -> Result<Vec<tracking::Node>, Self::Error> {
+    fn node_policies(&self) -> Result<Vec<tracking::Node>, Self::Error> {
         let mut repos = Vec::new();
-        for result in self.call::<&str, _>(CommandName::TrackedNodes, [])? {
+        for result in self.call::<&str, _>(CommandName::NodePolicies, [])? {
             let repo = result?;
             repos.push(repo);
         }

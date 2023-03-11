@@ -1452,9 +1452,9 @@ pub trait ServiceState {
     /// Get reference to routing table.
     fn routing(&self) -> &dyn routing::Store;
     /// Get the tracked repos.
-    fn tracked_repos(&self) -> Result<Vec<tracking::Repo>, tracking::Error>;
+    fn repo_policies(&self) -> Result<Vec<tracking::Repo>, tracking::Error>;
     /// Get the tracked nodes.
-    fn tracked_nodes(&self) -> Result<Vec<tracking::Node>, tracking::Error>;
+    fn node_policies(&self) -> Result<Vec<tracking::Node>, tracking::Error>;
 }
 
 impl<R, A, S, G> ServiceState for Service<R, A, S, G>
@@ -1491,11 +1491,11 @@ where
         &self.routing
     }
 
-    fn tracked_repos(&self) -> Result<Vec<tracking::Repo>, tracking::Error> {
+    fn repo_policies(&self) -> Result<Vec<tracking::Repo>, tracking::Error> {
         Ok(self.tracking.repo_entries()?.collect())
     }
 
-    fn tracked_nodes(&self) -> Result<Vec<tracking::Node>, tracking::Error> {
+    fn node_policies(&self) -> Result<Vec<tracking::Node>, tracking::Error> {
         Ok(self.tracking.node_entries()?.collect())
     }
 }

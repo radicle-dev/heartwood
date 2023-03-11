@@ -131,7 +131,7 @@ fn command<H: Handle<Error = runtime::HandleError>>(
                 }
             }
         }
-        CommandName::TrackedRepos => match handle.tracked_repos() {
+        CommandName::RepoPolicies => match handle.repo_policies() {
             Ok(ts) => {
                 for t in ts.into_iter() {
                     serde_json::to_writer(&mut writer, &t)?;
@@ -171,7 +171,7 @@ fn command<H: Handle<Error = runtime::HandleError>>(
                 }
             }
         }
-        CommandName::TrackedNodes => match handle.tracked_nodes() {
+        CommandName::NodePolicies => match handle.node_policies() {
             Ok(ts) => {
                 for t in ts.into_iter() {
                     serde_json::to_writer(&mut writer, &t)?;

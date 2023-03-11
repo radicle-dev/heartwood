@@ -21,8 +21,8 @@ impl radicle::node::Handle for Handle {
     type Error = HandleError;
     type Sessions = service::Sessions;
     type Routing = Vec<(Id, NodeId)>;
-    type TrackedRepos = Vec<tracking::Repo>;
-    type TrackedNodes = Vec<tracking::Node>;
+    type RepoPolicies = Vec<tracking::Repo>;
+    type NodePolicies = Vec<tracking::Node>;
 
     fn is_running(&self) -> bool {
         true
@@ -40,7 +40,7 @@ impl radicle::node::Handle for Handle {
         Ok(FetchResult::from(Ok::<Vec<RefUpdate>, Self::Error>(vec![])))
     }
 
-    fn tracked_repos(&self) -> Result<Self::TrackedRepos, Self::Error> {
+    fn repo_policies(&self) -> Result<Self::RepoPolicies, Self::Error> {
         Ok(self
             .tracking_repos
             .iter()
@@ -53,7 +53,7 @@ impl radicle::node::Handle for Handle {
             .collect())
     }
 
-    fn tracked_nodes(&self) -> Result<Self::TrackedNodes, Self::Error> {
+    fn node_policies(&self) -> Result<Self::NodePolicies, Self::Error> {
         Ok(self
             .tracking_nodes
             .iter()

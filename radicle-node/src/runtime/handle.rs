@@ -111,8 +111,8 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
     type Error = Error;
 
     type Routing = chan::Receiver<(Id, NodeId)>;
-    type TrackedRepos = chan::Receiver<tracking::Repo>;
-    type TrackedNodes = chan::Receiver<tracking::Node>;
+    type RepoPolicies = chan::Receiver<tracking::Repo>;
+    type NodePolicies = chan::Receiver<tracking::Node>;
 
     fn is_running(&self) -> bool {
         true
@@ -136,10 +136,10 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
         receiver.recv().map_err(Error::from)
     }
 
-    fn tracked_repos(&self) -> Result<Self::TrackedRepos, Self::Error> {
+    fn repo_policies(&self) -> Result<Self::RepoPolicies, Self::Error> {
         let (sender, receiver) = chan::unbounded();
         let query: Arc<QueryState> = Arc::new(move |state| {
-            for t in state.tracked_repos()? {
+            for t in state.repo_policies()? {
                 if sender.send(t).is_err() {
                     break;
                 }
@@ -153,10 +153,10 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
         Ok(receiver)
     }
 
-    fn tracked_nodes(&self) -> Result<Self::TrackedNodes, Self::Error> {
+    fn node_policies(&self) -> Result<Self::NodePolicies, Self::Error> {
         let (sender, receiver) = chan::unbounded();
         let query: Arc<QueryState> = Arc::new(move |state| {
-            for t in state.tracked_nodes()? {
+            for t in state.node_policies()? {
                 if sender.send(t).is_err() {
                     break;
                 }
