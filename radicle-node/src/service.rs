@@ -408,7 +408,9 @@ where
         if now - self.last_sync >= SYNC_INTERVAL {
             debug!(target: "service", "Running 'sync' task...");
 
-            // TODO: What do we do here?
+            if let Err(e) = self.fetch_missing_inventory() {
+                error!(target: "service", "Error fetching missing inventory: {e}");
+            }
             self.reactor.wakeup(SYNC_INTERVAL);
             self.last_sync = now;
         }
@@ -419,7 +421,7 @@ where
                     .inventory()
                     .and_then(|i| self.announce_inventory(i))
                 {
-                    error!("Error announcing inventory: {}", err);
+                    error!(target: "service", "Error announcing inventory: {}", err);
                 }
             }
             self.reactor.wakeup(ANNOUNCE_INTERVAL);
@@ -443,48 +445,14 @@ where
             Command::Connect(id, addr) => {
                 self.connect(id, addr);
             }
-            Command::Seeds(rid, resp) => {
-                #[derive(Default)]
-                pub struct Stats {
-                    connected: usize,
-                    disconnected: usize,
-                    fetching: usize,
+            Command::Seeds(rid, resp) => match self.seeds(&rid) {
+                Ok(seeds) => {
+                    resp.send(seeds).ok();
                 }
-
-                let (stats, seeds) = match self.routing.get(&rid) {
-                    Ok(seeds) => seeds.into_iter().fold(
-                        (Stats::default(), Seeds::default()),
-                        |(mut stats, mut seeds), node| {
-                            if node != self.node_id() {
-                                if self.sessions.is_fetching(&node) {
-                                    seeds.insert(Seed::Fetching(node));
-                                    stats.fetching += 1;
-                                } else if self.sessions.is_connected(&node) {
-                                    seeds.insert(Seed::Connected(node));
-                                    stats.connected += 1;
-                                } else if self.sessions.is_disconnected(&node) {
-                                    seeds.insert(Seed::Disconnected(node));
-                                    stats.connected += 1;
-                                }
-                            }
-
-                            (stats, seeds)
-                        },
-                    ),
-                    Err(err) => {
-                        error!(target: "service", "Error reading routing table for {rid}: {err}");
-                        drop(resp);
-
-                        return;
-                    }
-                };
-                debug!(
-                    target: "service",
-                    "Found {} connected seed(s), {} disconnected seed(s), and {} fetching seed(s) for {}",
-                    stats.connected, stats.disconnected, stats.fetching, rid
-                );
-                resp.send(seeds).ok();
-            }
+                Err(e) => {
+                    error!(target: "service", "Error reading routing table for {rid}: {e}");
+                }
+            },
             Command::Fetch(rid, seed, resp) => {
                 // TODO: Establish connections to unconnected seeds, and retry.
                 // TODO: Fetch requests should be queued and re-checked to see if they can
@@ -493,10 +461,10 @@ where
                 self.fetch(rid, &seed);
             }
             Command::TrackRepo(rid, scope, resp) => {
+                // Update our tracking policy.
                 let tracked = self
                     .track_repo(&rid, scope)
                     .expect("Service::command: error tracking repository");
-                // TODO: Try to fetch project if we weren't tracking it before.
                 resp.send(tracked).ok();
 
                 // Let all our peers know that we're interested in this repo from now on.
@@ -1287,6 +1255,47 @@ where
         false
     }
 
+    fn seeds(&self, rid: &Id) -> Result<Seeds, Error> {
+        #[derive(Default)]
+        pub struct Stats {
+            connected: usize,
+            disconnected: usize,
+            fetching: usize,
+        }
+
+        let (stats, seeds) = match self.routing.get(rid) {
+            Ok(seeds) => seeds.into_iter().fold(
+                (Stats::default(), Seeds::default()),
+                |(mut stats, mut seeds), node| {
+                    if node != self.node_id() {
+                        if self.sessions.is_fetching(&node) {
+                            seeds.insert(Seed::Fetching(node));
+                            stats.fetching += 1;
+                        } else if self.sessions.is_connected(&node) {
+                            seeds.insert(Seed::Connected(node));
+                            stats.connected += 1;
+                        } else if self.sessions.is_disconnected(&node) {
+                            seeds.insert(Seed::Disconnected(node));
+                            stats.connected += 1;
+                        }
+                    }
+
+                    (stats, seeds)
+                },
+            ),
+            Err(err) => {
+                return Err(Error::Routing(err));
+            }
+        };
+        debug!(
+            target: "service",
+            "Found {} connected seed(s), {} disconnected seed(s), and {} fetching seed(s) for {}",
+            stats.connected, stats.disconnected, stats.fetching, rid
+        );
+
+        Ok(seeds)
+    }
+
     /// Return a new filter object, based on our tracking policy.
     fn filter(&self) -> Filter {
         if self.config.policy == tracking::Policy::Track {
@@ -1376,6 +1385,43 @@ where
             .take(wanted)
             .map(|(n, s)| (n, s.addr))
             .collect()
+    }
+
+    /// Fetch all repositories that are tracked but missing from our inventory.
+    fn fetch_missing_inventory(&mut self) -> Result<(), Error> {
+        let inventory = self.storage().inventory()?;
+        let missing = self
+            .tracking
+            .repo_entries()?
+            .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id))
+            .filter(|rid| !inventory.contains(rid));
+
+        for rid in missing {
+            match self.seeds(&rid) {
+                Ok(mut seeds) => {
+                    if seeds.has_connections() {
+                        for seed in seeds.connected() {
+                            self.fetch(rid, seed);
+                        }
+                    } else {
+                        // TODO: We should make sure that this fetch is retried later, either
+                        // when we connect to a seed, or when we discover a new seed.
+                        // Since new connections and routing table updates are both conditions for
+                        // fetching, we should trigger fetches when those conditions appear.
+                        // Another way to handle this would be to update our database, saying
+                        // that we're trying to fetch a certain repo. We would then just
+                        // iterate over those entries in the above circumstances. This is
+                        // merely an optimization though, we can also iterate over all tracked
+                        // repos and check which ones are not in our inventory.
+                        warn!(target: "service", "No connected seeds found for {rid}..");
+                    }
+                }
+                Err(e) => {
+                    error!(target: "service", "Couldn't fetch missing repo {rid}: failed to lookup seeds: {e}");
+                }
+            }
+        }
+        Ok(())
     }
 
     fn maintain_connections(&mut self) {

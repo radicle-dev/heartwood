@@ -145,7 +145,7 @@ impl Storage {
 
             // For performance reasons, we don't do a full repository check here.
             if let Err(e) = repo.head() {
-                log::error!(target: "storage", "Repository {rid} is corrupted: looking up head: {e}");
+                log::warn!(target: "storage", "Repository {rid} is invalid: looking up head: {e}");
                 continue;
             }
             repos.push(rid);

@@ -945,6 +945,53 @@ fn test_track_repo_subscribe() {
 }
 
 #[test]
+fn test_fetch_missing_inventory() {
+    let rid = arbitrary::gen::<Id>(1);
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let (send, recv) = chan::bounded::<bool>(1);
+    let now = LocalTime::now();
+
+    alice.connect_to(&bob);
+    alice.connect_to(&eve);
+    alice.receive(
+        bob.id(),
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: vec![rid].try_into().unwrap(),
+                timestamp: now.as_millis(),
+            },
+            bob.signer(),
+        ),
+    );
+    alice.receive(
+        eve.id(),
+        Message::inventory(
+            InventoryAnnouncement {
+                inventory: vec![rid].try_into().unwrap(),
+                timestamp: now.as_millis(),
+            },
+            eve.signer(),
+        ),
+    );
+    alice.command(Command::TrackRepo(rid, node::tracking::Scope::All, send));
+    alice.outbox().for_each(drop);
+
+    assert!(recv.recv().unwrap());
+
+    alice.elapse(service::SYNC_INTERVAL);
+    alice
+        .messages(bob.id)
+        .find(|m| matches!(m, Message::Fetch { .. }))
+        .unwrap();
+    alice
+        .messages(eve.id)
+        .find(|m| matches!(m, Message::Fetch { .. }))
+        .unwrap();
+}
+
+#[test]
 fn test_push_and_pull() {
     let tempdir = tempfile::tempdir().unwrap();
 
