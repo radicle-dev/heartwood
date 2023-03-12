@@ -28,7 +28,7 @@ others to work on.  This is to ensure work is not duplicated.
 Let's assign ourselves to this one.
 
 ```
-$ rad assign 2e8c1bf3fe0532a314778357c886608a966a34bd did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad assign 2e8c1bf3fe0532a314778357c886608a966a34bd --to did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 It will now show in the list of issues assigned to us.
@@ -41,7 +41,7 @@ $ rad issue list --assigned
 Note: this can always be undone with the `unassign` subcommand.
 
 ```
-$ rad unassign 2e8c1bf3fe0532a314778357c886608a966a34bd did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad unassign 2e8c1bf3fe0532a314778357c886608a966a34bd --from did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Great, now we have communicated to the world about our car's defect.

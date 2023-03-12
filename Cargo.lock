@@ -1825,6 +1825,7 @@ dependencies = [
  "json-color",
  "lexopt",
  "log",
+ "nonempty 0.8.1",
  "pretty_assertions",
  "radicle",
  "radicle-cli-test",

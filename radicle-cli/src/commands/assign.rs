@@ -2,61 +2,65 @@ use std::ffi::OsString;
 use std::str::FromStr;
 
 use anyhow::anyhow;
+use nonempty::NonEmpty;
 use radicle::prelude::Did;
 
 use crate::terminal as term;
-use crate::terminal::args;
+use crate::terminal::args::{Args, Error, Help};
 use radicle::cob;
 use radicle::cob::issue;
 use radicle::storage::WriteStorage;
 
-pub const HELP: args::Help = args::Help {
+pub const HELP: Help = Help {
     name: "assign",
-    description: "assign an issue",
+    description: "Assign an issue",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
 
-    rad assign <issue> <did>
+    rad assign <issue> --to <did>
+
+    To assign multiple users to an issue, you may repeat
+    the `--to` option.
 
 Options
 
-    --help      Print help
+    --to <did>    Assignee to add to the issue
+    --help        Print help
 "#,
 };
 
 #[derive(Debug)]
 pub struct Options {
     pub id: issue::IssueId,
-    pub peer: Did,
+    pub to: NonEmpty<Did>,
 }
 
-impl args::Args for Options {
+impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<issue::IssueId> = None;
-        let mut peer: Option<Did> = None;
+        let mut to: Vec<Did> = Vec::new();
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") => {
-                    return Err(args::Error::Help.into());
+                    return Err(Error::Help.into());
                 }
-                Value(ref val) => {
-                    if id.is_none() {
-                        let val = val.to_string_lossy();
-                        let Ok(val) = issue::IssueId::from_str(&val) else {
-                            return Err(anyhow!("invalid issue ID '{}'", val));
-                        };
+                Long("to") => {
+                    let val = parser.value()?;
+                    let did = term::args::did(&val)?;
 
-                        id = Some(val);
-                    } else if peer.is_none() {
-                        peer = Some(term::args::did(val)?);
-                    } else {
-                        return Err(anyhow!(arg.unexpected()));
-                    }
+                    to.push(did);
+                }
+                Value(ref val) if id.is_none() => {
+                    let val = val.to_string_lossy();
+                    let Ok(val) = issue::IssueId::from_str(&val) else {
+                        return Err(anyhow!("invalid Issue ID '{}'", val));
+                    };
+                    id = Some(val);
                 }
                 _ => {
                     return Err(anyhow!(arg.unexpected()));
@@ -66,8 +70,9 @@ impl args::Args for Options {
 
         Ok((
             Options {
-                id: id.unwrap(),
-                peer: peer.unwrap(),
+                id: id.ok_or_else(|| anyhow!("an issue must be specified"))?,
+                to: NonEmpty::from_vec(to)
+                    .ok_or_else(|| anyhow!("an assignee must be specified"))?,
             },
             vec![],
         ))
@@ -76,17 +81,16 @@ impl args::Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let signer = term::signer(&profile)?;
-    let storage = &profile.storage;
     let (_, id) = radicle::rad::cwd()?;
-    let repo = storage.repository_mut(id)?;
+    let repo = profile.storage.repository_mut(id)?;
     let mut issues = issue::Issues::open(&repo)?;
-
-    let mut issue = issues.get_mut(&options.id).map_err(|err| match err {
-        cob::store::Error::NotFound(_, _) => anyhow!("issue not found '{}'", options.id),
-        _ => err.into(),
+    let mut issue = issues.get_mut(&options.id).map_err(|e| match e {
+        cob::store::Error::NotFound(_, _) => anyhow!("issue {} not found", options.id),
+        _ => e.into(),
     })?;
-    issue.assign(vec![*options.peer], &signer)?;
+    let signer = term::signer(&profile)?;
+
+    issue.assign(options.to.into_iter().map(Did::into), &signer)?;
 
     Ok(())
 }
