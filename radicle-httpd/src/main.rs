@@ -1,5 +1,6 @@
-use std::process;
+use std::{collections::HashMap, process};
 
+use radicle::prelude::Id;
 use radicle_httpd as httpd;
 use tracing::dispatcher::Dispatch;
 
@@ -49,6 +50,7 @@ fn parse_options() -> Result<httpd::Options, lexopt::Error> {
 
     let mut parser = lexopt::Parser::from_env();
     let mut listen = None;
+    let mut aliases = HashMap::new();
 
     while let Some(arg) = parser.next()? {
         match arg {
@@ -56,14 +58,21 @@ fn parse_options() -> Result<httpd::Options, lexopt::Error> {
                 let addr = parser.value()?.parse()?;
                 listen = Some(addr);
             }
+            Long("alias") | Short('a') => {
+                let alias: String = parser.value()?.parse()?;
+                let id: Id = parser.value()?.parse()?;
+
+                aliases.insert(alias, id);
+            }
             Long("help") => {
-                println!("usage: radicle-httpd [--listen <addr>]");
+                println!("usage: radicle-httpd [--listen <addr>] [--alias <name> <rid>]..");
                 process::exit(0);
             }
             _ => return Err(arg.unexpected()),
         }
     }
     Ok(httpd::Options {
+        aliases,
         listen: listen.unwrap_or_else(|| ([0, 0, 0, 0], 8080).into()),
     })
 }

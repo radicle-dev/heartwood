@@ -21,14 +21,14 @@ use radicle::profile::Profile;
 
 use crate::error::Error;
 
-pub fn router(profile: Arc<Profile>) -> Router {
+pub fn router(profile: Arc<Profile>, aliases: HashMap<String, Id>) -> Router {
     Router::new()
         .route("/:project/*request", any(git_handler))
-        .with_state(profile)
+        .with_state((profile, aliases))
 }
 
 async fn git_handler(
-    State(profile): State<Arc<Profile>>,
+    State((profile, aliases)): State<(Arc<Profile>, HashMap<String, Id>)>,
     AxumPath((project, request)): AxumPath<(String, String)>,
     method: Method,
     headers: HeaderMap,
@@ -37,10 +37,21 @@ async fn git_handler(
     body: Bytes,
 ) -> impl IntoResponse {
     let query = query.0.unwrap_or_default();
-    let id: Id = project.strip_suffix(".git").unwrap_or(&project).parse()?;
+    let name = project.strip_suffix(".git").unwrap_or(&project);
+    let rid: Id = match name.parse() {
+        Ok(rid) => rid,
+        Err(_) => {
+            let Some(rid) = aliases.get(name) else {
+                return Err(Error::NotFound);
+            };
+            *rid
+        }
+    };
 
-    let (status, headers, body) =
-        git_http_backend(&profile, method, headers, body, remote, id, &request, query).await?;
+    let (status, headers, body) = git_http_backend(
+        &profile, method, headers, body, remote, rid, &request, query,
+    )
+    .await?;
 
     let mut response_headers = HeaderMap::new();
     for (name, vec) in headers.iter() {
@@ -195,22 +206,54 @@ async fn git_http_backend(
 
 #[cfg(test)]
 mod routes {
+    use std::collections::HashMap;
     use std::net::SocketAddr;
+    use std::str::FromStr;
 
     use axum::extract::connect_info::MockConnectInfo;
     use axum::http::StatusCode;
+    use radicle::identity::Id;
 
-    use crate::test::{self, get};
+    use crate::test::{self, get, RID};
 
     #[tokio::test]
     async fn test_invalid_route_returns_404() {
         let tmp = tempfile::tempdir().unwrap();
         let ctx = test::seed(tmp.path());
-        let app = super::router(ctx.profile().to_owned())
+        let app = super::router(ctx.profile().to_owned(), HashMap::new())
             .layer(MockConnectInfo(SocketAddr::from(([0, 0, 0, 0], 8080))));
 
         let response = get(&app, "/aa/a").await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_info_request() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = test::seed(tmp.path());
+        let app = super::router(ctx.profile().to_owned(), HashMap::new())
+            .layer(MockConnectInfo(SocketAddr::from(([0, 0, 0, 0], 8080))));
+
+        let response = get(&app, format!("/{RID}.git/info/refs")).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_aliases() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = test::seed(tmp.path());
+        let app = super::router(
+            ctx.profile().to_owned(),
+            HashMap::from_iter([(String::from("heartwood"), Id::from_str(RID).unwrap())]),
+        )
+        .layer(MockConnectInfo(SocketAddr::from(([0, 0, 0, 0], 8080))));
+
+        let response = get(&app, "/woodheart.git/info/refs").await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let response = get(&app, "/heartwood.git/info/refs").await;
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }

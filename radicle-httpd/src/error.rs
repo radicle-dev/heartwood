@@ -4,6 +4,10 @@ use axum::response::{IntoResponse, Response};
 /// Errors relating to the HTTP backend.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// The entity was not found.
+    #[error("not found")]
+    NotFound,
+
     /// I/O error.
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),
@@ -47,6 +51,7 @@ impl Error {
             Error::ServiceUnavailable(_) => http::StatusCode::SERVICE_UNAVAILABLE,
             Error::InvalidId => http::StatusCode::NOT_FOUND,
             Error::Id(_) => http::StatusCode::NOT_FOUND,
+            Error::NotFound => http::StatusCode::NOT_FOUND,
             _ => http::StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

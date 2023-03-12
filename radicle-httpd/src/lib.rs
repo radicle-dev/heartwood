@@ -2,6 +2,7 @@
 #![allow(clippy::too_many_arguments)]
 pub mod error;
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::process::Command;
 use std::str;
@@ -14,6 +15,7 @@ use axum::body::{Body, BoxBody, HttpBody};
 use axum::http::{Request, Response};
 use axum::middleware;
 use axum::Router;
+use radicle::identity::Id;
 use tower_http::trace::TraceLayer;
 
 use tracing_extra::{tracing_middleware, ColoredStatus, Paint, RequestId, TracingInfo};
@@ -28,6 +30,7 @@ mod tracing_extra;
 
 #[derive(Debug, Clone)]
 pub struct Options {
+    pub aliases: HashMap<String, Id>,
     pub listen: SocketAddr,
 }
 
@@ -48,7 +51,7 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
 
     let ctx = api::Context::new(profile.clone());
     let api_router = api::router(ctx);
-    let git_router = git::router(profile.clone());
+    let git_router = git::router(profile.clone(), options.aliases);
     let raw_router = raw::router(profile);
 
     tracing::info!("listening on http://{}", options.listen);

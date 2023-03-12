@@ -23,6 +23,7 @@ use radicle_crypto::test::signer::MockSigner;
 
 use crate::api::{auth, Context};
 
+pub const RID: &str = "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp";
 pub const HEAD: &str = "1e978d19f251cd9821d9d9a76d1bd436bf0690d5";
 pub const HEAD_1: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
 pub const PATCH_ID: &str = "6ec9a764a888576abc7e582dbf82a31e23a9789d";
