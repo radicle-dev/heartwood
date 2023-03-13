@@ -121,11 +121,14 @@ impl Peer {
     /// Return the peer's id, if any.
     fn id(&self) -> Option<&NodeId> {
         match self {
-            Peer::Connected { id, .. }
+            Peer::Outbound { id }
+            | Peer::Connected { id, .. }
             | Peer::Disconnected { id: Some(id), .. }
             | Peer::Upgrading { id, .. }
             | Peer::Upgraded { id, .. } => Some(id),
-            _ => None,
+
+            Peer::Inbound {} => None,
+            Peer::Disconnected { id: None, .. } => None,
         }
     }
 
@@ -592,6 +595,8 @@ where
 
                         if let Some(id) = peer.id() {
                             self.service.disconnected(*id, &reason);
+                        } else {
+                            log::debug!(target: "wire", "Inbound disconnection before handshake; ignoring..")
                         }
                         peer.disconnected(reason);
                     }
