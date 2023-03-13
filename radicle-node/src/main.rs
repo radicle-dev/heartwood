@@ -9,7 +9,7 @@ use radicle::prelude::Signer;
 use radicle::profile;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::prelude::{Address, NodeId};
-use radicle_node::service::tracking::Policy;
+use radicle_node::service::tracking::{Policy, Scope};
 use radicle_node::Runtime;
 use radicle_node::{logger, service, signals};
 use radicle_term as term;
@@ -25,6 +25,7 @@ Options
     --external-address <address>     Publicly accessible address (default 0.0.0.0:8776)
     --git-daemon       <address>     Address to bind git-daemon to (default 0.0.0.0:9418)
     --tracking-policy  (track|block) Default tracking policy
+    --tracking-scope   (trusted|all) Default scope for tracking policies
     --help                           Print help
     --listen           <address>     Address to listen on
 
@@ -38,6 +39,7 @@ struct Options {
     limits: service::config::Limits,
     listen: Vec<net::SocketAddr>,
     tracking_policy: Policy,
+    tracking_scope: Scope,
 }
 
 impl Options {
@@ -51,6 +53,7 @@ impl Options {
         let mut listen = Vec::new();
         let mut daemon = None;
         let mut tracking_policy = Policy::default();
+        let mut tracking_scope = Scope::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -72,6 +75,13 @@ impl Options {
                         .parse()
                         .map_err(|s| anyhow!("unknown tracking policy {:?}", s))?;
                     tracking_policy = policy;
+                }
+                Long("tracking-scope") => {
+                    let scope = parser
+                        .value()?
+                        .parse()
+                        .map_err(|s| anyhow!("unknown tracking scope {:?}", s))?;
+                    tracking_scope = scope;
                 }
                 Long("limit-routing-max-age") => {
                     let secs: u64 = parser.value()?.parse()?;
@@ -106,6 +116,7 @@ impl Options {
             limits,
             listen,
             tracking_policy,
+            tracking_scope,
         })
     }
 }
@@ -132,6 +143,7 @@ fn execute() -> anyhow::Result<()> {
         external_addresses: options.external_addresses,
         limits: options.limits,
         policy: options.tracking_policy,
+        scope: options.tracking_scope,
         ..service::Config::default()
     };
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
