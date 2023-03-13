@@ -38,7 +38,9 @@ impl Default for Protocol {
 #[allow(clippy::large_enum_variant)]
 pub enum State {
     /// Initial state for outgoing connections.
-    Connecting,
+    Initial,
+    /// Connection attempted successfully.
+    Attempted,
     /// Initial state after handshake protocol hand-off.
     Connected {
         /// Connected since this time.
@@ -60,8 +62,11 @@ pub enum State {
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Connecting => {
-                write!(f, "connecting")
+            Self::Initial => {
+                write!(f, "initial")
+            }
+            Self::Attempted => {
+                write!(f, "attempted")
             }
             Self::Connected { protocol, .. } => match protocol {
                 Protocol::Gossip {
@@ -163,10 +168,10 @@ impl fmt::Display for Session {
 }
 
 impl Session {
-    pub fn connecting(id: NodeId, persistent: bool, rng: Rng) -> Self {
+    pub fn outbound(id: NodeId, persistent: bool, rng: Rng) -> Self {
         Self {
             id,
-            state: State::Connecting,
+            state: State::Initial,
             link: Link::Outbound,
             subscribe: None,
             persistent,
@@ -176,7 +181,7 @@ impl Session {
         }
     }
 
-    pub fn connected(id: NodeId, link: Link, persistent: bool, rng: Rng, time: LocalTime) -> Self {
+    pub fn inbound(id: NodeId, persistent: bool, rng: Rng, time: LocalTime) -> Self {
         Self {
             id,
             state: State::Connected {
@@ -184,7 +189,7 @@ impl Session {
                 ping: PingState::default(),
                 protocol: Protocol::default(),
             },
-            link,
+            link: Link::Inbound,
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
@@ -194,7 +199,7 @@ impl Session {
     }
 
     pub fn is_connecting(&self) -> bool {
-        matches!(self.state, State::Connecting { .. })
+        matches!(self.state, State::Attempted { .. })
     }
 
     pub fn is_connected(&self) -> bool {
@@ -213,6 +218,10 @@ impl Session {
 
     pub fn is_disconnected(&self) -> bool {
         matches!(self.state, State::Disconnected { .. })
+    }
+
+    pub fn is_initial(&self) -> bool {
+        matches!(self.state, State::Initial)
     }
 
     pub fn is_requesting(&self) -> bool {
@@ -275,12 +284,12 @@ impl Session {
         }
     }
 
-    pub fn to_connecting(&mut self) {
+    pub fn to_attempted(&mut self) {
         assert!(
-            self.is_disconnected(),
-            "Can only transition to 'connecting' state from 'disconnected' state"
+            self.is_initial(),
+            "Can only transition to 'attempted' state from 'initial' state"
         );
-        self.state = State::Connecting;
+        self.state = State::Attempted;
         self.attempts += 1;
     }
 
@@ -301,6 +310,16 @@ impl Session {
     /// that was requested.
     pub fn to_disconnected(&mut self, since: LocalTime, retry_at: LocalTime) {
         self.state = State::Disconnected { since, retry_at };
+    }
+
+    /// Return to initial state from disconnected state. This state transition
+    /// happens when we attempt to re-connect to a disconnected peer.
+    pub fn to_initial(&mut self) {
+        assert!(
+            self.is_disconnected(),
+            "Can only transition to 'initial' state from 'disconnected' state"
+        );
+        self.state = State::Initial;
     }
 
     pub fn requesting(&self) -> Option<Id> {

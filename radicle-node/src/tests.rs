@@ -110,6 +110,23 @@ fn test_disconnecting_unresponsive_peer() {
 }
 
 #[test]
+fn test_redundant_connect() {
+    let mut alice = Peer::new("alice", [8, 8, 8, 8]);
+    let bob = Peer::new("bob", [9, 9, 9, 9]);
+
+    alice.command(Command::Connect(bob.id(), bob.address()));
+    alice.command(Command::Connect(bob.id(), bob.address()));
+    alice.command(Command::Connect(bob.id(), bob.address()));
+
+    // Only one connection attempt is made.
+    assert_matches!(
+        alice.outbox().collect::<Vec<_>>().as_slice(),
+        [Io::Connect(id, addr)]
+        if *id == bob.id() && *addr == bob.addr()
+    );
+}
+
+#[test]
 fn test_connection_kept_alive() {
     let mut alice = Peer::new("alice", [8, 8, 8, 8]);
     let mut bob = Peer::new("bob", [9, 9, 9, 9]);
@@ -854,14 +871,13 @@ fn test_persistent_peer_reconnect_success() {
             ..peer::Config::default()
         },
     );
-
-    alice.attempted(bob.id(), &bob.addr());
-    alice.connected(bob.id(), Link::Outbound);
+    alice.connect_to(&bob);
 
     // A transient error such as this will cause Alice to attempt a reconnection.
     let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
     alice.disconnected(bob.id(), &DisconnectReason::Connection(error));
     alice.elapse(service::MIN_RECONNECTION_DELTA);
+    alice.elapse(service::MIN_RECONNECTION_DELTA); // Trigger a second wakeup to test idempotence.
 
     alice
         .outbox()

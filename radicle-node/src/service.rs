@@ -637,14 +637,15 @@ where
         // Inbound connection attempt.
     }
 
-    pub fn attempted(&mut self, id: NodeId, addr: &Address) {
-        debug!(target: "service", "Attempted connection to {id} ({addr})");
+    pub fn attempted(&mut self, nid: NodeId, addr: &Address) {
+        debug!(target: "service", "Attempted connection to {nid} ({addr})");
 
-        let persistent = self.config.is_persistent(&id);
-        self.sessions
-            .entry(id)
-            .and_modify(|sess| sess.to_connecting())
-            .or_insert_with(|| Session::connecting(id, persistent, self.rng.clone()));
+        if let Some(sess) = self.sessions.get_mut(&nid) {
+            sess.to_attempted();
+        } else {
+            #[cfg(debug_assertions)]
+            panic!("Service::attempted: unknown session {nid}@{addr}");
+        }
     }
 
     pub fn connected(&mut self, remote: NodeId, link: Link) {
@@ -666,9 +667,8 @@ where
                     );
                 }
                 Entry::Vacant(e) => {
-                    let peer = e.insert(Session::connected(
+                    let peer = e.insert(Session::inbound(
                         remote,
-                        Link::Inbound,
                         self.config.is_persistent(&remote),
                         self.rng.clone(),
                         self.clock,
@@ -684,40 +684,46 @@ where
 
         debug!(target: "service", "Disconnected from {} ({})", remote, reason);
 
-        if let Some(session) = self.sessions.get_mut(&remote) {
-            // If the peer disconnected while we were waiting for a [`Message::FetchOk`],
-            // return a failure to any potential fetcher.
-            if let Some(requested) = session.requesting() {
-                if let Some(resp) = self.fetch_reqs.remove(&requested) {
-                    resp.send(FetchResult::Failed {
-                        reason: format!("disconnected: {reason}"),
-                    })
-                    .ok();
-                }
-            }
-
-            // Attempt to re-connect to persistent peers.
-            if self.config.peer(&remote).is_some() {
-                if reason.is_transient() {
-                    let delay =
-                        LocalDuration::from_secs(2u64.saturating_pow(session.attempts() as u32))
-                            .clamp(MIN_RECONNECTION_DELTA, MAX_RECONNECTION_DELTA);
-
-                    session.to_disconnected(since, since + delay);
-
-                    debug!(target: "service", "Reconnecting to {remote} in {delay}..");
-
-                    self.reactor.wakeup(delay);
-                } else {
-                    // TODO: Only handle error transience for non-persistent peers.
-                    warn!(target: "service", "Permanently dropping persistent peer {remote} session due to non-transient error: {reason}");
-
-                    self.sessions.remove(&remote);
-                }
+        let Some(session) = self.sessions.get_mut(&remote) else {
+            if cfg!(debug_assertions) {
+                panic!("Service::disconnected: unknown session {remote}");
             } else {
-                self.sessions.remove(&remote);
-                self.maintain_connections();
+                return;
             }
+        };
+
+        // If the peer disconnected while we were waiting for a [`Message::FetchOk`],
+        // return a failure to any potential fetcher.
+        if let Some(requested) = session.requesting() {
+            if let Some(resp) = self.fetch_reqs.remove(&requested) {
+                resp.send(FetchResult::Failed {
+                    reason: format!("disconnected: {reason}"),
+                })
+                .ok();
+            }
+        }
+
+        // Attempt to re-connect to persistent peers.
+        if self.config.peer(&remote).is_some() {
+            if reason.is_transient() {
+                let delay =
+                    LocalDuration::from_secs(2u64.saturating_pow(session.attempts() as u32))
+                        .clamp(MIN_RECONNECTION_DELTA, MAX_RECONNECTION_DELTA);
+
+                session.to_disconnected(since, since + delay);
+
+                debug!(target: "service", "Reconnecting to {remote} in {delay}..");
+
+                self.reactor.wakeup(delay);
+            } else {
+                // TODO: Only handle error transience for non-persistent peers.
+                warn!(target: "service", "Permanently dropping persistent peer {remote} session due to non-transient error: {reason}");
+
+                self.sessions.remove(&remote);
+            }
+        } else {
+            self.sessions.remove(&remote);
+            self.maintain_connections();
         }
     }
 
@@ -1090,7 +1096,7 @@ where
                 self.reactor
                     .fetch(peer, rid, FetchDirection::Initiator { namespaces });
             }
-            (session::State::Connecting { .. }, msg) => {
+            (session::State::Attempted { .. } | session::State::Initial, msg) => {
                 error!(target: "service", "Received {:?} from connecting peer {}", msg, peer.id);
             }
             (session::State::Disconnected { .. }, msg) => {
@@ -1248,14 +1254,28 @@ where
         }
     }
 
-    fn connect(&mut self, node: NodeId, addr: Address) -> bool {
-        if self.sessions.is_disconnected(&node) {
-            self.reactor.connect(node, addr);
+    fn reconnect(&mut self, nid: NodeId, addr: Address) -> bool {
+        if let Some(sess) = self.sessions.get_mut(&nid) {
+            sess.to_initial();
+            self.reactor.connect(nid, addr);
+
             return true;
         }
-        log::warn!(target: "service", "Attempted connection to peer {node} which already has a session");
-
         false
+    }
+
+    fn connect(&mut self, nid: NodeId, addr: Address) -> bool {
+        if self.sessions.contains_key(&nid) {
+            log::warn!(target: "service", "Attempted connection to peer {nid} which already has a session");
+            return false;
+        }
+        let persistent = self.config.is_persistent(&nid);
+
+        self.sessions
+            .insert(nid, Session::outbound(nid, persistent, self.rng.clone()));
+        self.reactor.connect(nid, addr);
+
+        true
     }
 
     fn seeds(&self, rid: &Id) -> Result<Seeds, Error> {
@@ -1439,6 +1459,8 @@ where
 
     /// Maintain persistent peer connections.
     fn maintain_persistent(&mut self) {
+        debug!(target: "service", "Maintaining persistent peers..");
+
         let now = self.local_time();
         let mut reconnect = Vec::new();
 
@@ -1449,8 +1471,6 @@ where
                     // even a successful attempt means that we're unlikely to be able to reconnect.
 
                     if now >= *retry_at {
-                        // FIXME: Make sure we don't attempt two concurrent outgoing connections
-                        // to the same peer.
                         reconnect.push((*nid, addr.clone(), session.attempts()));
                     }
                 }
@@ -1458,7 +1478,7 @@ where
         }
 
         for (nid, addr, attempts) in reconnect {
-            if self.connect(nid, addr) {
+            if self.reconnect(nid, addr) {
                 debug!(target: "service", "Reconnecting to {nid} (attempts={attempts})...");
             }
         }
