@@ -2,8 +2,10 @@ use anyhow::anyhow;
 
 use radicle::cob::patch;
 use radicle::git;
+use radicle::node::Handle;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
+use radicle::Node;
 
 use crate::terminal as term;
 
@@ -120,7 +122,16 @@ pub fn run(
     term::blank();
 
     if options.announce {
-        // TODO
+        let mut node = Node::new(profile.socket());
+        match node.announce_refs(storage.id()) {
+            Ok(()) => {}
+            Err(e) if e.is_connection_err() => {
+                term::warning("Could not announce patch refs: node is not running");
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        }
     } else {
         term::info!("To publish your patch to the network, run:");
         term::indented(term::format::secondary("rad push"));
