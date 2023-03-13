@@ -1,3 +1,5 @@
+mod fetch;
+
 use std::io::{prelude::*, BufReader};
 use std::ops::ControlFlow;
 use std::thread::JoinHandle;
@@ -8,9 +10,9 @@ use cyphernet::Ecdh;
 use netservices::tunnel::Tunnel;
 use netservices::{AsConnection, NetSession, SplitIo};
 
-use radicle::crypto::{PublicKey, Signer};
+use radicle::crypto::Signer;
 use radicle::identity::{Id, IdentityError};
-use radicle::storage::{Namespaces, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
+use radicle::storage::{Namespaces, ReadRepository, RefUpdate};
 use radicle::{git, Storage};
 use reactor::poller::popol;
 
@@ -54,6 +56,12 @@ pub enum FetchError {
     Upload(#[from] UploadError),
     #[error("remote aborted fetch")]
     RemoteAbortedFetch,
+    #[error(transparent)]
+    StagingInit(#[from] fetch::error::Init),
+    #[error(transparent)]
+    StagingTransition(#[from] fetch::error::Transition),
+    #[error(transparent)]
+    StagingTransfer(#[from] fetch::error::Transfer),
 }
 
 impl FetchError {
@@ -100,7 +108,6 @@ pub struct TaskResult<G: Signer + Ecdh> {
 
 /// A worker that replicates git objects.
 struct Worker<G: Signer + Ecdh> {
-    local: PublicKey,
     storage: Storage,
     tasks: chan::Receiver<Task<G>>,
     daemon: net::SocketAddr,
@@ -153,27 +160,15 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
         drain: Vec<u8>,
         mut session: WireSession<G>,
     ) -> (WireSession<G>, Result<Vec<RefUpdate>, FetchError>) {
-        let rid = fetch.rid;
         match &fetch.direction {
             FetchDirection::Initiator { namespaces } => {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {}", fetch.rid);
 
-                let mut tunnel =
-                    match Tunnel::with(session, net::SocketAddr::from(([0, 0, 0, 0], 0))) {
-                        Ok(tunnel) => tunnel,
-                        Err((session, err)) => return (session, Err(err.into())),
-                    };
-                let result = self.fetch(rid, namespaces, &mut tunnel);
-                let mut session = tunnel.into_session();
-
+                let (session, result) = self.fetch(fetch.rid, namespaces, session);
                 if let Err(err) = &result {
                     log::error!(target: "worker", "Fetch error: {err}");
                 }
-                log::debug!(target: "worker", "Sending `done` packet to remote..");
 
-                if let Err(err) = pktline::done(&mut session) {
-                    log::error!(target: "worker", "Fetch error: error sending `done` packet: {err}");
-                }
                 (session, result)
             }
             FetchDirection::Responder => {
@@ -190,70 +185,13 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
                     }
                 };
                 let mut pktline_r = pktline::Reader::new(drain, &mut stream_r);
-
-                match self.upload_pack(fetch, &mut pktline_r, &mut stream_w) {
-                    Ok(()) => {
-                        log::debug!(target: "worker", "Upload of {} to {} exited successfully", fetch.rid, fetch.remote);
-
-                        (WireSession::from_split_io(stream_r, stream_w), Ok(vec![]))
-                    }
-                    Err(err) => {
-                        log::error!(target: "worker", "Upload error for {rid}: {err}");
-
-                        // If we exited without receiving a `done` packet, wait for it here.
-                        // It's possible that the daemon exited first, or the remote crashed.
-                        log::debug!(target: "worker", "Waiting for `done` packet from remote..");
-                        let mut header = [0; pktline::HEADER_LEN];
-
-                        // Set the read timeout for the `done` packet to twice the configured
-                        // value that is used for the fetching (initiator) side.
-                        //
-                        // This is because the uploader always waits for the `done` packet;
-                        // so in case the fetch is aborted by the uploader, eg. if
-                        // it can't connect with the daemon, it will wait long enough for the
-                        // fetcher to timeout before timing out itself, and will thus receive
-                        // the `done` packet.
-                        pktline_r
-                            .stream()
-                            .as_connection()
-                            .set_read_timeout(Some(self.timeout * 2))
-                            .ok();
-
-                        loop {
-                            match pktline_r.read_done_pktline(&mut header) {
-                                Ok(()) => {
-                                    log::debug!(target: "worker", "Received `done` packet from remote");
-
-                                    // If we get the `done` packet, we exit with the original
-                                    // error.
-                                    return (
-                                        WireSession::from_split_io(stream_r, stream_w),
-                                        Err(err.into()),
-                                    );
-                                }
-                                Err(e) if e.kind() == io::ErrorKind::InvalidInput => {
-                                    // If we get some other packet, because the fetch request
-                                    // is still sending stuff, we simply keep reading until we
-                                    // get a `done` packet.
-                                    continue;
-                                }
-                                Err(_) => {
-                                    // If we get any other error, eg. a timeout, we abort.
-                                    log::error!(
-                                        target: "worker",
-                                        "Upload of {} to {} aborted: missing `done` packet from remote",
-                                        fetch.rid,
-                                        fetch.remote
-                                    );
-                                    return (
-                                        WireSession::from_split_io(stream_r, stream_w),
-                                        Err(FetchError::RemoteAbortedFetch),
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
+                // Nb. two fetches are expected to happen, one for
+                // the `rad` refs, followed by the refs listed in
+                // signed refs.
+                let result = self.upload_pack(fetch, &mut pktline_r, &mut stream_w);
+                let result =
+                    result.and_then(|_| self.upload_pack(fetch, &mut pktline_r, &mut stream_w));
+                (WireSession::from_split_io(stream_r, stream_w), result)
             }
         }
     }
@@ -262,84 +200,99 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
         &self,
         rid: Id,
         namespaces: &Namespaces,
-        tunnel: &mut Tunnel<WireSession<G>>,
-    ) -> Result<Vec<RefUpdate>, FetchError> {
-        let repo = match self.storage.repository_mut(rid) {
-            Ok(r) => Ok(r),
-            Err(e) if e.is_not_found() => self.storage.create(rid),
-            Err(e) => Err(e),
-        }?;
-        let tunnel_addr = tunnel.local_addr()?;
-        let mut cmd = process::Command::new("git");
-        cmd.current_dir(repo.path())
-            .env_clear()
-            .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
-            .envs(git::env::GIT_DEFAULT_CONFIG)
-            .args(["-c", "protocol.version=2"])
-            .arg("fetch")
-            .arg("--verbose");
+        session: WireSession<G>,
+    ) -> (WireSession<G>, Result<Vec<RefUpdate>, FetchError>) {
+        let staging = match fetch::StagingPhaseInitial::new(&self.storage, rid, namespaces.clone())
+        {
+            Ok(staging) => staging,
+            Err(err) => return (session, Err(err.into())),
+        };
 
-        match namespaces {
-            Namespaces::All => {
-                // We should not prune in this case, because it would mean that namespaces that
-                // don't exit on the remote would be deleted locally.
-            }
-            Namespaces::One(_) => {
-                // TODO: Make sure we verify before pruning, as pruning may get us into
-                // a state we can't roll back.
-                cmd.arg("--prune");
-            }
-            Namespaces::Many(_) => {
-                // Same case as All
-            }
+        let session = match self.tunnel_fetch(&staging.repo, staging.refspecs(), session) {
+            (session, Ok(())) => session,
+            (session, Err(err)) => return (session, Err(err)),
+        };
+
+        let staging = match staging.into_final().map_err(FetchError::from) {
+            Ok(staging) => staging,
+            Err(e) => return (session, Err(e)),
+        };
+
+        let (session, res) = self.tunnel_fetch(&staging.repo, staging.refspecs(), session);
+
+        if let Err(e) = res {
+            return (session, Err(e));
         }
 
-        if self.atomic {
-            // Enable atomic fetch. Only works with Git 2.31 and later.
-            cmd.arg("--atomic");
-        }
-
-        // Ignore our own remote when fetching
-        let mut fetchspecs = namespaces.as_fetchspecs();
-        fetchspecs.push(format!("^refs/namespaces/{}/*", self.local));
-
-        cmd.arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()))
-            .args(&fetchspecs)
-            .stdout(process::Stdio::piped())
-            .stderr(process::Stdio::piped())
-            .stdin(process::Stdio::piped());
-
-        log::debug!(target: "worker", "Running command: {:?}", cmd);
-
-        let mut child = cmd.spawn()?;
-        let stderr = child.stderr.take().unwrap();
-
-        thread::Builder::new().name(self.name.clone()).spawn(|| {
-            for line in BufReader::new(stderr).lines().flatten() {
-                log::debug!(target: "worker", "Git: {}", line);
-            }
-        })?;
-
-        let _ = tunnel.tunnel_once(popol::Poller::new(), self.timeout)?;
-
-        // TODO: Parse fetch output to return updates.
-        let result = child.wait()?;
-        if result.success() {
-            log::debug!(target: "worker", "Fetch for {} exited successfully", rid);
-            let head = repo.set_head()?;
-            log::debug!(target: "worker", "Head for {} set to {head}", rid);
-            let head = repo.set_identity_head()?;
-            log::debug!(target: "worker", "'refs/rad/id' for {} set to {head}", rid);
-            Ok(vec![])
-        } else {
-            log::error!(target: "worker", "Fetch for {} failed", rid);
-            Err(FetchError::CommandFailed {
-                code: result.code().unwrap_or(1),
-            })
-        }
+        (session, staging.transfer().map_err(FetchError::from))
     }
 
     fn upload_pack(
+        &self,
+        fetch: &Fetch,
+        pktline_r: &mut pktline::Reader<WireReader>,
+        stream_w: &mut WireWriter<G>,
+    ) -> Result<Vec<RefUpdate>, FetchError> {
+        match self._upload_pack(fetch, pktline_r, stream_w) {
+            Ok(()) => {
+                log::debug!(target: "worker", "Upload of {} to {} exited successfully", fetch.rid, fetch.remote);
+
+                Ok(vec![])
+            }
+            Err(err) => {
+                log::error!(target: "worker", "Upload error for {}: {err}", fetch.rid);
+
+                // If we exited without receiving a `done` packet, wait for it here.
+                // It's possible that the daemon exited first, or the remote crashed.
+                log::debug!(target: "worker", "Waiting for `done` packet from remote..");
+                let mut header = [0; pktline::HEADER_LEN];
+
+                // Set the read timeout for the `done` packet to twice the configured
+                // value that is used for the fetching (initiator) side.
+                //
+                // This is because the uploader always waits for the `done` packet;
+                // so in case the fetch is aborted by the uploader, eg. if
+                // it can't connect with the daemon, it will wait long enough for the
+                // fetcher to timeout before timing out itself, and will thus receive
+                // the `done` packet.
+                pktline_r
+                    .stream()
+                    .as_connection()
+                    .set_read_timeout(Some(self.timeout * 2))
+                    .ok();
+
+                loop {
+                    match pktline_r.read_done_pktline(&mut header) {
+                        Ok(()) => {
+                            log::debug!(target: "worker", "Received `done` packet from remote");
+
+                            // If we get the `done` packet, we exit with the original
+                            // error.
+                            return Err(err.into());
+                        }
+                        Err(e) if e.kind() == io::ErrorKind::InvalidInput => {
+                            // If we get some other packet, because the fetch request
+                            // is still sending stuff, we simply keep reading until we
+                            // get a `done` packet.
+                            continue;
+                        }
+                        Err(_) => {
+                            // If we get any other error, eg. a timeout, we abort.
+                            log::error!(
+                                target: "worker",
+                                "Upload of {} to {} aborted: missing `done` packet from remote",
+                                fetch.rid,
+                                fetch.remote
+                            );
+                            return Err(FetchError::RemoteAbortedFetch);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn _upload_pack(
         &self,
         fetch: &Fetch,
         stream_r: &mut pktline::Reader<WireReader>,
@@ -403,6 +356,92 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
             }
         }
     }
+
+    fn tunnel_fetch<Specs>(
+        &self,
+        repo: &fetch::StagedRepository,
+        specs: Specs,
+        session: WireSession<G>,
+    ) -> (WireSession<G>, Result<(), FetchError>)
+    where
+        Specs: fetch::AsRefspecs,
+    {
+        let mut tunnel = match Tunnel::with(session, net::SocketAddr::from(([0, 0, 0, 0], 0))) {
+            Ok(tunnel) => tunnel,
+            Err((session, err)) => return (session, Err(err.into())),
+        };
+        let res = self._fetch(repo, specs, &mut tunnel);
+
+        let mut session = tunnel.into_session();
+
+        log::debug!(target: "worker", "Sending `done` packet to remote..");
+        if let Err(err) = pktline::done(&mut session) {
+            log::error!(target: "worker", "Fetch error: error sending `done` packet: {err}");
+        }
+        (session, res)
+    }
+
+    fn _fetch<S>(
+        &self,
+        repo: &storage::git::Repository,
+        specs: S,
+        tunnel: &mut Tunnel<WireSession<G>>,
+    ) -> Result<(), FetchError>
+    where
+        S: fetch::AsRefspecs,
+    {
+        let rid = repo.id;
+        let tunnel_addr = tunnel.local_addr()?;
+        let mut cmd = process::Command::new("git");
+        cmd.current_dir(repo.path())
+            .env_clear()
+            .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
+            .envs(git::env::GIT_DEFAULT_CONFIG)
+            .args(["-c", "protocol.version=2"])
+            .arg("fetch")
+            .arg("--verbose");
+
+        if self.atomic {
+            // Enable atomic fetch. Only works with Git 2.31 and later.
+            cmd.arg("--atomic");
+        }
+
+        let fetchspecs = specs
+            .into_refspecs()
+            .into_iter()
+            .map(|spec| spec.to_string())
+            .collect::<Vec<_>>();
+
+        cmd.arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()))
+            .args(&fetchspecs)
+            .stdout(process::Stdio::piped())
+            .stderr(process::Stdio::piped())
+            .stdin(process::Stdio::piped());
+
+        log::debug!(target: "worker", "Running command: {:?}", cmd);
+
+        let mut child = cmd.spawn()?;
+        let stderr = child.stderr.take().unwrap();
+
+        thread::Builder::new().name(self.name.clone()).spawn(|| {
+            for line in BufReader::new(stderr).lines().flatten() {
+                log::debug!(target: "worker", "Git: {}", line);
+            }
+        })?;
+
+        let _ = tunnel.tunnel_once(popol::Poller::new(), self.timeout)?;
+
+        let result = child.wait()?;
+        if result.success() {
+            log::debug!(target: "worker", "Fetch for {} exited successfully", rid);
+            Ok(())
+        } else {
+            log::error!(target: "worker", "Fetch for {} failed", rid);
+            Err(FetchError::CommandFailed {
+                code: result.code().unwrap_or(1),
+            })
+        }
+    }
 }
 
 /// A pool of workers. One thread is allocated for each worker.
@@ -413,7 +452,6 @@ pub struct Pool {
 impl Pool {
     /// Create a new worker pool with the given parameters.
     pub fn with<G: Signer + Ecdh + 'static>(
-        local: PublicKey,
         tasks: chan::Receiver<Task<G>>,
         handle: Handle<G>,
         config: Config,
@@ -421,7 +459,6 @@ impl Pool {
         let mut pool = Vec::with_capacity(config.capacity);
         for _ in 0..config.capacity {
             let worker = Worker {
-                local,
                 tasks: tasks.clone(),
                 handle: handle.clone(),
                 storage: config.storage.clone(),

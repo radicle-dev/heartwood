@@ -185,7 +185,6 @@ impl<G: Signer + Ecdh + 'static> Runtime<G> {
         }
 
         let pool = worker::Pool::with(
-            id,
             worker_recv,
             handle.clone(),
             worker::Config {

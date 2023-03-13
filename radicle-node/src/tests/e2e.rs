@@ -171,7 +171,7 @@ fn test_replication() {
             panic!("Fetch failed from {}: {reason}", bob.id);
         }
     };
-    assert_eq!(*updated, vec![]);
+    assert!(!updated.is_empty());
 
     log::debug!(target: "test", "Fetch complete with {}", bob.id);
 

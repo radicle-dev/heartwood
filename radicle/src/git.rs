@@ -19,7 +19,9 @@ pub use ext::Oid;
 pub use git2 as raw;
 pub use git_ref_format as fmt;
 pub use git_ref_format::{
-    component, lit, name, qualified, refname, Component, Namespaced, Qualified, RefStr, RefString,
+    component, lit, name, qualified, refname, refspec,
+    refspec::{PatternStr, PatternString},
+    Component, Namespaced, Qualified, RefStr, RefString,
 };
 pub use radicle_git_ext as ext;
 pub use storage::git::transport::local::Url;
