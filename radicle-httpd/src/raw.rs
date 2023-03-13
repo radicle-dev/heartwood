@@ -13,7 +13,7 @@ use radicle::storage::git::paths;
 use radicle_surf::{Oid, Repository};
 
 use crate::axum_extra::Path;
-use crate::error::Error;
+use crate::error::RawError as Error;
 
 const MAX_BLOB_SIZE: usize = 4_194_304;
 

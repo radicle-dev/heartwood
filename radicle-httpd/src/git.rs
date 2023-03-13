@@ -19,7 +19,7 @@ use hyper::body::Buf as _;
 use radicle::identity::Id;
 use radicle::profile::Profile;
 
-use crate::error::Error;
+use crate::error::GitError as Error;
 
 pub fn router(profile: Arc<Profile>, aliases: HashMap<String, Id>) -> Router {
     Router::new()

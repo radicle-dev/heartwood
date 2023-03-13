@@ -1,9 +1,9 @@
 use axum::http;
 use axum::response::{IntoResponse, Response};
 
-/// Errors relating to the HTTP backend.
+/// Errors relating to the Git backend.
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub enum GitError {
     /// The entity was not found.
     #[error("not found")]
     NotFound,
@@ -24,10 +24,6 @@ pub enum Error {
     #[error("backend error")]
     Backend,
 
-    /// Id is not valid.
-    #[error("id is not valid")]
-    InvalidId,
-
     /// HeaderName error.
     #[error(transparent)]
     InvalidHeaderName(#[from] axum::http::header::InvalidHeaderName),
@@ -35,29 +31,49 @@ pub enum Error {
     /// HeaderValue error.
     #[error(transparent)]
     InvalidHeaderValue(#[from] axum::http::header::InvalidHeaderValue),
-
-    /// Surf error.
-    #[error(transparent)]
-    Surf(#[from] radicle_surf::Error),
-
-    // Surf file error.
-    #[error(transparent)]
-    SurfFile(#[from] radicle_surf::fs::error::File),
 }
 
-impl Error {
+impl GitError {
     pub fn status(&self) -> http::StatusCode {
         match self {
-            Error::ServiceUnavailable(_) => http::StatusCode::SERVICE_UNAVAILABLE,
-            Error::InvalidId => http::StatusCode::NOT_FOUND,
-            Error::Id(_) => http::StatusCode::NOT_FOUND,
-            Error::NotFound => http::StatusCode::NOT_FOUND,
+            GitError::ServiceUnavailable(_) => http::StatusCode::SERVICE_UNAVAILABLE,
+            GitError::Id(_) => http::StatusCode::NOT_FOUND,
+            GitError::NotFound => http::StatusCode::NOT_FOUND,
             _ => http::StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
 
-impl IntoResponse for Error {
+impl IntoResponse for GitError {
+    fn into_response(self) -> Response {
+        tracing::error!("{}", self);
+
+        self.status().into_response()
+    }
+}
+
+/// Errors relating to the `/raw` route.
+#[derive(Debug, thiserror::Error)]
+pub enum RawError {
+    /// Surf error.
+    #[error(transparent)]
+    Surf(#[from] radicle_surf::Error),
+
+    /// Surf file error.
+    #[error(transparent)]
+    SurfFile(#[from] radicle_surf::fs::error::File),
+}
+
+impl RawError {
+    pub fn status(&self) -> http::StatusCode {
+        match self {
+            RawError::SurfFile(_) => http::StatusCode::NOT_FOUND,
+            _ => http::StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
+impl IntoResponse for RawError {
     fn into_response(self) -> Response {
         tracing::error!("{}", self);
 

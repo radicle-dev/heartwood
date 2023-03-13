@@ -3,7 +3,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
 
-/// Errors relating to the HTTP backend.
+/// Errors relating to the API backend.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The entity was not found.
