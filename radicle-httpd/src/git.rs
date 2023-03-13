@@ -217,18 +217,6 @@ mod routes {
     use crate::test::{self, get, RID};
 
     #[tokio::test]
-    async fn test_invalid_route_returns_404() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::seed(tmp.path());
-        let app = super::router(ctx.profile().to_owned(), HashMap::new())
-            .layer(MockConnectInfo(SocketAddr::from(([0, 0, 0, 0], 8080))));
-
-        let response = get(&app, "/aa/a").await;
-
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    }
-
-    #[tokio::test]
     async fn test_info_request() {
         let tmp = tempfile::tempdir().unwrap();
         let ctx = test::seed(tmp.path());

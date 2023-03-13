@@ -9,14 +9,16 @@ use std::str;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ::tracing::Span;
 use anyhow::Context as _;
 use axum::body::{Body, BoxBody, HttpBody};
 use axum::http::{Request, Response};
 use axum::middleware;
 use axum::Router;
-use radicle::identity::Id;
 use tower_http::trace::TraceLayer;
+use tracing::Span;
+
+use radicle::identity::Id;
+use radicle::Profile;
 
 use tracing_extra::{tracing_middleware, ColoredStatus, Paint, RequestId, TracingInfo};
 
@@ -44,22 +46,17 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
 
     tracing::info!("{}", str::from_utf8(&git_version)?.trim());
 
-    let profile = Arc::new(radicle::Profile::load()?);
+    let listen = options.listen;
+
+    tracing::info!("listening on http://{}", listen);
+
+    let profile = Profile::load()?;
     let request_id = RequestId::new();
 
     tracing::info!("using radicle home at {}", profile.home().display());
 
-    let ctx = api::Context::new(profile.clone());
-    let api_router = api::router(ctx);
-    let git_router = git::router(profile.clone(), options.aliases);
-    let raw_router = raw::router(profile);
-
-    tracing::info!("listening on http://{}", options.listen);
-
-    let app = Router::new()
-        .merge(git_router)
-        .nest("/api", api_router)
-        .nest("/raw", raw_router)
+    let app =
+        router(options, profile)?
         .layer(middleware::from_fn(tracing_middleware))
         .layer(
             TraceLayer::new_for_http()
@@ -95,8 +92,54 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
         )
         .into_make_service_with_connect_info::<SocketAddr>();
 
-    axum::Server::bind(&options.listen)
+    axum::Server::bind(&listen)
         .serve(app)
         .await
         .map_err(anyhow::Error::from)
+}
+
+/// Create a router consisting of other sub-routers.
+fn router(options: Options, profile: Profile) -> anyhow::Result<Router> {
+    let profile = Arc::new(profile);
+    let ctx = api::Context::new(profile.clone());
+
+    let api_router = api::router(ctx);
+    let git_router = git::router(profile.clone(), options.aliases);
+    let raw_router = raw::router(profile);
+
+    let app = Router::new()
+        .merge(git_router)
+        .nest("/api", api_router)
+        .nest("/raw", raw_router);
+
+    Ok(app)
+}
+
+#[cfg(test)]
+mod routes {
+    use std::collections::HashMap;
+    use std::net::SocketAddr;
+
+    use axum::extract::connect_info::MockConnectInfo;
+    use axum::http::StatusCode;
+
+    use crate::test::{self, get};
+
+    #[tokio::test]
+    async fn test_invalid_route_returns_404() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(
+            super::Options {
+                aliases: HashMap::new(),
+                listen: SocketAddr::from(([0, 0, 0, 0], 8080)),
+            },
+            test::profile(tmp.path(), [0xff; 32]),
+        )
+        .unwrap()
+        .layer(MockConnectInfo(SocketAddr::from(([0, 0, 0, 0], 8080))));
+
+        let response = get(&app, "/aa/a").await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
 }
