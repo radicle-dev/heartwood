@@ -36,13 +36,20 @@ pub trait FromHistory: Sized + Default {
     /// Create an object from a history.
     fn from_history(history: &History) -> Result<(Self, Lamport), Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
-            if let Ok(Ops(ops)) = Ops::try_from(entry) {
-                if let Err(err) = acc.apply(ops) {
-                    log::warn!("Error applying op to `{}` state: {err}", Self::type_name());
+            match Ops::try_from(entry) {
+                Ok(Ops(ops)) => {
+                    if let Err(err) = acc.apply(ops) {
+                        log::warn!("Error applying op to `{}` state: {err}", Self::type_name());
+                        return ControlFlow::Break(acc);
+                    }
+                }
+                Err(err) => {
+                    log::warn!(
+                        "Error decoding ops for `{}` state: {err}",
+                        Self::type_name()
+                    );
                     return ControlFlow::Break(acc);
                 }
-            } else {
-                return ControlFlow::Break(acc);
             }
             ControlFlow::Continue(acc)
         });
