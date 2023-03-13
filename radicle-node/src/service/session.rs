@@ -49,7 +49,12 @@ pub enum State {
         protocol: Protocol,
     },
     /// When a peer is disconnected.
-    Disconnected { since: LocalTime },
+    Disconnected {
+        /// Since when has this peer been disconnected.
+        since: LocalTime,
+        /// When to retry the connection.
+        retry_at: LocalTime,
+    },
 }
 
 impl fmt::Display for State {
@@ -294,8 +299,12 @@ impl Session {
 
     /// Move the session state to "disconnected". Returns any pending RID
     /// that was requested.
-    pub fn to_disconnected(&mut self, since: LocalTime) -> Option<Id> {
-        let request = if let State::Connected {
+    pub fn to_disconnected(&mut self, since: LocalTime, retry_at: LocalTime) {
+        self.state = State::Disconnected { since, retry_at };
+    }
+
+    pub fn requesting(&self) -> Option<Id> {
+        if let State::Connected {
             protocol: Protocol::Gossip { requested },
             ..
         } = self.state
@@ -303,10 +312,7 @@ impl Session {
             requested
         } else {
             None
-        };
-        self.state = State::Disconnected { since };
-
-        request
+        }
     }
 
     pub fn ping(&mut self, reactor: &mut Reactor) -> Result<(), Error> {

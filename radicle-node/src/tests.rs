@@ -822,17 +822,16 @@ fn test_persistent_peer_reconnect_attempt() {
     alice.disconnected(eve.id(), &DisconnectReason::Dial(error.clone()));
     assert_matches!(alice.outbox().next(), None);
 
-    for _ in 0..MAX_CONNECTION_ATTEMPTS {
+    for _ in 0..3 {
         alice.disconnected(bob.id(), &DisconnectReason::Connection(error.clone()));
-        assert_matches!(alice.outbox().next(), Some(Io::Connect(a, _)) if a == bob.id());
-        assert_matches!(alice.outbox().next(), None);
+        alice.elapse(service::MAX_RECONNECTION_DELTA);
+        alice
+            .outbox()
+            .find(|io| matches!(io, Io::Connect(a, _) if a == &bob.id()))
+            .unwrap();
 
         alice.attempted(bob.id(), &bob.address());
     }
-
-    // After the max connection attempts, a disconnect doesn't trigger a reconnect.
-    alice.disconnected(bob.id(), &DisconnectReason::Connection(error));
-    assert_matches!(alice.outbox().next(), None);
 }
 
 #[test]
@@ -862,6 +861,7 @@ fn test_persistent_peer_reconnect_success() {
     // A transient error such as this will cause Alice to attempt a reconnection.
     let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
     alice.disconnected(bob.id(), &DisconnectReason::Connection(error));
+    alice.elapse(service::MIN_RECONNECTION_DELTA);
 
     alice
         .outbox()
