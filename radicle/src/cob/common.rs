@@ -36,10 +36,10 @@ pub enum ReactionError {
     InvalidReaction,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Serialize)]
 #[serde(transparent)]
 pub struct Reaction {
-    pub emoji: char,
+    emoji: char,
 }
 
 impl Reaction {
@@ -48,6 +48,46 @@ impl Reaction {
             return Err(ReactionError::InvalidReaction);
         }
         Ok(Self { emoji })
+    }
+}
+
+impl<'de> Deserialize<'de> for Reaction {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ReactionVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ReactionVisitor {
+            type Value = Reaction;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a reaction emoji")
+            }
+
+            fn visit_char<E>(self, v: char) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Reaction::new(v).map_err(|e| E::custom(e.to_string()))
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Reaction::from_str(v).map_err(|e| E::custom(e.to_string()))
+            }
+
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Reaction::from_str(&v).map_err(|e| E::custom(e.to_string()))
+            }
+        }
+
+        deserializer.deserialize_char(ReactionVisitor)
     }
 }
 
