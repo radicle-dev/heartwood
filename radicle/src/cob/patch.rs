@@ -399,7 +399,7 @@ impl Revision {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", tag = "status")]
 pub enum State {
     #[default]
     Proposed,

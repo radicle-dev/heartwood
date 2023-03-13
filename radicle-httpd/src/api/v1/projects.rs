@@ -1351,7 +1351,7 @@ mod routes {
                 },
                 "title": "A new `hello word`",
                 "description": "change `hello world` in README to something else",
-                "state": "proposed",
+                "state": { "status": "proposed" },
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
@@ -1382,7 +1382,7 @@ mod routes {
                 },
                 "title": "A new `hello word`",
                 "description": "change `hello world` in README to something else",
-                "state": "proposed",
+                "state": { "status": "proposed" },
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
@@ -1452,7 +1452,7 @@ mod routes {
                 },
                 "title": "Update README",
                 "description": "Do some changes to README",
-                "state": "proposed",
+                "state": { "status": "proposed" },
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
