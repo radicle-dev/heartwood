@@ -619,7 +619,8 @@ mod routes {
 
     use crate::test::{
         self, get, patch, post, CONTRIBUTOR_ISSUE_ID, CONTRIBUTOR_PUB_KEY, CONTRIBUTOR_RID, HEAD,
-        HEAD_1, ISSUE_COMMENT_ID, ISSUE_DISCUSSION_ID, ISSUE_ID, PATCH_ID, SESSION_ID, TIMESTAMP,
+        HEAD_1, ISSUE_COMMENT_ID, ISSUE_DISCUSSION_ID, ISSUE_ID, PATCH_ID, RID, SESSION_ID,
+        TIMESTAMP,
     };
 
     #[tokio::test]
@@ -647,7 +648,7 @@ mod routes {
                   "open": 1,
                   "closed": 0,
                 },
-                "id": "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp"
+                "id": RID
               }
             ])
         );
@@ -657,7 +658,7 @@ mod routes {
     async fn test_projects() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp").await;
+        let response = get(&app, format!("/projects/{RID}")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -677,7 +678,7 @@ mod routes {
                  "open": 1,
                  "closed": 0,
                },
-               "id": "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp"
+               "id": RID
             })
         );
     }
@@ -686,7 +687,7 @@ mod routes {
     async fn test_projects_commits_root() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/commits").await;
+        let response = get(&app, format!("/projects/{RID}/commits")).await;
 
         assert_eq!(response.status(), StatusCode::FOUND);
         assert_eq!(
@@ -810,11 +811,7 @@ mod routes {
     async fn test_projects_commits() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(
-            &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/commits/{HEAD}"),
-        )
-        .await;
+        let response = get(&app, format!("/projects/{RID}/commits/{HEAD}")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -877,11 +874,7 @@ mod routes {
     async fn test_projects_tree() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(
-            &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/tree/{HEAD}/"),
-        )
-        .await;
+        let response = get(&app, format!("/projects/{RID}/tree/{HEAD}/")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -924,11 +917,7 @@ mod routes {
             )
         );
 
-        let response = get(
-            &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/tree/{HEAD}/dir1"),
-        )
-        .await;
+        let response = get(&app, format!("/projects/{RID}/tree/{HEAD}/dir1")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -970,7 +959,7 @@ mod routes {
     async fn test_projects_remotes_root() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/remotes").await;
+        let response = get(&app, format!("/projects/{RID}/remotes")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -993,7 +982,7 @@ mod routes {
         let app = super::router(test::seed(tmp.path()));
         let response = get(
             &app,
-            "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/remotes/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+            format!("/projects/{RID}/remotes/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"),
         )
         .await;
 
@@ -1014,11 +1003,7 @@ mod routes {
     async fn test_projects_blob() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(
-            &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/blob/{HEAD}/README"),
-        )
-        .await;
+        let response = get(&app, format!("/projects/{RID}/blob/{HEAD}/README")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -1050,11 +1035,7 @@ mod routes {
     async fn test_projects_readme() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(
-            &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/readme/{HEAD}"),
-        )
-        .await;
+        let response = get(&app, format!("/projects/{RID}/readme/{HEAD}")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -1086,7 +1067,7 @@ mod routes {
     async fn test_projects_issues_root() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/issues").await;
+        let response = get(&app, format!("/projects/{RID}/issues")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -1338,7 +1319,7 @@ mod routes {
     async fn test_projects_patches() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(&app, "/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches").await;
+        let response = get(&app, format!("/projects/{RID}/patches")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -1365,11 +1346,7 @@ mod routes {
             ])
         );
 
-        let response = get(
-            &app,
-            format!("/projects/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/patches/{PATCH_ID}"),
-        )
-        .await;
+        let response = get(&app, format!("/projects/{RID}/patches/{PATCH_ID}")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(

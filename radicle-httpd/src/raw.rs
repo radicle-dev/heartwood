@@ -127,7 +127,7 @@ async fn file_handler(
 mod routes {
     use axum::http::StatusCode;
 
-    use crate::test::{self, get, HEAD};
+    use crate::test::{self, get, HEAD, RID};
 
     #[tokio::test]
     async fn test_file_handler() {
@@ -135,11 +135,7 @@ mod routes {
         let ctx = test::seed(tmp.path());
         let app = super::router(ctx.profile().to_owned());
 
-        let response = get(
-            &app,
-            format!("/rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp/{HEAD}/dir1/README"),
-        )
-        .await;
+        let response = get(&app, format!("/{RID}/{HEAD}/dir1/README")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.body().await, "Hello World from dir1!\n");

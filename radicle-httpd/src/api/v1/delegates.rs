@@ -75,7 +75,7 @@ mod routes {
     use axum::http::StatusCode;
     use serde_json::json;
 
-    use crate::test::{self, get, HEAD};
+    use crate::test::{self, get, HEAD, RID};
 
     #[tokio::test]
     async fn test_delegates_projects() {
@@ -106,7 +106,7 @@ mod routes {
                   "open": 1,
                   "closed": 0,
                 },
-                "id": "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp"
+                "id": RID
               }
             ])
         );
