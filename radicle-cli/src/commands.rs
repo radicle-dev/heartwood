@@ -42,10 +42,14 @@ pub mod rad_review;
 pub mod rad_rm;
 #[path = "commands/self.rs"]
 pub mod rad_self;
+#[path = "commands/tag.rs"]
+pub mod rad_tag;
 #[path = "commands/track.rs"]
 pub mod rad_track;
 #[path = "commands/unassign.rs"]
 pub mod rad_unassign;
+#[path = "commands/untag.rs"]
+pub mod rad_untag;
 #[path = "commands/untrack.rs"]
 pub mod rad_untrack;
 #[path = "commands/web.rs"]

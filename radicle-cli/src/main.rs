@@ -278,6 +278,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "tag" => {
+            term::run_command_args::<rad_tag::Options, _>(
+                rad_tag::HELP,
+                "Tag",
+                rad_tag::run,
+                args.to_vec(),
+            );
+        }
         "track" => {
             term::run_command_args::<rad_track::Options, _>(
                 rad_track::HELP,
@@ -291,6 +299,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 rad_unassign::HELP,
                 "Unassign",
                 rad_unassign::run,
+                args.to_vec(),
+            );
+        }
+        "untag" => {
+            term::run_command_args::<rad_untag::Options, _>(
+                rad_untag::HELP,
+                "Untag",
+                rad_untag::run,
                 args.to_vec(),
             );
         }

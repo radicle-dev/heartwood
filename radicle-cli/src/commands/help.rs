@@ -33,8 +33,10 @@ const COMMANDS: &[Help] = &[
     rad_review::HELP,
     rad_rm::HELP,
     rad_self::HELP,
+    rad_tag::HELP,
     rad_track::HELP,
     rad_unassign::HELP,
+    rad_untag::HELP,
     rad_untrack::HELP,
 ];
 
