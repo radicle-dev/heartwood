@@ -138,12 +138,12 @@ async fn history_handler(
         per_page,
     } = qs;
 
-    let (sha, fallback_to_head) = match parent {
-        Some(commit) => (commit, false),
+    let sha = match parent {
+        Some(commit) => commit,
         None => {
             let info = ctx.project_info(project)?;
 
-            (info.head.to_string(), true)
+            info.head.to_string()
         }
     };
 
@@ -200,10 +200,6 @@ async fn history_handler(
         "commits": commits,
         "stats":  repo.stats()?,
     });
-
-    if fallback_to_head {
-        return Ok::<_, Error>((StatusCode::FOUND, Json(response)));
-    }
 
     Ok::<_, Error>((StatusCode::OK, Json(response)))
 }
@@ -689,7 +685,7 @@ mod routes {
         let app = super::router(test::seed(tmp.path()));
         let response = get(&app, format!("/projects/{RID}/commits")).await;
 
-        assert_eq!(response.status(), StatusCode::FOUND);
+        assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.json().await,
             json!({
