@@ -1,0 +1,3 @@
+# ARCHITECTURE
+
+*Work in progress*
