@@ -1,3 +1,5 @@
+pub mod store;
+
 use std::fmt;
 use std::str::FromStr;
 
@@ -56,7 +58,6 @@ impl FromStr for Policy {
     }
 }
 
-#[cfg(feature = "sql")]
 impl sqlite::BindableWithIndex for Policy {
     fn bind<I: sqlite::ParameterIndex>(
         self,
@@ -71,7 +72,6 @@ impl sqlite::BindableWithIndex for Policy {
     }
 }
 
-#[cfg(feature = "sql")]
 impl TryFrom<&sqlite::Value> for Policy {
     type Error = sqlite::Error;
 
@@ -124,7 +124,6 @@ impl FromStr for Scope {
     }
 }
 
-#[cfg(feature = "sql")]
 impl sqlite::BindableWithIndex for Scope {
     fn bind<I: sqlite::ParameterIndex>(
         self,
@@ -139,7 +138,6 @@ impl sqlite::BindableWithIndex for Scope {
     }
 }
 
-#[cfg(feature = "sql")]
 impl TryFrom<&sqlite::Value> for Scope {
     type Error = sqlite::Error;
 

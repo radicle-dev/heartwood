@@ -5,8 +5,7 @@ use std::{fmt, io, ops::Not as _};
 use sqlite as sql;
 use thiserror::Error;
 
-use crate::prelude::Id;
-use crate::service::NodeId;
+use crate::prelude::{Id, NodeId};
 
 use super::{Node, Policy, Repo, Scope};
 
@@ -242,7 +241,7 @@ impl Config {
 
 #[cfg(test)]
 mod test {
-    use radicle::assert_matches;
+    use crate::assert_matches;
 
     use super::*;
     use crate::test::arbitrary;

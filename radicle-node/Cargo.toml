@@ -39,7 +39,6 @@ thiserror = { version = "1" }
 [dependencies.radicle]
 path = "../radicle"
 version = "0.2.0"
-features = ["sql"]
 
 [dependencies.radicle-term]
 path = "../radicle-term"

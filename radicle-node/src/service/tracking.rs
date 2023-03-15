@@ -1,5 +1,3 @@
-mod store;
-
 use std::ops;
 
 use log::{error, warn};
@@ -13,10 +11,9 @@ use radicle::storage::{Namespaces, ReadRepository as _, ReadStorage};
 use crate::prelude::Id;
 use crate::service::NodeId;
 
+pub use crate::node::tracking::store::Config as Store;
+pub use crate::node::tracking::store::Error;
 pub use crate::node::tracking::{Alias, Node, Policy, Repo, Scope};
-
-pub use store::Config as Store;
-pub use store::Error;
 
 #[derive(Debug, Error)]
 pub enum NamespacesError {
@@ -52,12 +49,12 @@ pub struct Config {
     /// Default scope, if a scope for a specific repository was not found.
     scope: Scope,
     /// Underlying configuration store.
-    store: store::Config,
+    store: Store,
 }
 
 impl Config {
     /// Create a new tracking configuration.
-    pub fn new(policy: Policy, scope: Scope, store: store::Config) -> Self {
+    pub fn new(policy: Policy, scope: Scope, store: Store) -> Self {
         Self {
             policy,
             scope,
@@ -143,7 +140,7 @@ impl Config {
 }
 
 impl ops::Deref for Config {
-    type Target = store::Config;
+    type Target = Store;
 
     fn deref(&self) -> &Self::Target {
         &self.store
