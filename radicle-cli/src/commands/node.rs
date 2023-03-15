@@ -1,7 +1,7 @@
 use std::ffi::OsString;
 
 use anyhow::anyhow;
-use radicle::node::{Address, Node, NodeId};
+use radicle::node::{Address, Node, NodeId, TRACKING_DB_FILE};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -152,8 +152,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             control::stop(node)?;
         }
         Operation::Tracking { mode } => {
-            let node = Node::new(profile.socket());
-            tracking::run(&node, mode)?
+            let store = radicle::node::tracking::store::Config::open(
+                profile.home.node().join(TRACKING_DB_FILE),
+            )?;
+            tracking::run(&store, mode)?
         }
     }
 

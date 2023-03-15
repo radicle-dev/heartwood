@@ -131,15 +131,6 @@ fn command<H: Handle<Error = runtime::HandleError>>(
                 }
             }
         }
-        CommandName::RepoPolicies => match handle.repo_policies() {
-            Ok(ts) => {
-                for t in ts.into_iter() {
-                    serde_json::to_writer(&mut writer, &t)?;
-                    writeln!(writer)?;
-                }
-            }
-            Err(e) => return Err(CommandError::Runtime(e)),
-        },
         CommandName::TrackNode => {
             let (node, alias) = match cmd.args.as_slice() {
                 [node] => (node.as_str(), None),
@@ -171,15 +162,6 @@ fn command<H: Handle<Error = runtime::HandleError>>(
                 }
             }
         }
-        CommandName::NodePolicies => match handle.node_policies() {
-            Ok(ts) => {
-                for t in ts.into_iter() {
-                    serde_json::to_writer(&mut writer, &t)?;
-                    writeln!(writer)?;
-                }
-            }
-            Err(e) => return Err(CommandError::Runtime(e)),
-        },
         CommandName::AnnounceRefs => {
             let rid: Id = parse::arg(cmd)?;
 

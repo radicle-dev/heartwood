@@ -25,6 +25,12 @@ pub use features::Features;
 pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
 /// Default radicle protocol port.
 pub const DEFAULT_PORT: u16 = 8776;
+/// Filename of routing table database under the node directory.
+pub const ROUTING_DB_FILE: &str = "routing.db";
+/// Filename of address database under the node directory.
+pub const ADDRESS_DB_FILE: &str = "addresses.db";
+/// Filename of tracking table database under the node directory.
+pub const TRACKING_DB_FILE: &str = "tracking.db";
 
 /// Result of a command, on the node control socket.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -125,14 +131,10 @@ pub enum CommandName {
     TrackRepo,
     /// Untrack the given repository.
     UntrackRepo,
-    /// Get the repository tracking policies.
-    RepoPolicies,
     /// Track the given node.
     TrackNode,
     /// Untrack the given node.
     UntrackNode,
-    /// Get the node tracking policies.
-    NodePolicies,
     /// Get the node's inventory.
     Inventory,
     /// Get the node's routing table.
@@ -380,8 +382,6 @@ pub trait Handle {
     type Error: std::error::Error + Send + Sync + 'static;
 
     type Routing: IntoIterator<Item = (Id, NodeId)>;
-    type RepoPolicies: IntoIterator<Item = tracking::Repo>;
-    type NodePolicies: IntoIterator<Item = tracking::Node>;
 
     /// Check if the node is running. to a peer.
     fn is_running(&self) -> bool;
@@ -400,10 +400,6 @@ pub trait Handle {
     fn untrack_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
     /// Untrack the given node.
     fn untrack_node(&mut self, id: NodeId) -> Result<bool, Self::Error>;
-    /// Get the tracking information for all tracked or blocked repos in storage.
-    fn repo_policies(&self) -> Result<Self::RepoPolicies, Self::Error>;
-    /// Get the tracking information for all tracked or blocked nodes in storage.
-    fn node_policies(&self) -> Result<Self::NodePolicies, Self::Error>;
     /// Notify the service that a project has been updated, and announce local refs.
     fn announce_refs(&mut self, id: Id) -> Result<(), Self::Error>;
     /// Announce local inventory.
@@ -464,9 +460,6 @@ impl Node {
 impl Handle for Node {
     type Sessions = ();
     type Error = Error;
-
-    type RepoPolicies = Vec<tracking::Repo>;
-    type NodePolicies = Vec<tracking::Node>;
     type Routing = Vec<(Id, NodeId)>;
 
     fn is_running(&self) -> bool {
@@ -508,24 +501,6 @@ impl Handle for Node {
             })??;
 
         Ok(result)
-    }
-
-    fn repo_policies(&self) -> Result<Vec<tracking::Repo>, Self::Error> {
-        let mut repos = Vec::new();
-        for result in self.call::<&str, _>(CommandName::RepoPolicies, [])? {
-            let repo = result?;
-            repos.push(repo);
-        }
-        Ok(repos)
-    }
-
-    fn node_policies(&self) -> Result<Vec<tracking::Node>, Self::Error> {
-        let mut repos = Vec::new();
-        for result in self.call::<&str, _>(CommandName::NodePolicies, [])? {
-            let repo = result?;
-            repos.push(repo);
-        }
-        Ok(repos)
     }
 
     fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {

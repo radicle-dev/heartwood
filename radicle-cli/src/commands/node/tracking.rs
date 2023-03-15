@@ -1,24 +1,23 @@
-use radicle::node::{tracking, Handle as _};
+use radicle::node::tracking;
 use radicle::prelude::Did;
-use radicle::Node;
 
 use crate::terminal as term;
 
 use super::TrackingMode;
 
-pub fn run(node: &Node, mode: TrackingMode) -> anyhow::Result<()> {
+pub fn run(store: &tracking::store::Config, mode: TrackingMode) -> anyhow::Result<()> {
     match mode {
-        TrackingMode::Repos => print_repos(node)?,
-        TrackingMode::Nodes => print_nodes(node)?,
+        TrackingMode::Repos => print_repos(store)?,
+        TrackingMode::Nodes => print_nodes(store)?,
     }
     Ok(())
 }
 
-fn print_repos(node: &Node) -> anyhow::Result<()> {
+fn print_repos(store: &tracking::store::Config) -> anyhow::Result<()> {
     let mut t = term::Table::new(term::table::TableOptions::default());
     t.push(["RID", "Scope", "Policy"]);
     t.push(["---", "-----", "------"]);
-    for tracking::Repo { id, scope, policy } in node.repo_policies()? {
+    for tracking::Repo { id, scope, policy } in store.repo_entries()? {
         t.push([
             term::format::highlight(id.to_string()),
             term::format::secondary(scope.to_string()),
@@ -29,11 +28,11 @@ fn print_repos(node: &Node) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_nodes(node: &Node) -> anyhow::Result<()> {
+fn print_nodes(store: &tracking::store::Config) -> anyhow::Result<()> {
     let mut t = term::Table::new(term::table::TableOptions::default());
     t.push(["DID", "Alias", "Policy"]);
     t.push(["---", "-----", "------"]);
-    for tracking::Node { id, alias, policy } in node.node_policies()? {
+    for tracking::Node { id, alias, policy } in store.node_entries()? {
         t.push([
             term::format::highlight(Did::from(id).to_string()),
             match alias {

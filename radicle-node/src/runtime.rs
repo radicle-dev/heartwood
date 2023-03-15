@@ -14,6 +14,7 @@ use thiserror::Error;
 
 use radicle::git;
 use radicle::node::Handle as _;
+use radicle::node::{ADDRESS_DB_FILE, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle::profile::Home;
 use radicle::Storage;
 
@@ -29,15 +30,6 @@ use crate::{service, LocalTime};
 
 pub use handle::Error as HandleError;
 pub use handle::Handle;
-
-/// Directory in `$RAD_HOME` under which node-specific files are stored.
-pub const NODE_DIR: &str = "node";
-/// Filename of routing table database under [`NODE_DIR`].
-pub const ROUTING_DB_FILE: &str = "routing.db";
-/// Filename of address database under [`NODE_DIR`].
-pub const ADDRESS_DB_FILE: &str = "addresses.db";
-/// Filename of tracking table database under [`NODE_DIR`].
-pub const TRACKING_DB_FILE: &str = "tracking.db";
 
 /// A client error.
 #[derive(Error, Debug)]
