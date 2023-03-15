@@ -563,7 +563,7 @@ fn test_refs_announcement_relay() {
             },
         )
     };
-    let bob_inv = bob.inventory().unwrap();
+    let bob_inv = bob.storage().inventory().unwrap();
 
     alice.track_repo(&bob_inv[0], tracking::Scope::All).unwrap();
     alice.track_repo(&bob_inv[1], tracking::Scope::All).unwrap();

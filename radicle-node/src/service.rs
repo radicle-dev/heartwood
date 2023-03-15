@@ -34,8 +34,8 @@ use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::reactor::FetchDirection;
 use crate::service::tracking::Scope;
 use crate::storage;
-use crate::storage::{Inventory, ReadRepository, RefUpdate, WriteStorage};
 use crate::storage::{Namespaces, ReadStorage};
+use crate::storage::{ReadRepository, RefUpdate, WriteStorage};
 use crate::worker::FetchError;
 use crate::Link;
 
@@ -1488,8 +1488,6 @@ where
 pub trait ServiceState {
     /// Get the connected peers.
     fn sessions(&self) -> &Sessions;
-    /// Get the current inventory.
-    fn inventory(&self) -> Result<Inventory, storage::Error>;
     /// Get a repository from storage, using the local node's key.
     fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError>;
     /// Get the clock.
@@ -1510,10 +1508,6 @@ where
 {
     fn sessions(&self) -> &Sessions {
         &self.sessions
-    }
-
-    fn inventory(&self) -> Result<Inventory, storage::Error> {
-        self.storage.inventory()
     }
 
     fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError> {

@@ -185,23 +185,6 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
         Ok(sessions)
     }
 
-    fn inventory(&self) -> Result<chan::Receiver<Id>, Error> {
-        let (sender, receiver) = chan::unbounded();
-        let query: Arc<QueryState> = Arc::new(move |state| {
-            for id in state.inventory()?.iter() {
-                if sender.send(*id).is_err() {
-                    break;
-                }
-            }
-            Ok(())
-        });
-        let (err_sender, err_receiver) = chan::bounded(1);
-        self.command(service::Command::QueryState(query, err_sender))?;
-        err_receiver.recv()??;
-
-        Ok(receiver)
-    }
-
     fn shutdown(self) -> Result<(), Error> {
         // If the current value is `false`, set it to `true`, otherwise error.
         if self

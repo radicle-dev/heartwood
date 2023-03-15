@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use std::{fmt, io, net};
 
 use amplify::WrapperMut;
-use crossbeam_channel as chan;
 use cyphernet::addr::{HostName, NetAddr};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -139,8 +138,6 @@ pub enum CommandName {
     TrackNode,
     /// Untrack the given node.
     UntrackNode,
-    /// Get the node's inventory.
-    Inventory,
     /// Get the node's status.
     Status,
     /// Shutdown the node.
@@ -410,8 +407,6 @@ pub trait Handle {
     fn shutdown(self) -> Result<(), Self::Error>;
     /// Query the peer session state.
     fn sessions(&self) -> Result<Self::Sessions, Self::Error>;
-    /// Query the inventory.
-    fn inventory(&self) -> Result<chan::Receiver<Id>, Self::Error>;
 }
 
 /// Public node & device identifier.
@@ -567,10 +562,6 @@ impl Handle for Node {
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Error> {
-        todo!();
-    }
-
-    fn inventory(&self) -> Result<chan::Receiver<Id>, Error> {
         todo!();
     }
 

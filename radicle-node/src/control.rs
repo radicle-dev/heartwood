@@ -79,7 +79,7 @@ fn command<H: Handle<Error = runtime::HandleError>>(
     handle: &mut H,
 ) -> Result<(), CommandError> {
     let mut reader = BufReader::new(stream);
-    let mut writer = LineWriter::new(stream);
+    let writer = LineWriter::new(stream);
     let mut line = String::new();
 
     reader.read_line(&mut line)?;
@@ -187,14 +187,6 @@ fn command<H: Handle<Error = runtime::HandleError>>(
         CommandName::Status => {
             CommandResult::ok().to_writer(writer).ok();
         }
-        CommandName::Inventory => match handle.inventory() {
-            Ok(c) => {
-                for id in c.iter() {
-                    writeln!(writer, "{id}")?;
-                }
-            }
-            Err(e) => return Err(CommandError::Runtime(e)),
-        },
         CommandName::Shutdown => {
             return Err(CommandError::Shutdown);
         }

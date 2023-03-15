@@ -153,8 +153,8 @@ fn test_replication() {
     alice.connect(&bob);
     converge([&alice, &bob]);
 
-    let inventory = alice.handle.inventory().unwrap();
-    assert!(inventory.try_iter().next().is_none());
+    let inventory = alice.storage.inventory().unwrap();
+    assert!(inventory.is_empty());
 
     let tracked = alice.handle.track_repo(acme, Scope::All).unwrap();
     assert!(tracked);
@@ -175,7 +175,7 @@ fn test_replication() {
 
     log::debug!(target: "test", "Fetch complete with {}", bob.id);
 
-    let inventory = alice.handle.inventory().unwrap();
+    let inventory = alice.storage.inventory().unwrap();
     let alice_repo = alice.storage.repository(acme).unwrap();
     let bob_repo = bob.storage.repository(acme).unwrap();
 
@@ -190,7 +190,7 @@ fn test_replication() {
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
 
-    assert_eq!(inventory.try_iter().next(), Some(acme));
+    assert_eq!(inventory.first(), Some(&acme));
     assert_eq!(alice_refs, bob_refs);
     assert_matches!(alice.storage.repository(acme).unwrap().verify(), Ok(()));
 }

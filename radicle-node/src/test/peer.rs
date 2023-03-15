@@ -19,6 +19,7 @@ use crate::service::reactor::Io;
 use crate::service::tracking::{Policy, Scope};
 use crate::service::*;
 use crate::storage::git::transport::remote;
+use crate::storage::Inventory;
 use crate::storage::{RemoteId, WriteStorage};
 use crate::test::arbitrary;
 use crate::test::assert_matches;
@@ -192,6 +193,10 @@ where
 
     pub fn timestamp(&self) -> Timestamp {
         self.clock().as_millis()
+    }
+
+    pub fn inventory(&self) -> Inventory {
+        self.service.storage().inventory().unwrap()
     }
 
     pub fn git_url(&self, repo: Id, namespace: Option<RemoteId>) -> remote::Url {

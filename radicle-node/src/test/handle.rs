@@ -1,8 +1,6 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use crossbeam_channel as chan;
-
 use crate::identity::Id;
 use crate::node::{FetchResult, Seeds};
 use crate::runtime::HandleError;
@@ -68,10 +66,6 @@ impl radicle::node::Handle for Handle {
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Self::Error> {
-        unimplemented!();
-    }
-
-    fn inventory(&self) -> Result<chan::Receiver<Id>, Self::Error> {
         unimplemented!();
     }
 
