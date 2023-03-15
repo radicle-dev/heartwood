@@ -9,6 +9,7 @@ services:
     environment:
       RUST_LOG: debug
       RAD_PASSPHRASE: seed
+      RUST_BACKTRACE: 1
     volumes:
       - /mnt/radicle/heartwood:/root/
     init: true
@@ -29,6 +30,7 @@ services:
       context: .
     environment:
       RUST_LOG: debug
+      RUST_BACKTRACE: 1
     volumes:
       - /mnt/radicle/heartwood:/root/
     init: true
