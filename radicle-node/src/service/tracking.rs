@@ -11,8 +11,7 @@ use radicle::storage::{Namespaces, ReadRepository as _, ReadStorage};
 use crate::prelude::Id;
 use crate::service::NodeId;
 
-pub use crate::node::tracking::store::Config as Store;
-pub use crate::node::tracking::store::Error;
+pub use crate::node::tracking::store::{Config as Store, Error};
 pub use crate::node::tracking::{Alias, Node, Policy, Repo, Scope};
 
 #[derive(Debug, Error)]

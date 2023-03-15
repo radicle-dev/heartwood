@@ -6,17 +6,15 @@ use std::sync::Arc;
 
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
-use radicle::node::Seeds;
 use thiserror::Error;
+
+use radicle::node::Seeds;
 
 use crate::crypto::Signer;
 use crate::identity::Id;
 use crate::node::{Command, FetchResult};
 use crate::profile::Home;
-use crate::service;
-use crate::service::tracking;
-use crate::service::{CommandError, QueryState};
-use crate::service::{NodeId, Sessions};
+use crate::service::{self, tracking, CommandError, NodeId, QueryState, Sessions};
 use crate::wire;
 use crate::worker::TaskResult;
 

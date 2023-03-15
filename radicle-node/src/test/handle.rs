@@ -4,8 +4,7 @@ use std::sync::{Arc, Mutex};
 use crate::identity::Id;
 use crate::node::{FetchResult, Seeds};
 use crate::runtime::HandleError;
-use crate::service::NodeId;
-use crate::service::{self, tracking};
+use crate::service::{self, tracking, NodeId};
 use crate::storage::RefUpdate;
 
 #[derive(Default, Clone)]

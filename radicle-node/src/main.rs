@@ -10,8 +10,7 @@ use radicle::profile;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::prelude::{Address, NodeId};
 use radicle_node::service::tracking::{Policy, Scope};
-use radicle_node::Runtime;
-use radicle_node::{logger, service, signals};
+use radicle_node::{logger, service, signals, Runtime};
 use radicle_term as term;
 
 pub const HELP_MSG: &str = r#"

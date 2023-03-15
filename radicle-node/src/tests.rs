@@ -9,34 +9,22 @@ use netservices::LinkDirection as Link;
 
 use crate::collections::{HashMap, HashSet};
 use crate::crypto::test::signer::MockSigner;
-use crate::identity::Id;
-use crate::node;
+use crate::identity::{self, Id};
 use crate::prelude::*;
-use crate::prelude::{LocalDuration, Timestamp};
 use crate::service::config::*;
 use crate::service::filter::Filter;
 use crate::service::message::*;
-use crate::service::reactor::FetchDirection;
-use crate::service::reactor::Io;
-use crate::service::ServiceState as _;
-use crate::service::*;
+use crate::service::reactor::{FetchDirection, Io};
+use crate::service::{self, *};
 use crate::storage::git::transport::{local, remote};
 use crate::storage::git::Storage;
 use crate::storage::{Namespaces, ReadStorage};
-use crate::test::arbitrary;
-use crate::test::assert_matches;
-use crate::test::fixtures;
-#[allow(unused)]
-use crate::test::logger;
-use crate::test::peer;
 use crate::test::peer::Peer;
-use crate::test::simulator;
 use crate::test::simulator::{Peer as _, Simulation};
 use crate::test::storage::MockStorage;
-use crate::wire::Decode;
-use crate::wire::Encode;
-use crate::LocalTime;
-use crate::{git, identity, rad, runtime, service, test};
+use crate::test::{self, arbitrary, assert_matches, fixtures, logger, peer, simulator};
+use crate::wire::{Decode, Encode};
+use crate::{git, node, rad, runtime, LocalTime};
 
 // NOTE
 //

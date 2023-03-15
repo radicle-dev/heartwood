@@ -27,12 +27,10 @@ use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
 use crate::service::reactor::{Fetch, Io};
-use crate::service::{session, DisconnectReason, Message, Service};
-use crate::wire;
-use crate::wire::{Decode, Encode};
+use crate::service::{self, session, DisconnectReason, Message, Service};
+use crate::wire::{self, Decode, Encode};
 use crate::worker::{Task, TaskResult};
-use crate::Link;
-use crate::{address, service};
+use crate::{address, Link};
 
 /// NoiseXK handshake pattern.
 pub const NOISE_XK: HandshakePattern = HandshakePattern {

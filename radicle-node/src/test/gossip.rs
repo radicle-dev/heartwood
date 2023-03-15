@@ -1,10 +1,8 @@
 use radicle::crypto::test::signer::MockSigner;
 
+use crate::prelude::{LocalDuration, LocalTime, Message};
+use crate::service::message::InventoryAnnouncement;
 use crate::test::arbitrary;
-use crate::{
-    prelude::{LocalDuration, LocalTime, Message},
-    service::message::InventoryAnnouncement,
-};
 
 pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Message> {
     let mut rng = fastrand::Rng::new();

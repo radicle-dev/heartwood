@@ -1,16 +1,13 @@
 use std::{fmt, io, mem};
 
-use crate::crypto;
-use crate::crypto::Unverified;
+use crate::crypto::{self, Unverified};
 use crate::identity::Id;
-use crate::node;
-use crate::node::Address;
+use crate::node::{self, Address};
 use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
 use crate::service::{NodeId, Timestamp};
-use crate::storage;
 use crate::storage::refs::SignedRefs;
-use crate::storage::{ReadRepository, ReadStorage};
+use crate::storage::{self, ReadRepository, ReadStorage};
 use crate::wire;
 
 /// Maximum number of addresses which can be announced to other nodes.

@@ -1,34 +1,29 @@
-use std::io::BufRead as _;
+use std::collections::{BTreeMap, BTreeSet};
+use std::io::{self, BufRead as _};
 use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    env, fs, io, iter, net, process, thread,
-    time::Duration,
-};
+use std::time::Duration;
+use std::{env, fs, iter, net, process, thread};
 
 use crossbeam_channel as chan;
 
-use radicle::cob;
-use radicle::cob::issue;
+use radicle::cob::{self, issue};
 use radicle::crypto::ssh::{keystore::MemorySigner, Keystore};
 use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::{KeyPair, Seed, Signer};
-use radicle::git;
-use radicle::git::refname;
+use radicle::git::{self, refname};
 use radicle::identity::Id;
 use radicle::node::routing::Store;
 use radicle::node::Handle as _;
-use radicle::profile::Home;
-use radicle::profile::Profile;
-use radicle::rad;
+use radicle::profile::{Home, Profile};
 use radicle::storage::ReadStorage as _;
 use radicle::test::fixtures;
-use radicle::Storage;
+use radicle::{rad, Storage};
 
 use crate::node::NodeId;
+use crate::runtime::{self, Handle};
 use crate::storage::git::transport;
-use crate::{runtime, runtime::Handle, service, Runtime};
+use crate::{service, Runtime};
 
 pub use service::Config;
 

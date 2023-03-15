@@ -19,24 +19,18 @@ use fastrand::Rng;
 use localtime::{LocalDuration, LocalTime};
 use log::*;
 
-use crate::address;
-use crate::address::AddressBook;
-use crate::crypto;
-use crate::crypto::{Signer, Verified};
-use crate::identity::IdentityError;
-use crate::identity::{Doc, Id};
-use crate::node;
-use crate::node::routing;
-use crate::node::{Address, Features, FetchResult, Seed, Seeds};
+use crate::address::{self, AddressBook};
+use crate::crypto::{self, Signer, Verified};
+use crate::identity::{Doc, Id, IdentityError};
+use crate::node::{self, routing, Address, Features, FetchResult, Seed, Seeds};
 use crate::prelude::*;
-use crate::service::message::{Announcement, AnnouncementMessage, Ping};
-use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
+use crate::service::message::{
+    Announcement, AnnouncementMessage, NodeAnnouncement, Ping, RefsAnnouncement,
+};
 use crate::service::reactor::FetchDirection;
 use crate::service::session::GossipState;
 use crate::service::tracking::Scope;
-use crate::storage;
-use crate::storage::{Namespaces, ReadStorage};
-use crate::storage::{ReadRepository, RefUpdate, WriteStorage};
+use crate::storage::{self, Namespaces, ReadRepository, ReadStorage, RefUpdate, WriteStorage};
 use crate::worker::FetchError;
 use crate::Link;
 

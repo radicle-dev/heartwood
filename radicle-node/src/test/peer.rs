@@ -5,28 +5,21 @@ use std::ops::{Deref, DerefMut};
 
 use log::*;
 
-use crate::address;
-use crate::address::Store;
+use crate::address::{self, Store};
 use crate::crypto::test::signer::MockSigner;
 use crate::crypto::Signer;
 use crate::identity::Id;
-use crate::node;
-use crate::node::routing;
+use crate::node::{self, routing};
 use crate::prelude::*;
-use crate::service;
 use crate::service::message::*;
 use crate::service::reactor::Io;
 use crate::service::tracking::{Policy, Scope};
-use crate::service::*;
+use crate::service::{self, *};
 use crate::storage::git::transport::remote;
-use crate::storage::Inventory;
-use crate::storage::{RemoteId, WriteStorage};
-use crate::test::arbitrary;
-use crate::test::assert_matches;
-use crate::test::simulator;
+use crate::storage::{Inventory, RemoteId, WriteStorage};
 use crate::test::storage::MockStorage;
-use crate::Link;
-use crate::{LocalDuration, LocalTime};
+use crate::test::{arbitrary, assert_matches, simulator};
+use crate::{Link, LocalDuration, LocalTime};
 
 /// Service instantiation used for testing.
 pub type Service<S, G> = service::Service<routing::Table, address::Book, S, G>;

@@ -1,19 +1,17 @@
 //! Client control socket implementation.
 use std::io::prelude::*;
-use std::io::BufReader;
-use std::io::LineWriter;
-use std::os::unix::net::UnixListener;
-use std::os::unix::net::UnixStream;
+use std::io::{self, BufReader, LineWriter};
+use std::net;
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{io, net};
 
-use radicle::node::Handle;
 use serde_json as json;
 
+use radicle::node::Handle;
+
 use crate::identity::Id;
-use crate::node::NodeId;
-use crate::node::{Command, CommandName, CommandResult};
+use crate::node::{Command, CommandName, CommandResult, NodeId};
 use crate::runtime;
 
 #[derive(thiserror::Error, Debug)]

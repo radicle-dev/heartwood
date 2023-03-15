@@ -1,8 +1,8 @@
 use std::ops::{Deref, DerefMut};
 
 use nonempty::NonEmpty;
-use radicle::node;
-use radicle::node::Address;
+
+use radicle::node::{self, Address};
 use radicle::prelude::Timestamp;
 
 use crate::collections::HashMap;

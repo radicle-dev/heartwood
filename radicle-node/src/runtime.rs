@@ -1,9 +1,9 @@
 mod handle;
 
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
-use std::{fs, io, net, thread, time};
+use std::{fs, net, thread, time};
 
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
@@ -12,24 +12,17 @@ use reactor::poller::popol;
 use reactor::Reactor;
 use thiserror::Error;
 
-use radicle::git;
-use radicle::node::Handle as _;
-use radicle::node::{ADDRESS_DB_FILE, ROUTING_DB_FILE, TRACKING_DB_FILE};
+use radicle::node::{Handle as _, ADDRESS_DB_FILE, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle::profile::Home;
-use radicle::Storage;
+use radicle::{git, Storage};
 
-use crate::address;
-use crate::control;
 use crate::crypto::Signer;
 use crate::node::{routing, NodeId};
-use crate::service::tracking;
-use crate::wire;
-use crate::wire::Wire;
-use crate::worker;
-use crate::{service, LocalTime};
+use crate::service::{self, tracking};
+use crate::wire::{self, Wire};
+use crate::{address, control, worker, LocalTime};
 
-pub use handle::Error as HandleError;
-pub use handle::Handle;
+pub use handle::{Error as HandleError, Handle};
 
 /// A client error.
 #[derive(Error, Debug)]

@@ -2,10 +2,8 @@ use std::fmt;
 
 use radicle::storage::Namespaces;
 
-use crate::service::message;
 use crate::service::message::Message;
-use crate::service::storage;
-use crate::service::{Id, LocalTime, NodeId, Reactor, Rng};
+use crate::service::{message, storage, Id, LocalTime, NodeId, Reactor, Rng};
 use crate::Link;
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]

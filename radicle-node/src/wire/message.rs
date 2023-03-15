@@ -2,12 +2,12 @@ use std::{io, mem, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
 use cyphernet::addr::{Addr, HostName, NetAddr};
+
 use radicle::node::Address;
 
 use crate::prelude::*;
 use crate::service::message::*;
-use crate::wire;
-use crate::wire::{Decode, Encode};
+use crate::wire::{self, Decode, Encode};
 
 /// Message type.
 #[repr(u16)]

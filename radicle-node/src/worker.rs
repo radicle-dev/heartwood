@@ -6,12 +6,12 @@ use crossbeam_channel as chan;
 use cyphernet::Ecdh;
 use netservices::tunnel::Tunnel;
 use netservices::{NetSession, SplitIo};
+use reactor::poller::popol;
 
 use radicle::crypto::{PublicKey, Signer};
 use radicle::identity::{Id, IdentityError};
 use radicle::storage::{Namespaces, ReadRepository, RefUpdate, WriteRepository, WriteStorage};
 use radicle::{git, Storage};
-use reactor::poller::popol;
 
 use crate::runtime::Handle;
 use crate::service::reactor::{Fetch, FetchDirection};

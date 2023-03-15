@@ -13,14 +13,12 @@ use std::{io, mem};
 use byteorder::{NetworkEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::crypto::{PublicKey, Signature, Unverified};
-use crate::git;
-use crate::git::fmt;
+use crate::git::{self, fmt};
 use crate::identity::Id;
 use crate::node;
 use crate::prelude::*;
 use crate::service::filter;
-use crate::storage::refs::Refs;
-use crate::storage::refs::SignedRefs;
+use crate::storage::refs::{Refs, SignedRefs};
 
 /// The default type we use to represent sizes on the wire.
 ///
