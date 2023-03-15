@@ -42,6 +42,15 @@ impl Config {
         Ok(Self { db })
     }
 
+    /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
+    /// open databases, as no locking is required.
+    pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        let db = sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().set_read_only())?;
+        db.execute(Self::SCHEMA)?;
+
+        Ok(Self { db })
+    }
+
     /// Create a new in-memory address book.
     pub fn memory() -> Result<Self, Error> {
         let db = sql::Connection::open(":memory:")?;

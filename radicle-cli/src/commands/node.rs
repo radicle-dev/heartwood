@@ -153,7 +153,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             control::stop(node)?;
         }
         Operation::Tracking { mode } => {
-            let store = radicle::node::tracking::store::Config::open(
+            let store = radicle::node::tracking::store::Config::reader(
                 profile.home.node().join(TRACKING_DB_FILE),
             )?;
             tracking::run(&store, mode)?
