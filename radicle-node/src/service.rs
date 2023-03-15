@@ -1299,7 +1299,7 @@ where
                             stats.connected += 1;
                         } else if self.sessions.is_disconnected(&node) {
                             seeds.insert(Seed::Disconnected(node));
-                            stats.connected += 1;
+                            stats.disconnected += 1;
                         }
                     }
 
