@@ -77,7 +77,7 @@ impl Config {
     /// Get a node's tracking information.
     /// Returns the default policy if the node isn't found.
     pub fn node_policy(&self, id: &NodeId) -> Result<Node, Error> {
-        Ok(self.store.node_entry(id)?.unwrap_or(Node {
+        Ok(self.store.node_policy(id)?.unwrap_or(Node {
             id: *id,
             alias: None,
             policy: self.policy,
@@ -87,7 +87,7 @@ impl Config {
     /// Get a repository's tracking information.
     /// Returns the default policy if the repo isn't found.
     pub fn repo_policy(&self, id: &Id) -> Result<Repo, Error> {
-        Ok(self.store.repo_entry(id)?.unwrap_or(Repo {
+        Ok(self.store.repo_policy(id)?.unwrap_or(Repo {
             id: *id,
             scope: self.scope,
             policy: self.policy,
@@ -112,7 +112,7 @@ impl Config {
                 Scope::All => Ok(Namespaces::All),
                 Scope::Trusted => {
                     let nodes = self
-                        .node_entries()
+                        .node_policies()
                         .map_err(|err| FailedNodes { rid: *rid, err })?;
                     let mut trusted: Vec<_> = nodes
                         .filter_map(|node| (node.policy == Policy::Track).then_some(node.id))

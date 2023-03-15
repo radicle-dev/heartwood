@@ -141,7 +141,7 @@ impl Config {
     /// Check if a node is tracked.
     pub fn is_node_tracked(&self, id: &NodeId) -> Result<bool, Error> {
         Ok(matches!(
-            self.node_entry(id)?,
+            self.node_policy(id)?,
             Some(Node {
                 policy: Policy::Track,
                 ..
@@ -152,7 +152,7 @@ impl Config {
     /// Check if a repository is tracked.
     pub fn is_repo_tracked(&self, id: &Id) -> Result<bool, Error> {
         Ok(matches!(
-            self.repo_entry(id)?,
+            self.repo_policy(id)?,
             Some(Repo {
                 policy: Policy::Track,
                 ..
@@ -160,8 +160,8 @@ impl Config {
         ))
     }
 
-    /// Get a node's tracking information.
-    pub fn node_entry(&self, id: &NodeId) -> Result<Option<Node>, Error> {
+    /// Get a node's tracking policy.
+    pub fn node_policy(&self, id: &NodeId) -> Result<Option<Node>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT alias, policy FROM `node-policies` WHERE id = ?")?;
@@ -182,8 +182,8 @@ impl Config {
         Ok(None)
     }
 
-    /// Get a repository's tracking information.
-    pub fn repo_entry(&self, id: &Id) -> Result<Option<Repo>, Error> {
+    /// Get a repository's tracking policy.
+    pub fn repo_policy(&self, id: &Id) -> Result<Option<Repo>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT scope, policy FROM `repo-policies` WHERE id = ?")?;
@@ -200,8 +200,8 @@ impl Config {
         Ok(None)
     }
 
-    /// Get node tracking entries.
-    pub fn node_entries(&self) -> Result<Box<dyn Iterator<Item = Node>>, Error> {
+    /// Get node tracking policies.
+    pub fn node_policies(&self) -> Result<Box<dyn Iterator<Item = Node>>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT id, alias, policy FROM `node-policies`")?
@@ -220,8 +220,8 @@ impl Config {
     }
 
     // TODO: see if sql can return iterator directly
-    /// Get repository tracking entries.
-    pub fn repo_entries(&self) -> Result<Box<dyn Iterator<Item = Repo>>, Error> {
+    /// Get repository tracking policies.
+    pub fn repo_policies(&self) -> Result<Box<dyn Iterator<Item = Repo>>, Error> {
         let mut stmt = self
             .db
             .prepare("SELECT id, scope, policy FROM `repo-policies`")?
@@ -271,28 +271,28 @@ mod test {
     }
 
     #[test]
-    fn test_node_entries() {
+    fn test_node_policies() {
         let ids = arbitrary::vec::<NodeId>(3);
         let mut db = Config::open(":memory:").unwrap();
 
         for id in &ids {
             assert!(db.track_node(id, None).unwrap());
         }
-        let mut entries = db.node_entries().unwrap();
+        let mut entries = db.node_policies().unwrap();
         assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[0]);
         assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[1]);
         assert_matches!(entries.next(), Some(Node { id, .. }) if id == ids[2]);
     }
 
     #[test]
-    fn test_repo_entries() {
+    fn test_repo_policies() {
         let ids = arbitrary::vec::<Id>(3);
         let mut db = Config::open(":memory:").unwrap();
 
         for id in &ids {
             assert!(db.track_repo(id, Scope::All).unwrap());
         }
-        let mut entries = db.repo_entries().unwrap();
+        let mut entries = db.repo_policies().unwrap();
         assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[0]);
         assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[1]);
         assert_matches!(entries.next(), Some(Repo { id, .. }) if id == ids[2]);
@@ -305,15 +305,15 @@ mod test {
 
         assert!(db.track_node(&id, Some("eve")).unwrap());
         assert_eq!(
-            db.node_entry(&id).unwrap().unwrap().alias,
+            db.node_policy(&id).unwrap().unwrap().alias,
             Some(String::from("eve"))
         );
         assert!(db.track_node(&id, None).unwrap());
-        assert_eq!(db.node_entry(&id).unwrap().unwrap().alias, None);
+        assert_eq!(db.node_policy(&id).unwrap().unwrap().alias, None);
         assert!(!db.track_node(&id, None).unwrap());
         assert!(db.track_node(&id, Some("alice")).unwrap());
         assert_eq!(
-            db.node_entry(&id).unwrap().unwrap().alias,
+            db.node_policy(&id).unwrap().unwrap().alias,
             Some(String::from("alice"))
         );
     }
@@ -324,9 +324,9 @@ mod test {
         let mut db = Config::open(":memory:").unwrap();
 
         assert!(db.track_repo(&id, Scope::All).unwrap());
-        assert_eq!(db.repo_entry(&id).unwrap().unwrap().scope, Scope::All);
+        assert_eq!(db.repo_policy(&id).unwrap().unwrap().scope, Scope::All);
         assert!(db.track_repo(&id, Scope::Trusted).unwrap());
-        assert_eq!(db.repo_entry(&id).unwrap().unwrap().scope, Scope::Trusted);
+        assert_eq!(db.repo_policy(&id).unwrap().unwrap().scope, Scope::Trusted);
     }
 
     #[test]
@@ -335,9 +335,9 @@ mod test {
         let mut db = Config::open(":memory:").unwrap();
 
         assert!(db.track_repo(&id, Scope::All).unwrap());
-        assert_eq!(db.repo_entry(&id).unwrap().unwrap().policy, Policy::Track);
+        assert_eq!(db.repo_policy(&id).unwrap().unwrap().policy, Policy::Track);
         assert!(db.set_repo_policy(&id, Policy::Block).unwrap());
-        assert_eq!(db.repo_entry(&id).unwrap().unwrap().policy, Policy::Block);
+        assert_eq!(db.repo_policy(&id).unwrap().unwrap().policy, Policy::Block);
     }
 
     #[test]
@@ -346,8 +346,8 @@ mod test {
         let mut db = Config::open(":memory:").unwrap();
 
         assert!(db.track_node(&id, None).unwrap());
-        assert_eq!(db.node_entry(&id).unwrap().unwrap().policy, Policy::Track);
+        assert_eq!(db.node_policy(&id).unwrap().unwrap().policy, Policy::Track);
         assert!(db.set_node_policy(&id, Policy::Block).unwrap());
-        assert_eq!(db.node_entry(&id).unwrap().unwrap().policy, Policy::Block);
+        assert_eq!(db.node_policy(&id).unwrap().unwrap().policy, Policy::Block);
     }
 }

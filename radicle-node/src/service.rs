@@ -292,7 +292,7 @@ where
         // TODO: Share this code with initialization code.
         self.filter = Filter::new(
             self.tracking
-                .repo_entries()?
+                .repo_policies()?
                 .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id)),
         );
         Ok(updated)
@@ -382,7 +382,7 @@ where
         // Setup subscription filter for tracked repos.
         self.filter = Filter::new(
             self.tracking
-                .repo_entries()?
+                .repo_policies()?
                 .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id)),
         );
 
@@ -1415,7 +1415,7 @@ where
         let inventory = self.storage().inventory()?;
         let missing = self
             .tracking
-            .repo_entries()?
+            .repo_policies()?
             .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id))
             .filter(|rid| !inventory.contains(rid));
 
