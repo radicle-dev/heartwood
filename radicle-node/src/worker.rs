@@ -315,7 +315,7 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
         loop {
             // Read from the daemon and write to the stream.
             if let Err(e) = daemon_r.pipe(stream_w, &mut buffer) {
-                // This is the expected error when the remote disconnects.
+                // This is the expected error when the daemon disconnects.
                 if e.kind() == io::ErrorKind::UnexpectedEof {
                     log::debug!(target: "worker", "Daemon closed the git connection for {}", fetch.rid);
                     return Err(e.into());
@@ -398,7 +398,7 @@ impl Pool {
     }
 }
 
-mod pktline {
+pub mod pktline {
     use std::io;
     use std::io::Read;
     use std::ops::ControlFlow;

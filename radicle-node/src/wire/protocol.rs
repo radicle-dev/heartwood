@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
-use std::{fmt, io, net};
+use std::{fmt, io, net, str};
 
 use amplify::Wrapper as _;
 use crossbeam_channel as chan;
@@ -28,8 +28,8 @@ use radicle::storage::WriteStorage;
 use crate::crypto::Signer;
 use crate::service::reactor::{Fetch, Io};
 use crate::service::{session, DisconnectReason, Message, Service};
-use crate::wire;
-use crate::wire::{Decode, Encode};
+use crate::wire::{Decode, Encode, Error};
+use crate::worker;
 use crate::worker::{Task, TaskResult};
 use crate::Link;
 use crate::{address, service};
@@ -370,7 +370,7 @@ where
         let (fetch, drain) = peer.upgraded();
         let session = match transport.into_session() {
             Ok(session) => session,
-            Err(_) => panic!("Transport::upgraded: peer write buffer not empty on upgrade"),
+            Err(_) => panic!("Wire::upgraded: peer write buffer not empty on upgrade"),
         };
 
         if self
@@ -518,17 +518,27 @@ where
                                 break;
                             }
                             Err(e) => {
-                                log::error!(target: "wire", "Invalid message from {id}: {e}");
+                                log::error!(target: "wire", "Invalid gossip message from {id}: {e}");
 
-                                let mut leftover = if let wire::Error::UnknownMessageType(ty) = e {
-                                    ty.to_ne_bytes().to_vec()
-                                } else {
-                                    vec![]
-                                };
-                                leftover.extend(inbox.drain(..));
+                                if let Error::UnknownMessageType(t) = e {
+                                    let mut leftover = t.to_be_bytes().to_vec();
+                                    leftover.extend(inbox.drain(..));
 
-                                if !leftover.is_empty() {
-                                    log::debug!(target: "wire", "Dropping read buffer with `{:?}`", &leftover);
+                                    if let Ok(header) =
+                                        str::from_utf8(&leftover[..worker::pktline::HEADER_LEN])
+                                    {
+                                        if header.is_ascii() && !header.is_empty() {
+                                            log::error!(
+                                                target: "wire",
+                                                "Received possible Git packet-line header `{}` from {id} (protocol mismatch)",
+                                                header
+                                            );
+                                        }
+                                    }
+                                }
+
+                                if !inbox.is_empty() {
+                                    log::debug!(target: "wire", "Dropping read buffer with {} bytes", inbox.len());
                                 }
                                 self.disconnect(
                                     fd,
