@@ -29,7 +29,7 @@ pub type BranchName = git::RefString;
 pub type Inventory = Vec<Id>;
 
 /// Describes one or more namespaces.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum Namespaces {
     /// All namespaces.
     #[default]

@@ -31,7 +31,7 @@ pub enum NamespacesError {
         #[source]
         err: Error,
     },
-    #[error("Failed to get delegate nodes for {rid}")]
+    #[error("Failed to get delegates for {rid}")]
     FailedDelegates {
         rid: Id,
         #[source]

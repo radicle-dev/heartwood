@@ -32,6 +32,7 @@ use crate::prelude::*;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::reactor::FetchDirection;
+use crate::service::session::GossipState;
 use crate::service::tracking::Scope;
 use crate::storage;
 use crate::storage::{Namespaces, ReadStorage};
@@ -538,8 +539,22 @@ where
             session::FetchResult::Ready(fetch) => {
                 debug!(target: "service", "Fetch initiated for {rid} with {seed}..");
 
-                self.reactor.write(session, fetch);
-                session.to_requesting(rid);
+                match self.tracking.namespaces_for(&self.storage, &rid) {
+                    Ok(ns) => {
+                        self.reactor.write(session, fetch);
+                        session.to_requesting(rid, ns);
+                    }
+                    Err(err) => {
+                        error!(target: "service", "Error getting namespaces for {rid}: {err}");
+
+                        if let Some(resp) = self.fetch_reqs.get(&rid) {
+                            resp.send(FetchResult::Failed {
+                                reason: err.to_string(),
+                            })
+                            .ok();
+                        }
+                    }
+                };
             }
             session::FetchResult::AlreadyFetching(other) => {
                 if other == rid {
@@ -693,8 +708,8 @@ where
 
         // If the peer disconnected while we were waiting for a [`Message::FetchOk`],
         // return a failure to any potential fetcher.
-        if let Some(requested) = session.requesting() {
-            if let Some(resp) = self.fetch_reqs.remove(&requested) {
+        if let Some((requested, _)) = session.requesting() {
+            if let Some(resp) = self.fetch_reqs.remove(requested) {
                 resp.send(FetchResult::Failed {
                     reason: format!("disconnected: {reason}"),
                 })
@@ -1027,7 +1042,7 @@ where
             }
             (
                 session::State::Connected {
-                    protocol: session::Protocol::Gossip { requested },
+                    protocol: session::Protocol::Gossip { state },
                     ..
                 },
                 Message::Fetch { rid },
@@ -1038,8 +1053,8 @@ where
 
                 // We got a fetch request right after sending our own. We have to decide on which
                 // fetch to run: our own, or the remote's.
-                if let Some(req) = requested {
-                    debug!(target: "service", "Received fetch request from {remote} while attempting to fetch {req}..");
+                if let GossipState::Requesting { rid, .. } = state {
+                    debug!(target: "service", "Received fetch request from {remote} while attempting to fetch {rid}..");
 
                     // When fetch requests cross, the inbound peer takes precedence.
                     if peer.link.is_inbound() {
@@ -1047,7 +1062,7 @@ where
 
                         // Cancel our own fetch request. This doesn't send anything to the remote,
                         // it simply updates the local session's state machine.
-                        *requested = None;
+                        *state = GossipState::Idle;
 
                         // TODO: Queue the fetch request as if we tried to request twice from
                         // the same node.
@@ -1064,11 +1079,9 @@ where
                 self.reactor.fetch(peer, rid, FetchDirection::Responder);
             }
             (session::State::Connected { protocol, .. }, Message::FetchOk { rid }) => {
-                if *protocol
-                    != (session::Protocol::Gossip {
-                        requested: Some(rid),
-                    })
-                {
+                let session::Protocol::Gossip {
+                    state: GossipState::Requesting { rid: requested, namespaces }
+                } = protocol else {
                     // As long as we disconnect peers who don't respond to our fetch requests within
                     // the alloted time, this shouldn't happen by mistake.
                     error!(
@@ -1076,21 +1089,19 @@ where
                         peer.id
                     );
                     return Err(session::Error::Misbehavior);
+                };
+
+                if *requested != rid {
+                    error!(
+                        "Received `fetch-ok` from {} for incorrect repository {rid}",
+                        peer.id
+                    );
+                    return Err(session::Error::Misbehavior);
                 }
+                let namespaces = namespaces.clone();
+
                 debug!(target: "service", "Fetch accepted for {rid} from {remote}..");
 
-                let namespaces = match self.tracking.namespaces_for(&self.storage, &rid) {
-                    Ok(ns) => ns,
-                    Err(err) => {
-                        if let Some(resp) = self.fetch_reqs.get(&rid) {
-                            resp.send(FetchResult::Failed {
-                                reason: err.to_string(),
-                            })
-                            .ok();
-                        }
-                        return Ok(());
-                    }
-                };
                 // Instruct the transport to handover the socket to the worker.
                 self.reactor
                     .fetch(peer, rid, FetchDirection::Initiator { namespaces });

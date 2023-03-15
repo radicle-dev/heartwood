@@ -1,5 +1,7 @@
 use std::fmt;
 
+use radicle::storage::Namespaces;
+
 use crate::service::message;
 use crate::service::message::Message;
 use crate::service::storage;
@@ -17,11 +19,21 @@ pub enum PingState {
     Ok,
 }
 
+/// Sub-state of the gossip protocol.
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub enum GossipState {
+    /// Regular gossip, no pending fetch requests.
+    #[default]
+    Idle,
+    /// Requesting a fetch for the given RID. Waiting for a [`Message::FetchOk`].
+    Requesting { rid: Id, namespaces: Namespaces },
+}
+
 /// Session protocol.
-#[derive(Debug, Copy, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Protocol {
     /// The default message-based gossip protocol.
-    Gossip { requested: Option<Id> },
+    Gossip { state: GossipState },
     /// Git smart protocol. Used for fetching repository data.
     /// This protocol is used after a connection upgrade via the
     /// [`Message::Fetch`] message.
@@ -30,7 +42,9 @@ pub enum Protocol {
 
 impl Default for Protocol {
     fn default() -> Self {
-        Self::Gossip { requested: None }
+        Self::Gossip {
+            state: GossipState::default(),
+        }
     }
 }
 
@@ -70,12 +84,13 @@ impl fmt::Display for State {
             }
             Self::Connected { protocol, .. } => match protocol {
                 Protocol::Gossip {
-                    requested: None, ..
+                    state: GossipState::Idle,
+                    ..
                 } => {
                     write!(f, "connected <gossip>")
                 }
                 Protocol::Gossip {
-                    requested: Some(rid),
+                    state: GossipState::Requesting { rid, .. },
                     ..
                 } => {
                     write!(f, "connected <gossip> requested={rid}")
@@ -228,7 +243,9 @@ impl Session {
         matches!(
             self.state,
             State::Connected {
-                protocol: Protocol::Gossip { requested: Some(_) },
+                protocol: Protocol::Gossip {
+                    state: GossipState::Requesting { .. }
+                },
                 ..
             }
         )
@@ -238,12 +255,12 @@ impl Session {
         self.attempts
     }
 
-    pub fn fetch(&mut self, rid: Id) -> FetchResult {
-        if let State::Connected { protocol, .. } = &mut self.state {
+    pub fn fetch(&self, rid: Id) -> FetchResult {
+        if let State::Connected { protocol, .. } = &self.state {
             match protocol {
-                Protocol::Gossip { requested } => {
-                    if let Some(requested) = requested {
-                        FetchResult::AlreadyFetching(*requested)
+                Protocol::Gossip { state } => {
+                    if let GossipState::Requesting { rid, .. } = state {
+                        FetchResult::AlreadyFetching(*rid)
                     } else {
                         FetchResult::Ready(Message::Fetch { rid })
                     }
@@ -255,12 +272,12 @@ impl Session {
         }
     }
 
-    pub fn to_requesting(&mut self, rid: Id) {
+    pub fn to_requesting(&mut self, rid: Id, namespaces: Namespaces) {
         let State::Connected { protocol, .. } = &mut self.state else {
             panic!("Session::to_requesting: cannot transition to 'requesting': session is not connected");
         };
         *protocol = Protocol::Gossip {
-            requested: Some(rid),
+            state: GossipState::Requesting { rid, namespaces },
         };
     }
 
@@ -322,13 +339,16 @@ impl Session {
         self.state = State::Initial;
     }
 
-    pub fn requesting(&self) -> Option<Id> {
+    pub fn requesting(&self) -> Option<(&Id, &Namespaces)> {
         if let State::Connected {
-            protocol: Protocol::Gossip { requested },
+            protocol:
+                Protocol::Gossip {
+                    state: GossipState::Requesting { rid, namespaces },
+                },
             ..
-        } = self.state
+        } = &self.state
         {
-            requested
+            Some((rid, namespaces))
         } else {
             None
         }

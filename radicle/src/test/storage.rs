@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use git_ref_format as fmt;
@@ -59,7 +60,7 @@ impl ReadStorage for MockStorage {
         let doc = self
             .inventory
             .get(&rid)
-            .expect("Mockstorage::repository: missing doc");
+            .ok_or_else(|| Error::Io(io::Error::from(io::ErrorKind::NotFound)))?;
         Ok(MockRepository {
             id: rid,
             doc: doc.clone(),
