@@ -20,7 +20,6 @@ pub struct Handle {
 impl radicle::node::Handle for Handle {
     type Error = HandleError;
     type Sessions = service::Sessions;
-    type Routing = Vec<(Id, NodeId)>;
 
     fn is_running(&self) -> bool {
         true
@@ -66,10 +65,6 @@ impl radicle::node::Handle for Handle {
 
     fn sync_inventory(&mut self) -> Result<bool, Self::Error> {
         unimplemented!()
-    }
-
-    fn routing(&self) -> Result<Self::Routing, Self::Error> {
-        unimplemented!();
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Self::Error> {

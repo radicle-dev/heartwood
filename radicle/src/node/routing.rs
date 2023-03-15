@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use std::fmt;
 use std::path::Path;
+use std::{fmt, time};
 
 use sqlite as sql;
 use thiserror::Error;
@@ -9,6 +9,9 @@ use crate::{
     prelude::Timestamp,
     prelude::{Id, NodeId},
 };
+
+/// How long to wait for the database lock to be released before failing a read.
+const DB_READ_TIMEOUT: time::Duration = time::Duration::from_secs(1);
 
 /// An error occuring in peer-to-peer networking code.
 #[derive(Error, Debug)]
@@ -39,6 +42,17 @@ impl Table {
     /// if an existing store isn't found.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let db = sql::Connection::open(path)?;
+        db.execute(Self::SCHEMA)?;
+
+        Ok(Self { db })
+    }
+
+    /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
+    /// open databases, as no locking is required.
+    pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        let mut db =
+            sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().set_read_only())?;
+        db.set_busy_timeout(DB_READ_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })

@@ -187,14 +187,6 @@ fn command<H: Handle<Error = runtime::HandleError>>(
         CommandName::Status => {
             CommandResult::ok().to_writer(writer).ok();
         }
-        CommandName::Routing => match handle.routing() {
-            Ok(c) => {
-                for route in c.into_iter() {
-                    serde_json::to_writer(&mut writer, &route)?;
-                }
-            }
-            Err(e) => return Err(CommandError::Runtime(e)),
-        },
         CommandName::Inventory => match handle.inventory() {
             Ok(c) => {
                 for id in c.iter() {

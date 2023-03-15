@@ -141,8 +141,6 @@ pub enum CommandName {
     UntrackNode,
     /// Get the node's inventory.
     Inventory,
-    /// Get the node's routing table.
-    Routing,
     /// Get the node's status.
     Status,
     /// Shutdown the node.
@@ -385,8 +383,6 @@ pub trait Handle {
     /// The error returned by all methods.
     type Error: std::error::Error + Send + Sync + 'static;
 
-    type Routing: IntoIterator<Item = (Id, NodeId)>;
-
     /// Check if the node is running. to a peer.
     fn is_running(&self) -> bool;
     /// Connect to a peer.
@@ -412,8 +408,6 @@ pub trait Handle {
     fn sync_inventory(&mut self) -> Result<bool, Self::Error>;
     /// Ask the service to shutdown.
     fn shutdown(self) -> Result<(), Self::Error>;
-    /// Query the routing table entries.
-    fn routing(&self) -> Result<Self::Routing, Self::Error>;
     /// Query the peer session state.
     fn sessions(&self) -> Result<Self::Sessions, Self::Error>;
     /// Query the inventory.
@@ -464,7 +458,6 @@ impl Node {
 impl Handle for Node {
     type Sessions = ();
     type Error = Error;
-    type Routing = Vec<(Id, NodeId)>;
 
     fn is_running(&self) -> bool {
         let Ok(mut lines) = self.call::<&str, CommandResult>(CommandName::Status, []) else {
@@ -571,15 +564,6 @@ impl Handle for Node {
         })??;
 
         response.into()
-    }
-
-    fn routing(&self) -> Result<Self::Routing, Error> {
-        let mut routes = Vec::new();
-        for result in self.call::<&str, _>(CommandName::Routing, [])? {
-            let route = result?;
-            routes.push(route);
-        }
-        Ok(routes)
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Error> {

@@ -17,6 +17,7 @@ use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git;
 use radicle::git::refname;
 use radicle::identity::Id;
+use radicle::node::routing::Store;
 use radicle::node::Handle as _;
 use radicle::profile::Home;
 use radicle::profile::Profile;
@@ -156,6 +157,14 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
         self
     }
 
+    /// Get routing table entries.
+    pub fn routing(&self) -> impl Iterator<Item = (Id, NodeId)> {
+        radicle::node::routing::Table::reader(self.home.node().join(radicle::node::ROUTING_DB_FILE))
+            .unwrap()
+            .entries()
+            .unwrap()
+    }
+
     /// Wait until this node's routing table matches the remotes.
     pub fn converge<'a>(
         &'a self,
@@ -176,7 +185,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
 
             let mut remaining: BTreeSet<_> = routes.iter().collect();
 
-            for (rid, nid) in self.handle.routing().unwrap() {
+            for (rid, nid) in self.routing() {
                 if !remaining.remove(&(rid, nid)) {
                     panic!(
                         "Node::routes_to: unexpected route for {}: ({rid}, {nid})",
@@ -347,7 +356,7 @@ pub fn converge<'a, G: Signer + cyphernet::Ecdh + 'static>(
     // First build the set of all routes.
     for node in &nodes {
         // Routes from the routing table.
-        for (rid, seed_id) in node.handle.routing().unwrap() {
+        for (rid, seed_id) in node.routing() {
             all_routes.insert((rid, seed_id));
         }
         // Routes from the local inventory.
@@ -360,8 +369,8 @@ pub fn converge<'a, G: Signer + cyphernet::Ecdh + 'static>(
     // its routing table has all routes. If so, remove it from the remaining nodes.
     while !remaining.is_empty() {
         remaining.retain(|_, node| {
-            let routing = node.handle.routing().unwrap();
-            let routes = BTreeSet::from_iter(routing.try_iter());
+            let routing = node.routing();
+            let routes = BTreeSet::from_iter(routing);
 
             if routes == all_routes {
                 log::debug!(target: "test", "Node {} has converged", node.id);
