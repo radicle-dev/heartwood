@@ -5,7 +5,6 @@ pub mod config;
 pub mod filter;
 pub mod message;
 pub mod reactor;
-pub mod routing;
 pub mod session;
 pub mod tracking;
 
@@ -22,12 +21,12 @@ use log::*;
 
 use crate::address;
 use crate::address::AddressBook;
-use crate::clock::Timestamp;
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::identity::IdentityError;
 use crate::identity::{Doc, Id};
 use crate::node;
+use crate::node::routing;
 use crate::node::{Address, Features, FetchResult, Seed, Seeds};
 use crate::prelude::*;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};

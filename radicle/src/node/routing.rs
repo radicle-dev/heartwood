@@ -6,7 +6,7 @@ use sqlite as sql;
 use thiserror::Error;
 
 use crate::{
-    clock::Timestamp,
+    prelude::Timestamp,
     prelude::{Id, NodeId},
 };
 

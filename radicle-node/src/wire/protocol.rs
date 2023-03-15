@@ -21,12 +21,12 @@ use netservices::{NetConnection, NetProtocol, NetReader, NetSession, NetWriter};
 use reactor::Timestamp;
 
 use radicle::collections::HashMap;
-use radicle::node::NodeId;
+use radicle::node::{routing, NodeId};
 use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
 use crate::service::reactor::{Fetch, Io};
-use crate::service::{routing, session, DisconnectReason, Message, Service};
+use crate::service::{session, DisconnectReason, Message, Service};
 use crate::wire;
 use crate::wire::{Decode, Encode};
 use crate::worker::{Task, TaskResult};

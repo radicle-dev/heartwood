@@ -1,6 +1,5 @@
 pub mod address;
 pub mod bounded;
-pub mod clock;
 pub mod control;
 pub mod deserializer;
 pub mod logger;
@@ -17,12 +16,12 @@ pub mod worker;
 
 pub use localtime::{LocalDuration, LocalTime};
 pub use netservices::LinkDirection as Link;
+pub use radicle::prelude::Timestamp;
 pub use radicle::{collections, crypto, git, identity, node, profile, rad, storage};
 pub use runtime::Runtime;
 
 pub mod prelude {
     pub use crate::bounded::BoundedVec;
-    pub use crate::clock::Timestamp;
     pub use crate::crypto::{PublicKey, Signature, Signer};
     pub use crate::deserializer::Deserializer;
     pub use crate::identity::{Did, Id};
@@ -31,5 +30,5 @@ pub mod prelude {
     pub use crate::service::{DisconnectReason, Event, Message, Network, NodeId};
     pub use crate::storage::refs::Refs;
     pub use crate::storage::WriteStorage;
-    pub use crate::{LocalDuration, LocalTime};
+    pub use crate::{LocalDuration, LocalTime, Timestamp};
 }

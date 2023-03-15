@@ -1795,6 +1795,7 @@ dependencies = [
  "fastrand",
  "git-ref-format",
  "git2",
+ "localtime",
  "log",
  "multibase",
  "nonempty 0.8.1",

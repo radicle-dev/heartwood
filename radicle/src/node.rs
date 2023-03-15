@@ -1,4 +1,5 @@
 mod features;
+pub mod routing;
 pub mod tracking;
 
 use std::collections::BTreeSet;
@@ -31,6 +32,9 @@ pub const ROUTING_DB_FILE: &str = "routing.db";
 pub const ADDRESS_DB_FILE: &str = "addresses.db";
 /// Filename of tracking table database under the node directory.
 pub const TRACKING_DB_FILE: &str = "tracking.db";
+
+/// Milliseconds since epoch.
+pub type Timestamp = u64;
 
 /// Result of a command, on the node control socket.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

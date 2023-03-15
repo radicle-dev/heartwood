@@ -31,7 +31,7 @@ pub mod prelude {
 
     pub use crypto::{PublicKey, Signer, Verified};
     pub use identity::{project::Project, Did, Doc, Id};
-    pub use node::NodeId;
+    pub use node::{NodeId, Timestamp};
     pub use profile::Profile;
     pub use storage::{BranchName, ReadRepository, ReadStorage, WriteRepository, WriteStorage};
 }
