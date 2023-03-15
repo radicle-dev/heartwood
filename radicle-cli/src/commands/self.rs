@@ -17,14 +17,20 @@ Usage
 
 Options
 
-    --id         Show ID
-    --help       Show help
+    --nid                Show your Node ID
+    --did                Show your DID
+    --ssh-key            Show your public key in OpenSSH format
+    --ssh-fingerprint    Show your public key fingerprint in OpenSSH format
+    --help               Show help
 "#,
 };
 
 #[derive(Debug)]
 enum Show {
-    Id,
+    NodeId,
+    Did,
+    SshKey,
+    SshFingerprint,
     All,
 }
 
@@ -42,8 +48,17 @@ impl Args for Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("id") if show.is_none() => {
-                    show = Some(Show::Id);
+                Long("nid") if show.is_none() => {
+                    show = Some(Show::NodeId);
+                }
+                Long("did") if show.is_none() => {
+                    show = Some(Show::Did);
+                }
+                Long("ssh-key") if show.is_none() => {
+                    show = Some(Show::SshKey);
+                }
+                Long("ssh-fingerprint") if show.is_none() => {
+                    show = Some(Show::SshFingerprint);
                 }
                 Long("help") => {
                     return Err(Error::Help.into());
@@ -65,8 +80,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
     match options.show {
-        Show::Id => {
+        Show::NodeId => {
             term::print(profile.id());
+        }
+        Show::Did => {
+            term::print(profile.did());
+        }
+        Show::SshKey => {
+            term::print(ssh::fmt::key(profile.id()));
+        }
+        Show::SshFingerprint => {
+            term::print(ssh::fmt::fingerprint(profile.id()));
         }
         Show::All => all(&profile)?,
     }
@@ -79,7 +103,7 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
 
     let did = profile.did();
     table.push([
-        term::format::style("ID").to_string(),
+        term::format::style("DID").to_string(),
         term::format::tertiary(did).to_string(),
     ]);
 

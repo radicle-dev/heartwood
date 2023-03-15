@@ -322,6 +322,15 @@ fn rad_clone() {
 }
 
 #[test]
+fn rad_self() {
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let working = environment.tmp().join("working");
+
+    test("examples/rad-self.md", working, Some(&alice.home), []).unwrap();
+}
+
+#[test]
 fn rad_clone_unknown() {
     logger::init(log::Level::Debug);
 
