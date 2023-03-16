@@ -174,7 +174,7 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
                         log::debug!(target: "worker", "Waiting for `done` packet from remote..");
 
                         let mut header = [0; pktline::HEADER_LEN];
-                        if let Ok(pktline::Packetline::Done) = pktline_r.read_pktline(&mut header) {
+                        if let Ok(()) = pktline_r.read_done_pktline(&mut header) {
                             (WireSession::from_split_io(stream_r, stream_w), Err(err))
                         } else {
                             log::error!(
@@ -458,6 +458,16 @@ pub mod pktline {
                 return Err(io::ErrorKind::InvalidInput.into());
             };
             Ok((cmd, Vec::from(&pktline[..length])))
+        }
+
+        /// Parse a `done` packet-line.
+        pub fn read_done_pktline(&mut self, buf: &mut [u8]) -> io::Result<()> {
+            self.read_exact(&mut buf[..HEADER_LEN])?;
+
+            if &buf[..HEADER_LEN] == DONE_PKT {
+                return Ok(());
+            }
+            Err(io::ErrorKind::InvalidInput.into())
         }
 
         /// Parse a Git packet-line.
