@@ -26,9 +26,10 @@ use radicle::node::{routing, NodeId};
 use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
+use crate::prelude::Deserializer;
 use crate::service::reactor::{Fetch, Io};
 use crate::service::{session, DisconnectReason, Message, Service};
-use crate::wire::{Decode, Encode, Error};
+use crate::wire::{Encode, Error};
 use crate::worker;
 use crate::worker::{Task, TaskResult};
 use crate::Link;
@@ -79,7 +80,7 @@ enum Peer {
     Connected {
         link: Link,
         id: NodeId,
-        inbox: VecDeque<u8>,
+        inbox: Deserializer<Message>,
     },
     /// The peer was scheduled for disconnection. Once the transport is handed over
     /// by the reactor, we can consider it disconnected.
@@ -93,7 +94,7 @@ enum Peer {
         fetch: Fetch,
         link: Link,
         id: NodeId,
-        inbox: VecDeque<u8>,
+        inbox: Vec<u8>,
     },
     /// The peer is now upgraded and we are in control of the socket.
     Upgraded { link: Link, id: NodeId },
@@ -151,7 +152,7 @@ impl Peer {
             *self = Self::Connected {
                 link,
                 id,
-                inbox: VecDeque::new(),
+                inbox: Deserializer::default(),
             };
             link
         } else if let Self::Outbound { id: expected } = self {
@@ -161,7 +162,7 @@ impl Peer {
             *self = Self::Connected {
                 link,
                 id,
-                inbox: VecDeque::new(),
+                inbox: Deserializer::default(),
             };
             link
         } else {
@@ -195,7 +196,7 @@ impl Peer {
                 fetch,
                 id: *id,
                 link: *link,
-                inbox: inbox.clone(),
+                inbox: inbox.unparsed().collect(),
             };
         } else {
             panic!("Peer::upgrading: session is not fully connected");
@@ -232,7 +233,7 @@ impl Peer {
             *self = Self::Connected {
                 id: *id,
                 link: *link,
-                inbox: VecDeque::new(),
+                inbox: Deserializer::default(),
             };
         } else {
             panic!("Peer::downgrade: can't downgrade if not in upgraded state");
@@ -508,12 +509,12 @@ where
             }
             SessionEvent::Data(data) => {
                 if let Some(Peer::Connected { id, inbox, .. }) = self.peers.get_mut(&fd) {
-                    inbox.extend(data);
+                    inbox.input(&data);
 
                     loop {
-                        match Message::decode(inbox) {
-                            Ok(msg) => self.service.received_message(*id, msg),
-                            Err(err) if err.is_eof() => {
+                        match inbox.deserialize_next() {
+                            Ok(Some(msg)) => self.service.received_message(*id, msg),
+                            Ok(None) => {
                                 // Buffer is empty, or message isn't complete.
                                 break;
                             }
@@ -522,7 +523,7 @@ where
 
                                 if let Error::UnknownMessageType(t) = e {
                                     let mut leftover = t.to_be_bytes().to_vec();
-                                    leftover.extend(inbox.drain(..));
+                                    leftover.extend(inbox.unparsed());
 
                                     if let Ok(header) =
                                         str::from_utf8(&leftover[..worker::pktline::HEADER_LEN])
@@ -538,7 +539,7 @@ where
                                 }
 
                                 if !inbox.is_empty() {
-                                    log::debug!(target: "wire", "Dropping read buffer with {} bytes", inbox.len());
+                                    log::debug!(target: "wire", "Dropping read buffer for {id} with {} bytes", inbox.unparsed().count());
                                 }
                                 self.disconnect(
                                     fd,

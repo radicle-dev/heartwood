@@ -13,6 +13,12 @@ pub struct Deserializer<D = Message> {
     item: PhantomData<D>,
 }
 
+impl Default for Deserializer<Message> {
+    fn default() -> Self {
+        Self::new(wire::Size::MAX as usize + 1)
+    }
+}
+
 impl<D> From<Vec<u8>> for Deserializer<D> {
     fn from(unparsed: Vec<u8>) -> Self {
         Self {
@@ -51,6 +57,16 @@ impl<D: wire::Decode> Deserializer<D> {
             Err(err) => Err(err),
         }
     }
+
+    /// Drain the unparsed buffer.
+    pub fn unparsed(&mut self) -> impl ExactSizeIterator<Item = u8> + '_ {
+        self.unparsed.drain(..)
+    }
+
+    /// Return whether there are unparsed bytes.
+    pub fn is_empty(&self) -> bool {
+        self.unparsed.is_empty()
+    }
 }
 
 impl<D: wire::Decode> io::Write for Deserializer<D> {
@@ -78,8 +94,37 @@ mod test {
     use super::*;
     use qcheck_macros::quickcheck;
 
+    use crate::test::assert_matches;
+
     const MSG_HELLO: &[u8] = &[5, b'h', b'e', b'l', b'l', b'o'];
     const MSG_BYE: &[u8] = &[3, b'b', b'y', b'e'];
+
+    #[test]
+    fn test_decode_next() {
+        let mut decoder = Deserializer::<String>::new(8);
+
+        decoder.input(&[3, b'b']);
+        assert_matches!(decoder.deserialize_next(), Ok(None));
+        assert_eq!(decoder.unparsed.len(), 2);
+
+        decoder.input(&[b'y']);
+        assert_matches!(decoder.deserialize_next(), Ok(None));
+        assert_eq!(decoder.unparsed.len(), 3);
+
+        decoder.input(&[b'e']);
+        assert_matches!(decoder.deserialize_next(), Ok(Some(s)) if s.as_str() == "bye");
+        assert_eq!(decoder.unparsed.len(), 0);
+        assert!(decoder.is_empty());
+    }
+
+    #[test]
+    fn test_unparsed() {
+        let mut decoder = Deserializer::<String>::new(8);
+
+        decoder.input(&[3, b'b', b'y']);
+        assert_eq!(decoder.unparsed().collect::<Vec<_>>(), vec![3, b'b', b'y']);
+        assert!(decoder.is_empty());
+    }
 
     #[quickcheck]
     fn prop_decode_next(chunk_size: usize) {

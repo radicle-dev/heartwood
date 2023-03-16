@@ -365,7 +365,7 @@ impl wire::Encode for ZeroBytes {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         let mut n = (self.len() as u16).encode(writer)?;
         for _ in 0..self.len() {
-            n += 0u8.encode(writer)?
+            n += 0u8.encode(writer)?;
         }
         Ok(n)
     }
