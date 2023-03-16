@@ -13,8 +13,10 @@ use crate::crypto::Signer;
 use crate::identity::Id;
 use crate::node::{Command, FetchResult};
 use crate::profile::Home;
+use crate::runtime::Emitter;
 use crate::service;
 use crate::service::tracking;
+use crate::service::Event;
 use crate::service::{CommandError, QueryState};
 use crate::service::{NodeId, Sessions};
 use crate::wire;
@@ -64,6 +66,20 @@ pub struct Handle<G: Signer + Ecdh> {
 
     /// Whether a shutdown was initiated or not. Prevents attempting to shutdown twice.
     shutdown: Arc<AtomicBool>,
+
+    /// Publishes events to subscribers.
+    emitter: Emitter<Event>,
+}
+
+impl<G: Signer + Ecdh> Handle<G> {
+    /// Subscribe to events stream.
+    pub fn events(&mut self) -> chan::Receiver<Event> {
+        let (sender, receiver) = chan::unbounded();
+        let mut subs = self.emitter.subscribers.lock().unwrap();
+        subs.push(sender);
+
+        receiver
+    }
 }
 
 impl<G: Signer + Ecdh> fmt::Debug for Handle<G> {
@@ -78,16 +94,22 @@ impl<G: Signer + Ecdh> Clone for Handle<G> {
             home: self.home.clone(),
             controller: self.controller.clone(),
             shutdown: self.shutdown.clone(),
+            emitter: self.emitter.clone(),
         }
     }
 }
 
 impl<G: Signer + Ecdh + 'static> Handle<G> {
-    pub fn new(home: Home, controller: reactor::Controller<wire::Control<G>>) -> Self {
+    pub fn new(
+        home: Home,
+        controller: reactor::Controller<wire::Control<G>>,
+        emitter: Emitter<Event>,
+    ) -> Self {
         Self {
             home,
             controller,
             shutdown: Arc::default(),
+            emitter,
         }
     }
 

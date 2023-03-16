@@ -3,6 +3,7 @@ use std::iter;
 use std::net;
 use std::ops::{Deref, DerefMut};
 
+use crossbeam_channel as chan;
 use log::*;
 
 use crate::address;
@@ -13,6 +14,7 @@ use crate::identity::Id;
 use crate::node;
 use crate::node::routing;
 use crate::prelude::*;
+use crate::runtime::Emitter;
 use crate::service;
 use crate::service::message::*;
 use crate::service::reactor::Io;
@@ -130,6 +132,8 @@ where
         let tracking = tracking::Store::memory().unwrap();
         let tracking = tracking::Config::new(config.policy, config.scope, tracking);
         let id = *config.signer.public_key();
+
+        let emitter: Emitter<Event> = Default::default();
         let service = Service::new(
             config.config,
             config.local_time,
@@ -139,6 +143,7 @@ where
             tracking,
             config.signer,
             config.rng.clone(),
+            emitter,
         );
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
@@ -320,10 +325,9 @@ where
         msgs.into_iter()
     }
 
-    /// Get a draining iterator over the peer's emitted events.
-    pub fn events(&mut self) -> impl Iterator<Item = Event> + '_ {
-        self.outbox()
-            .filter_map(|io| if let Io::Event(e) = io { Some(e) } else { None })
+    /// Get a stream of the peer's emitted events.
+    pub fn events(&mut self) -> chan::Receiver<Event> {
+        self.service.events()
     }
 
     /// Get a draining iterator over the peer's I/O outbox.

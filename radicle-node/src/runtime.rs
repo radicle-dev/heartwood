@@ -3,6 +3,7 @@ mod handle;
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::{fs, io, net, thread, time};
 
 use crossbeam_channel as chan;
@@ -22,7 +23,7 @@ use crate::address;
 use crate::control;
 use crate::crypto::Signer;
 use crate::node::{routing, NodeId};
-use crate::service::tracking;
+use crate::service::{tracking, Event};
 use crate::wire;
 use crate::wire::Wire;
 use crate::worker;
@@ -59,6 +60,39 @@ pub enum Error {
     /// A git version error.
     #[error("git version error: {0}")]
     GitVersion(#[from] git::VersionError),
+}
+
+/// Publishes events to subscribers.
+#[derive(Debug, Clone)]
+pub struct Emitter<T> {
+    pub(crate) subscribers: Arc<Mutex<Vec<chan::Sender<T>>>>,
+}
+
+impl<T> Default for Emitter<T> {
+    fn default() -> Emitter<T> {
+        Emitter {
+            subscribers: Default::default(),
+        }
+    }
+}
+
+impl<T: Clone> Emitter<T> {
+    /// Emit event to subscribers and drop those who can't receive it.
+    pub(crate) fn emit(&self, event: T) {
+        self.subscribers
+            .lock()
+            .unwrap()
+            .retain(|s| s.try_send(event.clone()).is_ok());
+    }
+
+    /// Subscribe to events stream.
+    pub fn events(&mut self) -> chan::Receiver<T> {
+        let (sender, receiver) = chan::unbounded();
+        let mut subs = self.subscribers.lock().unwrap();
+        subs.push(sender);
+
+        receiver
+    }
 }
 
 /// Holds join handles to the client threads, as well as a client handle.
@@ -113,6 +147,7 @@ impl<G: Signer + Ecdh + 'static> Runtime<G> {
 
         log::info!(target: "node", "Default tracking policy set to '{}'", &config.policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);
+        let emitter: Emitter<Event> = Default::default();
         let service = service::Service::new(
             config,
             clock,
@@ -122,6 +157,7 @@ impl<G: Signer + Ecdh + 'static> Runtime<G> {
             tracking,
             signer.clone(),
             rng,
+            emitter.clone(),
         );
 
         let (worker_send, worker_recv) = chan::unbounded::<worker::Task<G>>();
@@ -138,7 +174,7 @@ impl<G: Signer + Ecdh + 'static> Runtime<G> {
             log::info!(target: "node", "Listening on {local_addr}..");
         }
         let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
-        let handle = Handle::new(home.clone(), reactor.controller());
+        let handle = Handle::new(home.clone(), reactor.controller(), emitter);
         let atomic = git::version()? >= git::VERSION_REQUIRED;
 
         if !atomic {

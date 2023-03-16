@@ -703,11 +703,6 @@ where
                     }
                     self.actions.push_back(reactor::Action::Send(fd, data));
                 }
-                Io::Event(_e) => {
-                    log::warn!(
-                        target: "wire", "Events are not currently supported"
-                    );
-                }
                 Io::Connect(node_id, addr) => {
                     if self.connected().any(|(_, id)| id == &node_id) {
                         log::error!(

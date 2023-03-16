@@ -29,6 +29,7 @@ use crate::node;
 use crate::node::routing;
 use crate::node::{Address, Features, FetchResult, Seed, Seeds};
 use crate::prelude::*;
+use crate::runtime::Emitter;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::reactor::FetchDirection;
@@ -203,6 +204,8 @@ pub struct Service<R, A, S, G> {
     last_announce: LocalTime,
     /// Time when the service was initialized.
     start_time: LocalTime,
+    /// Publishes events to subscribers.
+    emitter: Emitter<Event>,
 }
 
 impl<R, A, S, G> Service<R, A, S, G>
@@ -236,6 +239,7 @@ where
         tracking: tracking::Config,
         signer: G,
         rng: Rng,
+        emitter: Emitter<Event>,
     ) -> Self {
         let sessions = Sessions::new(rng.clone());
 
@@ -261,6 +265,7 @@ where
             last_prune: LocalTime::default(),
             last_announce: LocalTime::default(),
             start_time: LocalTime::default(),
+            emitter,
         }
     }
 
@@ -339,6 +344,11 @@ where
     /// Get the local signer.
     pub fn signer(&self) -> &G {
         &self.signer
+    }
+
+    /// Subscriber to inner `Emitter` events.
+    pub fn events(&mut self) -> chan::Receiver<Event> {
+        self.emitter.events()
     }
 
     /// Get I/O reactor.
@@ -586,11 +596,12 @@ where
                     Ok(updated) => {
                         log::debug!(target: "service", "Fetched {rid} from {remote}");
 
-                        self.reactor.event(Event::RefsFetched {
+                        self.emitter.emit(Event::RefsFetched {
                             remote,
                             rid,
                             updated: updated.clone(),
                         });
+
                         FetchResult::Success { updated }
                     }
                     Err(err) => {

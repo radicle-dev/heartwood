@@ -22,8 +22,6 @@ pub enum Io {
     Fetch(Fetch),
     /// Ask for a wakeup in a specified amount of time.
     Wakeup(LocalDuration),
-    /// Emit an event.
-    Event(Event),
 }
 
 /// Fetch job sent to worker thread.
@@ -81,11 +79,6 @@ pub struct Reactor {
 }
 
 impl Reactor {
-    /// Emit an event.
-    pub fn event(&mut self, event: Event) {
-        self.io.push_back(Io::Event(event));
-    }
-
     /// Connect to a peer.
     pub fn connect(&mut self, id: NodeId, addr: Address) {
         self.io.push_back(Io::Connect(id, addr));

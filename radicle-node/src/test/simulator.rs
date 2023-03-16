@@ -606,14 +606,6 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     );
                 }
             }
-            Io::Event(event) => {
-                let events = self.events.entry(node).or_insert_with(VecDeque::new);
-                if events.len() >= MAX_EVENTS {
-                    warn!(target: "sim", "Dropping event: buffer is full");
-                } else {
-                    events.push_back(event);
-                }
-            }
             Io::Fetch(fetch) => {
                 let remote = fetch.remote;
 

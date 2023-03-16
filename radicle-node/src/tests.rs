@@ -1069,6 +1069,8 @@ fn test_push_and_pull() {
     )
     .initialize([&mut alice, &mut bob, &mut eve]);
 
+    let bob_events = bob.events();
+
     // Here we expect Alice to connect to Eve.
     sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
 
@@ -1098,8 +1100,8 @@ fn test_push_and_pull() {
         .unwrap()
         .is_some());
     assert_matches!(
-        sim.events(&bob.id).next(),
-        Some(service::Event::RefsFetched { remote, .. })
+        bob_events.recv(),
+        Ok(service::Event::RefsFetched { remote, .. })
         if remote == eve.node_id(),
         "Bob fetched from Eve"
     );
