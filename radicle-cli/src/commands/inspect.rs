@@ -25,7 +25,7 @@ Usage
 
     rad inspect <path> [<option>...]
     rad inspect <rid>  [<option>...]
-    rad inspect
+    rad inspect [<option>...]
 
     Inspects the given path or RID. If neither is specified,
     the current repository is inspected.
@@ -88,9 +88,9 @@ impl Args for Options {
                     } else if let Ok(val) = PathBuf::from_str(&val) {
                         id = radicle::rad::repo(val)
                             .map(|(_, id)| Some(id))
-                            .context("Supplied argument is not a valid `path`")?;
+                            .context("Supplied argument is not a valid path")?;
                     } else {
-                        return Err(anyhow!("invalid `path` or `id` '{}'", val));
+                        return Err(anyhow!("invalid path or RID '{}'", val));
                     }
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
@@ -106,7 +106,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Some(id) => id,
         None => {
             let (_, id) = radicle::rad::repo(Path::new("."))
-                .context("Current directory is not a Radicle project")?;
+                .context("Current directory is not a radicle project")?;
 
             id
         }
@@ -122,7 +122,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let signer = term::signer(&profile)?;
     let project = storage
         .get(signer.public_key(), id)?
-        .context("No project with such `id` exists")?;
+        .context("No project with the given RID exists")?;
 
     match options.target {
         Target::Refs => {

@@ -6,7 +6,6 @@ use anyhow::Context as _;
 
 use radicle::prelude::*;
 use radicle::storage::git::transport;
-use radicle::storage::RemoteId;
 
 use crate::project;
 use crate::terminal as term;
@@ -19,11 +18,11 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad checkout <id> [<option>...]
+    rad checkout <rid> [--remote <did>] [<option>...]
 
 Options
 
-    --remote <id>   Remote namespace to checkout
+    --remote <did>  Remote peer to checkout
     --no-confirm    Don't ask for confirmation during checkout
     --help          Print help
 "#,
@@ -31,13 +30,12 @@ Options
 
 pub struct Options {
     pub id: Id,
-    pub remote: Option<RemoteId>,
+    pub remote: Option<Did>,
 }
 
 impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
         use lexopt::prelude::*;
-        use std::str::FromStr;
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut id = None;
@@ -51,13 +49,7 @@ impl Args for Options {
                 Long("help") => return Err(Error::Help.into()),
                 Long("remote") => {
                     let val = parser.value().unwrap();
-                    let val = val.to_string_lossy();
-
-                    if let Ok(val) = NodeId::from_str(&val) {
-                        remote = Some(val);
-                    } else {
-                        return Err(anyhow!("invalid Node ID '{}'", val));
-                    }
+                    remote = Some(term::args::did(&val)?);
                 }
                 Value(val) if id.is_none() => {
                     id = Some(term::args::rid(&val)?);
@@ -68,7 +60,7 @@ impl Args for Options {
 
         Ok((
             Options {
-                id: id.ok_or_else(|| anyhow!("a project id to checkout must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("a project to checkout must be provided"))?,
                 remote,
             },
             vec![],
@@ -91,7 +83,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     let id = options.id;
     let storage = &profile.storage;
-    let remote = options.remote.unwrap_or(*profile.id());
+    let remote = options.remote.unwrap_or(profile.did());
     let doc = storage
         .repository(id)?
         .identity_doc_of(&remote)

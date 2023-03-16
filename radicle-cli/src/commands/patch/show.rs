@@ -1,8 +1,5 @@
 use std::process;
 
-use super::common::*;
-use super::*;
-
 use radicle::cob::patch;
 use radicle::git;
 use radicle::storage::git::Repository;
@@ -12,6 +9,9 @@ use radicle_term::{
 };
 
 use crate::terminal as term;
+
+use super::common::*;
+use super::*;
 
 fn show_patch_diff(
     patch: &patch::Patch,

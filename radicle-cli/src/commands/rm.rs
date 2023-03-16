@@ -17,7 +17,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad rm <id> [<option>...]
+    rad rm <rid> [<option>...]
 
     Removes a project from storage.
 
@@ -59,7 +59,7 @@ impl Args for Options {
 
         Ok((
             Options {
-                id: id.ok_or_else(|| anyhow!("an `id` must be provided; see `rad rm --help`"))?,
+                id: id.ok_or_else(|| anyhow!("an RID must be provided; see `rad rm --help`"))?,
                 confirm,
             },
             vec![],

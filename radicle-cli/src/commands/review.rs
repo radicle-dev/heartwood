@@ -19,7 +19,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad review [<id>] [--accept|--reject] [-m [<string>]] [<option>...]
+    rad review [<patch-id>] [--accept|--reject] [-m [<string>]] [<option>...]
 
     To specify a patch to review, use the fully qualified patch id
     or an unambiguous prefix of it.
@@ -118,7 +118,7 @@ impl Args for Options {
 
         Ok((
             Options {
-                id: id.ok_or_else(|| anyhow!("a patch id to review must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("a patch to review must be provided"))?,
                 message,
                 sync,
                 confirm,

@@ -22,8 +22,9 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad delegate (add|remove) <did> [--to <id>]
-    rad delegate list [<id>]
+    rad delegate add <did> [--to <rid>] [<option>...]
+    rad delegate remove <did> [--to <rid>] [<option>...]
+    rad delegate list [<rid>] [<option>...]
 
     The `add` and `remove` commands are limited to managing delegates
     where the `threshold` for the quorum is exactly `1`. Otherwise,
@@ -124,5 +125,5 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn get_id(id: Option<Id>) -> anyhow::Result<Id> {
     id.or_else(|| radicle::rad::cwd().ok().map(|(_, id)| id))
-        .context("Couldn't get ID from either command line or cwd")
+        .context("Couldn't get the RID from either command line or cwd")
 }

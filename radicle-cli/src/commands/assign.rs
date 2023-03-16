@@ -2,14 +2,15 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 use nonempty::NonEmpty;
+
+use radicle::cob;
+use radicle::cob::issue;
 use radicle::prelude::Did;
+use radicle::storage::WriteStorage;
 
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
-use radicle::cob;
-use radicle::cob::issue;
-use radicle::storage::WriteStorage;
 
 pub const HELP: Help = Help {
     name: "assign",
@@ -18,14 +19,15 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad assign <issue> --to <did>
+    rad assign <issue-id> --to <did> [<option>...]
 
     To assign multiple users to an issue, you may repeat
     the `--to` option.
 
+    --to <did>    Assignee to add to the issue
+
 Options
 
-    --to <did>    Assignee to add to the issue
     --help        Print help
 "#,
 };

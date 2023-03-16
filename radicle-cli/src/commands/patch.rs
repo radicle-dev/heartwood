@@ -34,13 +34,13 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad patch
-    rad patch list [--all|--merged|--open|--archived]
-    rad patch show <id>
+    rad patch [<option>...]
+    rad patch list [--all|--merged|--open|--archived] [<option>...]
+    rad patch show <patch-id> [<option>...]
     rad patch open [<option>...]
-    rad patch update <id> [<option>...]
-    rad patch checkout <id>
-    rad patch delete <id>
+    rad patch update <patch-id> [<option>...]
+    rad patch checkout <patch-id> [<option>...]
+    rad patch delete <patch-id> [<option>...]
 
 Create/Update options
 
@@ -196,14 +196,14 @@ impl Args for Options {
             OperationName::Open => Operation::Open { message },
             OperationName::List => Operation::List { filter },
             OperationName::Show => Operation::Show {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
             },
             OperationName::Delete => Operation::Delete {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
             },
             OperationName::Update => Operation::Update { patch_id, message },
             OperationName::Checkout => Operation::Checkout {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
             },
         };
 

@@ -1,6 +1,5 @@
 pub mod args;
 pub use args::{Args, Error, Help};
-pub mod cob;
 pub mod format;
 pub mod io;
 pub use io::{proposal, signer};

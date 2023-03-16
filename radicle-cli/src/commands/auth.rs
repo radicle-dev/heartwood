@@ -18,10 +18,10 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad auth [<options>...]
+    rad auth [<option>...]
 
     A passphrase may be given via the environment variable `RAD_PASSPHRASE` or
-    via the standard input stream if `--stdin` is used. Using one of these
+    via the standard input stream if `--stdin` is used. Using either of these
     methods disables the passphrase prompt.
 
 Options

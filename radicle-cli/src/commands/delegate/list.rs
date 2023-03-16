@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+
 use radicle::{prelude::Id, storage::ReadStorage, Profile};
 
 use crate::terminal as term;
@@ -9,7 +10,7 @@ where
 {
     let project = storage
         .get(&profile.public_key, id)?
-        .context("No project with such ID exists")?;
+        .context("No project with the given RID exists")?;
 
     term::info!("{}", serde_json::to_string_pretty(&project.delegates)?);
     Ok(())

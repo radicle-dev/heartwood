@@ -1,12 +1,12 @@
 use std::ffi::OsString;
 use std::path::Path;
 
+use anyhow::anyhow;
+
 use radicle::git;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-
-use anyhow::anyhow;
 
 pub const HELP: Help = Help {
     name: "push",
@@ -15,7 +15,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad push [--all] [<option>...]
+    rad push [<option>...]
 
     By default, only the current branch is pushed.
 

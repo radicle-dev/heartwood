@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+
 use radicle::{
     prelude::Id,
     storage::{WriteRepository as _, WriteStorage},
@@ -17,7 +18,7 @@ where
 
     let mut project = storage
         .get(&profile.public_key, id)?
-        .context("No project with such ID exists")?;
+        .context("No project with the given RID exists")?;
 
     let repo = storage.repository_mut(id)?;
 

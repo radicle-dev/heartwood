@@ -1,15 +1,15 @@
 use std::ffi::OsString;
-use std::str::FromStr;
 
 use anyhow::anyhow;
 use nonempty::NonEmpty;
+
+use radicle::cob;
+use radicle::cob::issue;
 use radicle::prelude::Did;
+use radicle::storage::WriteStorage;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use radicle::cob;
-use radicle::cob::issue;
-use radicle::storage::WriteStorage;
 
 pub const HELP: Help = Help {
     name: "unassign",
@@ -18,14 +18,15 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad unassign <issue> --from <did>
+    rad unassign <issue-id> --from <did> [<option>...]
 
     To unassign multiple users from an issue, you may repeat
     the `--from` option.
 
+    --from <did>     Assignee to remove from the issue
+
 Options
 
-    --from <did>     Assignee to remove from the issue
     --help           Print help
 "#,
 };
@@ -56,11 +57,7 @@ impl Args for Options {
                     from.push(did);
                 }
                 Value(ref val) if id.is_none() => {
-                    let val = val.to_string_lossy();
-                    let Ok(val) = issue::IssueId::from_str(&val) else {
-                        return Err(anyhow!("invalid Issue ID '{}'", val));
-                    };
-                    id = Some(val);
+                    id = Some(term::args::issue(val)?);
                 }
                 _ => {
                     return Err(anyhow!(arg.unexpected()));

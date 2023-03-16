@@ -78,7 +78,8 @@ impl Args for Options {
 
         Ok((
             Options {
-                id: id.ok_or_else(|| anyhow!("an issue id to comment on must be provided"))?,
+                id: id
+                    .ok_or_else(|| anyhow!("an issue or patch to comment on must be provided"))?,
                 message,
                 reply_to,
             },

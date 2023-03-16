@@ -2,6 +2,7 @@
 use std::ffi::OsString;
 
 use anyhow::anyhow;
+
 use radicle::profile;
 
 use crate::terminal as term;
@@ -14,9 +15,9 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad path [--help]
+    rad path [<option>...]
 
-    If no argument is specified, the radicle "home" path is displayed.
+    If no argument is specified, the radicle home path is displayed.
 
 Options
 

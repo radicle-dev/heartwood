@@ -3,19 +3,19 @@ use std::ffi::OsString;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
+
+use radicle::cob::common::{Reaction, Tag};
+use radicle::cob::issue;
+use radicle::cob::issue::{CloseReason, Issues, State};
 use radicle::node::Handle;
 use radicle::prelude::Did;
+use radicle::storage::WriteStorage;
+use radicle::{cob, Node};
 
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
 use crate::terminal::Element;
-
-use radicle::cob::common::{Reaction, Tag};
-use radicle::cob::issue;
-use radicle::cob::issue::{CloseReason, Issues, State};
-use radicle::storage::WriteStorage;
-use radicle::{cob, Node};
 
 pub const HELP: Help = Help {
     name: "issue",
@@ -24,13 +24,13 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad issue
-    rad issue delete <id>
-    rad issue list [--assigned <did>]
-    rad issue open [--title <title>] [--description <text>]
-    rad issue react <id> [--emoji <char>]
-    rad issue show <id>
-    rad issue state <id> [--closed | --open | --solved]
+    rad issue [<option>...]
+    rad issue delete <issue-id> [<option>...]
+    rad issue list [--assigned <did>] [<option>...]
+    rad issue open [--title <title>] [--description <text>] [<option>...]
+    rad issue react <issue-id> [--emoji <char>] [<option>...]
+    rad issue show <issue-id> [<option>...]
+    rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
 
 Options
 
@@ -174,18 +174,18 @@ impl Args for Options {
         let op = match op.unwrap_or_default() {
             OperationName::Open => Operation::Open { title, description },
             OperationName::Show => Operation::Show {
-                id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
             },
             OperationName::State => Operation::State {
-                id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
                 state: state.ok_or_else(|| anyhow!("a state operation must be provided"))?,
             },
             OperationName::React => Operation::React {
-                id: id.ok_or_else(|| anyhow!("an issue id must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
                 reaction: reaction.ok_or_else(|| anyhow!("a reaction emoji must be provided"))?,
             },
             OperationName::Delete => Operation::Delete {
-                id: id.ok_or_else(|| anyhow!("an issue id to remove must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("an issue to remove must be provided"))?,
             },
             OperationName::List => Operation::List { assigned },
         };

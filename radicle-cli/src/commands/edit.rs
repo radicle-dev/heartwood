@@ -15,9 +15,9 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad edit [<id>] [<option>...]
+    rad edit [<rid>] [<option>...]
 
-    Edits the identity document pointed to by the ID. If it isn't specified,
+    Edits the identity document pointed to by the RID. If it isn't specified,
     the current project is edited.
 
 Options
@@ -62,11 +62,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let id = options
         .id
         .or_else(|| radicle::rad::cwd().ok().map(|(_, id)| id))
-        .context("Couldn't get ID from either command line or cwd")?;
+        .context("Couldn't get RID from either command line or cwd")?;
 
     let mut project = storage
         .get(signer.public_key(), id)?
-        .context("No project with such ID exists")?;
+        .context("No project with the given RID exists")?;
 
     let repo = storage.repository(id)?;
 

@@ -18,7 +18,7 @@ Usage
 
 Options
 
-    --nid                Show your Node ID
+    --nid                Show your Node ID (NID)
     --did                Show your DID
     --ssh-key            Show your public key in OpenSSH format
     --ssh-fingerprint    Show your public key fingerprint in OpenSSH format
@@ -110,7 +110,7 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
 
     let node_id = profile.id();
     table.push([
-        term::format::style("Node ID").to_string(),
+        term::format::style("Node ID (NID)").to_string(),
         term::format::tertiary(node_id).to_string(),
     ]);
 

@@ -83,9 +83,8 @@ impl Args for Options {
                 _ => return Err(anyhow!(arg.unexpected())),
             }
         }
-        let id = id.ok_or_else(|| {
-            anyhow!("to clone, a radicle id must be provided; see `rad clone --help`")
-        })?;
+        let id =
+            id.ok_or_else(|| anyhow!("to clone, an RID must be provided; see `rad clone --help`"))?;
 
         Ok((
             Options {

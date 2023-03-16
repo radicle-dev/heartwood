@@ -2,6 +2,8 @@ use std::ffi::OsString;
 use std::str::FromStr;
 
 use anyhow::anyhow;
+
+use radicle::cob::{self, issue, patch};
 use radicle::crypto;
 use radicle::node::Address;
 use radicle::prelude::{Did, Id, NodeId};
@@ -104,4 +106,19 @@ pub fn addr(val: &OsString) -> anyhow::Result<Address> {
 
 pub fn string(val: &OsString) -> String {
     val.to_string_lossy().to_string()
+}
+
+pub fn issue(val: &OsString) -> anyhow::Result<issue::IssueId> {
+    let val = val.to_string_lossy();
+    issue::IssueId::from_str(&val).map_err(|_| anyhow!("invalid Issue ID '{}'", val))
+}
+
+pub fn patch(val: &OsString) -> anyhow::Result<patch::PatchId> {
+    let val = val.to_string_lossy();
+    patch::PatchId::from_str(&val).map_err(|_| anyhow!("invalid Patch ID '{}'", val))
+}
+
+pub fn cob(val: &OsString) -> anyhow::Result<cob::ObjectId> {
+    let val = val.to_string_lossy();
+    cob::ObjectId::from_str(&val).map_err(|_| anyhow!("invalid Object ID '{}'", val))
 }

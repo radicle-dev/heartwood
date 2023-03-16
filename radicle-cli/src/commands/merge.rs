@@ -4,13 +4,14 @@ use std::fmt::Write;
 
 use anyhow::{anyhow, Context};
 
-use crate::git::Rev;
-use crate::terminal as term;
-use crate::terminal::args::{string, Args, Error, Help};
 use radicle::cob::patch::{Patch, PatchId, Patches};
 use radicle::git;
 use radicle::prelude::*;
 use radicle::rad;
+
+use crate::git::Rev;
+use crate::terminal as term;
+use crate::terminal::args::{string, Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "merge",
@@ -106,7 +107,7 @@ impl Args for Options {
         }
 
         let revision_id =
-            revision_id.ok_or_else(|| anyhow!("a revision id to merge must be provided"))?;
+            revision_id.ok_or_else(|| anyhow!("a revision to merge must be provided"))?;
 
         Ok((
             Options {

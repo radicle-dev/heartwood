@@ -1,9 +1,10 @@
 use std::ffi::OsString;
 
+use radicle::storage::{ReadRepository, ReadStorage};
+
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
-use radicle::storage::{ReadRepository, ReadStorage};
 use term::Element;
 
 pub const HELP: Help = Help {

@@ -1,8 +1,9 @@
 use std::ffi::OsString;
 
 use anyhow::anyhow;
-use radicle::crypto::{PublicKey, Signature, Signer};
 use serde::{Deserialize, Serialize};
+
+use radicle::crypto::{PublicKey, Signature, Signer};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -14,7 +15,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad web [<options>...]
+    rad web [<option>...]
 
 Options
 

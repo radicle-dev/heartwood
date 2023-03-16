@@ -17,7 +17,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad untrack [<id>]
+    rad untrack [<rid>] [<option>...]
 
 Options
 
@@ -45,7 +45,7 @@ impl Args for Options {
                     if let Ok(val) = Id::from_urn(&val) {
                         id = Some(val);
                     } else {
-                        return Err(anyhow!("invalid ID '{}'", val));
+                        return Err(anyhow!("invalid RID '{}'", val));
                     }
                 }
                 Long("help") => {
@@ -65,7 +65,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let id = options
         .id
         .or_else(|| radicle::rad::cwd().ok().map(|(_, id)| id))
-        .context("current directory is not a git repository; please supply an `<id>`")?;
+        .context("current directory is not a git repository; please supply an RID")?;
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let project = storage.repository(id)?.project_of(profile.id())?;

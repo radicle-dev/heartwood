@@ -4,13 +4,14 @@ use std::str::FromStr;
 use anyhow::anyhow;
 use nonempty::NonEmpty;
 
-use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
 use radicle::cob;
 use radicle::cob::common::Tag;
 use radicle::cob::{issue, patch, store};
 use radicle::crypto::Signer;
 use radicle::storage::{self, WriteStorage};
+
+use crate::terminal as term;
+use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "untag",
@@ -19,7 +20,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad untag <id> <tag>..
+    rad untag <cob-id> <tag>... [<option>...]
 
 Options
 
@@ -47,11 +48,7 @@ impl Args for Options {
                     return Err(Error::Help.into());
                 }
                 Value(ref val) if id.is_none() => {
-                    let val = val.to_string_lossy();
-                    let Ok(val) = cob::ObjectId::from_str(&val) else {
-                        return Err(anyhow!("invalid issue or patch ID '{}'", val));
-                    };
-                    id = Some(val);
+                    id = Some(term::args::cob(val)?);
                 }
                 Value(ref val) if id.is_some() => {
                     let s: String = val.parse()?;

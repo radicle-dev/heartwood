@@ -1,6 +1,7 @@
 use std::ffi::OsString;
 
 use anyhow::anyhow;
+
 use radicle::node::{Address, Node, NodeId, ROUTING_DB_FILE, TRACKING_DB_FILE};
 
 use crate::terminal as term;
@@ -20,11 +21,12 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad node status
-    rad node (start|stop)
-    rad node connect <nid> <addr>
-    rad node routing
-    rad node tracking [--repos|--nodes]
+    rad node status [<option>...]
+    rad node start [<option>...]
+    rad node stop [<option>...]
+    rad node connect <nid> <addr> [<option>...]
+    rad node routing [<option>...]
+    rad node tracking [--repos|--nodes] [<option>...]
 
 Options
 
@@ -115,7 +117,7 @@ impl Args for Options {
 
         let op = match op.unwrap_or_default() {
             OperationName::Connect => Operation::Connect {
-                nid: nid.ok_or_else(|| anyhow!("a NID must be provided"))?,
+                nid: nid.ok_or_else(|| anyhow!("an NID must be provided"))?,
                 addr: addr.ok_or_else(|| anyhow!("an address must be provided"))?,
             },
             OperationName::Routing => Operation::Routing,

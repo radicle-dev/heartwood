@@ -1,6 +1,7 @@
 use std::{ffi::OsString, str::FromStr as _};
 
 use anyhow::{anyhow, Context as _};
+
 use radicle::cob::identity::{self, Proposal, Proposals, Revision, RevisionId};
 use radicle::git::Oid;
 use radicle::identity::Identity;
@@ -23,14 +24,14 @@ Usage
 
     rad id (update|edit) [--title|-t] [--description|-d]
                          [--delegates <did>] [--threshold <num>]
-                         [--no-confirm]
-    rad id list
-    rad id (show|rebase) <id> [--rev <revision id>]
-    rad id show <id> [--rev <revision id>] [--revisions]
-    rad id (accept|reject|close|commit) [--rev <revision id>] [--no-confirm]
+                         [--no-confirm] [<option>...]
+    rad id list [<option>...]
+    rad id rebase <id> [--rev <revision-id>] [<option>...]
+    rad id show <id> [--rev <revision-id>] [--revisions] [<option>...]
+    rad id (accept|reject|close|commit) [--rev <revision-id>] [--no-confirm] [<option>...]
 
 Options
-        --help                 Print help
+    --help                 Print help
 "#,
 };
 
@@ -160,7 +161,7 @@ impl Args for Options {
                     let val = String::from(parser.value()?.to_string_lossy());
                     rev = Some(
                         RevisionId::from_str(&val)
-                            .map_err(|_| anyhow!("invalid revision id '{}'", val))?,
+                            .map_err(|_| anyhow!("invalid revision '{}'", val))?,
                     );
                 }
                 Long("delegates") => {
@@ -185,11 +186,11 @@ impl Args for Options {
 
         let op = match op.unwrap_or_default() {
             OperationName::Accept => Operation::Accept {
-                id: id.ok_or_else(|| anyhow!("a proposal id must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
                 rev,
             },
             OperationName::Reject => Operation::Reject {
-                id: id.ok_or_else(|| anyhow!("a proposal id must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
                 rev,
             },
             OperationName::Edit => Operation::Edit {
@@ -199,7 +200,7 @@ impl Args for Options {
                 threshold,
             },
             OperationName::Update => Operation::Update {
-                id: id.ok_or_else(|| anyhow!("a proposal id must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
                 rev,
                 title,
                 description,
@@ -207,21 +208,21 @@ impl Args for Options {
                 threshold,
             },
             OperationName::Rebase => Operation::Rebase {
-                id: id.ok_or_else(|| anyhow!("a proposal id must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
                 rev,
             },
             OperationName::Show => Operation::Show {
-                id: id.ok_or_else(|| anyhow!("a proposal id must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
                 rev,
                 show_revisions,
             },
             OperationName::List => Operation::List,
             OperationName::Commit => Operation::Commit {
-                id: id.ok_or_else(|| anyhow!("a proposal id must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
                 rev,
             },
             OperationName::Close => Operation::Close {
-                id: id.ok_or_else(|| anyhow!("a proposal id must be provided"))?,
+                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
             },
         };
         Ok((Options { op, interactive }, vec![]))

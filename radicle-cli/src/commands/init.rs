@@ -5,18 +5,18 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Context as _};
+use serde_json as json;
 
 use radicle::crypto::ssh;
 use radicle::git::RefString;
 use radicle::node::tracking::Scope;
 use radicle::node::{Handle, NodeId};
+use radicle::profile;
 
 use crate::git;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::Interactive;
-use radicle::profile;
-use serde_json as json;
 
 pub const HELP: Help = Help {
     name: "init",

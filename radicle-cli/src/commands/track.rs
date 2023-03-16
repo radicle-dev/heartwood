@@ -16,8 +16,8 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad track <did> [--[no-]fetch] [--alias <name>]
-    rad track <rid> [--[no-]fetch] [--scope <scope>]
+    rad track <did> [--[no-]fetch] [--alias <name>] [<option>...]
+    rad track <rid> [--[no-]fetch] [--scope <scope>] [<option>...]
 
     The `track` command takes either a DID or an RID. Based on the argument, it will
     either update the tracking policy of a node (DID), or a repository (RID).

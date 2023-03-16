@@ -82,7 +82,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Some(rid) => rid,
         None => {
             let (_, rid) = radicle::rad::repo(Path::new("."))
-                .context("Current directory is not a Radicle project")?;
+                .context("Current directory is not a radicle project")?;
 
             rid
         }
