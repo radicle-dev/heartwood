@@ -385,6 +385,8 @@ where
                 .repo_policies()?
                 .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id)),
         );
+        // Start periodic tasks.
+        self.reactor.wakeup(IDLE_INTERVAL);
 
         Ok(())
     }

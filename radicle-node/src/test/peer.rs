@@ -22,7 +22,6 @@ use crate::storage::git::transport::remote;
 use crate::storage::Inventory;
 use crate::storage::{RemoteId, WriteStorage};
 use crate::test::arbitrary;
-use crate::test::assert_matches;
 use crate::test::simulator;
 use crate::test::storage::MockStorage;
 use crate::Link;
@@ -281,7 +280,9 @@ where
         self.service
             .command(Command::Connect(remote_id, remote_addr.clone()));
 
-        assert_matches!(self.outbox().next(), Some(Io::Connect { .. }));
+        self.outbox()
+            .find(|o| matches!(o, Io::Connect { .. }))
+            .unwrap();
 
         self.service.attempted(remote_id, &remote_addr);
         self.service.connected(remote_id, Link::Outbound);

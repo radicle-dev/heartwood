@@ -218,7 +218,7 @@ fn test_persistent_peer_connect() {
     let mut outbox = alice.outbox();
     assert_matches!(outbox.next(), Some(Io::Connect(a, _)) if a == bob.id());
     assert_matches!(outbox.next(), Some(Io::Connect(a, _)) if a == eve.id());
-    assert_matches!(outbox.next(), None);
+    assert_matches!(outbox.find(|o| matches!(o, Io::Connect { .. })), None);
 }
 
 #[test]
