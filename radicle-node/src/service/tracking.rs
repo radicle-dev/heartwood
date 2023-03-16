@@ -108,7 +108,7 @@ impl Config {
                 error!(target: "service", "Attempted to fetch blocked repo {rid}");
                 Err(NamespacesError::BlockedPolicy { rid: *rid })
             }
-            Policy::Track => match self.scope {
+            Policy::Track => match entry.scope {
                 Scope::All => Ok(Namespaces::All),
                 Scope::Trusted => {
                     let nodes = self
