@@ -1,5 +1,6 @@
 mod e2e;
 
+use std::collections::BTreeSet;
 use std::default::*;
 use std::io;
 use std::sync::Arc;
@@ -426,8 +427,74 @@ fn test_announcement_rebroadcast() {
         }),
     );
 
-    let relayed = alice.messages(eve.id()).collect::<Vec<_>>();
+    let relayed = alice.messages(eve.id()).collect::<BTreeSet<_>>();
+    let received = received.into_iter().collect::<BTreeSet<_>>();
+
     assert_eq!(relayed, received);
+}
+
+#[test]
+fn test_announcement_rebroadcast_duplicates() {
+    let mut carol = Peer::new("carol", [4, 4, 4, 4]);
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let rids = arbitrary::set::<Id>(3..=3);
+
+    alice.connect_to(&bob);
+
+    // These are not expected to be relayed.
+    let stale = {
+        let mut anns = BTreeSet::new();
+
+        for _ in 0..5 {
+            carol.elapse(LocalDuration::from_mins(1));
+
+            anns.insert(carol.inventory_announcement());
+            anns.insert(carol.node_announcement());
+        }
+        anns
+    };
+
+    // These are expected to be relayed.
+    let expected = {
+        let mut anns = BTreeSet::new();
+
+        carol.elapse(LocalDuration::from_mins(1));
+        anns.insert(carol.inventory_announcement());
+        anns.insert(carol.node_announcement());
+
+        for rid in rids {
+            alice.track_repo(&rid, tracking::Scope::All).unwrap();
+            anns.insert(carol.refs_announcement(rid));
+            anns.insert(bob.refs_announcement(rid));
+        }
+        anns
+    };
+
+    let mut all = stale.iter().chain(expected.iter()).collect::<Vec<_>>();
+    fastrand::shuffle(&mut all);
+
+    // Alice receives all messages out of order.
+    for ann in all {
+        alice.receive(bob.id, ann.clone());
+    }
+
+    // Alice relays just the expected ones back to Eve.
+    alice.connect_from(&eve);
+    alice.receive(
+        eve.id(),
+        Message::Subscribe(Subscribe {
+            filter: Filter::default(),
+            since: Timestamp::MIN,
+            until: Timestamp::MAX,
+        }),
+    );
+
+    let relayed = alice.messages(eve.id()).collect::<BTreeSet<_>>();
+
+    assert_eq!(relayed.len(), 8);
+    assert_eq!(relayed, expected);
 }
 
 #[test]
@@ -464,7 +531,9 @@ fn test_announcement_rebroadcast_timestamp_filtered() {
         }),
     );
 
-    let relayed = alice.messages(eve.id()).collect::<Vec<_>>();
+    let relayed = alice.messages(eve.id()).collect::<BTreeSet<_>>();
+    let second = second.into_iter().collect::<BTreeSet<_>>();
+
     assert_eq!(relayed.len(), second.len());
     assert_eq!(relayed, second);
 }

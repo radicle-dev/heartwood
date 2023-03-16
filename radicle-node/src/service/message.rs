@@ -307,6 +307,16 @@ impl Announcement {
             AnnouncementMessage::Refs(RefsAnnouncement { rid, .. }) => filter.contains(rid),
         }
     }
+
+    /// Check whether this announcement is of the same variant as another.
+    pub fn variant_eq(&self, other: &Self) -> bool {
+        std::mem::discriminant(&self.message) == std::mem::discriminant(&other.message)
+    }
+
+    /// Get the announcement timestamp.
+    pub fn timestamp(&self) -> Timestamp {
+        self.message.timestamp()
+    }
 }
 
 /// Message payload.
@@ -337,6 +347,21 @@ pub enum Message {
 
     /// Accept a fetch request.
     FetchOk { rid: Id },
+}
+
+impl PartialOrd for Message {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Message {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let this = wire::serialize(self);
+        let other = wire::serialize(other);
+
+        this.cmp(&other)
+    }
 }
 
 impl Message {

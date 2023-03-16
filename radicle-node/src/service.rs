@@ -180,8 +180,6 @@ pub struct Service<R, A, S, G> {
     gossip: Gossip,
     /// Peer sessions, currently or recently connected.
     sessions: Sessions,
-    /// Keeps track of node states.
-    nodes: BTreeMap<NodeId, Node>,
     /// Clock. Tells the time.
     clock: LocalTime,
     /// Interface to the I/O reactor.
@@ -253,8 +251,6 @@ where
             clock,
             routing,
             gossip: Gossip::default(),
-            // FIXME: This should be loaded from the address store.
-            nodes: BTreeMap::new(),
             reactor: Reactor::default(),
             sessions,
             out_of_sync: false,
@@ -797,7 +793,11 @@ where
         let now = self.clock;
         let timestamp = message.timestamp();
         let relay = self.config.relay;
-        let peer = self.nodes.entry(*announcer).or_insert_with(Node::default);
+        let peer = self
+            .gossip
+            .nodes
+            .entry(*announcer)
+            .or_insert_with(Node::default);
 
         // Don't allow messages from too far in the future.
         if timestamp.saturating_sub(now.as_millis()) > MAX_TIME_DELTA.as_millis() as u64 {
@@ -808,7 +808,7 @@ where
             AnnouncementMessage::Inventory(message) => {
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
-                if !peer.inventory_announced(timestamp) {
+                if !peer.inventory_announced(announcement.clone()) {
                     debug!(target: "service", "Ignoring stale inventory announcement from {announcer} (t={})", self.time());
                     return Ok(false);
                 }
@@ -875,19 +875,19 @@ where
                         info!(target: "service", "Routing table updated for {} with seed {relayer}", message.rid);
                     }
                 }
+                // Discard announcement messages we've already seen, otherwise update
+                // our last seen time.
+                if !peer.refs_announced(message.rid, announcement.clone()) {
+                    debug!(target: "service", "Ignoring stale refs announcement from {announcer} (time={timestamp})");
+                    return Ok(false);
+                }
+
                 // TODO: Buffer/throttle fetches.
                 if self
                     .tracking
                     .is_repo_tracked(&message.rid)
                     .expect("Service::handle_announcement: error accessing tracking configuration")
                 {
-                    // Discard announcement messages we've already seen, otherwise update
-                    // our last seen time.
-                    if !peer.refs_announced(message.rid, timestamp) {
-                        debug!(target: "service", "Ignoring stale refs announcement from {announcer} (time={timestamp})");
-                        return Ok(false);
-                    }
-
                     // Refs can be relayed by peers who don't have the data in storage,
                     // therefore we only check whether we are connected to the *announcer*,
                     // which is required by the protocol to only announce refs it has.
@@ -923,7 +923,7 @@ where
             ) => {
                 // Discard node messages we've already seen, otherwise update
                 // our last seen time.
-                if !peer.node_announced(timestamp) {
+                if !peer.node_announced(announcement.clone()) {
                     debug!(target: "service", "Ignoring stale node announcement from {announcer}");
                     return Ok(false);
                 }
@@ -1004,20 +1004,20 @@ where
             // Process a peer announcement.
             (session::State::Connected { .. }, Message::Announcement(ann)) => {
                 let relayer = peer.id;
+                let announcer = ann.node;
 
                 // Returning true here means that the message should be relayed.
                 if self.handle_announcement(&relayer, &ann)? {
-                    self.gossip.received(ann.clone(), ann.message.timestamp());
-
                     // Choose peers we should relay this message to.
                     // 1. Don't relay to the peer who sent us this message.
                     // 2. Don't relay to the peer who signed this announcement.
                     let relay_to = self
                         .sessions
                         .connected()
-                        .filter(|(id, _)| *id != remote && *id != &ann.node);
+                        .filter(|(id, _)| *id != remote && *id != &announcer)
+                        .map(|(_, p)| p);
 
-                    self.reactor.relay(ann.clone(), relay_to.map(|(_, p)| p));
+                    self.reactor.relay(ann, relay_to);
 
                     return Ok(());
                 }
@@ -1621,31 +1621,31 @@ pub enum LookupError {
     Identity(#[from] IdentityError),
 }
 
-/// Information on a peer, that we may or may not be connected to.
+/// Keeps track of the most recent announcements of a node.
 #[derive(Default, Debug)]
 pub struct Node {
     /// Last ref announcements (per project).
-    pub last_refs: HashMap<Id, Timestamp>,
+    pub last_refs: HashMap<Id, Announcement>,
     /// Last inventory announcement.
-    pub last_inventory: Timestamp,
+    pub last_inventory: Option<Announcement>,
     /// Last node announcement.
-    pub last_node: Timestamp,
+    pub last_node: Option<Announcement>,
 }
 
 impl Node {
     /// Process a refs announcement for the given node.
     /// Returns `true` if the timestamp was updated.
-    pub fn refs_announced(&mut self, id: Id, t: Timestamp) -> bool {
+    pub fn refs_announced(&mut self, id: Id, ann: Announcement) -> bool {
         match self.last_refs.entry(id) {
             Entry::Vacant(e) => {
-                e.insert(t);
+                e.insert(ann);
                 return true;
             }
             Entry::Occupied(mut e) => {
                 let last = e.get_mut();
 
-                if t > *last {
-                    *last = t;
+                if ann.timestamp() > last.timestamp() {
+                    *last = ann;
                     return true;
                 }
             }
@@ -1655,20 +1655,36 @@ impl Node {
 
     /// Process an inventory announcement for the given node.
     /// Returns `true` if the timestamp was updated.
-    pub fn inventory_announced(&mut self, t: Timestamp) -> bool {
-        if t > self.last_inventory {
-            self.last_inventory = t;
-            return true;
+    pub fn inventory_announced(&mut self, ann: Announcement) -> bool {
+        match &mut self.last_inventory {
+            Some(last) => {
+                if ann.timestamp() > last.timestamp() {
+                    *last = ann;
+                    return true;
+                }
+            }
+            None => {
+                self.last_inventory = Some(ann);
+                return true;
+            }
         }
         false
     }
 
     /// Process a node announcement for the given node.
     /// Returns `true` if the timestamp was updated.
-    pub fn node_announced(&mut self, t: Timestamp) -> bool {
-        if t > self.last_node {
-            self.last_node = t;
-            return true;
+    pub fn node_announced(&mut self, ann: Announcement) -> bool {
+        match &mut self.last_node {
+            Some(last) => {
+                if ann.timestamp() > last.timestamp() {
+                    *last = ann;
+                    return true;
+                }
+            }
+            None => {
+                self.last_node = Some(ann);
+                return true;
+            }
         }
         false
     }
@@ -1738,28 +1754,30 @@ mod gossip {
 
     #[derive(Default, Debug)]
     pub struct Gossip {
-        received: Vec<(Timestamp, Announcement)>,
+        // FIXME: This should be loaded from the address store.
+        /// Keeps track of node announcements.
+        pub nodes: BTreeMap<NodeId, Node>,
     }
 
     impl Gossip {
-        // TODO: Overwrite old messages from the same node or project.
-        // TODO: Should "time" be this node's time, or the time inside the message?
-        pub fn received(&mut self, ann: Announcement, time: Timestamp) {
-            self.received.push((time, ann));
-        }
-
         pub fn filtered<'a>(
             &'a self,
             filter: &'a Filter,
             start: Timestamp,
             end: Timestamp,
         ) -> impl Iterator<Item = Announcement> + '_ {
-            self.received
-                .iter()
-                .filter(move |(t, _)| *t >= start && *t < end)
-                .filter(move |(_, a)| a.matches(filter))
-                .cloned()
-                .map(|(_, ann)| ann)
+            self.nodes
+                .values()
+                .flat_map(|n| {
+                    [&n.last_node, &n.last_inventory]
+                        .into_iter()
+                        .flatten()
+                        .chain(n.last_refs.values())
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+                .filter(move |ann| ann.timestamp() >= start && ann.timestamp() < end)
+                .filter(move |ann| ann.matches(filter))
         }
     }
 
