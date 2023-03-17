@@ -1823,6 +1823,7 @@ version = "0.8.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "git-ref-format",
  "json-color",
  "lexopt",
  "log",

@@ -112,6 +112,5 @@ Now, let's checkout the patch that we just created:
 
 ```
 $ rad patch checkout 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
-✓ Performing patch checkout...
 ✓ Switched to branch patch/191a14e520f
 ```
