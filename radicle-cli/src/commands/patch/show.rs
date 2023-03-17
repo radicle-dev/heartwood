@@ -43,8 +43,9 @@ pub fn run(
     term::info!("{}", term::format::bold(patch.title()));
     term::blank();
 
-    if let Some(desc) = patch.description() {
-        term::blob(desc.trim());
+    let description = patch.description().trim();
+    if !description.is_empty() {
+        term::blob(description);
         term::blank();
     }
 

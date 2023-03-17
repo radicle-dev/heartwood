@@ -188,8 +188,8 @@ impl Patch {
         self.tags.iter()
     }
 
-    pub fn description(&self) -> Option<&str> {
-        Some(self.description.get().get())
+    pub fn description(&self) -> &str {
+        self.description.get().get()
     }
 
     pub fn author(&self) -> &Author {
@@ -1091,7 +1091,7 @@ mod test {
         let patch = patches.get(&id).unwrap().unwrap();
 
         assert_eq!(patch.title(), "My first patch");
-        assert_eq!(patch.description(), Some("Blah blah blah."));
+        assert_eq!(patch.description(), "Blah blah blah.");
         assert_eq!(patch.author().id(), &author);
         assert_eq!(patch.state(), State::Proposed);
         assert_eq!(patch.target(), target);
@@ -1365,7 +1365,7 @@ mod test {
             .unwrap();
 
         assert_eq!(patch.clock.get(), 1);
-        assert_eq!(patch.description(), Some("Blah blah blah."));
+        assert_eq!(patch.description(), "Blah blah blah.");
         assert_eq!(patch.version(), 0);
 
         let _ = patch

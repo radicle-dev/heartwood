@@ -291,7 +291,7 @@ fn merge_commit(
     patch: &Patch,
     whoami: &PublicKey,
 ) -> anyhow::Result<()> {
-    let description = patch.description().unwrap_or_default().trim();
+    let description = patch.description().trim();
     let mut merge_opts = git::raw::MergeOptions::new();
     let mut merge_msg = format!(
         "Merge patch '{}' from {}",
