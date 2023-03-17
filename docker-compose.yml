@@ -15,7 +15,6 @@ services:
     volumes:
       - ${RAD_ROOT:-/mnt/radicle/heartwood}:/root/
     init: true
-    container_name: radicle-node
     restart: unless-stopped
     networks:
       - radicle-services
@@ -36,7 +35,6 @@ services:
     volumes:
       - ${RAD_ROOT:-/mnt/radicle/heartwood}:/root/
     init: true
-    container_name: radicle-httpd
     restart: unless-stopped
     networks:
       - radicle-services
