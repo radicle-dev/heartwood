@@ -42,6 +42,8 @@ services:
       resources:
         limits:
           memory: 6gb
+    ports:
+      - ${RADICLE_API_PORT:-8886}:8886
   caddy:
     image: caddy:2.4.5
     entrypoint:
