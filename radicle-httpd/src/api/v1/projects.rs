@@ -1335,6 +1335,7 @@ mod routes {
                     {
                         "id": PATCH_ID,
                         "description": "",
+                        "timestamp": 1671125284,
                         "reviews": [],
                     }
                 ],
@@ -1362,6 +1363,7 @@ mod routes {
                     {
                         "id": PATCH_ID,
                         "description": "",
+                        "timestamp": 1671125284,
                         "reviews": [],
                     }
                 ],
@@ -1432,6 +1434,7 @@ mod routes {
                     {
                         "id": CREATED_PATCH_ID,
                         "description": "",
+                        "timestamp": 1671125284,
                         "reviews": [],
                     }
                 ],
