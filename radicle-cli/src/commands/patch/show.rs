@@ -12,14 +12,15 @@ use crate::terminal as term;
 fn show_patch_diff(
     patch: &patch::Patch,
     storage: &Repository,
-    workdir: &git::raw::Repository,
+    // TODO: Tell user which working copy branches point to the patch.
+    _workdir: &git::raw::Repository,
 ) -> anyhow::Result<()> {
     let target_head = patch_merge_target_oid(patch.target(), storage)?;
-    let base_oid = workdir.merge_base(target_head, **patch.head())?;
+    let base_oid = storage.raw().merge_base(target_head, **patch.head())?;
     let diff = format!("{}..{}", base_oid, patch.head());
 
     process::Command::new("git")
-        .current_dir(workdir.path())
+        .current_dir(storage.path())
         .args(["log", "--patch", &diff])
         .stdout(process::Stdio::inherit())
         .stderr(process::Stdio::inherit())
