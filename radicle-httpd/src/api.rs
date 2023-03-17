@@ -109,7 +109,7 @@ async fn root_handler() -> impl IntoResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct PaginationQuery {
     pub page: Option<usize>,
     pub per_page: Option<usize>,

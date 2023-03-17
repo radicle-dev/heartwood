@@ -114,7 +114,7 @@ async fn project_handler(State(ctx): State<Context>, Path(id): Path<Id>) -> impl
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct CommitsQueryString {
     pub parent: Option<String>,
     pub since: Option<i64>,
