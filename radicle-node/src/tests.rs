@@ -1262,3 +1262,89 @@ fn prop_inventory_exchange_dense() {
         .gen(qcheck::Gen::new(8))
         .quickcheck(property as fn(MockStorage, MockStorage, MockStorage));
 }
+
+#[test]
+fn test_queued_fetch() {
+    let storage = arbitrary::nonempty_storage(3);
+    let mut repo_keys = storage.inventory.keys();
+    let rid = *repo_keys.next().unwrap();
+    let rid2 = *repo_keys.next().unwrap();
+    let rid3 = *repo_keys.next().unwrap();
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let (send, _recv) = chan::bounded::<node::FetchResult>(1);
+
+    logger::init(log::Level::Debug);
+
+    // Send the first fetch.
+    alice.connect_to(&bob);
+    alice.command(Command::Fetch(rid, bob.id, send));
+
+    assert_matches!(alice.messages(bob.id).next(), Some(Message::Fetch { .. }));
+
+    // Send the 2nd fetch that will be queued.
+    let (send2, _recv2) = chan::bounded::<node::FetchResult>(1);
+    alice.command(Command::Fetch(rid2, bob.id, send2));
+
+    // Send the 3rd fetch that will be queued.
+    let (send3, _recv3) = chan::bounded::<node::FetchResult>(1);
+    alice.command(Command::Fetch(rid3, bob.id, send3));
+
+    // We shouldn't send out the 2nd, 3rd fetch while we're doing the 1st fetch.
+    assert_matches!(alice.messages(bob.id).next(), None);
+
+    alice.receive(bob.id(), Message::FetchOk { rid });
+    assert_matches!(alice.messages(bob.id).next(), None);
+
+    // Have enough time pass that Alice sends a "ping" to Bob.
+    alice.elapse(KEEP_ALIVE_DELTA);
+
+    // Finish the 1st fetch.
+    alice.fetched(
+        Fetch {
+            rid,
+            direction: FetchDirection::Initiator {
+                namespaces: Namespaces::All,
+            },
+            remote: bob.id,
+        },
+        Ok(vec![]),
+    );
+
+    // Now the 1st fetch is done, the gossip messages are drained.
+    let mut messages = alice.messages(bob.id);
+    assert_matches!(messages.next(), Some(Message::Ping(_)));
+
+    // The message after all queued gossip messages is Fetch.
+    assert_eq!(messages.last(), Some(Message::Fetch { rid: rid2 }));
+
+    // `FetchOk` for the 2nd fetch.
+    alice.receive(bob.id(), Message::FetchOk { rid: rid2 });
+
+    // The 2nd fetch should be in `Io` now. Not the 3rd fetch yet.
+    let last_io = alice.outbox().last().unwrap();
+    assert_matches!(last_io, Io::Fetch(fetch) if fetch.rid == rid2);
+
+    // Finish the 2nd fetch.
+    alice.fetched(
+        Fetch {
+            rid: rid2,
+            direction: FetchDirection::Initiator {
+                namespaces: Namespaces::All,
+            },
+            remote: bob.id,
+        },
+        Ok(vec![]),
+    );
+
+    // Now the 2nd fetch is done, the 3rd fetch is drained.
+    let mut messages = alice.messages(bob.id);
+    assert_eq!(messages.next(), Some(Message::Fetch { rid: rid3 }));
+
+    // `FetchOk` for the 3rd fetch.
+    alice.receive(bob.id(), Message::FetchOk { rid: rid3 });
+
+    // The 3rd fetch should be in `Io` now.
+    let last_io = alice.outbox().last().unwrap();
+    assert_matches!(last_io, Io::Fetch(fetch) if fetch.rid == rid3);
+}

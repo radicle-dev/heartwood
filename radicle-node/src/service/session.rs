@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt;
 
 use radicle::storage::Namespaces;
@@ -154,6 +155,9 @@ pub struct Session {
     /// Last time a message was received from the peer.
     pub last_active: LocalTime,
 
+    /// Fetches queued due to another ongoing fetch.
+    pending_fetches: VecDeque<Id>,
+
     /// Connection attempts. For persistent peers, Tracks
     /// how many times we've attempted to connect. We reset this to zero
     /// upon successful connection.
@@ -192,6 +196,7 @@ impl Session {
             persistent,
             last_active: LocalTime::default(),
             attempts: 1,
+            pending_fetches: VecDeque::new(),
             rng,
         }
     }
@@ -209,6 +214,7 @@ impl Session {
             persistent,
             last_active: LocalTime::default(),
             attempts: 0,
+            pending_fetches: VecDeque::new(),
             rng,
         }
     }
@@ -362,5 +368,13 @@ impl Session {
             reactor.write(self, Message::Ping(msg));
         }
         Ok(())
+    }
+
+    pub(crate) fn queue_fetch(&mut self, rid: Id) {
+        self.pending_fetches.push_back(rid);
+    }
+
+    pub(crate) fn dequeue_fetch(&mut self) -> Option<Id> {
+        self.pending_fetches.pop_front()
     }
 }

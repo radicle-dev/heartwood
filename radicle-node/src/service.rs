@@ -568,12 +568,14 @@ where
                 if other == rid {
                     debug!(target: "service", "Ignoring redundant attempt to fetch {rid} from {from}");
                 } else {
-                    // TODO: If we can't fetch, it's because we're already fetching from
-                    // this peer. So we need to queue the request, or find another peer.
-                    error!(
+                    // If we can't fetch, it's because we're already fetching from
+                    // this peer. So we need to queue the request.
+                    // TODO: consider to find another peer.
+                    debug!(
                         target: "service",
-                        "Dropping fetch for {rid} from {from}: another fetch is ongoing"
+                        "Queueing fetch for {rid} from {from}: another fetch is ongoing"
                     );
+                    session.queue_fetch(rid);
                 }
             }
             session::FetchResult::NotConnected => {
@@ -651,6 +653,7 @@ where
                 // to the gossip protocol, otherwise the messages will
                 // be queued.
                 self.sync_and_announce();
+                self.process_fetch_queue(&remote);
             }
             FetchDirection::Responder => self.switch_to_gossip(remote),
         }
@@ -1273,6 +1276,16 @@ where
             }
             Err(e) => {
                 error!(target: "service", "Failed to sync inventory: {e}");
+            }
+        }
+    }
+
+    /// Execute the next pending fetch with `remote`, if any.
+    fn process_fetch_queue(&mut self, remote: &NodeId) {
+        if let Some(session) = self.sessions.get_mut(remote) {
+            if let Some(rid) = session.dequeue_fetch() {
+                debug!(target: "service", "Dequeued a pending fetch {rid} with {remote}");
+                self.fetch(rid, remote);
             }
         }
     }

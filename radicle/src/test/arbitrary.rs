@@ -60,9 +60,11 @@ pub fn vec<T: Eq + Arbitrary>(size: usize) -> Vec<T> {
 
 pub fn nonempty_storage(size: usize) -> MockStorage {
     let mut storage = gen::<MockStorage>(size);
-    storage
-        .inventory
-        .insert(gen::<Id>(size), gen::<Doc<Verified>>(size));
+    for _ in 0..size {
+        storage
+            .inventory
+            .insert(gen::<Id>(1), gen::<Doc<Verified>>(1));
+    }
     storage
 }
 
