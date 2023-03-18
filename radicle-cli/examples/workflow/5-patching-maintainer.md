@@ -54,3 +54,36 @@ a07ef77 R1 (27857ec) -> R2 (f6484e0)
 
 ✓ Patch a07ef77 updated to 737dc47d9eba730c5db8a8e33c41c7955f9093de
 ```
+
+Great, all fixed up, lets merge the code.
+
+```
+$ git checkout master
+Your branch is up to date with 'rad/master'.
+$ rad merge 737dc47d9eba730c5db8a8e33c41c7955f9093de
+Merging a07ef77 R2 (f6484e0) by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk into master (f2de534) via fast-forward...
+Running `git merge --ff-only f6484e0f43e48a8983b9b39bf9bd4cd889f1d520`...
+Updating f2de534..f6484e0
+Fast-forward
+ README.md       | 0
+ REQUIREMENTS.md | 0
+ 2 files changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 README.md
+ create mode 100644 REQUIREMENTS.md
+✓ Updated master f2de534 -> f6484e0 via fast-forward
+✓ Patch state updated, use `rad push` to publish
+```
+
+The patch is now merged and closed :).
+
+```
+$ rad patch
+╭───────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Define power requirements a07ef77 R2 f6484e0 (flux-capacitor-power, master) ahead 3, behind 0 │
+├───────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 3 months ago             │
+│ ↑ updated to a07ef7743a32a2e902672ea3526d1db6ee08108a (3e674d1) 3 months ago                  │
+│ ↑ updated to 4f15eb5c994edd0bb6be29cb4801aa74308cc628 (27857ec) 3 months ago                  │
+│ ✓ merged by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago       │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+```

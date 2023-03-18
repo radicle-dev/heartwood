@@ -1,14 +1,12 @@
 use std::ffi::OsString;
 use std::fmt;
 use std::fmt::Write;
-use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
 
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
-use radicle::cob::patch::RevisionIx;
 use radicle::cob::patch::{Patch, PatchId, Patches};
 use radicle::git;
 use radicle::prelude::*;
@@ -21,14 +19,14 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad merge [<id>] [<option>...]
+    rad merge [<revision-id>] [<option>...]
 
-    To specify a patch to merge, use the fully qualified patch id.
+    To specify a patch revision to merge, use the fully qualified revision id.
 
 Options
 
+    -f, --force               Force merging an older patch revision
     -i, --interactive         Ask for confirmations
-    -r, --revision <number>   Revision number to merge, defaults to the latest
         --help                Print help
 "#,
 };
@@ -71,11 +69,12 @@ pub enum State {
     Open,
     Merged,
 }
+
 #[derive(Debug)]
 pub struct Options {
-    pub id: Rev,
+    pub revision_id: Rev,
+    pub force: bool,
     pub interactive: bool,
-    pub revision: Option<RevisionIx>,
 }
 
 impl Args for Options {
@@ -83,8 +82,8 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<Rev> = None;
-        let mut revision: Option<RevisionIx> = None;
+        let mut force = false;
+        let mut revision_id = None;
         let mut interactive = false;
 
         while let Some(arg) = parser.next()? {
@@ -92,30 +91,28 @@ impl Args for Options {
                 Long("help") => {
                     return Err(Error::Help.into());
                 }
+                Long("force") | Short('f') => {
+                    force = true;
+                }
                 Long("interactive") | Short('i') => {
                     interactive = true;
                 }
-                Long("revision") | Short('r') => {
-                    let value = parser.value()?;
-                    let id =
-                        RevisionIx::from_str(value.to_str().unwrap_or_default()).map_err(|_| {
-                            anyhow!("invalid revision number `{}`", value.to_string_lossy())
-                        })?;
-                    revision = Some(id);
-                }
                 Value(val) => {
                     let val = string(&val);
-                    id = Some(Rev::from(val));
+                    revision_id = Some(Rev::from(val));
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
         }
 
+        let revision_id =
+            revision_id.ok_or_else(|| anyhow!("a revision id to merge must be provided"))?;
+
         Ok((
             Options {
-                id: id.ok_or_else(|| anyhow!("a patch id to merge must be provided"))?,
+                revision_id,
+                force,
                 interactive,
-                revision,
             },
             vec![],
         ))
@@ -144,10 +141,27 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     //
     // Get patch information
     //
-    let patch_id = options.id.resolve(&repository.backend)?;
+    let revision_id = options.revision_id.resolve(&repository.backend)?;
+    let (patch_id, patch, revision) = patches.find_by_revision(&revision_id)?.ok_or(anyhow!(
+        "no open patch with revision `{}` could be found",
+        &revision_id
+    ))?;
+    if !patch.is_open() {
+        anyhow::bail!(
+            "revision's patch must be open for merging, but it is `{}`",
+            patch.state()
+        );
+    }
+    let (last_revision_id, _) = patch
+        .latest()
+        .ok_or(anyhow!("patch must have atleast one unredacted revision"))?;
+    if !options.force && revision_id != *last_revision_id {
+        anyhow::bail!("refusing to merge old patch revision");
+    }
+
     let mut patch = patches
         .get_mut(&patch_id)
-        .map_err(|e| anyhow!("couldn't find patch {} locally: {e}", &options.id.clone()))?;
+        .map_err(|e| anyhow!("couldn't find patch {} locally: {e}", &id))?;
 
     let head = repo.head()?;
     let branch = head
@@ -156,11 +170,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let head_oid = head
         .target()
         .ok_or_else(|| anyhow!("cannot merge into detatched head; aborting"))?;
-    let revision_ix = options.revision.unwrap_or_else(|| patch.version());
-    let (revision_id, revision) = patch
-        .revisions()
-        .nth(revision_ix)
-        .ok_or_else(|| anyhow!("revision R{} does not exist", revision_ix))?;
 
     //
     // Analyze merge
@@ -221,6 +230,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             .to_string(),
     };
 
+    // SAFETY: The patch has already been fetched by its revision_id.
+    let revision_ix = patch
+        .revisions()
+        .position(|(id_, _)| id_ == &revision_id)
+        .unwrap();
     term::info!(
         "{} {} {} {} by {} into {} {} via {}...",
         term::format::bold("Merging"),
@@ -261,7 +275,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     // Update patch COB
     //
     // TODO: Don't allow merging the same revision twice?
-    patch.merge(*revision_id, head_oid.into(), &signer)?;
+    patch.merge(revision_id, head_oid.into(), &signer)?;
 
     term::success!(
         "Patch state updated, use {} to publish",

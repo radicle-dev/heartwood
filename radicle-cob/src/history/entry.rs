@@ -10,6 +10,7 @@ use nonempty::NonEmpty;
 use radicle_crypto::PublicKey;
 use serde::{Deserialize, Serialize};
 
+use crate::object;
 use crate::pruning_fold;
 
 /// Entry contents.
@@ -57,6 +58,12 @@ impl From<Oid> for EntryId {
 impl From<EntryId> for Oid {
     fn from(EntryId(id): EntryId) -> Self {
         id
+    }
+}
+
+impl From<&EntryId> for object::ObjectId {
+    fn from(EntryId(id): &EntryId) -> Self {
+        id.into()
     }
 }
 

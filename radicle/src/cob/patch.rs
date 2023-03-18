@@ -216,6 +216,13 @@ impl Patch {
             .author
     }
 
+    /// Get the `Revision` by its `RevisionId`.
+    ///
+    /// None is returned if the `Revision` has been redacted (deleted).
+    pub fn revision(&self, id: &RevisionId) -> Option<&Revision> {
+        self.revisions.get(id).and_then(Redactable::get)
+    }
+
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
     pub fn revisions(&self) -> impl DoubleEndedIterator<Item = (&RevisionId, &Revision)> {
@@ -1010,6 +1017,25 @@ impl<'a> Patches<'a> {
         Ok(state_groups)
     }
 
+    /// Find the `Patch` containing the given `Revision`.
+    pub fn find_by_revision(
+        &self,
+        id: &RevisionId,
+    ) -> Result<Option<(PatchId, Patch, Revision)>, Error> {
+        // Revision may be the patch's first, making it have the same ID.
+        let p_id = ObjectId::from(id);
+        if let Some(p) = self.get(&p_id)? {
+            return Ok(p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
+        }
+
+        let result = self
+            .all()?
+            .into_iter()
+            .filter_map(|result| result.ok())
+            .find_map(|(p_id, p, _)| p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
+        Ok(result)
+    }
+
     /// Get a patch.
     pub fn get(&self, id: &ObjectId) -> Result<Option<Patch>, store::Error> {
         self.raw.get(id).map(|r| r.map(|(p, _)| p))
@@ -1253,8 +1279,8 @@ mod test {
 
         assert_eq!(patch.clock.get(), 1);
 
-        let id = patch.id;
-        let patch = patches.get(&id).unwrap().unwrap();
+        let patch_id = patch.id;
+        let patch = patches.get(&patch_id).unwrap().unwrap();
 
         assert_eq!(patch.title(), "My first patch");
         assert_eq!(patch.description(), "Blah blah blah.");
@@ -1263,13 +1289,16 @@ mod test {
         assert_eq!(patch.target(), target);
         assert_eq!(patch.version(), 0);
 
-        let (_, revision) = patch.latest().unwrap();
+        let (rev_id, revision) = patch.latest().unwrap();
 
         assert_eq!(revision.author.id(), &author);
         assert_eq!(revision.description(), "");
         assert_eq!(revision.discussion.len(), 0);
         assert_eq!(revision.oid, oid);
         assert_eq!(revision.base, base);
+
+        let (id, _, _) = patches.find_by_revision(rev_id).unwrap().unwrap();
+        assert_eq!(id, patch_id);
     }
 
     #[test]

@@ -11,7 +11,6 @@ use std::str::FromStr;
 use anyhow::anyhow;
 use anyhow::Context as _;
 
-use radicle::cob::ObjectId;
 use radicle::crypto::ssh;
 use radicle::git;
 use radicle::git::raw as git2;
@@ -39,10 +38,13 @@ impl Rev {
         &self.0
     }
 
-    /// Resolve the revision to an [`ObjectId`].
-    pub fn resolve(&self, repo: &git2::Repository) -> Result<ObjectId, git2::Error> {
+    /// Resolve the revision to an [`From<git2::Oid>`].
+    pub fn resolve<T>(&self, repo: &git2::Repository) -> Result<T, git2::Error>
+    where
+        T: From<git2::Oid>,
+    {
         let object = repo.revparse_single(self.as_str())?;
-        Ok(ObjectId::from(object.id()))
+        Ok(object.id().into())
     }
 }
 
