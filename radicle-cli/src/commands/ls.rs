@@ -4,6 +4,7 @@ use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
 use radicle::storage::{ReadRepository, ReadStorage};
+use term::Element;
 
 pub const HELP: Help = Help {
     name: "ls",
@@ -52,13 +53,13 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         let Ok(proj) = repo.project_of(profile.id()) else { return };
         let head = term::format::oid(head);
         table.push([
-            term::format::bold(proj.name()),
-            term::format::tertiary(id.urn().as_str()),
-            term::format::secondary(head.as_str()),
-            term::format::italic(proj.description()),
+            term::format::bold(proj.name().to_owned()),
+            term::format::tertiary(id.urn()),
+            term::format::secondary(head),
+            term::format::italic(proj.description().to_owned()),
         ]);
     });
-    table.render();
+    table.print();
 
     Ok(())
 }

@@ -1,5 +1,9 @@
 use crate::Paint;
 
+pub fn default<D: std::fmt::Display>(msg: D) -> Paint<D> {
+    Paint::new(msg)
+}
+
 pub fn wrap<D: std::fmt::Display>(msg: D) -> Paint<D> {
     Paint::wrapping(msg)
 }
@@ -26,6 +30,10 @@ pub fn tertiary_bold<D: std::fmt::Display>(msg: D) -> Paint<D> {
 
 pub fn yellow<D: std::fmt::Display>(msg: D) -> Paint<D> {
     Paint::yellow(msg)
+}
+
+pub fn faint<D: std::fmt::Display>(msg: D) -> Paint<D> {
+    Paint::fixed(236, msg)
 }
 
 pub fn highlight<D: std::fmt::Debug + std::fmt::Display>(input: D) -> Paint<D> {

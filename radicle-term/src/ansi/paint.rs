@@ -38,6 +38,15 @@ impl From<&str> for Paint<String> {
     }
 }
 
+impl From<Paint<&str>> for Paint<String> {
+    fn from(paint: Paint<&str>) -> Self {
+        Self {
+            item: paint.item.to_owned(),
+            style: paint.style,
+        }
+    }
+}
+
 impl<T> Paint<T> {
     /// Constructs a new `Paint` structure encapsulating `item` with no set
     /// styling.

@@ -1,6 +1,7 @@
 use radicle::git;
 
 use crate::terminal as term;
+use crate::terminal::Element;
 
 /// The user supplied `Patch` description.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -59,7 +60,7 @@ pub fn list_commits(commits: &[git::raw::Commit]) -> anyhow::Result<()> {
             term::format::italic(String::from_utf8_lossy(message).to_string()),
         ]);
     }
-    table.render();
+    table.print();
 
     Ok(())
 }

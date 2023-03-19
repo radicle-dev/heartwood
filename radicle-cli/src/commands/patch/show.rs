@@ -6,6 +6,11 @@ use super::*;
 use radicle::cob::patch;
 use radicle::git;
 use radicle::storage::git::Repository;
+use radicle_term::{
+    label,
+    table::{Table, TableOptions},
+    Element, Paint, VStack,
+};
 
 use crate::terminal as term;
 
@@ -40,15 +45,40 @@ pub fn run(
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
-    term::blank();
-    term::info!("{}", term::format::bold(patch.title()));
-    term::blank();
+    let mut attrs = Table::<2, Paint<String>>::new(TableOptions {
+        spacing: 2,
+        ..TableOptions::default()
+    });
+    attrs.push([
+        term::format::tertiary("Title".to_owned()),
+        term::format::bold(patch.title().to_owned()),
+    ]);
+    attrs.push([
+        term::format::tertiary("Patch".to_owned()),
+        term::format::default(patch_id.to_string()),
+    ]);
+    attrs.push([
+        term::format::tertiary("Author".to_owned()),
+        term::format::default(patch.author().id().to_string()),
+    ]);
+    attrs.push([
+        term::format::tertiary("Status".to_owned()),
+        term::format::default(patch.state().to_string()),
+    ]);
 
     let description = patch.description().trim();
-    if !description.is_empty() {
-        term::blob(description);
-        term::blank();
-    }
+    let meta = VStack::default()
+        .border(Some(term::ansi::Color::Blue))
+        .child(attrs)
+        .blank()
+        .children(if !description.is_empty() {
+            Some(label(term::format::dim(description)))
+        } else {
+            None
+        });
+
+    meta.print();
+    term::blank();
 
     show_patch_diff(&patch, storage, workdir)?;
     term::blank();

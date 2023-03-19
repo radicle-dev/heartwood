@@ -10,6 +10,7 @@ use radicle_crypto::Verified;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::Element;
 use crate::terminal::Interactive;
 
 pub const HELP: Help = Help {
@@ -403,7 +404,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     state,
                 ]);
             }
-            t.render();
+            t.print();
         }
         Operation::Commit { id, rev } => {
             let mut proposal = proposals.get_mut(&id)?;

@@ -5,6 +5,7 @@ use radicle::Profile;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::Element as _;
 
 pub const HELP: Help = Help {
     name: "self",
@@ -143,7 +144,7 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
         term::format::tertiary(node_path.join("radicle.sock").display()).to_string(),
     ]);
 
-    table.render();
+    table.print();
 
     Ok(())
 }

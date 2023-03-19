@@ -17,7 +17,7 @@ The issue is now listed under our project.
 
 ```
 $ rad issue list
-2e8c1bf3fe0532a314778357c886608a966a34bd "flux capacitor underpowered"
+2e8c1bf3fe0532a314778357c886608a966a34bd "flux capacitor underpowered" ❲unassigned❳
 ```
 
 Great! Now we've documented the issue for ourselves and others.

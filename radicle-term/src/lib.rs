@@ -2,19 +2,26 @@ pub mod ansi;
 pub mod cell;
 pub mod command;
 pub mod editor;
+pub mod element;
 pub mod format;
+pub mod hstack;
 pub mod io;
+pub mod label;
 pub mod spinner;
 pub mod table;
-pub mod textbox;
+pub mod vstack;
 
+pub use ansi::Color;
 pub use ansi::{paint, Paint};
 pub use editor::Editor;
+pub use element::{Element, Line, Size};
+pub use hstack::HStack;
 pub use inquire::ui::Styled;
 pub use io::*;
+pub use label::{label, Label};
 pub use spinner::{spinner, Spinner};
 pub use table::Table;
-pub use textbox::TextBox;
+pub use vstack::{VStack, VStackOptions};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Interactive {

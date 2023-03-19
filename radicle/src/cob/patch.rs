@@ -411,6 +411,16 @@ pub enum State {
     Archived,
 }
 
+impl fmt::Display for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Proposed => write!(f, "open"),
+            Self::Draft => write!(f, "draft"),
+            Self::Archived => write!(f, "archived"),
+        }
+    }
+}
+
 /// A merged patch revision.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]

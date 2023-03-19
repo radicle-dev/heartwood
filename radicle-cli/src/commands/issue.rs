@@ -8,6 +8,7 @@ use radicle::prelude::Did;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::Element;
 
 use radicle::cob::common::{Reaction, Tag};
 use radicle::cob::issue;
@@ -314,10 +315,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 t.push([
                     id.to_string(),
                     format!("{:?}", issue.title()),
-                    assigned.to_string(),
+                    if assigned.is_empty() {
+                        String::from("❲unassigned❳")
+                    } else {
+                        assigned.to_string()
+                    },
                 ]);
             }
-            t.render();
+            t.print();
         }
         Operation::Delete { id } => {
             issues.remove(&id, &signer)?;

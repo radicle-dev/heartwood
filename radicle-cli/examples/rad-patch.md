@@ -58,10 +58,14 @@ Define power requirements 191a14e520f R0 3e674d1 (flux-capacitor-power) ahead 1,
 Nothing to show.
 
 $ rad patch show 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
-
-Define power requirements
-
-See details.
+╭────────────────────────────────────────────────────────────────────╮
+│ Title   Define power requirements                                  │
+│ Patch   191a14e520f2eeff7c0e3ee0a5523c5217eecb89                   │
+│ Author  did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   │
+│ Status  open                                                       │
+│                                                                    │
+│ See details.                                                       │
+╰────────────────────────────────────────────────────────────────────╯
 
 commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
 Author: radicle <radicle@localhost>
