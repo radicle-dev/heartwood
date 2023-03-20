@@ -24,9 +24,10 @@ use radicle_crypto::test::signer::MockSigner;
 use crate::api::{auth, Context};
 
 pub const RID: &str = "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp";
-pub const HEAD: &str = "1e978d19f251cd9821d9d9a76d1bd436bf0690d5";
-pub const HEAD_1: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
-pub const PATCH_ID: &str = "6ec9a764a888576abc7e582dbf82a31e23a9789d";
+pub const HEAD: &str = "e8c676b9e3b42308dc9d218b70faa5408f8e58ca";
+pub const PARENT: &str = "ee8d6a29304623a78ebfa5eeed5af674d0e58f83";
+pub const INITIAL_COMMIT: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
+pub const PATCH_ID: &str = "a6afa179631163169bf9fb0921229317ec3950af";
 pub const ISSUE_ID: &str = "5ad77fa3f476beed9a26f49b2b3b844e61bef792";
 pub const ISSUE_DISCUSSION_ID: &str = "f1dff128a22e8183a23516dd9812e72e80914c92";
 pub const ISSUE_COMMENT_ID: &str = "845218041bf9eb8155bfa4aaa8f0c91ce18e5c13";
@@ -100,6 +101,29 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
 
     repo.checkout_tree(tree.as_object(), None).unwrap();
 
+    let tree = radicle::git::write_tree(
+        Path::new("CONTRIBUTING"),
+        "Thank you very much!\n".as_bytes(),
+        &repo,
+    )
+    .unwrap();
+    let sig_time = git2::Time::new(1673002014, 0);
+    let sig = git2::Signature::new("Alice Liddell", "alice@radicle.xyz", &sig_time).unwrap();
+
+    let oid2 = repo
+        .commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Add contributing file\n",
+            &tree,
+            &[&commit],
+        )
+        .unwrap();
+    let commit2 = repo.find_commit(oid2).unwrap();
+
+    repo.checkout_tree(tree.as_object(), None).unwrap();
+
     fs::create_dir(workdir.join("dir1")).unwrap();
     fs::write(
         workdir.join("dir1").join("README"),
@@ -115,13 +139,15 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let oid = index.write_tree().unwrap();
     let tree = repo.find_tree(oid).unwrap();
 
+    let sig_time = git2::Time::new(1673003014, 0);
+    let sig = git2::Signature::new("Alice Liddell", "alice@radicle.xyz", &sig_time).unwrap();
     repo.commit(
         Some("HEAD"),
         &sig,
         &sig,
         "Add another folder\n",
         &tree,
-        &[&commit],
+        &[&commit2],
     )
     .unwrap();
 
@@ -149,7 +175,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     // eq. rad patch open
     let mut patches = Patches::open(&repo).unwrap();
     let oid = radicle::git::Oid::from_str(HEAD).unwrap();
-    let base = radicle::git::Oid::from_str(HEAD_1).unwrap();
+    let base = radicle::git::Oid::from_str(PARENT).unwrap();
     let _ = patches
         .create(
             "A new `hello word`",

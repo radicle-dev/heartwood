@@ -33,6 +33,7 @@ pub fn router(ctx: Context) -> Router {
         .route("/projects/:project", get(project_handler))
         .route("/projects/:project/commits", get(history_handler))
         .route("/projects/:project/commits/:sha", get(commit_handler))
+        .route("/projects/:project/diff/:base/:oid", get(diff_handler))
         .route(
             "/projects/:project/activity",
             get(
@@ -227,6 +228,35 @@ async fn commit_handler(
       "diff": diff,
       "branches": branches
     });
+    Ok::<_, Error>(Json(response))
+}
+
+/// Get diff between two commits
+/// `GET /projects/:project/diff/:base/:oid`
+async fn diff_handler(
+    State(ctx): State<Context>,
+    Path((project, base, oid)): Path<(Id, Oid, Oid)>,
+) -> impl IntoResponse {
+    let storage = &ctx.profile.storage;
+    let repo = Repository::open(paths::repository(storage, &project))?;
+    let base = repo.commit(base)?;
+    let commit = repo.commit(oid)?;
+    let diff = repo.diff(base.id, commit.id)?;
+
+    let commits = repo
+        .history(commit.id)?
+        .take_while(|c| {
+            if let Ok(c) = c {
+                c.id != base.id
+            } else {
+                false
+            }
+        })
+        .map(|r| r.map(|c| api::json::commit(&c)))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let response = json!({ "diff": diff, "commits": commits });
+
     Ok::<_, Error>(Json(response))
 }
 
@@ -615,8 +645,8 @@ mod routes {
 
     use crate::test::{
         self, get, patch, post, CONTRIBUTOR_ISSUE_ID, CONTRIBUTOR_PUB_KEY, CONTRIBUTOR_RID, HEAD,
-        HEAD_1, ISSUE_COMMENT_ID, ISSUE_DISCUSSION_ID, ISSUE_ID, PATCH_ID, RID, SESSION_ID,
-        TIMESTAMP,
+        INITIAL_COMMIT, ISSUE_COMMENT_ID, ISSUE_DISCUSSION_ID, ISSUE_ID, PARENT, PATCH_ID, RID,
+        SESSION_ID, TIMESTAMP,
     };
 
     #[tokio::test]
@@ -702,11 +732,30 @@ mod routes {
                     "committer": {
                       "name": "Alice Liddell",
                       "email": "alice@radicle.xyz",
-                      "time": 1673001014
+                      "time": 1673003014
                     },
                   },
                   "diff": {
                     "added": [
+                      {
+                        "path": "README",
+                        "diff": {
+                          "type": "plain",
+                          "hunks": [
+                            {
+                              "header": "@@ -0,0 +1 @@\n",
+                              "lines": [
+                                {
+                                  "line": "Hello World!\n",
+                                  "lineNo": 1,
+                                  "type": "addition",
+                                },
+                              ],
+                            },
+                          ],
+                          "eof": "noneMissing",
+                        },
+                      },
                       {
                         "path": "dir1/README",
                         "diff": {
@@ -727,14 +776,34 @@ mod routes {
                         }
                       }
                     ],
-                    "deleted": [],
+                    "deleted": [
+                      {
+                        "path": "CONTRIBUTING",
+                        "diff": {
+                          "type": "plain",
+                          "hunks": [
+                            {
+                              "header": "@@ -1 +0,0 @@\n",
+                              "lines": [
+                                {
+                                  "line": "Thank you very much!\n",
+                                  "lineNo": 1,
+                                  "type": "deletion",
+                                },
+                              ],
+                            },
+                          ],
+                          "eof": "noneMissing",
+                        },
+                      },
+                    ],
                     "moved": [],
                     "copied": [],
                     "modified": [],
                     "stats": {
-                      "filesChanged": 1,
-                      "insertions": 1,
-                      "deletions": 0
+                      "filesChanged": 3,
+                      "insertions": 2,
+                      "deletions": 1
                     }
                   },
                   "branches": [
@@ -743,17 +812,88 @@ mod routes {
                 },
                 {
                   "commit": {
-                    "id": HEAD_1,
+                    "id": PARENT,
                     "author": {
                       "name": "Alice Liddell",
                       "email": "alice@radicle.xyz"
+                    },
+                    "summary": "Add contributing file",
+                    "description": "",
+                    "committer": {
+                      "name": "Alice Liddell",
+                      "email": "alice@radicle.xyz",
+                      "time": 1673002014,
+                    },
+                  },
+                  "diff": {
+                    "added": [
+                      {
+                        "path": "CONTRIBUTING",
+                        "diff": {
+                          "type": "plain",
+                          "hunks": [
+                            {
+                              "header": "@@ -0,0 +1 @@\n",
+                              "lines": [
+                                {
+                                  "line": "Thank you very much!\n",
+                                  "lineNo": 1,
+                                  "type": "addition",
+                                },
+                              ],
+                            },
+                          ],
+                          "eof": "noneMissing",
+                        },
+                      },
+                    ],
+                    "deleted": [
+                      {
+                        "path": "README",
+                        "diff": {
+                          "type": "plain",
+                          "hunks": [
+                            {
+                              "header": "@@ -1 +0,0 @@\n",
+                              "lines": [
+                                {
+                                  "line": "Hello World!\n",
+                                  "lineNo": 1,
+                                  "type": "deletion",
+                                },
+                              ],
+                            },
+                          ],
+                          "eof": "noneMissing",
+                        },
+                      },
+                    ],
+                    "moved": [],
+                    "copied": [],
+                    "modified": [],
+                    "stats": {
+                      "filesChanged": 2,
+                      "insertions": 1,
+                      "deletions": 1,
+                    },
+                  },
+                  "branches": [
+                    "refs/heads/master",
+                  ],
+                },
+                {
+                  "commit": {
+                    "id": INITIAL_COMMIT,
+                    "author": {
+                      "name": "Alice Liddell",
+                      "email": "alice@radicle.xyz",
                     },
                     "summary": "Initial commit",
                     "description": "",
                     "committer": {
                       "name": "Alice Liddell",
                       "email": "alice@radicle.xyz",
-                      "time": 1673001014
+                      "time": 1673001014,
                     },
                   },
                   "diff": {
@@ -794,11 +934,10 @@ mod routes {
                 }
               ],
               "stats": {
-                "commits": 2,
+                "commits": 3,
                 "branches": 1,
                 "contributors": 1
               }
-
             })
         );
     }
@@ -824,11 +963,30 @@ mod routes {
                 "committer": {
                   "name": "Alice Liddell",
                   "email": "alice@radicle.xyz",
-                  "time": 1673001014
+                  "time": 1673003014
                 },
               },
               "diff": {
                 "added": [
+                  {
+                    "path": "README",
+                    "diff": {
+                        "type": "plain",
+                        "hunks": [
+                          {
+                            "header": "@@ -0,0 +1 @@\n",
+                            "lines": [
+                              {
+                                "line": "Hello World!\n",
+                                "lineNo": 1,
+                                "type": "addition",
+                              },
+                            ],
+                          },
+                        ],
+                        "eof": "noneMissing",
+                    },
+                  },
                   {
                     "path": "dir1/README",
                     "diff": {
@@ -849,14 +1007,34 @@ mod routes {
                     }
                   }
                 ],
-                "deleted": [],
+                "deleted": [
+                  {
+                    "path": "CONTRIBUTING",
+                    "diff": {
+                        "type": "plain",
+                        "hunks": [
+                          {
+                            "header": "@@ -1 +0,0 @@\n",
+                            "lines": [
+                              {
+                                "line": "Thank you very much!\n",
+                                "lineNo": 1,
+                                "type": "deletion",
+                              },
+                            ],
+                          },
+                        ],
+                        "eof": "noneMissing",
+                    },
+                  },
+                ],
                 "moved": [],
                 "copied": [],
                 "modified": [],
                 "stats": {
-                  "filesChanged": 1,
-                  "insertions": 1,
-                  "deletions": 0
+                  "filesChanged": 3,
+                  "insertions": 2,
+                  "deletions": 1
                 }
               },
               "branches": [
@@ -899,14 +1077,14 @@ mod routes {
                   "committer": {
                     "name": "Alice Liddell",
                     "email": "alice@radicle.xyz",
-                    "time": 1673001014
+                    "time": 1673003014
                   },
                 },
                 "name": "",
                 "path": "",
                 "stats": {
+                  "commits": 3,
                   "branches": 1,
-                  "commits": 2,
                   "contributors": 1
                 }
               }
@@ -937,14 +1115,14 @@ mod routes {
                 "committer": {
                   "name": "Alice Liddell",
                   "email": "alice@radicle.xyz",
-                  "time": 1673001014
+                  "time": 1673003014
                 },
               },
               "name": "dir1",
               "path": "dir1",
               "stats": {
                 "branches": 1,
-                "commits": 2,
+                "commits": 3,
                 "contributors": 1
               }
             })
@@ -1006,23 +1184,23 @@ mod routes {
             response.json().await,
             json!({
                 "binary": false,
-                "content": "Hello World!\n",
-                "lastCommit": {
-                    "id": HEAD_1,
-                    "author": {
-                        "name": "Alice Liddell",
-                        "email": "alice@radicle.xyz"
-                    },
-                    "summary": "Initial commit",
-                    "description": "",
-                    "committer": {
-                        "name": "Alice Liddell",
-                        "email": "alice@radicle.xyz",
-                        "time": 1673001014
-                    },
-                },
                 "name": "README",
-                "path": "README"
+                "path": "README",
+                "lastCommit": {
+                  "id": HEAD,
+                  "author": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz"
+                  },
+                  "summary": "Add another folder",
+                  "description": "",
+                  "committer": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz",
+                    "time": 1673003014
+                  },
+                },
+                "content": "Hello World!\n",
             })
         );
     }
@@ -1031,7 +1209,7 @@ mod routes {
     async fn test_projects_readme() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(test::seed(tmp.path()));
-        let response = get(&app, format!("/projects/{RID}/readme/{HEAD}")).await;
+        let response = get(&app, format!("/projects/{RID}/readme/{INITIAL_COMMIT}")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -1040,21 +1218,101 @@ mod routes {
                 "binary": false,
                 "content": "Hello World!\n",
                 "lastCommit": {
-                    "id": HEAD_1,
-                    "author": {
-                        "name": "Alice Liddell",
-                        "email": "alice@radicle.xyz"
-                    },
-                    "summary": "Initial commit",
-                    "description": "",
-                    "committer": {
-                        "name": "Alice Liddell",
-                        "email": "alice@radicle.xyz",
-                        "time": 1673001014
-                    },
+                  "id": INITIAL_COMMIT,
+                  "author": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz"
+                  },
+                  "summary": "Initial commit",
+                  "description": "",
+                  "committer": {
+                    "name": "Alice Liddell",
+                    "email": "alice@radicle.xyz",
+                    "time": 1673001014
+                  },
                 },
                 "name": "README",
                 "path": "README"
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_diff() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(test::seed(tmp.path()));
+        let response = get(
+            &app,
+            format!("/projects/{RID}/diff/{INITIAL_COMMIT}/{HEAD}"),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json().await,
+            json!({
+                "diff": {
+                  "added": [
+                    {
+                      "path": "dir1/README",
+                      "diff": {
+                        "type": "plain",
+                        "hunks": [
+                          {
+                            "header": "@@ -0,0 +1 @@\n",
+                            "lines": [
+                              {
+                                "line": "Hello World from dir1!\n",
+                                "lineNo": 1,
+                                "type": "addition",
+                              },
+                            ],
+                          },
+                        ],
+                        "eof": "noneMissing",
+                      },
+                    },
+                  ],
+                  "deleted": [],
+                  "moved": [],
+                  "copied": [],
+                  "modified": [],
+                  "stats": {
+                    "filesChanged": 1,
+                    "insertions": 1,
+                    "deletions": 0,
+                  },
+                },
+                "commits": [
+                  {
+                    "id": HEAD,
+                    "author": {
+                      "name": "Alice Liddell",
+                      "email": "alice@radicle.xyz",
+                    },
+                    "summary": "Add another folder",
+                    "description": "",
+                    "committer": {
+                      "name": "Alice Liddell",
+                      "email": "alice@radicle.xyz",
+                      "time": 1673003014,
+                    },
+                  },
+                  {
+                    "id": PARENT,
+                    "author": {
+                      "name": "Alice Liddell",
+                      "email": "alice@radicle.xyz",
+                    },
+                    "summary": "Add contributing file",
+                    "description": "",
+                    "committer": {
+                      "name": "Alice Liddell",
+                      "email": "alice@radicle.xyz",
+                      "time": 1673002014,
+                    }
+                  }
+                ],
             })
         );
     }
@@ -1072,18 +1330,18 @@ mod routes {
               {
                 "id": ISSUE_ID,
                 "author": {
-                    "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },
                 "title": "Issue #1",
                 "state": {
-                    "status": "open"
+                  "status": "open"
                 },
                 "assignees": [],
                 "discussion": [
                   {
                     "id": ISSUE_ID,
                     "author": {
-                        "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                     },
                     "body": "Change 'hello world' to 'hello everyone'",
                     "reactions": [],
@@ -1140,22 +1398,22 @@ mod routes {
             json!({
               "id": CREATED_ISSUE_ID,
               "author": {
-                  "id": CONTRIBUTOR_PUB_KEY,
+                "id": CONTRIBUTOR_PUB_KEY,
               },
               "assignees": [],
               "title": "Issue #2",
               "state": {
-                  "status": "open",
+                "status": "open",
               },
               "discussion": [{
-                  "id": CREATED_ISSUE_ID,
-                  "author": {
-                      "id": CONTRIBUTOR_PUB_KEY,
-                  },
-                  "body": "Change 'hello world' to 'hello everyone'",
-                  "reactions": [],
-                  "timestamp": TIMESTAMP,
-                  "replyTo": null,
+                "id": CREATED_ISSUE_ID,
+                "author": {
+                  "id": CONTRIBUTOR_PUB_KEY,
+                },
+                "body": "Change 'hello world' to 'hello everyone'",
+                "reactions": [],
+                "timestamp": TIMESTAMP,
+                "replyTo": null,
               }],
               "tags": [
                   "bug",
@@ -1203,18 +1461,18 @@ mod routes {
             json!({
               "id": CONTRIBUTOR_ISSUE_ID,
               "author": {
-                  "id": CONTRIBUTOR_PUB_KEY,
+                "id": CONTRIBUTOR_PUB_KEY,
               },
               "assignees": [],
               "title": "Issue #1",
               "state": {
-                  "status": "open",
+                "status": "open",
               },
               "discussion": [
                 {
                   "id": ISSUE_DISCUSSION_ID,
                   "author": {
-                      "id": CONTRIBUTOR_PUB_KEY,
+                    "id": CONTRIBUTOR_PUB_KEY,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
@@ -1224,7 +1482,7 @@ mod routes {
                 {
                   "id": "9685b141c2e939c3d60f8ca34f8c7bf01a609af1",
                   "author": {
-                      "id": CONTRIBUTOR_PUB_KEY,
+                    "id": CONTRIBUTOR_PUB_KEY,
                   },
                   "body": "This is first-level comment",
                   "reactions": [],
@@ -1251,7 +1509,8 @@ mod routes {
             "type": "comment",
             "body": "This is a reply to the first comment",
             "replyTo": ISSUE_DISCUSSION_ID,
-        }}))
+          }
+        }))
         .unwrap();
 
         let _ = get(&app, format!("/projects/{CONTRIBUTOR_RID}/issues")).await;
@@ -1277,18 +1536,18 @@ mod routes {
             json!({
               "id": CONTRIBUTOR_ISSUE_ID,
               "author": {
-                  "id": CONTRIBUTOR_PUB_KEY,
+                "id": CONTRIBUTOR_PUB_KEY,
               },
               "assignees": [],
               "title": "Issue #1",
               "state": {
-                  "status": "open",
+                "status": "open",
               },
               "discussion": [
                 {
                   "id": ISSUE_DISCUSSION_ID,
                   "author": {
-                      "id": CONTRIBUTOR_PUB_KEY,
+                    "id": CONTRIBUTOR_PUB_KEY,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
@@ -1298,7 +1557,7 @@ mod routes {
                 {
                   "id": ISSUE_COMMENT_ID,
                   "author": {
-                      "id": CONTRIBUTOR_PUB_KEY,
+                    "id": CONTRIBUTOR_PUB_KEY,
                   },
                   "body": "This is a reply to the first comment",
                   "reactions": [],
@@ -1324,7 +1583,7 @@ mod routes {
               {
                 "id": PATCH_ID,
                 "author": {
-                    "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },
                 "title": "A new `hello word`",
                 "description": "change `hello world` in README to something else",
@@ -1332,16 +1591,16 @@ mod routes {
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
-                    {
-                        "id": PATCH_ID,
-                        "description": "",
-                        "base": HEAD_1,
-                        "oid": HEAD,
-                        "merges": [],
-                        "discussions": [],
-                        "timestamp": 1671125284,
-                        "reviews": [],
-                    }
+                  {
+                    "id": PATCH_ID,
+                    "description": "",
+                    "base": PARENT,
+                    "oid": HEAD,
+                    "merges": [],
+                    "discussions": [],
+                    "timestamp": 1671125284,
+                    "reviews": [],
+                  }
                 ],
               }
             ])
@@ -1356,7 +1615,7 @@ mod routes {
               {
                 "id": PATCH_ID,
                 "author": {
-                    "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
                 },
                 "title": "A new `hello word`",
                 "description": "change `hello world` in README to something else",
@@ -1364,16 +1623,16 @@ mod routes {
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
-                    {
-                        "id": PATCH_ID,
-                        "description": "",
-                        "base": HEAD_1,
-                        "oid": HEAD,
-                        "merges": [],
-                        "discussions": [],
-                        "timestamp": 1671125284,
-                        "reviews": [],
-                    }
+                  {
+                    "id": PATCH_ID,
+                    "description": "",
+                    "base": PARENT,
+                    "oid": HEAD,
+                    "merges": [],
+                    "discussions": [],
+                    "timestamp": 1671125284,
+                    "reviews": [],
+                  }
                 ],
               }
             )
@@ -1382,7 +1641,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
-        const CREATED_PATCH_ID: &str = "9170195973fb145b327b1f5cd728a6e46b3bb082";
+        const CREATED_PATCH_ID: &str = "f69641cba6d7df2c22844d7f39225b5cda54d363";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = test::contributor(tmp.path());
@@ -1393,7 +1652,7 @@ mod routes {
         let body = serde_json::to_vec(&json!({
           "title": "Update README",
           "description": "Do some changes to README",
-          "target": HEAD_1,
+          "target": INITIAL_COMMIT,
           "oid": HEAD,
           "tags": [],
         }))
@@ -1431,7 +1690,7 @@ mod routes {
               {
                 "id": CREATED_PATCH_ID,
                 "author": {
-                    "id": CONTRIBUTOR_PUB_KEY
+                  "id": CONTRIBUTOR_PUB_KEY
                 },
                 "title": "Update README",
                 "description": "Do some changes to README",
@@ -1439,16 +1698,16 @@ mod routes {
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
-                    {
-                        "id": CREATED_PATCH_ID,
-                        "description": "",
-                        "base": HEAD_1,
-                        "oid": HEAD,
-                        "merges": [],
-                        "discussions": [],
-                        "timestamp": 1671125284,
-                        "reviews": [],
-                    }
+                  {
+                    "id": CREATED_PATCH_ID,
+                    "description": "",
+                    "base": INITIAL_COMMIT,
+                    "oid": HEAD,
+                    "merges": [],
+                    "discussions": [],
+                    "timestamp": 1671125284,
+                    "reviews": [],
+                  }
                 ],
               }
             )
