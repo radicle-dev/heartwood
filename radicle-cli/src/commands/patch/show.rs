@@ -68,7 +68,7 @@ pub fn run(
 
     let description = patch.description().trim();
     let meta = VStack::default()
-        .border(Some(term::ansi::Color::Blue))
+        .border(Some(term::colors::FAINT))
         .child(attrs)
         .blank()
         .children(if !description.is_empty() {

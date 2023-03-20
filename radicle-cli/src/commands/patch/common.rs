@@ -80,16 +80,20 @@ pub fn pretty_sync_status(
     repo: &git::raw::Repository,
     revision_oid: Oid,
     head_oid: Oid,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<term::Line> {
     let (a, b) = repo.graph_ahead_behind(revision_oid, head_oid)?;
     if a == 0 && b == 0 {
-        return Ok(term::format::dim("up to date").to_string());
+        return Ok(term::Line::new(term::format::dim("up to date")));
     }
 
     let ahead = term::format::positive(a);
     let behind = term::format::negative(b);
 
-    Ok(format!("ahead {ahead}, behind {behind}"))
+    Ok(term::Line::default()
+        .item("ahead ")
+        .item(ahead)
+        .item(", behind ")
+        .item(behind))
 }
 
 /// Make a human friendly string for commit version information.
@@ -98,8 +102,9 @@ pub fn pretty_sync_status(
 pub fn pretty_commit_version(
     revision_oid: &Oid,
     repo: &Option<git::raw::Repository>,
-) -> anyhow::Result<String> {
-    let mut oid = term::format::secondary(term::format::oid(*revision_oid)).to_string();
+) -> anyhow::Result<term::Line> {
+    let oid = term::format::secondary(term::format::oid(*revision_oid));
+    let mut line = term::Line::new(oid);
     let mut branches: Vec<String> = vec![];
 
     if let Some(repo) = repo {
@@ -115,14 +120,11 @@ pub fn pretty_commit_version(
         }
     };
     if !branches.is_empty() {
-        oid = format!(
-            "{} {}",
-            oid,
-            term::format::yellow(format!("({})", branches.join(", "))),
-        );
+        line.push(term::Label::space());
+        line.push(term::format::yellow(format!("({})", branches.join(", "))));
     }
 
-    Ok(oid)
+    Ok(line)
 }
 
 #[inline]

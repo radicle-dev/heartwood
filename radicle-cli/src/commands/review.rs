@@ -28,6 +28,7 @@ Options
     -r, --revision <number>   Revision number to review, defaults to the latest
         --[no-]sync           Sync review to seed (default: sync)
     -m, --message [<string>]  Provide a comment with the review (default: prompt)
+        --no-confirm          Don't ask for confirmation
         --no-message          Don't provide a comment with the review
         --help                Print help
 "#,
@@ -50,6 +51,7 @@ pub struct Options {
     pub message: Message,
     pub sync: bool,
     pub verbose: bool,
+    pub confirm: bool,
     pub verdict: Option<Verdict>,
 }
 
@@ -63,6 +65,7 @@ impl Args for Options {
         let mut message = Message::default();
         let mut sync = true;
         let mut verbose = false;
+        let mut confirm = true;
         let mut verdict = None;
 
         while let Some(arg) = parser.next()? {
@@ -89,6 +92,9 @@ impl Args for Options {
                         let txt: String = parser.value()?.to_string_lossy().into();
                         message.append(&txt);
                     }
+                }
+                Long("no-confirm") => {
+                    confirm = false;
                 }
                 Long("no-message") => {
                     message = Message::Blank;
@@ -121,6 +127,7 @@ impl Args for Options {
                 id: id.ok_or_else(|| anyhow!("a patch id to review must be provided"))?,
                 message,
                 sync,
+                confirm,
                 revision,
                 verbose,
                 verdict,
@@ -158,13 +165,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Some(Verdict::Reject) => term::format::negative("Reject"),
         None => term::format::dim("Review"),
     };
-    if !term::confirm(format!(
-        "{} {} {} by {}?",
-        verdict_pretty,
-        patch_id_pretty,
-        term::format::dim(format!("R{revision_ix}")),
-        term::format::tertiary(patch.author().id())
-    )) {
+    if options.confirm
+        && !term::confirm(format!(
+            "{} {} {} by {}?",
+            verdict_pretty,
+            patch_id_pretty,
+            term::format::dim(format!("R{revision_ix}")),
+            term::format::tertiary(patch.author().id())
+        ))
+    {
         anyhow::bail!("Patch review aborted");
     }
 

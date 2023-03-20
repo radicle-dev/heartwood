@@ -7,7 +7,7 @@ use radicle::profile::Profile;
 use radicle::storage::git::Repository;
 
 use crate::terminal as term;
-use term::cell::Cell as _;
+use term::Element as _;
 
 use super::common;
 
@@ -33,33 +33,18 @@ pub fn run(
             other.push((id, patch));
         }
     }
-    term::blank();
-    term::print(term::format::badge_secondary("YOU PROPOSED"));
 
-    if own.is_empty() {
-        term::blank();
+    if own.is_empty() && other.is_empty() {
         term::print(term::format::italic("Nothing to show."));
-    } else {
-        for (id, patch) in &mut own {
-            term::blank();
-
-            print(&me, id, patch, &workdir, repository)?;
-        }
+        return Ok(());
     }
-    term::blank();
-    term::print(term::format::badge_secondary("OTHERS PROPOSED"));
 
-    if other.is_empty() {
-        term::blank();
-        term::print(term::format::italic("Nothing to show."));
-    } else {
-        for (id, patch) in &mut other {
-            term::blank();
-
-            print(profile.id(), id, patch, &workdir, repository)?;
-        }
+    for (id, patch) in &mut own {
+        print(&me, id, patch, &workdir, repository)?;
     }
-    term::blank();
+    for (id, patch) in &mut other {
+        print(profile.id(), id, patch, &workdir, repository)?;
+    }
 
     Ok(())
 }
@@ -75,31 +60,43 @@ fn print(
     let target_head = common::patch_merge_target_oid(patch.target(), repository)?;
 
     let you = patch.author().id().as_key() == whoami;
-    let prefix = "└─ ";
-    let mut author_info = vec![format!(
-        "{}* opened by {}",
-        prefix,
-        term::format::tertiary(patch.author().id()),
-    )];
+    let mut author_info = term::Line::spaced([
+        term::format::positive("●").into(),
+        term::format::default("opened by").into(),
+        term::format::tertiary(patch.author().id()).into(),
+    ]);
 
     if you {
-        author_info.push(term::format::secondary("(you)").to_string());
+        author_info.push(term::Label::space());
+        author_info.push(term::format::primary("(you)"));
     }
-    author_info.push(term::format::dim(term::format::timestamp(&patch.timestamp())).to_string());
+    author_info.push(term::Label::space());
+    author_info.push(term::format::dim(term::format::timestamp(
+        &patch.timestamp(),
+    )));
 
     let (_, revision) = patch
         .latest()
         .ok_or_else(|| anyhow!("patch is malformed: no revisions found"))?;
-    term::info!(
-        "{} {} {} {} {}",
-        term::format::bold(patch.title()),
-        term::format::highlight(term::format::cob(patch_id)),
-        term::format::dim(format!("R{}", patch.version())),
-        common::pretty_commit_version(&revision.oid, workdir)?,
-        common::pretty_sync_status(repository.raw(), *revision.oid, target_head)?,
-    );
-    term::info!("{}", author_info.join(" "));
-    term::info!("{prefix}* patch id {}", term::format::highlight(patch_id));
+    let mut widget = term::VStack::default()
+        .child(
+            term::Line::spaced([
+                term::format::bold(patch.title()).into(),
+                term::format::highlight(patch_id).into(),
+                term::format::dim(format!("R{}", patch.version())).into(),
+            ])
+            .space()
+            .extend(common::pretty_commit_version(&revision.oid, workdir)?)
+            .space()
+            .extend(common::pretty_sync_status(
+                repository.raw(),
+                *revision.oid,
+                target_head,
+            )?),
+        )
+        .divider()
+        .child(author_info)
+        .border(Some(term::colors::FAINT));
 
     let mut timeline = Vec::new();
     for merge in revision.merges.iter() {
@@ -107,20 +104,22 @@ fn print(
         let mut badges = Vec::new();
 
         if peer.delegate {
-            badges.push(term::format::secondary("(delegate)").to_string());
+            badges.push(term::format::secondary("(delegate)").into());
         }
         if peer.id == *whoami {
-            badges.push(term::format::secondary("(you)").to_string());
+            badges.push(term::format::primary("(you)").into());
         }
 
         timeline.push((
             merge.timestamp,
-            format!(
-                "{}{} by {} {}",
-                " ".repeat(prefix.width()),
-                term::format::secondary(term::format::dim("✓ merged")),
-                term::format::tertiary(peer.id),
-                badges.join(" "),
+            term::Line::spaced(
+                [
+                    term::format::secondary(term::format::dim("✓ merged")).into(),
+                    term::format::default("by").into(),
+                    term::format::tertiary(peer.id).into(),
+                ]
+                .into_iter()
+                .chain(badges),
             ),
         ));
     }
@@ -134,32 +133,33 @@ fn print(
         let mut badges = Vec::new();
 
         if peer.delegate {
-            badges.push(term::format::secondary("(delegate)").to_string());
+            badges.push(term::format::secondary("(delegate)").into());
         }
         if peer.id == *whoami {
-            badges.push(term::format::secondary("(you)").to_string());
+            badges.push(term::format::primary("(you)").into());
         }
 
         timeline.push((
             review.timestamp(),
-            format!(
-                "{}{} by {} {}",
-                " ".repeat(prefix.width()),
-                verdict,
-                term::format::tertiary(reviewer),
-                badges.join(" "),
+            term::Line::spaced(
+                [
+                    verdict.into(),
+                    term::format::default("by").into(),
+                    term::format::tertiary(reviewer).into(),
+                ]
+                .into_iter()
+                .chain(badges),
             ),
         ));
     }
     timeline.sort_by_key(|(t, _)| *t);
 
-    for (time, event) in timeline.iter().rev() {
-        term::info!(
-            "{} {}",
-            event,
-            term::format::dim(term::format::timestamp(time))
-        );
+    for (time, mut line) in timeline.into_iter().rev() {
+        line.push(term::Label::space());
+        line.push(term::format::dim(term::format::timestamp(&time)));
+        widget.push(line);
     }
+    widget.print();
 
     Ok(())
 }

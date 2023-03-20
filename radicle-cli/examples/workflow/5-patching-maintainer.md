@@ -27,17 +27,11 @@ $ git branch -r
   bob/master
   rad/master
 $ rad patch
-
-❲YOU PROPOSED❳
-
-Nothing to show.
-
-❲OTHERS PROPOSED❳
-
-Define power requirements a07ef7743a3 R1 27857ec ahead 2, behind 0
-└─ * opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..]
-└─ * patch id a07ef7743a32a2e902672ea3526d1db6ee08108a
-
+╭─────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Define power requirements a07ef7743a32a2e902672ea3526d1db6ee08108a R1 27857ec ahead 2, behind 0 │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 3 months ago               │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Wait! There's a mistake.  The REQUIREMENTS should be a markdown file.  Let's

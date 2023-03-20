@@ -71,6 +71,16 @@ impl Line {
         }
     }
 
+    pub fn spaced(items: impl IntoIterator<Item = Label>) -> Self {
+        let mut line = Self::default();
+        for item in items.into_iter() {
+            line.push(item);
+            line.push(Label::space());
+        }
+        line.items.pop();
+        line
+    }
+
     /// Add an item to this line.
     pub fn item(mut self, item: impl Into<Label>) -> Self {
         self.push(item);
@@ -90,10 +100,12 @@ impl Line {
 
     /// Pad this line to occupy the given width.
     pub fn pad(&mut self, width: usize) {
-        let w = Element::columns(self);
-        let pad = width - w;
+        let w = self.columns();
 
-        self.items.push(Label::new(" ".repeat(pad).as_str()));
+        if width > w {
+            let pad = width - w;
+            self.items.push(Label::new(" ".repeat(pad).as_str()));
+        }
     }
 
     /// Truncate this line to the given width.
@@ -107,6 +119,11 @@ impl Line {
                 *item = item.truncate(width - (total - Cell::width(item)), delim);
             }
         }
+    }
+
+    pub fn space(mut self) -> Self {
+        self.items.push(Label::space());
+        self
     }
 }
 

@@ -1,5 +1,6 @@
 pub mod ansi;
 pub mod cell;
+pub mod colors;
 pub mod command;
 pub mod editor;
 pub mod element;

@@ -11,10 +11,14 @@ pub struct HStack<'a> {
 impl<'a> HStack<'a> {
     /// Add an element to the stack.
     pub fn child(mut self, child: impl Element + 'a) -> Self {
-        self.width += child.columns();
+        self.push(child);
+        self
+    }
+
+    pub fn push(&mut self, child: impl Element + 'a) {
+        self.width += child.columns() + 1;
         self.height = self.height.max(child.rows());
         self.elems.push(Box::new(child));
-        self
     }
 }
 

@@ -16,6 +16,11 @@ impl Label {
     pub fn blank() -> Self {
         Self(Paint::default())
     }
+
+    /// Create a single space label
+    pub fn space() -> Self {
+        Self(Paint::new(" ".to_owned()))
+    }
 }
 
 impl Element for Label {
@@ -51,19 +56,10 @@ impl Cell for Label {
     }
 }
 
-impl From<Paint<String>> for Label {
-    fn from(paint: Paint<String>) -> Self {
+impl<D: fmt::Display> From<Paint<D>> for Label {
+    fn from(paint: Paint<D>) -> Self {
         Self(Paint {
-            item: paint.item.replace('\n', " "),
-            style: paint.style,
-        })
-    }
-}
-
-impl From<Paint<&str>> for Label {
-    fn from(paint: Paint<&str>) -> Self {
-        Self(Paint {
-            item: paint.item.replace('\n', " "),
+            item: paint.item.to_string().replace('\n', " "),
             style: paint.style,
         })
     }

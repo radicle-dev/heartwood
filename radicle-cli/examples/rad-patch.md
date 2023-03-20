@@ -46,17 +46,13 @@ It will now be listed as one of the project's open patches.
 
 ```
 $ rad patch
-
-❲YOU PROPOSED❳
-
-Define power requirements 191a14e520f R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0
-└─ * opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..]
-└─ * patch id 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
-
-❲OTHERS PROPOSED❳
-
-Nothing to show.
-
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Define power requirements 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0 │
+├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago                                │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+```
 $ rad patch show 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
 ╭────────────────────────────────────────────────────────────────────╮
 │ Title   Define power requirements                                  │
@@ -117,4 +113,23 @@ Now, let's checkout the patch that we just created:
 ```
 $ rad patch checkout 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
 ✓ Switched to branch patch/191a14e520f
+```
+
+We can also add a review verdict as such:
+
+```
+$ rad review 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --accept --no-confirm --no-message --no-sync
+✓ Patch 191a14e520f accepted
+```
+
+Showing the patch list now will reveal the favorable verdict:
+
+```
+$ rad patch
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Define power requirements 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 R1 27857ec (flux-capacitor-power, patch/191a14e520f) ahead 2, behind 0 │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago                                                   │
+│ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago                                                         │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

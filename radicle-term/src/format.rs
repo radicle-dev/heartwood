@@ -16,6 +16,10 @@ pub fn positive<D: std::fmt::Display>(msg: D) -> Paint<D> {
     Paint::green(msg).bold()
 }
 
+pub fn primary<D: std::fmt::Display>(msg: D) -> Paint<D> {
+    Paint::magenta(msg)
+}
+
 pub fn secondary<D: std::fmt::Display>(msg: D) -> Paint<D> {
     Paint::blue(msg).bold()
 }
