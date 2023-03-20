@@ -1335,6 +1335,10 @@ mod routes {
                     {
                         "id": PATCH_ID,
                         "description": "",
+                        "base": HEAD_1,
+                        "oid": HEAD,
+                        "merges": [],
+                        "discussions": [],
                         "timestamp": 1671125284,
                         "reviews": [],
                     }
@@ -1363,6 +1367,10 @@ mod routes {
                     {
                         "id": PATCH_ID,
                         "description": "",
+                        "base": HEAD_1,
+                        "oid": HEAD,
+                        "merges": [],
+                        "discussions": [],
                         "timestamp": 1671125284,
                         "reviews": [],
                     }
@@ -1374,7 +1382,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
-        const CREATED_PATCH_ID: &str = "54505091ff3561466cfbe83e7e23c21cb1bb8a17";
+        const CREATED_PATCH_ID: &str = "9170195973fb145b327b1f5cd728a6e46b3bb082";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = test::contributor(tmp.path());
@@ -1385,8 +1393,8 @@ mod routes {
         let body = serde_json::to_vec(&json!({
           "title": "Update README",
           "description": "Do some changes to README",
-          "target": HEAD,
-          "oid": HEAD_1,
+          "target": HEAD_1,
+          "oid": HEAD,
           "tags": [],
         }))
         .unwrap();
@@ -1434,6 +1442,10 @@ mod routes {
                     {
                         "id": CREATED_PATCH_ID,
                         "description": "",
+                        "base": HEAD_1,
+                        "oid": HEAD,
+                        "merges": [],
+                        "discussions": [],
                         "timestamp": 1671125284,
                         "reviews": [],
                     }

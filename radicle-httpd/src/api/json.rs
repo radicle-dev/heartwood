@@ -115,6 +115,10 @@ pub(crate) fn patch(id: PatchId, patch: Patch) -> Value {
             json!({
                 "id": id,
                 "description": rev.description(),
+                "base": rev.base,
+                "oid": rev.oid,
+                "merges": rev.merges().collect::<Vec<_>>(),
+                "discussions": rev.discussion.comments().collect::<Comments>(),
                 "timestamp": rev.timestamp,
                 "reviews": rev.reviews().collect::<Vec<_>>(),
             })

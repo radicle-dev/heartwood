@@ -393,6 +393,10 @@ impl Revision {
         self.description.get()
     }
 
+    pub fn merges(&self) -> impl Iterator<Item = &Merge> {
+        self.merges.iter().map(|m| m.get())
+    }
+
     pub fn reviews(&self) -> impl DoubleEndedIterator<Item = (&PublicKey, &Review)> {
         self.reviews.iter()
     }
