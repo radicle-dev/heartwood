@@ -125,6 +125,7 @@ fn execute() -> anyhow::Result<()> {
     logger::init(log::Level::Debug)?;
 
     log::info!(target: "node", "Starting node..");
+    log::info!(target: "node", "Version {} ({})", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));
 
     let options = Options::from_env()?;
     let home = profile::home()?;
