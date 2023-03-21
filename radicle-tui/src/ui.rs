@@ -1,16 +1,17 @@
 pub mod components;
 pub mod layout;
-mod state;
+pub mod state;
 pub mod theme;
 pub mod widget;
 
 use tuirealm::props::Attribute;
 use tuirealm::{MockComponent, StateValue};
 
-use components::{
-    ContainerHeader, GlobalListener, Label, LabeledContainer, Property, PropertyList, Shortcut,
-    ShortcutBar, Tabs, Workspaces, WorkspacesHeader,
-};
+use components::container::{GlobalListener, LabeledContainer, Tabs};
+use components::context::{Shortcut, Shortcuts};
+use components::label::Label;
+use components::list::{Property, PropertyList};
+use components::workspace::Workspaces;
 use widget::Widget;
 
 pub fn global_listener() -> Widget<GlobalListener> {
@@ -33,9 +34,7 @@ pub fn labeled_container(
     let title = label(&format!(" {title} "))
         .foreground(theme.colors.default_fg)
         .background(theme.colors.labeled_container_bg);
-    let spacer = label("");
-    let header = Widget::new(ContainerHeader::new(title, spacer));
-    let container = LabeledContainer::new(header, component);
+    let container = LabeledContainer::new(title, component);
 
     Widget::new(container).background(theme.colors.labeled_container_bg)
 }
@@ -56,10 +55,10 @@ pub fn shortcut(theme: &theme::Theme, short: &str, long: &str) -> Widget<Shortcu
     Widget::new(shortcut).height(1).width(width)
 }
 
-pub fn shortcut_bar(theme: &theme::Theme, shortcuts: Vec<Widget<Shortcut>>) -> Widget<ShortcutBar> {
+pub fn shortcuts(theme: &theme::Theme, shortcuts: Vec<Widget<Shortcut>>) -> Widget<Shortcuts> {
     let divider = label(&format!(" {} ", theme.icons.shortcutbar_divider))
         .foreground(theme.colors.shortcutbar_divider_fg);
-    let shortcut_bar = ShortcutBar::new(shortcuts, divider);
+    let shortcut_bar = Shortcuts::new(shortcuts, divider);
 
     Widget::new(shortcut_bar).height(1)
 }
@@ -106,8 +105,7 @@ pub fn workspaces(
     children: Vec<Box<dyn MockComponent>>,
 ) -> Widget<Workspaces> {
     let info = label(info).foreground(theme.colors.workspaces_info_fg);
-    let header = Widget::new(WorkspacesHeader::new(tabs, info));
-    let workspaces = Workspaces::new(header, children);
+    let workspaces = Workspaces::new(tabs, info, children);
 
     Widget::new(workspaces)
 }

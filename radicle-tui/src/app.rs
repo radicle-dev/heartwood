@@ -13,9 +13,10 @@ use tuirealm::{
 };
 
 use radicle_tui::ui;
-use radicle_tui::ui::components::{
-    GlobalListener, LabeledContainer, PropertyList, ShortcutBar, Workspaces,
-};
+use radicle_tui::ui::components::container::{GlobalListener, LabeledContainer};
+use radicle_tui::ui::components::context::Shortcuts;
+use radicle_tui::ui::components::list::PropertyList;
+use radicle_tui::ui::components::workspace::Workspaces;
 use radicle_tui::ui::theme;
 use radicle_tui::ui::widget::Widget;
 
@@ -100,7 +101,7 @@ impl Tui<ComponentId, Message> for App {
 
         app.mount(
             ComponentId::Shortcuts,
-            ui::shortcut_bar(
+            ui::shortcuts(
                 &theme,
                 vec![
                     ui::shortcut(&theme, "tab", "section"),
@@ -217,7 +218,7 @@ impl Component<Message, NoUserEvent> for Widget<PropertyList> {
     }
 }
 
-impl Component<Message, NoUserEvent> for Widget<ShortcutBar> {
+impl Component<Message, NoUserEvent> for Widget<Shortcuts> {
     fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
         None
     }
