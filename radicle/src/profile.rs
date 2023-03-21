@@ -227,6 +227,7 @@ impl Home {
 #[cfg(test)]
 mod test {
     use std::fs;
+    use std::path::Path;
 
     use super::Home;
 
@@ -242,7 +243,7 @@ mod test {
         fs::create_dir_all(path.clone()).unwrap();
 
         let last = tmp.path().components().last().unwrap();
-        let home = Home::new(
+        let mut home = Home::new(
             tmp.path()
                 .join("..")
                 .join(last)
@@ -250,6 +251,11 @@ mod test {
                 .join("Radicle"),
         )
         .unwrap();
+        if cfg!(target_os = "macos") {
+            home.path =
+                Path::new("/").join(home.path.strip_prefix("/private").unwrap_or(&home.path))
+        };
+
         assert_eq!(home.path, path);
     }
 }
