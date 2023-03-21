@@ -30,7 +30,7 @@ pub fn labeled_container(
     title: &str,
     component: Box<dyn MockComponent>,
 ) -> Widget<LabeledContainer> {
-    let title = label(&format!(" {} ", title))
+    let title = label(&format!(" {title} "))
         .foreground(theme.colors.default_fg)
         .background(theme.colors.labeled_container_bg);
     let spacer = label("");
