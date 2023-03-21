@@ -1,3 +1,4 @@
+use localtime::LocalTime;
 use log::*;
 
 struct Logger {
@@ -23,10 +24,11 @@ impl Log for Logger {
                 if self.enabled(record.metadata()) {
                     let current = std::thread::current();
                     let msg = format!("{:>12} {}", format!("{target}:"), record.args());
+                    let time = LocalTime::now().as_secs();
                     let s = if let Some(name) = current.name() {
-                        format!("{name:<16} {msg}")
+                        format!("{time} {name:<16} {msg}")
                     } else {
-                        msg
+                        format!("{time} {msg}")
                     };
                     match record.level() {
                         log::Level::Warn => {
