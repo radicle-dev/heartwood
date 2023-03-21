@@ -519,9 +519,10 @@ impl Serialize for Review {
     where
         S: serde::ser::Serializer,
     {
-        let mut state = serializer.serialize_struct("Review", 3)?;
+        let mut state = serializer.serialize_struct("Review", 4)?;
         state.serialize_field("verdict", &self.verdict())?;
         state.serialize_field("comment", &self.comment())?;
+        state.serialize_field("inline", &self.inline().collect::<Vec<_>>())?;
         state.serialize_field("timestamp", &self.timestamp())?;
         state.end()
     }
@@ -558,6 +559,10 @@ impl Review {
 
     pub fn verdict(&self) -> Option<Verdict> {
         self.verdict.get().as_ref().copied()
+    }
+
+    pub fn inline(&self) -> impl Iterator<Item = &CodeComment> {
+        self.inline.iter().map(|m| m.get())
     }
 
     pub fn comment(&self) -> Option<&str> {
@@ -719,6 +724,16 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Edit", signer, |tx| tx.edit(title, description, target))
+    }
+
+    /// Create a thread on a patch revision.
+    pub fn thread<G: Signer, S: ToString>(
+        &mut self,
+        revision: RevisionId,
+        body: S,
+        signer: &G,
+    ) -> Result<CommentId, Error> {
+        self.transaction("Create thread", signer, |tx| tx.thread(revision, body))
     }
 
     /// Comment on a patch revision.

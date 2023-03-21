@@ -27,15 +27,19 @@ pub const RID: &str = "rad:z4FucBZHZMCsxTyQE1dfE2YR59Qbp";
 pub const HEAD: &str = "e8c676b9e3b42308dc9d218b70faa5408f8e58ca";
 pub const PARENT: &str = "ee8d6a29304623a78ebfa5eeed5af674d0e58f83";
 pub const INITIAL_COMMIT: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
-pub const PATCH_ID: &str = "a6afa179631163169bf9fb0921229317ec3950af";
+pub const DID: &str = "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi";
 pub const ISSUE_ID: &str = "5ad77fa3f476beed9a26f49b2b3b844e61bef792";
 pub const ISSUE_DISCUSSION_ID: &str = "f1dff128a22e8183a23516dd9812e72e80914c92";
 pub const ISSUE_COMMENT_ID: &str = "845218041bf9eb8155bfa4aaa8f0c91ce18e5c13";
 pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
 pub const TIMESTAMP: u64 = 1671125284;
 pub const CONTRIBUTOR_RID: &str = "rad:z4XaCmN3jLSeiMvW15YTDpNbDHFhG";
-pub const CONTRIBUTOR_PUB_KEY: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
+pub const CONTRIBUTOR_DID: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
+pub const CONTRIBUTOR_NID: &str = "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
 pub const CONTRIBUTOR_ISSUE_ID: &str = "f1dff128a22e8183a23516dd9812e72e80914c92";
+pub const CONTRIBUTOR_PATCH_ID: &str = "4b7ea91da1f551bc5ea5d2057125d7ba42d451cb";
+pub const CONTRIBUTOR_COMMENT_1: &str = "8f6e72c20da0e6ee2af004f059ced23d409a285a";
+pub const CONTRIBUTOR_COMMENT_2: &str = "c88ce78b17a705f389e72ec5c80da7360a675e51";
 
 const PASSWORD: &str = "radicle";
 
@@ -178,7 +182,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let base = radicle::git::Oid::from_str(PARENT).unwrap();
     let _ = patches
         .create(
-            "A new `hello word`",
+            "A new `hello world`",
             "change `hello world` in README to something else",
             MergeTarget::Delegates,
             base,

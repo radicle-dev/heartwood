@@ -12,8 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
-use radicle::cob::{issue, patch};
-use radicle::cob::{thread, ActorId, Tag};
+use radicle::cob::{issue, patch, thread, ActorId, Tag};
 use radicle::identity::Id;
 use radicle::node::NodeId;
 use radicle::storage::git::paths;
@@ -61,7 +60,10 @@ pub fn router(ctx: Context) -> Router {
             "/projects/:project/patches",
             post(patch_create_handler).get(patches_handler),
         )
-        .route("/projects/:project/patches/:id", get(patch_handler))
+        .route(
+            "/projects/:project/patches/:id",
+            get(patch_handler).patch(patch_update_handler),
+        )
         .with_state(ctx)
 }
 
@@ -595,6 +597,81 @@ async fn patch_create_handler(
         Json(json!({ "success": true, "id": patch.id.to_string() })),
     ))
 }
+/// Update an patch.
+/// `PATCH /projects/:project/patches/:id`
+async fn patch_update_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path((project, patch_id)): Path<(Id, Oid)>,
+    Json(action): Json<patch::Action>,
+) -> impl IntoResponse {
+    ctx.sessions
+        .write()
+        .await
+        .get(&token)
+        .ok_or(Error::Auth("Unauthorized"))?;
+    let storage = &ctx.profile.storage;
+    let signer = ctx
+        .profile
+        .signer()
+        .map_err(|_| Error::Auth("Unauthorized"))?;
+    let repo = storage.repository(project)?;
+    let mut patches = patch::Patches::open(&repo)?;
+    let mut patch = patches.get_mut(&patch_id.into())?;
+    match action {
+        patch::Action::Edit {
+            title,
+            description,
+            target,
+        } => {
+            patch.edit(title, description, target, &signer)?;
+        }
+        patch::Action::Tag { add, remove } => {
+            patch.tag(add, remove, &signer)?;
+        }
+        patch::Action::Revision {
+            description,
+            base,
+            oid,
+        } => {
+            patch.update(description, base, oid, &signer)?;
+        }
+        patch::Action::Redact { .. } => {
+            todo!()
+        }
+        patch::Action::Review {
+            revision,
+            comment,
+            verdict,
+            inline,
+        } => {
+            patch.review(revision, verdict, comment, inline, &signer)?;
+        }
+        patch::Action::Merge { revision, commit } => {
+            patch.merge(revision, commit, &signer)?;
+        }
+        patch::Action::Thread { action, revision } => match action {
+            thread::Action::Comment { body, reply_to } => {
+                if let Some(reply_to) = reply_to {
+                    patch.comment(revision, body, Some(reply_to), &signer)?;
+                } else {
+                    patch.thread(revision, body, &signer)?;
+                }
+            }
+            thread::Action::Edit { .. } => {
+                todo!();
+            }
+            thread::Action::Redact { .. } => {
+                todo!();
+            }
+            thread::Action::React { .. } => {
+                todo!();
+            }
+        },
+    };
+
+    Ok::<_, Error>(Json(json!({ "success": true })))
+}
 
 /// Get project patches list.
 /// `GET /projects/:project/patches`
@@ -643,16 +720,12 @@ mod routes {
     use pretty_assertions::assert_eq;
     use serde_json::json;
 
-    use crate::test::{
-        self, get, patch, post, CONTRIBUTOR_ISSUE_ID, CONTRIBUTOR_PUB_KEY, CONTRIBUTOR_RID, HEAD,
-        INITIAL_COMMIT, ISSUE_COMMENT_ID, ISSUE_DISCUSSION_ID, ISSUE_ID, PARENT, PATCH_ID, RID,
-        SESSION_ID, TIMESTAMP,
-    };
+    use crate::test::*;
 
     #[tokio::test]
     async fn test_projects_root() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(&app, "/projects").await;
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -663,7 +736,7 @@ mod routes {
                 "name": "hello-world",
                 "description": "Rad repository for tests",
                 "defaultBranch": "master",
-                "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
+                "delegates": [DID],
                 "head": HEAD,
                 "patches": {
                   "proposed": 1,
@@ -683,7 +756,7 @@ mod routes {
     #[tokio::test]
     async fn test_projects() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(&app, format!("/projects/{RID}")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -693,7 +766,7 @@ mod routes {
                "name": "hello-world",
                "description": "Rad repository for tests",
                "defaultBranch": "master",
-               "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
+               "delegates": [DID],
                "head": HEAD,
                "patches": {
                  "proposed": 1,
@@ -712,7 +785,7 @@ mod routes {
     #[tokio::test]
     async fn test_projects_commits_root() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(&app, format!("/projects/{RID}/commits")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -945,7 +1018,7 @@ mod routes {
     #[tokio::test]
     async fn test_projects_commits() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(&app, format!("/projects/{RID}/commits/{HEAD}")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -1047,7 +1120,7 @@ mod routes {
     #[tokio::test]
     async fn test_projects_tree() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(&app, format!("/projects/{RID}/tree/{HEAD}/")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -1132,7 +1205,7 @@ mod routes {
     #[tokio::test]
     async fn test_projects_remotes_root() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(&app, format!("/projects/{RID}/remotes")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -1153,7 +1226,7 @@ mod routes {
     #[tokio::test]
     async fn test_projects_remotes() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(
             &app,
             format!("/projects/{RID}/remotes/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"),
@@ -1176,7 +1249,7 @@ mod routes {
     #[tokio::test]
     async fn test_projects_blob() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(&app, format!("/projects/{RID}/blob/{HEAD}/README")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -1208,7 +1281,7 @@ mod routes {
     #[tokio::test]
     async fn test_projects_readme() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(&app, format!("/projects/{RID}/readme/{INITIAL_COMMIT}")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -1240,7 +1313,7 @@ mod routes {
     #[tokio::test]
     async fn test_projects_diff() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(
             &app,
             format!("/projects/{RID}/diff/{INITIAL_COMMIT}/{HEAD}"),
@@ -1320,7 +1393,7 @@ mod routes {
     #[tokio::test]
     async fn test_projects_issues_root() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
+        let app = super::router(seed(tmp.path()));
         let response = get(&app, format!("/projects/{RID}/issues")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -1330,7 +1403,7 @@ mod routes {
               {
                 "id": ISSUE_ID,
                 "author": {
-                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                  "id": DID
                 },
                 "title": "Issue #1",
                 "state": {
@@ -1341,7 +1414,7 @@ mod routes {
                   {
                     "id": ISSUE_ID,
                     "author": {
-                      "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                      "id": DID
                     },
                     "body": "Change 'hello world' to 'hello everyone'",
                     "reactions": [],
@@ -1360,10 +1433,10 @@ mod routes {
         const CREATED_ISSUE_ID: &str = "b457364fbe2ef0eac69a835a087f60ee13ccb367";
 
         let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::contributor(tmp.path());
+        let ctx = contributor(tmp.path());
         let app = super::router(ctx.to_owned());
 
-        test::create_session(ctx).await;
+        create_session(ctx).await;
 
         let body = serde_json::to_vec(&json!({
             "title": "Issue #2",
@@ -1398,7 +1471,7 @@ mod routes {
             json!({
               "id": CREATED_ISSUE_ID,
               "author": {
-                "id": CONTRIBUTOR_PUB_KEY,
+                "id": CONTRIBUTOR_DID,
               },
               "assignees": [],
               "title": "Issue #2",
@@ -1408,7 +1481,7 @@ mod routes {
               "discussion": [{
                 "id": CREATED_ISSUE_ID,
                 "author": {
-                  "id": CONTRIBUTOR_PUB_KEY,
+                  "id": CONTRIBUTOR_DID,
                 },
                 "body": "Change 'hello world' to 'hello everyone'",
                 "reactions": [],
@@ -1425,10 +1498,10 @@ mod routes {
     #[tokio::test]
     async fn test_projects_issues_comment() {
         let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::contributor(tmp.path());
+        let ctx = contributor(tmp.path());
         let app = super::router(ctx.to_owned());
 
-        test::create_session(ctx).await;
+        create_session(ctx).await;
 
         let body = serde_json::to_vec(&json!({
           "type": "thread",
@@ -1461,7 +1534,7 @@ mod routes {
             json!({
               "id": CONTRIBUTOR_ISSUE_ID,
               "author": {
-                "id": CONTRIBUTOR_PUB_KEY,
+                "id": CONTRIBUTOR_DID,
               },
               "assignees": [],
               "title": "Issue #1",
@@ -1472,7 +1545,7 @@ mod routes {
                 {
                   "id": ISSUE_DISCUSSION_ID,
                   "author": {
-                    "id": CONTRIBUTOR_PUB_KEY,
+                    "id": CONTRIBUTOR_DID,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
@@ -1482,7 +1555,7 @@ mod routes {
                 {
                   "id": "9685b141c2e939c3d60f8ca34f8c7bf01a609af1",
                   "author": {
-                    "id": CONTRIBUTOR_PUB_KEY,
+                    "id": CONTRIBUTOR_DID,
                   },
                   "body": "This is first-level comment",
                   "reactions": [],
@@ -1498,10 +1571,10 @@ mod routes {
     #[tokio::test]
     async fn test_projects_issues_reply() {
         let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::contributor(tmp.path());
+        let ctx = contributor(tmp.path());
         let app = super::router(ctx.to_owned());
 
-        test::create_session(ctx).await;
+        create_session(ctx).await;
 
         let body = serde_json::to_vec(&json!({
           "type": "thread",
@@ -1536,7 +1609,7 @@ mod routes {
             json!({
               "id": CONTRIBUTOR_ISSUE_ID,
               "author": {
-                "id": CONTRIBUTOR_PUB_KEY,
+                "id": CONTRIBUTOR_DID,
               },
               "assignees": [],
               "title": "Issue #1",
@@ -1547,7 +1620,7 @@ mod routes {
                 {
                   "id": ISSUE_DISCUSSION_ID,
                   "author": {
-                    "id": CONTRIBUTOR_PUB_KEY,
+                    "id": CONTRIBUTOR_DID,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
                   "reactions": [],
@@ -1557,7 +1630,7 @@ mod routes {
                 {
                   "id": ISSUE_COMMENT_ID,
                   "author": {
-                    "id": CONTRIBUTOR_PUB_KEY,
+                    "id": CONTRIBUTOR_DID,
                   },
                   "body": "This is a reply to the first comment",
                   "reactions": [],
@@ -1573,32 +1646,33 @@ mod routes {
     #[tokio::test]
     async fn test_projects_patches() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(test::seed(tmp.path()));
-        let response = get(&app, format!("/projects/{RID}/patches")).await;
+        let ctx = contributor(tmp.path());
+        let app = super::router(ctx.to_owned());
+        let response = get(&app, format!("/projects/{CONTRIBUTOR_RID}/patches")).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.json().await,
             json!([
               {
-                "id": PATCH_ID,
+                "id": CONTRIBUTOR_PATCH_ID,
                 "author": {
-                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                  "id": CONTRIBUTOR_DID
                 },
-                "title": "A new `hello word`",
+                "title": "A new `hello world`",
                 "description": "change `hello world` in README to something else",
                 "state": { "status": "proposed" },
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
                   {
-                    "id": PATCH_ID,
+                    "id": CONTRIBUTOR_PATCH_ID,
                     "description": "",
                     "base": PARENT,
                     "oid": HEAD,
                     "merges": [],
                     "discussions": [],
-                    "timestamp": 1671125284,
+                    "timestamp": TIMESTAMP,
                     "reviews": [],
                   }
                 ],
@@ -1606,31 +1680,35 @@ mod routes {
             ])
         );
 
-        let response = get(&app, format!("/projects/{RID}/patches/{PATCH_ID}")).await;
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+        )
+        .await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.json().await,
             json!(
               {
-                "id": PATCH_ID,
+                "id": CONTRIBUTOR_PATCH_ID,
                 "author": {
-                  "id": "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+                  "id": CONTRIBUTOR_DID
                 },
-                "title": "A new `hello word`",
+                "title": "A new `hello world`",
                 "description": "change `hello world` in README to something else",
                 "state": { "status": "proposed" },
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
                   {
-                    "id": PATCH_ID,
+                    "id": CONTRIBUTOR_PATCH_ID,
                     "description": "",
                     "base": PARENT,
                     "oid": HEAD,
                     "merges": [],
                     "discussions": [],
-                    "timestamp": 1671125284,
+                    "timestamp": TIMESTAMP,
                     "reviews": [],
                   }
                 ],
@@ -1644,10 +1722,10 @@ mod routes {
         const CREATED_PATCH_ID: &str = "f69641cba6d7df2c22844d7f39225b5cda54d363";
 
         let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::contributor(tmp.path());
+        let ctx = contributor(tmp.path());
         let app = super::router(ctx.to_owned());
 
-        test::create_session(ctx).await;
+        create_session(ctx).await;
 
         let body = serde_json::to_vec(&json!({
           "title": "Update README",
@@ -1690,7 +1768,7 @@ mod routes {
               {
                 "id": CREATED_PATCH_ID,
                 "author": {
-                  "id": CONTRIBUTOR_PUB_KEY
+                  "id": CONTRIBUTOR_DID
                 },
                 "title": "Update README",
                 "description": "Do some changes to README",
@@ -1705,12 +1783,451 @@ mod routes {
                     "oid": HEAD,
                     "merges": [],
                     "discussions": [],
-                    "timestamp": 1671125284,
+                    "timestamp": TIMESTAMP,
                     "reviews": [],
                   }
                 ],
               }
             )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_patches_tag() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = contributor(tmp.path());
+        let app = super::router(ctx.to_owned());
+        create_session(ctx).await;
+        let body = serde_json::to_vec(&json!({
+          "type": "tag",
+          "add": ["bug","design"],
+          "remove": []
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": CONTRIBUTOR_PATCH_ID,
+              "author": {
+                "id": CONTRIBUTOR_DID,
+              },
+              "title": "A new `hello world`",
+              "description": "change `hello world` in README to something else",
+              "state": { "status": "proposed" },
+              "target": "delegates",
+              "tags": [
+                "bug",
+                "design"
+              ],
+              "revisions": [
+                {
+                  "id": CONTRIBUTOR_PATCH_ID,
+                  "description": "",
+                  "base": PARENT,
+                  "oid": HEAD,
+                  "merges": [],
+                  "discussions": [],
+                  "timestamp": TIMESTAMP,
+                  "reviews": [],
+                },
+              ],
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_patches_revisions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = contributor(tmp.path());
+        let app = super::router(ctx.to_owned());
+        create_session(ctx).await;
+        let body = serde_json::to_vec(&json!({
+          "type": "revision",
+          "description": "This is a new revision",
+          "base": PARENT,
+          "oid": HEAD,
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": CONTRIBUTOR_PATCH_ID,
+              "author": {
+                "id": CONTRIBUTOR_DID,
+              },
+              "title": "A new `hello world`",
+              "description": "change `hello world` in README to something else",
+              "state": { "status": "proposed" },
+              "target": "delegates",
+              "tags": [],
+              "revisions": [
+                {
+                  "id": CONTRIBUTOR_PATCH_ID,
+                  "description": "",
+                  "base": PARENT,
+                  "oid": HEAD,
+                  "merges": [],
+                  "discussions": [],
+                  "timestamp": TIMESTAMP,
+                  "reviews": [],
+                },
+                {
+                  "id": "bdc0364b51a3346653a795b73332eb792283be37",
+                  "description": "This is a new revision",
+                  "base": PARENT,
+                  "oid": HEAD,
+                  "merges": [],
+                  "discussions": [],
+                  "timestamp": TIMESTAMP,
+                  "reviews": [],
+                }
+              ],
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_patches_edit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = contributor(tmp.path());
+        let app = super::router(ctx.to_owned());
+        create_session(ctx).await;
+        let body = serde_json::to_vec(&json!({
+          "type": "edit",
+          "title": "This is a updated title",
+          "description": "Let's write some description",
+          "target": "delegates",
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": CONTRIBUTOR_PATCH_ID,
+              "author": {
+                "id": CONTRIBUTOR_DID,
+              },
+              "title": "This is a updated title",
+              "description": "Let's write some description",
+              "state": { "status": "proposed" },
+              "target": "delegates",
+              "tags": [],
+              "revisions": [
+                {
+                  "id": CONTRIBUTOR_PATCH_ID,
+                  "description": "",
+                  "base": PARENT,
+                  "oid": HEAD,
+                  "merges": [],
+                  "discussions": [],
+                  "timestamp": TIMESTAMP,
+                  "reviews": [],
+                },
+              ],
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_patches_discussions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = contributor(tmp.path());
+        let app = super::router(ctx.to_owned());
+        create_session(ctx).await;
+        let thread_body = serde_json::to_vec(&json!({
+          "type": "thread",
+          "revision": CONTRIBUTOR_PATCH_ID,
+          "action": {
+            "type": "comment",
+            "body": "This is a root level comment"
+          }
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(thread_body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let reply_body = serde_json::to_vec(&json!({
+          "type": "thread",
+          "revision": CONTRIBUTOR_PATCH_ID,
+          "action": {
+            "type": "comment",
+            "body": "This is a root level comment",
+            "replyTo": CONTRIBUTOR_COMMENT_1,
+          }
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(reply_body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": CONTRIBUTOR_PATCH_ID,
+              "author": {
+                "id": CONTRIBUTOR_DID,
+              },
+              "title": "A new `hello world`",
+              "description": "change `hello world` in README to something else",
+              "state": { "status": "proposed" },
+              "target": "delegates",
+              "tags": [],
+              "revisions": [
+                {
+                  "id": CONTRIBUTOR_PATCH_ID,
+                  "description": "",
+                  "base": PARENT,
+                  "oid": HEAD,
+                  "merges": [],
+                  "discussions": [
+                    {
+                      "id": CONTRIBUTOR_COMMENT_1,
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "This is a root level comment",
+                      "reactions": [],
+                      "timestamp": TIMESTAMP,
+                      "replyTo": null,
+                    },
+                    {
+                      "id": CONTRIBUTOR_COMMENT_2,
+                      "author": {
+                        "id": CONTRIBUTOR_DID,
+                      },
+                      "body": "This is a root level comment",
+                      "reactions": [],
+                      "timestamp": TIMESTAMP,
+                      "replyTo": CONTRIBUTOR_COMMENT_1,
+                    },
+                  ],
+                  "timestamp": TIMESTAMP,
+                  "reviews": [],
+                },
+              ],
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_patches_reviews() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = contributor(tmp.path());
+        let app = super::router(ctx.to_owned());
+        create_session(ctx).await;
+        let thread_body = serde_json::to_vec(&json!({
+          "type": "review",
+          "revision": CONTRIBUTOR_PATCH_ID,
+          "comment": "A small review",
+          "verdict": "accept",
+          "inline": [
+            {
+              "location": {
+                "blob": HEAD,
+                "commit": HEAD,
+                "lines": {
+                    "start": 1,
+                    "end": 3,
+                },
+              },
+              "comment": "This is a comment on line 1",
+              "timestamp": TIMESTAMP,
+            }
+          ]
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(thread_body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": CONTRIBUTOR_PATCH_ID,
+              "author": {
+                "id": CONTRIBUTOR_DID,
+              },
+              "title": "A new `hello world`",
+              "description": "change `hello world` in README to something else",
+              "state": { "status": "proposed" },
+              "target": "delegates",
+              "tags": [],
+              "revisions": [
+                {
+                  "id": CONTRIBUTOR_PATCH_ID,
+                  "description": "",
+                  "base": PARENT,
+                  "oid": HEAD,
+                  "merges": [],
+                  "discussions": [],
+                  "timestamp": TIMESTAMP,
+                  "reviews": [
+                    [
+                      CONTRIBUTOR_NID,
+                      {
+                        "verdict": "accept",
+                        "comment": "A small review",
+                        "inline": [
+                          {
+                            "location": {
+                              "blob": HEAD,
+                              "commit": HEAD,
+                              "lines": {
+                                "start": 1,
+                                "end": 3,
+                              },
+                            },
+                            "comment": "This is a comment on line 1",
+                            "timestamp": TIMESTAMP,
+                          }
+                        ],
+                        "timestamp": TIMESTAMP,
+                      },
+                    ],
+                  ],
+                },
+              ],
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_patches_merges() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = contributor(tmp.path());
+        let app = super::router(ctx.to_owned());
+        create_session(ctx).await;
+        let thread_body = serde_json::to_vec(&json!({
+          "type": "merge",
+          "revision": CONTRIBUTOR_PATCH_ID,
+          "commit": PARENT,
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(thread_body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": CONTRIBUTOR_PATCH_ID,
+              "author": {
+                "id": CONTRIBUTOR_DID,
+              },
+              "title": "A new `hello world`",
+              "description": "change `hello world` in README to something else",
+              "state": { "status": "proposed" },
+              "target": "delegates",
+              "tags": [],
+              "revisions": [
+                {
+                  "id": CONTRIBUTOR_PATCH_ID,
+                  "description": "",
+                  "base": PARENT,
+                  "oid": HEAD,
+                  "merges": [
+                    {
+                      "node": CONTRIBUTOR_NID,
+                      "commit": PARENT,
+                      "timestamp": TIMESTAMP,
+                    },
+                  ],
+                  "discussions": [],
+                  "timestamp": TIMESTAMP,
+                  "reviews": [],
+                },
+              ],
+            })
         );
     }
 }
