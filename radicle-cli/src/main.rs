@@ -66,7 +66,7 @@ fn print_version() {
     if VERSION.contains("-dev") {
         println!("{NAME} {VERSION}+{GIT_HEAD}")
     } else {
-        println!("{NAME} {VERSION}")
+        println!("{NAME} {VERSION} ({GIT_HEAD})")
     }
 }
 
