@@ -56,7 +56,7 @@ pub const TARGET_OUTBOUND_PEERS: usize = 8;
 /// How often to run the "idle" task.
 pub const IDLE_INTERVAL: LocalDuration = LocalDuration::from_secs(30);
 /// How often to run the "announce" task.
-pub const ANNOUNCE_INTERVAL: LocalDuration = LocalDuration::from_secs(30);
+pub const ANNOUNCE_INTERVAL: LocalDuration = LocalDuration::from_mins(60);
 /// How often to run the "sync" task.
 pub const SYNC_INTERVAL: LocalDuration = LocalDuration::from_secs(60);
 /// How often to run the "prune" task.
@@ -186,8 +186,6 @@ pub struct Service<R, A, S, G> {
     reactor: Reactor,
     /// Source of entropy.
     rng: Rng,
-    /// Whether our local inventory no long represents what we have announced to the network.
-    out_of_sync: bool,
     /// Fetch requests initiated by user, which are waiting for results.
     fetch_reqs: HashMap<Id, chan::Sender<FetchResult>>,
     /// Current tracked repository bloom filter.
@@ -253,7 +251,6 @@ where
             gossip: Gossip::default(),
             reactor: Reactor::default(),
             sessions,
-            out_of_sync: false,
             fetch_reqs: HashMap::new(),
             filter: Filter::empty(),
             last_idle: LocalTime::default(),
@@ -274,10 +271,10 @@ where
     /// Track a repository.
     /// Returns whether or not the tracking policy was updated.
     pub fn track_repo(&mut self, id: &Id, scope: Scope) -> Result<bool, tracking::Error> {
-        self.out_of_sync = self.tracking.track_repo(id, scope)?;
+        let updated = self.tracking.track_repo(id, scope)?;
         self.filter.insert(id);
 
-        Ok(self.out_of_sync)
+        Ok(updated)
     }
 
     /// Untrack a repository.
@@ -427,14 +424,12 @@ where
             self.last_sync = now;
         }
         if now - self.last_announce >= ANNOUNCE_INTERVAL {
-            if self.out_of_sync {
-                if let Err(err) = self
-                    .storage
-                    .inventory()
-                    .and_then(|i| self.announce_inventory(i))
-                {
-                    error!(target: "service", "Error announcing inventory: {}", err);
-                }
+            if let Err(err) = self
+                .storage
+                .inventory()
+                .and_then(|i| self.announce_inventory(i))
+            {
+                error!(target: "service", "Error announcing inventory: {}", err);
             }
             self.reactor.wakeup(ANNOUNCE_INTERVAL);
             self.last_announce = now;
@@ -1148,7 +1143,7 @@ where
         )
     }
 
-    /// Sync, and if needed, announce our local inventory.
+    /// Update our routing table with our local node's inventory.
     fn sync_inventory(&mut self) -> Result<Vec<Id>, Error> {
         let inventory = self.storage.inventory()?;
         let updated = self.sync_routing(&inventory, self.node_id(), self.time())?;
