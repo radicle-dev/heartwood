@@ -1,15 +1,16 @@
 use std::{ffi::OsString, str::FromStr as _};
 
 use anyhow::{anyhow, Context as _};
-use radicle::cob::identity::{self, Proposal, ProposalId, Proposals, Revision, RevisionId};
+use radicle::cob::identity::{self, Proposal, Proposals, Revision, RevisionId};
 use radicle::git::Oid;
 use radicle::identity::Identity;
 use radicle::prelude::{Did, Doc};
 use radicle::storage::ReadStorage as _;
 use radicle_crypto::Verified;
 
+use crate::git::Rev;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::args::{string, Args, Error, Help};
 use crate::terminal::Element;
 use crate::terminal::Interactive;
 
@@ -53,11 +54,11 @@ impl Metadata {
 #[derive(Clone, Debug, Default)]
 pub enum Operation {
     Accept {
-        id: ProposalId,
+        id: Rev,
         rev: Option<RevisionId>,
     },
     Reject {
-        id: ProposalId,
+        id: Rev,
         rev: Option<RevisionId>,
     },
     Edit {
@@ -67,7 +68,7 @@ pub enum Operation {
         threshold: Option<usize>,
     },
     Update {
-        id: ProposalId,
+        id: Rev,
         rev: Option<RevisionId>,
         title: Option<String>,
         description: Option<String>,
@@ -75,22 +76,22 @@ pub enum Operation {
         threshold: Option<usize>,
     },
     Rebase {
-        id: ProposalId,
+        id: Rev,
         rev: Option<RevisionId>,
     },
     Show {
-        id: ProposalId,
+        id: Rev,
         rev: Option<RevisionId>,
         show_revisions: bool,
     },
     #[default]
     List,
     Commit {
-        id: ProposalId,
+        id: Rev,
         rev: Option<RevisionId>,
     },
     Close {
-        id: ProposalId,
+        id: Rev,
     },
 }
 
@@ -119,7 +120,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
-        let mut id: Option<ProposalId> = None;
+        let mut id: Option<Rev> = None;
         let mut rev: Option<RevisionId> = None;
         let mut title: Option<String> = None;
         let mut description: Option<String> = None;
@@ -173,14 +174,8 @@ impl Args for Options {
                     show_revisions = true;
                 }
                 Value(val) if op.is_some() => {
-                    let val = val
-                        .to_str()
-                        .ok_or_else(|| anyhow!("proposal id specified is not UTF-8"))?;
-
-                    id = Some(
-                        ProposalId::from_str(val)
-                            .map_err(|_| anyhow!("invalid proposal id '{}'", val))?,
-                    );
+                    let val = string(&val);
+                    id = Some(Rev::from(val));
                 }
                 _ => {
                     return Err(anyhow!(arg.unexpected()));
@@ -245,6 +240,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let interactive = &options.interactive;
     match options.op {
         Operation::Accept { id, rev } => {
+            let id = id.resolve(&repo.backend)?;
             let mut proposal = proposals.get_mut(&id)?;
             let (rid, revision) = select(&proposal, rev, &previous, interactive)?;
             warn_out_of_date(revision, &previous);
@@ -257,6 +253,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::Reject { id, rev } => {
+            let id = id.resolve(&repo.backend)?;
             let mut proposal = proposals.get_mut(&id)?;
             let (rid, revision) = select(&proposal, rev, &previous, interactive)?;
             warn_out_of_date(revision, &previous);
@@ -311,6 +308,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             delegates,
             threshold,
         } => {
+            let id = id.resolve(&repo.backend)?;
             let mut proposal = proposals.get_mut(&id)?;
             let (_, revision) = select(&proposal, rev, &previous, interactive)?;
 
@@ -354,6 +352,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::Rebase { id, rev } => {
+            let id = id.resolve(&repo.backend)?;
             // TODO: it would be nice if rebasing also handled fast-forwards nicely.
             let mut proposal = proposals.get_mut(&id)?;
             let (_, revision) = select(&proposal, rev, &previous, interactive)?;
@@ -407,6 +406,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             t.print();
         }
         Operation::Commit { id, rev } => {
+            let id = id.resolve(&repo.backend)?;
             let mut proposal = proposals.get_mut(&id)?;
             let (rid, revision) = commit_select(&proposal, rev, &previous, interactive)?;
             warn_out_of_date(revision, &previous);
@@ -419,6 +419,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::Close { id } => {
+            let id = id.resolve(&repo.backend)?;
             let mut proposal = proposals.get_mut(&id)?;
             let yes = confirm(interactive, "Are you sure you want to close?");
             if yes {
@@ -432,6 +433,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             rev,
             show_revisions,
         } => {
+            let id = id.resolve(&repo.backend)?;
             let proposal = proposals
                 .get(&id)?
                 .context("No proposal with the given ID exists")?;

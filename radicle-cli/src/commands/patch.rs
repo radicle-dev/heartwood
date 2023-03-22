@@ -21,8 +21,9 @@ use radicle::cob::patch::PatchId;
 use radicle::{prelude::*, Node};
 
 use crate::commands::rad_fetch as fetch;
+use crate::git::Rev;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::args::{string, Args, Error, Help};
 use crate::terminal::patch::Message;
 
 pub const HELP: Help = Help {
@@ -70,17 +71,17 @@ pub enum Operation {
         message: Message,
     },
     Show {
-        patch_id: PatchId,
+        patch_id: Rev,
     },
     Update {
-        patch_id: Option<PatchId>,
+        patch_id: Option<Rev>,
         message: Message,
     },
     Delete {
-        patch_id: PatchId,
+        patch_id: Rev,
     },
     Checkout {
-        patch_id: PatchId,
+        patch_id: Rev,
     },
     List,
 }
@@ -93,6 +94,7 @@ pub struct Options {
     pub push: bool,
     pub verbose: bool,
 }
+
 
 impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
@@ -113,7 +115,7 @@ impl Args for Options {
                 Long("message") | Short('m') => {
                     if message != Message::Blank {
                         // We skip this code when `no-message` is specified.
-                        let txt: String = parser.value()?.to_string_lossy().into();
+                        let txt: String = term::args::string(&parser.value()?);
                         message.append(&txt);
                     }
                 }
@@ -156,17 +158,9 @@ impl Args for Options {
                     "c" | "checkout" => op = Some(OperationName::Checkout),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
-                Value(val) if op == Some(OperationName::Show) && patch_id.is_none() => {
-                    patch_id = Some(term::cob::parse_patch_id(val)?);
-                }
-                Value(val) if op == Some(OperationName::Update) && patch_id.is_none() => {
-                    patch_id = Some(term::cob::parse_patch_id(val)?);
-                }
-                Value(val) if op == Some(OperationName::Checkout) && patch_id.is_none() => {
-                    patch_id = Some(term::cob::parse_patch_id(val)?);
-                }
-                Value(val) if op == Some(OperationName::Delete) && patch_id.is_none() => {
-                    patch_id = Some(term::cob::parse_patch_id(val)?);
+                Value(val) if op.is_some() && op != Some(OperationName::List) && patch_id.is_none() => {
+                    let val = string(&val);
+                    patch_id = Some(Rev::from(val));
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
@@ -218,13 +212,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::List => {
             list::run(&repository, &profile, Some(workdir))?;
         }
-        Operation::Show { ref patch_id } => {
-            show::run(&repository, &workdir, patch_id)?;
+        Operation::Show { patch_id } => {
+            let patch_id = patch_id.resolve(&repository.backend)?;
+            show::run(&repository, &workdir, &patch_id)?;
         }
         Operation::Update {
-            patch_id,
+            ref patch_id,
             ref message,
         } => {
+            let patch_id = patch_id
+                .as_ref()
+                .map(|id| id.resolve(&repository.backend))
+                .transpose()?;
             update::run(
                 &repository,
                 &profile,
@@ -235,10 +234,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             )?;
         }
         Operation::Delete { patch_id } => {
+            let patch_id = patch_id.resolve(&repository.backend)?;
             delete::run(&repository, &profile, &patch_id)?;
         }
-        Operation::Checkout { ref patch_id } => {
-            checkout::run(&repository, &workdir, patch_id)?;
+        Operation::Checkout { patch_id } => {
+            let patch_id = patch_id.resolve(&repository.backend)?;
+            checkout::run(&repository, &workdir, &patch_id)?;
         }
     }
     Ok(())

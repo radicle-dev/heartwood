@@ -3,12 +3,13 @@ use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
 
-use radicle::cob::patch::{PatchId, Patches, RevisionIx, Verdict};
+use radicle::cob::patch::{Patches, RevisionIx, Verdict};
 use radicle::prelude::*;
 use radicle::rad;
 
+use crate::git::Rev;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::args::{string, Args, Error, Help};
 use crate::terminal::patch::Message;
 
 pub const HELP: Help = Help {
@@ -46,7 +47,7 @@ Markdown supported.
 
 #[derive(Debug)]
 pub struct Options {
-    pub id: PatchId,
+    pub id: Rev,
     pub revision: Option<RevisionIx>,
     pub message: Message,
     pub sync: bool,
@@ -60,7 +61,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<PatchId> = None;
+        let mut id: Option<Rev> = None;
         let mut revision: Option<RevisionIx> = None;
         let mut message = Message::default();
         let mut sync = true;
@@ -109,14 +110,7 @@ impl Args for Options {
                     verdict = Some(Verdict::Reject);
                 }
                 Value(val) => {
-                    let val = val
-                        .to_str()
-                        .ok_or_else(|| anyhow!("patch id specified is not UTF-8"))?;
-
-                    id = Some(
-                        PatchId::from_str(val)
-                            .map_err(|_| anyhow!("invalid patch id '{}'", val))?,
-                    );
+                    id = Some(Rev::from(string(&val)));
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
@@ -148,7 +142,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .context(format!("couldn't load project {id} from local state"))?;
     let mut patches = Patches::open(&repository)?;
 
-    let patch_id = options.id;
+    let patch_id = options.id.resolve(&repository.backend)?;
     let mut patch = patches
         .get_mut(&patch_id)
         .context(format!("couldn't find patch {patch_id} locally"))?;

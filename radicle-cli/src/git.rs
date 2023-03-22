@@ -1,5 +1,6 @@
 //! Git-related functions and types.
 use std::collections::HashSet;
+use std::fmt::Display;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::Write;
@@ -15,6 +16,7 @@ use radicle::git;
 use radicle::git::raw as git2;
 use radicle::git::{Version, VERSION_REQUIRED};
 use radicle::prelude::{Id, NodeId};
+use radicle::cob::ObjectId;
 
 pub use radicle::git::raw::{
     build::CheckoutBuilder, AnnotatedCommit, Commit, Direction, ErrorCode, MergeAnalysis,
@@ -26,6 +28,35 @@ pub const CONFIG_SIGNING_KEY: &str = "user.signingkey";
 pub const CONFIG_GPG_FORMAT: &str = "gpg.format";
 pub const CONFIG_GPG_SSH_PROGRAM: &str = "gpg.ssh.program";
 pub const CONFIG_GPG_SSH_ALLOWED_SIGNERS: &str = "gpg.ssh.allowedSignersFile";
+
+/// Git revision parameter. Supports extended SHA-1 syntax.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rev(String);
+
+impl Rev {
+    /// Return the revision as a string.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Resolve the revision to an [`ObjectId`].
+    pub fn resolve(&self, repo: &git2::Repository) -> Result<ObjectId, git2::Error> {
+        let object = repo.revparse_single(self.as_str())?;
+        Ok(ObjectId::from(object.id()))
+    }
+}
+
+impl Display for Rev {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<String> for Rev {
+    fn from(value: String) -> Self {
+        Rev(value)
+    }
+}
 
 /// Get the git repository in the current directory.
 pub fn repository() -> Result<Repository, anyhow::Error> {
