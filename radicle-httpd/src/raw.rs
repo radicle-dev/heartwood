@@ -1,11 +1,13 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::extract::State;
-use axum::http::{header, StatusCode};
+use axum::http::{header, Method, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use hyper::HeaderMap;
+use tower_http::cors;
 
 use radicle::prelude::Id;
 use radicle::profile::Profile;
@@ -93,6 +95,13 @@ pub fn router(profile: Arc<Profile>) -> Router {
     Router::new()
         .route("/:project/:sha/*path", get(file_handler))
         .with_state(profile)
+        .layer(
+            cors::CorsLayer::new()
+                .max_age(Duration::from_secs(86400))
+                .allow_origin(cors::Any)
+                .allow_methods([Method::GET])
+                .allow_headers([header::CONTENT_TYPE]),
+        )
 }
 
 async fn file_handler(
