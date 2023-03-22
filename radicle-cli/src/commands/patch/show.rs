@@ -7,9 +7,8 @@ use radicle::cob::patch;
 use radicle::git;
 use radicle::storage::git::Repository;
 use radicle_term::{
-    label,
     table::{Table, TableOptions},
-    Element, Paint, VStack,
+    textarea, Element, Paint, VStack,
 };
 
 use crate::terminal as term;
@@ -71,7 +70,10 @@ pub fn run(
         .border(Some(term::colors::FAINT))
         .child(attrs)
         .children(if !description.is_empty() {
-            vec![term::Label::blank(), label(term::format::dim(description))]
+            vec![
+                term::Label::blank().boxed(),
+                textarea(term::format::dim(description)).boxed(),
+            ]
         } else {
             vec![]
         });

@@ -10,6 +10,7 @@ pub mod io;
 pub mod label;
 pub mod spinner;
 pub mod table;
+pub mod textarea;
 pub mod vstack;
 
 pub use ansi::Color;
@@ -22,6 +23,7 @@ pub use io::*;
 pub use label::{label, Label};
 pub use spinner::{spinner, Spinner};
 pub use table::Table;
+pub use textarea::{textarea, TextArea};
 pub use vstack::{VStack, VStackOptions};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]

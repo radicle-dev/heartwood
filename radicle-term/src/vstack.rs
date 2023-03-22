@@ -42,7 +42,10 @@ impl<'a> VStack<'a> {
     }
 
     /// Add multiple elements to the stack.
-    pub fn children<E: Element + 'a>(self, children: impl IntoIterator<Item = E>) -> Self {
+    pub fn children<I>(self, children: I) -> Self
+    where
+        I: IntoIterator<Item = Box<dyn Element>>,
+    {
         let mut vstack = self;
 
         for child in children.into_iter() {

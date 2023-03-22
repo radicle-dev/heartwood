@@ -43,6 +43,20 @@ pub trait Element: fmt::Debug {
     }
 }
 
+impl<'a> Element for Box<dyn Element + 'a> {
+    fn size(&self) -> Size {
+        self.deref().size()
+    }
+
+    fn render(&self) -> Vec<Line> {
+        self.deref().render()
+    }
+
+    fn print(&self) {
+        self.deref().print()
+    }
+}
+
 impl<T: Element> Element for &T {
     fn size(&self) -> Size {
         self.deref().size()

@@ -21,6 +21,11 @@ impl Label {
     pub fn space() -> Self {
         Self(Paint::new(" ".to_owned()))
     }
+
+    /// Box the label.
+    pub fn boxed(self) -> Box<dyn Element> {
+        Box::new(self)
+    }
 }
 
 impl Element for Label {
