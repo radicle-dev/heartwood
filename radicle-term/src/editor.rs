@@ -69,12 +69,10 @@ impl Editor {
         process::Command::new(cmd).arg(&self.path).spawn()?.wait()?;
 
         let text = fs::read_to_string(&self.path)?;
-        let text = text.strip_prefix(&initial).unwrap_or(&text);
-
         if text.trim().is_empty() {
             return Ok(None);
         }
-        Ok(Some(text.to_owned()))
+        Ok(Some(text))
     }
 }
 

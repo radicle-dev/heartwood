@@ -40,7 +40,7 @@ pub fn handle_patch_message(
     let (title, description) = (title.trim(), description.trim());
 
     if title.is_empty() {
-        anyhow::bail!("a title must be given");
+        anyhow::bail!("a patch title must be provided");
     }
 
     Ok((title.to_string(), description.to_owned()))
