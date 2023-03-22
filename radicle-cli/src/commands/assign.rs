@@ -1,12 +1,12 @@
 use std::ffi::OsString;
-use std::str::FromStr;
 
 use anyhow::anyhow;
 use nonempty::NonEmpty;
 use radicle::prelude::Did;
 
+use crate::git::Rev;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::args::{string, Args, Error, Help};
 use radicle::cob;
 use radicle::cob::issue;
 use radicle::storage::WriteStorage;
@@ -32,7 +32,7 @@ Options
 
 #[derive(Debug)]
 pub struct Options {
-    pub id: issue::IssueId,
+    pub id: Rev,
     pub to: NonEmpty<Did>,
 }
 
@@ -41,7 +41,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<issue::IssueId> = None;
+        let mut id: Option<Rev> = None;
         let mut to: Vec<Did> = Vec::new();
 
         while let Some(arg) = parser.next()? {
@@ -56,11 +56,8 @@ impl Args for Options {
                     to.push(did);
                 }
                 Value(ref val) if id.is_none() => {
-                    let val = val.to_string_lossy();
-                    let Ok(val) = issue::IssueId::from_str(&val) else {
-                        return Err(anyhow!("invalid Issue ID '{}'", val));
-                    };
-                    id = Some(val);
+                    let val = string(val);
+                    id = Some(Rev::from(val));
                 }
                 _ => {
                     return Err(anyhow!(arg.unexpected()));
@@ -83,14 +80,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let (_, id) = radicle::rad::cwd()?;
     let repo = profile.storage.repository_mut(id)?;
+    let oid = options.id.resolve(&repo.backend)?;
     let mut issues = issue::Issues::open(&repo)?;
-    let mut issue = issues.get_mut(&options.id).map_err(|e| match e {
+    let mut issue = issues.get_mut(&oid).map_err(|e| match e {
         cob::store::Error::NotFound(_, _) => anyhow!("issue {} not found", options.id),
         _ => e.into(),
     })?;
     let signer = term::signer(&profile)?;
 
     issue.assign(options.to.into_iter().map(Did::into), &signer)?;
-
     Ok(())
 }

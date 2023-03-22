@@ -5,8 +5,9 @@ use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
 
+use crate::git::Rev;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::args::{string, Args, Error, Help};
 use radicle::cob::patch::RevisionIx;
 use radicle::cob::patch::{Patch, PatchId, Patches};
 use radicle::git;
@@ -72,7 +73,7 @@ pub enum State {
 }
 #[derive(Debug)]
 pub struct Options {
-    pub id: PatchId,
+    pub id: Rev,
     pub interactive: bool,
     pub revision: Option<RevisionIx>,
 }
@@ -82,7 +83,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<PatchId> = None;
+        let mut id: Option<Rev> = None;
         let mut revision: Option<RevisionIx> = None;
         let mut interactive = false;
 
@@ -103,14 +104,8 @@ impl Args for Options {
                     revision = Some(id);
                 }
                 Value(val) => {
-                    let val = val
-                        .to_str()
-                        .ok_or_else(|| anyhow!("patch id specified is not UTF-8"))?;
-
-                    id = Some(
-                        PatchId::from_str(val)
-                            .map_err(|_| anyhow!("invalid patch id '{}'", val))?,
-                    );
+                    let val = string(&val);
+                    id = Some(Rev::from(val));
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
@@ -149,10 +144,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     //
     // Get patch information
     //
-    let patch_id = options.id;
+    let patch_id = options.id.resolve(&repository.backend)?;
     let mut patch = patches
         .get_mut(&patch_id)
-        .map_err(|e| anyhow!("couldn't find patch {} locally: {e}", &options.id))?;
+        .map_err(|e| anyhow!("couldn't find patch {} locally: {e}", &options.id.clone()))?;
 
     let head = repo.head()?;
     let branch = head

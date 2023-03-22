@@ -111,7 +111,7 @@ $ rad comment 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --message 'I cannot wait 
 Now, let's checkout the patch that we just created:
 
 ```
-$ rad patch checkout 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
+$ rad patch checkout 191a14e52
 ✓ Switched to branch patch/191a14e520f
 ```
 

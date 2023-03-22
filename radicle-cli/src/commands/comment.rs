@@ -1,9 +1,7 @@
 use std::ffi::OsString;
-use std::str::FromStr;
 
 use anyhow::anyhow;
 
-use radicle::cob;
 use radicle::cob::issue::Issues;
 use radicle::cob::patch::Patches;
 use radicle::cob::store;
@@ -11,7 +9,9 @@ use radicle::cob::thread;
 use radicle::prelude::*;
 use radicle::storage;
 
+use crate::git::Rev;
 use crate::terminal as term;
+use crate::terminal::args::string;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::patch::Message;
 
@@ -34,17 +34,9 @@ Options
 
 #[derive(Debug)]
 pub struct Options {
-    pub id: cob::ObjectId,
+    pub id: Rev,
     pub message: Message,
     pub reply_to: Option<thread::CommentId>,
-}
-
-#[inline]
-fn parse_cob_id(val: OsString) -> anyhow::Result<cob::ObjectId> {
-    let val = val
-        .to_str()
-        .ok_or_else(|| anyhow!("object id specified is not UTF-8"))?;
-    cob::ObjectId::from_str(val).map_err(|_| anyhow!("invalid object id '{}'", val))
 }
 
 impl Args for Options {
@@ -52,7 +44,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<cob::ObjectId> = None;
+        let mut id: Option<Rev> = None;
         let mut message = Message::default();
         let mut reply_to = None;
 
@@ -76,7 +68,10 @@ impl Args for Options {
                 // Common.
                 Long("help") => return Err(Error::Help.into()),
 
-                Value(val) if id.is_none() => id = Some(parse_cob_id(val)?),
+                Value(val) if id.is_none() => {
+                    let val = string(&val);
+                    id = Some(Rev::from(val));
+                }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
         }
@@ -103,7 +98,8 @@ fn comment(
     }
 
     let mut issues = Issues::open(repo)?;
-    match issues.get_mut(&options.id) {
+    let id = options.id.resolve(&repo.backend)?;
+    match issues.get_mut(&id) {
         Ok(mut issue) => {
             let comment_id = options.reply_to.unwrap_or_else(|| {
                 let (comment_id, _) = issue.comments().next().expect("root comment always exists");
@@ -119,7 +115,7 @@ fn comment(
     }
 
     let mut patches = Patches::open(repo)?;
-    match patches.get_mut(&options.id) {
+    match patches.get_mut(&id) {
         Ok(mut patch) => {
             let (revision_id, _) = patch.revisions().last().expect("patch has a revision");
             let comment_id = patch.comment(*revision_id, message, options.reply_to, &signer)?;

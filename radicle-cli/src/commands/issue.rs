@@ -6,13 +6,14 @@ use anyhow::{anyhow, Context as _};
 use radicle::node::Handle;
 use radicle::prelude::Did;
 
+use crate::git::Rev;
 use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::args::{string, Args, Error, Help};
 use crate::terminal::Element;
 
 use radicle::cob::common::{Reaction, Tag};
 use radicle::cob::issue;
-use radicle::cob::issue::{CloseReason, IssueId, Issues, State};
+use radicle::cob::issue::{CloseReason, Issues, State};
 use radicle::storage::WriteStorage;
 use radicle::{cob, Node};
 
@@ -71,17 +72,17 @@ pub enum Operation {
         description: Option<String>,
     },
     Show {
-        id: IssueId,
+        id: Rev,
     },
     State {
-        id: IssueId,
+        id: Rev,
         state: State,
     },
     Delete {
-        id: IssueId,
+        id: Rev,
     },
     React {
-        id: IssueId,
+        id: Rev,
         reaction: Reaction,
     },
     List {
@@ -101,7 +102,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
-        let mut id: Option<IssueId> = None;
+        let mut id: Option<Rev> = None;
         let mut assigned: Option<Assigned> = None;
         let mut title: Option<String> = None;
         let mut reaction: Option<Reaction> = None;
@@ -161,14 +162,8 @@ impl Args for Options {
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val) if op.is_some() => {
-                    let val = val
-                        .to_str()
-                        .ok_or_else(|| anyhow!("issue id specified is not UTF-8"))?;
-
-                    id = Some(
-                        IssueId::from_str(val)
-                            .map_err(|_| anyhow!("invalid issue id '{}'", val))?,
-                    );
+                    let val = string(&val);
+                    id = Some(Rev::from(val));
                 }
                 _ => {
                     return Err(anyhow!(arg.unexpected()));
@@ -225,16 +220,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             show_issue(&issue)?;
         }
         Operation::Show { id } => {
+            let id = id.resolve(&repo.backend)?;
             let issue = issues
                 .get(&id)?
                 .context("No issue with the given ID exists")?;
             show_issue(&issue)?;
         }
         Operation::State { id, state } => {
+            let id = id.resolve(&repo.backend)?;
             let mut issue = issues.get_mut(&id)?;
             issue.lifecycle(state, &signer)?;
         }
         Operation::React { id, reaction } => {
+            let id = id.resolve(&repo.backend)?;
             if let Ok(mut issue) = issues.get_mut(&id) {
                 let (comment_id, _) = term::io::comment_select(&issue).unwrap();
                 issue.react(*comment_id, reaction, &signer)?;
@@ -325,6 +323,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             t.print();
         }
         Operation::Delete { id } => {
+            let id = id.resolve(&repo.backend)?;
             issues.remove(&id, &signer)?;
         }
     }
