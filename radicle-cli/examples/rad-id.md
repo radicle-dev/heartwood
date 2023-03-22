@@ -145,7 +145,7 @@ increased to `1`.
 Instead, let's accept the proposal:
 
 ```
-$ rad id accept 0d396a83a5e1dda2b8929f7dc401d19dd1a79fb8 --no-confirm
+$ rad id accept 0d396a --no-confirm
 ✓ Accepted proposal ✓
 title: Add Bob
 description: Add Bob as a delegate

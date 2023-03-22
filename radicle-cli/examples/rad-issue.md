@@ -20,6 +20,19 @@ $ rad issue list
 2e8c1bf3fe0532a314778357c886608a966a34bd "flux capacitor underpowered" ❲unassigned❳
 ```
 
+Show the issue information issue.
+
+```
+$ rad issue show 2e8c1bf
+title: flux capacitor underpowered
+state: open
+tags: []
+assignees: []
+
+Flux capacitor power requirements exceed current supply
+```
+
+
 Great! Now we've documented the issue for ourselves and others.
 
 Just like with other project management systems, the issue can be assigned to
