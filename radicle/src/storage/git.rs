@@ -140,7 +140,7 @@ impl Storage {
 
         for result in fs::read_dir(&self.path)? {
             let path = result?;
-            let rid = Id::try_from(path.file_name())?;
+            let rid = Id::try_from(path.file_name()).map_err(|_| Error::Id(path.file_name()))?;
             let repo = self.repository(rid)?;
 
             // For performance reasons, we don't do a full repository check here.

@@ -20,7 +20,7 @@ use crate::git::{Qualified, RefError, RefString};
 use crate::identity;
 use crate::identity::doc::DocError;
 use crate::identity::Did;
-use crate::identity::{Id, IdError, IdentityError};
+use crate::identity::{Id, IdentityError};
 use crate::storage::refs::Refs;
 
 use self::refs::SignedRefs;
@@ -94,8 +94,8 @@ pub enum Error {
     Refs(#[from] refs::Error),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
-    #[error("id: {0}")]
-    Id(#[from] IdError),
+    #[error("invalid repository identifier {0:?}")]
+    Id(std::ffi::OsString),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
 }
