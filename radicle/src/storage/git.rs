@@ -140,6 +140,15 @@ impl Storage {
 
         for result in fs::read_dir(&self.path)? {
             let path = result?;
+
+            // Skip non-directories.
+            if !path.file_type()?.is_dir() {
+                continue;
+            }
+            // Skip hidden files.
+            if path.file_name().to_string_lossy().starts_with('.') {
+                continue;
+            }
             let rid = Id::try_from(path.file_name()).map_err(|_| Error::Id(path.file_name()))?;
             let repo = self.repository(rid)?;
 
