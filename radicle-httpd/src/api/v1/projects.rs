@@ -2089,7 +2089,8 @@ mod routes {
           "inline": [
             {
               "location": {
-                "blob": HEAD,
+                "blob": "82eb77880c693655bce074e3dbbd9fa711dc018b",
+                "path": "./README.md",
                 "commit": HEAD,
                 "lines": {
                     "start": 1,
@@ -2148,7 +2149,8 @@ mod routes {
                         "inline": [
                           {
                             "location": {
-                              "blob": HEAD,
+                              "blob": "82eb77880c693655bce074e3dbbd9fa711dc018b",
+                              "path": "./README.md",
                               "commit": HEAD,
                               "lines": {
                                 "start": 1,

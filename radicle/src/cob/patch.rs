@@ -2,6 +2,7 @@
 use std::fmt;
 use std::ops::Deref;
 use std::ops::Range;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
@@ -466,6 +467,8 @@ impl fmt::Display for Verdict {
 pub struct CodeLocation {
     /// File being commented on.
     pub blob: git::Oid,
+    /// Path of file being commented on.
+    pub path: PathBuf,
     /// Commit commented on.
     pub commit: git::Oid,
     /// Line range commented on.
@@ -480,12 +483,20 @@ impl PartialOrd for CodeLocation {
 
 impl Ord for CodeLocation {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (&self.blob, &self.commit, &self.lines.start, &self.lines.end).cmp(&(
-            &other.blob,
-            &other.commit,
-            &other.lines.start,
-            &other.lines.end,
-        ))
+        (
+            &self.blob,
+            &self.path,
+            &self.commit,
+            &self.lines.start,
+            &self.lines.end,
+        )
+            .cmp(&(
+                &other.blob,
+                &other.path,
+                &other.commit,
+                &other.lines.start,
+                &other.lines.end,
+            ))
     }
 }
 
