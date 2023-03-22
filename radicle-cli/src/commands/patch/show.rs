@@ -70,11 +70,10 @@ pub fn run(
     let meta = VStack::default()
         .border(Some(term::colors::FAINT))
         .child(attrs)
-        .blank()
         .children(if !description.is_empty() {
-            Some(label(term::format::dim(description)))
+            vec![term::Label::blank(), label(term::format::dim(description))]
         } else {
-            None
+            vec![]
         });
 
     meta.print();
