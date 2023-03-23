@@ -195,12 +195,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         MergeStyle::Commit
     } else if merge.is_up_to_date() {
-        term::info!(
-            "✓ Patch {} is already part of {}",
+        term::success!(
+            "Patch {} is already part of current branch {}",
             term::format::tertiary(patch_id),
-            term::format::highlight(branch)
+            term::format::parens(term::format::yellow(branch))
         );
-
         return Ok(());
     } else if merge.is_unborn() {
         anyhow::bail!("HEAD does not point to a valid commit");
@@ -223,14 +222,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     };
 
     term::info!(
-        "{} {} {} ({}) by {} into {} ({}) via {}...",
+        "{} {} {} {} by {} into {} {} via {}...",
         term::format::bold("Merging"),
         term::format::tertiary(term::format::cob(&patch_id)),
         term::format::dim(format!("R{revision_ix}")),
-        term::format::secondary(term::format::oid(revision.oid)),
+        term::format::parens(term::format::secondary(term::format::oid(revision.oid))),
         term::format::tertiary(patch.author().id),
         term::format::highlight(branch),
-        term::format::secondary(term::format::oid(head_oid)),
+        term::format::parens(term::format::secondary(term::format::oid(head_oid))),
         merge_style_pretty
     );
 

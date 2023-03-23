@@ -1,5 +1,3 @@
-use anyhow::Context;
-
 use radicle::cob::patch;
 use radicle::git;
 use radicle::prelude::*;
@@ -11,7 +9,7 @@ use crate::terminal as term;
 
 const REVISION_MSG: &str = r#"
 <!--
-Please enter a comment message for your patch update. Leaving this
+Please enter a comment for your patch update. Leaving this
 blank is also okay.
 -->
 "#;
@@ -26,27 +24,18 @@ fn select_patch(
     let head_oid = branch_oid(head_branch)?;
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
 
-    let mut spinner = term::spinner("Finding patches to update...");
     let mut result =
         find_unmerged_with_base(*head_oid, *target_oid, base_oid, patches, workdir, whoami)?;
 
-    let Some((id, patch, _)) = result.pop() else {
-        spinner.failed();
+    let Some((id, _, _)) = result.pop() else {
         term::blank();
-        anyhow::bail!("No patches found that share a base, please create a new patch or specify the patch id manually");
+        anyhow::bail!("No patches found to update, please open a new patch or specify the patch id manually");
     };
 
     if !result.is_empty() {
-        spinner.failed();
         term::blank();
         anyhow::bail!("More than one patch available to update, please specify an id with `rad patch --update <id>`");
     }
-    spinner.message(format!(
-        "Found existing patch {} {}",
-        term::format::tertiary(term::format::cob(&id)),
-        term::format::italic(patch.title())
-    ));
-    spinner.finish();
     term::blank();
 
     Ok(id)
@@ -63,20 +52,20 @@ fn show_update_commit_info(
     let current_version = patch.version();
     let head_oid = branch_oid(head_branch)?;
 
-    term::blank();
     term::info!(
-        "{} {} ({}) -> {} ({})",
+        "{} {} {} -> {} {}",
         term::format::tertiary(term::format::cob(patch_id)),
         term::format::dim(format!("R{current_version}")),
-        term::format::secondary(term::format::oid(current_revision.oid)),
+        term::format::parens(term::format::secondary(term::format::oid(
+            current_revision.oid
+        ))),
         term::format::dim(format!("R{}", current_version + 1)),
-        term::format::secondary(term::format::oid(*head_oid)),
+        term::format::parens(term::format::secondary(term::format::oid(*head_oid))),
     );
 
     // Difference between the two revisions.
     let head_oid = branch_oid(head_branch)?;
     term::patch::print_commits_ahead_behind(workdir, *head_oid, *current_revision.oid)?;
-    term::blank();
 
     Ok(())
 }
@@ -90,17 +79,8 @@ pub fn run(
     message: term::patch::Message,
     options: &Options,
 ) -> anyhow::Result<()> {
-    let project = storage.project_of(&profile.public_key).context(format!(
-        "couldn't load project {} from local state",
-        storage.id
-    ))?;
     // `HEAD`; This is what we are proposing as a patch.
     let head_branch = try_branch(workdir.head()?)?;
-
-    term::headline(format!(
-        "🌱 Updating patch for {}",
-        term::format::highlight(project.name())
-    ));
 
     push_to_storage(storage, &head_branch, options)?;
 
@@ -128,11 +108,14 @@ pub fn run(
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
     let message = message.get(REVISION_MSG);
     let signer = term::signer(profile)?;
-    patch.update(message, base_oid, *head_oid, &signer)?;
+    let revision = patch.update(message, base_oid, *head_oid, &signer)?;
 
     term::blank();
-    term::success!("Patch {} updated 🌱", term::format::highlight(patch_id));
-    term::blank();
+    term::success!(
+        "Patch {} updated to {}",
+        term::format::highlight(term::format::cob(&patch_id)),
+        term::format::tertiary(revision),
+    );
 
     if options.announce {
         // TODO

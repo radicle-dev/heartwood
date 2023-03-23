@@ -43,7 +43,6 @@ pub fn get_merge_target(
     storage: &Repository,
     head_branch: &git::raw::Branch,
 ) -> anyhow::Result<(git::RefString, git::Oid)> {
-    let spinner = term::spinner("Analyzing remotes...");
     let (qualified_ref, target_oid) = storage.canonical_head()?;
     let head_oid = branch_oid(head_branch)?;
     let merge_base = storage.raw().merge_base(*head_oid, *target_oid)?;
@@ -52,11 +51,7 @@ pub fn get_merge_target(
         anyhow::bail!("commits are already included in the target branch; nothing to do");
     }
 
-    // TODO: Tell user how many peers don't have this change.
-    spinner.finish();
-
-    let branch = get_branch(qualified_ref);
-    Ok((branch, (*target_oid).into()))
+    Ok((get_branch(qualified_ref), (*target_oid).into()))
 }
 
 /// Return the [`Oid`] of the merge target.
@@ -146,13 +141,8 @@ pub fn push_to_storage(
     options: &Options,
 ) -> anyhow::Result<()> {
     let head_oid = branch_oid(head_branch)?;
-    let mut spinner = term::spinner(format!(
-        "Looking for HEAD ({}) in storage...",
-        term::format::secondary(term::format::oid(head_oid))
-    ));
     if storage.commit(head_oid).is_err() {
         if !options.push {
-            spinner.failed();
             term::blank();
 
             return Err(Error::WithHint {
@@ -161,7 +151,6 @@ pub fn push_to_storage(
             }
             .into());
         }
-        spinner.message("Pushing HEAD to storage...");
 
         let output = match head_branch.upstream() {
             Ok(_) => git::run::<_, _, &str, &str>(Path::new("."), ["push", "rad"], [])?,
@@ -172,14 +161,11 @@ pub fn push_to_storage(
             )?,
         };
         if options.verbose {
-            spinner.finish();
             term::blob(output);
 
             return Ok(());
         }
     }
-    spinner.finish();
-
     Ok(())
 }
 

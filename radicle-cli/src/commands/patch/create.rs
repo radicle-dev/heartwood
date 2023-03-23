@@ -66,7 +66,6 @@ fn show_patch_commit_info(
         term::format::highlight(branch_name(head_branch)?),
         term::format::secondary(term::format::oid(head_oid)),
     );
-    term::blank();
 
     // TODO: Test case where the target branch has been re-written passed the merge-base, since the fork was created
     // This can also happen *after* the patch is created.

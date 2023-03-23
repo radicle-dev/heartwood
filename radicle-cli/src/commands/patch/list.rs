@@ -75,14 +75,14 @@ fn print(
         &patch.timestamp(),
     )));
 
-    let (_, revision) = patch
+    let (latest, revision) = patch
         .latest()
         .ok_or_else(|| anyhow!("patch is malformed: no revisions found"))?;
     let mut widget = term::VStack::default()
         .child(
             term::Line::spaced([
                 term::format::bold(patch.title()).into(),
-                term::format::highlight(patch_id).into(),
+                term::format::highlight(term::format::cob(patch_id)).into(),
                 term::format::dim(format!("R{}", patch.version())).into(),
             ])
             .space()
@@ -99,62 +99,84 @@ fn print(
         .border(Some(term::colors::FAINT));
 
     let mut timeline = Vec::new();
-    for merge in revision.merges.iter() {
-        let peer = repository.remote(&merge.node)?;
-        let mut badges = Vec::new();
-
-        if peer.delegate {
-            badges.push(term::format::secondary("(delegate)").into());
-        }
-        if peer.id == *whoami {
-            badges.push(term::format::primary("(you)").into());
-        }
-
-        timeline.push((
-            merge.timestamp,
-            term::Line::spaced(
-                [
-                    term::format::secondary(term::format::dim("✓ merged")).into(),
-                    term::format::default("by").into(),
-                    term::format::tertiary(peer.id).into(),
-                ]
-                .into_iter()
-                .chain(badges),
-            ),
-        ));
-    }
-    for (reviewer, review) in revision.reviews.iter() {
-        let verdict = match review.verdict() {
-            Some(Verdict::Accept) => term::format::positive(term::format::dim("✓ accepted")),
-            Some(Verdict::Reject) => term::format::negative(term::format::dim("✗ rejected")),
-            None => term::format::negative(term::format::dim("⋄ reviewed")),
-        };
-        let peer = repository.remote(reviewer)?;
-        let mut badges = Vec::new();
-
-        if peer.delegate {
-            badges.push(term::format::secondary("(delegate)").into());
-        }
-        if peer.id == *whoami {
-            badges.push(term::format::primary("(you)").into());
+    for (revision_id, revision) in patch.revisions() {
+        // Don't show an "update" line for the first revision.
+        if revision_id != latest {
+            timeline.push((
+                revision.timestamp,
+                term::Line::spaced(
+                    [
+                        term::format::tertiary("↑").into(),
+                        term::format::default("updated to").into(),
+                        term::format::dim(revision_id).into(),
+                        term::format::parens(term::format::secondary(term::format::oid(
+                            revision.oid,
+                        )))
+                        .into(),
+                    ]
+                    .into_iter(),
+                ),
+            ));
         }
 
-        timeline.push((
-            review.timestamp(),
-            term::Line::spaced(
-                [
-                    verdict.into(),
-                    term::format::default("by").into(),
-                    term::format::tertiary(reviewer).into(),
-                ]
-                .into_iter()
-                .chain(badges),
-            ),
-        ));
+        for merge in revision.merges.iter() {
+            let peer = repository.remote(&merge.node)?;
+            let mut badges = Vec::new();
+
+            if peer.delegate {
+                badges.push(term::format::secondary("(delegate)").into());
+            }
+            if peer.id == *whoami {
+                badges.push(term::format::primary("(you)").into());
+            }
+
+            timeline.push((
+                merge.timestamp,
+                term::Line::spaced(
+                    [
+                        term::format::primary("✓").bold().into(),
+                        term::format::default("merged").into(),
+                        term::format::default("by").into(),
+                        term::format::tertiary(Did::from(peer.id)).into(),
+                    ]
+                    .into_iter()
+                    .chain(badges),
+                ),
+            ));
+        }
+        for (reviewer, review) in revision.reviews.iter() {
+            let verdict = match review.verdict() {
+                Some(Verdict::Accept) => term::format::positive(term::format::dim("✓ accepted")),
+                Some(Verdict::Reject) => term::format::negative(term::format::dim("✗ rejected")),
+                None => term::format::negative(term::format::dim("⋄ reviewed")),
+            };
+            let peer = repository.remote(reviewer)?;
+            let mut badges = Vec::new();
+
+            if peer.delegate {
+                badges.push(term::format::secondary("(delegate)").into());
+            }
+            if peer.id == *whoami {
+                badges.push(term::format::primary("(you)").into());
+            }
+
+            timeline.push((
+                review.timestamp(),
+                term::Line::spaced(
+                    [
+                        verdict.into(),
+                        term::format::default("by").into(),
+                        term::format::tertiary(reviewer).into(),
+                    ]
+                    .into_iter()
+                    .chain(badges),
+                ),
+            ));
+        }
     }
     timeline.sort_by_key(|(t, _)| *t);
 
-    for (time, mut line) in timeline.into_iter().rev() {
+    for (time, mut line) in timeline.into_iter() {
         line.push(term::Label::space());
         line.push(term::format::dim(term::format::timestamp(&time)));
         widget.push(line);

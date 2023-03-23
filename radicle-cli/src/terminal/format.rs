@@ -23,9 +23,14 @@ pub fn oid(oid: impl Into<radicle::git::Oid>) -> String {
     format!("{:.7}", oid.into())
 }
 
+/// Wrap parenthesis around styled input, eg. `"input"` -> `"(input)"`.
+pub fn parens<D: fmt::Display>(input: Paint<D>) -> Paint<String> {
+    Paint::new(format!("({})", input.item)).with_style(input.style)
+}
+
 /// Format a COB id.
 pub fn cob(id: &ObjectId) -> String {
-    format!("{:.11}", id.to_string())
+    format!("{:.7}", id.to_string())
 }
 
 /// Format a timestamp.
