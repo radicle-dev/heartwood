@@ -328,6 +328,8 @@ impl<G: Signer + Ecdh + 'static> Worker<G> {
             log::debug!(target: "worker", "Fetch for {} exited successfully", rid);
             let head = repo.set_head()?;
             log::debug!(target: "worker", "Head for {} set to {head}", rid);
+            let head = repo.set_identity_head()?;
+            log::debug!(target: "worker", "'refs/rad/id' for {} set to {head}", rid);
             Ok(vec![])
         } else {
             log::error!(target: "worker", "Fetch for {} failed", rid);

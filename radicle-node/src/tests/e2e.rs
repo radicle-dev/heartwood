@@ -326,6 +326,14 @@ fn test_clone() {
         .unwrap();
 
     assert_eq!(oid, *canonical);
+
+    // Make sure that bob has refs/rad/id set
+    assert!(bob
+        .storage
+        .repository(acme)
+        .unwrap()
+        .identity_head()
+        .is_ok());
 }
 
 #[test]
