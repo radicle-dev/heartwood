@@ -28,6 +28,13 @@ pub static NAMESPACES_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*"));
 pub static SIGREFS_GLOB: Lazy<refspec::PatternString> =
     Lazy::new(|| refspec::pattern!("refs/namespaces/*/rad/sigrefs"));
+pub static CANONICAL_IDENTITY: Lazy<git::Qualified> = Lazy::new(|| {
+    git::Qualified::from_components(
+        git::name::component!("rad"),
+        git::name::component!("id"),
+        None,
+    )
+});
 
 /// A parsed Git reference.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -584,6 +591,18 @@ impl ReadRepository for Repository {
 
         Ok((branch_ref, oid.into()))
     }
+
+    fn identity_head(&self) -> Result<Oid, IdentityError> {
+        match Doc::<Verified>::canonical_head(self) {
+            Ok(oid) => Ok(oid),
+            Err(err) if err.is_not_found() => self.canonical_identity_head(),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    fn canonical_identity_head(&self) -> Result<Oid, IdentityError> {
+        Repository::identity_head(self)
+    }
 }
 
 impl WriteRepository for Repository {
@@ -598,6 +617,20 @@ impl WriteRepository for Repository {
         log::debug!(target: "storage", "Setting ref: {} -> {}", head_ref, branch_ref);
         self.raw()
             .reference_symbolic(&head_ref, &branch_ref, true, "set-head (radicle)")?;
+
+        Ok(head)
+    }
+
+    fn set_identity_head(&self) -> Result<Oid, IdentityError> {
+        let head = self.canonical_identity_head()?;
+
+        log::debug!(target: "storage", "Setting ref: {} -> {}", *CANONICAL_IDENTITY, head);
+        self.raw().reference(
+            CANONICAL_IDENTITY.as_str(),
+            *head,
+            true,
+            "set-local-branch (radicle)",
+        )?;
 
         Ok(head)
     }

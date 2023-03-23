@@ -18,6 +18,7 @@ use crate::crypto;
 use crate::crypto::{Signature, Unverified, Verified};
 use crate::git;
 use crate::identity::{project::Project, Did};
+use crate::storage;
 use crate::storage::git::trailers;
 use crate::storage::{ReadRepository, RemoteId};
 
@@ -142,6 +143,13 @@ pub struct Doc<V> {
 }
 
 impl<V> Doc<V> {
+    pub fn canonical_head(repo: &storage::git::Repository) -> Result<Oid, DocError> {
+        repo.backend
+            .refname_to_id(storage::git::CANONICAL_IDENTITY.as_str())
+            .map(Oid::from)
+            .map_err(DocError::from)
+    }
+
     pub fn head<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<Oid, DocError> {
         repo.reference_oid(remote, &git::refs::storage::IDENTITY_BRANCH)
             .map_err(DocError::from)
@@ -213,6 +221,11 @@ impl Doc<Verified> {
         let sig = signer.sign(oid.as_bytes());
 
         Ok((oid, sig))
+    }
+
+    pub fn canonical(repo: &storage::git::Repository) -> Result<DocAt, DocError> {
+        let oid = Self::canonical_head(repo)?;
+        Self::load_at(oid, repo)
     }
 
     pub fn load_at<R: ReadRepository>(oid: Oid, repo: &R) -> Result<DocAt, DocError> {

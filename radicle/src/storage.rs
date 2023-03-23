@@ -353,6 +353,17 @@ pub trait ReadRepository {
     /// Returns the [`Oid`] as well as the qualified reference name.
     fn canonical_head(&self) -> Result<(Qualified, Oid), IdentityError>;
 
+    /// Get the head of the `rad/id` reference in this repository.
+    ///
+    /// Returns the reference pointed to by `rad/id` if it is set. Otherwise, computes the canonical
+    /// `rad/id` using [`ReadRepository::canonical_identity_head`].
+    fn identity_head(&self) -> Result<Oid, IdentityError>;
+
+    /// Compute the canonical `rad/id` of this repository.
+    ///
+    /// Ignores any existing `rad/id` reference.
+    fn canonical_identity_head(&self) -> Result<Oid, IdentityError>;
+
     /// Get the `reference` for the given `remote`.
     ///
     /// Returns `None` is the reference did not exist.
@@ -403,6 +414,8 @@ pub trait WriteRepository: ReadRepository {
     /// Set the repository head to the canonical branch.
     /// This computes the head based on the delegate set.
     fn set_head(&self) -> Result<Oid, IdentityError>;
+    /// Set the repository 'rad/id' to the canonical commit, agreed by quorum.
+    fn set_identity_head(&self) -> Result<Oid, IdentityError>;
     /// Sign the repository's refs under the `refs/rad/sigrefs` branch.
     fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error>;
     /// Get the underlying git repository.

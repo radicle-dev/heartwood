@@ -194,6 +194,14 @@ impl ReadRepository for MockRepository {
     ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), IdentityError> {
         Ok((git2::Oid::zero().into(), self.doc.clone().unverified()))
     }
+
+    fn identity_head(&self) -> Result<Oid, IdentityError> {
+        todo!()
+    }
+
+    fn canonical_identity_head(&self) -> Result<Oid, IdentityError> {
+        todo!()
+    }
 }
 
 impl WriteRepository for MockRepository {
@@ -209,6 +217,10 @@ impl WriteRepository for MockRepository {
         &self,
         _signer: &G,
     ) -> Result<crate::storage::refs::SignedRefs<Verified>, Error> {
+        todo!()
+    }
+
+    fn set_identity_head(&self) -> Result<Oid, IdentityError> {
         todo!()
     }
 }
