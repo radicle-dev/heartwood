@@ -8,17 +8,18 @@ use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use radicle::cob;
 use radicle::cob::common::Tag;
-use radicle::cob::issue;
-use radicle::storage::WriteStorage;
+use radicle::cob::{issue, patch, store};
+use radicle::crypto::Signer;
+use radicle::storage::{self, WriteStorage};
 
 pub const HELP: Help = Help {
     name: "tag",
-    description: "Tag an issue",
+    description: "Tag an issue or patch",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
 
-    rad tag <issue> <tag>..
+    rad tag <id> <tag>..
 
 Options
 
@@ -28,7 +29,7 @@ Options
 
 #[derive(Debug)]
 pub struct Options {
-    pub id: issue::IssueId,
+    pub id: cob::ObjectId,
     pub tags: NonEmpty<Tag>,
 }
 
@@ -37,7 +38,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<issue::IssueId> = None;
+        let mut id: Option<cob::ObjectId> = None;
         let mut tags: Vec<Tag> = Vec::new();
 
         while let Some(arg) = parser.next()? {
@@ -47,8 +48,8 @@ impl Args for Options {
                 }
                 Value(ref val) if id.is_none() => {
                     let val = val.to_string_lossy();
-                    let Ok(val) = issue::IssueId::from_str(&val) else {
-                        return Err(anyhow!("invalid Issue ID '{}'", val));
+                    let Ok(val) = cob::ObjectId::from_str(&val) else {
+                        return Err(anyhow!("invalid issue or patch ID '{}'", val));
                     };
                     id = Some(val);
                 }
@@ -66,26 +67,52 @@ impl Args for Options {
 
         Ok((
             Options {
-                id: id.ok_or_else(|| anyhow!("an issue must be specified"))?,
-                tags: NonEmpty::from_vec(tags).ok_or_else(|| anyhow!("a tag must be specified"))?,
+                id: id.ok_or_else(|| anyhow!("an issue or patch must be specified"))?,
+                tags: NonEmpty::from_vec(tags)
+                    .ok_or_else(|| anyhow!("at least one tag must be specified"))?,
             },
             vec![],
         ))
     }
 }
 
+fn tag(
+    options: Options,
+    repo: &storage::git::Repository,
+    signer: impl Signer,
+) -> anyhow::Result<()> {
+    let mut issues = issue::Issues::open(repo)?;
+    match issues.get_mut(&options.id) {
+        Ok(mut issue) => {
+            issue.tag(options.tags.into_iter(), [], &signer)?;
+
+            return Ok(());
+        }
+        Err(store::Error::NotFound(_, _)) => {}
+        Err(e) => return Err(e.into()),
+    }
+
+    let mut patches = patch::Patches::open(repo)?;
+    match patches.get_mut(&options.id) {
+        Ok(mut patch) => {
+            patch.tag(options.tags.into_iter(), [], &signer)?;
+
+            return Ok(());
+        }
+        Err(store::Error::NotFound(_, _)) => {}
+        Err(e) => return Err(e.into()),
+    }
+
+    anyhow::bail!("Couldn't find issue or patch {}", options.id)
+}
+
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let (_, id) = radicle::rad::cwd()?;
     let repo = profile.storage.repository_mut(id)?;
-    let mut issues = issue::Issues::open(&repo)?;
-    let mut issue = issues.get_mut(&options.id).map_err(|e| match e {
-        cob::store::Error::NotFound(_, _) => anyhow!("issue {} not found", options.id),
-        _ => e.into(),
-    })?;
     let signer = term::signer(&profile)?;
 
-    issue.tag(options.tags.into_iter(), [], &signer)?;
+    tag(options, &repo, signer)?;
 
     Ok(())
 }
