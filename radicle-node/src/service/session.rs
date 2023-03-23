@@ -5,7 +5,6 @@ use radicle::storage::Namespaces;
 
 use crate::service::message;
 use crate::service::message::Message;
-use crate::service::storage;
 use crate::service::{Id, LocalTime, NodeId, Reactor, Rng};
 use crate::Link;
 
@@ -120,22 +119,23 @@ pub enum FetchResult {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("wrong protocol version in message: {0}")]
-    WrongVersion(u32),
     #[error("invalid announcement timestamp: {0}")]
     InvalidTimestamp(u64),
-    #[error("session not found for node `{0}`")]
-    NotFound(NodeId),
-    #[error("verification failed on fetch: {0}")]
-    VerificationFailed(#[from] storage::VerifyError),
     #[error("peer misbehaved")]
     Misbehavior,
     #[error("peer timed out")]
     Timeout,
-    #[error("handshake error")]
-    Handshake(String),
-    #[error("failed to inspect remotes for fetch: {0}")]
-    Remotes(#[from] storage::refs::Error),
+}
+
+impl Error {
+    /// Check whether this error is transient.
+    pub fn is_transient(&self) -> bool {
+        match self {
+            Self::InvalidTimestamp(_) => false,
+            Self::Misbehavior => false,
+            Self::Timeout => true,
+        }
+    }
 }
 
 /// A peer session. Each connected peer will have one session.

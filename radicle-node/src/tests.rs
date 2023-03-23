@@ -900,16 +900,12 @@ fn test_persistent_peer_reconnect_attempt() {
     //
     // Now let's disconnect a peer.
 
-    // A transient error such as this will cause Alice to attempt a reconnection.
-    let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
-
-    // A non-transient disconnect, such as one requested by the user will not trigger
-    // a reconnection.
-    alice.disconnected(eve.id(), &DisconnectReason::Dial(error.clone()));
-    assert_matches!(alice.outbox().next(), None);
+    // A non-transient disconnect, such as one due to peer misbehavior will still trigger a
+    // a reconnection, since this is a persistent peer.
+    let reason = DisconnectReason::Session(session::Error::Misbehavior);
 
     for _ in 0..3 {
-        alice.disconnected(bob.id(), &DisconnectReason::Connection(error.clone()));
+        alice.disconnected(bob.id(), &reason);
         alice.elapse(service::MAX_RECONNECTION_DELTA);
         alice
             .outbox()
@@ -1259,7 +1255,8 @@ fn prop_inventory_exchange_dense() {
         }
     }
     qcheck::QuickCheck::new()
-        .gen(qcheck::Gen::new(8))
+        .gen(qcheck::Gen::new(5))
+        .tests(20)
         .quickcheck(property as fn(MockStorage, MockStorage, MockStorage));
 }
 

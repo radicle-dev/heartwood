@@ -126,12 +126,17 @@ where
         name: &'static str,
         ip: impl Into<net::IpAddr>,
         storage: S,
-        config: Config<G>,
+        mut config: Config<G>,
     ) -> Self {
         let routing = routing::Table::memory().unwrap();
         let tracking = tracking::Store::memory().unwrap();
         let tracking = tracking::Config::new(config.policy, config.scope, tracking);
         let id = *config.signer.public_key();
+        let ip = ip.into();
+        let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
+
+        // Make sure the peer address is advertized.
+        config.config.external_addresses.push(local_addr.into());
 
         let emitter: Emitter<Event> = Default::default();
         let service = Service::new(
@@ -145,8 +150,6 @@ where
             config.rng.clone(),
             emitter,
         );
-        let ip = ip.into();
-        let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
 
         Self {
             name,

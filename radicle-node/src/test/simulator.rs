@@ -491,8 +491,6 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
             Io::Connect(remote, addr) => {
                 assert!(remote != node, "self-connections are not allowed");
 
-                let latency = self.latency(node, remote);
-
                 self.inbox.insert(
                     self.time + MIN_LATENCY,
                     Scheduled {
@@ -524,6 +522,8 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     }
                     return;
                 }
+
+                let latency = MIN_LATENCY + self.latency(node, remote);
 
                 self.inbox.insert(
                     // The remote will get the connection attempt with some latency.

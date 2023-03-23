@@ -452,8 +452,8 @@ where
         debug!(target: "service", "Received command {:?}", cmd);
 
         match cmd {
-            Command::Connect(id, addr) => {
-                self.connect(id, addr);
+            Command::Connect(nid, addr) => {
+                self.connect(nid, addr);
             }
             Command::Seeds(rid, resp) => match self.seeds(&rid) {
                 Ok(seeds) => {
@@ -712,6 +712,7 @@ where
                 return;
             }
         };
+        let link = session.link;
 
         // If the peer disconnected while we were waiting for a [`Message::FetchOk`],
         // return a failure to any potential fetcher.
@@ -726,33 +727,29 @@ where
 
         // Attempt to re-connect to persistent peers.
         if self.config.peer(&remote).is_some() {
-            if reason.is_transient() {
-                let delay =
-                    LocalDuration::from_secs(2u64.saturating_pow(session.attempts() as u32))
-                        .clamp(MIN_RECONNECTION_DELTA, MAX_RECONNECTION_DELTA);
+            let delay = LocalDuration::from_secs(2u64.saturating_pow(session.attempts() as u32))
+                .clamp(MIN_RECONNECTION_DELTA, MAX_RECONNECTION_DELTA);
 
-                session.to_disconnected(since, since + delay);
+            // Nb. We always try to reconnect to persistent peers, even when the error appears
+            // to not be transient.
+            session.to_disconnected(since, since + delay);
 
-                debug!(target: "service", "Reconnecting to {remote} in {delay}..");
+            debug!(target: "service", "Reconnecting to {remote} in {delay}..");
 
-                self.reactor.wakeup(delay);
-            } else {
-                // TODO: Only handle error transience for non-persistent peers.
-                warn!(target: "service", "Permanently dropping persistent peer {remote} session due to non-transient error: {reason}");
-
-                self.sessions.remove(&remote);
-            }
+            self.reactor.wakeup(delay);
         } else {
             self.sessions.remove(&remote);
-            self.maintain_connections();
+            // Only re-attempt outbound connections, since we don't care if an inbound connection
+            // is dropped.
+            if link.is_outbound() {
+                self.maintain_connections();
+            }
         }
     }
 
     pub fn received_message(&mut self, remote: NodeId, message: Message) {
         match self.handle_message(&remote, message) {
-            Err(session::Error::NotFound(id)) => {
-                error!("Session not found for {id}");
-            }
+            Ok(_) => {}
             Err(err) => {
                 // If there's an error, stop processing messages from this peer.
                 // However, we still relay messages returned up to this point.
@@ -762,7 +759,6 @@ where
                 // FIXME: The peer should be set in a state such that we don't
                 // process further messages.
             }
-            Ok(()) => {}
         }
     }
 
@@ -979,7 +975,8 @@ where
         message: Message,
     ) -> Result<(), session::Error> {
         let Some(peer) = self.sessions.get_mut(remote) else {
-            return Err(session::Error::NotFound(*remote));
+            warn!(target: "service", "Session not found for {remote}");
+            return Ok(());
         };
         peer.last_active = self.clock;
 
@@ -1495,7 +1492,7 @@ where
         let now = self.local_time();
         let mut reconnect = Vec::new();
 
-        for (nid, session) in self.sessions.disconnected_mut() {
+        for (nid, session) in self.sessions.iter_mut() {
             if let Some(addr) = self.config.peer(nid) {
                 if let session::State::Disconnected { retry_at, .. } = &mut session.state {
                     // TODO: Try to reconnect only if the peer was attempted. A disconnect without
@@ -1593,8 +1590,8 @@ impl DisconnectReason {
         match self {
             Self::Dial(_) => false,
             Self::Connection(_) => true,
-            Self::Session(..) => false,
             Self::Fetch(_) => true,
+            Self::Session(err) => err.is_transient(),
         }
     }
 }
