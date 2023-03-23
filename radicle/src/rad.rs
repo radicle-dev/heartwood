@@ -83,6 +83,7 @@ pub fn init<G: Signer>(
     )?;
     let signed = project.sign_refs(signer)?;
     let _head = project.set_head()?;
+    let _head = project.set_identity_head()?;
 
     Ok((project.id, doc, signed))
 }

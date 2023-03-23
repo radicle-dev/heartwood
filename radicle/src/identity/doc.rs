@@ -395,7 +395,7 @@ mod test {
     use crate::rad;
     use crate::storage::git::transport;
     use crate::storage::git::Storage;
-    use crate::storage::WriteStorage as _;
+    use crate::storage::{ReadStorage as _, WriteStorage as _};
     use crate::test::arbitrary;
     use crate::test::fixtures;
 
@@ -446,6 +446,29 @@ mod test {
 
         let err = Doc::<Unverified>::load_at(oid.into(), &repo).unwrap_err();
         assert!(err.is_not_found());
+    }
+
+    #[test]
+    fn test_canonical_doc() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let storage = Storage::open(tempdir.path().join("storage")).unwrap();
+        transport::local::register(storage.clone());
+
+        let (working, _) = fixtures::repository(tempdir.path().join("working"));
+
+        let delegate = MockSigner::from_seed([0xff; 32]);
+        let (rid, doc, _) = rad::init(
+            &working,
+            "heartwood",
+            "Radicle Heartwood Protocol & Stack",
+            git::refname!("master"),
+            &delegate,
+            &storage,
+        )
+        .unwrap();
+        let repo = storage.repository(rid).unwrap();
+
+        assert_eq!(doc, Doc::canonical(&repo).unwrap().doc);
     }
 
     #[quickcheck]
