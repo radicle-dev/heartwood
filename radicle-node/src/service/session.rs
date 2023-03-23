@@ -119,10 +119,18 @@ pub enum FetchResult {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    /// The remote peer sent an invalid announcement timestamp,
+    /// for eg. a timestamp far in the future.
     #[error("invalid announcement timestamp: {0}")]
     InvalidTimestamp(u64),
+    /// The remote peer sent git protocol messages while we were expecting
+    /// gossip messages. Or vice-versa.
+    #[error("protocol mismatch")]
+    ProtocolMismatch,
+    /// The remote peer did something that violates the protocol rules.
     #[error("peer misbehaved")]
     Misbehavior,
+    /// The remote peer timed out.
     #[error("peer timed out")]
     Timeout,
 }
@@ -132,6 +140,7 @@ impl Error {
     pub fn is_transient(&self) -> bool {
         match self {
             Self::InvalidTimestamp(_) => false,
+            Self::ProtocolMismatch => true,
             Self::Misbehavior => false,
             Self::Timeout => true,
         }

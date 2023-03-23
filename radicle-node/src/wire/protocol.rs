@@ -521,9 +521,11 @@ where
                             Err(e) => {
                                 log::error!(target: "wire", "Invalid gossip message from {id}: {e}");
 
+                                let mut reason =
+                                    DisconnectReason::Session(session::Error::Misbehavior);
                                 if let Error::UnknownMessageType(t) = e {
-                                    let mut leftover = t.to_be_bytes().to_vec();
-                                    leftover.extend(inbox.unparsed());
+                                    let leftover =
+                                        inbox.unparsed().chain(t.to_be_bytes()).collect::<Vec<_>>();
 
                                     if let Ok(header) =
                                         str::from_utf8(&leftover[..worker::pktline::HEADER_LEN])
@@ -534,6 +536,10 @@ where
                                                 "Received possible Git packet-line header `{}` from {id} (protocol mismatch)",
                                                 header
                                             );
+                                            // In case of protocol mismatch, don't penalize the peer.
+                                            reason = DisconnectReason::Session(
+                                                session::Error::ProtocolMismatch,
+                                            );
                                         }
                                     }
                                 }
@@ -542,9 +548,8 @@ where
                                     log::debug!(target: "wire", "Dropping read buffer for {id} with {} bytes", inbox.unparsed().count());
                                 }
                                 self.disconnect(
-                                    fd,
-                                    // TODO(cloudhead): Include error in reason.
-                                    DisconnectReason::Session(session::Error::Misbehavior),
+                                    fd, // TODO(cloudhead): Include error in reason.
+                                    reason,
                                 );
                                 break;
                             }
