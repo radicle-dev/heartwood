@@ -62,9 +62,9 @@ pub const SYNC_INTERVAL: LocalDuration = LocalDuration::from_secs(60);
 /// How often to run the "prune" task.
 pub const PRUNE_INTERVAL: LocalDuration = LocalDuration::from_mins(30);
 /// Duration to wait on an unresponsive peer before dropping its connection.
-pub const STALE_CONNECTION_TIMEOUT: LocalDuration = LocalDuration::from_secs(60);
+pub const STALE_CONNECTION_TIMEOUT: LocalDuration = LocalDuration::from_mins(1);
 /// How much time should pass after a peer was last active for a *ping* to be sent.
-pub const KEEP_ALIVE_DELTA: LocalDuration = LocalDuration::from_secs(30);
+pub const KEEP_ALIVE_DELTA: LocalDuration = LocalDuration::from_mins(1);
 /// Maximum time difference between the local time, and an announcement timestamp.
 pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Maximum attempts to connect to a peer before we give up.
@@ -1397,7 +1397,7 @@ where
         let stale = self
             .sessions
             .connected()
-            .filter(|(_, session)| session.last_active < *now - STALE_CONNECTION_TIMEOUT);
+            .filter(|(_, session)| *now - session.last_active >= STALE_CONNECTION_TIMEOUT);
 
         for (_, session) in stale {
             self.reactor.disconnect(
