@@ -37,7 +37,7 @@ use crate::service::session::GossipState;
 use crate::service::tracking::Scope;
 use crate::storage;
 use crate::storage::{Namespaces, ReadStorage};
-use crate::storage::{ReadRepository, RefUpdate, WriteStorage};
+use crate::storage::{ReadRepository, RefUpdate};
 use crate::worker::FetchError;
 use crate::Link;
 
@@ -223,7 +223,7 @@ impl<R, A, S, G> Service<R, A, S, G>
 where
     R: routing::Store,
     A: address::Store,
-    S: WriteStorage + 'static,
+    S: ReadStorage + 'static,
     G: Signer,
 {
     pub fn new(
