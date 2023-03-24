@@ -71,7 +71,7 @@ fn execute() -> anyhow::Result<()> {
     let project = payload.project()?;
 
     let mut window = Window::default();
-    window.run(&mut app::App::new(id, project), 1000 / FPS)?;
+    window.run(&mut app::App::new(profile, id, project), 1000 / FPS)?;
 
     Ok(())
 }

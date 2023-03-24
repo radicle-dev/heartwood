@@ -1,18 +1,26 @@
+pub mod cob;
 pub mod components;
 pub mod layout;
 pub mod state;
 pub mod theme;
 pub mod widget;
 
+use radicle::prelude::{Id, Project};
+use radicle::Profile;
+use tuirealm::props::{AttrValue, Attribute, PropPayload, PropValue, TextSpan};
+use tuirealm::MockComponent;
+
+use radicle::cob::patch::{Patch, PatchId};
+
 use components::container::{GlobalListener, LabeledContainer, Tabs};
 use components::context::{Shortcut, Shortcuts};
 use components::label::Label;
 use components::list::{Property, PropertyList};
-use components::workspace::Workspaces;
+
 use widget::Widget;
 
-use tuirealm::props::{AttrValue, Attribute};
-use tuirealm::MockComponent;
+use self::components::list::{List, Table};
+use self::components::workspace::Browser;
 
 pub fn global_listener() -> Widget<GlobalListener> {
     Widget::new(GlobalListener::default())
@@ -100,14 +108,65 @@ pub fn tabs(theme: &theme::Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
         .highlight(theme.colors.tabs_highlighted_fg)
 }
 
-pub fn workspaces(
-    theme: &theme::Theme,
-    info: &str,
-    tabs: Widget<Tabs>,
-    children: Vec<Box<dyn MockComponent>>,
-) -> Widget<Workspaces> {
-    let info = label(info).foreground(theme.colors.workspaces_info_fg);
-    let workspaces = Workspaces::new(tabs, info, children);
+pub fn table(theme: &theme::Theme, items: &[impl List], profile: &Profile) -> Widget<Table> {
+    let table = Table::default();
+    let items = items.iter().map(|item| item.row(theme, profile)).collect();
 
-    Widget::new(workspaces)
+    Widget::new(table)
+        .content(AttrValue::Table(items))
+        .background(theme.colors.labeled_container_bg)
+        .highlight(theme.colors.item_list_highlighted_bg)
+}
+
+pub fn patch_browser(
+    theme: &theme::Theme,
+    items: &[(PatchId, Patch)],
+    profile: &Profile,
+) -> Widget<Browser<(PatchId, Patch)>> {
+    let widths = AttrValue::Payload(PropPayload::Vec(vec![
+        PropValue::U16(2),
+        PropValue::U16(43),
+        PropValue::U16(15),
+        PropValue::U16(15),
+        PropValue::U16(5),
+        PropValue::U16(20),
+    ]));
+    let header = AttrValue::Payload(PropPayload::Vec(vec![
+        PropValue::TextSpan(TextSpan::from("")),
+        PropValue::TextSpan(TextSpan::from("title")),
+        PropValue::TextSpan(TextSpan::from("author")),
+        PropValue::TextSpan(TextSpan::from("tags")),
+        PropValue::TextSpan(TextSpan::from("comments")),
+        PropValue::TextSpan(TextSpan::from("date")),
+    ]));
+
+    let table = table(theme, items, profile)
+        .custom("widths", widths)
+        .custom("header", header);
+    let browser: Browser<(PatchId, Patch)> = Browser::new(table);
+
+    Widget::new(browser)
+}
+
+pub fn navigation(theme: &theme::Theme) -> Widget<Tabs> {
+    tabs(
+        theme,
+        vec![label("dashboard"), label("issues"), label("patches")],
+    )
+}
+
+pub fn dashboard(theme: &theme::Theme, id: &Id, project: &Project) -> Widget<LabeledContainer> {
+    labeled_container(
+        theme,
+        "about",
+        property_list(
+            theme,
+            vec![
+                property(theme, "id", &id.to_string()),
+                property(theme, "name", project.name()),
+                property(theme, "description", project.description()),
+            ],
+        )
+        .to_boxed(),
+    )
 }
