@@ -8,8 +8,9 @@ use serde_json::{json, Value};
 
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
-use radicle::cob::thread::{self, CommentId};
-use radicle::cob::{ActorId, Author, Timestamp};
+use radicle::cob::thread;
+use radicle::cob::thread::{CommentId, Thread};
+use radicle::cob::{ActorId, Author, Reaction, Timestamp};
 use radicle::git::RefString;
 use radicle::storage::{git, refs, ReadRepository};
 use radicle_surf::blob::Blob;
@@ -98,7 +99,10 @@ pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
         "title": issue.title(),
         "state": issue.state(),
         "assignees": issue.assigned().collect::<Vec<_>>(),
-        "discussion": issue.comments().collect::<Comments>(),
+        "discussion": issue
+          .comments()
+          .map(|(id, comment)| Comment::new(id, comment, issue.thread()))
+          .collect::<Vec<_>>(),
         "tags": issue.tags().collect::<Vec<_>>(),
     })
 }
@@ -121,7 +125,10 @@ pub(crate) fn patch(id: PatchId, patch: Patch, repo: &git::Repository) -> Value 
                 "oid": rev.oid,
                 "refs": get_refs(repo, patch.author().id(), &rev.oid).unwrap_or(vec![]),
                 "merges": rev.merges().collect::<Vec<_>>(),
-                "discussions": rev.discussion.comments().collect::<Comments>(),
+                "discussions": rev.discussion
+                  .comments()
+                  .map(|(id, comment)| Comment::new(id, comment, &rev.discussion))
+                  .collect::<Vec<_>>(),
                 "timestamp": rev.timestamp,
                 "reviews": rev.reviews().collect::<Vec<_>>(),
             })
@@ -160,33 +167,24 @@ fn get_refs(
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Comment {
+struct Comment<'a> {
     id: CommentId,
     author: Author,
-    body: String,
-    reactions: [String; 0],
+    body: &'a str,
+    reactions: Vec<(&'a ActorId, &'a Reaction)>,
     timestamp: Timestamp,
     reply_to: Option<CommentId>,
 }
 
-#[derive(Serialize)]
-struct Comments(Vec<Comment>);
-
-impl<'a> FromIterator<(&'a CommentId, &'a thread::Comment)> for Comments {
-    fn from_iter<I: IntoIterator<Item = (&'a CommentId, &'a thread::Comment)>>(iter: I) -> Self {
-        let mut comments = Vec::new();
-
-        for (id, comment) in iter {
-            comments.push(Comment {
-                id: id.to_owned(),
-                author: comment.author().into(),
-                body: comment.body().to_owned(),
-                reactions: [],
-                timestamp: comment.timestamp(),
-                reply_to: comment.reply_to(),
-            });
+impl<'a> Comment<'a> {
+    fn new(id: &'a CommentId, comment: &'a thread::Comment, thread: &'a Thread) -> Self {
+        Self {
+            id: *id,
+            author: Author::new(comment.author()),
+            body: comment.body(),
+            reactions: thread.reactions(id).collect::<Vec<_>>(),
+            timestamp: comment.timestamp(),
+            reply_to: comment.reply_to(),
         }
-
-        Comments(comments)
     }
 }

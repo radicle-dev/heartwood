@@ -1523,6 +1523,24 @@ mod routes {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.json().await, json!({ "success": true }));
 
+        let body = serde_json::to_vec(&json!({
+          "type": "thread",
+          "action": {
+            "type": "react",
+            "to": "9685b141c2e939c3d60f8ca34f8c7bf01a609af1",
+            "reaction": "🚀",
+            "active": true,
+          }
+        }))
+        .unwrap();
+        patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
         let response = get(
             &app,
             format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
@@ -1536,11 +1554,11 @@ mod routes {
               "author": {
                 "id": CONTRIBUTOR_DID,
               },
-              "assignees": [],
               "title": "Issue #1",
               "state": {
                 "status": "open",
               },
+              "assignees": [],
               "discussion": [
                 {
                   "id": ISSUE_DISCUSSION_ID,
@@ -1558,7 +1576,12 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "body": "This is first-level comment",
-                  "reactions": [],
+                  "reactions": [
+                    [
+                      "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                      "🚀",
+                    ],
+                  ],
                   "timestamp": TIMESTAMP,
                   "replyTo": null,
                 },

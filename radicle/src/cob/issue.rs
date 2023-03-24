@@ -80,10 +80,15 @@ impl State {
 /// Issue state. Accumulates [`Action`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Issue {
+    /// Actors assigned to this issue.
     assignees: LWWSet<ActorId>,
+    /// Title of the issue.
     title: LWWReg<Max<String>, clock::Lamport>,
+    /// Current state of the issue.
     state: LWWReg<Max<State>, clock::Lamport>,
+    /// Associated tags.
     tags: LWWSet<Tag>,
+    /// Discussion around this issue.
     thread: Thread,
 }
 
@@ -193,6 +198,10 @@ impl Issue {
 
     pub fn description(&self) -> Option<&str> {
         self.thread.comments().next().map(|(_, c)| c.body())
+    }
+
+    pub fn thread(&self) -> &Thread {
+        &self.thread
     }
 
     pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment)> {
