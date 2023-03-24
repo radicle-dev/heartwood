@@ -187,7 +187,7 @@ pub struct Service<R, A, S, G> {
     /// Source of entropy.
     rng: Rng,
     /// Fetch requests initiated by user, which are waiting for results.
-    fetch_reqs: HashMap<Id, chan::Sender<FetchResult>>,
+    fetch_reqs: HashMap<(Id, NodeId), chan::Sender<FetchResult>>,
     /// Current tracked repository bloom filter.
     filter: Filter,
     /// Last time the service was idle.
@@ -465,9 +465,7 @@ where
             },
             Command::Fetch(rid, seed, resp) => {
                 // TODO: Establish connections to unconnected seeds, and retry.
-                // TODO: Fetch requests should be queued and re-checked to see if they can
-                //       be fulfilled everytime a new node connects.
-                self.fetch_reqs.insert(rid, resp);
+                self.fetch_reqs.insert((rid, seed), resp);
                 self.fetch(rid, &seed);
             }
             Command::TrackRepo(rid, scope, resp) => {
@@ -550,7 +548,7 @@ where
                     Err(err) => {
                         error!(target: "service", "Error getting namespaces for {rid}: {err}");
 
-                        if let Some(resp) = self.fetch_reqs.get(&rid) {
+                        if let Some(resp) = self.fetch_reqs.remove(&(rid, seed)) {
                             resp.send(FetchResult::Failed {
                                 reason: err.to_string(),
                             })
@@ -611,15 +609,11 @@ where
                     }
                 };
 
-                if let Some(results) = self.fetch_reqs.get(&rid) {
+                if let Some(results) = self.fetch_reqs.remove(&(rid, remote)) {
                     log::debug!(target: "service", "Found existing fetch request, sending result..");
 
                     if results.send(result).is_err() {
                         log::error!(target: "service", "Error sending fetch result for {rid}..");
-                        // FIXME: We should remove the channel even on success, once all seeds
-                        // were fetched from. Otherwise an organic fetch will try to send on the
-                        // channel.
-                        self.fetch_reqs.remove(&rid);
                     } else {
                         log::debug!(target: "service", "Sent fetch result for {rid}..");
                     }
@@ -717,7 +711,7 @@ where
         // If the peer disconnected while we were waiting for a [`Message::FetchOk`],
         // return a failure to any potential fetcher.
         if let Some((requested, _)) = session.requesting() {
-            if let Some(resp) = self.fetch_reqs.remove(requested) {
+            if let Some(resp) = self.fetch_reqs.remove(&(*requested, remote)) {
                 resp.send(FetchResult::Failed {
                     reason: format!("disconnected: {reason}"),
                 })
