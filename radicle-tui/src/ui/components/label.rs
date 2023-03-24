@@ -1,7 +1,7 @@
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{AttrValue, Attribute, Color, Props, Style};
 use tuirealm::tui::layout::Rect;
-use tuirealm::tui::text::Span;
+use tuirealm::tui::text::{Span, Text};
 use tuirealm::{Frame, MockComponent, State};
 
 use crate::ui::widget::{Widget, WidgetComponent};
@@ -62,5 +62,20 @@ impl From<&Widget<Label>> for Span<'_> {
             .unwrap_string();
 
         Span::styled(content, Style::default())
+    }
+}
+
+impl From<&Widget<Label>> for Text<'_> {
+    fn from(label: &Widget<Label>) -> Self {
+        let content = label
+            .query(Attribute::Content)
+            .unwrap_or(AttrValue::String(String::default()))
+            .unwrap_string();
+        let foreground = label
+            .query(Attribute::Foreground)
+            .unwrap_or(AttrValue::Color(Color::Reset))
+            .unwrap_color();
+
+        Text::styled(content, Style::default().fg(foreground))
     }
 }
