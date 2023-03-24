@@ -13,6 +13,11 @@ pub struct Colors {
     pub shortcut_short_fg: Color,
     pub shortcut_long_fg: Color,
     pub shortcutbar_divider_fg: Color,
+    pub browser_patch_list_title: Color,
+    pub browser_patch_list_author: Color,
+    pub browser_patch_list_tags: Color,
+    pub browser_patch_list_comments: Color,
+    pub browser_patch_list_timestamp: Color,
 }
 
 #[derive(Debug)]
@@ -59,6 +64,11 @@ pub fn default_dark() -> Theme {
             shortcut_short_fg: Color::Rgb(100, 100, 100),
             shortcut_long_fg: Color::Rgb(70, 70, 70),
             shortcutbar_divider_fg: Color::Rgb(70, 70, 70),
+            browser_patch_list_title: Color::Rgb(200, 200, 200),
+            browser_patch_list_author: Color::Rgb(85, 85, 255),
+            browser_patch_list_tags: Color::Rgb(220, 140, 40),
+            browser_patch_list_comments: Color::Rgb(150, 150, 150),
+            browser_patch_list_timestamp: Color::Rgb(100, 100, 100),
         },
         icons: Icons {
             property_divider: '∙',
