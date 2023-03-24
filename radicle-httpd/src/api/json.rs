@@ -9,10 +9,12 @@ use serde_json::{json, Value};
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::cob::thread::{self, CommentId};
-use radicle::cob::{Author, Timestamp};
+use radicle::cob::{ActorId, Author, Timestamp};
+use radicle::git::RefString;
+use radicle::storage::{git, refs, ReadRepository};
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
-use radicle_surf::{Commit, Stats};
+use radicle_surf::{Commit, Oid, Stats};
 
 use crate::api::auth::Session;
 
@@ -102,7 +104,7 @@ pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
 }
 
 /// Returns JSON for a `patch`.
-pub(crate) fn patch(id: PatchId, patch: Patch) -> Value {
+pub(crate) fn patch(id: PatchId, patch: Patch, repo: &git::Repository) -> Value {
     json!({
         "id": id.to_string(),
         "author": patch.author(),
@@ -117,6 +119,7 @@ pub(crate) fn patch(id: PatchId, patch: Patch) -> Value {
                 "description": rev.description(),
                 "base": rev.base,
                 "oid": rev.oid,
+                "refs": get_refs(repo, patch.author().id(), &rev.oid).unwrap_or(vec![]),
                 "merges": rev.merges().collect::<Vec<_>>(),
                 "discussions": rev.discussion.comments().collect::<Comments>(),
                 "timestamp": rev.timestamp,
@@ -132,6 +135,27 @@ fn name_in_path(path: &str) -> &str {
         Some(name) => name,
         None => path,
     }
+}
+
+fn get_refs(
+    repo: &git::Repository,
+    id: &ActorId,
+    head: &Oid,
+) -> Result<Vec<RefString>, refs::Error> {
+    let remote = repo.remote(id)?;
+    let refs = remote
+        .refs
+        .iter()
+        .filter_map(|(name, o)| {
+            if o == head {
+                Some(name.to_owned())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    Ok(refs)
 }
 
 #[derive(Serialize)]

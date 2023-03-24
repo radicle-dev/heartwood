@@ -690,7 +690,7 @@ async fn patches_handler(
     patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
     let patches = patches
         .into_iter()
-        .map(|(id, patch, _)| api::json::patch(id, patch))
+        .map(|(id, patch, _)| api::json::patch(id, patch, &repo))
         .skip(page * per_page)
         .take(per_page)
         .collect::<Vec<_>>();
@@ -710,7 +710,7 @@ async fn patch_handler(
         .get(&patch_id.into())?
         .ok_or(Error::NotFound)?;
 
-    Ok::<_, Error>(Json(api::json::patch(patch_id.into(), patch)))
+    Ok::<_, Error>(Json(api::json::patch(patch_id.into(), patch, &repo)))
 }
 
 #[cfg(test)]
@@ -1670,6 +1670,9 @@ mod routes {
                     "description": "",
                     "base": PARENT,
                     "oid": HEAD,
+                    "refs": [
+                      "refs/heads/master",
+                    ],
                     "merges": [],
                     "discussions": [],
                     "timestamp": TIMESTAMP,
@@ -1706,6 +1709,9 @@ mod routes {
                     "description": "",
                     "base": PARENT,
                     "oid": HEAD,
+                    "refs": [
+                      "refs/heads/master",
+                    ],
                     "merges": [],
                     "discussions": [],
                     "timestamp": TIMESTAMP,
@@ -1781,6 +1787,9 @@ mod routes {
                     "description": "",
                     "base": INITIAL_COMMIT,
                     "oid": HEAD,
+                    "refs": [
+                      "refs/heads/master",
+                    ],
                     "merges": [],
                     "discussions": [],
                     "timestamp": TIMESTAMP,
@@ -1841,6 +1850,9 @@ mod routes {
                   "description": "",
                   "base": PARENT,
                   "oid": HEAD,
+                  "refs": [
+                    "refs/heads/master",
+                  ],
                   "merges": [],
                   "discussions": [],
                   "timestamp": TIMESTAMP,
@@ -1898,6 +1910,9 @@ mod routes {
                   "description": "",
                   "base": PARENT,
                   "oid": HEAD,
+                  "refs": [
+                    "refs/heads/master",
+                  ],
                   "merges": [],
                   "discussions": [],
                   "timestamp": TIMESTAMP,
@@ -1908,6 +1923,9 @@ mod routes {
                   "description": "This is a new revision",
                   "base": PARENT,
                   "oid": HEAD,
+                  "refs": [
+                    "refs/heads/master",
+                  ],
                   "merges": [],
                   "discussions": [],
                   "timestamp": TIMESTAMP,
@@ -1965,6 +1983,9 @@ mod routes {
                   "description": "",
                   "base": PARENT,
                   "oid": HEAD,
+                  "refs": [
+                    "refs/heads/master",
+                  ],
                   "merges": [],
                   "discussions": [],
                   "timestamp": TIMESTAMP,
@@ -2044,6 +2065,9 @@ mod routes {
                   "description": "",
                   "base": PARENT,
                   "oid": HEAD,
+                  "refs": [
+                    "refs/heads/master",
+                  ],
                   "merges": [],
                   "discussions": [
                     {
@@ -2137,6 +2161,9 @@ mod routes {
                   "description": "",
                   "base": PARENT,
                   "oid": HEAD,
+                  "refs": [
+                    "refs/heads/master",
+                  ],
                   "merges": [],
                   "discussions": [],
                   "timestamp": TIMESTAMP,
@@ -2217,6 +2244,9 @@ mod routes {
                   "description": "",
                   "base": PARENT,
                   "oid": HEAD,
+                  "refs": [
+                    "refs/heads/master",
+                  ],
                   "merges": [
                     {
                       "node": CONTRIBUTOR_NID,
