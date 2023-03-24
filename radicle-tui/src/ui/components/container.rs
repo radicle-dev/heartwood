@@ -129,7 +129,9 @@ impl WidgetComponent for Header {
         let display = properties
             .get_or(Attribute::Display, AttrValue::Flag(true))
             .unwrap_flag();
-        let spacer = Widget::new(Label::new(StateValue::String(String::default()))).to_boxed();
+        let spacer = Widget::new(Label::default())
+            .content(AttrValue::String(String::default()))
+            .to_boxed();
 
         if display {
             let labels: Vec<Box<dyn MockComponent>> = vec![self.content.clone().to_boxed(), spacer];

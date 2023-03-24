@@ -2,27 +2,22 @@ use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{AttrValue, Attribute, Color, Props, Style};
 use tuirealm::tui::layout::Rect;
 use tuirealm::tui::text::Span;
-use tuirealm::{Frame, MockComponent, State, StateValue};
+use tuirealm::{Frame, MockComponent, State};
 
 use crate::ui::widget::{Widget, WidgetComponent};
 
 /// A label that can be styled using a foreground color and text modifiers.
 /// Its height is fixed, its width depends on the length of the text it displays.
-#[derive(Clone)]
-pub struct Label {
-    content: StateValue,
-}
-
-impl Label {
-    pub fn new(content: StateValue) -> Self {
-        Self { content }
-    }
-}
+#[derive(Clone, Default)]
+pub struct Label;
 
 impl WidgetComponent for Label {
     fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
         use tui_realm_stdlib::Label;
 
+        let content = properties
+            .get_or(Attribute::Content, AttrValue::String(String::default()))
+            .unwrap_string();
         let display = properties
             .get_or(Attribute::Display, AttrValue::Flag(true))
             .unwrap_flag();
@@ -39,11 +34,11 @@ impl WidgetComponent for Label {
                     .foreground(foreground)
                     .background(background)
                     .modifiers(modifiers.unwrap_text_modifiers())
-                    .text(self.content.clone().unwrap_string()),
+                    .text(content),
                 None => Label::default()
                     .foreground(foreground)
                     .background(background)
-                    .text(self.content.clone().unwrap_string()),
+                    .text(content),
             };
 
             label.view(frame, area);
@@ -51,7 +46,7 @@ impl WidgetComponent for Label {
     }
 
     fn state(&self) -> State {
-        State::One(self.content.clone())
+        State::None
     }
 
     fn perform(&mut self, _cmd: Cmd) -> CmdResult {
@@ -61,6 +56,11 @@ impl WidgetComponent for Label {
 
 impl From<&Widget<Label>> for Span<'_> {
     fn from(label: &Widget<Label>) -> Self {
-        Span::styled(label.content.clone().unwrap_string(), Style::default())
+        let content = label
+            .query(Attribute::Content)
+            .unwrap_or(AttrValue::String(String::default()))
+            .unwrap_string();
+
+        Span::styled(content, Style::default())
     }
 }

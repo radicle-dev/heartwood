@@ -4,15 +4,15 @@ pub mod state;
 pub mod theme;
 pub mod widget;
 
-use tuirealm::props::Attribute;
-use tuirealm::{MockComponent, StateValue};
-
 use components::container::{GlobalListener, LabeledContainer, Tabs};
 use components::context::{Shortcut, Shortcuts};
 use components::label::Label;
 use components::list::{Property, PropertyList};
 use components::workspace::Workspaces;
 use widget::Widget;
+
+use tuirealm::props::{AttrValue, Attribute};
+use tuirealm::MockComponent;
 
 pub fn global_listener() -> Widget<GlobalListener> {
     Widget::new(GlobalListener::default())
@@ -21,9 +21,11 @@ pub fn global_listener() -> Widget<GlobalListener> {
 pub fn label(content: &str) -> Widget<Label> {
     // TODO: Remove when size constraints are implemented
     let width = content.chars().count() as u16;
-    let label = Label::new(StateValue::String(content.to_owned()));
 
-    Widget::new(label).height(1).width(width)
+    Widget::new(Label::default())
+        .content(AttrValue::String(content.to_string()))
+        .height(1)
+        .width(width)
 }
 
 pub fn labeled_container(
