@@ -1,0 +1,27 @@
+# When running radicle-node on a server, it should be run as a separate user.
+# Copy this file into /etc/systemd/system and set the User/Group parameters
+# under [Service] appropriately.
+
+# For users wishing to run a configured version of the service, copy this
+# service file into the user's systemd directory, and edit appropriately.
+#
+#   mkdir -p $HOME/.local/share/systemd/user/
+#   cp radicle-node.service $HOME/.local/share/systemd/user/radicle-node.service
+#
+# You will have to set the RAD_PASSPHRASE for the node to start.
+#
+#   [Service]
+#   Environment="RAD_PASSPHRASE=[passphrase]"
+
+[Unit]
+After=syslog.target network.target
+Description=Radicle Node
+
+[Service]
+ExecStart=%h/.radicle/bin/radicle-node
+KillMode=process
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target
