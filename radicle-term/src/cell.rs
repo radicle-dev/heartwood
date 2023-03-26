@@ -111,7 +111,12 @@ impl Cell for str {
                 boundary += g.len();
                 cols += c;
             }
-            format!("{}{delim}", &self[..boundary])
+            // Don't add the delimiter if we just trimmed whitespace.
+            if self[boundary..].trim().is_empty() {
+                self[..boundary + 1].to_owned()
+            } else {
+                format!("{}{delim}", &self[..boundary])
+            }
         } else {
             self.to_owned()
         }

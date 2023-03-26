@@ -15,17 +15,14 @@ pub fn run(store: &tracking::store::Config, mode: TrackingMode) -> anyhow::Resul
 }
 
 fn print_repos(store: &tracking::store::Config) -> anyhow::Result<()> {
-    let mut t = term::Table::new(term::table::TableOptions::default());
+    let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.push([
         term::format::default(String::from("RID")),
         term::format::default(String::from("Scope")),
         term::format::default(String::from("Policy")),
     ]);
-    t.push([
-        term::format::default(String::from("---")),
-        term::format::default(String::from("-----")),
-        term::format::default(String::from("------")),
-    ]);
+    t.divider();
+
     for tracking::Repo { id, scope, policy } in store.repo_policies()? {
         let id = id.to_string();
         let scope = scope.to_string();
@@ -43,17 +40,14 @@ fn print_repos(store: &tracking::store::Config) -> anyhow::Result<()> {
 }
 
 fn print_nodes(store: &tracking::store::Config) -> anyhow::Result<()> {
-    let mut t = term::Table::new(term::table::TableOptions::default());
+    let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.push([
         term::format::default(String::from("DID")),
         term::format::default(String::from("Alias")),
         term::format::default(String::from("Policy")),
     ]);
-    t.push([
-        term::format::default(String::from("---")),
-        term::format::default(String::from("-----")),
-        term::format::default(String::from("------")),
-    ]);
+    t.divider();
+
     for tracking::Node { id, alias, policy } in store.node_policies()? {
         t.push([
             term::format::highlight(Did::from(id).to_string()),

@@ -45,9 +45,11 @@ repository that was already created:
 
 ```
 $ rad node tracking
-RID                               Scope   Policy
----                               -----   ------
-rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji trusted track
+╭──────────────────────────────────────────────────────╮
+│ RID                                 Scope     Policy │
+├──────────────────────────────────────────────────────┤
+│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   trusted   track  │
+╰──────────────────────────────────────────────────────╯
 ```
 
 This is the same as using the `--repos` flag, but if we wish to see
@@ -56,9 +58,11 @@ flag:
 
 ```
 $ rad node tracking --nodes
-DID                                                      Alias Policy
----                                                      ----- ------
-did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk Bob   track
+╭───────────────────────────────────────────────────────────────────────────╮
+│ DID                                                        Alias   Policy │
+├───────────────────────────────────────────────────────────────────────────┤
+│ did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   Bob     track  │
+╰───────────────────────────────────────────────────────────────────────────╯
 ```
 
 To see the routing table we can use the `rad node routing` command and
@@ -68,9 +72,11 @@ created.
 
 ```
 $ rad node routing
-RID                               NID
----                               ---
-rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji z6MknSL…StBU8Vi
+╭─────────────────────────────────────────────────────╮
+│ RID                                 NID             │
+├─────────────────────────────────────────────────────┤
+│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   z6MknSL…StBU8Vi │
+╰─────────────────────────────────────────────────────╯
 ```
 
 <details>

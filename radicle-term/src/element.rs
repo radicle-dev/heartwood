@@ -71,6 +71,13 @@ impl<T: Element> Element for &T {
     }
 }
 
+/// Used to specify maximum width or height.
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+pub struct Max {
+    pub width: Option<usize>,
+    pub height: Option<usize>,
+}
+
 /// A line of text that has styling and can be displayed.
 #[derive(Clone, Default, Debug)]
 pub struct Line {
@@ -188,6 +195,17 @@ impl Size {
     /// Create a new [`Size`].
     pub fn new(cols: usize, rows: usize) -> Self {
         Self { cols, rows }
+    }
+
+    /// Limit size.
+    pub fn limit(mut self, lim: Max) -> Self {
+        if let Some(w) = lim.width {
+            self.cols = self.cols.min(w);
+        }
+        if let Some(h) = lim.height {
+            self.rows = self.rows.min(h);
+        }
+        self
     }
 }
 

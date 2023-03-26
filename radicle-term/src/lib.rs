@@ -16,7 +16,7 @@ pub mod vstack;
 pub use ansi::Color;
 pub use ansi::{paint, Paint};
 pub use editor::Editor;
-pub use element::{Element, Line, Size};
+pub use element::{Element, Line, Max, Size};
 pub use hstack::HStack;
 pub use inquire::ui::Styled;
 pub use io::*;
