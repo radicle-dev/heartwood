@@ -873,14 +873,14 @@ where
                 // from a new repository being initialized.
                 if let Ok(updated) = self
                     .routing
-                    .insert(message.rid, *relayer, message.timestamp)
+                    .insert(message.rid, *announcer, message.timestamp)
                 {
                     if updated {
                         self.emitter.emit(Event::SeedDiscovered {
                             rid: message.rid,
                             nid: *relayer,
                         });
-                        info!(target: "service", "Routing table updated for {} with seed {relayer}", message.rid);
+                        info!(target: "service", "Routing table updated for {} with seed {announcer}", message.rid);
                     }
                 }
                 // Discard announcement messages we've already seen, otherwise update

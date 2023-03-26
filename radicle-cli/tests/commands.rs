@@ -594,8 +594,6 @@ fn rad_workflow() {
     )
     .unwrap();
 
-    bob.connect(&alice).converge([&alice]);
-
     test(
         "examples/workflow/3-issues.md",
         &working.join("bob").join("heartwood"),
@@ -611,8 +609,6 @@ fn rad_workflow() {
         [],
     )
     .unwrap();
-
-    bob.converge([&alice]);
 
     test(
         "examples/workflow/5-patching-maintainer.md",
