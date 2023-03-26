@@ -1256,12 +1256,17 @@ fn test_push_and_pull() {
         .get(&alice.node_id(), proj_id)
         .unwrap()
         .is_some());
-    assert_matches!(
-        bob_events.recv(),
-        Ok(service::Event::RefsFetched { remote, .. })
-        if remote == eve.node_id(),
-        "Bob fetched from Eve"
-    );
+
+    bob_events
+        .iter()
+        .find(|e| {
+            matches!(
+                e,
+                service::Event::RefsFetched { remote, .. }
+                if *remote == eve.node_id(),
+            )
+        })
+        .expect("Bob fetched from Eve");
 }
 
 #[test]

@@ -65,7 +65,7 @@ pub enum Error {
 /// Publishes events to subscribers.
 #[derive(Debug, Clone)]
 pub struct Emitter<T> {
-    pub(crate) subscribers: Arc<Mutex<Vec<chan::Sender<T>>>>,
+    subscribers: Arc<Mutex<Vec<chan::Sender<T>>>>,
 }
 
 impl<T> Default for Emitter<T> {
@@ -86,7 +86,7 @@ impl<T: Clone> Emitter<T> {
     }
 
     /// Subscribe to events stream.
-    pub fn events(&mut self) -> chan::Receiver<T> {
+    pub fn subscribe(&self) -> chan::Receiver<T> {
         let (sender, receiver) = chan::unbounded();
         let mut subs = self.subscribers.lock().unwrap();
         subs.push(sender);

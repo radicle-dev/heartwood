@@ -1,8 +1,8 @@
-use std::fmt;
-use std::io;
+use std::ops::Deref;
 use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::{fmt, io, time};
 
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
@@ -66,19 +66,61 @@ pub struct Handle<G: Signer + Ecdh> {
 
     /// Whether a shutdown was initiated or not. Prevents attempting to shutdown twice.
     shutdown: Arc<AtomicBool>,
-
     /// Publishes events to subscribers.
     emitter: Emitter<Event>,
 }
 
+/// Events feed.
+pub struct Events(chan::Receiver<Event>);
+
+impl Deref for Events {
+    type Target = chan::Receiver<Event>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Events {
+    /// Listen for events, and wait for the given predicate to return something,
+    /// or timeout if the specified amount of time has elapsed.
+    pub fn wait<F>(
+        &self,
+        mut f: F,
+        timeout: time::Duration,
+    ) -> Result<Event, chan::RecvTimeoutError>
+    where
+        F: FnMut(&Event) -> bool,
+    {
+        let start = time::Instant::now();
+
+        loop {
+            if let Some(timeout) = timeout.checked_sub(start.elapsed()) {
+                match self.recv_timeout(timeout) {
+                    Ok(event) => {
+                        if f(&event) {
+                            return Ok(event);
+                        }
+                    }
+                    Err(err @ chan::RecvTimeoutError::Disconnected) => {
+                        return Err(err);
+                    }
+                    Err(chan::RecvTimeoutError::Timeout) => {
+                        // Keep trying until our timeout reaches zero.
+                        continue;
+                    }
+                }
+            } else {
+                return Err(chan::RecvTimeoutError::Timeout);
+            }
+        }
+    }
+}
+
 impl<G: Signer + Ecdh> Handle<G> {
     /// Subscribe to events stream.
-    pub fn events(&mut self) -> chan::Receiver<Event> {
-        let (sender, receiver) = chan::unbounded();
-        let mut subs = self.emitter.subscribers.lock().unwrap();
-        subs.push(sender);
-
-        receiver
+    pub fn events(&self) -> Events {
+        Events(self.emitter.subscribe())
     }
 }
 

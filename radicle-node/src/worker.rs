@@ -446,7 +446,7 @@ impl Pool {
     pub fn run(self) -> thread::Result<()> {
         for (i, worker) in self.pool.into_iter().enumerate() {
             if let Err(err) = worker.join()? {
-                log::debug!(target: "pool", "Worker {i} exited: {err}");
+                log::trace!(target: "pool", "Worker {i} exited: {err}");
             }
         }
         log::debug!(target: "pool", "Worker pool shutting down..");

@@ -92,6 +92,17 @@ pub enum Event {
         rid: Id,
         updated: Vec<RefUpdate>,
     },
+    SeedDiscovered {
+        rid: Id,
+        nid: NodeId,
+    },
+    SeedDropped {
+        rid: Id,
+        nid: NodeId,
+    },
+    PeerConnected {
+        nid: NodeId,
+    },
 }
 
 /// General service error.
@@ -344,7 +355,7 @@ where
 
     /// Subscriber to inner `Emitter` events.
     pub fn events(&mut self) -> chan::Receiver<Event> {
-        self.emitter.events()
+        self.emitter.subscribe()
     }
 
     /// Get I/O reactor.
@@ -668,6 +679,7 @@ where
 
     pub fn connected(&mut self, remote: NodeId, link: Link) {
         info!(target: "service", "Connected to {} ({:?})", remote, link);
+        self.emitter.emit(Event::PeerConnected { nid: remote });
 
         let msgs = self.initial(link);
 
@@ -807,6 +819,7 @@ where
                 match self.sync_routing(&message.inventory, *announcer, message.timestamp) {
                     Ok(updated) => {
                         if updated.is_empty() {
+                            debug!(target: "service", "No routes updated by inventory announcement from {announcer}");
                             return Ok(false);
                         }
                     }
@@ -863,6 +876,10 @@ where
                     .insert(message.rid, *relayer, message.timestamp)
                 {
                     if updated {
+                        self.emitter.emit(Event::SeedDiscovered {
+                            rid: message.rid,
+                            nid: *relayer,
+                        });
                         info!(target: "service", "Routing table updated for {} with seed {relayer}", message.rid);
                     }
                 }
@@ -886,7 +903,7 @@ where
                         match self.should_fetch_refs_announcement(message, &repo_entry.scope) {
                             Ok(true) => self.fetch(message.rid, announcer),
                             Ok(false) => {
-                                debug!(target: "service", "Skip fetch the refs from {announcer}")
+                                debug!(target: "service", "Skipping fetch from {announcer}")
                             }
                             Err(e) => {
                                 error!(target: "service", "Failed to check refs announcement: {e}");
@@ -977,7 +994,7 @@ where
     ) -> Result<bool, Error> {
         // First, check the freshness.
         if !message.is_fresh(&self.storage)? {
-            debug!(target: "service", "All refs of {} are already in the local node", &message.rid);
+            debug!(target: "service", "All refs of {} are already in local storage", &message.rid);
             return Ok(false);
         }
 
@@ -1206,26 +1223,31 @@ where
         let mut updated = Vec::new();
         let mut included = HashSet::new();
 
-        for proj_id in inventory {
-            included.insert(proj_id);
-            if self.routing.insert(*proj_id, from, timestamp)? {
-                info!(target: "service", "Routing table updated for {proj_id} with seed {from}");
+        for rid in inventory {
+            included.insert(rid);
+            if self.routing.insert(*rid, from, timestamp)? {
+                info!(target: "service", "Routing table updated for {rid} with seed {from}");
+                self.emitter.emit(Event::SeedDiscovered {
+                    rid: *rid,
+                    nid: from,
+                });
 
                 if self
                     .tracking
-                    .is_repo_tracked(proj_id)
+                    .is_repo_tracked(rid)
                     .expect("Service::process_inventory: error accessing tracking configuration")
                 {
                     // TODO: We should fetch here if we're already connected, case this seed has
                     // refs we don't have.
                 }
-                updated.push(*proj_id);
+                updated.push(*rid);
             }
         }
-        for id in self.routing.get_resources(&from)?.into_iter() {
-            if !included.contains(&id) {
-                if self.routing.remove(&id, &from)? {
-                    updated.push(id);
+        for rid in self.routing.get_resources(&from)?.into_iter() {
+            if !included.contains(&rid) {
+                if self.routing.remove(&rid, &from)? {
+                    updated.push(rid);
+                    self.emitter.emit(Event::SeedDropped { rid, nid: from });
                 }
             }
         }

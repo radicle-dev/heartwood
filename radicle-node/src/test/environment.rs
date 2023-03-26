@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env, fs, io, iter, net, process, thread,
+    env, fs, io, iter, net, process, thread, time,
     time::Duration,
 };
 
@@ -27,6 +27,7 @@ use radicle::test::fixtures;
 use radicle::Storage;
 
 use crate::node::NodeId;
+use crate::service::Event;
 use crate::storage::git::transport;
 use crate::{runtime, runtime::Handle, service, Runtime};
 
@@ -133,27 +134,28 @@ impl<G: Signer + cyphernet::Ecdh + 'static> Drop for NodeHandle<G> {
 impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     /// Connect this node to another node, and wait for the connection to be established both ways.
     pub fn connect(&mut self, remote: &NodeHandle<G>) -> &mut Self {
+        let local_events = self.handle.events();
+        let remote_events = remote.handle.events();
+
         self.handle.connect(remote.id, remote.addr.into()).unwrap();
 
-        loop {
-            let local_sessions = self.handle.sessions().unwrap();
-            let remote_sessions = remote.handle.sessions().unwrap();
+        local_events
+            .iter()
+            .find(|e| {
+                matches!(
+                    e, Event::PeerConnected { nid } if nid == &remote.id
+                )
+            })
+            .unwrap();
+        remote_events
+            .iter()
+            .find(|e| {
+                matches!(
+                    e, Event::PeerConnected { nid } if nid == &self.id
+                )
+            })
+            .unwrap();
 
-            let local_sessions = local_sessions
-                .connected()
-                .map(|(id, _)| id)
-                .collect::<BTreeSet<_>>();
-            let remote_sessions = remote_sessions
-                .connected()
-                .map(|(id, _)| id)
-                .collect::<BTreeSet<_>>();
-
-            if local_sessions.contains(&remote.id) && remote_sessions.contains(&self.id) {
-                log::debug!(target: "test", "Connection between {} and {} established", self.id, remote.id);
-                break;
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
         self
     }
 
@@ -176,13 +178,10 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
     /// Wait until this node's routing table contains the given routes.
     #[track_caller]
     pub fn routes_to(&self, routes: &[(Id, NodeId)]) {
-        let mut tries = 0;
-        loop {
-            // ~3s to converge to the correct routes
-            if tries > 30 {
-                panic!("Node::routes_to: routing tables did not converge to include given routes")
-            }
+        log::debug!(target: "test", "Waiting for {} to route to {:?}", self.id, routes);
+        let events = self.handle.events();
 
+        loop {
             let mut remaining: BTreeSet<_> = routes.iter().collect();
 
             for (rid, nid) in self.routing() {
@@ -196,10 +195,13 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             if remaining.is_empty() {
                 break;
             }
-            tries += 1;
-            thread::sleep(Duration::from_millis(100));
+            events
+                .wait(
+                    |e| matches!(e, Event::SeedDiscovered { .. }),
+                    time::Duration::from_secs(6),
+                )
+                .unwrap();
         }
-        log::debug!(target: "test", "Node {} routes to {:?}", self.id, routes);
     }
 
     /// Run a `rad` CLI command.

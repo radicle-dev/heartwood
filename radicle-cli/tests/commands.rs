@@ -12,6 +12,7 @@ use radicle::test::fixtures;
 
 use radicle_cli_test::TestFormula;
 use radicle_node::service::tracking::{Policy, Scope};
+use radicle_node::service::Event;
 use radicle_node::test::{
     environment::{Config, Environment},
     logger,
@@ -368,7 +369,7 @@ fn rad_init_sync_and_clone() {
     // Necessary for now, if we don't want the new inventry announcement to be considered stale
     // for Bob.
     // TODO: Find a way to advance internal clocks instead.
-    thread::sleep(time::Duration::from_secs(1));
+    thread::sleep(time::Duration::from_millis(3));
 
     // Alice initializes a repo after her node has started, and after bob has connected to it.
     test(
@@ -416,8 +417,6 @@ fn test_clone_without_seeds() {
 
 #[test]
 fn test_cob_replication() {
-    logger::init(log::Level::Debug);
-
     let mut environment = Environment::new();
     let working = tempfile::tempdir().unwrap();
     let mut alice = environment.node("alice");
@@ -427,12 +426,21 @@ fn test_cob_replication() {
 
     let mut alice = alice.spawn(Config::default());
     let mut bob = bob.spawn(Config::default());
+    let events = alice.handle.events();
 
     alice.handle.track_node(bob.id, None).unwrap();
     alice.connect(&bob);
 
     bob.routes_to(&[(rid, alice.id)]);
     bob.rad("clone", &[rid.to_string().as_str()], working.path())
+        .unwrap();
+
+    // Wait for Alice to fetch the clone refs.
+    events
+        .wait(
+            |e| matches!(e, Event::RefsFetched { .. }),
+            time::Duration::from_secs(6),
+        )
         .unwrap();
 
     let bob_repo = bob.storage.repository(rid).unwrap();
@@ -455,7 +463,10 @@ fn test_cob_replication() {
     bob.handle.announce_refs(rid).unwrap();
 
     // Wait for Alice to fetch the issue refs.
-    thread::sleep(time::Duration::from_secs(1));
+    events
+        .iter()
+        .find(|e| matches!(e, Event::RefsFetched { .. }))
+        .unwrap();
 
     let alice_repo = alice.storage.repository(rid).unwrap();
     let alice_issues = radicle::cob::issue::Issues::open(&alice_repo).unwrap();
@@ -469,8 +480,6 @@ fn test_cob_replication() {
 //     alice -- seed -- bob
 //
 fn test_replication_via_seed() {
-    logger::init(log::Level::Debug);
-
     let mut environment = Environment::new();
     let alice = environment.node("alice");
     let bob = environment.node("bob");
@@ -490,7 +499,7 @@ fn test_replication_via_seed() {
     bob.connect(&seed);
 
     // Enough time for the next inventory from Seed to not be considered stale by Bob.
-    thread::sleep(time::Duration::from_secs(1));
+    thread::sleep(time::Duration::from_millis(3));
 
     alice.routes_to(&[]);
     seed.routes_to(&[]);
@@ -522,6 +531,9 @@ fn test_replication_via_seed() {
     seed.routes_to(&[(rid, alice.id), (rid, seed.id)]);
     bob.routes_to(&[(rid, alice.id), (rid, seed.id)]);
 
+    let seed_events = seed.handle.events();
+    let alice_events = alice.handle.events();
+
     bob.rad("clone", &[rid.to_string().as_str()], working.join("bob"))
         .unwrap();
 
@@ -529,8 +541,12 @@ fn test_replication_via_seed() {
     seed.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
     bob.routes_to(&[(rid, alice.id), (rid, seed.id), (rid, bob.id)]);
 
-    // Enough time for the Seed to be able to fetch Bob's fork.
-    thread::sleep(time::Duration::from_secs(1));
+    seed_events
+        .iter()
+        .any(|e| matches!(e, Event::RefsFetched { remote, .. } if remote == bob.id));
+    alice_events
+        .iter()
+        .any(|e| matches!(e, Event::RefsFetched { remote, .. } if remote == seed.id));
 
     seed.storage
         .repository(rid)
