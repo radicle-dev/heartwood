@@ -66,12 +66,12 @@ fn print_version() {
     if VERSION.contains("-dev") {
         println!("{NAME} {VERSION}+{GIT_HEAD}")
     } else {
-        println!("{NAME} {VERSION} ({GIT_HEAD})")
+        println!("{VERSION}")
     }
 }
 
 fn print_help() -> anyhow::Result<()> {
-    print_version();
+    println!("{NAME} {VERSION} ({GIT_HEAD})")
     println!("{DESCRIPTION}");
     println!();
 
