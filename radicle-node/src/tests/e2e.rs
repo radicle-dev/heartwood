@@ -223,7 +223,6 @@ fn test_dont_fetch_owned_refs() {
 }
 
 #[test]
-#[ignore = "failing"]
 fn test_fetch_trusted_remotes() {
     logger::init(log::Level::Debug);
 
@@ -272,8 +271,22 @@ fn test_fetch_trusted_remotes() {
         .unwrap()
         .collect::<Result<HashSet<_>, _>>()
         .unwrap();
-    // TODO: This fails because we are fetching all namespaces at the moment.
-    assert_eq!(bob_remotes.len(), trusted.len() + 1);
+    assert_eq!(bob_remotes, Some(alice.id).into_iter().collect());
+
+    // TODO(finto): we have to fetch again to get the other trusted remotes.
+    // At the moment, the existing Namespaces enum does not allow us
+    // to pass on what nodes are tracked, if there is no existing
+    // repository. Thus, the first fetch only attempts to clone the
+    // delegate.
+    bob.handle.fetch(acme, alice.id).unwrap();
+    assert!(result.is_success());
+    let bob_remotes = bob_repo
+        .remote_ids()
+        .unwrap()
+        .collect::<Result<HashSet<_>, _>>()
+        .unwrap();
+
+    assert!(bob_remotes.len() == trusted.len() + 1);
     assert!(bob_remotes.is_superset(&trusted));
     assert!(bob_remotes.contains(&alice.id));
 }
