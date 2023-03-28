@@ -16,6 +16,7 @@ enum Command {
     Other(Vec<OsString>),
     Help,
     Version,
+    Semver,
 }
 
 fn main() {
@@ -43,6 +44,9 @@ fn parse_args() -> anyhow::Result<Command> {
             }
             Long("version") => {
                 command = Some(Command::Version);
+            }
+            Long("semver") => {
+                command = Some(Command::Semver);
             }
             Value(val) if command.is_none() => {
                 if val == *"." {
@@ -82,6 +86,9 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     match command {
         Command::Version => {
             print_version();
+        }
+        Command::Semver => {
+            println!("{VERSION}")
         }
         Command::Help => {
             print_help()?;
