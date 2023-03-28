@@ -1004,17 +1004,15 @@ where
             tracking::Scope::Trusted => {
                 match self.tracking.namespaces_for(&self.storage, &message.rid) {
                     Ok(Namespaces::All) => Ok(true),
-                    Ok(Namespaces::Many(nodes)) => {
+                    Ok(Namespaces::Many(mut trusted)) => {
                         // Get the set of trusted nodes except self.
-                        let my_id = self.node_id();
-                        let node_set: HashSet<_> =
-                            nodes.iter().filter(|key| *key != &my_id).collect();
+                        trusted.remove(&self.node_id());
 
                         // Check if there is at least one trusted ref.
                         Ok(message
                             .refs
                             .iter()
-                            .any(|(pub_key, _refs)| node_set.contains(pub_key)))
+                            .any(|(pub_key, _refs)| trusted.contains(pub_key)))
                     }
                     Ok(Namespaces::One(key)) => {
                         Ok(message.refs.iter().any(|(pub_key, _refs)| pub_key == &key))
@@ -1279,8 +1277,8 @@ where
                 // SAFETY: `REF_REMOTE_LIMIT` is greater than 1, thus the bounded vec can hold at least
                 // one remote.
                 .unwrap(),
-            Namespaces::Many(pks) => {
-                for remote_id in pks.into_iter() {
+            Namespaces::Many(trusted) => {
+                for remote_id in trusted.iter() {
                     if refs
                         .push((*remote_id, repo.remote(remote_id)?.refs.unverified()))
                         .is_err()

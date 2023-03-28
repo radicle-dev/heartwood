@@ -3,10 +3,8 @@ pub use refspecs::{AsRefspecs, Refspec, SpecialRefs};
 
 pub mod error;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::ops::Deref;
-
-use nonempty::NonEmpty;
 
 use radicle::crypto::{PublicKey, Unverified, Verified};
 use radicle::git::url;
@@ -69,9 +67,10 @@ pub struct StagingPhaseFinal<'a> {
     pub(super) repo: StagedRepository,
     /// The original [`Storage`] we are finalising changes into.
     production: &'a Storage,
-    /// The remotes that the fetch is being performed for. These are
-    /// discovered after performing the fetch for [`StagingPhaseInitial`].
-    remotes: NonEmpty<RemoteId>,
+    /// The delegates and tracked remotes that the fetch is being
+    /// performed for. These are passed through from the
+    /// [`StagingPhaseInitial::namespaces`], if the variant is `Many`.
+    trusted: HashSet<RemoteId>,
     _tmp: tempfile::TempDir,
 }
 
@@ -124,14 +123,24 @@ impl<'a> StagingPhaseInitial<'a> {
     /// Convert the [`StagingPhaseInitial`] into [`StagingPhaseFinal`] to continue
     /// the fetch process.
     pub fn into_final(self) -> Result<StagingPhaseFinal<'a>, error::Transition> {
-        let remotes = match &self.repo {
+        let trusted = match &self.repo {
             StagedRepository::Cloning(repo) => {
                 log::debug!(target: "worker", "Loading remotes for clone");
                 let oid = ReadRepository::identity_head(repo)?;
                 log::trace!(target: "worker", "Loading 'rad/id' @ {oid}");
                 let (doc, _) = Doc::<Unverified>::load_at(oid, repo)?;
                 let doc = doc.verified()?;
-                doc.delegates.map(PublicKey::from)
+                let mut trusted = match self.namespaces.clone() {
+                    Namespaces::All => HashSet::new(),
+                    // TODO(finto): this is one of those cases where
+                    // having the `One` variant doesn't make any
+                    // sense.
+                    Namespaces::One(pk) => [pk].into_iter().collect(),
+                    Namespaces::Many(trusted) => trusted,
+                };
+                let delegates = doc.delegates.map(PublicKey::from);
+                trusted.extend(delegates);
+                trusted
             }
             StagedRepository::Fetching(repo) => {
                 log::debug!(target: "worker", "Loading remotes for fetching");
@@ -140,11 +149,12 @@ impl<'a> StagingPhaseInitial<'a> {
                     // namespaces_for so it's safe to just bundle this
                     // with Namespaces::All
                     Namespaces::One(_) | Namespaces::All => {
-                        let mut remotes = repo.delegates()?.map(PublicKey::from);
-                        remotes.extend(repo.remote_ids()?.collect::<Result<Vec<_>, _>>()?);
-                        remotes
+                        let mut trusted = repo.remote_ids()?.collect::<Result<HashSet<_>, _>>()?;
+                        trusted.extend(repo.delegates()?.map(PublicKey::from));
+                        trusted
                     }
-                    Namespaces::Many(remotes) => remotes,
+
+                    Namespaces::Many(trusted) => trusted,
                 }
             }
         };
@@ -152,7 +162,7 @@ impl<'a> StagingPhaseInitial<'a> {
         Ok(StagingPhaseFinal {
             repo: self.repo,
             production: self.production,
-            remotes,
+            trusted,
             _tmp: self._tmp,
         })
     }
@@ -192,7 +202,7 @@ impl<'a> StagingPhaseFinal<'a> {
     /// references.
     pub fn refspecs(&self) -> Vec<Refspec<git::PatternString, git::PatternString>> {
         match self.repo {
-            StagedRepository::Cloning(_) => Namespaces::Many(self.remotes.clone()).as_refspecs(),
+            StagedRepository::Cloning(_) => Namespaces::Many(self.trusted.clone()).as_refspecs(),
             StagedRepository::Fetching(_) => {
                 self.remotes().fold(Vec::new(), |mut specs, remote| {
                     specs.extend(remote.as_refspecs());
@@ -266,7 +276,7 @@ impl<'a> StagingPhaseFinal<'a> {
     }
 
     fn remotes(&self) -> impl Iterator<Item = Remote> + '_ {
-        self.remotes
+        self.trusted
             .iter()
             .filter_map(|remote| match SignedRefs::load(remote, self.repo.deref()) {
                 Ok(refs) => Some(Remote::new(*remote, refs)),
@@ -278,7 +288,7 @@ impl<'a> StagingPhaseFinal<'a> {
     }
 
     fn verify(&self) -> BTreeMap<RemoteId, VerifiedRemote> {
-        self.remotes
+        self.trusted
             .iter()
             .map(|remote| {
                 let verification = match (

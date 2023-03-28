@@ -1,7 +1,7 @@
+use std::collections::HashSet;
 use std::ops;
 
-use log::{error, warn};
-use nonempty::NonEmpty;
+use log::error;
 use thiserror::Error;
 
 use radicle::crypto::PublicKey;
@@ -114,25 +114,25 @@ impl Config {
                     let nodes = self
                         .node_policies()
                         .map_err(|err| FailedNodes { rid: *rid, err })?;
-                    let mut trusted: Vec<_> = nodes
+                    let mut trusted: HashSet<_> = nodes
                         .filter_map(|node| (node.policy == Policy::Track).then_some(node.id))
                         .collect();
 
-                    let ns = if let Ok(repo) = storage.repository(*rid) {
+                    if let Ok(repo) = storage.repository(*rid) {
                         let delegates = repo
                             .delegates()
                             .map_err(|err| FailedDelegates { rid: *rid, err })?
                             .map(PublicKey::from);
                         trusted.extend(delegates);
-                        NonEmpty::from_vec(trusted).map(Namespaces::Many)
-                    } else {
-                        Some(Namespaces::All)
                     };
-
-                    ns.ok_or_else(|| {
-                        warn!(target: "service", "Attempted to fetch repo {rid} with no trusted peers");
-                        NoTrusted { rid: *rid }
-                    })
+                    if trusted.is_empty() {
+                        // Nb. returning All here because the
+                        // fetching logic will correctly determine
+                        // trusted and delegate remotes.
+                        Ok(Namespaces::All)
+                    } else {
+                        Ok(Namespaces::Many(trusted))
+                    }
                 }
             },
         }
