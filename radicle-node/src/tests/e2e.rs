@@ -196,6 +196,56 @@ fn test_replication() {
 }
 
 #[test]
+fn test_migrated_clone() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Node::init(tmp.path());
+    let bob = Node::init(tmp.path());
+    let acme = alice.project("acme", "");
+
+    let mut alice = alice.spawn(service::Config::default());
+    let mut bob = bob.spawn(service::Config::default());
+
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    let tracked = bob.handle.track_repo(acme, Scope::All).unwrap();
+    assert!(tracked);
+
+    let result = bob.handle.fetch(acme, alice.id).unwrap();
+    assert!(result.is_success());
+
+    log::debug!(target: "test", "Fetch complete with {}", alice.id);
+
+    // Simulate alice deleting the project and cloning it again
+    {
+        let path = alice.storage.path().join(acme.canonical());
+        std::fs::remove_dir_all(path).unwrap();
+    }
+    assert!(!alice.storage.contains(&acme).unwrap());
+    let result = alice.handle.fetch(acme, bob.id).unwrap();
+    assert!(result.is_success());
+
+    let alice_repo = alice.storage.repository(acme).unwrap();
+    let bob_repo = bob.storage.repository(acme).unwrap();
+
+    let alice_refs = alice_repo
+        .references()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let bob_refs = bob_repo
+        .references()
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(alice_refs, bob_refs);
+    assert_matches!(alice.storage.repository(acme).unwrap().verify(), Ok(()));
+}
+
+#[test]
 fn test_dont_fetch_owned_refs() {
     logger::init(log::Level::Debug);
 
