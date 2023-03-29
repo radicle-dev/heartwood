@@ -311,7 +311,13 @@ impl store::FromHistory for Patch {
                     if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
                         revision.reviews.insert(
                             op.author,
-                            Review::new(verdict, comment.to_owned(), inline.to_owned(), timestamp),
+                            Review::new(
+                                verdict,
+                                comment.to_owned(),
+                                inline.to_owned(),
+                                timestamp,
+                                op.clock,
+                            ),
                         );
                     } else {
                         return Err(ApplyError::Missing(revision));
@@ -554,15 +560,16 @@ impl Review {
         comment: Option<String>,
         inline: Vec<CodeComment>,
         timestamp: Timestamp,
+        clock: Clock,
     ) -> Self {
         Self {
-            verdict: LWWReg::from(verdict),
-            comment: LWWReg::from(comment.map(Max::from)),
+            verdict: LWWReg::new(verdict, clock),
+            comment: LWWReg::new(comment.map(Max::from), clock),
             inline: LWWSet::from_iter(
                 inline
                     .into_iter()
                     .map(Max::from)
-                    .zip(std::iter::repeat(clock::Lamport::default())),
+                    .zip(std::iter::repeat(clock)),
             ),
             timestamp: Max::from(timestamp),
         }
@@ -1373,15 +1380,66 @@ mod test {
 
         let review = revision.reviews.get(signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Reject));
-        assert_eq!(review.comment(), Some("LGTM"));
+        assert_eq!(review.comment(), None);
 
         patch
             .review(rid, None, Some("Whoops!".to_owned()), vec![], &signer)
             .unwrap(); // Overwrite the comment.
         let (_, revision) = patch.latest().unwrap();
         let review = revision.reviews.get(signer.public_key()).unwrap();
-        assert_eq!(review.verdict(), Some(Verdict::Reject));
+        assert_eq!(review.verdict(), None);
         assert_eq!(review.comment(), Some("Whoops!"));
+    }
+
+    #[test]
+    fn test_patch_reject_to_accept() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let mut patches = Patches::open(&project).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                base,
+                oid,
+                &[],
+                &signer,
+            )
+            .unwrap();
+
+        let (rid, _) = patch.latest().unwrap();
+        let rid = *rid;
+
+        patch
+            .review(
+                rid,
+                Some(Verdict::Reject),
+                Some("Nah".to_owned()),
+                vec![],
+                &signer,
+            )
+            .unwrap();
+        patch
+            .review(
+                rid,
+                Some(Verdict::Accept),
+                Some("LGTM".to_owned()),
+                vec![],
+                &signer,
+            )
+            .unwrap();
+
+        let id = patch.id;
+        let patch = patches.get_mut(&id).unwrap();
+        let (_, revision) = patch.latest().unwrap();
+        assert_eq!(revision.reviews.len(), 1, "the reviews were merged");
+
+        let review = revision.reviews.get(signer.public_key()).unwrap();
+        assert_eq!(review.verdict(), Some(Verdict::Accept));
+        assert_eq!(review.comment(), Some("LGTM"));
     }
 
     #[test]
