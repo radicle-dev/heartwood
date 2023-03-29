@@ -160,10 +160,10 @@ impl Semilattice for Patch {
 impl Default for Patch {
     fn default() -> Self {
         Self {
-            title: Max::from(String::default()).into(),
-            description: Max::from(String::default()).into(),
-            state: Max::from(State::default()).into(),
-            target: Max::from(MergeTarget::default()).into(),
+            title: LWWReg::initial(Max::from(String::default())),
+            description: LWWReg::initial(Max::from(String::default())),
+            state: LWWReg::initial(Max::from(State::default())),
+            target: LWWReg::initial(Max::from(MergeTarget::default())),
             tags: LWWSet::default(),
             revisions: GMap::default(),
             timeline: GSet::default(),
@@ -326,6 +326,7 @@ impl store::FromHistory for Patch {
                             base,
                             oid,
                             timestamp,
+                            op.clock,
                         )),
                     );
                 }
@@ -417,10 +418,11 @@ impl Revision {
         base: git::Oid,
         oid: git::Oid,
         timestamp: Timestamp,
+        clock: Clock,
     ) -> Self {
         Self {
             author,
-            description: LWWReg::from(Max::from(description)),
+            description: LWWReg::new(Max::from(description), clock),
             base,
             oid,
             discussion: Thread::default(),
@@ -1053,6 +1055,7 @@ impl<'a> Patches<'a> {
 
 #[cfg(test)]
 mod test {
+    use std::path::Path;
     use std::str::FromStr;
     use std::{array, iter};
 
@@ -1460,6 +1463,7 @@ mod test {
         let (_, signer, project) = test::setup::context(&tmp);
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let blob = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d133999").unwrap();
         let mut patches = Patches::open(&project).unwrap();
         let mut patch = patches
             .create(
@@ -1476,17 +1480,33 @@ mod test {
         let (rid, _) = patch.latest().unwrap();
         let rid = *rid;
 
+        let inline = vec![CodeComment {
+            location: CodeLocation {
+                blob,
+                path: Path::new("file.rs").to_path_buf(),
+                commit: oid,
+                lines: 1..3,
+            },
+            comment: "Nice!".to_owned(),
+            timestamp: Timestamp::new(0),
+        }];
         patch
             .review(
                 rid,
                 Some(Verdict::Accept),
                 Some("LGTM".to_owned()),
-                vec![],
+                inline.clone(),
                 &signer,
             )
             .unwrap();
         patch
-            .review(rid, Some(Verdict::Reject), None, vec![], &signer)
+            .review(
+                rid,
+                Some(Verdict::Reject),
+                Some("LGTM".to_owned()),
+                vec![],
+                &signer,
+            )
             .unwrap(); // Overwrite the verdict.
 
         let id = patch.id;
@@ -1496,15 +1516,23 @@ mod test {
 
         let review = revision.reviews.get(signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Reject));
-        assert_eq!(review.comment(), None);
+        assert_eq!(review.comment(), Some("LGTM"));
+        assert_eq!(review.inline().cloned().collect::<Vec<_>>(), inline);
 
         patch
-            .review(rid, None, Some("Whoops!".to_owned()), vec![], &signer)
+            .review(
+                rid,
+                Some(Verdict::Reject),
+                Some("Whoops!".to_owned()),
+                vec![],
+                &signer,
+            )
             .unwrap(); // Overwrite the comment.
         let (_, revision) = patch.latest().unwrap();
         let review = revision.reviews.get(signer.public_key()).unwrap();
-        assert_eq!(review.verdict(), None);
+        assert_eq!(review.verdict(), Some(Verdict::Reject));
         assert_eq!(review.comment(), Some("Whoops!"));
+        assert_eq!(review.inline().cloned().collect::<Vec<_>>(), inline);
     }
 
     #[test]

@@ -167,9 +167,9 @@ impl Semilattice for Proposal {
 impl Default for Proposal {
     fn default() -> Self {
         Self {
-            title: Max::from(String::default()).into(),
-            description: Max::from(String::default()).into(),
-            state: Max::from(State::default()).into(),
+            title: LWWReg::initial(Max::from(String::default())),
+            description: LWWReg::initial(Max::from(String::default())),
+            state: LWWReg::initial(Max::from(State::default())),
             revisions: GMap::default(),
             timeline: GSet::default(),
         }

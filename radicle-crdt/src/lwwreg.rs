@@ -14,6 +14,16 @@ pub struct LWWReg<T, C = clock::Lamport> {
 }
 
 impl<T: Semilattice, C: PartialOrd> LWWReg<T, C> {
+    pub fn initial(value: T) -> Self
+    where
+        C: Default,
+    {
+        Self {
+            clock: Max::from(C::default()),
+            value,
+        }
+    }
+
     pub fn new(value: T, clock: C) -> Self {
         Self {
             clock: Max::from(clock),
@@ -43,15 +53,6 @@ impl<T: Semilattice, C: PartialOrd> LWWReg<T, C> {
 
     pub fn into_inner(self) -> (T, C) {
         (self.value, self.clock.into_inner())
-    }
-}
-
-impl<T, C: Default> From<T> for LWWReg<T, C> {
-    fn from(value: T) -> Self {
-        Self {
-            clock: Max::from(C::default()),
-            value,
-        }
     }
 }
 

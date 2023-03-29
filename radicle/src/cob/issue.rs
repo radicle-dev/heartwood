@@ -83,9 +83,9 @@ pub struct Issue {
     /// Actors assigned to this issue.
     assignees: LWWSet<ActorId>,
     /// Title of the issue.
-    title: LWWReg<Max<String>, clock::Lamport>,
+    title: LWWReg<Max<String>>,
     /// Current state of the issue.
-    state: LWWReg<Max<State>, clock::Lamport>,
+    state: LWWReg<Max<State>>,
     /// Associated tags.
     tags: LWWSet<Tag>,
     /// Discussion around this issue.
@@ -106,8 +106,8 @@ impl Default for Issue {
     fn default() -> Self {
         Self {
             assignees: LWWSet::default(),
-            title: Max::from(String::default()).into(),
-            state: Max::from(State::default()).into(),
+            title: LWWReg::initial(Max::from(String::default())),
+            state: LWWReg::initial(Max::from(State::default())),
             tags: LWWSet::default(),
             thread: Thread::default(),
         }
