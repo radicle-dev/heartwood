@@ -1,5 +1,3 @@
-use anyhow::anyhow;
-
 use radicle::cob::patch::{Patch, PatchId, Patches, Verdict};
 use radicle::git;
 use radicle::prelude::*;
@@ -75,9 +73,7 @@ fn print(
         &patch.timestamp(),
     )));
 
-    let (latest, revision) = patch
-        .latest()
-        .ok_or_else(|| anyhow!("patch is malformed: no revisions found"))?;
+    let (latest, revision) = patch.latest();
     let mut widget = term::VStack::default()
         .child(
             term::Line::spaced([

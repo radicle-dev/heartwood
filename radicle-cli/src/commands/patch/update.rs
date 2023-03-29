@@ -96,7 +96,7 @@ pub fn run(
     };
 
     // TODO(cloudhead): Handle error.
-    let (_, current_revision) = patch.latest().unwrap();
+    let (_, current_revision) = patch.latest();
     if *current_revision.oid == *branch_oid(&head_branch)? {
         term::info!("Nothing to do, patch is already up to date.");
         return Ok(());

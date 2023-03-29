@@ -212,11 +212,8 @@ impl Patch {
     }
 
     pub fn head(&self) -> &git::Oid {
-        &self
-            .latest()
-            .map(|(_, r)| r)
-            .expect("Patch::head: at least one revision is present")
-            .oid
+        let (_, r) = self.latest();
+        &r.oid
     }
 
     pub fn version(&self) -> RevisionIx {
@@ -226,8 +223,10 @@ impl Patch {
             .expect("Patch::version: at least one revision is present")
     }
 
-    pub fn latest(&self) -> Option<(&RevisionId, &Revision)> {
-        self.revisions().next_back()
+    pub fn latest(&self) -> (&RevisionId, &Revision) {
+        self.revisions()
+            .next_back()
+            .expect("Patch::latest: at least one revision is present")
     }
 
     pub fn is_proposed(&self) -> bool {
@@ -1137,7 +1136,7 @@ mod test {
         assert_eq!(patch.target(), target);
         assert_eq!(patch.version(), 0);
 
-        let (_, revision) = patch.latest().unwrap();
+        let (_, revision) = patch.latest();
 
         assert_eq!(revision.author.id(), &author);
         assert_eq!(revision.description(), "");
@@ -1231,7 +1230,7 @@ mod test {
             )
             .unwrap();
 
-        let (rid, _) = patch.latest().unwrap();
+        let (rid, _) = patch.latest();
         patch
             .review(
                 *rid,
@@ -1244,7 +1243,7 @@ mod test {
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();
-        let (_, revision) = patch.latest().unwrap();
+        let (_, revision) = patch.latest();
         assert_eq!(revision.reviews.len(), 1);
 
         let review = revision.reviews.get(signer.public_key()).unwrap();
@@ -1350,7 +1349,7 @@ mod test {
             )
             .unwrap();
 
-        let (rid, _) = patch.latest().unwrap();
+        let (rid, _) = patch.latest();
         let rid = *rid;
 
         patch
@@ -1368,7 +1367,7 @@ mod test {
 
         let id = patch.id;
         let mut patch = patches.get_mut(&id).unwrap();
-        let (_, revision) = patch.latest().unwrap();
+        let (_, revision) = patch.latest();
         assert_eq!(revision.reviews.len(), 1, "the reviews were merged");
 
         let review = revision.reviews.get(signer.public_key()).unwrap();
@@ -1378,7 +1377,7 @@ mod test {
         patch
             .review(rid, None, Some("Whoops!".to_owned()), vec![], &signer)
             .unwrap(); // Overwrite the comment.
-        let (_, revision) = patch.latest().unwrap();
+        let (_, revision) = patch.latest();
         let review = revision.reviews.get(signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Reject));
         assert_eq!(review.comment(), Some("Whoops!"));
@@ -1424,7 +1423,7 @@ mod test {
             "I've made changes."
         );
 
-        let (_, revision) = patch.latest().unwrap();
+        let (_, revision) = patch.latest();
 
         assert_eq!(patch.version(), 1);
         assert_eq!(revision.oid, rev1_oid);

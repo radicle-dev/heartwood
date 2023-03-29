@@ -183,7 +183,7 @@ pub fn find_unmerged_with_base(
     let mut matches = Vec::new();
 
     for (id, patch, clock) in proposed {
-        let (_, rev) = patch.latest().unwrap();
+        let (_, rev) = patch.latest();
 
         if !rev.merges.is_empty() {
             continue;
