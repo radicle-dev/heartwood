@@ -93,6 +93,9 @@ pub enum Action {
         base: git::Oid,
         oid: git::Oid,
     },
+    Lifecycle {
+        state: State,
+    },
     Redact {
         revision: RevisionId,
     },
@@ -268,6 +271,9 @@ impl store::FromHistory for Patch {
                     self.title.set(title, op.clock);
                     self.description.set(description, op.clock);
                     self.target.set(target, op.clock);
+                }
+                Action::Lifecycle { state } => {
+                    self.state.set(state, op.clock);
                 }
                 Action::Tag { add, remove } => {
                     for tag in add {
@@ -697,6 +703,11 @@ impl store::Transaction<Patch> {
         })
     }
 
+    /// Lifecycle a patch.
+    pub fn lifecycle(&mut self, state: State) -> Result<(), store::Error> {
+        self.push(Action::Lifecycle { state })
+    }
+
     /// Tag a patch.
     pub fn tag(
         &mut self,
@@ -837,6 +848,11 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         self.transaction("Add revision", signer, |tx| {
             tx.revision(description, base, oid)
         })
+    }
+
+    /// Lifecycle a patch.
+    pub fn lifecycle<G: Signer>(&mut self, state: State, signer: &G) -> Result<EntryId, Error> {
+        self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
     }
 
     /// Tag a patch.

@@ -645,6 +645,9 @@ async fn patch_update_handler(
         patch::Action::Redact { .. } => {
             todo!()
         }
+        patch::Action::Lifecycle { state } => {
+            patch.lifecycle(state, &signer)?;
+        }
         patch::Action::Review {
             revision,
             comment,
