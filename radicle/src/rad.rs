@@ -165,7 +165,6 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
 ) -> Result<(), ForkError> {
     let me = signer.public_key();
     let repository = storage.repository_mut(rid)?;
-    // TODO: We should get the id branch pointer from a stored canonical reference.
     let (canonical_id, _) = repository.identity_doc()?;
     let (canonical_branch, canonical_head) = repository.head()?;
     let raw = repository.raw();

@@ -310,64 +310,6 @@ impl Repository {
         Ok(verified)
     }
 
-    /// Return the canonical identity [`git::Oid`] and document.
-    pub fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
-        let head = self.identity_head()?;
-
-        Doc::<Unverified>::load_at(head, self)
-            .map(|(doc, _)| (head, doc))
-            .map_err(IdentityError::from)
-    }
-
-    /// Return the canonical identity branch head.
-    pub fn identity_head(&self) -> Result<Oid, IdentityError> {
-        let mut heads = Vec::new();
-
-        for remote in self.remote_ids()? {
-            let remote = remote?;
-            let oid = Doc::<Unverified>::head(&remote, self)?;
-
-            heads.push(oid.into());
-        }
-        // Keep track of the longest identity branch.
-        let mut longest = heads.pop().ok_or(IdentityError::MissingBranch)?;
-
-        for head in &heads {
-            let base = self.raw().merge_base(*head, longest)?;
-
-            if base == longest {
-                // `head` is a successor of `longest`. Update `longest`.
-                //
-                //   o head
-                //   |
-                //   o longest (base)
-                //   |
-                //
-                longest = *head;
-            } else if base == *head || *head == longest {
-                // `head` is an ancestor of `longest`, or equal to it. Do nothing.
-                //
-                //   o longest             o longest, head (base)
-                //   |                     |
-                //   o head (base)   OR    o
-                //   |                     |
-                //
-            } else {
-                // The merge base between `head` and `longest` (`base`)
-                // is neither `head` nor `longest`. Therefore, the branches have
-                // diverged.
-                //
-                //    longest   head
-                //           \ /
-                //            o (base)
-                //            |
-                //
-                return Err(IdentityError::BranchesDiverge);
-            }
-        }
-        Ok(longest.into())
-    }
-
     pub fn remote_ids(
         &self,
     ) -> Result<impl Iterator<Item = Result<RemoteId, refs::Error>> + '_, git2::Error> {
@@ -554,7 +496,11 @@ impl ReadRepository for Repository {
     }
 
     fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
-        Repository::identity_doc(self)
+        let head = self.identity_head()?;
+
+        Doc::<Unverified>::load_at(head, self)
+            .map(|(doc, _)| (head, doc))
+            .map_err(IdentityError::from)
     }
 
     fn head(&self) -> Result<(Qualified, Oid), IdentityError> {
@@ -568,8 +514,6 @@ impl ReadRepository for Repository {
     }
 
     fn canonical_head(&self) -> Result<(Qualified, Oid), IdentityError> {
-        // TODO: In the `fork` function for example, we call Repository::project_identity again,
-        // This should only be necessary once.
         let (_, doc) = self.identity_doc()?;
         let doc = doc.verified()?;
         let project = doc.project()?;
@@ -601,7 +545,51 @@ impl ReadRepository for Repository {
     }
 
     fn canonical_identity_head(&self) -> Result<Oid, IdentityError> {
-        Repository::identity_head(self)
+        let mut heads = Vec::new();
+
+        for remote in self.remote_ids()? {
+            let remote = remote?;
+            let oid = Doc::<Unverified>::head(&remote, self)?;
+
+            heads.push(oid.into());
+        }
+        // Keep track of the longest identity branch.
+        let mut longest = heads.pop().ok_or(IdentityError::MissingBranch)?;
+
+        for head in &heads {
+            let base = self.raw().merge_base(*head, longest)?;
+
+            if base == longest {
+                // `head` is a successor of `longest`. Update `longest`.
+                //
+                //   o head
+                //   |
+                //   o longest (base)
+                //   |
+                //
+                longest = *head;
+            } else if base == *head || *head == longest {
+                // `head` is an ancestor of `longest`, or equal to it. Do nothing.
+                //
+                //   o longest             o longest, head (base)
+                //   |                     |
+                //   o head (base)   OR    o
+                //   |                     |
+                //
+            } else {
+                // The merge base between `head` and `longest` (`base`)
+                // is neither `head` nor `longest`. Therefore, the branches have
+                // diverged.
+                //
+                //    longest   head
+                //           \ /
+                //            o (base)
+                //            |
+                //
+                return Err(IdentityError::BranchesDiverge);
+            }
+        }
+        Ok(longest.into())
     }
 }
 

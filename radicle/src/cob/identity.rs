@@ -230,9 +230,12 @@ impl Proposal {
             self.description().unwrap_or_default()
         );
         let current = doc.update(remote, &msg, &signatures.collect::<Vec<_>>(), repo.raw())?;
+        let head = repo.set_identity_head()?;
+
+        assert_eq!(head, current);
 
         Ok(Identity {
-            head: current,
+            head,
             root: previous.root,
             current,
             revision: previous.revision + 1,
