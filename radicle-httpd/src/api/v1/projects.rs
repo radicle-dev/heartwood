@@ -626,6 +626,12 @@ async fn patch_update_handler(
         } => {
             patch.edit(title, description, target, &signer)?;
         }
+        patch::Action::EditRevision {
+            revision,
+            description,
+        } => {
+            patch.edit_revision(revision, description, &signer)?;
+        }
         patch::Action::Tag { add, remove } => {
             patch.tag(add, remove, &signer)?;
         }

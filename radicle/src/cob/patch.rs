@@ -80,6 +80,10 @@ pub enum Action {
         description: String,
         target: MergeTarget,
     },
+    EditRevision {
+        revision: RevisionId,
+        description: String,
+    },
     Tag {
         add: Vec<Tag>,
         remove: Vec<Tag>,
@@ -271,6 +275,16 @@ impl store::FromHistory for Patch {
                     }
                     for tag in remove {
                         self.tags.remove(tag, op.clock);
+                    }
+                }
+                Action::EditRevision {
+                    revision,
+                    description,
+                } => {
+                    if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
+                        revision.description.set(description, op.clock);
+                    } else {
+                        return Err(ApplyError::Missing(revision));
                     }
                 }
                 Action::Revision {
@@ -606,6 +620,17 @@ impl store::Transaction<Patch> {
         })
     }
 
+    pub fn edit_revision(
+        &mut self,
+        revision: RevisionId,
+        description: impl ToString,
+    ) -> Result<(), store::Error> {
+        self.push(Action::EditRevision {
+            revision,
+            description: description.to_string(),
+        })
+    }
+
     /// Start a patch revision discussion.
     pub fn thread<S: ToString>(
         &mut self,
@@ -742,6 +767,18 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Edit", signer, |tx| tx.edit(title, description, target))
+    }
+
+    /// Edit revision metadata.
+    pub fn edit_revision<G: Signer>(
+        &mut self,
+        revision: RevisionId,
+        description: String,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Edit Revision", signer, |tx| {
+            tx.edit_revision(revision, description)
+        })
     }
 
     /// Create a thread on a patch revision.
