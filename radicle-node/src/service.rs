@@ -516,7 +516,7 @@ where
                 resp.send(untracked).ok();
             }
             Command::AnnounceRefs(id) => {
-                if let Err(err) = self.announce_refs(id, &Namespaces::One(self.node_id())) {
+                if let Err(err) = self.announce_refs(id, &Namespaces::from_iter([self.node_id()])) {
                     error!("Error announcing refs: {}", err);
                 }
             }
@@ -1004,7 +1004,7 @@ where
             tracking::Scope::Trusted => {
                 match self.tracking.namespaces_for(&self.storage, &message.rid) {
                     Ok(Namespaces::All) => Ok(true),
-                    Ok(Namespaces::Many(mut trusted)) => {
+                    Ok(Namespaces::Trusted(mut trusted)) => {
                         // Get the set of trusted nodes except self.
                         trusted.remove(&self.node_id());
 
@@ -1013,9 +1013,6 @@ where
                             .refs
                             .iter()
                             .any(|(pub_key, _refs)| trusted.contains(pub_key)))
-                    }
-                    Ok(Namespaces::One(key)) => {
-                        Ok(message.refs.iter().any(|(pub_key, _refs)| pub_key == &key))
                     }
                     Err(NamespacesError::NoTrusted { rid }) => {
                         debug!(target: "service", "No trusted nodes to fetch {}", &rid);
@@ -1272,12 +1269,7 @@ where
                     }
                 }
             }
-            Namespaces::One(pk) => refs
-                .push((*pk, repo.remote(pk)?.refs.unverified()))
-                // SAFETY: `REF_REMOTE_LIMIT` is greater than 1, thus the bounded vec can hold at least
-                // one remote.
-                .unwrap(),
-            Namespaces::Many(trusted) => {
+            Namespaces::Trusted(trusted) => {
                 for remote_id in trusted.iter() {
                     if refs
                         .push((*remote_id, repo.remote(remote_id)?.refs.unverified()))

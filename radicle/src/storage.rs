@@ -34,15 +34,13 @@ pub enum Namespaces {
     /// All namespaces.
     #[default]
     All,
-    /// A single namespace, by public key.
-    One(PublicKey),
-    /// Many namespaces, by public keys.
-    Many(HashSet<PublicKey>),
+    /// The trusted set of namespaces.
+    Trusted(HashSet<PublicKey>),
 }
 
-impl From<PublicKey> for Namespaces {
-    fn from(pk: PublicKey) -> Self {
-        Self::One(pk)
+impl FromIterator<PublicKey> for Namespaces {
+    fn from_iter<T: IntoIterator<Item = PublicKey>>(iter: T) -> Self {
+        Self::Trusted(iter.into_iter().collect())
     }
 }
 

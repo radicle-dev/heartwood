@@ -670,8 +670,7 @@ fn fetch<W: WriteRepository>(
 ) -> Result<Vec<RefUpdate>, radicle::storage::FetchError> {
     let namespace = match namespaces.into() {
         Namespaces::All => None,
-        Namespaces::One(ns) => Some(ns),
-        Namespaces::Many(trusted) => trusted.into_iter().next(),
+        Namespaces::Trusted(trusted) => trusted.into_iter().next(),
     };
     let mut updates = Vec::new();
     let mut callbacks = git::RemoteCallbacks::new();

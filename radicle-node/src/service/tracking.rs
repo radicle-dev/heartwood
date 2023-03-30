@@ -131,7 +131,7 @@ impl Config {
                         // trusted and delegate remotes.
                         Ok(Namespaces::All)
                     } else {
-                        Ok(Namespaces::Many(trusted))
+                        Ok(Namespaces::Trusted(trusted))
                     }
                 }
             },

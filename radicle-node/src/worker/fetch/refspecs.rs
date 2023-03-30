@@ -54,8 +54,7 @@ impl AsRefspecs for SpecialRefs {
                     },
                 ]
             }
-            Namespaces::One(pk) => rad_refs(pk),
-            Namespaces::Many(pks) => pks.iter().flat_map(rad_refs).collect(),
+            Namespaces::Trusted(pks) => pks.iter().flat_map(rad_refs).collect(),
         }
     }
 
@@ -106,15 +105,7 @@ impl AsRefspecs for Namespaces {
                 dst: (*storage::git::NAMESPACES_GLOB).clone(),
                 force: false,
             }],
-            Namespaces::One(pk) => {
-                let ns = pk.to_namespace().with_pattern(git::refspec::STAR);
-                vec![Refspec {
-                    src: ns.clone(),
-                    dst: ns,
-                    force: false,
-                }]
-            }
-            Namespaces::Many(pks) => pks
+            Namespaces::Trusted(pks) => pks
                 .iter()
                 .map(|pk| {
                     let ns = pk.to_namespace().with_pattern(git::refspec::STAR);

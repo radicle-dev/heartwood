@@ -132,11 +132,7 @@ impl<'a> StagingPhaseInitial<'a> {
                 let doc = doc.verified()?;
                 let mut trusted = match self.namespaces.clone() {
                     Namespaces::All => HashSet::new(),
-                    // TODO(finto): this is one of those cases where
-                    // having the `One` variant doesn't make any
-                    // sense.
-                    Namespaces::One(pk) => [pk].into_iter().collect(),
-                    Namespaces::Many(trusted) => trusted,
+                    Namespaces::Trusted(trusted) => trusted,
                 };
                 let delegates = doc.delegates.map(PublicKey::from);
                 trusted.extend(delegates);
@@ -148,13 +144,13 @@ impl<'a> StagingPhaseInitial<'a> {
                     // Nb. Namespaces::One is not constructed in
                     // namespaces_for so it's safe to just bundle this
                     // with Namespaces::All
-                    Namespaces::One(_) | Namespaces::All => {
+                    Namespaces::All => {
                         let mut trusted = repo.remote_ids()?.collect::<Result<HashSet<_>, _>>()?;
                         trusted.extend(repo.delegates()?.map(PublicKey::from));
                         trusted
                     }
 
-                    Namespaces::Many(trusted) => trusted,
+                    Namespaces::Trusted(trusted) => trusted,
                 }
             }
         };
@@ -202,7 +198,7 @@ impl<'a> StagingPhaseFinal<'a> {
     /// references.
     pub fn refspecs(&self) -> Vec<Refspec<git::PatternString, git::PatternString>> {
         match self.repo {
-            StagedRepository::Cloning(_) => Namespaces::Many(self.trusted.clone()).as_refspecs(),
+            StagedRepository::Cloning(_) => Namespaces::Trusted(self.trusted.clone()).as_refspecs(),
             StagedRepository::Fetching(_) => {
                 self.remotes().fold(Vec::new(), |mut specs, remote| {
                     specs.extend(remote.as_refspecs());
