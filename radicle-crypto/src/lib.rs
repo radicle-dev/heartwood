@@ -361,6 +361,11 @@ impl PublicKey {
 
         multibase::encode(multibase::Base::Base58Btc, buf)
     }
+
+    #[cfg(feature = "git-ref-format")]
+    pub fn to_namespace(&self) -> git_ref_format::RefString {
+        git_ref_format::refname!("refs/namespaces").join(git_ref_format::Component::from(self))
+    }
 }
 
 impl FromStr for PublicKey {
