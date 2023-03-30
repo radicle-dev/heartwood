@@ -185,7 +185,7 @@ pub fn find_unmerged_with_base(
     for (id, patch, clock) in proposed {
         let (_, rev) = patch.latest().unwrap();
 
-        if !rev.merges.is_empty() {
+        if !rev.merges().count() == 0 {
             continue;
         }
         if **patch.head() == patch_head {

@@ -56,7 +56,7 @@ fn find_patch_commit<'a>(
             let (_, rev) = patch
                 .latest()
                 .ok_or(anyhow!("patch does not have any revisions"))?;
-            let author = **rev.author.id();
+            let author = *rev.author().id();
             let remote = stored.remote(&author)?;
 
             // Find a ref in storage that points to our patch, so that we can fetch the patch
@@ -70,7 +70,7 @@ fn find_patch_commit<'a>(
                 &RefString::try_from(author.to_string())?,
                 patch_branch,
             );
-            let url = git::Url::from(stored.id).with_namespace(author);
+            let url = git::Url::from(stored.id).with_namespace(*author);
 
             // Fetch only the ref pointing to the patch revision.
             working.remote_anonymous(url.to_string().as_str())?.fetch(

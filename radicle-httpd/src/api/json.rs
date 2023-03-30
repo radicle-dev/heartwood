@@ -121,15 +121,14 @@ pub(crate) fn patch(id: PatchId, patch: Patch, repo: &git::Repository) -> Value 
             json!({
                 "id": id,
                 "description": rev.description(),
-                "base": rev.base,
-                "oid": rev.oid,
-                "refs": get_refs(repo, patch.author().id(), &rev.oid).unwrap_or(vec![]),
+                "base": rev.base(),
+                "oid": rev.head(),
+                "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or(vec![]),
                 "merges": rev.merges().collect::<Vec<_>>(),
-                "discussions": rev.discussion
-                  .comments()
-                  .map(|(id, comment)| Comment::new(id, comment, &rev.discussion))
+                "discussions": rev.discussion().comments()
+                  .map(|(id, comment)| Comment::new(id, comment, rev.discussion()))
                   .collect::<Vec<_>>(),
-                "timestamp": rev.timestamp,
+                "timestamp": rev.timestamp(),
                 "reviews": rev.reviews().collect::<Vec<_>>(),
             })
         }).collect::<Vec<_>>(),

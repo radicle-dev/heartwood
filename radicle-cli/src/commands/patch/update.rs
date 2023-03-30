@@ -57,15 +57,15 @@ fn show_update_commit_info(
         term::format::tertiary(term::format::cob(patch_id)),
         term::format::dim(format!("R{current_version}")),
         term::format::parens(term::format::secondary(term::format::oid(
-            current_revision.oid
+            current_revision.head()
         ))),
         term::format::dim(format!("R{}", current_version + 1)),
-        term::format::parens(term::format::secondary(term::format::oid(*head_oid))),
+        term::format::parens(term::format::secondary(term::format::oid(head_oid))),
     );
 
     // Difference between the two revisions.
     let head_oid = branch_oid(head_branch)?;
-    term::patch::print_commits_ahead_behind(workdir, *head_oid, *current_revision.oid)?;
+    term::patch::print_commits_ahead_behind(workdir, *head_oid, *current_revision.head())?;
 
     Ok(())
 }
@@ -97,7 +97,7 @@ pub fn run(
 
     // TODO(cloudhead): Handle error.
     let (_, current_revision) = patch.latest().unwrap();
-    if *current_revision.oid == *branch_oid(&head_branch)? {
+    if current_revision.head() == branch_oid(&head_branch)? {
         term::info!("Nothing to do, patch is already up to date.");
         return Ok(());
     }

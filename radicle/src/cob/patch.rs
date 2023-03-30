@@ -130,20 +130,20 @@ pub enum MergeTarget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Patch {
     /// Title of the patch.
-    pub title: LWWReg<Max<String>>,
+    title: LWWReg<Max<String>>,
     /// Patch description.
-    pub description: LWWReg<Max<String>>,
+    description: LWWReg<Max<String>>,
     /// Current state of the patch.
-    pub state: LWWReg<Max<State>>,
+    state: LWWReg<Max<State>>,
     /// Target this patch is meant to be merged in.
-    pub target: LWWReg<Max<MergeTarget>>,
+    target: LWWReg<Max<MergeTarget>>,
     /// Associated tags.
-    pub tags: LWWSet<Tag>,
+    tags: LWWSet<Tag>,
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
-    pub revisions: GMap<RevisionId, Redactable<Revision>>,
+    revisions: GMap<RevisionId, Redactable<Revision>>,
     /// Timeline of operations.
-    pub timeline: GSet<(Lamport, EntryId)>,
+    timeline: GSet<(Lamport, EntryId)>,
 }
 
 impl Semilattice for Patch {
@@ -172,18 +172,22 @@ impl Default for Patch {
 }
 
 impl Patch {
+    /// Title of the patch.
     pub fn title(&self) -> &str {
         self.title.get().get()
     }
 
+    /// Current state of the patch.
     pub fn state(&self) -> State {
         *self.state.get().get()
     }
 
+    /// Target this patch is meant to be merged in.
     pub fn target(&self) -> MergeTarget {
         *self.target.get().get()
     }
 
+    /// Timestamp of the first revision of the patch.
     pub fn timestamp(&self) -> Timestamp {
         self.revisions()
             .next()
@@ -192,14 +196,17 @@ impl Patch {
             .timestamp
     }
 
+    /// Associated tags.
     pub fn tags(&self) -> impl Iterator<Item = &Tag> {
         self.tags.iter()
     }
 
+    /// Patch description.
     pub fn description(&self) -> &str {
         self.description.get().get()
     }
 
+    /// Author of the first revision of the patch.
     pub fn author(&self) -> &Author {
         &self
             .revisions()
@@ -209,6 +216,8 @@ impl Patch {
             .author
     }
 
+    /// List of patch revisions. The initial changeset is part of the
+    /// first revision.
     pub fn revisions(&self) -> impl DoubleEndedIterator<Item = (&RevisionId, &Revision)> {
         self.timeline.iter().filter_map(|(_, id)| {
             self.revisions
@@ -218,6 +227,7 @@ impl Patch {
         })
     }
 
+    /// Reference to the Git object containing the code on the latest revision.
     pub fn head(&self) -> &git::Oid {
         &self
             .latest()
@@ -226,6 +236,7 @@ impl Patch {
             .oid
     }
 
+    /// Index of latest revision in the revisions list.
     pub fn version(&self) -> RevisionIx {
         self.revisions
             .len()
@@ -233,14 +244,17 @@ impl Patch {
             .expect("Patch::version: at least one revision is present")
     }
 
+    /// Latest revision.
     pub fn latest(&self) -> Option<(&RevisionId, &Revision)> {
         self.revisions().next_back()
     }
 
+    /// Check if the patch is open.
     pub fn is_open(&self) -> bool {
         matches!(self.state.get().get(), State::Open)
     }
 
+    /// Check if the patch is archived.
     pub fn is_archived(&self) -> bool {
         matches!(self.state.get().get(), &State::Archived)
     }
@@ -379,21 +393,21 @@ impl store::FromHistory for Patch {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Revision {
     /// Author of the revision.
-    pub author: Author,
+    author: Author,
     /// Revision description.
-    pub description: LWWReg<Max<String>>,
+    description: LWWReg<Max<String>>,
     /// Base branch commit, used as a merge base.
-    pub base: git::Oid,
+    base: git::Oid,
     /// Reference to the Git object containing the code (revision head).
-    pub oid: git::Oid,
+    oid: git::Oid,
     /// Discussion around this revision.
-    pub discussion: Thread,
+    discussion: Thread,
     /// Merges of this revision into other repositories.
-    pub merges: LWWSet<Max<Merge>>,
+    merges: LWWSet<Max<Merge>>,
     /// Reviews of this revision's changes (one per actor).
-    pub reviews: GMap<ActorId, Review>,
+    reviews: GMap<ActorId, Review>,
     /// When this revision was created.
-    pub timestamp: Timestamp,
+    timestamp: Timestamp,
 }
 
 impl Revision {
@@ -420,10 +434,37 @@ impl Revision {
         self.description.get()
     }
 
+    /// Author of the revision.
+    pub fn author(&self) -> &Author {
+        &self.author
+    }
+
+    /// Base branch commit, used as a merge base.
+    pub fn base(&self) -> &git::Oid {
+        &self.base
+    }
+
+    /// Reference to the Git object containing the code (revision head).
+    pub fn head(&self) -> git::Oid {
+        self.oid
+    }
+
+    /// When this revision was created.
+    pub fn timestamp(&self) -> Timestamp {
+        self.timestamp
+    }
+
+    /// Discussion around this revision.
+    pub fn discussion(&self) -> &Thread {
+        &self.discussion
+    }
+
+    /// Merges of this revision into other repositories.
     pub fn merges(&self) -> impl Iterator<Item = &Merge> {
         self.merges.iter().map(|m| m.get())
     }
 
+    /// Reviews of this revision's changes (one per actor).
     pub fn reviews(&self) -> impl DoubleEndedIterator<Item = (&PublicKey, &Review)> {
         self.reviews.iter()
     }
@@ -532,24 +573,41 @@ impl Ord for CodeLocation {
 #[serde(rename_all = "camelCase")]
 pub struct CodeComment {
     /// Code location of the comment.
-    pub location: CodeLocation,
+    location: CodeLocation,
     /// Comment.
-    pub comment: String,
+    comment: String,
     /// Timestamp.
-    pub timestamp: Timestamp,
+    timestamp: Timestamp,
+}
+
+impl CodeComment {
+    /// Code location of the comment.
+    pub fn location(&self) -> &CodeLocation {
+        &self.location
+    }
+
+    /// Comment.
+    pub fn comment(&self) -> &str {
+        &self.comment
+    }
+
+    /// Timestamp.
+    pub fn timestamp(&self) -> &Timestamp {
+        &self.timestamp
+    }
 }
 
 /// A patch review on a revision.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Review {
     /// Review verdict.
-    pub verdict: LWWReg<Option<Verdict>>,
+    verdict: LWWReg<Option<Verdict>>,
     /// Review general comment.
-    pub comment: LWWReg<Option<Max<String>>>,
+    comment: LWWReg<Option<Max<String>>>,
     /// Review inline code comments.
-    pub inline: LWWSet<Max<CodeComment>>,
+    inline: LWWSet<Max<CodeComment>>,
     /// Review timestamp.
-    pub timestamp: Max<Timestamp>,
+    timestamp: Max<Timestamp>,
 }
 
 impl Serialize for Review {
@@ -596,18 +654,22 @@ impl Review {
         }
     }
 
+    /// Review verdict.
     pub fn verdict(&self) -> Option<Verdict> {
         self.verdict.get().as_ref().copied()
     }
 
+    /// Review inline code comments.
     pub fn inline(&self) -> impl Iterator<Item = &CodeComment> {
         self.inline.iter().map(|m| m.get())
     }
 
+    /// Review general comment.
     pub fn comment(&self) -> Option<&str> {
         self.comment.get().as_ref().map(|m| m.get().as_str())
     }
 
+    /// Review timestamp.
     pub fn timestamp(&self) -> Timestamp {
         *self.timestamp.get()
     }

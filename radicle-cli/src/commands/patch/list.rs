@@ -86,11 +86,11 @@ fn print(
                 term::format::dim(format!("R{}", patch.version())).into(),
             ])
             .space()
-            .extend(common::pretty_commit_version(&revision.oid, workdir)?)
+            .extend(common::pretty_commit_version(&revision.head(), workdir)?)
             .space()
             .extend(common::pretty_sync_status(
                 repository.raw(),
-                *revision.oid,
+                revision.head().into(),
                 target_head,
             )?),
         )
@@ -103,14 +103,14 @@ fn print(
         // Don't show an "update" line for the first revision.
         if revision_id != latest {
             timeline.push((
-                revision.timestamp,
+                revision.timestamp(),
                 term::Line::spaced(
                     [
                         term::format::tertiary("↑").into(),
                         term::format::default("updated to").into(),
                         term::format::dim(revision_id).into(),
                         term::format::parens(term::format::secondary(term::format::oid(
-                            revision.oid,
+                            revision.head(),
                         )))
                         .into(),
                     ]
@@ -119,7 +119,7 @@ fn print(
             ));
         }
 
-        for merge in revision.merges.iter() {
+        for merge in revision.merges() {
             let peer = repository.remote(&merge.node)?;
             let mut badges = Vec::new();
 
@@ -144,7 +144,7 @@ fn print(
                 ),
             ));
         }
-        for (reviewer, review) in revision.reviews.iter() {
+        for (reviewer, review) in revision.reviews() {
             let verdict = match review.verdict() {
                 Some(Verdict::Accept) => term::format::positive(term::format::dim("✓ accepted")),
                 Some(Verdict::Reject) => term::format::negative(term::format::dim("✗ rejected")),

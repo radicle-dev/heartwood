@@ -166,7 +166,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     // Analyze merge
     //
     let patch_commit = repo
-        .find_annotated_commit(revision.oid.into())
+        .find_annotated_commit(revision.head().into())
         .context("patch head not found in local repository")?;
     let (merge, _merge_pref) = repo.merge_analysis(&[&patch_commit])?;
 
@@ -180,7 +180,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         //
         // Let's check if there are potential merge conflicts.
         let our_commit = head.peel_to_commit()?;
-        let their_commit = repo.find_commit(revision.oid.into())?;
+        let their_commit = repo.find_commit(revision.head().into())?;
 
         let index = repo
             .merge_commits(&our_commit, &their_commit, None)
@@ -207,7 +207,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         anyhow::bail!(
             "no merge is possible between {} and {}",
             head_oid,
-            revision.oid
+            revision.head()
         );
     };
 
@@ -226,7 +226,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         term::format::bold("Merging"),
         term::format::tertiary(term::format::cob(&patch_id)),
         term::format::dim(format!("R{revision_ix}")),
-        term::format::parens(term::format::secondary(term::format::oid(revision.oid))),
+        term::format::parens(term::format::secondary(term::format::oid(revision.head()))),
         term::format::tertiary(patch.author().id),
         term::format::highlight(branch),
         term::format::parens(term::format::secondary(term::format::oid(head_oid))),
@@ -245,7 +245,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             merge_commit(&repo, patch_id, &patch_commit, &patch, signer.public_key())?;
         }
         MergeStyle::FastForward => {
-            fast_forward(&repo, &revision.oid)?;
+            fast_forward(&repo, &revision.head())?;
         }
     }
 
@@ -253,7 +253,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         "Updated {} {} -> {} via {}",
         term::format::highlight(branch),
         term::format::secondary(term::format::oid(head_oid)),
-        term::format::secondary(term::format::oid(revision.oid)),
+        term::format::secondary(term::format::oid(revision.head())),
         merge_style_pretty
     );
 
