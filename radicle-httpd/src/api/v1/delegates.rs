@@ -98,7 +98,7 @@ mod routes {
                 "delegates": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"],
                 "head": HEAD,
                 "patches": {
-                  "proposed": 1,
+                  "open": 1,
                   "draft": 0,
                   "archived": 0,
                 },

@@ -748,7 +748,7 @@ mod routes {
                 "delegates": [DID],
                 "head": HEAD,
                 "patches": {
-                  "proposed": 1,
+                  "open": 1,
                   "draft": 0,
                   "archived": 0,
                 },
@@ -778,7 +778,7 @@ mod routes {
                "delegates": [DID],
                "head": HEAD,
                "patches": {
-                 "proposed": 1,
+                 "open": 1,
                  "draft": 0,
                  "archived": 0,
                },
@@ -1693,7 +1693,7 @@ mod routes {
                 },
                 "title": "A new `hello world`",
                 "description": "change `hello world` in README to something else",
-                "state": { "status": "proposed" },
+                "state": { "status": "open" },
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
@@ -1732,7 +1732,7 @@ mod routes {
                 },
                 "title": "A new `hello world`",
                 "description": "change `hello world` in README to something else",
-                "state": { "status": "proposed" },
+                "state": { "status": "open" },
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
@@ -1810,7 +1810,7 @@ mod routes {
                 },
                 "title": "Update README",
                 "description": "Do some changes to README",
-                "state": { "status": "proposed" },
+                "state": { "status": "open" },
                 "target": "delegates",
                 "tags": [],
                 "revisions": [
@@ -1870,7 +1870,7 @@ mod routes {
               },
               "title": "A new `hello world`",
               "description": "change `hello world` in README to something else",
-              "state": { "status": "proposed" },
+              "state": { "status": "open" },
               "target": "delegates",
               "tags": [
                 "bug",
@@ -1933,7 +1933,7 @@ mod routes {
               },
               "title": "A new `hello world`",
               "description": "change `hello world` in README to something else",
-              "state": { "status": "proposed" },
+              "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
               "revisions": [
@@ -2006,7 +2006,7 @@ mod routes {
               },
               "title": "This is a updated title",
               "description": "Let's write some description",
-              "state": { "status": "proposed" },
+              "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
               "revisions": [
@@ -2088,7 +2088,7 @@ mod routes {
               },
               "title": "A new `hello world`",
               "description": "change `hello world` in README to something else",
-              "state": { "status": "proposed" },
+              "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
               "revisions": [
@@ -2184,7 +2184,7 @@ mod routes {
               },
               "title": "A new `hello world`",
               "description": "change `hello world` in README to something else",
-              "state": { "status": "proposed" },
+              "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
               "revisions": [
@@ -2267,7 +2267,7 @@ mod routes {
               },
               "title": "A new `hello world`",
               "description": "change `hello world` in README to something else",
-              "state": { "status": "proposed" },
+              "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
               "revisions": [

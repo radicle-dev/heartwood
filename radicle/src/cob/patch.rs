@@ -237,8 +237,8 @@ impl Patch {
         self.revisions().next_back()
     }
 
-    pub fn is_proposed(&self) -> bool {
-        matches!(self.state.get().get(), State::Proposed)
+    pub fn is_open(&self) -> bool {
+        matches!(self.state.get().get(), State::Open)
     }
 
     pub fn is_archived(&self) -> bool {
@@ -429,11 +429,12 @@ impl Revision {
     }
 }
 
+/// Patch state.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
 pub enum State {
     #[default]
-    Proposed,
+    Open,
     Draft,
     Archived,
 }
@@ -441,9 +442,9 @@ pub enum State {
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Proposed => write!(f, "open"),
-            Self::Draft => write!(f, "draft"),
             Self::Archived => write!(f, "archived"),
+            Self::Draft => write!(f, "draft"),
+            Self::Open => write!(f, "open"),
         }
     }
 }
@@ -878,7 +879,7 @@ impl<'a, 'g> Deref for PatchMut<'a, 'g> {
 #[derive(Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchCounts {
-    pub proposed: usize,
+    pub open: usize,
     pub draft: usize,
     pub archived: usize,
 }
@@ -936,7 +937,7 @@ impl<'a> Patches<'a> {
                 .fold(PatchCounts::default(), |mut state, (_, p, _)| {
                     match p.state() {
                         State::Draft => state.draft += 1,
-                        State::Proposed => state.proposed += 1,
+                        State::Open => state.open += 1,
                         State::Archived => state.archived += 1,
                     }
                     state
@@ -974,7 +975,7 @@ impl<'a> Patches<'a> {
         Ok(all
             .into_iter()
             .filter_map(|result| result.ok())
-            .filter(|(_, p, _)| p.is_proposed()))
+            .filter(|(_, p, _)| p.is_open()))
     }
 
     /// Get patches proposed by the given key.
@@ -1193,7 +1194,7 @@ mod test {
         assert_eq!(patch.title(), "My first patch");
         assert_eq!(patch.description(), "Blah blah blah.");
         assert_eq!(patch.author().id(), &author);
-        assert_eq!(patch.state(), State::Proposed);
+        assert_eq!(patch.state(), State::Open);
         assert_eq!(patch.target(), target);
         assert_eq!(patch.version(), 0);
 
