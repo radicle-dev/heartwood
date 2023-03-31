@@ -155,7 +155,7 @@ remote refs in storage.
 ### Connecting to your local node
 
 The radicle node listens on a UNIX domain socket located at
-`$RAD_HOME/node/radicle.sock`. Make sure this file is accessible and has the
+`$RAD_HOME/node/control.sock`. Make sure this file is accessible and has the
 required permissions for your user to read and write to it.
 
 ### Radicle keys

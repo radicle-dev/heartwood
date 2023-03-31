@@ -22,7 +22,7 @@ use crate::storage::RefUpdate;
 pub use features::Features;
 
 /// Default name for control socket file.
-pub const DEFAULT_SOCKET_NAME: &str = "radicle.sock";
+pub const DEFAULT_SOCKET_NAME: &str = "control.sock";
 /// Default radicle protocol port.
 pub const DEFAULT_PORT: u16 = 8776;
 /// Filename of routing table database under the node directory.

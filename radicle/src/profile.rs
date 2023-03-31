@@ -8,7 +8,7 @@
 //!       radicle                                # Secret key (PKCS 8)
 //!       radicle.pub                            # Public key (PKCS 8)
 //!     node/
-//!       radicle.sock                           # Node control socket
+//!       control.sock                           # Node control socket
 //!
 use std::path::{Path, PathBuf};
 use std::{fs, io};

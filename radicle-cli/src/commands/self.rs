@@ -138,10 +138,10 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
         term::format::tertiary(keys_path.display()).to_string(),
     ]);
 
-    let node_path = profile.home.node();
+    let socket_path = profile.socket();
     table.push([
         term::format::style("Node (socket)").to_string(),
-        term::format::tertiary(node_path.join("radicle.sock").display()).to_string(),
+        term::format::tertiary(socket_path.display()).to_string(),
     ]);
 
     table.print();
