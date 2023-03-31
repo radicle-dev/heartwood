@@ -11,7 +11,9 @@ use crate::{
 };
 
 /// How long to wait for the database lock to be released before failing a read.
-const DB_READ_TIMEOUT: time::Duration = time::Duration::from_secs(1);
+const DB_READ_TIMEOUT: time::Duration = time::Duration::from_secs(3);
+/// How long to wait for the database lock to be released before failing a write.
+const DB_WRITE_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 
 /// An error occuring in peer-to-peer networking code.
 #[derive(Error, Debug)]
@@ -41,7 +43,8 @@ impl Table {
     /// Open a routing file store at the given path. Creates a new empty store
     /// if an existing store isn't found.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let db = sql::Connection::open(path)?;
+        let mut db = sql::Connection::open(path)?;
+        db.set_busy_timeout(DB_WRITE_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })

@@ -824,7 +824,7 @@ where
                         }
                     }
                     Err(e) => {
-                        error!("Error processing inventory from {}: {}", announcer, e);
+                        error!(target: "service", "Error processing inventory from {}: {}", announcer, e);
                         return Ok(false);
                     }
                 }
@@ -969,7 +969,8 @@ where
                     Ok(updated) => {
                         // Only relay if we received new information.
                         if updated {
-                            debug!(target: "service",
+                            debug!(
+                                target: "service",
                                 "Address store entry for node {announcer} updated at {timestamp}"
                             );
                             return Ok(relay);
@@ -977,7 +978,7 @@ where
                     }
                     Err(err) => {
                         // An error here is due to a fault in our address store.
-                        error!("Error processing node announcement from {announcer}: {err}");
+                        error!(target: "service", "Error processing node announcement from {announcer}: {err}");
                     }
                 }
             }

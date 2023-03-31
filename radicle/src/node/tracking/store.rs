@@ -1,6 +1,6 @@
 #![allow(clippy::type_complexity)]
 use std::path::Path;
-use std::{fmt, io, ops::Not as _};
+use std::{fmt, io, ops::Not as _, time};
 
 use sqlite as sql;
 use thiserror::Error;
@@ -8,6 +8,11 @@ use thiserror::Error;
 use crate::prelude::{Id, NodeId};
 
 use super::{Node, Policy, Repo, Scope};
+
+/// How long to wait for the database lock to be released before failing a read.
+const DB_READ_TIMEOUT: time::Duration = time::Duration::from_secs(3);
+/// How long to wait for the database lock to be released before failing a write.
+const DB_WRITE_TIMEOUT: time::Duration = time::Duration::from_secs(6);
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -36,7 +41,8 @@ impl Config {
     /// Open a policy store at the given path. Creates a new store if it
     /// doesn't exist.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let db = sql::Connection::open(path)?;
+        let mut db = sql::Connection::open(path)?;
+        db.set_busy_timeout(DB_WRITE_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })
@@ -45,7 +51,9 @@ impl Config {
     /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
     /// open databases, as no locking is required.
     pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let db = sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().set_read_only())?;
+        let mut db =
+            sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().set_read_only())?;
+        db.set_busy_timeout(DB_READ_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })
