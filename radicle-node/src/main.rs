@@ -1,4 +1,4 @@
-use std::{net, process};
+use std::{fs, net, process};
 
 use anyhow::{anyhow, Context as _};
 use crossbeam_channel as chan;
@@ -26,6 +26,7 @@ Options
     --git-daemon       <address>     Address to bind git-daemon to (default 0.0.0.0:9418)
     --tracking-policy  (track|block) Default tracking policy
     --tracking-scope   (trusted|all) Default scope for tracking policies
+    --force                          Force start even if an existing control socket is found
     --help                           Print help
     --listen           <address>     Address to listen on
 
@@ -38,6 +39,7 @@ struct Options {
     daemon: Option<net::SocketAddr>,
     limits: service::config::Limits,
     listen: Vec<net::SocketAddr>,
+    force: bool,
     tracking_policy: Policy,
     tracking_scope: Scope,
 }
@@ -54,6 +56,7 @@ impl Options {
         let mut daemon = None;
         let mut tracking_policy = Policy::default();
         let mut tracking_scope = Scope::default();
+        let mut force = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -64,6 +67,9 @@ impl Options {
                 Long("external-address") => {
                     let addr = parser.value()?.parse()?;
                     external_addresses.push(addr);
+                }
+                Long("force") => {
+                    force = true;
                 }
                 Long("git-daemon") => {
                     let addr = parser.value()?.parse()?;
@@ -113,6 +119,7 @@ impl Options {
             connect,
             daemon,
             external_addresses,
+            force,
             limits,
             listen,
             tracking_policy,
@@ -155,6 +162,10 @@ fn execute() -> anyhow::Result<()> {
     let (notify, signals) = chan::bounded(1);
     signals::install(notify)?;
 
+    if options.force {
+        log::debug!(target: "node", "Removing existing control socket..");
+        fs::remove_file(home.socket()).ok();
+    }
     Runtime::init(home, config, options.listen, proxy, daemon, signals, signer)?.run()?;
 
     Ok(())
