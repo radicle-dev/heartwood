@@ -3,6 +3,7 @@
 // This file is part of radicle-link, distributed under the GPLv3 with Radicle
 // Linking Exception. For full terms see the included LICENSE file.
 use std::fmt;
+use std::ops::Deref;
 use std::str::FromStr;
 
 use git_ext::Oid;
@@ -64,6 +65,14 @@ impl From<EntryId> for Oid {
 impl From<&EntryId> for object::ObjectId {
     fn from(EntryId(id): &EntryId) -> Self {
         id.into()
+    }
+}
+
+impl Deref for EntryId {
+    type Target = Oid;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

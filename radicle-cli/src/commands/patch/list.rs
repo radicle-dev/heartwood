@@ -75,7 +75,7 @@ fn print(
         &patch.timestamp(),
     )));
 
-    let (latest, revision) = patch
+    let (_, revision) = patch
         .latest()
         .ok_or_else(|| anyhow!("patch is malformed: no revisions found"))?;
     let mut widget = term::VStack::default()
@@ -101,7 +101,7 @@ fn print(
     let mut timeline = Vec::new();
     for (revision_id, revision) in patch.revisions() {
         // Don't show an "update" line for the first revision.
-        if revision_id != latest {
+        if **revision_id != **patch_id {
             timeline.push((
                 revision.timestamp(),
                 term::Line::spaced(

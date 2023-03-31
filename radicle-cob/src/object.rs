@@ -3,7 +3,7 @@
 // This file is part of radicle-link, distributed under the GPLv3 with Radicle
 // Linking Exception. For full terms see the included LICENSE file.
 
-use std::{convert::TryFrom as _, fmt, str::FromStr};
+use std::{convert::TryFrom as _, fmt, ops::Deref, str::FromStr};
 
 use git_ext::Oid;
 use git_ref_format::{Component, RefString};
@@ -59,6 +59,14 @@ impl From<git2::Oid> for ObjectId {
 impl From<&git2::Oid> for ObjectId {
     fn from(oid: &git2::Oid) -> Self {
         ObjectId(Oid::from(*oid))
+    }
+}
+
+impl Deref for ObjectId {
+    type Target = Oid;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

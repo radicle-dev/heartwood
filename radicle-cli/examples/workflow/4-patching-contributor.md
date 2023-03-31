@@ -80,10 +80,9 @@ $ git commit --message "Add README, just for the fun"
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
 $ rad patch update --message "Add README, just for the fun" a07ef7743a32a2e902672ea3526d1db6ee08108a
-a07ef77 R0 (3e674d1) -> R1 (27857ec)
+Updating 3e674d1 -> 27857ec
 1 commit(s) ahead, 0 commit(s) behind
-
-✓ Patch a07ef77 updated to 4f15eb5c994edd0bb6be29cb4801aa74308cc628
+✓ Patch updated to revision 4f15eb5c994edd0bb6be29cb4801aa74308cc628
 ```
 
 And let's leave a quick comment for our team:

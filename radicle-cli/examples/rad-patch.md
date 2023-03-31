@@ -82,10 +82,9 @@ $ git commit --message "Add README, just for the fun"
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
 $ rad patch update --message "Add README, just for the fun" 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
-191a14e R0 (3e674d1) -> R1 (27857ec)
+Updating 3e674d1 -> 27857ec
 1 commit(s) ahead, 0 commit(s) behind
-
-✓ Patch 191a14e updated to 56a5efc062b34a97a162a3a4d4468ce3e7ba1c84
+✓ Patch updated to revision 56a5efc062b34a97a162a3a4d4468ce3e7ba1c84
 ```
 
 And let's leave a quick comment for our team:
@@ -119,7 +118,7 @@ $ rad patch
 │ Define power requirements 191a14e R1 27857ec (flux-capacitor-power, patch/191a14e) ahead 2, behind 0 │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago              │
-│ ↑ updated to 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 (3e674d1) 3 months ago                         │
+│ ↑ updated to 56a5efc062b34a97a162a3a4d4468ce3e7ba1c84 (27857ec) 3 months ago                         │
 │ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago                    │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

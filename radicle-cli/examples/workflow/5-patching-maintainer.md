@@ -31,7 +31,7 @@ $ rad patch
 │ Define power requirements a07ef77 R1 27857ec ahead 2, behind 0                    │
 ├───────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 3 months ago │
-│ ↑ updated to a07ef7743a32a2e902672ea3526d1db6ee08108a (3e674d1) 3 months ago      │
+│ ↑ updated to 4f15eb5c994edd0bb6be29cb4801aa74308cc628 (27857ec) 3 months ago      │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -49,10 +49,9 @@ $ git commit --fixup HEAD~
  1 file changed, 0 insertions(+), 0 deletions(-)
  rename REQUIREMENTS => REQUIREMENTS.md (100%)
 $ rad patch update --message "Define power requirements" --message "See details." a07ef7743a32a2e902672ea3526d1db6ee08108a
-a07ef77 R1 (27857ec) -> R2 (f6484e0)
+Updating 27857ec -> f6484e0
 1 commit(s) ahead, 0 commit(s) behind
-
-✓ Patch a07ef77 updated to 737dc47d9eba730c5db8a8e33c41c7955f9093de
+✓ Patch updated to revision 737dc47d9eba730c5db8a8e33c41c7955f9093de
 ```
 
 Great, all fixed up, lets merge the code.
@@ -61,7 +60,7 @@ Great, all fixed up, lets merge the code.
 $ git checkout master
 Your branch is up to date with 'rad/master'.
 $ rad merge 737dc47d9eba730c5db8a8e33c41c7955f9093de
-Merging a07ef77 R2 (f6484e0) by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk into master (f2de534) via fast-forward...
+Merging a07ef77 R2 (f6484e0) by z6Mkt67…v4N1tRk into master (f2de534) via fast-forward...
 Running `git merge --ff-only f6484e0f43e48a8983b9b39bf9bd4cd889f1d520`...
 Updating f2de534..f6484e0
 Fast-forward
@@ -82,8 +81,8 @@ $ rad patch
 │ Define power requirements a07ef77 R2 f6484e0 (flux-capacitor-power, master) ahead 3, behind 0 │
 ├───────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 3 months ago             │
-│ ↑ updated to a07ef7743a32a2e902672ea3526d1db6ee08108a (3e674d1) 3 months ago                  │
 │ ↑ updated to 4f15eb5c994edd0bb6be29cb4801aa74308cc628 (27857ec) 3 months ago                  │
+│ ↑ updated to 737dc47d9eba730c5db8a8e33c41c7955f9093de (f6484e0) 3 months ago                  │
 │ ✓ merged by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago       │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

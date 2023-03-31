@@ -58,7 +58,7 @@ pub enum Error {
     #[error("git: {0}")]
     Git(#[from] git2::Error),
     #[error("invalid repository identifier {0:?}")]
-    Id(std::ffi::OsString),
+    InvalidId(std::ffi::OsString),
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
 }

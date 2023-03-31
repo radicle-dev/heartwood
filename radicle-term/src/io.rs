@@ -15,7 +15,7 @@ use crate::{style, Paint};
 pub use inquire::Select;
 
 pub const ERROR_PREFIX: Paint<&str> = Paint::red("✗");
-pub const ERROR_HINT_PREFIX: Paint<&str> = Paint::yellow("✗");
+pub const ERROR_HINT_PREFIX: Paint<&str> = Paint::yellow("✗ Hint:");
 pub const WARNING_PREFIX: Paint<&str> = Paint::yellow("!");
 pub const TAB: &str = "    ";
 

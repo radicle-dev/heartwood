@@ -28,13 +28,11 @@ fn select_patch(
         find_unmerged_with_base(*head_oid, *target_oid, base_oid, patches, workdir, whoami)?;
 
     let Some((id, _, _)) = result.pop() else {
-        term::blank();
-        anyhow::bail!("No patches found to update, please open a new patch or specify the patch id manually");
+        anyhow::bail!("No patches found to update, please specify a patch id");
     };
 
     if !result.is_empty() {
-        term::blank();
-        anyhow::bail!("More than one patch available to update, please specify an id with `rad patch --update <id>`");
+        anyhow::bail!("More than one patch available to update, please specify a patch id");
     }
     term::blank();
 
@@ -43,24 +41,15 @@ fn select_patch(
 
 fn show_update_commit_info(
     workdir: &git::raw::Repository,
-    patch_id: &patch::PatchId,
-    patch: &patch::Patch,
     current_revision: &patch::Revision,
     head_branch: &git::raw::Branch,
 ) -> anyhow::Result<()> {
-    // TODO(cloudhead): Handle error.
-    let current_version = patch.version();
     let head_oid = branch_oid(head_branch)?;
 
     term::info!(
-        "{} {} {} -> {} {}",
-        term::format::tertiary(term::format::cob(patch_id)),
-        term::format::dim(format!("R{current_version}")),
-        term::format::parens(term::format::secondary(term::format::oid(
-            current_revision.head()
-        ))),
-        term::format::dim(format!("R{}", current_version + 1)),
-        term::format::parens(term::format::secondary(term::format::oid(head_oid))),
+        "Updating {} -> {}",
+        term::format::secondary(term::format::oid(current_revision.head())),
+        term::format::secondary(term::format::oid(head_oid)),
     );
 
     // Difference between the two revisions.
@@ -70,7 +59,7 @@ fn show_update_commit_info(
     Ok(())
 }
 
-/// Run patch creation.
+/// Run patch update.
 pub fn run(
     storage: &Repository,
     profile: &Profile,
@@ -102,7 +91,7 @@ pub fn run(
         return Ok(());
     }
 
-    show_update_commit_info(workdir, &patch_id, &patch, current_revision, &head_branch)?;
+    show_update_commit_info(workdir, current_revision, &head_branch)?;
 
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
@@ -110,10 +99,8 @@ pub fn run(
     let signer = term::signer(profile)?;
     let revision = patch.update(message, base_oid, *head_oid, &signer)?;
 
-    term::blank();
     term::success!(
-        "Patch {} updated to {}",
-        term::format::highlight(term::format::cob(&patch_id)),
+        "Patch updated to revision {}",
         term::format::tertiary(revision),
     );
 

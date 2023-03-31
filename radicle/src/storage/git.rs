@@ -156,7 +156,8 @@ impl Storage {
             if path.file_name().to_string_lossy().starts_with('.') {
                 continue;
             }
-            let rid = Id::try_from(path.file_name()).map_err(|_| Error::Id(path.file_name()))?;
+            let rid =
+                Id::try_from(path.file_name()).map_err(|_| Error::InvalidId(path.file_name()))?;
             let repo = self.repository(rid)?;
 
             // For performance reasons, we don't do a full repository check here.

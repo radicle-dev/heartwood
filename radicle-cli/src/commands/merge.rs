@@ -241,7 +241,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         term::format::tertiary(term::format::cob(&patch_id)),
         term::format::dim(format!("R{revision_ix}")),
         term::format::parens(term::format::secondary(term::format::oid(revision.head()))),
-        term::format::tertiary(patch.author().id),
+        term::format::tertiary(term::format::node(&patch.author().id)),
         term::format::highlight(branch),
         term::format::parens(term::format::secondary(term::format::oid(head_oid))),
         merge_style_pretty
