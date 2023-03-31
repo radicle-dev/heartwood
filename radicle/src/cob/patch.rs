@@ -652,8 +652,14 @@ impl CodeComment {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Review {
     /// Review verdict.
+    ///
+    /// Nb. if the verdict is set and a subsequent review is made with
+    /// the verdict as `None`, the original verdict will be nullified.
     verdict: LWWReg<Option<Verdict>>,
     /// Review general comment.
+    ///
+    /// Nb. if the comment is set and a subsequent review is made with
+    /// the comment as `None`, the original comment will be nullified.
     comment: LWWReg<Option<Max<String>>>,
     /// Review inline code comments.
     inline: LWWSet<Max<CodeComment>>,
@@ -1669,6 +1675,48 @@ mod test {
         let review = revision.reviews.get(signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Accept));
         assert_eq!(review.comment(), Some("LGTM"));
+    }
+
+    #[test]
+    fn test_patch_review_remove_fields() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (_, signer, project) = test::setup::context(&tmp);
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let mut patches = Patches::open(&project).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                base,
+                oid,
+                &[],
+                &signer,
+            )
+            .unwrap();
+
+        let (rid, _) = patch.latest().unwrap();
+        let rid = *rid;
+
+        patch
+            .review(
+                rid,
+                Some(Verdict::Reject),
+                Some("Nah".to_owned()),
+                vec![],
+                &signer,
+            )
+            .unwrap();
+        patch.review(rid, None, None, vec![], &signer).unwrap();
+
+        let id = patch.id;
+        let patch = patches.get_mut(&id).unwrap();
+        let (_, revision) = patch.latest().unwrap();
+
+        let review = revision.reviews.get(signer.public_key()).unwrap();
+        assert_eq!(review.verdict(), None);
+        assert_eq!(review.comment(), None);
     }
 
     #[test]
