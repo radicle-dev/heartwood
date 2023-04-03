@@ -67,7 +67,7 @@ fn find_patch_commit<'a>(
                 .find(|(_, o)| **o == patch_head)
                 .ok_or(anyhow!("patch ref for {patch_head} not found in storage"))?;
             let remote_branch = git::refs::workdir::remote_branch(
-                &RefString::try_from(author.to_string())?,
+                &RefString::try_from(author.as_key().to_human())?,
                 patch_branch,
             );
             let url = git::Url::from(stored.id).with_namespace(*author);

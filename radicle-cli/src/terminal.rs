@@ -88,11 +88,10 @@ where
                 _ => {}
             };
             eprintln!(
-                "{} {} {} {}",
-                Paint::red("=="),
+                "{} {} rad {}: {err}",
+                Paint::red(ERROR_PREFIX),
                 Paint::red("Error:"),
-                Paint::red(format!("rad-{}:", help.name)),
-                Paint::red(err.to_string()),
+                help.name,
             );
 
             if let Some(Error::WithHint { hint, .. }) = err.downcast_ref::<Error>() {
