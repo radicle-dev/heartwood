@@ -58,7 +58,7 @@ impl WidgetComponent for Property {
         State::None
     }
 
-    fn perform(&mut self, _cmd: Cmd) -> CmdResult {
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
         CmdResult::None
     }
 }
@@ -99,7 +99,7 @@ impl WidgetComponent for PropertyList {
         State::None
     }
 
-    fn perform(&mut self, _cmd: Cmd) -> CmdResult {
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
         CmdResult::None
     }
 }

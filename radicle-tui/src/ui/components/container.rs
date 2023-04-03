@@ -25,7 +25,7 @@ impl WidgetComponent for GlobalListener {
         State::None
     }
 
-    fn perform(&mut self, _cmd: Cmd) -> CmdResult {
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
         CmdResult::None
     }
 }
@@ -94,7 +94,7 @@ impl WidgetComponent for Tabs {
         State::One(StateValue::U16(self.state.selected))
     }
 
-    fn perform(&mut self, cmd: Cmd) -> CmdResult {
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
         use tuirealm::command::Direction;
 
         match cmd {
@@ -147,7 +147,7 @@ impl WidgetComponent for Header {
         State::None
     }
 
-    fn perform(&mut self, _cmd: Cmd) -> CmdResult {
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
         CmdResult::None
     }
 }
@@ -205,7 +205,7 @@ impl WidgetComponent for LabeledContainer {
         State::None
     }
 
-    fn perform(&mut self, cmd: Cmd) -> CmdResult {
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
         self.component.perform(cmd)
     }
 }

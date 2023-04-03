@@ -12,7 +12,7 @@ pub trait WidgetComponent {
 
     fn state(&self) -> State;
 
-    fn perform(&mut self, cmd: Cmd) -> CmdResult;
+    fn perform(&mut self, properties: &Props, cmd: Cmd) -> CmdResult;
 }
 
 #[derive(Clone)]
@@ -95,6 +95,6 @@ impl<T: WidgetComponent> MockComponent for Widget<T> {
     }
 
     fn perform(&mut self, cmd: Cmd) -> CmdResult {
-        self.component.perform(cmd)
+        self.component.perform(&self.properties, cmd)
     }
 }

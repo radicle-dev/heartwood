@@ -50,7 +50,7 @@ impl WidgetComponent for Shortcut {
         State::None
     }
 
-    fn perform(&mut self, _cmd: Cmd) -> CmdResult {
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
         CmdResult::None
     }
 }
@@ -98,7 +98,7 @@ impl WidgetComponent for Shortcuts {
         State::None
     }
 
-    fn perform(&mut self, _cmd: Cmd) -> CmdResult {
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
         CmdResult::None
     }
 }
