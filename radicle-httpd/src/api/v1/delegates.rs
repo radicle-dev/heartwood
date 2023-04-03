@@ -101,6 +101,7 @@ mod routes {
                   "open": 1,
                   "draft": 0,
                   "archived": 0,
+                  "merged": 0,
                 },
                 "issues": {
                   "open": 1,

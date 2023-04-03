@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 
+use radicle::cob::patch;
 use radicle::cob::patch::{Patch, PatchId, Patches, Revision, Verdict};
 use radicle::git;
 use radicle::prelude::*;
@@ -16,17 +17,25 @@ pub fn run(
     repository: &Repository,
     profile: &Profile,
     workdir: Option<git::raw::Repository>,
+    filter: Option<patch::State>,
 ) -> anyhow::Result<()> {
     let me = *profile.id();
     let patches = Patches::open(repository)?;
-    let proposed = patches.proposed()?;
+    let all = patches.all()?;
 
     // Patches the user authored.
     let mut own = Vec::new();
     // Patches other users authored.
     let mut other = Vec::new();
 
-    for (id, patch, _) in proposed {
+    for patch in all {
+        let (id, patch, _) = patch?;
+
+        if let Some(filter) = filter {
+            if patch.state() != filter {
+                continue;
+            }
+        }
         if patch.author().id().as_key() == &me {
             own.push((id, patch));
         } else {

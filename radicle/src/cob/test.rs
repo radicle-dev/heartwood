@@ -151,12 +151,14 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
         let author = *self.signer.public_key();
         let clock = self.clock.tick();
         let timestamp = clock::Physical::now();
+        let identity = arbitrary::oid();
         let op = Op {
             id,
             action,
             author,
             clock,
             timestamp,
+            identity,
         };
         self.ops.insert((self.clock, author), op.clone());
 

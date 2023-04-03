@@ -11,6 +11,7 @@ use once_cell::sync::Lazy;
 
 use crate::git;
 use crate::identity;
+use crate::identity::doc::DocError;
 use crate::identity::{Doc, Id};
 use crate::identity::{Identity, IdentityError, Project};
 use crate::storage::refs;
@@ -496,12 +497,8 @@ impl ReadRepository for Repository {
         Ok(Remotes::from_iter(remotes))
     }
 
-    fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
-        let head = self.identity_head()?;
-
-        Doc::<Unverified>::load_at(head, self)
-            .map(|(doc, _)| (head, doc))
-            .map_err(IdentityError::from)
+    fn identity_doc_at(&self, head: Oid) -> Result<identity::Doc<Unverified>, DocError> {
+        Doc::<Unverified>::load_at(head, self).map(|(doc, _)| doc)
     }
 
     fn head(&self) -> Result<(Qualified, Oid), IdentityError> {

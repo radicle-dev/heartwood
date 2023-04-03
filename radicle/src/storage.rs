@@ -369,7 +369,15 @@ pub trait ReadRepository {
     }
 
     /// Get the repository's identity document.
-    fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError>;
+    fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
+        let head = self.identity_head()?;
+        let doc = self.identity_doc_at(head)?;
+
+        Ok((head, doc))
+    }
+
+    /// Get the repository's identity document at a specific commit.
+    fn identity_doc_at(&self, head: Oid) -> Result<identity::Doc<Unverified>, DocError>;
 }
 
 /// Allows read-write access to a repository.

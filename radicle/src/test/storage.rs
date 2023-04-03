@@ -6,7 +6,7 @@ use git_ref_format as fmt;
 use radicle_git_ext as git_ext;
 
 use crate::crypto::{Signer, Verified};
-use crate::identity::doc::{Doc, Id};
+use crate::identity::doc::{Doc, DocError, Id};
 use crate::identity::IdentityError;
 use crate::node::NodeId;
 
@@ -113,6 +113,16 @@ pub struct MockRepository {
     remotes: HashMap<NodeId, refs::SignedRefs<Verified>>,
 }
 
+impl MockRepository {
+    pub fn new(id: Id, doc: Doc<Verified>) -> Self {
+        Self {
+            id,
+            doc,
+            remotes: HashMap::default(),
+        }
+    }
+}
+
 impl ReadRepository for MockRepository {
     fn id(&self) -> Id {
         self.id
@@ -193,6 +203,13 @@ impl ReadRepository for MockRepository {
         &self,
     ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), IdentityError> {
         Ok((git2::Oid::zero().into(), self.doc.clone().unverified()))
+    }
+
+    fn identity_doc_at(
+        &self,
+        _head: Oid,
+    ) -> Result<crate::identity::Doc<crate::crypto::Unverified>, DocError> {
+        Ok(self.doc.clone().unverified())
     }
 
     fn identity_head(&self) -> Result<Oid, IdentityError> {

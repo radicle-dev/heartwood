@@ -6,6 +6,8 @@ use radicle_crdt::clock;
 use radicle_crdt::clock::Lamport;
 use radicle_crypto::PublicKey;
 
+use crate::git;
+
 /// The author of an [`Op`].
 pub type ActorId = PublicKey;
 
@@ -34,6 +36,8 @@ pub struct Op<A> {
     pub clock: Lamport,
     /// Timestamp of this operation.
     pub timestamp: clock::Physical,
+    /// Head of identity document committed to by this operation.
+    pub identity: git::Oid,
 }
 
 impl<A: Eq> PartialOrd for Op<A> {
@@ -55,6 +59,7 @@ impl<A> Op<A> {
         author: ActorId,
         timestamp: impl Into<clock::Physical>,
         clock: Lamport,
+        identity: git::Oid,
     ) -> Self {
         Self {
             id,
@@ -62,6 +67,7 @@ impl<A> Op<A> {
             author,
             clock,
             timestamp: timestamp.into(),
+            identity,
         }
     }
 
@@ -80,6 +86,7 @@ where
 
     fn try_from(entry: &'a EntryWithClock) -> Result<Self, Self::Error> {
         let id = *entry.id();
+        let identity = entry.resource();
         let ops = entry
             .changes()
             .map(|blob| {
@@ -90,6 +97,7 @@ where
                     author: *entry.actor(),
                     clock: entry.clock().into(),
                     timestamp: entry.timestamp().into(),
+                    identity,
                 };
                 Ok::<_, Self::Error>(op)
             })

@@ -30,15 +30,21 @@ pub trait FromHistory: Sized + Default {
     fn type_name() -> &'static TypeName;
 
     /// Apply a list of operations to the state.
-    fn apply(&mut self, ops: impl IntoIterator<Item = Op<Self::Action>>)
-        -> Result<(), Self::Error>;
+    fn apply<R: ReadRepository>(
+        &mut self,
+        ops: impl IntoIterator<Item = Op<Self::Action>>,
+        repo: &R,
+    ) -> Result<(), Self::Error>;
 
     /// Create an object from a history.
-    fn from_history(history: &History) -> Result<(Self, Lamport), Error> {
+    fn from_history<R: ReadRepository>(
+        history: &History,
+        repo: &R,
+    ) -> Result<(Self, Lamport), Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
             match Ops::try_from(entry) {
                 Ok(Ops(ops)) => {
-                    if let Err(err) = acc.apply(ops) {
+                    if let Err(err) = acc.apply(ops, repo) {
                         log::warn!("Error applying op to `{}` state: {err}", Self::type_name());
                         return ControlFlow::Break(acc);
                     }
@@ -59,9 +65,12 @@ pub trait FromHistory: Sized + Default {
 
     /// Create an object from individual operations.
     /// Returns an error if any of the operations fails to apply.
-    fn from_ops(ops: impl IntoIterator<Item = Op<Self::Action>>) -> Result<Self, Self::Error> {
+    fn from_ops<R: ReadRepository>(
+        ops: impl IntoIterator<Item = Op<Self::Action>>,
+        repo: &R,
+    ) -> Result<Self, Self::Error> {
         let mut state = Self::default();
-        state.apply(ops)?;
+        state.apply(ops, repo)?;
 
         Ok(state)
     }
@@ -168,7 +177,7 @@ where
                 contents,
             },
         )?;
-        let (object, clock) = T::from_history(cob.history())?;
+        let (object, clock) = T::from_history(cob.history(), self.repo)?;
 
         self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
 
@@ -183,7 +192,7 @@ where
             if cob.manifest().history_type != HISTORY_TYPE {
                 return Err(Error::HistoryType(cob.manifest().history_type.clone()));
             }
-            let (obj, clock) = T::from_history(cob.history())?;
+            let (obj, clock) = T::from_history(cob.history(), self.repo)?;
 
             Ok(Some((obj, clock)))
         } else {
@@ -194,11 +203,11 @@ where
     /// Return all objects.
     pub fn all(
         &self,
-    ) -> Result<impl Iterator<Item = Result<(ObjectId, T, Lamport), Error>>, Error> {
+    ) -> Result<impl Iterator<Item = Result<(ObjectId, T, Lamport), Error>> + 'a, Error> {
         let raw = cob::list(self.repo, T::type_name())?;
 
         Ok(raw.into_iter().map(|o| {
-            let (obj, clock) = T::from_history(o.history())?;
+            let (obj, clock) = T::from_history(o.history(), self.repo)?;
             Ok((*o.id(), obj, clock))
         }))
     }
@@ -295,6 +304,7 @@ impl<T: FromHistory> Transaction<T> {
         let author = self.actor;
         let timestamp = object.history().timestamp().into();
         let clock = self.clock.tick();
+        let identity = store.parent;
 
         // The history clock should be in sync with the tx clock.
         assert_eq!(object.history().clock(), self.clock.get());
@@ -308,6 +318,7 @@ impl<T: FromHistory> Transaction<T> {
                 author,
                 clock,
                 timestamp,
+                identity,
             })
             .collect();
 

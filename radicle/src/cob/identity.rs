@@ -16,7 +16,7 @@ use crate::{
         store::{self, FromHistory as _, Transaction},
     },
     identity::{doc::DocError, Did, Identity, IdentityError},
-    prelude::Doc,
+    prelude::{Doc, ReadRepository},
     storage::{git as storage, RemoteId, WriteRepository},
 };
 
@@ -307,7 +307,11 @@ impl store::FromHistory for Proposal {
         &*TYPENAME
     }
 
-    fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), Self::Error> {
+    fn apply<R: ReadRepository>(
+        &mut self,
+        ops: impl IntoIterator<Item = Op>,
+        repo: &R,
+    ) -> Result<(), Self::Error> {
         for op in ops {
             let id = op.id;
             let author = Author::new(op.author);
@@ -358,15 +362,17 @@ impl store::FromHistory for Proposal {
                 }
 
                 Action::Thread { revision, action } => match self.revisions.get_mut(&revision) {
-                    Some(Redactable::Present(revision)) => {
-                        revision.discussion.apply([cob::Op::new(
+                    Some(Redactable::Present(revision)) => revision.discussion.apply(
+                        [cob::Op::new(
                             op.id,
                             action,
                             op.author,
                             op.timestamp,
                             op.clock,
-                        )])?
-                    }
+                            op.identity,
+                        )],
+                        repo,
+                    )?,
                     Some(Redactable::Redacted) => return Err(ApplyError::Redacted(revision)),
                     None => return Err(ApplyError::Missing(revision)),
                 },
@@ -578,7 +584,7 @@ impl<'a, 'g> ProposalMut<'a, 'g> {
         operations(&mut tx)?;
         let (ops, clock, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
-        self.proposal.apply(ops)?;
+        self.proposal.apply(ops, self.store.as_ref())?;
         self.clock = clock;
 
         Ok(commit)

@@ -127,6 +127,14 @@ pub struct DocAt {
     pub sigs: HashMap<PublicKey, Signature>,
 }
 
+impl Deref for DocAt {
+    type Target = Doc<Verified>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.doc
+    }
+}
+
 /// An identity document.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -751,6 +751,7 @@ mod routes {
                   "open": 1,
                   "draft": 0,
                   "archived": 0,
+                  "merged": 0,
                 },
                 "issues": {
                   "open": 1,
@@ -781,6 +782,7 @@ mod routes {
                  "open": 1,
                  "draft": 0,
                  "archived": 0,
+                 "merged": 0,
                },
                "issues": {
                  "open": 1,
@@ -2267,7 +2269,7 @@ mod routes {
               },
               "title": "A new `hello world`",
               "description": "change `hello world` in README to something else",
-              "state": { "status": "open" },
+              "state": { "status": "merged" },
               "target": "delegates",
               "tags": [],
               "revisions": [

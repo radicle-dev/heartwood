@@ -18,7 +18,7 @@ use crate::identity::{
 use crate::node::Address;
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
-use crate::test::storage::MockStorage;
+use crate::test::storage::{MockRepository, MockStorage};
 
 pub fn oid() -> storage::Oid {
     let oid_bytes: [u8; 20] = gen(1);
@@ -177,6 +177,15 @@ impl Arbitrary for MockStorage {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let inventory = Arbitrary::arbitrary(g);
         MockStorage::new(inventory)
+    }
+}
+
+impl Arbitrary for MockRepository {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let rid = Id::arbitrary(g);
+        let doc = Doc::<Verified>::arbitrary(g);
+
+        Self::new(rid, doc)
     }
 }
 

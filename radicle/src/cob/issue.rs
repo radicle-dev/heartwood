@@ -16,7 +16,7 @@ use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
 use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
-use crate::prelude::Did;
+use crate::prelude::{Did, ReadRepository};
 use crate::storage::git as storage;
 
 /// Issue operation.
@@ -122,7 +122,11 @@ impl store::FromHistory for Issue {
         &*TYPENAME
     }
 
-    fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), Error> {
+    fn apply<R: ReadRepository>(
+        &mut self,
+        ops: impl IntoIterator<Item = Op>,
+        repo: &R,
+    ) -> Result<(), Error> {
         for op in ops {
             match op.action {
                 Action::Assign { add, remove } => {
@@ -148,13 +152,17 @@ impl store::FromHistory for Issue {
                     }
                 }
                 Action::Thread { action } => {
-                    self.thread.apply([cob::Op::new(
-                        op.id,
-                        action,
-                        op.author,
-                        op.timestamp,
-                        op.clock,
-                    )])?;
+                    self.thread.apply(
+                        [cob::Op::new(
+                            op.id,
+                            action,
+                            op.author,
+                            op.timestamp,
+                            op.clock,
+                            op.identity,
+                        )],
+                        repo,
+                    )?;
                 }
             }
         }
@@ -389,7 +397,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
         operations(&mut tx)?;
         let (ops, clock, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
-        self.issue.apply(ops)?;
+        self.issue.apply(ops, self.store.as_ref())?;
         self.clock = clock;
 
         Ok(commit)

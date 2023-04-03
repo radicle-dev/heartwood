@@ -76,7 +76,7 @@ Fast-forward
 The patch is now merged and closed :).
 
 ```
-$ rad patch
+$ rad patch --merged
 ╭───────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Define power requirements a07ef77 R2 f6484e0 (flux-capacitor-power, master) ahead 3, behind 0 │
 ├───────────────────────────────────────────────────────────────────────────────────────────────┤

@@ -23,6 +23,7 @@ use crate::cob::thread::Thread;
 use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
+use crate::identity::doc::DocError;
 use crate::prelude::*;
 use crate::storage::git as storage;
 
@@ -60,6 +61,9 @@ pub enum ApplyError {
     /// Error applying an op to the patch thread.
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::OpError),
+    /// Error loading the identity document committed to by an operation.
+    #[error("identity doc failed to load: {0}")]
+    Doc(#[from] DocError),
 }
 
 /// Error updating or creating patches.
@@ -275,7 +279,11 @@ impl store::FromHistory for Patch {
         &*TYPENAME
     }
 
-    fn apply(&mut self, ops: impl IntoIterator<Item = Op>) -> Result<(), ApplyError> {
+    fn apply<R: ReadRepository>(
+        &mut self,
+        ops: impl IntoIterator<Item = Op>,
+        repo: &R,
+    ) -> Result<(), ApplyError> {
         for op in ops {
             let id = op.id;
             let author = Author::new(op.author);
@@ -376,6 +384,16 @@ impl store::FromHistory for Patch {
                             .into(),
                             op.clock,
                         );
+                        let doc = repo.identity_doc_at(op.identity)?;
+
+                        if revision
+                            .merges()
+                            .filter(|m| doc.is_delegate(&m.node))
+                            .count()
+                            >= doc.threshold
+                        {
+                            self.state.set(State::Merged, op.clock);
+                        }
                     } else {
                         return Err(ApplyError::Missing(revision));
                     }
@@ -384,9 +402,17 @@ impl store::FromHistory for Patch {
                     // TODO(cloudhead): Make sure we can deal with redacted revisions which are added
                     // to out of order, like in the `Merge` case.
                     if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                        revision
-                            .discussion
-                            .apply([cob::Op::new(op.id, action, op.author, timestamp, op.clock)])?;
+                        revision.discussion.apply(
+                            [cob::Op::new(
+                                op.id,
+                                action,
+                                op.author,
+                                timestamp,
+                                op.clock,
+                                op.identity,
+                            )],
+                            repo,
+                        )?;
                     } else {
                         return Err(ApplyError::Missing(revision));
                     }
@@ -487,6 +513,7 @@ pub enum State {
     Open,
     Draft,
     Archived,
+    Merged,
 }
 
 impl fmt::Display for State {
@@ -495,6 +522,7 @@ impl fmt::Display for State {
             Self::Archived => write!(f, "archived"),
             Self::Draft => write!(f, "draft"),
             Self::Open => write!(f, "open"),
+            Self::Merged => write!(f, "merged"),
         }
     }
 }
@@ -830,7 +858,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         operations(&mut tx)?;
         let (ops, clock, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
-        self.patch.apply(ops)?;
+        self.patch.apply(ops, self.store.as_ref())?;
         self.clock = clock;
 
         Ok(commit)
@@ -953,6 +981,7 @@ pub struct PatchCounts {
     pub open: usize,
     pub draft: usize,
     pub archived: usize,
+    pub merged: usize,
 }
 
 pub struct Patches<'a> {
@@ -1010,6 +1039,7 @@ impl<'a> Patches<'a> {
                         State::Draft => state.draft += 1,
                         State::Open => state.open += 1,
                         State::Archived => state.archived += 1,
+                        State::Merged => state.merged += 1,
                     }
                     state
                 });
@@ -1059,7 +1089,7 @@ impl<'a> Patches<'a> {
     /// Get proposed patches.
     pub fn proposed(
         &self,
-    ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)>, Error> {
+    ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)> + 'a, Error> {
         let all = self.all()?;
 
         Ok(all
@@ -1094,6 +1124,8 @@ mod test {
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
     use crate::test;
+    use crate::test::arbitrary::gen;
+    use crate::test::storage::MockRepository;
 
     #[derive(Clone)]
     struct Changes<const N: usize> {
@@ -1212,22 +1244,22 @@ mod test {
 
     #[test]
     fn prop_invariants() {
-        fn property(log: Changes<3>) -> TestResult {
+        fn property(repo: MockRepository, log: Changes<3>) -> TestResult {
             let t = Patch::default();
             let [p1, p2, p3] = log.permutations;
 
             let mut t1 = t.clone();
-            if t1.apply(p1).is_err() {
+            if t1.apply(p1, &repo).is_err() {
                 return TestResult::discard();
             }
 
             let mut t2 = t.clone();
-            if t2.apply(p2).is_err() {
+            if t2.apply(p2, &repo).is_err() {
                 return TestResult::discard();
             }
 
             let mut t3 = t;
-            if t3.apply(p3).is_err() {
+            if t3.apply(p3, &repo).is_err() {
                 return TestResult::discard();
             }
 
@@ -1241,7 +1273,7 @@ mod test {
         qcheck::QuickCheck::new()
             .min_tests_passed(100)
             .gen(qcheck::Gen::new(7))
-            .quickcheck(property as fn(Changes<3>) -> TestResult);
+            .quickcheck(property as fn(MockRepository, Changes<3>) -> TestResult);
     }
 
     #[test]
@@ -1413,6 +1445,7 @@ mod test {
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let mut alice = Actor::<_, Action>::new(MockSigner::default());
         let mut patch = Patch::default();
+        let repo = gen::<MockRepository>(1);
 
         let a1 = alice.op(Action::Revision {
             description: String::new(),
@@ -1431,20 +1464,21 @@ mod test {
             commit: oid,
         });
 
-        patch.apply([a1]).unwrap();
+        patch.apply([a1], &repo).unwrap();
         assert!(patch.revisions().next().is_some());
 
-        patch.apply([a2]).unwrap();
+        patch.apply([a2], &repo).unwrap();
         assert!(patch.revisions().next().is_none());
 
-        patch.apply([a3]).unwrap_err();
-        patch.apply([a4]).unwrap_err();
+        patch.apply([a3], &repo).unwrap_err();
+        patch.apply([a4], &repo).unwrap_err();
     }
 
     #[test]
     fn test_revision_redact_reinsert() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let repo = gen::<MockRepository>(1);
         let mut alice = Actor::<_, Action>::new(MockSigner::default());
         let mut p1 = Patch::default();
         let mut p2 = Patch::default();
@@ -1456,8 +1490,9 @@ mod test {
         });
         let a2 = alice.op(Action::Redact { revision: a1.id() });
 
-        p1.apply([a1.clone(), a2.clone(), a1.clone()]).unwrap();
-        p2.apply([a1.clone(), a1, a2]).unwrap();
+        p1.apply([a1.clone(), a2.clone(), a1.clone()], &repo)
+            .unwrap();
+        p2.apply([a1.clone(), a1, a2], &repo).unwrap();
 
         assert_eq!(p1, p2);
     }
@@ -1466,6 +1501,7 @@ mod test {
     fn test_revision_merge_reinsert() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let repo = gen::<MockRepository>(1);
         let mut alice = Actor::<_, Action>::new(MockSigner::default());
         let mut p1 = Patch::default();
         let mut p2 = Patch::default();
@@ -1480,8 +1516,9 @@ mod test {
             commit: oid,
         });
 
-        p1.apply([a1.clone(), a2.clone(), a1.clone()]).unwrap();
-        p2.apply([a1.clone(), a1, a2]).unwrap();
+        p1.apply([a1.clone(), a2.clone(), a1.clone()], &repo)
+            .unwrap();
+        p2.apply([a1.clone(), a1, a2], &repo).unwrap();
 
         assert_eq!(p1, p2);
     }

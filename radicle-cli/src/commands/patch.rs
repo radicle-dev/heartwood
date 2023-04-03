@@ -17,6 +17,7 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::cob::patch;
 use radicle::cob::patch::PatchId;
 use radicle::{prelude::*, Node};
 
@@ -34,7 +35,7 @@ pub const HELP: Help = Help {
 Usage
 
     rad patch
-    rad patch list
+    rad patch list [--all|--merged|--open|--archived]
     rad patch show <id>
     rad patch open [<option>...]
     rad patch update <id> [<option>...]
@@ -48,7 +49,14 @@ Create/Update options
     -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
         --no-message           Leave the patch or revision comment message blank
 
-Options
+List options
+
+        --all                  Show all patches, including merged and archived patches
+        --archived             Show only archived patches
+        --merged               Show only merged patches
+        --open                 Show only open patches (default)
+
+Other options
 
         --help                 Print help
 "#,
@@ -83,7 +91,9 @@ pub enum Operation {
     Checkout {
         patch_id: Rev,
     },
-    List,
+    List {
+        filter: Option<patch::State>,
+    },
 }
 
 #[derive(Debug)]
@@ -107,6 +117,7 @@ impl Args for Options {
         let mut patch_id = None;
         let mut message = Message::default();
         let mut push = true;
+        let mut filter = Some(patch::State::Open);
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -140,6 +151,20 @@ impl Args for Options {
                     push = false;
                 }
 
+                // List options.
+                Long("all") => {
+                    filter = None;
+                }
+                Long("archived") => {
+                    filter = Some(patch::State::Archived);
+                }
+                Long("merged") => {
+                    filter = Some(patch::State::Merged);
+                }
+                Long("open") => {
+                    filter = Some(patch::State::Open);
+                }
+
                 // Common.
                 Long("verbose") | Short('v') => {
                     verbose = true;
@@ -169,7 +194,7 @@ impl Args for Options {
 
         let op = match op.unwrap_or_default() {
             OperationName::Open => Operation::Open { message },
-            OperationName::List => Operation::List,
+            OperationName::List => Operation::List { filter },
             OperationName::Show => Operation::Show {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
             },
@@ -210,8 +235,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Open { ref message } => {
             create::run(&repository, &profile, &workdir, message.clone(), options)?;
         }
-        Operation::List => {
-            list::run(&repository, &profile, Some(workdir))?;
+        Operation::List { filter } => {
+            list::run(&repository, &profile, Some(workdir), filter)?;
         }
         Operation::Show { patch_id } => {
             let patch_id = patch_id.resolve(&repository.backend)?;

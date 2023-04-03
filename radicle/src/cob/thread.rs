@@ -9,6 +9,7 @@ use thiserror::Error;
 use crate::cob;
 use crate::cob::common::{Reaction, Timestamp};
 use crate::cob::{ActorId, EntryId, Op};
+use crate::prelude::ReadRepository;
 
 use crdt::clock::Lamport;
 use crdt::{GMap, GSet, LWWSet, Max, Redactable, Semilattice};
@@ -261,7 +262,11 @@ impl cob::store::FromHistory for Thread {
         &*TYPENAME
     }
 
-    fn apply(&mut self, ops: impl IntoIterator<Item = Op<Action>>) -> Result<(), OpError> {
+    fn apply<R: ReadRepository>(
+        &mut self,
+        ops: impl IntoIterator<Item = Op<Action>>,
+        _repo: &R,
+    ) -> Result<(), OpError> {
         for op in ops.into_iter() {
             let id = op.id;
             let author = op.author;
@@ -331,6 +336,8 @@ mod tests {
     use crate::cob::test;
     use crate::crypto::test::signer::MockSigner;
     use crate::crypto::Signer;
+    use crate::test::arbitrary::gen;
+    use crate::test::storage::MockRepository;
 
     /// An object that can be used to create and sign changes.
     pub struct Actor<G> {
@@ -489,6 +496,7 @@ mod tests {
     fn test_redact_comment() {
         let tmp = tempfile::tempdir().unwrap();
         let (_, signer, _) = radicle::test::setup::context(&tmp);
+        let repo = gen::<MockRepository>(1);
         let mut alice = Actor::new(signer);
         let mut thread = Thread::default();
 
@@ -496,12 +504,12 @@ mod tests {
         let a1 = alice.comment("Second comment", Some(a0.id()));
         let a2 = alice.comment("Third comment", Some(a0.id()));
 
-        thread.apply([a0, a1.clone(), a2]).unwrap();
+        thread.apply([a0, a1.clone(), a2], &repo).unwrap();
         assert_eq!(thread.comments().count(), 3);
 
         // Redact the second comment.
         let a3 = alice.redact(a1.id());
-        thread.apply([a3]).unwrap();
+        thread.apply([a3], &repo).unwrap();
 
         let (_, comment0) = thread.comments().nth(0).unwrap();
         let (_, comment1) = thread.comments().nth(1).unwrap();
@@ -514,13 +522,15 @@ mod tests {
     #[test]
     fn test_edit_comment() {
         let mut alice = Actor::<MockSigner>::default();
+        let repo = gen::<MockRepository>(1);
 
         let c0 = alice.comment("Hello world!", None);
         let c1 = alice.edit(c0.id(), "Goodbye world.");
         let c2 = alice.edit(c0.id(), "Goodbye world!");
 
         let mut t1 = Thread::default();
-        t1.apply([c0.clone(), c1.clone(), c2.clone()]).unwrap();
+        t1.apply([c0.clone(), c1.clone(), c2.clone()], &repo)
+            .unwrap();
 
         let comment = t1.comment(&c0.id());
         let edits = comment.unwrap().edits().collect::<Vec<_>>();
@@ -531,7 +541,7 @@ mod tests {
         assert_eq!(t1.comment(&c0.id()).unwrap().body(), "Goodbye world!");
 
         let mut t2 = Thread::default();
-        t2.apply([c0, c2, c1]).unwrap(); // Apply in different order.
+        t2.apply([c0, c2, c1], &repo).unwrap(); // Apply in different order.
 
         assert_eq!(t1, t2);
     }
@@ -610,6 +620,8 @@ mod tests {
 
     #[test]
     fn test_histories() {
+        let repo = gen::<MockRepository>(1);
+
         let mut alice = Actor::<MockSigner>::default();
         let mut bob = Actor::<MockSigner>::default();
         let mut eve = Actor::<MockSigner>::default();
@@ -628,15 +640,17 @@ mod tests {
         a.merge(b);
         a.merge(e);
 
-        let (expected, _) = Thread::from_history(&a).unwrap();
+        let (expected, _) = Thread::from_history(&a, &repo).unwrap();
         for permutation in a.permutations(2) {
-            let actual = Thread::from_ops(permutation).unwrap();
+            let actual = Thread::from_ops(permutation, &repo).unwrap();
             assert_eq!(actual, expected);
         }
     }
 
     #[test]
     fn test_duplicate_comments() {
+        let repo = gen::<MockRepository>(1);
+
         let mut alice = Actor::<MockSigner>::default();
         let mut bob = Actor::<MockSigner>::default();
 
@@ -649,7 +663,7 @@ mod tests {
         b.append(&b0);
         a.merge(b);
 
-        let (thread, _) = Thread::from_history(&a).unwrap();
+        let (thread, _) = Thread::from_history(&a, &repo).unwrap();
 
         assert_eq!(thread.comments().count(), 2);
 
@@ -662,6 +676,8 @@ mod tests {
 
     #[test]
     fn test_duplicate_comments_same_author() {
+        let repo = gen::<MockRepository>(1);
+
         let mut alice = Actor::<MockSigner>::default();
 
         let a0 = alice.comment("Hello World!", None);
@@ -681,7 +697,7 @@ mod tests {
         h3.merge(h1);
         h3.merge(h2);
 
-        let (thread, _) = Thread::from_history(&h3).unwrap();
+        let (thread, _) = Thread::from_history(&h3, &repo).unwrap();
 
         // The three comments, distinct yet identical in terms of content, are preserved.
         assert_eq!(thread.comments().count(), 3);
@@ -700,6 +716,8 @@ mod tests {
 
     #[test]
     fn test_comment_edit_reinsert() {
+        let repo = gen::<MockRepository>(1);
+
         let mut alice = Actor::<MockSigner>::default();
         let mut t1 = Thread::default();
         let mut t2 = Thread::default();
@@ -707,30 +725,31 @@ mod tests {
         let a1 = alice.comment("Hello.", None);
         let a2 = alice.edit(a1.id(), "Hello World.");
 
-        t1.apply([a1.clone(), a2.clone(), a1.clone()]).unwrap();
-        t2.apply([a1.clone(), a1, a2]).unwrap();
+        t1.apply([a1.clone(), a2.clone(), a1.clone()], &repo)
+            .unwrap();
+        t2.apply([a1.clone(), a1, a2], &repo).unwrap();
 
         assert_eq!(t1, t2);
     }
 
     #[test]
     fn prop_invariants() {
-        fn property(log: Changes<3>) -> TestResult {
+        fn property(repo: MockRepository, log: Changes<3>) -> TestResult {
             let t = Thread::default();
             let [p1, p2, p3] = log.permutations;
 
             let mut t1 = t.clone();
-            if t1.apply(p1).is_err() {
+            if t1.apply(p1, &repo).is_err() {
                 return TestResult::discard();
             }
 
             let mut t2 = t.clone();
-            if t2.apply(p2).is_err() {
+            if t2.apply(p2, &repo).is_err() {
                 return TestResult::discard();
             }
 
             let mut t3 = t;
-            if t3.apply(p3).is_err() {
+            if t3.apply(p3, &repo).is_err() {
                 return TestResult::discard();
             }
 
@@ -744,6 +763,6 @@ mod tests {
             .min_tests_passed(100)
             .max_tests(10000)
             .gen(qcheck::Gen::new(7))
-            .quickcheck(property as fn(Changes<3>) -> TestResult);
+            .quickcheck(property as fn(MockRepository, Changes<3>) -> TestResult);
     }
 }
