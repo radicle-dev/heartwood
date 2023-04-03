@@ -4,12 +4,12 @@ use anyhow::Result;
 
 use tui_realm_stdlib::Phantom;
 use tuirealm::application::PollStrategy;
-use tuirealm::command::{Cmd, Direction as MoveDirection};
+use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
 use tuirealm::props::{AttrValue, Attribute};
 use tuirealm::tui::layout::{Constraint, Direction, Layout};
 use tuirealm::{
-    Application, Component, Frame, MockComponent, NoUserEvent, StateValue, Sub, SubClause,
+    Application, Component, Frame, MockComponent, NoUserEvent, State, StateValue, Sub, SubClause,
     SubEventClause,
 };
 
@@ -32,6 +32,7 @@ use radicle::profile::Profile;
 /// Messages handled by this application.
 #[derive(Debug, Eq, PartialEq)]
 pub enum Message {
+    NavigationChanged(u16),
     Quit,
 }
 
@@ -52,6 +53,7 @@ pub struct App {
     id: Id,
     project: Project,
     patches: Vec<(PatchId, Patch)>,
+    active: ComponentId,
     quit: bool,
 }
 
@@ -65,6 +67,7 @@ impl App {
             profile,
             project,
             patches,
+            active: ComponentId::Dashboard,
             quit: false,
         }
     }
@@ -89,30 +92,27 @@ impl Tui<ComponentId, Message> for App {
         )
         .to_boxed();
 
-        app.mount(ComponentId::Navigation, navigation, vec![])?;
+        app.mount(
+            ComponentId::Navigation,
+            navigation,
+            vec![Sub::new(
+                SubEventClause::Keyboard(KeyEvent {
+                    code: Key::Tab,
+                    modifiers: KeyModifiers::NONE,
+                }),
+                SubClause::and(
+                    SubClause::IsMounted(ComponentId::Dashboard),
+                    SubClause::and(
+                        SubClause::IsMounted(ComponentId::IssueBrowser),
+                        SubClause::IsMounted(ComponentId::PatchBrowser),
+                    ),
+                ),
+            )],
+        )?;
 
         app.mount(ComponentId::Dashboard, dashboard, vec![])?;
         app.mount(ComponentId::IssueBrowser, issue_browser, vec![])?;
-        app.mount(
-            ComponentId::PatchBrowser,
-            patch_browser,
-            vec![
-                Sub::new(
-                    SubEventClause::Keyboard(KeyEvent {
-                        code: Key::Up,
-                        modifiers: KeyModifiers::NONE,
-                    }),
-                    SubClause::Always,
-                ),
-                Sub::new(
-                    SubEventClause::Keyboard(KeyEvent {
-                        code: Key::Down,
-                        modifiers: KeyModifiers::NONE,
-                    }),
-                    SubClause::Always,
-                ),
-            ],
-        )?;
+        app.mount(ComponentId::PatchBrowser, patch_browser, vec![])?;
 
         app.mount(ComponentId::Shortcuts, shortcuts, vec![])?;
 
@@ -130,7 +130,7 @@ impl Tui<ComponentId, Message> for App {
         )?;
 
         // We need to give focus to a component then
-        app.active(&ComponentId::Navigation)?;
+        app.active(&ComponentId::Dashboard)?;
 
         Ok(())
     }
@@ -168,31 +168,34 @@ impl Tui<ComponentId, Message> for App {
             )
             .split(area);
 
-        let workspace = app
-            .state(&ComponentId::Navigation)
-            .unwrap_or(tuirealm::State::One(StateValue::U16(0)))
-            .unwrap_one();
-
-        let component = match workspace {
-            StateValue::U16(0) => ComponentId::Dashboard,
-            StateValue::U16(1) => ComponentId::IssueBrowser,
-            StateValue::U16(2) => ComponentId::PatchBrowser,
-            _ => ComponentId::Dashboard,
-        };
-
         app.view(&ComponentId::Navigation, frame, layout[0]);
-        app.view(&component, frame, layout[1]);
+        app.view(&self.active, frame, layout[1]);
         app.view(&ComponentId::Shortcuts, frame, layout[2]);
     }
 
-    fn update(&mut self, app: &mut Application<ComponentId, Message, NoUserEvent>, interval: u64) {
+    fn update(
+        &mut self,
+        app: &mut Application<ComponentId, Message, NoUserEvent>,
+        interval: u64,
+    ) -> Result<()> {
         if let Ok(messages) = app.tick(PollStrategy::TryFor(Duration::from_millis(interval))) {
             for message in messages {
                 match message {
+                    Message::NavigationChanged(index) => {
+                        self.active = match index {
+                            0 => ComponentId::Dashboard,
+                            1 => ComponentId::IssueBrowser,
+                            2 => ComponentId::PatchBrowser,
+                            _ => ComponentId::Dashboard,
+                        };
+                        app.active(&self.active)?;
+                    }
                     Message::Quit => self.quit = true,
                 }
             }
         }
+
+        Ok(())
     }
 
     fn quit(&self) -> bool {
@@ -219,8 +222,12 @@ impl Component<Message, NoUserEvent> for Widget<Tabs> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Tab, .. }) => {
-                self.perform(Cmd::Move(MoveDirection::Right));
-                None
+                match self.perform(Cmd::Move(MoveDirection::Right)) {
+                    CmdResult::Changed(State::One(StateValue::U16(index))) => {
+                        Some(Message::NavigationChanged(index))
+                    }
+                    _ => None,
+                }
             }
             _ => None,
         }
