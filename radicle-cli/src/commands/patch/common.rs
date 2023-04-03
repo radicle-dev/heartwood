@@ -96,7 +96,7 @@ pub fn pretty_sync_status(
 /// For example '<oid> (branch1[, branch2])'.
 pub fn pretty_commit_version(
     revision_oid: &Oid,
-    repo: &Option<git::raw::Repository>,
+    repo: Option<&git::raw::Repository>,
 ) -> anyhow::Result<term::Line> {
     let oid = term::format::secondary(term::format::oid(*revision_oid));
     let mut line = term::Line::new(oid);

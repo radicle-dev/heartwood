@@ -215,7 +215,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Show { patch_id } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            show::run(&repository, &workdir, &patch_id)?;
+            show::run(&profile, &repository, &workdir, &patch_id)?;
         }
         Operation::Update {
             ref patch_id,

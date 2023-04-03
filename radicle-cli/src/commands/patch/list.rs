@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 
-use radicle::cob::patch::{Patch, PatchId, Patches, Verdict};
+use radicle::cob::patch::{Patch, PatchId, Patches, Revision, Verdict};
 use radicle::git;
 use radicle::prelude::*;
 use radicle::profile::Profile;
@@ -40,65 +40,82 @@ pub fn run(
     }
 
     for (id, patch) in &mut own {
-        print(&me, id, patch, &workdir, repository)?;
+        widget(&me, id, patch, workdir.as_ref(), repository)?.print();
     }
     for (id, patch) in &mut other {
-        print(profile.id(), id, patch, &workdir, repository)?;
+        widget(profile.id(), id, patch, workdir.as_ref(), repository)?.print();
     }
 
     Ok(())
 }
 
-/// Print patch details.
-fn print(
+pub fn header(
+    patch_id: &PatchId,
+    patch: &Patch,
+    workdir: Option<&git::raw::Repository>,
+    repository: &Repository,
+    revision: &Revision,
+) -> anyhow::Result<term::Line> {
+    let target_head = common::patch_merge_target_oid(patch.target(), repository)?;
+    let header = term::Line::spaced([
+        term::format::bold(patch.title()).into(),
+        term::format::highlight(term::format::cob(patch_id)).into(),
+        term::format::dim(format!("R{}", patch.version())).into(),
+    ])
+    .space()
+    .extend(common::pretty_commit_version(&revision.head(), workdir)?)
+    .space()
+    .extend(common::pretty_sync_status(
+        repository.raw(),
+        revision.head().into(),
+        target_head,
+    )?);
+
+    Ok(header)
+}
+
+/// Patch widget.
+pub fn widget<'a>(
     whoami: &PublicKey,
     patch_id: &PatchId,
     patch: &Patch,
-    workdir: &Option<git::raw::Repository>,
+    workdir: Option<&git::raw::Repository>,
     repository: &Repository,
-) -> anyhow::Result<()> {
-    let target_head = common::patch_merge_target_oid(patch.target(), repository)?;
+) -> anyhow::Result<term::VStack<'a>> {
+    let (_, revision) = patch
+        .latest()
+        .ok_or_else(|| anyhow!("patch is malformed: no revisions found"))?;
+    let header = header(patch_id, patch, workdir, repository, revision)?;
+    let mut widget = term::VStack::default()
+        .child(header)
+        .divider()
+        .border(Some(term::colors::FAINT));
 
+    for line in timeline(whoami, patch_id, patch, repository)? {
+        widget.push(line);
+    }
+    Ok(widget)
+}
+
+pub fn timeline(
+    whoami: &PublicKey,
+    patch_id: &PatchId,
+    patch: &Patch,
+    repository: &Repository,
+) -> anyhow::Result<Vec<term::Line>> {
     let you = patch.author().id().as_key() == whoami;
-    let mut author_info = term::Line::spaced([
+    let mut open = term::Line::spaced([
         term::format::positive("●").into(),
         term::format::default("opened by").into(),
         term::format::tertiary(patch.author().id()).into(),
     ]);
 
     if you {
-        author_info.push(term::Label::space());
-        author_info.push(term::format::primary("(you)"));
+        open.push(term::Label::space());
+        open.push(term::format::primary("(you)"));
     }
-    author_info.push(term::Label::space());
-    author_info.push(term::format::dim(term::format::timestamp(
-        &patch.timestamp(),
-    )));
+    let mut timeline = vec![(patch.timestamp(), open)];
 
-    let (_, revision) = patch
-        .latest()
-        .ok_or_else(|| anyhow!("patch is malformed: no revisions found"))?;
-    let mut widget = term::VStack::default()
-        .child(
-            term::Line::spaced([
-                term::format::bold(patch.title()).into(),
-                term::format::highlight(term::format::cob(patch_id)).into(),
-                term::format::dim(format!("R{}", patch.version())).into(),
-            ])
-            .space()
-            .extend(common::pretty_commit_version(&revision.head(), workdir)?)
-            .space()
-            .extend(common::pretty_sync_status(
-                repository.raw(),
-                revision.head().into(),
-                target_head,
-            )?),
-        )
-        .divider()
-        .child(author_info)
-        .border(Some(term::colors::FAINT));
-
-    let mut timeline = Vec::new();
     for (revision_id, revision) in patch.revisions() {
         // Don't show an "update" line for the first revision.
         if **revision_id != **patch_id {
@@ -176,12 +193,12 @@ fn print(
     }
     timeline.sort_by_key(|(t, _)| *t);
 
+    let mut lines = Vec::new();
     for (time, mut line) in timeline.into_iter() {
         line.push(term::Label::space());
         line.push(term::format::dim(term::format::timestamp(&time)));
-        widget.push(line);
+        lines.push(line);
     }
-    widget.print();
 
-    Ok(())
+    Ok(lines)
 }

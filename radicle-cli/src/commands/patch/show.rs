@@ -35,11 +35,13 @@ fn show_patch_diff(
 }
 
 pub fn run(
-    storage: &Repository,
+    profile: &Profile,
+    stored: &Repository,
+    // TODO: Should be optional.
     workdir: &git::raw::Repository,
     patch_id: &PatchId,
 ) -> anyhow::Result<()> {
-    let patches = patch::Patches::open(storage)?;
+    let patches = patch::Patches::open(stored)?;
     let Some(patch) = patches.get(patch_id)? else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
@@ -66,7 +68,7 @@ pub fn run(
     ]);
 
     let description = patch.description().trim();
-    let meta = VStack::default()
+    let mut widget = VStack::default()
         .border(Some(term::colors::FAINT))
         .child(attrs)
         .children(if !description.is_empty() {
@@ -76,12 +78,16 @@ pub fn run(
             ]
         } else {
             vec![]
-        });
+        })
+        .divider();
 
-    meta.print();
+    for line in list::timeline(profile.id(), patch_id, &patch, stored)? {
+        widget.push(line);
+    }
+    widget.print();
     term::blank();
 
-    show_patch_diff(&patch, storage, workdir)?;
+    show_patch_diff(&patch, stored, workdir)?;
     term::blank();
 
     Ok(())
