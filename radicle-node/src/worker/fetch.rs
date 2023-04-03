@@ -69,7 +69,7 @@ pub struct StagingPhaseFinal<'a> {
     production: &'a Storage,
     /// The delegates and tracked remotes that the fetch is being
     /// performed for. These are passed through from the
-    /// [`StagingPhaseInitial::namespaces`], if the variant is `Many`.
+    /// [`StagingPhaseInitial::namespaces`], if the variant is `Trusted`.
     trusted: HashSet<RemoteId>,
     _tmp: tempfile::TempDir,
 }
@@ -141,9 +141,6 @@ impl<'a> StagingPhaseInitial<'a> {
             StagedRepository::Fetching(repo) => {
                 log::debug!(target: "worker", "Loading remotes for fetching");
                 match self.namespaces.clone() {
-                    // Nb. Namespaces::One is not constructed in
-                    // namespaces_for so it's safe to just bundle this
-                    // with Namespaces::All
                     Namespaces::All => {
                         let mut trusted = repo.remote_ids()?.collect::<Result<HashSet<_>, _>>()?;
                         trusted.extend(repo.delegates()?.map(PublicKey::from));
@@ -232,7 +229,7 @@ impl<'a> StagingPhaseFinal<'a> {
         let url = url::File::new(self.repo.path().to_path_buf()).to_string();
         let mut remote = production.backend.remote_anonymous(&url)?;
         let mut updates = Vec::new();
-        log::debug!(target: "worker", "running transfer fetch");
+
         let callbacks = ref_updates(&mut updates);
         {
             let specs = verifications
@@ -259,15 +256,23 @@ impl<'a> StagingPhaseFinal<'a> {
                 })
                 .collect::<Vec<_>>();
             log::debug!(target: "worker", "Transferring staging to production {url}");
+
             let mut opts = git::raw::FetchOptions::default();
             opts.remote_callbacks(callbacks);
-            opts.prune(git::raw::FetchPrune::On);
+            // Nb. To prevent refs owned by the local node from being deleted from the stored
+            // copy if they are not on the remote side, we turn pruning off.
+            // However, globally turning off pruning isn't a ideal either, so a better solution
+            // should be devised.
+            opts.prune(git::raw::FetchPrune::Off);
+
             remote.fetch(&specs, Some(&mut opts), None)?;
         }
         let head = production.set_head()?;
         log::debug!(target: "worker", "Head for {} set to {head}", production.id);
+
         let head = production.set_identity_head()?;
         log::debug!(target: "worker", "'refs/rad/id' for {} set to {head}", production.id);
+
         Ok(updates)
     }
 
