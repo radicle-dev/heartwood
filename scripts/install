@@ -1,0 +1,120 @@
+#!/bin/sh
+#
+# Radicle isntallation script.
+#
+set -e
+
+url() {
+  echo "https://files.radicle.xyz/$1/latest/radicle-$1.tar.gz"
+}
+
+info() {
+  printf "\033[36m$*\033[0m\n"
+}
+
+success() {
+  echo
+  printf "\033[32m✓\033[0m Radicle has been installed successfully. Run \`rad auth\` to get started.\n"
+}
+
+fatal() {
+  printf "\033[31merror\033[0m: $*\n" >&2
+  exit 1
+}
+
+target() {
+  TARGET=""
+
+  case "$(uname)/$(uname -m)" in
+  Darwin/arm64)
+    TARGET="aarch64-apple-darwin" ;;
+  Darwin/x86_64)
+    TARGET="x86_64-apple-darwin" ;;
+  Linux/arm64|Linux/aarch64)
+    TARGET="aarch64-unknown-linux-musl" ;;
+  Linux/x86_64)
+    TARGET="x86_64-unknown-linux-musl" ;;
+  *)
+    fatal "Your operating system is currently unsupported. Sorry!" ;;
+  esac
+  echo $TARGET
+}
+
+tempdir() {
+  if [ -n "$TMPDIR" ]; then
+    echo "$TMPDIR"
+  elif [ -d "/tmp" ]; then
+    echo "/tmp"
+  else
+    fatal "Could not locate temporary directory"
+  fi
+}
+
+in_path() {
+  IFS=":"
+
+  for dir in $PATH; do
+    if [ "$dir" = "$1" ]; then
+      return 0 # The path is in $PATH
+    fi
+  done
+
+  return 1 # The path is not in $PATH
+}
+
+echo
+echo "Welcome to Radicle 🌞"
+echo
+
+RAD_HOME=${RAD_HOME:-"$HOME/.radicle"}
+RAD_PATH=${RAD_PATH:-"$RAD_HOME/bin"}
+SHELL=${SHELL:-"/bin/sh"}
+
+info "Detecting operating system..."
+TARGET=$(target)
+
+if ! command -v tar >/dev/null 2>&1; then
+  fatal "Please install 'tar' and try again"
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+  fatal "Please install 'curl' and try again"
+fi
+
+info "Installing radicle into '$RAD_PATH'..."
+mkdir -p "$RAD_PATH"
+curl -# -L "$(url "$TARGET")" | tar -xz --strip-components=1 -C "$RAD_PATH"
+chmod +x \
+  $RAD_PATH/radicle-node \
+  $RAD_PATH/radicle-httpd \
+  $RAD_PATH/rad \
+  $RAD_PATH/git-remote-rad
+
+# If radicle is not in $PATH, add it here.
+if ! in_path $RAD_PATH; then
+  case $SHELL in
+    */zsh)
+      PROFILE=$HOME/.zshrc ;;
+    */bash)
+      PROFILE=$HOME/.bashrc ;;
+    */fish)
+      PROFILE=$HOME/.config/fish/config.fish ;;
+    */csh)
+      PROFILE=$HOME/.cshrc ;;
+    *)
+      PROFILE=$HOME/.profile ;;
+  esac
+
+  info "Configuring PATH in '$PROFILE'..."
+  echo                                    >> "$PROFILE"
+  echo "# Radicle binaries."              >> "$PROFILE"
+  echo "export PATH=\"\$PATH:$RAD_PATH\"" >> "$PROFILE"
+
+  success
+
+  # Ensure that the current shell has the updated PATH.
+  export PATH="$PATH:$RAD_PATH"
+  exec "$SHELL"
+fi
+
+success
