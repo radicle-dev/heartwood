@@ -5,13 +5,10 @@ use anyhow::Result;
 use tui_realm_stdlib::Phantom;
 use tuirealm::application::PollStrategy;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
-use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
+use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::props::{AttrValue, Attribute};
 use tuirealm::tui::layout::{Constraint, Direction, Layout};
-use tuirealm::{
-    Application, Component, Frame, MockComponent, NoUserEvent, State, StateValue, Sub, SubClause,
-    SubEventClause,
-};
+use tuirealm::{Application, Component, Frame, MockComponent, NoUserEvent, State, StateValue};
 
 use radicle_tui::cob::patch::{self};
 
@@ -22,6 +19,8 @@ use radicle_tui::ui::components::list::PropertyList;
 use radicle_tui::ui::components::workspace::Browser;
 use radicle_tui::ui::theme;
 use radicle_tui::ui::widget::Widget;
+
+use radicle_tui::subs;
 
 use radicle_tui::Tui;
 
@@ -83,6 +82,8 @@ impl Tui<ComponentId, Message> for App {
         let issue_browser = Box::<Phantom>::default();
         let patch_browser = ui::patch_browser(&theme, &self.patches, &self.profile).to_boxed();
 
+        let global_listener = ui::global_listener().to_boxed();
+
         let shortcuts = ui::shortcuts(
             &theme,
             vec![
@@ -95,19 +96,7 @@ impl Tui<ComponentId, Message> for App {
         app.mount(
             ComponentId::Navigation,
             navigation,
-            vec![Sub::new(
-                SubEventClause::Keyboard(KeyEvent {
-                    code: Key::Tab,
-                    modifiers: KeyModifiers::NONE,
-                }),
-                SubClause::and(
-                    SubClause::IsMounted(ComponentId::Dashboard),
-                    SubClause::and(
-                        SubClause::IsMounted(ComponentId::IssueBrowser),
-                        SubClause::IsMounted(ComponentId::PatchBrowser),
-                    ),
-                ),
-            )],
+            vec![subs::navigation()],
         )?;
 
         app.mount(ComponentId::Dashboard, dashboard, vec![])?;
@@ -119,14 +108,8 @@ impl Tui<ComponentId, Message> for App {
         // Add global key listener and subscribe to key events
         app.mount(
             ComponentId::GlobalListener,
-            ui::global_listener().to_boxed(),
-            vec![Sub::new(
-                SubEventClause::Keyboard(KeyEvent {
-                    code: Key::Char('q'),
-                    modifiers: KeyModifiers::NONE,
-                }),
-                SubClause::Always,
-            )],
+            global_listener,
+            vec![subs::global()],
         )?;
 
         // We need to give focus to a component then

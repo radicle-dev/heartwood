@@ -8,6 +8,7 @@ use tuirealm::Frame;
 use tuirealm::{Application, EventListenerCfg, NoUserEvent};
 
 pub mod cob;
+pub mod subs;
 pub mod ui;
 
 /// Trait that must be implemented by client applications in order to be run
