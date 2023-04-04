@@ -17,7 +17,7 @@ use radicle_tui::ui::components::container::{GlobalListener, LabeledContainer, T
 use radicle_tui::ui::components::context::Shortcuts;
 use radicle_tui::ui::components::list::PropertyList;
 use radicle_tui::ui::components::workspace::Browser;
-use radicle_tui::ui::theme;
+use radicle_tui::ui::theme::{self, Theme};
 use radicle_tui::ui::widget::Widget;
 
 use radicle_tui::subs;
@@ -27,13 +27,6 @@ use radicle_tui::Tui;
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::identity::{Id, Project};
 use radicle::profile::Profile;
-
-/// Messages handled by this application.
-#[derive(Debug, Eq, PartialEq)]
-pub enum Message {
-    NavigationChanged(u16),
-    Quit,
-}
 
 /// All components known to this application.
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -46,13 +39,25 @@ pub enum ComponentId {
     GlobalListener,
 }
 
-#[allow(dead_code)]
-pub struct App {
+/// Messages handled by this application.
+#[derive(Debug, Eq, PartialEq)]
+pub enum Message {
+    NavigationChanged(u16),
+    Quit,
+}
+
+pub struct Context {
     profile: Profile,
     id: Id,
     project: Project,
     patches: Vec<(PatchId, Patch)>,
-    active: ComponentId,
+}
+
+#[allow(dead_code)]
+pub struct App {
+    context: Context,
+    active_page: Box<dyn ViewPage>,
+    theme: Theme,
     quit: bool,
 }
 
@@ -62,60 +67,150 @@ impl App {
     pub fn new(profile: Profile, id: Id, project: Project) -> Self {
         let patches = patch::load_all(&profile, id);
         Self {
-            id,
-            profile,
-            project,
-            patches,
-            active: ComponentId::Dashboard,
+            context: Context {
+                id,
+                profile,
+                project,
+                patches,
+            },
+            theme: theme::default_dark(),
+            active_page: Box::<Home>::default(),
             quit: false,
         }
+    }
+
+    fn mount_home(
+        &mut self,
+        app: &mut Application<ComponentId, Message, NoUserEvent>,
+        theme: &Theme,
+    ) -> Result<()> {
+        self.active_page = Box::<Home>::default();
+        self.active_page.mount(app, &self.context, theme)?;
+        self.active_page.activate(app)?;
+
+        Ok(())
     }
 }
 
 impl Tui<ComponentId, Message> for App {
     fn init(&mut self, app: &mut Application<ComponentId, Message, NoUserEvent>) -> Result<()> {
-        let theme = theme::default_dark();
+        self.mount_home(app, &self.theme.clone())?;
 
-        let navigation = ui::navigation(&theme).to_boxed();
+        // Add global key listener and subscribe to key events
+        let global = ui::global_listener().to_boxed();
+        app.mount(ComponentId::GlobalListener, global, subs::global())?;
 
-        let dashboard = ui::dashboard(&theme, &self.id, &self.project).to_boxed();
+        Ok(())
+    }
+
+    fn view(
+        &mut self,
+        app: &mut Application<ComponentId, Message, NoUserEvent>,
+        frame: &mut Frame,
+    ) {
+        self.active_page.as_mut().view(app, frame);
+    }
+
+    fn update(
+        &mut self,
+        app: &mut Application<ComponentId, Message, NoUserEvent>,
+        interval: u64,
+    ) -> Result<()> {
+        if let Ok(messages) = app.tick(PollStrategy::TryFor(Duration::from_millis(interval))) {
+            for message in messages {
+                match message {
+                    Message::Quit => self.quit = true,
+                    _ => {
+                        self.active_page.update(message);
+                        self.active_page.activate(app)?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn quit(&self) -> bool {
+        self.quit
+    }
+}
+
+/// `tuirealm`'s event and prop system is designed to work with flat component hierarchies.
+/// Building deep nested component hierarchies would need a lot more additional effort to 
+/// properly pass events and props down these hierarchies. This makes it hard to implement 
+/// full app views (home, patch details etc) as components.
+/// 
+/// View pages take into account these flat component hierarchies, and provide
+/// switchable sets of components. 
+pub trait ViewPage {
+    fn mount(
+        &self,
+        app: &mut Application<ComponentId, Message, NoUserEvent>,
+        context: &Context,
+        theme: &Theme,
+    ) -> Result<()>;
+
+    fn update(&mut self, message: Message);
+
+    fn view(&mut self, app: &mut Application<ComponentId, Message, NoUserEvent>, frame: &mut Frame);
+
+    fn activate(&self, app: &mut Application<ComponentId, Message, NoUserEvent>) -> Result<()>;
+}
+
+pub struct Home {
+    active_component: ComponentId,
+}
+
+impl Default for Home {
+    fn default() -> Self {
+        Home {
+            active_component: ComponentId::Dashboard,
+        }
+    }
+}
+
+impl ViewPage for Home {
+    fn mount(
+        &self,
+        app: &mut Application<ComponentId, Message, NoUserEvent>,
+        context: &Context,
+        theme: &Theme,
+    ) -> Result<()> {
+        let navigation = ui::navigation(theme).to_boxed();
+
+        let dashboard = ui::dashboard(theme, &context.id, &context.project).to_boxed();
         let issue_browser = Box::<Phantom>::default();
-        let patch_browser = ui::patch_browser(&theme, &self.patches, &self.profile).to_boxed();
-
-        let global_listener = ui::global_listener().to_boxed();
+        let patch_browser = ui::patch_browser(theme, &context.patches, &context.profile).to_boxed();
 
         let shortcuts = ui::shortcuts(
-            &theme,
+            theme,
             vec![
-                ui::shortcut(&theme, "tab", "section"),
-                ui::shortcut(&theme, "q", "quit"),
+                ui::shortcut(theme, "tab", "section"),
+                ui::shortcut(theme, "q", "quit"),
             ],
         )
         .to_boxed();
 
-        app.mount(
-            ComponentId::Navigation,
-            navigation,
-            vec![subs::navigation()],
-        )?;
+        app.remount(ComponentId::Navigation, navigation, subs::navigation())?;
 
-        app.mount(ComponentId::Dashboard, dashboard, vec![])?;
-        app.mount(ComponentId::IssueBrowser, issue_browser, vec![])?;
-        app.mount(ComponentId::PatchBrowser, patch_browser, vec![])?;
+        app.remount(ComponentId::Dashboard, dashboard, vec![])?;
+        app.remount(ComponentId::IssueBrowser, issue_browser, vec![])?;
+        app.remount(ComponentId::PatchBrowser, patch_browser, vec![])?;
 
-        app.mount(ComponentId::Shortcuts, shortcuts, vec![])?;
-
-        // Add global key listener and subscribe to key events
-        app.mount(
-            ComponentId::GlobalListener,
-            global_listener,
-            vec![subs::global()],
-        )?;
-
-        // We need to give focus to a component then
-        app.active(&ComponentId::Dashboard)?;
-
+        app.remount(ComponentId::Shortcuts, shortcuts, vec![])?;
         Ok(())
+    }
+
+    fn update(&mut self, message: Message) {
+        if let Message::NavigationChanged(index) = message {
+            self.active_component = match index {
+                0 => ComponentId::Dashboard,
+                1 => ComponentId::IssueBrowser,
+                2 => ComponentId::PatchBrowser,
+                _ => ComponentId::Dashboard,
+            };
+        }
     }
 
     fn view(
@@ -152,37 +247,13 @@ impl Tui<ComponentId, Message> for App {
             .split(area);
 
         app.view(&ComponentId::Navigation, frame, layout[0]);
-        app.view(&self.active, frame, layout[1]);
+        app.view(&self.active_component, frame, layout[1]);
         app.view(&ComponentId::Shortcuts, frame, layout[2]);
     }
 
-    fn update(
-        &mut self,
-        app: &mut Application<ComponentId, Message, NoUserEvent>,
-        interval: u64,
-    ) -> Result<()> {
-        if let Ok(messages) = app.tick(PollStrategy::TryFor(Duration::from_millis(interval))) {
-            for message in messages {
-                match message {
-                    Message::NavigationChanged(index) => {
-                        self.active = match index {
-                            0 => ComponentId::Dashboard,
-                            1 => ComponentId::IssueBrowser,
-                            2 => ComponentId::PatchBrowser,
-                            _ => ComponentId::Dashboard,
-                        };
-                        app.active(&self.active)?;
-                    }
-                    Message::Quit => self.quit = true,
-                }
-            }
-        }
-
+    fn activate(&self, app: &mut Application<ComponentId, Message, NoUserEvent>) -> Result<()> {
+        app.active(&self.active_component)?;
         Ok(())
-    }
-
-    fn quit(&self) -> bool {
-        self.quit
     }
 }
 

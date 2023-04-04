@@ -1,6 +1,6 @@
 use tuirealm::props::Color;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Colors {
     pub default_fg: Color,
     pub tabs_fg: Color,
@@ -20,7 +20,7 @@ pub struct Colors {
     pub browser_patch_list_timestamp: Color,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Icons {
     pub property_divider: char,
     pub shortcutbar_divider: char,
@@ -42,7 +42,7 @@ pub struct Icons {
 ///         "shortcuts.divider: "∙",
 ///     }
 /// }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Theme {
     pub name: String,
     pub colors: Colors,
