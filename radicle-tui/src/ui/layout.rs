@@ -45,3 +45,53 @@ pub fn h_stack(
 
     widgets.into_iter().zip(layout.into_iter()).collect()
 }
+
+pub fn default_page(area: Rect, nav_h: u16, shortcuts_h: u16) -> Vec<Rect> {
+    let margin_h = 1u16;
+    let content_h = area
+        .height
+        .saturating_sub(shortcuts_h.saturating_add(nav_h).saturating_add(margin_h));
+
+    Layout::default()
+        .direction(Direction::Vertical)
+        .horizontal_margin(margin_h)
+        .constraints(
+            [
+                Constraint::Length(nav_h),
+                Constraint::Length(content_h),
+                Constraint::Length(shortcuts_h),
+            ]
+            .as_ref(),
+        )
+        .split(area)
+}
+
+pub fn centered_label(label_w: u16, area: Rect) -> Rect {
+    let label_h = 1u16;
+    let spacer_w = area.width.saturating_sub(label_w).saturating_div(2);
+    let spacer_h = area.height.saturating_sub(label_h).saturating_div(2);
+
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Length(spacer_h),
+                Constraint::Length(label_h),
+                Constraint::Length(spacer_h),
+            ]
+            .as_ref(),
+        )
+        .split(area);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Length(spacer_w),
+                Constraint::Length(label_w),
+                Constraint::Length(spacer_w),
+            ]
+            .as_ref(),
+        )
+        .split(layout[1])[1]
+}

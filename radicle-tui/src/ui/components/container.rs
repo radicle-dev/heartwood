@@ -49,12 +49,13 @@ pub struct Tabs {
 
 impl Tabs {
     pub fn new(tabs: Vec<Widget<Label>>, divider: Widget<Label>) -> Self {
+        let count = &tabs.len();
         Self {
             tabs,
             divider,
             state: TabState {
                 selected: 0,
-                len: 3,
+                len: *count as u16,
             },
         }
     }

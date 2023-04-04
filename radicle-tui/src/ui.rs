@@ -20,7 +20,7 @@ use components::list::{Property, PropertyList};
 use widget::Widget;
 
 use self::components::list::{List, Table};
-use self::components::workspace::Browser;
+use self::components::workspace::{Browser, PatchActivity, PatchFiles};
 
 pub fn global_listener() -> Widget<GlobalListener> {
     Widget::new(GlobalListener::default())
@@ -148,11 +148,29 @@ pub fn patch_browser(
     Widget::new(browser)
 }
 
-pub fn navigation(theme: &theme::Theme) -> Widget<Tabs> {
+pub fn patch_activity(theme: &theme::Theme) -> Widget<PatchActivity> {
+    let not_implemented = label("not implemented").foreground(theme.colors.default_fg);
+    let activity = PatchActivity::new(not_implemented);
+
+    Widget::new(activity)
+}
+
+pub fn patch_files(theme: &theme::Theme) -> Widget<PatchFiles> {
+    let not_implemented = label("not implemented").foreground(theme.colors.default_fg);
+    let files = PatchFiles::new(not_implemented);
+
+    Widget::new(files)
+}
+
+pub fn home_navigation(theme: &theme::Theme) -> Widget<Tabs> {
     tabs(
         theme,
         vec![label("dashboard"), label("issues"), label("patches")],
     )
+}
+
+pub fn patch_navigation(theme: &theme::Theme) -> Widget<Tabs> {
+    tabs(theme, vec![label("activity"), label("files")])
 }
 
 pub fn dashboard(theme: &theme::Theme, id: &Id, project: &Project) -> Widget<LabeledContainer> {
