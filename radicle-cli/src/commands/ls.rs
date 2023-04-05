@@ -47,10 +47,28 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let mut table = term::Table::default();
 
-    storage.repositories()?.into_iter().for_each(|id| {
-        let Ok(repo) = storage.repository(id) else { return };
-        let Ok((_, head)) = repo.head() else { return };
-        let Ok(proj) = repo.project_of(profile.id()) else { return };
+    for id in storage.repositories()? {
+        let repo = match storage.repository(id) {
+            Ok(repo) => repo,
+            Err(e) => {
+                eprintln!("{}", e);
+                continue;
+            }
+        };
+        let head = match repo.head() {
+            Ok((_, head)) => head,
+            Err(e) => {
+                eprintln!("{}", e);
+                continue;
+            }
+        };
+        let proj = match repo.project_of(profile.id()) {
+            Ok(proj) => proj,
+            Err(e) => {
+                eprintln!("{}", e);
+                continue;
+            }
+        };
         let head = term::format::oid(head);
         table.push([
             term::format::bold(proj.name().to_owned()),
@@ -58,7 +76,8 @@ pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             term::format::secondary(head),
             term::format::italic(proj.description().to_owned()),
         ]);
-    });
+    }
+
     table.print();
 
     Ok(())
