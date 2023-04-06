@@ -35,7 +35,7 @@ pub enum UrlError {
 ///
 /// `rad://<repo>[/<namespace>]`
 ///
-/// Where 'repo' is the `repository`s RID and 'namespace' is the `node`s NID.
+/// Where 'repo' is the `Repository`s RID and 'namespace' is the `Node`s NID.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Url {
     /// Repository identifier.
