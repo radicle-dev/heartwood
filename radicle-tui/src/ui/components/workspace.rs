@@ -44,6 +44,36 @@ impl<T: List> WidgetComponent for Browser<T> {
     }
 }
 
+pub struct IssueBrowser {
+    label: Widget<Label>,
+}
+impl IssueBrowser {
+    pub fn new(label: Widget<Label>) -> Self {
+        Self { label }
+    }
+}
+
+impl WidgetComponent for IssueBrowser {
+    fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
+        let label_w = self
+            .label
+            .query(Attribute::Width)
+            .unwrap_or(AttrValue::Size(1))
+            .unwrap_size();
+        let rect = layout::centered_label(label_w, area);
+
+        self.label.view(frame, rect);
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
+        CmdResult::None
+    }
+}
+
 pub struct PatchActivity {
     label: Widget<Label>,
 }

@@ -16,7 +16,7 @@ use radicle_tui::ui;
 use radicle_tui::ui::components::container::{GlobalListener, LabeledContainer, Tabs};
 use radicle_tui::ui::components::context::{ContextBar, Shortcuts};
 use radicle_tui::ui::components::list::PropertyList;
-use radicle_tui::ui::components::workspace::{Browser, PatchActivity, PatchFiles};
+use radicle_tui::ui::components::workspace::{Browser, IssueBrowser, PatchActivity, PatchFiles};
 use radicle_tui::ui::layout;
 use radicle_tui::ui::theme::{self, Theme};
 use radicle_tui::ui::widget::Widget;
@@ -230,7 +230,7 @@ impl ViewPage for Home {
         let navigation = ui::home_navigation(theme).to_boxed();
 
         let dashboard = ui::dashboard(theme, &context.id, &context.project).to_boxed();
-        let issue_browser = Box::<Phantom>::default();
+        let issue_browser = ui::issue_browser(&theme).to_boxed();
         let patch_browser = ui::patch_browser(theme, &context.patches, &context.profile).to_boxed();
 
         let shortcuts = ui::shortcuts(
@@ -427,6 +427,12 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<Browser<(PatchId, Patc
             },
             _ => None,
         }
+    }
+}
+
+impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
+    fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
+        None
     }
 }
 

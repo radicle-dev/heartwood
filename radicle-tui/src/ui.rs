@@ -22,7 +22,7 @@ use widget::Widget;
 use self::cob::patch;
 use self::components::context::ContextBar;
 use self::components::list::{List, Table};
-use self::components::workspace::{Browser, PatchActivity, PatchFiles};
+use self::components::workspace::{Browser, IssueBrowser, PatchActivity, PatchFiles};
 use self::theme::Theme;
 
 pub fn global_listener() -> Widget<GlobalListener> {
@@ -119,6 +119,13 @@ pub fn table(theme: &theme::Theme, items: &[impl List], profile: &Profile) -> Wi
         .content(AttrValue::Table(items))
         .background(theme.colors.labeled_container_bg)
         .highlight(theme.colors.item_list_highlighted_bg)
+}
+
+pub fn issue_browser(theme: &theme::Theme) -> Widget<IssueBrowser> {
+    let not_implemented = label("not implemented").foreground(theme.colors.default_fg);
+    let browser = IssueBrowser::new(not_implemented);
+
+    Widget::new(browser)
 }
 
 pub fn patch_browser(
