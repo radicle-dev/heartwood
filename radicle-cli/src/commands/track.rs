@@ -16,11 +16,11 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad track <did> [--[no-]fetch] [--alias <name>] [<option>...]
+    rad track <nid> [--[no-]fetch] [--alias <name>] [<option>...]
     rad track <rid> [--[no-]fetch] [--scope <scope>] [<option>...]
 
-    The `track` command takes either a DID or an RID. Based on the argument, it will
-    either update the tracking policy of a node (DID), or a repository (RID).
+    The `track` command takes either an NID or an RID. Based on the argument, it will
+    either update the tracking policy of a node (NID), or a repository (RID).
 
     When tracking a repository, a scope can be specified: this can be either `all` or
     `trusted`. When using `all`, all remote nodes will be tracked for that repository.
@@ -107,7 +107,7 @@ impl Args for Options {
 
         Ok((
             Options {
-                op: op.ok_or_else(|| anyhow!("either a DID or an RID must be specified"))?,
+                op: op.ok_or_else(|| anyhow!("either a NID or an RID must be specified"))?,
                 fetch,
                 verbose,
             },
