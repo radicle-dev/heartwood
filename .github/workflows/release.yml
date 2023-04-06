@@ -57,9 +57,9 @@ jobs:
         run: |
           echo "$SSH_PRIVATE_KEY" >ssh-private-key
           chmod go-rwx ssh-private-key
-          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz mkdir -p "/mnt/HC_Volume_30083854/releases/${{ matrix.target }}/${{ github.sha }}"
-          scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key -r radicle-${{ matrix.target }}/* "github-actions@files.radicle.xyz:/mnt/HC_Volume_30083854/releases/${{ matrix.target }}/${{ github.sha }}/"
-          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz ln -snf "/mnt/HC_Volume_30083854/releases/${{ matrix.target }}/${{ github.sha }}" "/mnt/HC_Volume_30083854/releases/${{ matrix.target }}/latest"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz mkdir -p "/mnt/radicle/releases/${{ matrix.target }}/${{ github.sha }}"
+          scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key -r radicle-${{ matrix.target }}/* "github-actions@files.radicle.xyz:/mnt/radicle/releases/${{ matrix.target }}/${{ github.sha }}/"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz ln -snf "/mnt/radicle/releases/${{ matrix.target }}/${{ github.sha }}" "/mnt/radicle/releases/${{ matrix.target }}/latest"
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
@@ -105,8 +105,8 @@ jobs:
         run: |
           echo "$SSH_PRIVATE_KEY" >ssh-private-key
           chmod go-rwx ssh-private-key
-          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz mkdir -p "/mnt/HC_Volume_30083854/releases/${{ matrix.target }}/${{ github.sha }}"
-          scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key -r radicle-${{ matrix.target }}/* "github-actions@files.radicle.xyz:/mnt/HC_Volume_30083854/releases/${{ matrix.target }}/${{ github.sha }}/"
-          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz ln -snf "/mnt/HC_Volume_30083854/releases/${{ matrix.target }}/${{ github.sha }}" "/mnt/HC_Volume_30083854/releases/${{ matrix.target }}/latest"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz mkdir -p "/mnt/radicle/releases/${{ matrix.target }}/${{ github.sha }}"
+          scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key -r radicle-${{ matrix.target }}/* "github-actions@files.radicle.xyz:/mnt/radicle/releases/${{ matrix.target }}/${{ github.sha }}/"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz ln -snf "/mnt/radicle/releases/${{ matrix.target }}/${{ github.sha }}" "/mnt/radicle/releases/${{ matrix.target }}/latest"
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
