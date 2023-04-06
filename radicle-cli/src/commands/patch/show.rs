@@ -45,6 +45,7 @@ pub fn run(
     let Some(patch) = patches.get(patch_id)? else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
+    let state = patch.state();
 
     let mut attrs = Table::<2, Paint<String>>::new(TableOptions {
         spacing: 2,
@@ -64,7 +65,12 @@ pub fn run(
     ]);
     attrs.push([
         term::format::tertiary("Status".to_owned()),
-        term::format::default(patch.state().to_string()),
+        match state {
+            patch::State::Open => term::format::positive(state.to_string()),
+            patch::State::Draft => term::format::dim(state.to_string()),
+            patch::State::Archived => term::format::yellow(state.to_string()),
+            patch::State::Merged => term::format::primary(state.to_string()),
+        },
     ]);
 
     let description = patch.description().trim();
