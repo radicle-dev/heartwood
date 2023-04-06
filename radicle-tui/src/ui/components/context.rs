@@ -102,3 +102,73 @@ impl WidgetComponent for Shortcuts {
         CmdResult::None
     }
 }
+
+pub struct ContextBar {
+    context: Widget<Label>,
+    id: Widget<Label>,
+    author: Widget<Label>,
+    title: Widget<Label>,
+    comments: Widget<Label>,
+}
+
+impl ContextBar {
+    pub fn new(
+        context: Widget<Label>,
+        id: Widget<Label>,
+        author: Widget<Label>,
+        title: Widget<Label>,
+        comments: Widget<Label>,
+    ) -> Self {
+        Self {
+            context,
+            id,
+            author,
+            title,
+            comments,
+        }
+    }
+}
+
+impl WidgetComponent for ContextBar {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+
+        let context_w = self.context.query(Attribute::Width).unwrap().unwrap_size();
+        let id_w = self.id.query(Attribute::Width).unwrap().unwrap_size();
+        let author_w = self.author.query(Attribute::Width).unwrap().unwrap_size();
+        let count_w = self.comments.query(Attribute::Width).unwrap().unwrap_size();
+
+        if display {
+            let layout = layout::h_stack(
+                vec![
+                    self.context.clone().to_boxed(),
+                    self.id.clone().to_boxed(),
+                    self.title
+                        .clone()
+                        .width(
+                            area.width
+                                .saturating_sub(context_w + id_w + author_w + count_w),
+                        )
+                        .to_boxed(),
+                    self.author.clone().to_boxed(),
+                    self.comments.clone().to_boxed(),
+                ],
+                area,
+            );
+
+            for (mut component, area) in layout {
+                component.view(frame, area);
+            }
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
+        CmdResult::None
+    }
+}

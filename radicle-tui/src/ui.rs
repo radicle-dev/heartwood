@@ -7,7 +7,7 @@ pub mod widget;
 
 use radicle::prelude::{Id, Project};
 use radicle::Profile;
-use tuirealm::props::{AttrValue, Attribute, PropPayload, PropValue, TextSpan};
+use tuirealm::props::{AttrValue, Attribute, Color, PropPayload, PropValue, TextSpan};
 use tuirealm::MockComponent;
 
 use radicle::cob::patch::{Patch, PatchId};
@@ -19,8 +19,11 @@ use components::list::{Property, PropertyList};
 
 use widget::Widget;
 
+use self::cob::patch;
+use self::components::context::ContextBar;
 use self::components::list::{List, Table};
 use self::components::workspace::{Browser, PatchActivity, PatchFiles};
+use self::theme::Theme;
 
 pub fn global_listener() -> Widget<GlobalListener> {
     Widget::new(GlobalListener::default())
@@ -160,6 +163,35 @@ pub fn patch_files(theme: &theme::Theme) -> Widget<PatchFiles> {
     let files = PatchFiles::new(not_implemented);
 
     Widget::new(files)
+}
+
+pub fn patch_context(
+    _theme: &Theme,
+    patch: (PatchId, &Patch),
+    profile: &Profile,
+) -> Widget<ContextBar> {
+    let (id, patch) = patch;
+    let id = patch::format_id(id);
+    let title = patch.title();
+    let author = patch::format_author(patch, profile);
+    let comments = patch::format_comments(patch);
+
+    let context = label(" patch ").background(Color::Rgb(238, 111, 248));
+    let id = label(&format!(" {} ", id))
+        .foreground(Color::Rgb(117, 113, 249))
+        .background(Color::Rgb(40, 40, 40));
+    let title = label(&format!(" {} ", title))
+        .foreground(Color::Rgb(70, 70, 70))
+        .background(Color::Rgb(40, 40, 40));
+    let author = label(&format!(" {} ", author))
+        .foreground(Color::Rgb(117, 113, 249))
+        .background(Color::Rgb(40, 40, 40));
+    let comments = label(&format!(" {} ", comments))
+        .foreground(Color::Rgb(70, 70, 70))
+        .background(Color::Rgb(50, 50, 50));
+
+    let context_bar = ContextBar::new(context, id, author, title, comments);
+    Widget::new(context_bar)
 }
 
 pub fn home_navigation(theme: &theme::Theme) -> Widget<Tabs> {

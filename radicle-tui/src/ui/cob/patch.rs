@@ -10,15 +10,19 @@ use tuirealm::props::{Color, TextSpan};
 use crate::ui::components::list::List;
 use crate::ui::theme::Theme;
 
-fn format_status(_patch: &Patch) -> String {
+pub fn format_status(_patch: &Patch) -> String {
     String::from(" ⏺ ")
 }
 
-fn format_title(patch: &Patch) -> String {
+pub fn format_id(id: PatchId) -> String {
+    id.to_string()[0..10].to_string()
+}
+
+pub fn format_title(patch: &Patch) -> String {
     patch.title().to_string()
 }
 
-fn format_author(patch: &Patch, profile: &Profile) -> String {
+pub fn format_author(patch: &Patch, profile: &Profile) -> String {
     let author_did = patch.author().id();
     let start = &author_did.to_human()[0..4];
     let end = &author_did.to_human()[43..47];
@@ -30,11 +34,11 @@ fn format_author(patch: &Patch, profile: &Profile) -> String {
     }
 }
 
-fn format_tags(patch: &Patch) -> String {
+pub fn format_tags(patch: &Patch) -> String {
     format!("{:?}", patch.tags().collect::<Vec<_>>())
 }
 
-fn format_timestamp(patch: &Patch) -> String {
+pub fn format_timestamp(patch: &Patch) -> String {
     let fmt = timeago::Formatter::new();
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -44,9 +48,11 @@ fn format_timestamp(patch: &Patch) -> String {
     fmt.convert(Duration::from_secs(now - patch.timestamp().as_secs()))
 }
 
-fn format_comments(patch: &Patch) -> String {
-    let (_, revision) = patch.latest().unwrap();
-    let count = revision.discussion().len();
+pub fn format_comments(patch: &Patch) -> String {
+    let count = match patch.latest() {
+        Some((_, rev)) => rev.discussion().len(),
+        None => 0,
+    };
     format!("{}", count)
 }
 

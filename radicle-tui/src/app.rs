@@ -14,7 +14,7 @@ use radicle_tui::cob::patch::{self};
 use radicle_tui::subs;
 use radicle_tui::ui;
 use radicle_tui::ui::components::container::{GlobalListener, LabeledContainer, Tabs};
-use radicle_tui::ui::components::context::Shortcuts;
+use radicle_tui::ui::components::context::{ContextBar, Shortcuts};
 use radicle_tui::ui::components::list::PropertyList;
 use radicle_tui::ui::components::workspace::{Browser, PatchActivity, PatchFiles};
 use radicle_tui::ui::layout;
@@ -40,6 +40,7 @@ pub enum PatchCid {
     Navigation,
     Activity,
     Files,
+    Context,
 }
 
 /// All component ids known to this application.
@@ -248,16 +249,8 @@ impl ViewPage for Home {
         )?;
 
         app.remount(Cid::Home(HomeCid::Dashboard), dashboard, vec![])?;
-        app.remount(
-            Cid::Home(HomeCid::IssueBrowser),
-            issue_browser,
-            vec![],
-        )?;
-        app.remount(
-            Cid::Home(HomeCid::PatchBrowser),
-            patch_browser,
-            vec![],
-        )?;
+        app.remount(Cid::Home(HomeCid::IssueBrowser), issue_browser, vec![])?;
+        app.remount(Cid::Home(HomeCid::PatchBrowser), patch_browser, vec![])?;
 
         app.remount(Cid::Shortcuts, shortcuts, vec![])?;
         Ok(())
@@ -285,11 +278,7 @@ impl ViewPage for Home {
             .unwrap_size();
         let layout = layout::default_page(area, navigation_h, shortcuts_h);
 
-        app.view(
-            &Cid::Home(HomeCid::Navigation),
-            frame,
-            layout[0],
-        );
+        app.view(&Cid::Home(HomeCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
         app.view(&Cid::Shortcuts, frame, layout[2]);
     }
@@ -322,10 +311,11 @@ impl ViewPage for PatchView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        if let Some((_, _)) = context.patches.get(context.selected_patch) {
+        if let Some((id, patch)) = context.patches.get(context.selected_patch) {
             let navigation = ui::patch_navigation(theme).to_boxed();
             let activity = ui::patch_activity(theme).to_boxed();
             let files = ui::patch_files(theme).to_boxed();
+            let context = ui::patch_context(theme, (*id, patch), &context.profile).to_boxed();
             let shortcuts = ui::shortcuts(
                 theme,
                 vec![
@@ -343,6 +333,7 @@ impl ViewPage for PatchView {
             )?;
             app.remount(Cid::Patch(PatchCid::Activity), activity, vec![])?;
             app.remount(Cid::Patch(PatchCid::Files), files, vec![])?;
+            app.remount(Cid::Patch(PatchCid::Context), context, vec![])?;
             app.remount(Cid::Shortcuts, shortcuts, vec![])?;
         }
         Ok(())
@@ -361,21 +352,19 @@ impl ViewPage for PatchView {
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
         let navigation_h = 2u16;
+        let context_h = 1u16;
         let shortcuts_h = app
             .query(&Cid::Shortcuts, Attribute::Height)
             .ok()
             .flatten()
             .unwrap_or(AttrValue::Size(0))
             .unwrap_size();
-        let layout = layout::default_page(area, navigation_h, shortcuts_h);
+        let layout = layout::page_with_context(area, navigation_h, context_h, shortcuts_h);
 
-        app.view(
-            &Cid::Patch(PatchCid::Navigation),
-            frame,
-            layout[0],
-        );
+        app.view(&Cid::Patch(PatchCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
-        app.view(&Cid::Shortcuts, frame, layout[2]);
+        app.view(&Cid::Patch(PatchCid::Context), frame, layout[2]);
+        app.view(&Cid::Shortcuts, frame, layout[3]);
     }
 
     fn activate(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
@@ -470,6 +459,12 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<LabeledContainer> {
 }
 
 impl tuirealm::Component<Message, NoUserEvent> for Widget<PropertyList> {
+    fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
+        None
+    }
+}
+
+impl tuirealm::Component<Message, NoUserEvent> for Widget<ContextBar> {
     fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
         None
     }
