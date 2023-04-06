@@ -108,7 +108,7 @@ $ rad patch checkout 191a14e52
 We can also add a review verdict as such:
 
 ```
-$ rad review 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --accept --no-confirm --no-message --no-sync
+$ rad review 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --accept --no-message --no-sync
 ✓ Patch 191a14e accepted
 ```
 

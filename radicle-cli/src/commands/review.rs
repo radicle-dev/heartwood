@@ -29,8 +29,6 @@ Options
     -r, --revision <number>   Revision number to review, defaults to the latest
         --[no-]sync           Sync review to seed (default: sync)
     -m, --message [<string>]  Provide a comment with the review (default: prompt)
-        --no-confirm          Don't ask for confirmation
-        --no-message          Don't provide a comment with the review
         --help                Print help
 "#,
 };
@@ -52,7 +50,6 @@ pub struct Options {
     pub message: Message,
     pub sync: bool,
     pub verbose: bool,
-    pub confirm: bool,
     pub verdict: Option<Verdict>,
 }
 
@@ -66,7 +63,6 @@ impl Args for Options {
         let mut message = Message::default();
         let mut sync = true;
         let mut verbose = false;
-        let mut confirm = true;
         let mut verdict = None;
 
         while let Some(arg) = parser.next()? {
@@ -94,9 +90,6 @@ impl Args for Options {
                         message.append(&txt);
                     }
                 }
-                Long("no-confirm") => {
-                    confirm = false;
-                }
                 Long("no-message") => {
                     message = Message::Blank;
                 }
@@ -121,7 +114,6 @@ impl Args for Options {
                 id: id.ok_or_else(|| anyhow!("a patch to review must be provided"))?,
                 message,
                 sync,
-                confirm,
                 revision,
                 verbose,
                 verdict,
@@ -153,31 +145,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .nth(revision_ix)
         .ok_or_else(|| anyhow!("revision R{} does not exist", revision_ix))?;
     let message = options.message.get(REVIEW_HELP_MSG);
-
-    let verdict_pretty = match options.verdict {
-        Some(Verdict::Accept) => term::format::highlight("Accept"),
-        Some(Verdict::Reject) => term::format::negative("Reject"),
-        None => term::format::dim("Review"),
+    let message = message.replace(REVIEW_HELP_MSG.trim(), "");
+    let message = if message.is_empty() {
+        None
+    } else {
+        Some(message)
     };
-    if options.confirm
-        && !term::confirm(format!(
-            "{} {} {} by {}?",
-            verdict_pretty,
-            patch_id_pretty,
-            term::format::dim(format!("R{revision_ix}")),
-            term::format::tertiary(patch.author().id())
-        ))
-    {
-        anyhow::bail!("Patch review aborted");
-    }
 
-    patch.review(
-        *revision_id,
-        options.verdict,
-        Some(message),
-        vec![],
-        &signer,
-    )?;
+    patch.review(*revision_id, options.verdict, message, vec![], &signer)?;
 
     match options.verdict {
         Some(Verdict::Accept) => {
