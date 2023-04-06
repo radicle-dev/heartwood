@@ -33,9 +33,9 @@ pub enum UrlError {
 /// * Used to content-address a repository, eg. when sharing projects.
 /// * Used as a remore url in a git working copy.
 ///
-/// `rad://<repo>[/<namespace>]`
+/// `rad://<resource>[/<pubkey>]`
 ///
-/// Where 'repo' is the `Repository`s RID and 'namespace' is the `Node`s NID.
+/// Where 'resource' is the `Repository`s RID and 'pubkey' is the Node (or Peer) ID.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Url {
     /// Repository identifier.
