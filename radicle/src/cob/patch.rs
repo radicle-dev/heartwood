@@ -955,6 +955,11 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
     }
 
+    /// Archive a patch.
+    pub fn archive<G: Signer>(&mut self, signer: &G) -> Result<EntryId, Error> {
+        self.lifecycle(State::Archived, signer)
+    }
+
     /// Tag a patch.
     pub fn tag<G: Signer>(
         &mut self,

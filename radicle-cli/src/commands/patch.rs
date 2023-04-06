@@ -1,3 +1,5 @@
+#[path = "patch/archive.rs"]
+mod archive;
 #[path = "patch/checkout.rs"]
 mod checkout;
 #[path = "patch/common.rs"]
@@ -38,6 +40,7 @@ Usage
     rad patch list [--all|--merged|--open|--archived] [<option>...]
     rad patch show <patch-id> [<option>...]
     rad patch open [<option>...]
+    rad patch archive <patch-id> [<option>...]
     rad patch update <patch-id> [<option>...]
     rad patch checkout <patch-id> [<option>...]
     rad patch delete <patch-id> [<option>...]
@@ -67,6 +70,7 @@ pub enum OperationName {
     Open,
     Show,
     Update,
+    Archive,
     Delete,
     Checkout,
     #[default]
@@ -84,6 +88,9 @@ pub enum Operation {
     Update {
         patch_id: Option<Rev>,
         message: Message,
+    },
+    Archive {
+        patch_id: Rev,
     },
     Delete {
         patch_id: Rev,
@@ -180,6 +187,7 @@ impl Args for Options {
                     "u" | "update" => op = Some(OperationName::Update),
                     "d" | "delete" => op = Some(OperationName::Delete),
                     "c" | "checkout" => op = Some(OperationName::Checkout),
+                    "a" | "archive" => op = Some(OperationName::Archive),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val)
@@ -202,6 +210,9 @@ impl Args for Options {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
             },
             OperationName::Update => Operation::Update { patch_id, message },
+            OperationName::Archive => Operation::Archive {
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
+            },
             OperationName::Checkout => Operation::Checkout {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
             },
@@ -258,6 +269,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 message.clone(),
                 &options,
             )?;
+        }
+        Operation::Archive { ref patch_id } => {
+            let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
+            archive::run(&repository, &profile, &patch_id)?;
         }
         Operation::Delete { patch_id } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
