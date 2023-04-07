@@ -341,12 +341,6 @@ pub enum Message {
         /// The pong payload.
         zeroes: ZeroBytes,
     },
-
-    /// Request a session upgrade to the Git protocol and fetch the given repository.
-    Fetch { rid: Id },
-
-    /// Accept a fetch request.
-    FetchOk { rid: Id },
 }
 
 impl PartialOrd for Message {
@@ -442,8 +436,6 @@ impl fmt::Debug for Message {
             }
             Self::Ping(Ping { ponglen, zeroes }) => write!(f, "Ping({ponglen}, {zeroes:?})"),
             Self::Pong { zeroes } => write!(f, "Pong({zeroes:?})"),
-            Self::Fetch { rid } => write!(f, "Fetch({rid})"),
-            Self::FetchOk { rid } => write!(f, "FetchOk({rid})"),
         }
     }
 }

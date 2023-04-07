@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
-use std::{fmt, io, net, str};
+use std::{io, net};
 
 use amplify::Wrapper as _;
 use crossbeam_channel as chan;
@@ -18,7 +18,7 @@ use cyphernet::{Digest, EcSk, Ecdh, Sha256};
 use localtime::LocalTime;
 use netservices::resource::{ListenerEvent, NetAccept, NetTransport, SessionEvent};
 use netservices::session::{ProtocolArtifact, Socks5Session};
-use netservices::{NetConnection, NetProtocol, NetReader, NetSession, NetWriter};
+use netservices::{NetConnection, NetProtocol, NetReader, NetWriter};
 use reactor::Timestamp;
 
 use radicle::collections::HashMap;
@@ -27,11 +27,12 @@ use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
 use crate::prelude::Deserializer;
-use crate::service::reactor::{Fetch, Io};
-use crate::service::{session, DisconnectReason, Message, Service};
-use crate::wire::{Encode, Error};
-use crate::worker;
-use crate::worker::{Task, TaskResult};
+use crate::service::reactor::Io;
+use crate::service::{session, DisconnectReason, Service};
+use crate::wire::frame;
+use crate::wire::frame::{Frame, FrameData, StreamId};
+use crate::wire::Encode;
+use crate::worker::{ChannelEvent, Fetch, Task, TaskResult};
 use crate::Link;
 use crate::{address, service};
 
@@ -41,22 +42,16 @@ pub const NOISE_XK: HandshakePattern = HandshakePattern {
     responder: cyphernet::encrypt::noise::OneWayPattern::Known,
 };
 
-#[allow(clippy::large_enum_variant)]
 /// Control message used internally between workers, users, and the service.
-pub enum Control<G: Signer + Ecdh> {
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
+pub enum Control {
     /// Message from the user to the service.
     User(service::Command),
     /// Message from a worker to the service.
-    Worker(TaskResult<G>),
-}
-
-impl<G: Signer + Ecdh> fmt::Debug for Control<G> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::User(cmd) => cmd.fmt(f),
-            Self::Worker(resp) => resp.result.fmt(f),
-        }
-    }
+    Worker(TaskResult),
+    /// Flush data in the given stream to the remote.
+    Flush { remote: NodeId, stream: StreamId },
 }
 
 /// Peer session type.
@@ -69,6 +64,81 @@ pub type WireWriter<G> = NetWriter<NoiseState<G, Sha256>, Socks5Session<net::Tcp
 /// Reactor action.
 type Action<G> = reactor::Action<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>;
 
+/// Worker channels used to send Git frames back and forth.
+struct WorkerChannels {
+    /// Send data to the git worker.
+    sender: chan::Sender<ChannelEvent>,
+    /// Receive data from the git worker.
+    receiver: chan::Receiver<ChannelEvent>,
+}
+
+/// Streams associated with a connected peer.
+struct Streams {
+    /// Active streams and their associated worker channels.
+    /// Note that the gossip and control streams are not included here as they are always
+    /// implied to exist.
+    streams: HashMap<StreamId, WorkerChannels>,
+    /// Connection direction.
+    link: Link,
+    /// Sequence number used to compute the next stream id.
+    seq: u64,
+}
+
+impl Streams {
+    /// Create a new [`Streams`] object, passing the connection link.
+    fn new(link: Link) -> Self {
+        Self {
+            streams: HashMap::default(),
+            link,
+            seq: 0,
+        }
+    }
+
+    /// Get a known stream.
+    fn get(&self, stream: &StreamId) -> Option<&WorkerChannels> {
+        self.streams.get(stream)
+    }
+
+    /// Open a new stream.
+    fn open(&mut self) -> (StreamId, WorkerChannels) {
+        self.seq += 1;
+
+        let id = StreamId::git(self.link)
+            .nth(self.seq)
+            .expect("Streams::open: too many streams");
+        let channels = self
+            .register(id)
+            .expect("Streams::open: stream was already open");
+
+        (id, channels)
+    }
+
+    /// Register an open stream.
+    fn register(&mut self, stream: StreamId) -> Option<WorkerChannels> {
+        let (wire_send, wire_recv) = chan::unbounded::<ChannelEvent>();
+        let (work_send, work_recv) = chan::unbounded::<ChannelEvent>();
+
+        match self.streams.entry(stream) {
+            Entry::Vacant(e) => {
+                e.insert(WorkerChannels {
+                    sender: wire_send,
+                    receiver: work_recv,
+                });
+                Some(WorkerChannels {
+                    sender: work_send,
+                    receiver: wire_recv,
+                })
+            }
+            Entry::Occupied(_) => None,
+        }
+    }
+
+    /// Unregister an open stream.
+    fn unregister(&mut self, stream: &StreamId) -> Option<WorkerChannels> {
+        self.streams.remove(stream)
+    }
+}
+
 /// Peer connection state machine.
 enum Peer {
     /// The initial state of an inbound peer before handshake is completed.
@@ -79,8 +149,9 @@ enum Peer {
     /// Peers in this state are handled by the underlying service.
     Connected {
         link: Link,
-        id: NodeId,
-        inbox: Deserializer<Message>,
+        nid: NodeId,
+        inbox: Deserializer<Frame>,
+        streams: Streams,
     },
     /// The peer was scheduled for disconnection. Once the transport is handed over
     /// by the reactor, we can consider it disconnected.
@@ -88,16 +159,6 @@ enum Peer {
         id: Option<NodeId>,
         reason: DisconnectReason,
     },
-    /// The state after we've started the process of upgraded the peer for a fetch.
-    /// The request to handover the socket was made to the reactor.
-    Upgrading {
-        fetch: Fetch,
-        link: Link,
-        id: NodeId,
-        inbox: Vec<u8>,
-    },
-    /// The peer is now upgraded and we are in control of the socket.
-    Upgraded { link: Link, id: NodeId },
 }
 
 impl std::fmt::Debug for Peer {
@@ -105,16 +166,8 @@ impl std::fmt::Debug for Peer {
         match self {
             Self::Inbound {} => write!(f, "Inbound"),
             Self::Outbound { id } => write!(f, "Outbound({id})"),
-            Self::Connected { link, id, .. } => write!(f, "Connected({link:?}, {id})"),
+            Self::Connected { link, nid, .. } => write!(f, "Connected({link:?}, {nid})"),
             Self::Disconnecting { .. } => write!(f, "Disconnecting"),
-            Self::Upgrading {
-                fetch, link, id, ..
-            } => write!(
-                f,
-                "Upgrading(initiated={}, {link:?}, {id})",
-                fetch.is_initiator(),
-            ),
-            Self::Upgraded { link, id, .. } => write!(f, "Upgraded({link:?}, {id})"),
         }
     }
 }
@@ -124,11 +177,8 @@ impl Peer {
     fn id(&self) -> Option<&NodeId> {
         match self {
             Peer::Outbound { id }
-            | Peer::Connected { id, .. }
-            | Peer::Disconnecting { id: Some(id), .. }
-            | Peer::Upgrading { id, .. }
-            | Peer::Upgraded { id, .. } => Some(id),
-
+            | Peer::Connected { nid: id, .. }
+            | Peer::Disconnecting { id: Some(id), .. } => Some(id),
             Peer::Inbound {} => None,
             Peer::Disconnecting { id: None, .. } => None,
         }
@@ -151,8 +201,9 @@ impl Peer {
 
             *self = Self::Connected {
                 link,
-                id,
+                nid: id,
                 inbox: Deserializer::default(),
+                streams: Streams::new(link),
             };
             link
         } else if let Self::Outbound { id: expected } = self {
@@ -161,8 +212,9 @@ impl Peer {
 
             *self = Self::Connected {
                 link,
-                id,
+                nid: id,
                 inbox: Deserializer::default(),
+                streams: Streams::new(link),
             };
             link
         } else {
@@ -172,7 +224,7 @@ impl Peer {
 
     /// Switch to disconnecting state.
     fn disconnecting(&mut self, reason: DisconnectReason) {
-        if let Self::Connected { id, .. } = self {
+        if let Self::Connected { nid: id, .. } = self {
             *self = Self::Disconnecting {
                 id: Some(*id),
                 reason,
@@ -188,57 +240,6 @@ impl Peer {
             panic!("Peer::disconnected: session is not connected ({self:?})");
         }
     }
-
-    /// Switch to upgrading state.
-    fn upgrading(&mut self, fetch: Fetch) {
-        if let Self::Connected { id, link, inbox } = self {
-            *self = Self::Upgrading {
-                fetch,
-                id: *id,
-                link: *link,
-                inbox: inbox.unparsed().collect(),
-            };
-        } else {
-            panic!("Peer::upgrading: session is not fully connected");
-        }
-    }
-
-    /// Switch to upgraded state. Returns the unread bytes from the peer.
-    #[must_use]
-    fn upgraded(&mut self) -> (Fetch, Vec<u8>) {
-        if let Self::Upgrading {
-            fetch,
-            id,
-            link,
-            inbox,
-        } = self
-        {
-            let fetch = fetch.clone();
-            let inbox = inbox.drain(..).collect();
-            log::debug!(target: "wire", "Peer {id} upgraded for fetch {}", fetch.rid);
-
-            *self = Self::Upgraded {
-                id: *id,
-                link: *link,
-            };
-            (fetch, inbox)
-        } else {
-            panic!("Peer::upgraded: can't upgrade before handover");
-        }
-    }
-
-    /// Switch back from upgraded to connected state.
-    fn downgrade(&mut self) {
-        if let Self::Upgraded { id, link, .. } = self {
-            *self = Self::Connected {
-                id: *id,
-                link: *link,
-                inbox: Deserializer::default(),
-            };
-        } else {
-            panic!("Peer::downgrade: can't downgrade if not in upgraded state");
-        }
-    }
 }
 
 /// Wire protocol implementation for a set of peers.
@@ -246,7 +247,7 @@ pub struct Wire<R, S, W, G: Signer + Ecdh> {
     /// Backing service instance.
     service: Service<R, S, W, G>,
     /// Worker pool interface.
-    worker: chan::Sender<Task<G>>,
+    worker: chan::Sender<Task>,
     /// Used for authentication.
     signer: G,
     /// Internal queue of actions to send to the reactor.
@@ -266,7 +267,7 @@ where
 {
     pub fn new(
         mut service: Service<R, S, W, G>,
-        worker: chan::Sender<Task<G>>,
+        worker: chan::Sender<Task>,
         signer: G,
         proxy: net::SocketAddr,
         clock: LocalTime,
@@ -289,16 +290,17 @@ where
         self.actions.push_back(Action::RegisterListener(socket));
     }
 
-    fn peer_mut_by_fd(&mut self, fd: RawFd) -> &mut Peer {
-        self.peers.get_mut(&fd).unwrap_or_else(|| {
-            log::error!(target: "wire", "Peer with fd {fd} was not found");
-            panic!("Peer with fd {fd} is not known");
-        })
-    }
-
     fn fd_by_id(&self, node_id: &NodeId) -> (RawFd, &Peer) {
         self.peers
             .iter()
+            .find(|(_, peer)| peer.id() == Some(node_id))
+            .map(|(fd, peer)| (*fd, peer))
+            .unwrap_or_else(|| panic!("Peer {node_id} was expected to be known to the transport"))
+    }
+
+    fn fd_by_id_mut(&mut self, node_id: &NodeId) -> (RawFd, &mut Peer) {
+        self.peers
+            .iter_mut()
             .find(|(_, peer)| peer.id() == Some(node_id))
             .map(|(fd, peer)| (*fd, peer))
             .unwrap_or_else(|| panic!("Peer {node_id} was expected to be known to the transport"))
@@ -319,16 +321,14 @@ where
         self.peers.iter().filter_map(|(fd, peer)| match peer {
             Peer::Inbound {} => None,
             Peer::Outbound { id } => Some((*fd, id)),
-            Peer::Connected { id, .. } => Some((*fd, id)),
-            Peer::Upgrading { id, .. } => Some((*fd, id)),
-            Peer::Upgraded { id, .. } => Some((*fd, id)),
+            Peer::Connected { nid: id, .. } => Some((*fd, id)),
             Peer::Disconnecting { .. } => None,
         })
     }
 
     fn connected(&self) -> impl Iterator<Item = (RawFd, &NodeId)> {
         self.peers.iter().filter_map(|(fd, peer)| {
-            if let Peer::Connected { id, .. } = peer {
+            if let Peer::Connected { nid: id, .. } = peer {
                 Some((*fd, id))
             } else {
                 None
@@ -353,65 +353,74 @@ where
         }
     }
 
-    fn upgrade(&mut self, fd: RawFd, fetch: Fetch) {
-        let peer = self.peer_mut_by_fd(fd);
-        if let Peer::Disconnecting { .. } = peer {
-            log::error!(target: "wire", "Peer (fd={fd}) is disconnecting");
+    fn worker_result(&mut self, task: TaskResult) {
+        log::debug!(target: "wire", "Received fetch result from worker: {:?}", task.result);
+
+        let nid = task.fetch.remote();
+        let Some((fd, peer)) = self
+            .peers
+            .iter_mut()
+            .find(|(_, peer)| peer.id() == Some(&nid))
+            .map(|(fd, peer)| (*fd, peer)) else {
+                log::warn!(target: "wire", "Peer {nid} not found; ignoring fetch result");
+                return;
+            };
+
+        let Peer::Connected { nid, link, streams, .. } = peer else {
+            log::warn!(target: "wire", "Peer {nid} is not connected; ignoring fetch result");
             return;
         };
-        log::debug!(target: "wire", "Requesting transport handover from reactor for peer (fd={fd})");
-        peer.upgrading(fetch);
+        let remote = *nid;
 
-        self.actions.push_back(Action::UnregisterTransport(fd));
-    }
+        // Only call into the service if we initiated this fetch.
+        if let Some((rid, namespaces)) = task.fetch.initiated() {
+            self.service.fetched(rid, namespaces, remote, task.result);
+        }
 
-    fn upgraded(&mut self, transport: NetTransport<WireSession<G>>) {
-        let fd = transport.as_raw_fd();
-        let peer = self.peer_mut_by_fd(fd);
-        let (fetch, drain) = peer.upgraded();
-        let session = match transport.into_session() {
-            Ok(session) => session,
-            Err(_) => panic!("Wire::upgraded: peer write buffer not empty on upgrade"),
-        };
-
-        if self
-            .worker
-            .send(Task {
-                fetch,
-                session,
-                drain,
-            })
-            .is_err()
-        {
-            log::error!(target: "wire", "Worker pool is disconnected; cannot send fetch request");
+        // Nb. It's possible that the stream would already be unregistered if we received an early
+        // "close" from the remote. Otherwise, we unregister it here and send the "close" ourselves.
+        if streams.unregister(&task.stream).is_some() {
+            let frame = Frame::control(
+                *link,
+                frame::Control::Close {
+                    stream: task.stream,
+                },
+            );
+            self.actions.push_back(Action::Send(fd, frame.to_bytes()));
         }
     }
 
-    fn worker_result(&mut self, task: TaskResult<G>) {
-        log::debug!(target: "wire", "Fetch completed: {:?}", task.result);
+    fn flush(&mut self, remote: NodeId, stream: StreamId) {
+        let (fd, peer) = self
+            .peers
+            .iter()
+            .find(|(_, peer)| peer.id() == Some(&remote))
+            .map(|(fd, peer)| (*fd, peer))
+            .unwrap_or_else(|| panic!("Peer {remote} was expected to be known to the transport"));
 
-        let session = task.session;
-        let fd = session.as_connection().as_raw_fd();
-        let peer = self.peer_mut_by_fd(fd);
-
-        let session = if let Peer::Disconnecting { .. } = peer {
-            log::error!(target: "wire", "Peer with fd {fd} is disconnecting");
+        let Peer::Connected { streams, link, .. } = peer else {
+            log::warn!(target: "wire", "Peer {remote} is not connected; ignoring flush");
             return;
-        } else if let Peer::Upgraded { link, .. } = peer {
-            match NetTransport::with_session(session, *link) {
-                Ok(session) => session,
-                Err(err) => {
-                    log::error!(target: "wire", "Session downgrade failed: {err}");
-                    return;
-                }
-            }
-        } else {
-            todo!();
         };
-        peer.downgrade();
+        let Some(c) = streams.get(&stream) else {
+            log::debug!(target: "wire", "Stream {stream} cannot be found; ignoring flush");
+            return;
+        };
 
-        self.actions.push_back(Action::RegisterTransport(session));
-        self.service.fetched(task.fetch, task.result);
+        #[cfg(test)]
+        if c.receiver.is_empty() {
+            panic!("Wire:flush: redundant flush");
+        }
+
+        for data in c.receiver.try_iter() {
+            let frame = match data {
+                ChannelEvent::Data(data) => Frame::git(stream, data),
+                ChannelEvent::Close => Frame::control(*link, frame::Control::Close { stream }),
+                ChannelEvent::Eof => Frame::control(*link, frame::Control::Eof { stream }),
+            };
+            self.actions
+                .push_back(reactor::Action::Send(fd, frame.to_bytes()));
+        }
     }
 }
 
@@ -424,7 +433,7 @@ where
 {
     type Listener = NetAccept<WireSession<G>>;
     type Transport = NetTransport<WireSession<G>>;
-    type Command = Control<G>;
+    type Command = Control;
 
     fn tick(&mut self, time: Timestamp) {
         self.service
@@ -508,57 +517,98 @@ where
                 self.service.connected(id, link);
             }
             SessionEvent::Data(data) => {
-                if let Some(Peer::Connected { id, inbox, .. }) = self.peers.get_mut(&fd) {
+                if let Some(Peer::Connected {
+                    nid,
+                    inbox,
+                    streams,
+                    ..
+                }) = self.peers.get_mut(&fd)
+                {
                     inbox.input(&data);
 
                     loop {
                         match inbox.deserialize_next() {
-                            Ok(Some(msg)) => self.service.received_message(*id, msg),
+                            Ok(Some(Frame {
+                                data: FrameData::Control(frame::Control::Open { stream }),
+                                ..
+                            })) => {
+                                log::debug!(target: "wire", "Received stream open for id={stream}");
+
+                                let Some(WorkerChannels {
+                                    sender: work_send,
+                                    receiver: wire_recv,
+                                }) = streams.register(stream) else {
+                                    log::warn!(target: "wire", "Peer attempted to open already-open stream id={stream}");
+                                    continue;
+                                };
+
+                                let task = Task {
+                                    fetch: Fetch::Responder { remote: *nid },
+                                    stream,
+                                    send: work_send,
+                                    recv: wire_recv,
+                                };
+                                if self.worker.send(task).is_err() {
+                                    log::error!(target: "wire", "Worker pool is disconnected; cannot send task");
+                                }
+                            }
+                            Ok(Some(Frame {
+                                data: FrameData::Control(frame::Control::Eof { stream }),
+                                ..
+                            })) => {
+                                if let Some(channels) = streams.get(&stream) {
+                                    if channels.sender.send(ChannelEvent::Eof).is_err() {
+                                        log::error!(target: "wire", "Worker is disconnected; cannot send `EOF`");
+                                    }
+                                } else {
+                                    log::debug!(target: "wire", "Ignoring frame on closed or unknown stream id={stream}");
+                                }
+                            }
+                            Ok(Some(Frame {
+                                data: FrameData::Control(frame::Control::Close { stream }),
+                                ..
+                            })) => {
+                                log::debug!(target: "wire", "Received stream close command for id={stream}");
+
+                                streams.unregister(&stream);
+                            }
+                            Ok(Some(Frame {
+                                data: FrameData::Gossip(msg),
+                                ..
+                            })) => {
+                                self.service.received_message(*nid, msg);
+                            }
+                            Ok(Some(Frame {
+                                stream,
+                                data: FrameData::Git(data),
+                                ..
+                            })) => {
+                                if let Some(channels) = streams.get(&stream) {
+                                    if channels.sender.send(ChannelEvent::Data(data)).is_err() {
+                                        log::error!(target: "wire", "Worker is disconnected; cannot send data");
+                                    }
+                                } else {
+                                    log::debug!(target: "wire", "Ignoring frame on closed or unknown stream id={stream}");
+                                }
+                            }
                             Ok(None) => {
                                 // Buffer is empty, or message isn't complete.
                                 break;
                             }
                             Err(e) => {
-                                log::error!(target: "wire", "Invalid gossip message from {id}: {e}");
-
-                                let mut reason =
-                                    DisconnectReason::Session(session::Error::Misbehavior);
-                                if let Error::UnknownMessageType(t) = e {
-                                    let leftover =
-                                        inbox.unparsed().chain(t.to_be_bytes()).collect::<Vec<_>>();
-
-                                    if let Ok(header) =
-                                        str::from_utf8(&leftover[..worker::pktline::HEADER_LEN])
-                                    {
-                                        if header.is_ascii() && !header.is_empty() {
-                                            log::error!(
-                                                target: "wire",
-                                                "Received possible Git packet-line header `{}` from {id} (protocol mismatch)",
-                                                header
-                                            );
-                                            // In case of protocol mismatch, don't penalize the peer.
-                                            reason = DisconnectReason::Session(
-                                                session::Error::ProtocolMismatch,
-                                            );
-                                        }
-                                    }
-                                }
+                                log::error!(target: "wire", "Invalid gossip message from {nid}: {e}");
 
                                 if !inbox.is_empty() {
-                                    log::debug!(target: "wire", "Dropping read buffer for {id} with {} bytes", inbox.unparsed().count());
+                                    log::debug!(target: "wire", "Dropping read buffer for {nid} with {} bytes", inbox.unparsed().count());
                                 }
                                 self.disconnect(
-                                    fd, // TODO(cloudhead): Include error in reason.
-                                    reason,
+                                    fd,
+                                    DisconnectReason::Session(session::Error::Misbehavior),
                                 );
                                 break;
                             }
                         }
                     }
-                } else if let Some(Peer::Upgrading { inbox, .. }) = self.peers.get_mut(&fd) {
-                    // If somehow the remote peer managed to send git data before the reactor
-                    // unregistered our session, we'll hit this branch.
-                    inbox.extend(data);
                 } else {
                     log::warn!(target: "wire", "Dropping message from unconnected peer (fd={fd})");
                 }
@@ -573,6 +623,7 @@ where
         match cmd {
             Control::User(cmd) => self.service.command(cmd),
             Control::Worker(result) => self.worker_result(result),
+            Control::Flush { remote, stream } => self.flush(remote, stream),
         }
     }
 
@@ -604,7 +655,11 @@ where
             }
             reactor::Error::TransportPollError(fd, _) => {
                 log::error!(target: "wire", "Received error: peer (fd={fd}) poll error");
-                self.actions.push_back(Action::UnregisterTransport(*fd));
+
+                self.disconnect(
+                    *fd,
+                    DisconnectReason::Connection(Arc::new(io::Error::from(io::ErrorKind::Other))),
+                )
             }
             reactor::Error::TransportDisconnect(fd, _, _) => {
                 log::error!(target: "wire", "Received error: peer (fd={fd}) disconnected");
@@ -661,9 +716,6 @@ where
                         }
                         e.remove();
                     }
-                    Peer::Upgrading { .. } => {
-                        self.upgraded(transport);
-                    }
                     _ => {
                         panic!("Wire::handover_transport: Unexpected peer with fd {fd} handed over from the reactor");
                     }
@@ -689,8 +741,8 @@ where
         while let Some(ev) = self.service.next() {
             match ev {
                 Io::Write(node_id, msgs) => {
-                    let fd = match self.fd_by_id(&node_id) {
-                        (fd, Peer::Connected { .. }) => fd,
+                    let (fd, link) = match self.fd_by_id(&node_id) {
+                        (fd, Peer::Connected { link, .. }) => (fd, *link),
                         (_, peer) => {
                             // If the peer is disconnected by the wire protocol, the service may
                             // not be aware of this yet, and may continue to write messages to it.
@@ -704,7 +756,9 @@ where
 
                     let mut data = Vec::new();
                     for msg in msgs {
-                        msg.encode(&mut data).expect("in-memory writes never fail");
+                        Frame::gossip(link, msg)
+                            .encode(&mut data)
+                            .expect("in-memory writes never fail");
                     }
                     self.actions.push_back(reactor::Action::Send(fd, data));
                 }
@@ -753,10 +807,40 @@ where
                 Io::Wakeup(d) => {
                     self.actions.push_back(reactor::Action::SetTimer(d.into()));
                 }
-                Io::Fetch(fetch) => {
-                    // TODO: Check that the node_id is connected, queue request otherwise.
-                    let fd = self.connected_fd_by_id(&fetch.remote);
-                    self.upgrade(fd, fetch);
+                Io::Fetch {
+                    rid,
+                    remote,
+                    namespaces,
+                } => {
+                    log::debug!(target: "wire", "Processing fetch..");
+
+                    let (fd, Peer::Connected { link, streams,  .. }) =
+                        self.fd_by_id_mut(&remote) else {
+                            panic!("Wire::next: peer {remote} is not connected");
+                        };
+                    let (stream, channels) = streams.open();
+
+                    log::debug!(target: "wire", "Opened new stream with id={stream} for rid={rid}");
+
+                    let link = *link;
+                    let task = Task {
+                        fetch: Fetch::Initiator {
+                            rid,
+                            namespaces,
+                            remote,
+                        },
+                        stream,
+                        send: channels.sender,
+                        recv: channels.receiver,
+                    };
+
+                    if self.worker.send(task).is_err() {
+                        log::error!(target: "wire", "Worker pool is disconnected; cannot send fetch request");
+                    }
+                    self.actions.push_back(Action::Send(
+                        fd,
+                        Frame::control(link, frame::Control::Open { stream }).to_bytes(),
+                    ));
                 }
             }
         }

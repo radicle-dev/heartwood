@@ -5,11 +5,9 @@ use std::sync::Arc;
 use std::{fmt, io, time};
 
 use crossbeam_channel as chan;
-use cyphernet::Ecdh;
 use radicle::node::Seeds;
 use thiserror::Error;
 
-use crate::crypto::Signer;
 use crate::identity::Id;
 use crate::node::{Command, FetchResult};
 use crate::profile::Home;
@@ -20,6 +18,7 @@ use crate::service::Event;
 use crate::service::{CommandError, QueryState};
 use crate::service::{NodeId, Sessions};
 use crate::wire;
+use crate::wire::StreamId;
 use crate::worker::TaskResult;
 
 /// An error resulting from a handle method.
@@ -27,7 +26,7 @@ use crate::worker::TaskResult;
 pub enum Error {
     /// The command channel is no longer connected.
     #[error("command channel is not connected")]
-    NotConnected,
+    ChannelDisconnected,
     /// The command returned an error.
     #[error("command failed: {0}")]
     Command(#[from] CommandError),
@@ -41,7 +40,7 @@ pub enum Error {
 
 impl From<chan::RecvError> for Error {
     fn from(_: chan::RecvError) -> Self {
-        Self::NotConnected
+        Self::ChannelDisconnected
     }
 }
 
@@ -49,20 +48,20 @@ impl From<chan::RecvTimeoutError> for Error {
     fn from(err: chan::RecvTimeoutError) -> Self {
         match err {
             chan::RecvTimeoutError::Timeout => Self::Timeout,
-            chan::RecvTimeoutError::Disconnected => Self::NotConnected,
+            chan::RecvTimeoutError::Disconnected => Self::ChannelDisconnected,
         }
     }
 }
 
 impl<T> From<chan::SendError<T>> for Error {
     fn from(_: chan::SendError<T>) -> Self {
-        Self::NotConnected
+        Self::ChannelDisconnected
     }
 }
 
-pub struct Handle<G: Signer + Ecdh> {
+pub struct Handle {
     pub(crate) home: Home,
-    pub(crate) controller: reactor::Controller<wire::Control<G>>,
+    pub(crate) controller: reactor::Controller<wire::Control>,
 
     /// Whether a shutdown was initiated or not. Prevents attempting to shutdown twice.
     shutdown: Arc<AtomicBool>,
@@ -117,20 +116,20 @@ impl Events {
     }
 }
 
-impl<G: Signer + Ecdh> Handle<G> {
+impl Handle {
     /// Subscribe to events stream.
     pub fn events(&self) -> Events {
         Events(self.emitter.subscribe())
     }
 }
 
-impl<G: Signer + Ecdh> fmt::Debug for Handle<G> {
+impl fmt::Debug for Handle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Handle").field("home", &self.home).finish()
     }
 }
 
-impl<G: Signer + Ecdh> Clone for Handle<G> {
+impl Clone for Handle {
     fn clone(&self) -> Self {
         Self {
             home: self.home.clone(),
@@ -141,10 +140,10 @@ impl<G: Signer + Ecdh> Clone for Handle<G> {
     }
 }
 
-impl<G: Signer + Ecdh + 'static> Handle<G> {
+impl Handle {
     pub fn new(
         home: Home,
-        controller: reactor::Controller<wire::Control<G>>,
+        controller: reactor::Controller<wire::Control>,
         emitter: Emitter<Event>,
     ) -> Self {
         Self {
@@ -155,22 +154,20 @@ impl<G: Signer + Ecdh + 'static> Handle<G> {
         }
     }
 
-    pub fn worker_result(&mut self, resp: TaskResult<G>) -> Result<(), Error> {
-        match self.controller.cmd(wire::Control::Worker(resp)) {
-            Ok(()) => {}
-            Err(err) if err.kind() == io::ErrorKind::BrokenPipe => return Err(Error::NotConnected),
-            Err(err) => return Err(err.into()),
-        }
-        Ok(())
+    pub fn worker_result(&mut self, result: TaskResult) -> Result<(), io::Error> {
+        self.controller.cmd(wire::Control::Worker(result))
     }
 
-    fn command(&self, cmd: service::Command) -> Result<(), Error> {
-        self.controller.cmd(wire::Control::User(cmd))?;
-        Ok(())
+    pub fn flush(&mut self, remote: NodeId, stream: StreamId) -> Result<(), io::Error> {
+        self.controller.cmd(wire::Control::Flush { remote, stream })
+    }
+
+    fn command(&self, cmd: service::Command) -> Result<(), io::Error> {
+        self.controller.cmd(wire::Control::User(cmd))
     }
 }
 
-impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
+impl radicle::node::Handle for Handle {
     type Sessions = Sessions;
     type Error = Error;
 
@@ -222,10 +219,12 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
 
     fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
         self.command(service::Command::AnnounceRefs(id))
+            .map_err(Error::from)
     }
 
     fn announce_inventory(&mut self) -> Result<(), Error> {
         self.command(service::Command::AnnounceInventory)
+            .map_err(Error::from)
     }
 
     fn sync_inventory(&mut self) -> Result<bool, Error> {
@@ -265,6 +264,8 @@ impl<G: Signer + Ecdh + 'static> radicle::node::Handle for Handle<G> {
             .and_then(|sock| Command::SHUTDOWN.to_writer(sock))
             .ok();
 
-        self.controller.shutdown().map_err(|_| Error::NotConnected)
+        self.controller
+            .shutdown()
+            .map_err(|_| Error::ChannelDisconnected)
     }
 }

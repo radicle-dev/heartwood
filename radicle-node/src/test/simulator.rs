@@ -14,9 +14,9 @@ use log::*;
 
 use crate::crypto::Signer;
 use crate::git::raw as git;
-use crate::prelude::Address;
+use crate::prelude::{Address, Id};
 use crate::service::reactor::Io;
-use crate::service::{DisconnectReason, Event, Fetch, Message, NodeId};
+use crate::service::{DisconnectReason, Event, Message, NodeId};
 use crate::storage::{Namespaces, RefUpdate};
 use crate::storage::{WriteRepository, WriteStorage};
 use crate::test::peer::Service;
@@ -63,7 +63,12 @@ pub enum Input {
     /// Received a message from a remote peer.
     Received(NodeId, Vec<Message>),
     /// Fetch completed for a node.
-    Fetched(Fetch, Rc<Result<Vec<RefUpdate>, FetchError>>),
+    Fetched(
+        Id,
+        Namespaces,
+        NodeId,
+        Rc<Result<Vec<RefUpdate>, FetchError>>,
+    ),
     /// Used to advance the state machine after some wall time has passed.
     Wake,
 }
@@ -105,15 +110,8 @@ impl fmt::Display for Scheduled {
             Input::Wake => {
                 write!(f, "{}: Tock", self.node)
             }
-            Input::Fetched(fetch, _) => {
-                write!(
-                    f,
-                    "{} <<~ {} ({}): Fetched (initiated={})",
-                    self.node,
-                    fetch.remote,
-                    fetch.rid,
-                    fetch.is_initiator()
-                )
+            Input::Fetched(rid, _, nid, _) => {
+                write!(f, "{} <<~ {} ({}): Fetched", self.node, nid, rid)
             }
         }
     }
@@ -411,17 +409,15 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             p.received_message(id, msg);
                         }
                     }
-                    Input::Fetched(f, result) => {
+                    Input::Fetched(rid, ns, nid, result) => {
                         let result = Rc::try_unwrap(result).unwrap();
-                        if let Some(namespaces) = f.initiated() {
-                            let mut repo = match p.storage().repository_mut(f.rid) {
-                                Ok(repo) => repo,
-                                Err(e) if e.is_not_found() => p.storage().create(f.rid).unwrap(),
-                                Err(e) => panic!("Failed to open repository: {e}"),
-                            };
-                            fetch(&mut repo, &f.remote, namespaces.clone()).unwrap();
-                        }
-                        p.fetched(f, result);
+                        let mut repo = match p.storage().repository_mut(rid) {
+                            Ok(repo) => repo,
+                            Err(e) if e.is_not_found() => p.storage().create(rid).unwrap(),
+                            Err(e) => panic!("Failed to open repository: {e}"),
+                        };
+                        fetch(&mut repo, &nid, ns.clone()).unwrap();
+                        p.fetched(rid, ns, nid, result);
                     }
                 }
                 while let Some(o) = p.next() {
@@ -606,22 +602,16 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     );
                 }
             }
-            Io::Fetch(fetch) => {
-                let remote = fetch.remote;
-
-                if fetch.is_initiator() {
-                    log::info!(
-                        target: "sim",
-                        "{:05} {} ~> {} ({}): Fetch outgoing",
-                        self.elapsed().as_millis(), node, remote, fetch.rid
-                    );
-                } else {
-                    log::info!(
-                        target: "sim",
-                        "{:05} {} <~ {} ({}): Fetch incoming",
-                        self.elapsed().as_millis(), node, remote, fetch.rid
-                    );
-                }
+            Io::Fetch {
+                rid,
+                remote,
+                namespaces,
+            } => {
+                log::info!(
+                    target: "sim",
+                    "{:05} {} ~> {} ({}): Fetch outgoing",
+                    self.elapsed().as_millis(), node, remote, rid
+                );
 
                 if self.is_fallible() {
                     self.inbox.insert(
@@ -630,7 +620,9 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             node,
                             remote,
                             input: Input::Fetched(
-                                fetch,
+                                rid,
+                                namespaces,
+                                remote,
                                 Rc::new(Err(FetchError::Io(io::ErrorKind::Other.into()))),
                             ),
                         },
@@ -641,7 +633,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         Scheduled {
                             node,
                             remote,
-                            input: Input::Fetched(fetch, Rc::new(Ok(vec![]))),
+                            input: Input::Fetched(rid, namespaces, remote, Rc::new(Ok(vec![]))),
                         },
                     );
                 }

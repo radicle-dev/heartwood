@@ -312,10 +312,12 @@ fn rad_clone() {
     let working = environment.tmp().join("working");
 
     // Setup a test project.
-    let _ = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
+    let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
 
-    let alice = alice.spawn(Config::default());
+    let mut alice = alice.spawn(Config::default());
     let mut bob = bob.spawn(Config::default());
+    // Prevent Alice from fetching Bob's fork, as we're not testing that and it may cause errors.
+    alice.handle.track_repo(acme, Scope::Trusted).unwrap();
 
     bob.connect(&alice).converge([&alice]);
 

@@ -19,8 +19,6 @@ pub enum MessageType {
     Subscribe = 8,
     Ping = 10,
     Pong = 12,
-    Fetch = 14,
-    FetchOk = 16,
 }
 
 impl From<MessageType> for u16 {
@@ -40,8 +38,6 @@ impl TryFrom<u16> for MessageType {
             8 => Ok(MessageType::Subscribe),
             10 => Ok(MessageType::Ping),
             12 => Ok(MessageType::Pong),
-            14 => Ok(MessageType::Fetch),
-            16 => Ok(MessageType::FetchOk),
             _ => Err(other),
         }
     }
@@ -62,8 +58,6 @@ impl Message {
             },
             Self::Ping { .. } => MessageType::Ping,
             Self::Pong { .. } => MessageType::Pong,
-            Self::Fetch { .. } => MessageType::Fetch,
-            Self::FetchOk { .. } => MessageType::FetchOk,
         }
         .into()
     }
@@ -216,12 +210,6 @@ impl wire::Encode for Message {
             Self::Pong { zeroes } => {
                 n += zeroes.encode(writer)?;
             }
-            Self::Fetch { rid } => {
-                n += rid.encode(writer)?;
-            }
-            Self::FetchOk { rid } => {
-                n += rid.encode(writer)?;
-            }
         }
 
         if n > wire::Size::MAX as usize {
@@ -294,14 +282,6 @@ impl wire::Decode for Message {
             Ok(MessageType::Pong) => {
                 let zeroes = ZeroBytes::decode(reader)?;
                 Ok(Self::Pong { zeroes })
-            }
-            Ok(MessageType::Fetch) => {
-                let rid = Id::decode(reader)?;
-                Ok(Self::Fetch { rid })
-            }
-            Ok(MessageType::FetchOk) => {
-                let rid = Id::decode(reader)?;
-                Ok(Self::FetchOk { rid })
             }
             Err(other) => Err(wire::Error::UnknownMessageType(other)),
         }

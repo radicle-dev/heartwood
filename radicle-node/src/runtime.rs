@@ -96,24 +96,24 @@ impl<T: Clone> Emitter<T> {
 }
 
 /// Holds join handles to the client threads, as well as a client handle.
-pub struct Runtime<G: Signer + Ecdh> {
+pub struct Runtime {
     pub id: NodeId,
     pub home: Home,
     pub control: UnixListener,
-    pub handle: Handle<G>,
+    pub handle: Handle,
     pub storage: Storage,
-    pub reactor: Reactor<wire::Control<G>>,
+    pub reactor: Reactor<wire::Control>,
     pub daemon: net::SocketAddr,
     pub pool: worker::Pool,
     pub local_addrs: Vec<net::SocketAddr>,
     pub signals: chan::Receiver<()>,
 }
 
-impl<G: Signer + Ecdh + 'static> Runtime<G> {
+impl Runtime {
     /// Initialize the runtime.
     ///
     /// This function spawns threads.
-    pub fn init(
+    pub fn init<G: Signer + Ecdh + 'static>(
         home: Home,
         config: service::Config,
         listen: Vec<net::SocketAddr>,
@@ -121,7 +121,7 @@ impl<G: Signer + Ecdh + 'static> Runtime<G> {
         daemon: net::SocketAddr,
         signals: chan::Receiver<()>,
         signer: G,
-    ) -> Result<Runtime<G>, Error>
+    ) -> Result<Runtime, Error>
     where
         G: Ecdh<Pk = NodeId> + Clone,
     {
@@ -160,7 +160,7 @@ impl<G: Signer + Ecdh + 'static> Runtime<G> {
             emitter.clone(),
         );
 
-        let (worker_send, worker_recv) = chan::unbounded::<worker::Task<G>>();
+        let (worker_send, worker_recv) = chan::unbounded::<worker::Task>();
         let mut wire = Wire::new(service, worker_send, signer, proxy, clock);
         let mut local_addrs = Vec::new();
 

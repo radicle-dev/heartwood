@@ -1,6 +1,9 @@
+mod frame;
 mod message;
 mod protocol;
+mod varint;
 
+pub use frame::StreamId;
 pub use message::{AddressType, MessageType};
 pub use protocol::{Control, Wire, WireReader, WireSession, WireWriter};
 
@@ -40,8 +43,14 @@ pub enum Error {
     InvalidSize { expected: usize, actual: usize },
     #[error("invalid filter size: {0}")]
     InvalidFilterSize(usize),
+    #[error("invalid channel type {0:x}")]
+    InvalidStreamKind(u8),
     #[error(transparent)]
     InvalidRefName(#[from] fmt::Error),
+    #[error("invalid control message with type `{0}`")]
+    InvalidControlMessage(u8),
+    #[error("invalid protocol version header `{0:x?}`")]
+    InvalidProtocolVersion([u8; 4]),
     #[error("unknown address type `{0}`")]
     UnknownAddressType(u8),
     #[error("unknown message type `{0}`")]

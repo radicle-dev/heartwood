@@ -93,7 +93,6 @@ impl Arbitrary for Message {
             MessageType::Pong => Self::Pong {
                 zeroes: ZeroBytes::new(u16::arbitrary(g).min(Ping::MAX_PONG_ZEROES)),
             },
-            _ => unreachable!(),
         }
     }
 }

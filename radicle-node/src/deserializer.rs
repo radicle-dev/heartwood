@@ -13,7 +13,7 @@ pub struct Deserializer<D = Message> {
     item: PhantomData<D>,
 }
 
-impl Default for Deserializer<Message> {
+impl<D: wire::Decode> Default for Deserializer<D> {
     fn default() -> Self {
         Self::new(wire::Size::MAX as usize + 1)
     }

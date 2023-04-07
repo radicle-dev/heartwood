@@ -114,7 +114,7 @@ pub struct NodeHandle<G: Signer + cyphernet::Ecdh + 'static> {
     pub home: Home,
     pub addr: net::SocketAddr,
     pub thread: ManuallyDrop<thread::JoinHandle<Result<(), runtime::Error>>>,
-    pub handle: ManuallyDrop<Handle<G>>,
+    pub handle: ManuallyDrop<Handle>,
 }
 
 impl<G: Signer + cyphernet::Ecdh + 'static> Drop for NodeHandle<G> {

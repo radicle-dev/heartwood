@@ -1,7 +1,5 @@
-use std::collections::VecDeque;
+use std::collections::HashSet;
 use std::fmt;
-
-use radicle::storage::Namespaces;
 
 use crate::service::message;
 use crate::service::message::Message;
@@ -19,35 +17,6 @@ pub enum PingState {
     Ok,
 }
 
-/// Sub-state of the gossip protocol.
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub enum GossipState {
-    /// Regular gossip, no pending fetch requests.
-    #[default]
-    Idle,
-    /// Requesting a fetch for the given RID. Waiting for a [`Message::FetchOk`].
-    Requesting { rid: Id, namespaces: Namespaces },
-}
-
-/// Session protocol.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Protocol {
-    /// The default message-based gossip protocol.
-    Gossip { state: GossipState },
-    /// Git smart protocol. Used for fetching repository data.
-    /// This protocol is used after a connection upgrade via the
-    /// [`Message::Fetch`] message.
-    Fetch { rid: Id },
-}
-
-impl Default for Protocol {
-    fn default() -> Self {
-        Self::Gossip {
-            state: GossipState::default(),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum State {
@@ -61,8 +30,8 @@ pub enum State {
         since: LocalTime,
         /// Ping state.
         ping: PingState,
-        /// Session protocol.
-        protocol: Protocol,
+        /// Ongoing fetches.
+        fetching: HashSet<Id>,
     },
     /// When a peer is disconnected.
     Disconnected {
@@ -82,23 +51,9 @@ impl fmt::Display for State {
             Self::Attempted => {
                 write!(f, "attempted")
             }
-            Self::Connected { protocol, .. } => match protocol {
-                Protocol::Gossip {
-                    state: GossipState::Idle,
-                    ..
-                } => {
-                    write!(f, "connected <gossip>")
-                }
-                Protocol::Gossip {
-                    state: GossipState::Requesting { rid, .. },
-                    ..
-                } => {
-                    write!(f, "connected <gossip> requested={rid}")
-                }
-                Protocol::Fetch { .. } => {
-                    write!(f, "connected <fetch>")
-                }
-            },
+            Self::Connected { .. } => {
+                write!(f, "connected")
+            }
             Self::Disconnected { .. } => {
                 write!(f, "disconnected")
             }
@@ -109,10 +64,10 @@ impl fmt::Display for State {
 /// Return value of [`Session::fetch`].
 #[derive(Debug)]
 pub enum FetchResult {
-    /// We are already fetching from this peer.
-    AlreadyFetching(Id),
+    /// We are already fetching the given repo from this peer.
+    AlreadyFetching,
     /// Ok, ready to fetch.
-    Ready(Message),
+    Ready,
     /// This peer is not ready to fetch.
     NotConnected,
 }
@@ -164,9 +119,6 @@ pub struct Session {
     /// Last time a message was received from the peer.
     pub last_active: LocalTime,
 
-    /// Fetches queued due to another ongoing fetch.
-    pending_fetches: VecDeque<Id>,
-
     /// Connection attempts. For persistent peers, Tracks
     /// how many times we've attempted to connect. We reset this to zero
     /// upon successful connection.
@@ -205,7 +157,6 @@ impl Session {
             persistent,
             last_active: LocalTime::default(),
             attempts: 1,
-            pending_fetches: VecDeque::new(),
             rng,
         }
     }
@@ -216,14 +167,13 @@ impl Session {
             state: State::Connected {
                 since: time,
                 ping: PingState::default(),
-                protocol: Protocol::default(),
+                fetching: HashSet::default(),
             },
             link: Link::Inbound,
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
             attempts: 0,
-            pending_fetches: VecDeque::new(),
             rng,
         }
     }
@@ -236,16 +186,6 @@ impl Session {
         matches!(self.state, State::Connected { .. })
     }
 
-    pub fn is_fetching(&self) -> bool {
-        matches!(
-            self.state,
-            State::Connected {
-                protocol: Protocol::Fetch { .. },
-                ..
-            }
-        )
-    }
-
     pub fn is_disconnected(&self) -> bool {
         matches!(self.state, State::Disconnected { .. })
     }
@@ -254,64 +194,26 @@ impl Session {
         matches!(self.state, State::Initial)
     }
 
-    pub fn is_requesting(&self) -> bool {
-        matches!(
-            self.state,
-            State::Connected {
-                protocol: Protocol::Gossip {
-                    state: GossipState::Requesting { .. }
-                },
-                ..
-            }
-        )
-    }
-
     pub fn attempts(&self) -> usize {
         self.attempts
     }
 
-    pub fn fetch(&self, rid: Id) -> FetchResult {
-        if let State::Connected { protocol, .. } = &self.state {
-            match protocol {
-                Protocol::Gossip { state } => {
-                    if let GossipState::Requesting { rid, .. } = state {
-                        FetchResult::AlreadyFetching(*rid)
-                    } else {
-                        FetchResult::Ready(Message::Fetch { rid })
-                    }
-                }
-                Protocol::Fetch { rid } => FetchResult::AlreadyFetching(*rid),
+    pub fn fetch(&mut self, rid: Id) -> FetchResult {
+        if let State::Connected { fetching, .. } = &mut self.state {
+            if fetching.insert(rid) {
+                FetchResult::Ready
+            } else {
+                FetchResult::AlreadyFetching
             }
         } else {
             FetchResult::NotConnected
         }
     }
 
-    pub fn to_requesting(&mut self, rid: Id, namespaces: Namespaces) {
-        let State::Connected { protocol, .. } = &mut self.state else {
-            panic!("Session::to_requesting: cannot transition to 'requesting': session is not connected");
-        };
-        *protocol = Protocol::Gossip {
-            state: GossipState::Requesting { rid, namespaces },
-        };
-    }
-
-    pub fn to_fetching(&mut self, rid: Id) {
-        let State::Connected { protocol, .. } = &mut self.state else {
-            panic!("Session::to_fetching: cannot transition to 'fetching': session is not connected");
-        };
-        *protocol = Protocol::Fetch { rid };
-    }
-
-    pub fn to_gossip(&mut self) {
-        if let State::Connected { protocol, .. } = &mut self.state {
-            if let Protocol::Fetch { .. } = protocol {
-                *protocol = Protocol::default();
-            } else {
-                panic!(
-                    "Unexpected session state for {}: expected 'fetch' protocol, got 'gossip'",
-                    self.id
-                );
+    pub fn fetched(&mut self, rid: Id) {
+        if let State::Connected { fetching, .. } = &mut self.state {
+            if !fetching.remove(&rid) {
+                log::error!(target: "service", "Fetched unknown repository {rid}");
             }
         }
     }
@@ -334,7 +236,7 @@ impl Session {
         self.state = State::Connected {
             since,
             ping: PingState::default(),
-            protocol: Protocol::default(),
+            fetching: HashSet::default(),
         };
     }
 
@@ -354,18 +256,11 @@ impl Session {
         self.state = State::Initial;
     }
 
-    pub fn requesting(&self) -> Option<(&Id, &Namespaces)> {
-        if let State::Connected {
-            protocol:
-                Protocol::Gossip {
-                    state: GossipState::Requesting { rid, namespaces },
-                },
-            ..
-        } = &self.state
-        {
-            Some((rid, namespaces))
+    pub fn fetching(&self) -> HashSet<Id> {
+        if let State::Connected { fetching, .. } = &self.state {
+            fetching.clone()
         } else {
-            None
+            HashSet::default()
         }
     }
 
@@ -377,13 +272,5 @@ impl Session {
             reactor.write(self, Message::Ping(msg));
         }
         Ok(())
-    }
-
-    pub(crate) fn queue_fetch(&mut self, rid: Id) {
-        self.pending_fetches.push_back(rid);
-    }
-
-    pub(crate) fn dequeue_fetch(&mut self) -> Option<Id> {
-        self.pending_fetches.pop_front()
     }
 }

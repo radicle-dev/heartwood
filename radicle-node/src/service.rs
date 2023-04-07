@@ -32,8 +32,6 @@ use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
-use crate::service::reactor::FetchDirection;
-use crate::service::session::GossipState;
 use crate::service::tracking::Scope;
 use crate::storage;
 use crate::storage::{Namespaces, ReadStorage};
@@ -44,7 +42,6 @@ use crate::Link;
 pub use crate::node::NodeId;
 pub use crate::service::config::{Config, Network};
 pub use crate::service::message::{Message, ZeroBytes};
-pub use crate::service::reactor::Fetch;
 pub use crate::service::session::Session;
 
 use self::gossip::Gossip;
@@ -551,13 +548,12 @@ where
         let seed = session.id;
 
         match session.fetch(rid) {
-            session::FetchResult::Ready(fetch) => {
+            session::FetchResult::Ready => {
                 debug!(target: "service", "Fetch initiated for {rid} with {seed}..");
 
                 match self.tracking.namespaces_for(&self.storage, &rid) {
-                    Ok(ns) => {
-                        self.reactor.write(session, fetch);
-                        session.to_requesting(rid, ns);
+                    Ok(namespaces) => {
+                        self.reactor.fetch(session, rid, namespaces);
                     }
                     Err(err) => {
                         error!(target: "service", "Error getting namespaces for {rid}: {err}");
@@ -571,19 +567,8 @@ where
                     }
                 };
             }
-            session::FetchResult::AlreadyFetching(other) => {
-                if other == rid {
-                    debug!(target: "service", "Ignoring redundant attempt to fetch {rid} from {from}");
-                } else {
-                    // If we can't fetch, it's because we're already fetching from
-                    // this peer. So we need to queue the request.
-                    // TODO: consider to find another peer.
-                    debug!(
-                        target: "service",
-                        "Queueing fetch for {rid} from {from}: another fetch is ongoing"
-                    );
-                    session.queue_fetch(rid);
-                }
+            session::FetchResult::AlreadyFetching => {
+                debug!(target: "service", "Ignoring redundant attempt to fetch {rid} from {from}");
             }
             session::FetchResult::NotConnected => {
                 error!(target: "service", "Unable to fetch {rid} from peer {seed}: peer is not connected");
@@ -591,75 +576,74 @@ where
         }
     }
 
-    pub fn fetched(&mut self, fetch: Fetch, result: Result<Vec<RefUpdate>, FetchError>) {
-        let remote = fetch.remote;
-        let rid = fetch.rid;
+    pub fn fetched(
+        &mut self,
+        rid: Id,
+        namespaces: Namespaces,
+        remote: NodeId,
+        result: Result<Vec<RefUpdate>, FetchError>,
+    ) {
+        let result = match result {
+            Ok(updated) => {
+                log::debug!(target: "service", "Fetched {rid} from {remote}");
 
-        match fetch.direction {
-            FetchDirection::Initiator { namespaces } => {
-                let result = match result {
-                    Ok(updated) => {
-                        log::debug!(target: "service", "Fetched {rid} from {remote}");
+                self.emitter.emit(Event::RefsFetched {
+                    remote,
+                    rid,
+                    updated: updated.clone(),
+                });
 
-                        self.emitter.emit(Event::RefsFetched {
-                            remote,
-                            rid,
-                            updated: updated.clone(),
-                        });
-
-                        FetchResult::Success { updated }
-                    }
-                    Err(err) => {
-                        let reason = err.to_string();
-                        error!(target: "service", "Fetch failed for {rid} from {remote}: {reason}");
-
-                        // For now, we only disconnect the remote in case of timeout. In the future,
-                        // there may be other reasons to disconnect.
-                        if err.is_timeout() {
-                            self.reactor
-                                .disconnect(remote, DisconnectReason::Fetch(err));
-                        }
-                        FetchResult::Failed { reason }
-                    }
-                };
-
-                if let Some(results) = self.fetch_reqs.remove(&(rid, remote)) {
-                    log::debug!(target: "service", "Found existing fetch request, sending result..");
-
-                    if results.send(result).is_err() {
-                        log::error!(target: "service", "Error sending fetch result for {rid}..");
-                    } else {
-                        log::debug!(target: "service", "Sent fetch result for {rid}..");
-                    }
-                } else {
-                    log::debug!(target: "service", "No fetch requests found for {rid}..");
-
-                    // We only announce refs here when the fetch wasn't user-requested. This is
-                    // because the user might want to announce his fork, once he has created one,
-                    // or may choose to not announce anything.
-                    if let Err(e) = self.announce_refs(rid, &namespaces) {
-                        error!(target: "service", "Failed to announce new refs: {e}");
-                    }
-                }
-
-                self.switch_to_gossip(remote);
-
-                // TODO: Since this fetch could be either a full clone
-                // or simply a ref update, we need to either announce
-                // new inventory, or new refs. Right now, we announce
-                // both in some cases.
-                //
-                // Announce the newly fetched repository to the
-                // network, if necessary.
-                //
-                // Nb. This needs to be run after we've switched back
-                // to the gossip protocol, otherwise the messages will
-                // be queued.
-                self.sync_and_announce();
-                self.process_fetch_queue(&remote);
+                FetchResult::Success { updated }
             }
-            FetchDirection::Responder => self.switch_to_gossip(remote),
+            Err(err) => {
+                let reason = err.to_string();
+                error!(target: "service", "Fetch failed for {rid} from {remote}: {reason}");
+
+                // For now, we only disconnect the remote in case of timeout. In the future,
+                // there may be other reasons to disconnect.
+                if err.is_timeout() {
+                    self.reactor
+                        .disconnect(remote, DisconnectReason::Fetch(err));
+                }
+                FetchResult::Failed { reason }
+            }
+        };
+
+        if let Some(results) = self.fetch_reqs.remove(&(rid, remote)) {
+            log::debug!(target: "service", "Found existing fetch request, sending result..");
+
+            if results.send(result).is_err() {
+                log::error!(target: "service", "Error sending fetch result for {rid}..");
+            } else {
+                log::debug!(target: "service", "Sent fetch result for {rid}..");
+            }
+        } else {
+            log::debug!(target: "service", "No fetch requests found for {rid}..");
+
+            // We only announce refs here when the fetch wasn't user-requested. This is
+            // because the user might want to announce his fork, once he has created one,
+            // or may choose to not announce anything.
+            if let Err(e) = self.announce_refs(rid, &namespaces) {
+                error!(target: "service", "Failed to announce new refs: {e}");
+            }
         }
+
+        // Go back to "idle".
+        if let Some(s) = self.sessions.get_mut(&remote) {
+            s.fetched(rid);
+        }
+        // TODO: Since this fetch could be either a full clone
+        // or simply a ref update, we need to either announce
+        // new inventory, or new refs. Right now, we announce
+        // both in some cases.
+        //
+        // Announce the newly fetched repository to the
+        // network, if necessary.
+        //
+        // Nb. This needs to be run after we've switched back
+        // to the gossip protocol, otherwise the messages will
+        // be queued.
+        self.sync_and_announce();
     }
 
     pub fn accepted(&mut self, _addr: net::SocketAddr) {
@@ -725,8 +709,8 @@ where
 
         // If the peer disconnected while we were waiting for a [`Message::FetchOk`],
         // return a failure to any potential fetcher.
-        if let Some((requested, _)) = session.requesting() {
-            if let Some(resp) = self.fetch_reqs.remove(&(*requested, remote)) {
+        for rid in session.fetching() {
+            if let Some(resp) = self.fetch_reqs.remove(&(rid, remote)) {
                 resp.send(FetchResult::Failed {
                     reason: format!("disconnected: {reason}"),
                 })
@@ -902,9 +886,7 @@ where
                     if self.sessions.is_connected(announcer) {
                         match self.should_fetch_refs_announcement(message, &repo_entry.scope) {
                             Ok(true) => self.fetch(message.rid, announcer),
-                            Ok(false) => {
-                                debug!(target: "service", "Skipping fetch from {announcer}")
-                            }
+                            Ok(false) => {}
                             Err(e) => {
                                 error!(target: "service", "Failed to check refs announcement: {e}");
                                 return Err(session::Error::Misbehavior);
@@ -1042,19 +1024,6 @@ where
         debug!(target: "service", "Received message {:?} from {}", &message, peer.id);
 
         match (&mut peer.state, message) {
-            (
-                session::State::Connected {
-                    protocol: session::Protocol::Fetch { .. },
-                    ..
-                },
-                _,
-            ) => {
-                // This should never happen if the service is properly configured, since all
-                // incoming data is sent directly to the Git worker.
-                log::error!(target: "service", "Received gossip message from {remote} during git fetch");
-
-                return Err(session::Error::Misbehavior);
-            }
             // Process a peer announcement.
             (session::State::Connected { .. }, Message::Announcement(ann)) => {
                 let relayer = peer.id;
@@ -1106,72 +1075,6 @@ where
                         *ping = session::PingState::Ok;
                     }
                 }
-            }
-            (
-                session::State::Connected {
-                    protocol: session::Protocol::Gossip { state },
-                    ..
-                },
-                Message::Fetch { rid },
-            ) => {
-                debug!(target: "service", "Fetch requested for {rid} from {remote}..");
-
-                // TODO: Check that we have the repo first?
-
-                // We got a fetch request right after sending our own. We have to decide on which
-                // fetch to run: our own, or the remote's.
-                if let GossipState::Requesting { rid, .. } = state {
-                    debug!(target: "service", "Received fetch request from {remote} while attempting to fetch {rid}..");
-
-                    // When fetch requests cross, the inbound peer takes precedence.
-                    if peer.link.is_inbound() {
-                        debug!(target: "service", "Cancelling fetch request to {remote}..");
-
-                        // Cancel our own fetch request. This doesn't send anything to the remote,
-                        // it simply updates the local session's state machine.
-                        *state = GossipState::Idle;
-
-                        // TODO: Queue the fetch request as if we tried to request twice from
-                        // the same node.
-                    } else {
-                        // In this case, the remote node will cancel its request, so we don't
-                        // want to handover the session to the worker here, we will do it when
-                        // we get the `FetchOk` from the remote.
-                        return Ok(());
-                    }
-                }
-
-                // Accept the request and instruct the transport to handover the socket to the worker.
-                self.reactor.write(peer, Message::FetchOk { rid });
-                self.reactor.fetch(peer, rid, FetchDirection::Responder);
-            }
-            (session::State::Connected { protocol, .. }, Message::FetchOk { rid }) => {
-                let session::Protocol::Gossip {
-                    state: GossipState::Requesting { rid: requested, namespaces }
-                } = protocol else {
-                    // As long as we disconnect peers who don't respond to our fetch requests within
-                    // the alloted time, this shouldn't happen by mistake.
-                    error!(
-                        "Received unexpected message `fetch-ok` from peer {}",
-                        peer.id
-                    );
-                    return Err(session::Error::Misbehavior);
-                };
-
-                if *requested != rid {
-                    error!(
-                        "Received `fetch-ok` from {} for incorrect repository {rid}",
-                        peer.id
-                    );
-                    return Err(session::Error::Misbehavior);
-                }
-                let namespaces = namespaces.clone();
-
-                debug!(target: "service", "Fetch accepted for {rid} from {remote}..");
-
-                // Instruct the transport to handover the socket to the worker.
-                self.reactor
-                    .fetch(peer, rid, FetchDirection::Initiator { namespaces });
             }
             (session::State::Attempted { .. } | session::State::Initial, msg) => {
                 error!(target: "service", "Received {:?} from connecting peer {}", msg, peer.id);
@@ -1299,19 +1202,6 @@ where
         Ok(())
     }
 
-    fn switch_to_gossip(&mut self, remote: NodeId) {
-        if let Some(session) = self.sessions.get_mut(&remote) {
-            // Transition session back to gossip protocol.
-            session.to_gossip();
-            // Drain any messages in the session's outbox, which might
-            // have accumulated during a fetch, and send them to the
-            // peer.
-            self.reactor.drain(session);
-        } else {
-            log::debug!(target: "service", "Session not found for {remote}");
-        }
-    }
-
     fn sync_and_announce(&mut self) {
         match self.sync_inventory() {
             Ok(updated) => {
@@ -1327,16 +1217,6 @@ where
             }
             Err(e) => {
                 error!(target: "service", "Failed to sync inventory: {e}");
-            }
-        }
-    }
-
-    /// Execute the next pending fetch with `remote`, if any.
-    fn process_fetch_queue(&mut self, remote: &NodeId) {
-        if let Some(session) = self.sessions.get_mut(remote) {
-            if let Some(rid) = session.dequeue_fetch() {
-                debug!(target: "service", "Dequeued a pending fetch {rid} with {remote}");
-                self.fetch(rid, remote);
             }
         }
     }
@@ -1370,7 +1250,6 @@ where
         pub struct Stats {
             connected: usize,
             disconnected: usize,
-            fetching: usize,
         }
 
         let (stats, seeds) = match self.routing.get(rid) {
@@ -1378,10 +1257,7 @@ where
                 (Stats::default(), Seeds::default()),
                 |(mut stats, mut seeds), node| {
                     if node != self.node_id() {
-                        if self.sessions.is_fetching(&node) {
-                            seeds.insert(Seed::Fetching(node));
-                            stats.fetching += 1;
-                        } else if self.sessions.is_connected(&node) {
+                        if self.sessions.is_connected(&node) {
                             seeds.insert(Seed::Connected(node));
                             stats.connected += 1;
                         } else if self.sessions.is_disconnected(&node) {
@@ -1399,8 +1275,8 @@ where
         };
         debug!(
             target: "service",
-            "Found {} connected seed(s), {} disconnected seed(s), and {} fetching seed(s) for {}",
-            stats.connected, stats.disconnected, stats.fetching, rid
+            "Found {} connected seed(s) and {} disconnected seed(s) for {}",
+            stats.connected, stats.disconnected,  rid
         );
 
         Ok(seeds)
@@ -1786,10 +1662,6 @@ impl Sessions {
     /// Return whether this node has a fully established session.
     pub fn is_connected(&self, id: &NodeId) -> bool {
         self.0.get(id).map(|s| s.is_connected()).unwrap_or(false)
-    }
-
-    pub fn is_fetching(&self, id: &NodeId) -> bool {
-        self.0.get(id).map(|s| s.is_fetching()).unwrap_or(false)
     }
 
     /// Return whether this node can be connected to.
