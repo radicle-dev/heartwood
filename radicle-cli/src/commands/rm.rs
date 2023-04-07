@@ -4,7 +4,6 @@ use std::fs;
 use anyhow::anyhow;
 
 use radicle::identity::Id;
-use radicle::storage::ReadStorage;
 
 use crate::commands::rad_untrack;
 use crate::terminal as term;
@@ -19,12 +18,11 @@ Usage
 
     rad rm <rid> [<option>...]
 
-    Removes a project from storage.
+    Removes a repository from storage.
 
 Options
 
-    --no-confirm        Do not ask for confirmation before removal
-                        (default: false)
+    --no-confirm        Do not ask for confirmation before removal (default: false)
     --help              Print help
 "#,
 };
@@ -70,22 +68,20 @@ impl Args for Options {
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
-    let signer = term::signer(&profile)?;
     let id = options.id;
+    let path = radicle::storage::git::paths::repository(storage, &id);
 
-    if let Ok(Some(_)) = storage.get(signer.public_key(), id.to_owned()) {
-        let path = radicle::storage::git::paths::repository(storage, &id);
+    if !path.exists() {
+        anyhow::bail!("repository {id} was not found");
+    }
 
-        if !options.confirm || term::confirm(format!("Remove {id}?")) {
-            if let Err(e) = rad_untrack::untrack(id.to_owned(), &profile) {
-                term::warning(&format!("Failed to untrack repository: {e}"));
-                term::warning("Make sure to untrack this repository when your node is running");
-            }
-            fs::remove_dir_all(path)?;
-            term::success!("Successfully removed {id} from storage");
+    if !options.confirm || term::confirm(format!("Remove {id}?")) {
+        if let Err(e) = rad_untrack::untrack(id.to_owned(), &profile) {
+            term::warning(&format!("Failed to untrack repository: {e}"));
+            term::warning("Make sure to untrack this repository when your node is running");
         }
-    } else {
-        anyhow::bail!("project {} does not exist", &id)
+        fs::remove_dir_all(path)?;
+        term::success!("Successfully removed {id} from storage");
     }
 
     Ok(())
