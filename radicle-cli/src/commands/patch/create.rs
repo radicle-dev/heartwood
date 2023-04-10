@@ -58,7 +58,6 @@ fn show_patch_commit_info(
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
     let commits = patch_commits(workdir, &base_oid, &head_oid)?;
 
-    term::blank();
     term::info!(
         "{} <- {}/{} ({})",
         term::format::highlight(target_ref),
@@ -134,7 +133,6 @@ pub fn run(
     } else {
         term::info!("To publish your patch to the network, run:");
         term::indented(term::format::secondary("rad push"));
-        term::blank();
     }
 
     Ok(())

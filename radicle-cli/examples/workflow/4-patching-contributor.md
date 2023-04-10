@@ -26,7 +26,6 @@ Once the code is ready, we open a patch with our changes.
 
 ```
 $ rad patch open --message "Define power requirements" --message "See details."
-
 master <- z6Mkt67…v4N1tRk/flux-capacitor-power (3e674d1)
 1 commit(s) ahead, 0 commit(s) behind
 
@@ -36,7 +35,6 @@ master <- z6Mkt67…v4N1tRk/flux-capacitor-power (3e674d1)
 
 To publish your patch to the network, run:
     rad push
-
 ```
 
 It will now be listed as one of the project's open patches.

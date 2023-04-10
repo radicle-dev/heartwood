@@ -9,9 +9,7 @@ $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✓ Creating checkout in ./heartwood..
 ✓ Remote z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi created
 ✓ Remote-tracking branch z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
-
-🌱 Project successfully cloned under [..]/heartwood/
-
+✓ Repository successfully cloned under [..]/heartwood/
 ```
 
 We can now have a look at the new working copy that was created from the cloned

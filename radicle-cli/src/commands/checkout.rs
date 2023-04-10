@@ -70,17 +70,12 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let path = execute(options, &profile)?;
-
-    term::headline(format!(
-        "🌱 Project checkout successful under ./{}",
-        term::format::highlight(path.file_name().unwrap_or_default().to_string_lossy())
-    ));
+    execute(options, &profile)?;
 
     Ok(())
 }
 
-pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
+fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     let id = options.id;
     let storage = &profile.storage;
     let remote = options.remote.unwrap_or(profile.did());
@@ -97,13 +92,7 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
         anyhow::bail!("the local path {:?} already exists", path.as_path());
     }
 
-    term::headline(format!(
-        "Initializing local checkout for 🌱 {} ({})",
-        term::format::highlight(options.id),
-        payload.name(),
-    ));
-
-    let spinner = term::spinner("Performing checkout...");
+    let mut spinner = term::spinner("Performing checkout...");
     let repo = match radicle::rad::checkout(options.id, &remote, path.clone(), &storage) {
         Ok(repo) => repo,
         Err(err) => {
@@ -113,6 +102,10 @@ pub fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
             return Err(err.into());
         }
     };
+    spinner.message(format!(
+        "Repository checkout successful under ./{}",
+        term::format::highlight(path.file_name().unwrap_or_default().to_string_lossy())
+    ));
     spinner.finish();
 
     let remotes = doc

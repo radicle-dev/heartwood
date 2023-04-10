@@ -3,13 +3,7 @@ existing project.
 
 ```
 $ rad checkout rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-
-Initializing local checkout for 🌱 rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji (heartwood)
-
-✓ Performing checkout...
-
-🌱 Project checkout successful under ./heartwood
-
+✓ Repository checkout successful under ./heartwood
 ```
 
 Let's have a look at what the command did. Navigate to the working copy:
