@@ -21,14 +21,14 @@ pub struct Refspec<T, U> {
 
 impl<T, U> fmt::Display for Refspec<T, U>
 where
-    T: AsRef<git::PatternStr>,
-    U: AsRef<git::PatternStr>,
+    T: fmt::Display,
+    U: fmt::Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.force {
             f.write_char('+')?;
         }
-        write!(f, "{}:{}", self.src.as_ref(), self.dst.as_ref())
+        write!(f, "{}:{}", self.src, self.dst)
     }
 }
 

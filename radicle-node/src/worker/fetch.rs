@@ -234,24 +234,59 @@ impl<'a> StagingPhaseFinal<'a> {
         {
             let specs = verifications
                 .into_iter()
-                .filter_map(|(remote, verified)| match verified {
+                .flat_map(|(remote, verified)| match verified {
                     VerifiedRemote::Failed { reason } => {
                         log::warn!(
                             target: "worker",
                             "{remote} failed to verify, will not fetch any further refs: {reason}",
                         );
-                        None
+                        vec![]
                     }
                     VerifiedRemote::Success { remote, .. } => {
-                        let ns = remote.id.to_namespace().with_pattern(git::refspec::STAR);
-                        Some(
+                        let ns = remote.id.to_namespace();
+                        let mut refspecs = vec![];
+
+                        //  First add the standard git refs.
+                        let heads = ns.join(git::refname!("refs/heads"));
+                        let cobs = ns.join(git::refname!("refs/cobs"));
+                        let tags = ns.join(git::refname!("refs/tags"));
+                        let notes = ns.join(git::refname!("refs/notes"));
+
+                        for refname in [heads, cobs, tags, notes] {
+                            let pattern = refname.with_pattern(git::refspec::STAR);
+                            refspecs.push(
+                                Refspec {
+                                    src: pattern.clone(),
+                                    dst: pattern,
+                                    force: true,
+                                }
+                                .to_string(),
+                            );
+                        }
+
+                        // Then add the special refs.
+                        let id = ns.join(&*radicle::git::refs::storage::IDENTITY_BRANCH);
+                        let sigrefs = ns.join(&*radicle::git::refs::storage::SIGREFS_BRANCH);
+
+                        refspecs.push(
                             Refspec {
-                                src: ns.clone(),
-                                dst: ns,
+                                src: id.clone(),
+                                dst: id,
+                                // Nb. The identity branch is allowed to be force-updated.
+                                force: true,
+                            }
+                            .to_string(),
+                        );
+                        refspecs.push(
+                            Refspec {
+                                src: sigrefs.clone(),
+                                dst: sigrefs,
+                                // Nb. Sigrefs are never force-updated.
                                 force: false,
                             }
                             .to_string(),
-                        )
+                        );
+                        refspecs
                     }
                 })
                 .collect::<Vec<_>>();
