@@ -18,7 +18,7 @@ Usage
 
     rad rm <rid> [<option>...]
 
-    Removes a repository from storage.
+    Removes a repository from storage. The repository is also untracked, if possible.
 
 Options
 
@@ -28,7 +28,7 @@ Options
 };
 
 pub struct Options {
-    id: Id,
+    rid: Id,
     confirm: bool,
 }
 
@@ -57,7 +57,7 @@ impl Args for Options {
 
         Ok((
             Options {
-                id: id.ok_or_else(|| anyhow!("an RID must be provided; see `rad rm --help`"))?,
+                rid: id.ok_or_else(|| anyhow!("an RID must be provided; see `rad rm --help`"))?,
                 confirm,
             },
             vec![],
@@ -68,20 +68,21 @@ impl Args for Options {
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
-    let id = options.id;
-    let path = radicle::storage::git::paths::repository(storage, &id);
+    let rid = options.rid;
+    let path = radicle::storage::git::paths::repository(storage, &rid);
+    let mut node = radicle::Node::new(profile.socket());
 
     if !path.exists() {
-        anyhow::bail!("repository {id} was not found");
+        anyhow::bail!("repository {rid} was not found");
     }
 
-    if !options.confirm || term::confirm(format!("Remove {id}?")) {
-        if let Err(e) = rad_untrack::untrack(id.to_owned(), &profile) {
+    if !options.confirm || term::confirm(format!("Remove {rid}?")) {
+        if let Err(e) = rad_untrack::untrack_repo(rid, &mut node) {
             term::warning(&format!("Failed to untrack repository: {e}"));
             term::warning("Make sure to untrack this repository when your node is running");
         }
         fs::remove_dir_all(path)?;
-        term::success!("Successfully removed {id} from storage");
+        term::success!("Successfully removed {rid} from storage");
     }
 
     Ok(())

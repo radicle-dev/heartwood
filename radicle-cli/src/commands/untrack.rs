@@ -1,33 +1,43 @@
 use std::ffi::OsString;
 
-use anyhow::{anyhow, Context as _};
+use anyhow::anyhow;
 
-use radicle::identity::Id;
-use radicle::node::Handle;
-use radicle::prelude::*;
-use radicle::storage::ReadStorage;
+use radicle::node::{Handle, NodeId};
+use radicle::{prelude::*, Node};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "untrack",
-    description: "Untrack project peers",
+    description: "Untrack a repository or node",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
 
-    rad untrack [<rid>] [<option>...]
+    rad untrack <nid> [<option>...]
+    rad untrack <rid> [<option>...]
+
+    The `untrack` command takes either an NID or an RID. Based on the argument, it will
+    either update the tracking policy of a node (NID), or a repository (RID).
 
 Options
 
-    --help              Print help
+    --verbose, -v          Verbose output
+    --help                 Print help
 "#,
 };
 
 #[derive(Debug)]
+pub enum Operation {
+    UntrackNode { nid: NodeId },
+    UntrackRepo { rid: Id },
+}
+
+#[derive(Debug)]
 pub struct Options {
-    pub id: Option<Id>,
+    pub op: Operation,
+    pub verbose: bool,
 }
 
 impl Args for Options {
@@ -35,20 +45,22 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<Id> = None;
+        let mut op: Option<Operation> = None;
+        let mut verbose = false;
 
         while let Some(arg) = parser.next()? {
-            match arg {
-                Value(val) if id.is_none() => {
-                    let val = val.to_string_lossy();
-
-                    if let Ok(val) = Id::from_urn(&val) {
-                        id = Some(val);
-                    } else {
-                        return Err(anyhow!("invalid RID '{}'", val));
+            match (&arg, &mut op) {
+                (Value(val), None) => {
+                    if let Ok(rid) = term::args::rid(val) {
+                        op = Some(Operation::UntrackRepo { rid });
+                    } else if let Ok(did) = term::args::did(val) {
+                        op = Some(Operation::UntrackNode { nid: did.into() });
+                    } else if let Ok(nid) = term::args::nid(val) {
+                        op = Some(Operation::UntrackNode { nid });
                     }
                 }
-                Long("help") => {
+                (Long("verbose") | Short('v'), _) => verbose = true,
+                (Long("help"), _) => {
                     return Err(Error::Help.into());
                 }
                 _ => {
@@ -57,37 +69,46 @@ impl Args for Options {
             }
         }
 
-        Ok((Options { id }, vec![]))
+        Ok((
+            Options {
+                op: op.ok_or_else(|| anyhow!("either an NID or an RID must be specified"))?,
+                verbose,
+            },
+            vec![],
+        ))
     }
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
-    let id = options
-        .id
-        .or_else(|| radicle::rad::cwd().ok().map(|(_, id)| id))
-        .context("current directory is not a git repository; please supply an RID")?;
     let profile = ctx.profile()?;
-    let storage = &profile.storage;
-    let project = storage.repository(id)?.project_of(profile.id())?;
+    let mut node = radicle::Node::new(profile.socket());
 
-    if untrack(id, &profile)? {
-        term::success!(
-            "Tracking relationships for {} ({}) removed",
-            term::format::highlight(project.name()),
-            &id.urn()
-        );
-    } else {
-        term::info!(
-            "Tracking relationships for {} ({}) doesn't exist",
-            term::format::highlight(project.name()),
-            &id.urn()
-        );
-    }
+    match options.op {
+        Operation::UntrackNode { nid } => untrack_node(nid, &mut node),
+        Operation::UntrackRepo { rid } => untrack_repo(rid, &mut node),
+    }?;
 
     Ok(())
 }
 
-pub fn untrack(id: Id, profile: &Profile) -> anyhow::Result<bool> {
-    let mut node = radicle::Node::new(profile.socket());
-    node.untrack_repo(id).map_err(|e| anyhow!(e))
+pub fn untrack_repo(rid: Id, node: &mut Node) -> anyhow::Result<()> {
+    let untracked = node.untrack_repo(rid)?;
+    if untracked {
+        term::success!(
+            "Tracking policy for {} removed",
+            term::format::tertiary(rid),
+        );
+    }
+    Ok(())
+}
+
+pub fn untrack_node(nid: NodeId, node: &mut Node) -> anyhow::Result<()> {
+    let untracked = node.untrack_node(nid)?;
+    if untracked {
+        term::success!(
+            "Tracking policy for {} removed",
+            term::format::tertiary(nid),
+        );
+    }
+    Ok(())
 }
