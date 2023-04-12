@@ -395,13 +395,14 @@ where
     }
 
     fn flush(&mut self, remote: NodeId, stream: StreamId) {
-        let (fd, peer) = self
+        let Some((fd, peer)) = self
             .peers
             .iter()
             .find(|(_, peer)| peer.id() == Some(&remote))
-            .map(|(fd, peer)| (*fd, peer))
-            .unwrap_or_else(|| panic!("Peer {remote} was expected to be known to the transport"));
-
+            .map(|(fd, peer)| (*fd, peer)) else {
+                log::warn!(target: "wire", "Peer {remote} is not known; ignoring flush");
+                return;
+            };
         let Peer::Connected { streams, link, .. } = peer else {
             log::warn!(target: "wire", "Peer {remote} is not connected; ignoring flush");
             return;
