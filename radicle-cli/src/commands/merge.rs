@@ -177,6 +177,24 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     //
     let patch_commit = repo
         .find_annotated_commit(revision.head().into())
+        .or_else(|e| match e.code() {
+            git::raw::ErrorCode::NotFound => {
+                // Avoid using git2 until 'rad://' supports fetching using an Oid as a refspec.
+                crate::git::git(
+                    repo.path(),
+                    [
+                        "fetch",
+                        &git::Url::from(id)
+                            .with_namespace(**patch.author().id())
+                            .to_string(),
+                        &revision.head().to_string(),
+                    ],
+                )?;
+                let c = repo.find_annotated_commit(revision.head().into())?;
+                Ok(c)
+            }
+            _ => Err(anyhow::Error::from(e)),
+        })
         .context("patch head not found in local repository")?;
     let (merge, _merge_pref) = repo.merge_analysis(&[&patch_commit])?;
 
