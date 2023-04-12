@@ -233,23 +233,6 @@ pub fn branch_remote(repo: &Repository, branch: &str) -> anyhow::Result<String> 
     Ok(remote)
 }
 
-/// Call `git pull`, optionally with `--force`.
-pub fn pull(repo: &Path, force: bool) -> io::Result<String> {
-    let mut args = vec!["-c", "color.diff=always", "pull", "-v"];
-    if force {
-        args.push("--force");
-    }
-    git(repo, args)
-}
-
-/// Clone the given repository via `git clone` into a directory.
-pub fn clone(repo: &str, destination: &Path) -> Result<String, io::Error> {
-    git(
-        Path::new("."),
-        ["clone", repo, &destination.to_string_lossy()],
-    )
-}
-
 /// Check that the system's git version is supported. Returns an error otherwise.
 pub fn check_version() -> Result<Version, anyhow::Error> {
     let git_version = git::version()?;
@@ -300,14 +283,6 @@ pub fn add_tag(
     let oid = repo.tag(patch_tag_name, &commit, &repo.signature()?, message, false)?;
 
     Ok(oid)
-}
-
-pub fn push_tag(tag_name: &str) -> io::Result<String> {
-    git(Path::new("."), vec!["push", "rad", "tag", tag_name])
-}
-
-pub fn push_branch(name: &str) -> io::Result<String> {
-    git(Path::new("."), vec!["push", "rad", name])
 }
 
 fn write_gitsigner(mut w: impl io::Write, signer: &NodeId) -> io::Result<()> {
