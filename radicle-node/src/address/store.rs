@@ -4,13 +4,13 @@ use std::{fmt, io};
 use radicle::node;
 use radicle::node::Address;
 use radicle::prelude::Timestamp;
+use radicle::sql::transaction;
 use sqlite as sql;
 use thiserror::Error;
 
 use crate::address::types;
 use crate::address::{KnownAddress, Source};
 use crate::service::NodeId;
-use crate::sql::transaction;
 use crate::wire::AddressType;
 
 #[derive(Error, Debug)]

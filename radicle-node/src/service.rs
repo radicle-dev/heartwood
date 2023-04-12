@@ -27,6 +27,7 @@ use crate::identity::IdentityError;
 use crate::identity::{Doc, Id};
 use crate::node;
 use crate::node::routing;
+use crate::node::routing::InsertResult;
 use crate::node::{Address, Features, FetchResult, Seed, Seeds};
 use crate::prelude::*;
 use crate::runtime::Emitter;
@@ -100,6 +101,23 @@ pub enum Event {
     PeerConnected {
         nid: NodeId,
     },
+}
+
+/// Result of syncing our routing table with a node's inventory.
+#[derive(Default)]
+struct SyncedRouting {
+    /// Repo entries added.
+    added: Vec<Id>,
+    /// Repo entries removed.
+    removed: Vec<Id>,
+    /// Repo entries updated (time).
+    updated: Vec<Id>,
+}
+
+impl SyncedRouting {
+    fn is_empty(&self) -> bool {
+        self.added.is_empty() && self.removed.is_empty() && self.updated.is_empty()
+    }
 }
 
 /// General service error.
@@ -527,10 +545,11 @@ where
                 }
             }
             Command::SyncInventory(resp) => {
-                let updated = self
+                let synced = self
                     .sync_inventory()
                     .expect("Service::command: error syncing inventory");
-                resp.send(!updated.is_empty()).ok();
+                resp.send(synced.added.len() + synced.removed.len() > 0)
+                    .ok();
             }
             Command::QueryState(query, sender) => {
                 sender.send(query(self)).ok();
@@ -806,8 +825,8 @@ where
                 }
 
                 match self.sync_routing(&message.inventory, *announcer, message.timestamp) {
-                    Ok(updated) => {
-                        if updated.is_empty() {
+                    Ok(synced) => {
+                        if synced.is_empty() {
                             debug!(target: "service", "No routes updated by inventory announcement from {announcer}");
                             return Ok(false);
                         }
@@ -865,11 +884,11 @@ where
 
                 // We update inventories when receiving ref announcements, as these could come
                 // from a new repository being initialized.
-                if let Ok(updated) = self
+                if let Ok(result) = self
                     .routing
                     .insert(message.rid, *announcer, message.timestamp)
                 {
-                    if updated {
+                    if let InsertResult::SeedAdded = result {
                         self.emitter.emit(Event::SeedDiscovered {
                             rid: message.rid,
                             nid: *relayer,
@@ -1113,11 +1132,11 @@ where
     }
 
     /// Update our routing table with our local node's inventory.
-    fn sync_inventory(&mut self) -> Result<Vec<Id>, Error> {
+    fn sync_inventory(&mut self) -> Result<SyncedRouting, Error> {
         let inventory = self.storage.inventory()?;
-        let updated = self.sync_routing(&inventory, self.node_id(), self.time())?;
+        let result = self.sync_routing(&inventory, self.node_id(), self.time())?;
 
-        Ok(updated)
+        Ok(result)
     }
 
     /// Process a peer inventory announcement by updating our routing table.
@@ -1128,39 +1147,43 @@ where
         inventory: &[Id],
         from: NodeId,
         timestamp: Timestamp,
-    ) -> Result<Vec<Id>, Error> {
-        let mut updated = Vec::new();
+    ) -> Result<SyncedRouting, Error> {
+        let mut synced = SyncedRouting::default();
         let mut included = HashSet::new();
 
         for rid in inventory {
             included.insert(rid);
-            if self.routing.insert(*rid, from, timestamp)? {
-                info!(target: "service", "Routing table updated for {rid} with seed {from}");
-                self.emitter.emit(Event::SeedDiscovered {
-                    rid: *rid,
-                    nid: from,
-                });
+            match self.routing.insert(*rid, from, timestamp)? {
+                InsertResult::SeedAdded => {
+                    info!(target: "service", "Routing table updated for {rid} with seed {from}");
+                    self.emitter.emit(Event::SeedDiscovered {
+                        rid: *rid,
+                        nid: from,
+                    });
 
-                if self
-                    .tracking
-                    .is_repo_tracked(rid)
-                    .expect("Service::process_inventory: error accessing tracking configuration")
-                {
-                    // TODO: We should fetch here if we're already connected, case this seed has
-                    // refs we don't have.
+                    if self.tracking.is_repo_tracked(rid).expect(
+                        "Service::process_inventory: error accessing tracking configuration",
+                    ) {
+                        // TODO: We should fetch here if we're already connected, case this seed has
+                        // refs we don't have.
+                    }
+                    synced.added.push(*rid);
                 }
-                updated.push(*rid);
+                InsertResult::TimeUpdated => {
+                    synced.updated.push(*rid);
+                }
+                InsertResult::NotUpdated => {}
             }
         }
         for rid in self.routing.get_resources(&from)?.into_iter() {
             if !included.contains(&rid) {
                 if self.routing.remove(&rid, &from)? {
-                    updated.push(rid);
+                    synced.removed.push(rid);
                     self.emitter.emit(Event::SeedDropped { rid, nid: from });
                 }
             }
         }
-        Ok(updated)
+        Ok(synced)
     }
 
     /// Announce local refs for given id.
@@ -1214,9 +1237,9 @@ where
 
     fn sync_and_announce(&mut self) {
         match self.sync_inventory() {
-            // TODO: This will always be `true` because the local clock is ticking.
-            Ok(updated) => {
-                if !updated.is_empty() {
+            Ok(synced) => {
+                // Only announce if our inventory changed.
+                if synced.added.len() + synced.removed.len() > 0 {
                     if let Err(e) = self
                         .storage
                         .inventory()
