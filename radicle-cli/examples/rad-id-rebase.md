@@ -250,7 +250,7 @@ So, let's fix this by running a rebase on the proposal's revision:
 ```
 $ rad id rebase 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --no-confirm
 ✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' rebased 🌱
-✓ Revision '42b9428df59ad349f706b1397750b75ea3b42574'
+✓ Revision 'a6db848f8dba4ef2a9c16301e7d21ad87b707f1e'
 title: Add Bob
 description: Add Bob as a delegate
 status: ❲open❳
@@ -293,9 +293,9 @@ Quorum Reached
 We can now update the proposal to have both keys in the delegates set:
 
 ```
-$ rad id update 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev 42b9428df59ad349f706b1397750b75ea3b42574 --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
+$ rad id update 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev a6db848f8dba4ef2a9c16301e7d21ad87b707f1e --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
 ✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' updated 🌱
-✓ Revision '1b4ded759249e4f76d19c3e580b4736bf2a2d1c4'
+✓ Revision '4bac5e3ef20e412e9421886fbb76dc7a64d6b5dc'
 title: Add Bob
 description: Add Bob as a delegate
 status: ❲open❳
@@ -341,7 +341,7 @@ state of our new Radicle identity:
 $ rad id show 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --revisions
 
 ```
-$ rad id accept 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev 1b4ded759249e4f76d19c3e580b4736bf2a2d1c4 --no-confirm
+$ rad id accept 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev 4bac5e3ef20e412e9421886fbb76dc7a64d6b5dc --no-confirm
 ✓ Accepted proposal ✓
 title: Add Bob
 description: Add Bob as a delegate
@@ -385,7 +385,7 @@ Quorum Reached
 ```
 
 ```
-$ rad id commit 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev 1b4ded759249e4f76d19c3e580b4736bf2a2d1c4 --no-confirm
+$ rad id commit 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev 4bac5e3ef20e412e9421886fbb76dc7a64d6b5dc --no-confirm
 ✓ Committed new identity '60de897bc24898f6908fd1272633c0b15aa4096f' 🌱
 title: Add Bob
 description: Add Bob as a delegate

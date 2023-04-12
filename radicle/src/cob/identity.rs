@@ -68,7 +68,16 @@ pub enum Action {
     },
 }
 
-impl HistoryAction for Action {}
+impl HistoryAction for Action {
+    fn parents(&self) -> Vec<Oid> {
+        match self {
+            Self::Revision { current, .. } => {
+                vec![*current]
+            }
+            _ => vec![],
+        }
+    }
+}
 
 /// Error applying an operation onto a state.
 #[derive(Error, Debug)]

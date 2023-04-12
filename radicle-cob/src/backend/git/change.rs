@@ -119,7 +119,15 @@ impl change::Storage for git2::Repository {
             ExtendedSignature::new(*key, sig)
         };
 
-        let (id, timestamp) = write_commit(self, resource, tips, message, signature.clone(), tree)?;
+        let (id, timestamp) = write_commit(
+            self,
+            resource,
+            parents.clone(),
+            tips,
+            message,
+            signature.clone(),
+            tree,
+        )?;
         Ok(Change {
             id,
             revision: revision.into(),
@@ -231,6 +239,7 @@ fn load_contents(
 fn write_commit<O>(
     repo: &git2::Repository,
     resource: O,
+    parents: Vec<O>,
     tips: Vec<O>,
     message: String,
     signature: ExtendedSignature,
@@ -242,6 +251,7 @@ where
     let resource = *resource.as_ref();
     let parents = tips
         .iter()
+        .chain(parents.iter())
         .map(|o| *o.as_ref())
         .chain(std::iter::once(resource))
         .collect::<Vec<_>>();

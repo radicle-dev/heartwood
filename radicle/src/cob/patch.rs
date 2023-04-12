@@ -119,7 +119,19 @@ pub enum Action {
     },
 }
 
-impl HistoryAction for Action {}
+impl HistoryAction for Action {
+    fn parents(&self) -> Vec<git::Oid> {
+        match self {
+            Self::Revision { base, oid, .. } => {
+                vec![*base, *oid]
+            }
+            Self::Merge { commit, .. } => {
+                vec![*commit]
+            }
+            _ => vec![],
+        }
+    }
+}
 
 /// Where a patch is intended to be merged.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
