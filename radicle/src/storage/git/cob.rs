@@ -41,19 +41,20 @@ impl change::Storage for Repository {
     type LoadError = <git2::Repository as change::Storage>::LoadError;
 
     type ObjectId = <git2::Repository as change::Storage>::ObjectId;
-    type Resource = <git2::Repository as change::Storage>::Resource;
+    type Parent = <git2::Repository as change::Storage>::Parent;
     type Signatures = <git2::Repository as change::Storage>::Signatures;
 
     fn store<Signer>(
         &self,
-        authority: Self::Resource,
+        authority: Self::Parent,
+        parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: change::Template<Self::ObjectId>,
     ) -> Result<cob::Change, Self::StoreError>
     where
         Signer: crypto::Signer,
     {
-        self.backend.store(authority, signer, spec)
+        self.backend.store(authority, parents, signer, spec)
     }
 
     fn load(&self, id: Self::ObjectId) -> Result<cob::Change, Self::LoadError> {

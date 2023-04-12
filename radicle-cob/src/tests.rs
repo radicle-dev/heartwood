@@ -126,6 +126,7 @@ fn update_cob() {
         &storage,
         &signer,
         proj.project.content_id,
+        vec![],
         &proj.identifier(),
         Update {
             changes: nonempty!(b"issue 1".to_vec()),
@@ -188,6 +189,7 @@ fn traverse_cobs() {
         &storage,
         &neil_signer,
         neil_proj.project.content_id,
+        vec![],
         &neil_proj.identifier(),
         Update {
             changes: nonempty!(b"issue 2".to_vec()),

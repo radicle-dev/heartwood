@@ -18,11 +18,19 @@ use crate::{cob, identity};
 /// History type for standard radicle COBs.
 pub const HISTORY_TYPE: &str = "radicle";
 
+pub trait HistoryAction {
+    /// Parent objects this action depends on. For example, patch revisions
+    /// have the commit objects as their parent.
+    fn parents(&self) -> Vec<git::Oid> {
+        Vec::new()
+    }
+}
+
 /// A type that can be materialized from an event history.
 /// All collaborative objects implement this trait.
 pub trait FromHistory: Sized + Default {
     /// The underlying action composing each operation.
-    type Action: for<'de> Deserialize<'de> + Serialize;
+    type Action: HistoryAction + for<'de> Deserialize<'de> + Serialize;
     /// Error returned by `apply` function.
     type Error: std::error::Error;
 
@@ -101,7 +109,7 @@ pub enum Error {
 
 /// Storage for collaborative objects of a specific type `T` in a single repository.
 pub struct Store<'a, T> {
-    parent: git::Oid,
+    identity: git::Oid,
     repo: &'a storage::Repository,
     witness: PhantomData<T>,
 }
@@ -119,7 +127,7 @@ impl<'a, T> Store<'a, T> {
 
         Ok(Self {
             repo,
-            parent: identity.head,
+            identity: identity.head,
             witness: PhantomData,
         })
     }
@@ -137,11 +145,14 @@ where
         actions: impl Into<NonEmpty<T::Action>>,
         signer: &G,
     ) -> Result<Updated, Error> {
-        let changes = actions.into().try_map(encoding::encode)?;
+        let actions = actions.into();
+        let parents = actions.iter().flat_map(T::Action::parents).collect();
+        let changes = actions.try_map(encoding::encode)?;
         let updated = cob::update(
             self.repo,
             signer,
-            self.parent,
+            self.identity,
+            parents,
             signer.public_key(),
             Update {
                 object_id,
@@ -168,7 +179,7 @@ where
         let cob = cob::create(
             self.repo,
             signer,
-            self.parent,
+            self.identity,
             signer.public_key(),
             Create {
                 history_type: HISTORY_TYPE.to_owned(),
@@ -304,7 +315,7 @@ impl<T: FromHistory> Transaction<T> {
         let author = self.actor;
         let timestamp = object.history().timestamp().into();
         let clock = self.clock.tick();
-        let identity = store.parent;
+        let identity = store.identity;
 
         // The history clock should be in sync with the tx clock.
         assert_eq!(object.history().clock(), self.clock.get());

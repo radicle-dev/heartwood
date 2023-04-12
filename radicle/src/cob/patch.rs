@@ -15,8 +15,8 @@ use radicle_crdt::{GMap, GSet, LWWReg, LWWSet, Lamport, Max, Redactable, Semilat
 
 use crate::cob;
 use crate::cob::common::{Author, Tag, Timestamp};
-use crate::cob::store::FromHistory as _;
 use crate::cob::store::Transaction;
+use crate::cob::store::{FromHistory as _, HistoryAction};
 use crate::cob::thread;
 use crate::cob::thread::CommentId;
 use crate::cob::thread::Thread;
@@ -118,6 +118,8 @@ pub enum Action {
         action: thread::Action,
     },
 }
+
+impl HistoryAction for Action {}
 
 /// Where a patch is intended to be merged.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

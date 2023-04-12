@@ -64,7 +64,7 @@ where
 {
     let Create { ref typename, .. } = &args;
     let init_change = storage
-        .store(resource, signer, args.template())
+        .store(resource, vec![], signer, args.template())
         .map_err(error::Create::from)?;
     let object_id = init_change.id().into();
 

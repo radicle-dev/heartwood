@@ -42,9 +42,10 @@ pub struct Update {
 /// The `signer` is expected to be a cryptographic signing key. This
 /// ensures that the objects origin is cryptographically verifiable.
 ///
-/// The `resource` is the parent of this object, for example a
-/// software project. Its content-address is stored in the
-/// object's history.
+/// The `resource` is the resource this change lives under, eg. a project.
+///
+/// The `parents` are other the parents of this object, for example a
+/// code commit.
 ///
 /// The `identifier` is a unqiue id that is passed through to the
 /// [`crate::object::Storage`].
@@ -55,6 +56,7 @@ pub fn update<S, G>(
     storage: &S,
     signer: &G,
     resource: Oid,
+    parents: Vec<Oid>,
     identifier: &S::Identifier,
     args: Update,
 ) -> Result<Updated, error::Update>
@@ -80,6 +82,7 @@ where
 
     let change = storage.store(
         resource,
+        parents,
         signer,
         change::Template {
             tips: object.tips().iter().cloned().collect(),

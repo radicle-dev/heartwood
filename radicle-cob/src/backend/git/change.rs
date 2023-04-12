@@ -86,12 +86,13 @@ impl change::Storage for git2::Repository {
     type LoadError = error::Load;
 
     type ObjectId = Oid;
-    type Resource = Oid;
+    type Parent = Oid;
     type Signatures = ExtendedSignature;
 
     fn store<Signer>(
         &self,
-        resource: Self::Resource,
+        resource: Self::Parent,
+        parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: store::Template<Self::ObjectId>,
     ) -> Result<Change, Self::StoreError>
@@ -124,6 +125,7 @@ impl change::Storage for git2::Repository {
             revision: revision.into(),
             signature,
             resource,
+            parents,
             manifest,
             contents,
             timestamp,
@@ -134,6 +136,11 @@ impl change::Storage for git2::Repository {
         let commit = Commit::read(self, id.into())?;
         let timestamp = git2::Time::from(commit.committer().time).seconds() as u64;
         let resource = parse_resource_trailer(commit.trailers())?;
+        let parents = commit
+            .parents()
+            .map(Oid::from)
+            .filter(|p| *p != resource)
+            .collect();
         let mut signatures = Signatures::try_from(&commit)?
             .into_iter()
             .collect::<Vec<_>>();
@@ -153,6 +160,7 @@ impl change::Storage for git2::Repository {
             revision: tree.id().into(),
             signature: ExtendedSignature::new(key, sig),
             resource,
+            parents,
             manifest,
             contents,
             timestamp,

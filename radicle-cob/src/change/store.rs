@@ -19,17 +19,18 @@ pub trait Storage {
     type LoadError: Error + Send + Sync + 'static;
 
     type ObjectId;
-    type Resource;
+    type Parent;
     type Signatures;
 
     /// Store a new change.
     #[allow(clippy::type_complexity)]
     fn store<G>(
         &self,
-        authority: Self::Resource,
+        resource: Self::Parent,
+        parents: Vec<Self::Parent>,
         signer: &G,
         template: Template<Self::ObjectId>,
-    ) -> Result<Change<Self::Resource, Self::ObjectId, Self::Signatures>, Self::StoreError>
+    ) -> Result<Change<Self::Parent, Self::ObjectId, Self::Signatures>, Self::StoreError>
     where
         G: crypto::Signer;
 
@@ -38,7 +39,7 @@ pub trait Storage {
     fn load(
         &self,
         id: Self::ObjectId,
-    ) -> Result<Change<Self::Resource, Self::ObjectId, Self::Signatures>, Self::LoadError>;
+    ) -> Result<Change<Self::Parent, Self::ObjectId, Self::Signatures>, Self::LoadError>;
 }
 
 /// Change template, used to create a new change.
@@ -62,6 +63,8 @@ pub struct Change<Resource, Id, Signature> {
     /// The parent resource that this change lives under. For example,
     /// this change could be for a patch of a project.
     pub resource: Resource,
+    /// Other parents this change depends on.
+    pub parents: Vec<Resource>,
     /// The manifest describing the type of object as well as the type
     /// of history for this `Change`.
     pub manifest: Manifest,

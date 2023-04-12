@@ -13,7 +13,7 @@ use crate::{
     cob::{
         self,
         common::Timestamp,
-        store::{self, FromHistory as _, Transaction},
+        store::{self, FromHistory as _, HistoryAction, Transaction},
     },
     identity::{doc::DocError, Did, Identity, IdentityError},
     prelude::{Doc, ReadRepository},
@@ -67,6 +67,8 @@ pub enum Action {
         action: thread::Action,
     },
 }
+
+impl HistoryAction for Action {}
 
 /// Error applying an operation onto a state.
 #[derive(Error, Debug)]

@@ -153,6 +153,8 @@ pub enum Action {
     },
 }
 
+impl cob::store::HistoryAction for Action {}
+
 impl From<Action> for nonempty::NonEmpty<Action> {
     fn from(action: Action) -> Self {
         Self::new(action)

@@ -31,7 +31,7 @@ impl ChangeGraph {
         oid: &ObjectId,
     ) -> Option<ChangeGraph>
     where
-        S: change::Storage<ObjectId = Oid, Resource = Oid, Signatures = ExtendedSignature>,
+        S: change::Storage<ObjectId = Oid, Parent = Oid, Signatures = ExtendedSignature>,
     {
         log::info!("loading object '{}' '{}'", typename, oid);
         let mut builder = GraphBuilder::default();

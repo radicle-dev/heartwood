@@ -63,29 +63,30 @@ impl change::Storage for Storage {
     type LoadError = <git2::Repository as change::Storage>::LoadError;
 
     type ObjectId = <git2::Repository as change::Storage>::ObjectId;
-    type Resource = <git2::Repository as change::Storage>::Resource;
+    type Parent = <git2::Repository as change::Storage>::Parent;
     type Signatures = <git2::Repository as change::Storage>::Signatures;
 
     fn store<Signer>(
         &self,
-        authority: Self::Resource,
+        authority: Self::Parent,
+        parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: change::Template<Self::ObjectId>,
     ) -> Result<
-        change::store::Change<Self::Resource, Self::ObjectId, Self::Signatures>,
+        change::store::Change<Self::Parent, Self::ObjectId, Self::Signatures>,
         Self::StoreError,
     >
     where
         Signer: crypto::Signer,
     {
-        self.as_raw().store(authority, signer, spec)
+        self.as_raw().store(authority, parents, signer, spec)
     }
 
     fn load(
         &self,
         id: Self::ObjectId,
     ) -> Result<
-        change::store::Change<Self::Resource, Self::ObjectId, Self::Signatures>,
+        change::store::Change<Self::Parent, Self::ObjectId, Self::Signatures>,
         Self::LoadError,
     > {
         self.as_raw().load(id)

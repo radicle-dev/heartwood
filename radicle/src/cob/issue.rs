@@ -10,8 +10,8 @@ use radicle_crdt::{LWWReg, LWWSet, Max, Semilattice};
 
 use crate::cob;
 use crate::cob::common::{Author, Reaction, Tag, Timestamp};
-use crate::cob::store::FromHistory as _;
 use crate::cob::store::Transaction;
+use crate::cob::store::{FromHistory as _, HistoryAction};
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
 use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
@@ -533,6 +533,8 @@ pub enum Action {
         action: thread::Action,
     },
 }
+
+impl HistoryAction for Action {}
 
 impl From<thread::Action> for Action {
     fn from(action: thread::Action) -> Self {

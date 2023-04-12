@@ -128,7 +128,7 @@ where
             StoreError = git::change::error::Create,
             LoadError = git::change::error::Load,
             ObjectId = git_ext::Oid,
-            Resource = git_ext::Oid,
+            Parent = git_ext::Oid,
             Signatures = ExtendedSignature,
         >,
 {
