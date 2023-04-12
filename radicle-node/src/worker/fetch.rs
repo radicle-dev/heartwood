@@ -13,7 +13,7 @@ use radicle::storage::git::Repository;
 use radicle::storage::refs::{SignedRefs, IDENTITY_BRANCH};
 use radicle::storage::{Namespaces, RefUpdate, Remote, RemoteId};
 use radicle::storage::{ReadRepository, ReadStorage, WriteRepository, WriteStorage};
-use radicle::{git, storage, Storage};
+use radicle::{git, Storage};
 
 /// The initial phase of staging a fetch from a remote.
 ///
@@ -169,11 +169,26 @@ impl<'a> StagingPhaseInitial<'a> {
             Ok(true) => {
                 let url = url::File::new(production.path_of(&rid)).to_string();
                 log::debug!(target: "worker", "Setting up fetch for existing repository: {}", url);
-                let to = storage::git::paths::repository(&staging, &rid);
+
+                let to = staging.path_of(&rid);
                 let copy = git::raw::build::RepoBuilder::new()
                     .bare(true)
                     .clone_local(git::raw::build::CloneLocal::Local)
                     .clone(&url, &to)?;
+
+                {
+                    // The clone doesn't actually clone all refs, it only creates a ref for the
+                    // default branch; so we explicitly fetch the rest of the refs, so they
+                    // don't need to be re-fetched from the remote.
+                    let mut remote = copy.remote_anonymous(&url)?;
+                    let refspecs: Vec<_> = Namespaces::All
+                        .into_refspecs()
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect();
+                    remote.fetch(&refspecs, None, None)?;
+                }
+                log::debug!(target: "worker", "Local clone successful for {rid}");
 
                 Ok(StagedRepository::Fetching(Repository {
                     id: rid,
@@ -183,6 +198,7 @@ impl<'a> StagingPhaseInitial<'a> {
             Ok(false) => {
                 log::debug!(target: "worker", "Setting up clone for new repository {}", rid);
                 let repo = staging.create(rid)?;
+
                 Ok(StagedRepository::Cloning(repo))
             }
             Err(e) => Err(e.into()),
