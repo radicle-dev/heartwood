@@ -23,7 +23,7 @@ pub enum NamespacesError {
         #[source]
         err: Error,
     },
-    #[error("The policy for {rid} is to block fetching")]
+    #[error("Cannot fetch {rid} as it is not tracked")]
     BlockedPolicy { rid: Id },
     #[error("Failed to get tracking nodes for {rid}")]
     FailedNodes {
@@ -105,7 +105,7 @@ impl Config {
             .map_err(|err| FailedPolicy { rid: *rid, err })?;
         match entry.policy {
             Policy::Block => {
-                error!(target: "service", "Attempted to fetch blocked repo {rid}");
+                error!(target: "service", "Attempted to fetch untracked repo {rid}");
                 Err(NamespacesError::BlockedPolicy { rid: *rid })
             }
             Policy::Track => match entry.scope {
