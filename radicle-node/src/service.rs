@@ -623,8 +623,13 @@ where
             // We only announce refs here when the fetch wasn't user-requested. This is
             // because the user might want to announce his fork, once he has created one,
             // or may choose to not announce anything.
-            if let Err(e) = self.announce_refs(rid, &namespaces) {
-                error!(target: "service", "Failed to announce new refs: {e}");
+            match result {
+                FetchResult::Success { updated } if !updated.is_empty() => {
+                    if let Err(e) = self.announce_refs(rid, &namespaces) {
+                        error!(target: "service", "Failed to announce new refs: {e}");
+                    }
+                }
+                _ => log::debug!(target: "service", "Nothing to announce, no refs were updated.."),
             }
         }
 
@@ -830,13 +835,18 @@ where
                         ) {
                             // Only if we do not have the repository locally do we fetch here.
                             // If we do have it, only fetch after receiving a ref announcement.
-                            if let Ok(true) = self.storage.contains(id) {
-                                // Do nothing.
-                            } else {
-                                // We may hit this branch due to an error returned by storage.
-                                // We attempt to fetch in case of error because it's likely
-                                // the repository was corrupted, and fetching will fix it.
-                                self.fetch(*id, announcer);
+                            match self.storage.contains(id) {
+                                Ok(true) => {
+                                    // Do nothing.
+                                }
+                                Ok(false) => {
+                                    log::debug!(target: "service", "Missing tracked inventory {id}; initiating fetch..");
+
+                                    self.fetch(*id, announcer);
+                                }
+                                Err(e) => {
+                                    log::error!(target: "service", "Error checking local inventory: {e}");
+                                }
                             }
                         }
                     }
@@ -1204,6 +1214,7 @@ where
 
     fn sync_and_announce(&mut self) {
         match self.sync_inventory() {
+            // TODO: This will always be `true` because the local clock is ticking.
             Ok(updated) => {
                 if !updated.is_empty() {
                     if let Err(e) = self
