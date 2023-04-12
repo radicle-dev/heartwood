@@ -84,16 +84,16 @@ $ git commit --message "Add README, just for the fun"
 $ rad patch update --message "Add README, just for the fun" 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
 Updating 3e674d1 -> 27857ec
 1 commit(s) ahead, 0 commit(s) behind
-✓ Patch updated to revision c4ee2b105d8c43d090485b8997657cd3fc6af544
+✓ Patch updated to revision b8f7bfbbb3c6a207b349e9f45bf535c706805871
 ```
 
 And let's leave a quick comment for our team:
 
 ```
 $ rad comment 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --message 'I cannot wait to get back to the 90s!'
-3b25dcd534ed80c2b1f8b432bae6b2b00d89dfb2
-$ rad comment 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --message 'I cannot wait to get back to the 90s!' --reply-to 3b25dcd534ed80c2b1f8b432bae6b2b00d89dfb2
-f877693124903b7aab1d07f186f1a3ef95eb0c2a
+16cb902f2657dc6ff9cf0f2c1a6ec4dc63340d23
+$ rad comment 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --message 'I cannot wait to get back to the 90s!' --reply-to 16cb902f2657dc6ff9cf0f2c1a6ec4dc63340d23
+16363eca043df797de835fca477848ee37513084
 ```
 
 Now, let's checkout the patch that we just created:
@@ -118,7 +118,7 @@ $ rad patch
 │ Define power requirements 191a14e R1 27857ec (flux-capacitor-power, patch/191a14e) ahead 2, behind 0 │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago              │
-│ ↑ updated to c4ee2b105d8c43d090485b8997657cd3fc6af544 (27857ec) 3 months ago                         │
+│ ↑ updated to b8f7bfbbb3c6a207b349e9f45bf535c706805871 (27857ec) 3 months ago                         │
 │ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago                    │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

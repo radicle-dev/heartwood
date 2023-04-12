@@ -31,7 +31,7 @@ $ rad patch
 │ Define power requirements a07ef77 R1 27857ec ahead 2, behind 0                    │
 ├───────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 3 months ago │
-│ ↑ updated to 916d20252a36be611ca21427f4abce2d6397833c (27857ec) 3 months ago      │
+│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) 3 months ago      │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -51,7 +51,7 @@ $ git commit --fixup HEAD~
 $ rad patch update --message "Define power requirements" --message "See details." a07ef7743a32a2e902672ea3526d1db6ee08108a
 Updating 27857ec -> f6484e0
 1 commit(s) ahead, 0 commit(s) behind
-✓ Patch updated to revision a382489b0a6945cfe82d5df39703b4515c57731d
+✓ Patch updated to revision 0795d619232479e910f95bb9c873ee1ec305c43c
 ```
 
 Great, all fixed up, lets merge the code.
@@ -59,7 +59,7 @@ Great, all fixed up, lets merge the code.
 ```
 $ git checkout master
 Your branch is up to date with 'rad/master'.
-$ rad merge a382489b0a6945cfe82d5df39703b4515c57731d
+$ rad merge 0795d619232479e910f95bb9c873ee1ec305c43c
 Merging a07ef77 R2 (f6484e0) by z6Mkt67…v4N1tRk into master (f2de534) via fast-forward...
 Running `git merge --ff-only f6484e0f43e48a8983b9b39bf9bd4cd889f1d520`...
 Updating f2de534..f6484e0
@@ -81,8 +81,8 @@ $ rad patch --merged
 │ Define power requirements a07ef77 R2 f6484e0 (flux-capacitor-power, master) ahead 3, behind 0 │
 ├───────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 3 months ago             │
-│ ↑ updated to 916d20252a36be611ca21427f4abce2d6397833c (27857ec) 3 months ago                  │
-│ ↑ updated to a382489b0a6945cfe82d5df39703b4515c57731d (f6484e0) 3 months ago                  │
+│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) 3 months ago                  │
+│ ↑ updated to 0795d619232479e910f95bb9c873ee1ec305c43c (f6484e0) 3 months ago                  │
 │ ✓ merged by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago       │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

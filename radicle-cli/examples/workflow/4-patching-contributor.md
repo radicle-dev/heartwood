@@ -82,12 +82,12 @@ $ git commit --message "Add README, just for the fun"
 $ rad patch update --message "Add README, just for the fun" a07ef7743a32a2e902672ea3526d1db6ee08108a
 Updating 3e674d1 -> 27857ec
 1 commit(s) ahead, 0 commit(s) behind
-✓ Patch updated to revision 916d20252a36be611ca21427f4abce2d6397833c
+✓ Patch updated to revision 11483929d8714a92992229f65433e06288f3b760
 ```
 
 And let's leave a quick comment for our team:
 
 ```
 $ rad comment a07ef7743a32a2e902672ea3526d1db6ee08108a --message 'I cannot wait to get back to the 90s!'
-eacda4ec25edcb89655774d08173858f0c05464c
+18987961eb5e5a8c7fb1fb58f514030d3ea69802
 ```

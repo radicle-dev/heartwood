@@ -249,10 +249,15 @@ where
     O: AsRef<git2::Oid>,
 {
     let resource = *resource.as_ref();
+    // Add extra parents ensuring there are no duplicates.
+    let mut parents = parents.iter().map(|o| *o.as_ref()).collect::<Vec<_>>();
+    parents.sort();
+    parents.dedup();
+
     let parents = tips
         .iter()
-        .chain(parents.iter())
         .map(|o| *o.as_ref())
+        .chain(parents.into_iter())
         .chain(std::iter::once(resource))
         .collect::<Vec<_>>();
 
