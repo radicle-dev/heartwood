@@ -633,7 +633,7 @@ where
         &mut self,
         err: reactor::Error<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>,
     ) {
-        match &err {
+        match err {
             reactor::Error::ListenerUnknown(id) => {
                 // TODO: What are we supposed to do here? Remove this error.
                 log::error!(target: "wire", "Received error: unknown listener {}", id);
@@ -649,7 +649,7 @@ where
             reactor::Error::ListenerPollError(id, _) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
                 log::error!(target: "wire", "Received error: listener {} disconnected", id);
-                self.actions.push_back(Action::UnregisterListener(*id));
+                self.actions.push_back(Action::UnregisterListener(id));
             }
             reactor::Error::ListenerDisconnect(id, _, _) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
@@ -659,17 +659,20 @@ where
                 log::error!(target: "wire", "Received error: peer (fd={fd}) poll error");
 
                 self.disconnect(
-                    *fd,
+                    fd,
                     DisconnectReason::Connection(Arc::new(io::Error::from(io::ErrorKind::Other))),
                 )
             }
-            reactor::Error::TransportDisconnect(fd, _, _) => {
+            reactor::Error::TransportDisconnect(fd, session, _) => {
                 log::error!(target: "wire", "Received error: peer (fd={fd}) disconnected");
+
+                // We're dropping the TCP connection here.
+                drop(session);
 
                 // The peer transport is already disconnected and removed from the reactor;
                 // therefore there is no need to initiate a disconnection. We simply remove
                 // the peer from the map.
-                match self.peers.remove(fd) {
+                match self.peers.remove(&fd) {
                     Some(peer) => {
                         let reason = DisconnectReason::Connection(Arc::new(io::Error::from(
                             io::ErrorKind::ConnectionReset,
