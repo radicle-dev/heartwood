@@ -185,6 +185,7 @@ impl Runtime {
         }
 
         let pool = worker::Pool::with(
+            id,
             worker_recv,
             handle.clone(),
             worker::Config {

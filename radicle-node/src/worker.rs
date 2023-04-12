@@ -147,6 +147,7 @@ pub struct TaskResult {
 
 /// A worker that replicates git objects.
 struct Worker {
+    nid: NodeId,
     storage: Storage,
     tasks: chan::Receiver<Task>,
     daemon: net::SocketAddr,
@@ -243,7 +244,10 @@ impl Worker {
             &mut channels,
         ) {
             Ok(()) => log::debug!(target: "worker", "Initial fetch for {rid} exited successfully"),
-            Err(e) => log::error!(target: "worker", "Initial fetch for {rid} failed: {e}"),
+            Err(e) => {
+                log::error!(target: "worker", "Initial fetch for {rid} failed: {e}");
+                return Err(e);
+            }
         }
         Self::eof(remote, stream, &mut channels.sender, &mut self.handle)?;
 
@@ -256,7 +260,10 @@ impl Worker {
             &mut channels,
         ) {
             Ok(()) => log::debug!(target: "worker", "Final fetch for {rid} exited successfully"),
-            Err(e) => log::error!(target: "worker", "Final fetch for {rid} failed: {e}"),
+            Err(e) => {
+                log::error!(target: "worker", "Final fetch for {rid} failed: {e}");
+                return Err(e);
+            }
         }
         Self::eof(remote, stream, &mut channels.sender, &mut self.handle)?;
 
@@ -380,11 +387,20 @@ impl Worker {
             cmd.arg("--atomic");
         }
 
-        let fetchspecs = specs
+        let is_clone = repo.head().is_err();
+        let namespace = self.nid.to_namespace();
+        let mut fetchspecs = specs
             .into_refspecs()
             .into_iter()
+            // Filter out our own refs, if we aren't cloning.
+            .filter(|fs| is_clone || !fs.dst.starts_with(namespace.as_str()))
             .map(|spec| spec.to_string())
             .collect::<Vec<_>>();
+
+        if !is_clone {
+            // Make sure we don't fetch our own refs via a glob pattern.
+            fetchspecs.push(format!("^refs/namespaces/{}/*", self.nid));
+        }
 
         cmd.arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()))
             .args(&fetchspecs)
@@ -441,10 +457,11 @@ pub struct Pool {
 
 impl Pool {
     /// Create a new worker pool with the given parameters.
-    pub fn with(tasks: chan::Receiver<Task>, handle: Handle, config: Config) -> Self {
+    pub fn with(nid: NodeId, tasks: chan::Receiver<Task>, handle: Handle, config: Config) -> Self {
         let mut pool = Vec::with_capacity(config.capacity);
         for _ in 0..config.capacity {
             let worker = Worker {
+                nid,
                 tasks: tasks.clone(),
                 handle: handle.clone(),
                 storage: config.storage.clone(),
