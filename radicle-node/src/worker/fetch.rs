@@ -125,7 +125,7 @@ impl<'a> StagingPhaseInitial<'a> {
     pub fn into_final(self) -> Result<StagingPhaseFinal<'a>, error::Transition> {
         let trusted = match &self.repo {
             StagedRepository::Cloning(repo) => {
-                log::debug!(target: "worker", "Loading remotes for clone");
+                log::debug!(target: "worker", "Loading remotes for clone of {}", self.repo.id);
                 let oid = ReadRepository::identity_head(repo)?;
                 log::trace!(target: "worker", "Loading 'rad/id' @ {oid}");
                 let (doc, _) = Doc::<Unverified>::load_at(oid, repo)?;
@@ -139,7 +139,7 @@ impl<'a> StagingPhaseInitial<'a> {
                 trusted
             }
             StagedRepository::Fetching(repo) => {
-                log::debug!(target: "worker", "Loading remotes for fetching");
+                log::debug!(target: "worker", "Loading remotes for fetching of {}", self.repo.id);
                 match self.namespaces.clone() {
                     Namespaces::All => {
                         let mut trusted = repo.remote_ids()?.collect::<Result<HashSet<_>, _>>()?;

@@ -2,6 +2,7 @@ use std::{collections::HashSet, thread, time};
 
 use radicle::crypto::{test::signer::MockSigner, Signer};
 use radicle::node::{FetchResult, Handle as _};
+use radicle::prelude::Id;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{assert_matches, rad};
 
@@ -455,6 +456,86 @@ fn test_fetch_up_to_date() {
     // Fetch again! This time, everything's up to date.
     let result = alice.handle.fetch(acme, bob.id).unwrap();
     assert_eq!(result.success(), Some(vec![]));
+}
+
+#[test]
+fn test_concurrent_fetches() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Node::init(tmp.path());
+    let mut bob = Node::init(tmp.path());
+    let mut bob_repos: HashSet<Id> = HashSet::from_iter([
+        bob.project("bob-1", ""),
+        bob.project("bob-2", ""),
+        bob.project("bob-3", ""),
+        bob.project("bob-4", ""),
+        bob.project("bob-5", ""),
+    ]);
+    let mut alice_repos: HashSet<Id> = HashSet::from_iter([
+        alice.project("alice-1", ""),
+        alice.project("alice-2", ""),
+        alice.project("alice-3", ""),
+        alice.project("alice-4", ""),
+        alice.project("alice-5", ""),
+    ]);
+
+    let mut alice = alice.spawn(service::Config::default());
+    let mut bob = bob.spawn(service::Config::default());
+
+    let alice_events = alice.handle.events();
+    let bob_events = bob.handle.events();
+
+    for rid in &bob_repos {
+        alice.handle.track_repo(*rid, Scope::All).unwrap();
+    }
+    for rid in &alice_repos {
+        bob.handle.track_repo(*rid, Scope::All).unwrap();
+    }
+    alice.connect(&bob);
+
+    while !bob_repos.is_empty() {
+        match alice_events.recv().unwrap() {
+            service::Event::RefsFetched { rid, updated, .. } if !updated.is_empty() => {
+                bob_repos.remove(&rid);
+                log::debug!(target: "test", "{} fetched {rid} ({} left)",alice.id, bob_repos.len());
+            }
+            _ => {}
+        }
+    }
+
+    while !alice_repos.is_empty() {
+        match bob_events.recv().unwrap() {
+            service::Event::RefsFetched { rid, updated, .. } if !updated.is_empty() => {
+                alice_repos.remove(&rid);
+                log::debug!(target: "test", "{} fetched {rid} ({} left)", bob.id, alice_repos.len());
+            }
+            _ => {}
+        }
+    }
+
+    for rid in &bob_repos {
+        let (_, doc) = alice
+            .storage
+            .repository(*rid)
+            .unwrap()
+            .identity_doc()
+            .unwrap();
+        let proj = doc.verified().unwrap().project().unwrap();
+
+        assert!(proj.name().starts_with("bob"));
+    }
+    for rid in &alice_repos {
+        let (_, doc) = bob
+            .storage
+            .repository(*rid)
+            .unwrap()
+            .identity_doc()
+            .unwrap();
+        let proj = doc.verified().unwrap().project().unwrap();
+
+        assert!(proj.name().starts_with("alice"));
+    }
 }
 
 #[test]

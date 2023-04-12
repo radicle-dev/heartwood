@@ -604,8 +604,11 @@ where
     ) {
         let result = match result {
             Ok(updated) => {
-                log::debug!(target: "service", "Fetched {rid} from {remote}");
+                log::debug!(target: "service", "Fetched {rid} from {remote} successfully");
 
+                for update in &updated {
+                    log::debug!(target: "service", "Ref updated: {update} for {rid}");
+                }
                 self.emitter.emit(Event::RefsFetched {
                     remote,
                     rid,

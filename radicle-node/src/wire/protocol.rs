@@ -532,7 +532,7 @@ where
                                 data: FrameData::Control(frame::Control::Open { stream }),
                                 ..
                             })) => {
-                                log::debug!(target: "wire", "Received stream open for id={stream}");
+                                log::debug!(target: "wire", "Received stream open for id={stream} from {nid}");
 
                                 let Some(WorkerChannels {
                                     sender: work_send,
@@ -568,9 +568,11 @@ where
                                 data: FrameData::Control(frame::Control::Close { stream }),
                                 ..
                             })) => {
-                                log::debug!(target: "wire", "Received stream close command for id={stream}");
+                                log::debug!(target: "wire", "Received stream close command for id={stream} from {nid}");
 
-                                streams.unregister(&stream);
+                                if let Some(chans) = streams.unregister(&stream) {
+                                    chans.sender.send(ChannelEvent::Close).ok();
+                                }
                             }
                             Ok(Some(Frame {
                                 data: FrameData::Gossip(msg),
@@ -812,7 +814,7 @@ where
                     remote,
                     namespaces,
                 } => {
-                    log::debug!(target: "wire", "Processing fetch..");
+                    log::trace!(target: "wire", "Processing fetch for {rid} from {remote}..");
 
                     let (fd, Peer::Connected { link, streams,  .. }) =
                         self.fd_by_id_mut(&remote) else {
@@ -820,7 +822,7 @@ where
                         };
                     let (stream, channels) = streams.open();
 
-                    log::debug!(target: "wire", "Opened new stream with id={stream} for rid={rid}");
+                    log::debug!(target: "wire", "Opened new stream with id={stream} for rid={rid} remote={remote}");
 
                     let link = *link;
                     let task = Task {

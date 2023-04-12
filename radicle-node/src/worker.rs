@@ -177,7 +177,7 @@ impl Worker {
         let channels = Channels::new(send, recv);
         let result = self._process(&fetch, stream, channels);
 
-        log::debug!(target: "worker", "Sending response back to service..");
+        log::trace!(target: "worker", "Sending response back to service..");
 
         if self
             .handle
@@ -222,6 +222,8 @@ impl Worker {
                         Err(e) => return Err(e.into()),
                     }
                 }
+                log::debug!(target: "worker", "Upload process on stream {stream} exited successfully");
+
                 Ok(vec![])
             }
         }
@@ -277,13 +279,17 @@ impl Worker {
         pktline_r: &mut pktline::Reader<&mut ChannelReader>,
         stream_w: &mut ChannelWriter,
     ) -> Result<ControlFlow<()>, UploadError> {
-        log::debug!(target: "worker", "Waiting for Git request pktline for..");
+        log::debug!(target: "worker", "Waiting for Git request pktline from {}..", fetch.remote());
 
         // Read the request packet line to make sure the repository being requested matches what
         // we expect, and that the service requested is valid.
         let (rid, request) = match pktline_r.read_request_pktline() {
             Ok((req, pktline)) => (req.repo, pktline),
             Err(err) if err.kind() == io::ErrorKind::ConnectionReset => {
+                log::debug!(
+                    target: "worker",
+                    "Upload process received stream `close` from {}", fetch.remote()
+                );
                 return Ok(ControlFlow::Break(()));
             }
             Err(err) => {
@@ -332,7 +338,7 @@ impl Worker {
                 // This is the expected error when the daemon disconnects.
                 if e.kind() == io::ErrorKind::UnexpectedEof {
                     log::debug!(target: "worker", "Daemon closed the git connection for {rid}");
-                    log::debug!(target: "worker", "Waiting for EOF from remote..");
+                    log::debug!(target: "worker", "Waiting for end-of-file from remote..");
 
                     stream_r.wait_for_eof()?;
 
@@ -437,10 +443,10 @@ impl Worker {
         sender: &mut ChannelWriter,
         handle: &mut Handle,
     ) -> Result<(), FetchError> {
-        log::debug!(target: "worker", "Sending `EOF` to remote..");
+        log::debug!(target: "worker", "Sending end-of-file to remote {remote}..");
 
         if let Err(e) = sender.eof() {
-            log::error!(target: "worker", "Fetch error: error sending `EOF` message: {e}");
+            log::error!(target: "worker", "Fetch error: error sending end-of-file message: {e}");
             return Err(e.into());
         }
         if let Err(e) = handle.flush(remote, stream) {
