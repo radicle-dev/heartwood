@@ -20,7 +20,7 @@ axum = { version = "0.6.7", default-features = false, features = ["headers", "js
 axum-auth = { version= "0.4.0", default-features = false, features = ["auth-bearer"] }
 axum-server = { version = "0.4.4", default-features = false }
 chrono = { version = "0.4.22" }
-fastrand = { version = "1.7.0" }
+fastrand = { version = "1.9.0" }
 flate2 = { version = "1" }
 hyper = { version = "0.14.17", default-features = false }
 lexopt = { version = "0.2.1" }

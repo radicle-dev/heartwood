@@ -13,7 +13,7 @@ keywords = ["radicle", "collaborative objects", "cob", "cobs"]
 [lib]
 
 [dependencies]
-fastrand = { version = "1.8.0" }
+fastrand = { version = "1.9.0" }
 git-commit = { version = "0.3" }
 git-ref-format = { version = "0.2" }
 git-trailers = { version = "0.1" }
@@ -42,7 +42,7 @@ version = "1.0"
 features = ["derive"]
 
 [dev-dependencies]
-fastrand = { version = "1.8.0", default-features = false }
+fastrand = { version = "1.9.0", default-features = false }
 git-ref-format = { version = "0.2", features = ["macro"] }
 tempfile = { version = "3" }
 qcheck = { version = "1", default-features = false }

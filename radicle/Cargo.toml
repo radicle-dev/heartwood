@@ -13,7 +13,7 @@ test = ["qcheck", "radicle-crypto/test"]
 amplify = { version = "4.0.0-beta.7", default-features = false, features = ["std"] }
 crossbeam-channel = { version = "0.5.6" }
 cyphernet = { version = "0.2.0", features = ["tor", "dns", "ed25519"] }
-fastrand = { version = "1.8.0" }
+fastrand = { version = "1.9.0" }
 git-ref-format = { version = "0", features = ["serde", "macro"] }
 multibase = { version = "0.9.1" }
 localtime = { version = "1.2.0" }
