@@ -411,11 +411,6 @@ where
             return;
         };
 
-        #[cfg(test)]
-        if c.receiver.is_empty() {
-            panic!("Wire::flush: redundant flush");
-        }
-
         for data in c.receiver.try_iter() {
             let frame = match data {
                 ChannelEvent::Data(data) => Frame::git(stream, data),

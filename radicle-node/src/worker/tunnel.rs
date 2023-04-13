@@ -1,25 +1,27 @@
 use std::{
-    io::{self, Write},
-    net, time,
+    io::{self, Read, Write},
+    net, thread, time,
 };
 
 use super::channels::Channels;
-use super::{pktline, Handle, NodeId, StreamId};
+use super::{Handle, NodeId, StreamId, Worker};
 
 /// Tunnels fetches to a remote peer.
 pub struct Tunnel<'a> {
-    stream: &'a mut Channels,
+    channels: &'a mut Channels,
     listener: net::TcpListener,
     local_addr: net::SocketAddr,
-    channel: StreamId,
+    stream: StreamId,
+    local: NodeId,
     remote: NodeId,
     handle: Handle,
 }
 
 impl<'a> Tunnel<'a> {
     pub(super) fn with(
-        stream: &'a mut Channels,
-        channel: StreamId,
+        channels: &'a mut Channels,
+        stream: StreamId,
+        local: NodeId,
         remote: NodeId,
         handle: Handle,
     ) -> io::Result<Self> {
@@ -27,10 +29,11 @@ impl<'a> Tunnel<'a> {
         let local_addr = listener.local_addr()?;
 
         Ok(Self {
-            stream,
+            channels,
             listener,
             local_addr,
-            channel,
+            stream,
+            local,
             remote,
             handle,
         })
@@ -42,39 +45,64 @@ impl<'a> Tunnel<'a> {
 
     /// Run the tunnel until the connection is closed.
     pub fn run(&mut self, timeout: time::Duration) -> io::Result<()> {
-        // We now loop, alternating between reading requests from the client, and writing responses
-        // back from the daemon.. Requests are delimited with a flush packet (`flush-pkt`).
-        let mut buffer = [0; u16::MAX as usize + 1];
-        let (mut remote_w, mut remote_r) = self.stream.split();
-        let (mut stream, _) = self.listener.accept()?;
+        let (remote_w, remote_r) = self.channels.split();
+        let (local, _) = self.listener.accept()?;
+        let (mut local_r, mut local_w) = (local.try_clone()?, local);
 
-        let mut local = pktline::Reader::new(&mut stream);
-        let mut remote_r = pktline::Reader::new(&mut remote_r);
+        local_r.set_read_timeout(Some(timeout))?;
+        local_w.set_write_timeout(Some(timeout))?;
 
-        local.stream().set_read_timeout(Some(timeout))?;
-        local.stream().set_write_timeout(Some(timeout))?;
+        let nid = self.remote;
+        let stream_id = self.stream;
 
-        let (_, buf) = local.read_request_pktline()?;
-        remote_w.write_all(&buf)?;
+        thread::scope(|s| {
+            let remote_to_local = thread::Builder::new()
+                .name(self.local.to_string())
+                .spawn_scoped(s, || {
+                    let mut buffer = [0; u16::MAX as usize + 1];
 
-        // Nb. Annoyingly, we have to always check if the fetch stream is closed on every
-        // iteration, otherwise we may get stuck waiting for data from the remote while
-        // we're actually done. After measurement, this checking for EOF only takes
-        // between 1µs and 4µs, and is therefore an okay compromise.
-        while !local.is_eof()? {
-            if self.handle.flush(self.remote, self.channel).is_err() {
-                return Err(io::ErrorKind::BrokenPipe.into());
-            }
-            remote_r.pipe(local.stream(), &mut buffer)?;
+                    loop {
+                        match remote_r.read(&mut buffer) {
+                            Ok(0) => return Ok(()),
+                            Ok(n) => local_w.write_all(&buffer[..n])?,
+                            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
+                                // This is the expected error when the git fetch closes the connection.
+                                return Ok(());
+                            }
+                            Err(e) => return Err(e),
+                        }
+                    }
+                })?;
 
-            if let Err(e) = local.pipe(&mut remote_w, &mut buffer) {
-                // This is the expected error when the git fetch closes the connection.
-                if e.kind() == io::ErrorKind::UnexpectedEof {
-                    break;
-                }
-                return Err(e);
-            }
-        }
-        Ok(())
+            let local_to_remote = thread::Builder::new()
+                .name(self.local.to_string())
+                .spawn_scoped(s, || {
+                    let mut buffer = [0; u16::MAX as usize + 1];
+
+                    loop {
+                        match local_r.read(&mut buffer) {
+                            Ok(0) => break,
+                            Ok(n) => {
+                                remote_w.write_all(&buffer[..n])?;
+
+                                if let Err(e) = self.handle.flush(nid, stream_id) {
+                                    log::error!(
+                                        target: "worker", "Worker channel disconnected; aborting"
+                                    );
+                                    return Err(e);
+                                }
+                            }
+                            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    Worker::eof(nid, stream_id, remote_w, &mut self.handle)
+                })?;
+
+            remote_to_local.join().unwrap()?;
+            local_to_remote.join().unwrap()?;
+
+            Ok::<(), io::Error>(())
+        })
     }
 }
