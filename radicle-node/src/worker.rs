@@ -245,10 +245,22 @@ impl Worker {
             &mut channels,
         ) {
             Ok(()) => log::debug!(target: "worker", "Initial fetch for {rid} exited successfully"),
-            Err(e) => {
-                log::error!(target: "worker", "Initial fetch for {rid} failed: {e}");
-                return Err(e);
-            }
+            Err(e) => match (&staging.repo, e) {
+                // When fetching, if the error comes from `git-fetch` returning an error, we
+                // keep going because it could be due to a rejected ref (eg. on `rad/sigrefs`),
+                // and that is non-fatal.
+                (fetch::StagedRepository::Fetching(_), e @ FetchError::CommandFailed { .. }) => {
+                    log::warn!(target: "worker", "Initial fetch for {rid} returned an error: {e}");
+                    log::warn!(target: "worker", "It's possible that some of the refs were rejected..");
+                }
+                // When cloning, any error is fatal, since we'll end up with an empty repository.
+                // Likewise, when fetching, if the error is coming from some other place, we
+                // abort the fetch.
+                (fetch::StagedRepository::Cloning(_) | fetch::StagedRepository::Fetching(_), e) => {
+                    log::error!(target: "worker", "Initial fetch for {rid} failed: {e}");
+                    return Err(e);
+                }
+            },
         }
 
         let staging = staging.into_final()?;
