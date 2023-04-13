@@ -460,6 +460,41 @@ fn test_fetch_up_to_date() {
 }
 
 #[test]
+fn test_large_fetch() {
+    logger::init(log::Level::Debug);
+
+    let env = Environment::new();
+    let scale = env.scale();
+    let mut alice = Node::init(&env.tmp());
+    let bob = Node::init(&env.tmp());
+
+    let tmp = tempfile::tempdir().unwrap();
+    let (repo, _) = fixtures::repository(tmp.path());
+    fixtures::populate(&repo, scale.max(3));
+
+    let rid = alice.project_from("acme", "", &repo);
+
+    let mut alice = alice.spawn(service::Config::default());
+    let mut bob = bob.spawn(service::Config::default());
+    let bob_events = bob.handle.events();
+
+    bob.handle.track_repo(rid, Scope::All).unwrap();
+    alice.connect(&bob);
+
+    bob_events
+        .wait(
+            |e| matches!(e, service::Event::RefsFetched { updated, .. } if !updated.is_empty()),
+            time::Duration::from_secs(9 * scale as u64),
+        )
+        .unwrap();
+
+    let (_, doc) = bob.storage.repository(rid).unwrap().identity_doc().unwrap();
+    let proj = doc.verified().unwrap().project().unwrap();
+
+    assert_eq!(proj.name(), "acme");
+}
+
+#[test]
 fn test_concurrent_fetches() {
     logger::init(log::Level::Debug);
 
