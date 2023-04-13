@@ -40,6 +40,12 @@ pub enum StagedRepository {
     Fetching(Repository),
 }
 
+impl StagedRepository {
+    pub fn is_cloning(&self) -> bool {
+        matches!(self, Self::Cloning(_))
+    }
+}
+
 impl Deref for StagedRepository {
     type Target = Repository;
 

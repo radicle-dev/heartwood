@@ -389,7 +389,7 @@ impl Worker {
 
     fn _fetch<S>(
         &self,
-        repo: &storage::git::Repository,
+        repo: &fetch::StagedRepository,
         remote: NodeId,
         specs: S,
         stream: StreamId,
@@ -414,17 +414,16 @@ impl Worker {
             cmd.arg("--atomic");
         }
 
-        let is_clone = repo.head().is_err();
         let namespace = self.nid.to_namespace();
         let mut fetchspecs = specs
             .into_refspecs()
             .into_iter()
             // Filter out our own refs, if we aren't cloning.
-            .filter(|fs| is_clone || !fs.dst.starts_with(namespace.as_str()))
+            .filter(|fs| repo.is_cloning() || !fs.dst.starts_with(namespace.as_str()))
             .map(|spec| spec.to_string())
             .collect::<Vec<_>>();
 
-        if !is_clone {
+        if !repo.is_cloning() {
             // Make sure we don't fetch our own refs via a glob pattern.
             fetchspecs.push(format!("^refs/namespaces/{}/*", self.nid));
         }
