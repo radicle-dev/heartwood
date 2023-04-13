@@ -354,7 +354,11 @@ where
     }
 
     fn worker_result(&mut self, task: TaskResult) {
-        log::debug!(target: "wire", "Received fetch result from worker: {:?}", task.result);
+        log::debug!(
+            target: "wire",
+            "Received fetch result from worker: stream={} remote={} fetch={:?} result={:?}",
+            task.stream, task.fetch.remote(), task.result, task.fetch
+        );
 
         let nid = task.fetch.remote();
         let Some((fd, peer)) = self
