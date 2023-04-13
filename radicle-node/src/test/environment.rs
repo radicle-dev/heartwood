@@ -59,6 +59,16 @@ impl Environment {
         self.tempdir.path().join("misc")
     }
 
+    /// Get the scale or "test size". This is used to scale tests with more data. Defaults to `1`.
+    pub fn scale(&self) -> usize {
+        env::var("RAD_TEST_SCALE")
+            .map(|s| {
+                s.parse()
+                    .expect("repository: invalid value for `RAD_TEST_SCALE`")
+            })
+            .unwrap_or(1)
+    }
+
     /// Create a new node in this environment. This should be used when a running node
     /// is required. Use [`Environment::profile`] otherwise.
     pub fn node(&mut self, name: &str) -> Node<MemorySigner> {
@@ -318,15 +328,17 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
         }
     }
 
-    /// Populate a storage instance with a project.
-    pub fn project(&mut self, name: &str, description: &str) -> Id {
+    /// Populate a storage instance with a project from the given repository.
+    pub fn project_from(
+        &mut self,
+        name: &str,
+        description: &str,
+        repo: &git::raw::Repository,
+    ) -> Id {
         transport::local::register(self.storage.clone());
 
-        let tmp = tempfile::tempdir().unwrap();
-        let (repo, _) = fixtures::repository(tmp.path());
-
         let id = rad::init(
-            &repo,
+            repo,
             name,
             description,
             refname!("master"),
@@ -341,7 +353,28 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
             "Initialized project {id} for node {}", self.signer.public_key()
         );
 
+        // Push local branches to storage.
+        let mut refs = Vec::<(git::Qualified, git::Qualified)>::new();
+        for branch in repo.branches(Some(git::raw::BranchType::Local)).unwrap() {
+            let (branch, _) = branch.unwrap();
+            let name = git::RefString::try_from(branch.name().unwrap().unwrap()).unwrap();
+
+            refs.push((
+                git::lit::refs_heads(&name).into(),
+                git::lit::refs_heads(&name).into(),
+            ));
+        }
+        git::push(repo, "rad", refs.iter().map(|(a, b)| (a, b))).unwrap();
+
         id
+    }
+
+    /// Populate a storage instance with a project.
+    pub fn project(&mut self, name: &str, description: &str) -> Id {
+        let tmp = tempfile::tempdir().unwrap();
+        let (repo, _) = fixtures::repository(tmp.path());
+
+        self.project_from(name, description, &repo)
     }
 }
 

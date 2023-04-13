@@ -79,11 +79,51 @@ pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
     repo.set_head("refs/heads/master").unwrap();
     repo.checkout_head(None).unwrap();
 
-    // Look, I don't really understand why we have to do this, but we do.
     drop(tree);
     drop(head);
 
     (repo, oid)
+}
+
+/// Populate a repository with commits, branches and blobs.
+pub fn populate(repo: &git2::Repository, scale: usize) {
+    assert!(
+        scale <= 8,
+        "Scale parameter must be less than or equal to 8"
+    );
+    if scale == 0 {
+        return;
+    }
+    let head = repo.head().unwrap().peel_to_commit().unwrap();
+    let rng = fastrand::Rng::with_seed(42);
+    let mut buffer = vec![0; 1024 * 1024 * scale];
+
+    for _ in 0..scale {
+        let random = std::iter::repeat_with(|| rng.alphanumeric())
+            .take(7)
+            .collect::<String>()
+            .to_lowercase();
+        let name = format!("feature/{random}");
+        let signature = git2::Signature::now("Radicle", "radicle@radicle.xyz").unwrap();
+
+        rng.fill(&mut buffer);
+
+        let blob = repo.blob(&buffer).unwrap();
+        let mut builder = repo.treebuilder(None).unwrap();
+        builder.insert("random.txt", blob, 0o100_644).unwrap();
+        let tree_oid = builder.write().unwrap();
+        let tree = repo.find_tree(tree_oid).unwrap();
+
+        repo.commit(
+            Some(&format!("refs/heads/{name}")),
+            &signature,
+            &signature,
+            &format!("Initialize new branch feature/{random}"),
+            &tree,
+            &[&head],
+        )
+        .unwrap();
+    }
 }
 
 /// Generate random fixtures.

@@ -2,14 +2,14 @@ use std::{collections::HashSet, thread, time};
 
 use radicle::crypto::{test::signer::MockSigner, Signer};
 use radicle::node::{FetchResult, Handle as _};
-use radicle::prelude::Id;
 use radicle::storage::{ReadRepository, ReadStorage};
+use radicle::test::fixtures;
 use radicle::{assert_matches, rad};
 
 use crate::service;
 use crate::service::tracking::Scope;
 use crate::storage::git::transport;
-use crate::test::environment::{converge, Node};
+use crate::test::environment::{converge, Environment, Node};
 use crate::test::logger;
 
 #[test]
@@ -462,23 +462,30 @@ fn test_fetch_up_to_date() {
 fn test_concurrent_fetches() {
     logger::init(log::Level::Debug);
 
-    let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
-    let mut bob_repos: HashSet<Id> = HashSet::from_iter([
-        bob.project("bob-1", ""),
-        bob.project("bob-2", ""),
-        bob.project("bob-3", ""),
-        bob.project("bob-4", ""),
-        bob.project("bob-5", ""),
-    ]);
-    let mut alice_repos: HashSet<Id> = HashSet::from_iter([
-        alice.project("alice-1", ""),
-        alice.project("alice-2", ""),
-        alice.project("alice-3", ""),
-        alice.project("alice-4", ""),
-        alice.project("alice-5", ""),
-    ]);
+    let env = Environment::new();
+    let scale = env.scale();
+    let mut bob_repos = HashSet::new();
+    let mut alice_repos = HashSet::new();
+    let mut alice = Node::init(&env.tmp());
+    let mut bob = Node::init(&env.tmp());
+
+    for i in 0..scale.max(3) {
+        // Create a repo for Alice.
+        let tmp = tempfile::tempdir().unwrap();
+        let (repo, _) = fixtures::repository(tmp.path());
+        fixtures::populate(&repo, scale);
+
+        let rid = alice.project_from(&format!("alice-{i}"), "", &repo);
+        alice_repos.insert(rid);
+
+        // Create a repo for Bob.
+        let tmp = tempfile::tempdir().unwrap();
+        let (repo, _) = fixtures::repository(tmp.path());
+        fixtures::populate(&repo, scale);
+
+        let rid = bob.project_from(&format!("bob-{i}"), "", &repo);
+        bob_repos.insert(rid);
+    }
 
     let mut alice = alice.spawn(service::Config::default());
     let mut bob = bob.spawn(service::Config::default());
