@@ -21,14 +21,14 @@ Usage
 
 Options
 
-    --connect          <peer>        Connect to the given peer address on start
-    --external-address <address>     Publicly accessible address (default 0.0.0.0:8776)
-    --git-daemon       <address>     Address to bind git-daemon to (default 0.0.0.0:9418)
-    --tracking-policy  (track|block) Default tracking policy
-    --tracking-scope   (trusted|all) Default scope for tracking policies
-    --force                          Force start even if an existing control socket is found
-    --help                           Print help
-    --listen           <address>     Address to listen on
+    --connect            <peer>         Connect to the given peer address on start
+    --external-address   <address>      Publicly accessible address (default 0.0.0.0:8776)
+    --git-daemon         <address>      Address to bind git-daemon to (default 0.0.0.0:9418)
+    --tracking-policy    (track|block)  Default tracking policy
+    --tracking-scope     (trusted|all)  Default scope for tracking policies
+    --force                             Force start even if an existing control socket is found
+    --help                              Print help
+    --listen             <address>      Address to listen on
 
 "#;
 
@@ -95,6 +95,9 @@ impl Options {
                 }
                 Long("limit-routing-max-size") => {
                     limits.routing_max_size = parser.value()?.parse()?;
+                }
+                Long("limit-fetch-concurrency") => {
+                    limits.fetch_concurrency = parser.value()?.parse()?;
                 }
                 Long("listen") => {
                     let addr = parser.value()?.parse()?;

@@ -23,7 +23,7 @@ use crate::service::tracking::{Policy, Scope};
 use crate::service::*;
 use crate::storage::git::transport::remote;
 use crate::storage::Inventory;
-use crate::storage::{RemoteId, WriteStorage};
+use crate::storage::{Namespaces, RemoteId, WriteStorage};
 use crate::test::arbitrary;
 use crate::test::simulator;
 use crate::test::storage::MockStorage;
@@ -350,5 +350,21 @@ where
     /// Get a draining iterator over the peer's I/O outbox.
     pub fn outbox(&mut self) -> impl Iterator<Item = Io> + '_ {
         iter::from_fn(|| self.service.reactor().next())
+    }
+
+    /// Get a draining iterator over the peer's I/O outbox, which only returns fetches.
+    pub fn fetches(&mut self) -> impl Iterator<Item = (Id, NodeId, Namespaces)> + '_ {
+        iter::from_fn(|| self.service.reactor().next()).filter_map(|io| {
+            if let Io::Fetch {
+                rid,
+                remote,
+                namespaces,
+            } = io
+            {
+                Some((rid, remote, namespaces))
+            } else {
+                None
+            }
+        })
     }
 }

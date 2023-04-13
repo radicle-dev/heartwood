@@ -567,6 +567,9 @@ where
         let seed = session.id;
 
         match session.fetch(rid) {
+            session::FetchResult::Queued => {
+                debug!(target: "service", "Fetch queued for {rid} with {seed}..");
+            }
             session::FetchResult::Ready => {
                 debug!(target: "service", "Fetch initiated for {rid} with {seed}..");
 
@@ -654,11 +657,6 @@ where
                 _ => log::debug!(target: "service", "Nothing to announce, no refs were updated.."),
             }
         }
-
-        // Go back to "idle".
-        if let Some(s) = self.sessions.get_mut(&remote) {
-            s.fetched(rid);
-        }
         // TODO: Since this fetch could be either a full clone
         // or simply a ref update, we need to either announce
         // new inventory, or new refs. Right now, we announce
@@ -666,11 +664,15 @@ where
         //
         // Announce the newly fetched repository to the
         // network, if necessary.
-        //
-        // Nb. This needs to be run after we've switched back
-        // to the gossip protocol, otherwise the messages will
-        // be queued.
         self.sync_and_announce();
+
+        if let Some(s) = self.sessions.get_mut(&remote) {
+            if let Some(dequeued) = s.fetched(rid) {
+                log::debug!(target: "service", "Dequeued fetch {dequeued} from session {remote}..");
+
+                self.fetch(dequeued, &remote);
+            }
+        }
     }
 
     pub fn accepted(&mut self, _addr: net::SocketAddr) {
@@ -713,6 +715,7 @@ where
                         self.config.is_persistent(&remote),
                         self.rng.clone(),
                         self.clock,
+                        self.config.limits.clone(),
                     ));
                     self.reactor.write_all(peer, msgs);
                 }
@@ -1275,8 +1278,15 @@ where
         }
         let persistent = self.config.is_persistent(&nid);
 
-        self.sessions
-            .insert(nid, Session::outbound(nid, persistent, self.rng.clone()));
+        self.sessions.insert(
+            nid,
+            Session::outbound(
+                nid,
+                persistent,
+                self.rng.clone(),
+                self.config.limits.clone(),
+            ),
+        );
         self.reactor.connect(nid, addr);
 
         true

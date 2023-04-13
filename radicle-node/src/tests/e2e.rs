@@ -7,6 +7,7 @@ use radicle::test::fixtures;
 use radicle::{assert_matches, rad};
 
 use crate::service;
+use crate::service::config::Limits;
 use crate::service::tracking::Scope;
 use crate::storage::git::transport;
 use crate::test::environment::{converge, Environment, Node};
@@ -468,8 +469,9 @@ fn test_concurrent_fetches() {
     let mut alice_repos = HashSet::new();
     let mut alice = Node::init(&env.tmp());
     let mut bob = Node::init(&env.tmp());
+    let repos = scale.max(4);
 
-    for i in 0..scale.max(3) {
+    for i in 0..repos {
         // Create a repo for Alice.
         let tmp = tempfile::tempdir().unwrap();
         let (repo, _) = fixtures::repository(tmp.path());
@@ -487,8 +489,16 @@ fn test_concurrent_fetches() {
         bob_repos.insert(rid);
     }
 
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
+    let config = service::Config {
+        limits: Limits {
+            // Have one fetch be queued.
+            fetch_concurrency: repos - 1,
+            ..Limits::default()
+        },
+        ..service::Config::default()
+    };
+    let mut alice = alice.spawn(config.clone());
+    let mut bob = bob.spawn(config);
 
     let alice_events = alice.handle.events();
     let bob_events = bob.handle.events();

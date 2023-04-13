@@ -22,6 +22,7 @@ use crate::service::ServiceState as _;
 use crate::service::*;
 use crate::storage::git::transport::{local, remote};
 use crate::storage::git::Storage;
+use crate::storage::Namespaces;
 use crate::storage::ReadStorage;
 use crate::test::arbitrary;
 use crate::test::assert_matches;
@@ -269,6 +270,7 @@ fn test_inventory_pruning() {
             limits: Limits {
                 routing_max_size: 0,
                 routing_max_age: LocalDuration::from_secs(0),
+                ..Limits::default()
             },
             peer_projects: vec![10; 5],
             wait_time: LocalDuration::from_mins(7 * 24 * 60) + LocalDuration::from_secs(1),
@@ -279,6 +281,7 @@ fn test_inventory_pruning() {
             limits: Limits {
                 routing_max_size: 0,
                 routing_max_age: LocalDuration::from_mins(7 * 24 * 60),
+                ..Limits::default()
             },
             peer_projects: vec![10; 5],
             wait_time: LocalDuration::from_mins(7 * 24 * 60) + LocalDuration::from_secs(1),
@@ -289,6 +292,7 @@ fn test_inventory_pruning() {
             limits: Limits {
                 routing_max_size: 50,
                 routing_max_age: LocalDuration::from_mins(0),
+                ..Limits::default()
             },
             peer_projects: vec![10; 5],
             wait_time: LocalDuration::from_mins(7 * 24 * 60) + LocalDuration::from_secs(1),
@@ -299,6 +303,7 @@ fn test_inventory_pruning() {
             limits: Limits {
                 routing_max_size: 25,
                 routing_max_age: LocalDuration::from_mins(7 * 24 * 60),
+                ..Limits::default()
             },
             peer_projects: vec![10; 5],
             wait_time: LocalDuration::from_mins(7 * 24 * 60) + LocalDuration::from_secs(1),
@@ -1078,6 +1083,52 @@ fn test_fetch_missing_inventory() {
         .outbox()
         .find(|m| matches!(m, Io::Fetch { .. }))
         .unwrap();
+}
+#[test]
+fn test_queued_fetch() {
+    let storage = arbitrary::nonempty_storage(3);
+    let mut repo_keys = storage.inventory.keys();
+    let rid1 = *repo_keys.next().unwrap();
+    let rid2 = *repo_keys.next().unwrap();
+    let rid3 = *repo_keys.next().unwrap();
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+
+    logger::init(log::Level::Debug);
+
+    alice.connect_to(&bob);
+
+    // Send the first fetch.
+    let (send, _recv1) = chan::bounded::<node::FetchResult>(1);
+    alice.command(Command::Fetch(rid1, bob.id, send));
+
+    // Send the 2nd fetch that will be queued.
+    let (send2, _recv2) = chan::bounded::<node::FetchResult>(1);
+    alice.command(Command::Fetch(rid2, bob.id, send2));
+
+    // Send the 3rd fetch that will be queued.
+    let (send3, _recv3) = chan::bounded::<node::FetchResult>(1);
+    alice.command(Command::Fetch(rid3, bob.id, send3));
+
+    // The first fetch is initiated.
+    assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid1);
+    // We shouldn't send out the 2nd, 3rd fetch while we're doing the 1st fetch.
+    assert_matches!(alice.outbox().next(), None);
+
+    // Have enough time pass that Alice sends a "ping" to Bob.
+    alice.elapse(KEEP_ALIVE_DELTA);
+
+    // Finish the 1st fetch.
+    alice.fetched(rid1, Namespaces::All, bob.id, Ok(vec![]));
+    // Now the 1st fetch is done, the 2nd fetch is dequeued.
+    assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid2);
+    // ... but not the third.
+    assert_matches!(alice.fetches().next(), None);
+
+    // Finish the 2nd fetch.
+    alice.fetched(rid2, Namespaces::All, bob.id, Ok(vec![]));
+    // Now the 2nd fetch is done, the 3rd fetch is dequeued.
+    assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid3);
 }
 
 #[test]

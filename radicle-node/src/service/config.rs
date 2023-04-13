@@ -20,6 +20,8 @@ pub struct Limits {
     pub routing_max_size: usize,
     /// How long to keep a routing table entry before being pruned.
     pub routing_max_age: LocalDuration,
+    /// Maximum number of concurrent fetches per per connection.
+    pub fetch_concurrency: usize,
 }
 
 impl Default for Limits {
@@ -27,6 +29,7 @@ impl Default for Limits {
         Self {
             routing_max_size: 1000,
             routing_max_age: LocalDuration::from_mins(7 * 24 * 60),
+            fetch_concurrency: 1,
         }
     }
 }

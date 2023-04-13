@@ -1,6 +1,7 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::fmt;
 
+use crate::service::config::Limits;
 use crate::service::message;
 use crate::service::message::Message;
 use crate::service::{Id, LocalTime, NodeId, Reactor, Rng};
@@ -64,6 +65,8 @@ impl fmt::Display for State {
 /// Return value of [`Session::fetch`].
 #[derive(Debug)]
 pub enum FetchResult {
+    /// Maximum concurrent fetches reached.
+    Queued,
     /// We are already fetching the given repo from this peer.
     AlreadyFetching,
     /// Ok, ready to fetch.
@@ -118,14 +121,17 @@ pub struct Session {
     pub subscribe: Option<message::Subscribe>,
     /// Last time a message was received from the peer.
     pub last_active: LocalTime,
+    /// Fetch queue.
+    pub queue: VecDeque<Id>,
 
     /// Connection attempts. For persistent peers, Tracks
     /// how many times we've attempted to connect. We reset this to zero
     /// upon successful connection.
     attempts: usize,
-
     /// Source of entropy.
     rng: Rng,
+    /// Protocol limits.
+    limits: Limits,
 }
 
 impl fmt::Display for Session {
@@ -148,7 +154,7 @@ impl fmt::Display for Session {
 }
 
 impl Session {
-    pub fn outbound(id: NodeId, persistent: bool, rng: Rng) -> Self {
+    pub fn outbound(id: NodeId, persistent: bool, rng: Rng, limits: Limits) -> Self {
         Self {
             id,
             state: State::Initial,
@@ -156,12 +162,20 @@ impl Session {
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
+            queue: VecDeque::default(),
             attempts: 1,
             rng,
+            limits,
         }
     }
 
-    pub fn inbound(id: NodeId, persistent: bool, rng: Rng, time: LocalTime) -> Self {
+    pub fn inbound(
+        id: NodeId,
+        persistent: bool,
+        rng: Rng,
+        time: LocalTime,
+        limits: Limits,
+    ) -> Self {
         Self {
             id,
             state: State::Connected {
@@ -173,8 +187,10 @@ impl Session {
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
+            queue: VecDeque::default(),
             attempts: 0,
             rng,
+            limits,
         }
     }
 
@@ -200,22 +216,32 @@ impl Session {
 
     pub fn fetch(&mut self, rid: Id) -> FetchResult {
         if let State::Connected { fetching, .. } = &mut self.state {
-            if fetching.insert(rid) {
-                FetchResult::Ready
-            } else {
-                FetchResult::AlreadyFetching
+            if fetching.contains(&rid) || self.queue.contains(&rid) {
+                return FetchResult::AlreadyFetching;
             }
+            if fetching.len() >= self.limits.fetch_concurrency {
+                self.queue.push_back(rid);
+                return FetchResult::Queued;
+            }
+            fetching.insert(rid);
+
+            FetchResult::Ready
         } else {
             FetchResult::NotConnected
         }
     }
 
-    pub fn fetched(&mut self, rid: Id) {
+    pub fn fetched(&mut self, rid: Id) -> Option<Id> {
         if let State::Connected { fetching, .. } = &mut self.state {
             if !fetching.remove(&rid) {
                 log::error!(target: "service", "Fetched unknown repository {rid}");
             }
+            // Dequeue the next fetch, if any.
+            if let Some(rid) = self.queue.pop_front() {
+                return Some(rid);
+            }
         }
+        None
     }
 
     pub fn to_attempted(&mut self) {
