@@ -40,33 +40,25 @@ jobs:
           cache-from: type=registry,ref=gcr.io/radicle-services/radicle-httpd:latest
           cache-to: type=inline
 
-  deploy-seed-node:
+  deploy-to-seed:
     runs-on: ubuntu-latest
     needs: build-and-push-images
-    permissions:
-      contents: 'read'
-      id-token: 'write'
     strategy:
       matrix:
-        host: [seed]
+        hostname: [seed]
         include:
-        - host: seed
-          zone: europe-west4-c
+        - user: github-actions
+        - host: seed.radicle.xyz
     steps:
-      - id: 'auth'
-        uses: 'google-github-actions/auth@v0'
-        with:
-          workload_identity_provider: 'projects/281042598092/locations/global/workloadIdentityPools/github-actions/providers/google-cloud'
-          service_account: 'github-actions@radicle-services.iam.gserviceaccount.com'
-      - name: Fetch host .env file
-        run: gcloud beta compute ssh --zone ${{ matrix.zone }} "github-actions@alt-clients-${{ matrix.host }}" --project "radicle-services" --command="curl https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/.env.${{ matrix.host }} >.env"
-      - name: Fetch docker-compose.yml
-        run: gcloud beta compute ssh --zone ${{ matrix.zone }} "github-actions@alt-clients-${{ matrix.host }}" --project "radicle-services" --command="curl https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/docker-compose.yml >docker-compose.yml"
-      - name: Make room for new images
-        run: gcloud beta compute ssh --zone ${{ matrix.zone }} "github-actions@alt-clients-${{ matrix.host }}" --project "radicle-services" --command="docker system prune --all --force"
-      - name: Pull container images
-        run: gcloud beta compute ssh --zone ${{ matrix.zone }} "github-actions@alt-clients-${{ matrix.host }}" --project "radicle-services" --command="RADICLE_IMAGE_TAG=${{ github.sha }} docker-compose --file docker-compose.yml pull"
-      - name: Stop services
-        run: gcloud beta compute ssh --zone ${{ matrix.zone }} "github-actions@alt-clients-${{ matrix.host }}" --project "radicle-services" --command="RADICLE_IMAGE_TAG=${{ github.sha }} docker-compose --file docker-compose.yml down"
-      - name: Restart services
-        run: gcloud beta compute ssh --zone ${{ matrix.zone }} "github-actions@alt-clients-${{ matrix.host }}" --project "radicle-services" --command="RADICLE_IMAGE_TAG=${{ github.sha }} docker-compose --file docker-compose.yml up --detach"
+      - shell: bash
+        run: |
+          echo "$GEOAVAIL_SEED_SSH_PRIVATE_KEY" >ssh-private-key
+          chmod go-rwx ssh-private-key
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key ${{ matrix.user }}@${{ matrix.host }} "curl https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/.env.${{ matrix.hostname }} >.env"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key ${{ matrix.user }}@${{ matrix.host }} "curl https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/docker-compose.yml >docker-compose.yml"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key ${{ matrix.user }}@${{ matrix.host }} "docker system prune --all --force"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key ${{ matrix.user }}@${{ matrix.host }} "RADICLE_IMAGE_TAG=${{ github.sha }} docker-compose --file docker-compose.yml pull"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key ${{ matrix.user }}@${{ matrix.host }} "RADICLE_IMAGE_TAG=${{ github.sha }} docker-compose --file docker-compose.yml down"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key ${{ matrix.user }}@${{ matrix.host }} "RADICLE_IMAGE_TAG=${{ github.sha }} docker-compose --file docker-compose.yml up --detach"
+        env:
+          GEOAVAIL_SEED_SSH_PRIVATE_KEY: ${{ secrets.GEOAVAIL_SEED_SSH_PRIVATE_KEY }}
