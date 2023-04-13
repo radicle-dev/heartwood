@@ -302,6 +302,9 @@ pub mod daemon {
             .envs(radicle::git::env::GIT_DEFAULT_CONFIG)
             .env("GIT_PROTOCOL", "version=2")
             .current_dir(storage)
+            // Send a keep-alive packet every 3 seconds to make sure the client doesn't
+            // timeout during pack building.
+            .args(["-c", "uploadpack.keepAlive=3"])
             .arg("daemon")
             // Make all git directories available.
             .arg("--export-all")
