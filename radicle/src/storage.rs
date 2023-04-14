@@ -296,10 +296,18 @@ pub trait ReadRepository {
     fn blob_at<'a>(&'a self, commit: Oid, path: &'a Path)
         -> Result<git2::Blob<'a>, git_ext::Error>;
 
-    /// Verify all references in the repository, checking that they are signed
-    /// as part of 'sigrefs'. Also verify that no signed reference is missing
-    /// from the repository.
-    fn verify(&self) -> Result<(), VerifyError>;
+    /// Validate all remotes with [`ReadStorage::validate`].
+    fn validate(&self) -> Result<(), VerifyError> {
+        for (_, remote) in self.remotes()? {
+            self.validate_remote(&remote)?;
+        }
+        Ok(())
+    }
+
+    /// Validate all the remote's references in the repository, checking that they are signed as
+    /// part of the remote's signed refs. Also verify that no signed reference is missing from the
+    /// repository.
+    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<(), VerifyError>;
 
     /// Get the head of this repository.
     ///

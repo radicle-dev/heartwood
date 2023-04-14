@@ -140,7 +140,7 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn verify(&self) -> Result<(), VerifyError> {
+    fn validate_remote(&self, _remote: &Remote<Verified>) -> Result<(), VerifyError> {
         Ok(())
     }
 

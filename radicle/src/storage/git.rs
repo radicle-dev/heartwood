@@ -208,6 +208,8 @@ pub enum VerifyError {
     MissingRef(RemoteId, git::RefString),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
+    #[error(transparent)]
+    Storage(#[from] Error),
 }
 
 impl Repository {
@@ -346,33 +348,6 @@ impl Repository {
                 });
         Ok(remotes)
     }
-
-    /// Return all references that are namespaced, ie. that are signed by a node and verified.
-    fn namespaced_references(
-        &self,
-    ) -> Result<impl Iterator<Item = Result<(RemoteId, Qualified, Oid), refs::Error>>, git2::Error>
-    {
-        let refs = self.backend.references_glob("refs/namespaces/*")?;
-        let refs = refs
-            .map(|reference| {
-                let r = reference?;
-                let name = r.name().ok_or(refs::Error::InvalidRef)?;
-                let (namespace, refname) = git::parse_ref_namespaced::<RemoteId>(name)?;
-                let Some(oid) = r.target() else {
-                    // Ignore symbolic refs, eg. `HEAD`.
-                    return Ok(None);
-                };
-
-                if refname == *refs::SIGREFS_BRANCH {
-                    // Ignore the signed-refs reference, as this is what we're verifying.
-                    return Ok(None);
-                }
-                Ok(Some((namespace, refname.to_owned(), oid.into())))
-            })
-            .filter_map(Result::transpose);
-
-        Ok(refs)
-    }
 }
 
 impl ReadRepository for Repository {
@@ -396,39 +371,32 @@ impl ReadRepository for Repository {
         .get(&self.backend)
     }
 
-    fn verify(&self) -> Result<(), VerifyError> {
-        let mut remotes: HashMap<RemoteId, Refs> = self
-            .remotes()?
-            .map(|remote| {
-                let (id, remote) = remote?;
-                Ok((id, remote.refs.into()))
-            })
-            .collect::<Result<_, VerifyError>>()?;
+    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<(), VerifyError> {
+        // Contains a copy of the signed refs of this remote.
+        let mut refs = BTreeMap::from((*remote.refs).clone());
 
-        for entry in self.namespaced_references()? {
-            let (remote_id, refname, oid) = entry?;
-            let remote = remotes
-                .get_mut(&remote_id)
-                .ok_or(VerifyError::InvalidRemote(remote_id))?;
-            let refname = RefString::from(refname);
-            let signed_oid = remote
+        // Check all repository references, making sure they are present in the signed refs map.
+        for (refname, oid) in self.references_of(&remote.id)? {
+            // Skip validation of the signed refs branch, as it is not part of `Remote`.
+            if refname == refs::SIGREFS_BRANCH.to_ref_string() {
+                continue;
+            }
+            let signed_oid = refs
                 .remove(&refname)
-                .ok_or_else(|| VerifyError::UnknownRef(remote_id, refname.clone()))?;
+                .ok_or_else(|| VerifyError::UnknownRef(remote.id, refname.clone()))?;
 
             if oid != signed_oid {
-                return Err(VerifyError::InvalidRefTarget(remote_id, refname, *oid));
+                return Err(VerifyError::InvalidRefTarget(remote.id, refname, *oid));
             }
         }
 
-        for (remote, refs) in remotes.into_iter() {
-            // The refs that are left in the map, are ones that were signed, but are not
-            // in the repository.
-            if let Some((name, _)) = refs.into_iter().next() {
-                return Err(VerifyError::MissingRef(remote, name));
-            }
-            // Verify identity history of remote.
-            self.identity_of(&remote)?.verified(self.id)?;
+        // The refs that are left in the map, are ones that were signed, but are not
+        // in the repository. If any are left, bail.
+        if let Some((name, _)) = refs.into_iter().next() {
+            return Err(VerifyError::MissingRef(remote.id, name));
         }
+        // Finally, verify the identity history of remote.
+        self.identity_of(&remote.id)?.verified(self.id)?;
 
         Ok(())
     }
@@ -727,7 +695,7 @@ mod tests {
     }
 
     #[test]
-    fn test_namespaced_references() {
+    fn test_references_of() {
         let tmp = tempfile::tempdir().unwrap();
         let signer = MockSigner::default();
         let storage = Storage::open(tmp.path().join("storage")).unwrap();
@@ -739,14 +707,17 @@ mod tests {
         let proj = storage.repository(id).unwrap();
 
         let mut refs = proj
-            .namespaced_references()
+            .references_of(signer.public_key())
             .unwrap()
-            .map(|r| r.unwrap())
-            .map(|(_, r, _)| r.to_string())
+            .iter()
+            .map(|(r, _)| r.to_string())
             .collect::<Vec<_>>();
         refs.sort();
 
-        assert_eq!(refs, vec!["refs/heads/master", "refs/rad/id"]);
+        assert_eq!(
+            refs,
+            vec!["refs/heads/master", "refs/rad/id", "refs/rad/sigrefs"]
+        );
     }
 
     #[test]

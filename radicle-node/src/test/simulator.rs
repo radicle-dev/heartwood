@@ -699,7 +699,7 @@ fn fetch<W: WriteRepository>(
     remote.fetch(&[refspec], Some(&mut opts), None)?;
     drop(opts);
 
-    repo.verify()?;
+    repo.validate()?;
     repo.set_head()?;
 
     Ok(updates)

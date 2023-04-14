@@ -22,7 +22,7 @@ use radicle::node::Handle as _;
 use radicle::profile::Home;
 use radicle::profile::Profile;
 use radicle::rad;
-use radicle::storage::ReadStorage as _;
+use radicle::storage::{ReadStorage as _, WriteRepository};
 use radicle::test::fixtures;
 use radicle::Storage;
 
@@ -365,6 +365,12 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
             ));
         }
         git::push(repo, "rad", refs.iter().map(|(a, b)| (a, b))).unwrap();
+
+        self.storage
+            .repository(id)
+            .unwrap()
+            .sign_refs(&self.signer)
+            .unwrap();
 
         id
     }

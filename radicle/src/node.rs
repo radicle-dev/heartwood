@@ -252,6 +252,7 @@ impl Seeds {
 #[serde(tag = "status", rename_all = "kebab-case")]
 pub enum FetchResult {
     Success { updated: Vec<RefUpdate> },
+    // TODO: Create enum for reason.
     Failed { reason: String },
 }
 

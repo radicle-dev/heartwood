@@ -86,24 +86,26 @@ pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
 }
 
 /// Populate a repository with commits, branches and blobs.
-pub fn populate(repo: &git2::Repository, scale: usize) {
+pub fn populate(repo: &git2::Repository, scale: usize) -> Vec<git::Qualified> {
     assert!(
         scale <= 8,
         "Scale parameter must be less than or equal to 8"
     );
     if scale == 0 {
-        return;
+        return vec![];
     }
     let head = repo.head().unwrap().peel_to_commit().unwrap();
     let rng = fastrand::Rng::with_seed(42);
     let mut buffer = vec![0; 1024 * 1024 * scale];
+    let mut refs = Vec::new();
 
     for _ in 0..scale {
         let random = std::iter::repeat_with(|| rng.alphanumeric())
             .take(7)
             .collect::<String>()
             .to_lowercase();
-        let name = format!("feature/{random}");
+        let name =
+            git::refname!("feature").join(git::RefString::try_from(random.as_str()).unwrap());
         let signature = git2::Signature::now("Radicle", "radicle@radicle.xyz").unwrap();
 
         rng.fill(&mut buffer);
@@ -113,17 +115,21 @@ pub fn populate(repo: &git2::Repository, scale: usize) {
         builder.insert("random.txt", blob, 0o100_644).unwrap();
         let tree_oid = builder.write().unwrap();
         let tree = repo.find_tree(tree_oid).unwrap();
+        let refstr = git::refs::workdir::branch(&name);
 
         repo.commit(
-            Some(&format!("refs/heads/{name}")),
+            Some(&refstr),
             &signature,
             &signature,
-            &format!("Initialize new branch feature/{random}"),
+            &format!("Initialize new branch {name}"),
             &tree,
             &[&head],
         )
         .unwrap();
+
+        refs.push(git::Qualified::from_refstr(refstr).unwrap());
     }
+    refs
 }
 
 /// Generate random fixtures.

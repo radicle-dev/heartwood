@@ -258,6 +258,8 @@ impl<'a> StagingPhaseFinal<'a> {
                 .into_iter()
                 .flat_map(|(remote, verified)| match verified {
                     VerifiedRemote::Failed { reason } => {
+                        // TODO: We should include the skipped remotes in the fetch result,
+                        // with the reason why they're skipped.
                         log::warn!(
                             target: "worker",
                             "{remote} failed to verify, will not fetch any further refs: {reason}",
@@ -276,21 +278,23 @@ impl<'a> StagingPhaseFinal<'a> {
 
                         for refname in [heads, cobs, tags, notes] {
                             let pattern = refname.with_pattern(git::refspec::STAR);
-                            refspecs.push(
+                            refspecs.push((
+                                remote.id,
                                 Refspec {
                                     src: pattern.clone(),
                                     dst: pattern,
                                     force: true,
                                 }
                                 .to_string(),
-                            );
+                            ));
                         }
 
                         // Then add the special refs.
                         let id = ns.join(&*radicle::git::refs::storage::IDENTITY_BRANCH);
                         let sigrefs = ns.join(&*radicle::git::refs::storage::SIGREFS_BRANCH);
 
-                        refspecs.push(
+                        refspecs.push((
+                            remote.id,
                             Refspec {
                                 src: id.clone(),
                                 dst: id,
@@ -298,8 +302,9 @@ impl<'a> StagingPhaseFinal<'a> {
                                 force: true,
                             }
                             .to_string(),
-                        );
-                        refspecs.push(
+                        ));
+                        refspecs.push((
+                            remote.id,
                             Refspec {
                                 src: sigrefs.clone(),
                                 dst: sigrefs,
@@ -307,11 +312,22 @@ impl<'a> StagingPhaseFinal<'a> {
                                 force: false,
                             }
                             .to_string(),
-                        );
+                        ));
                         refspecs
                     }
                 })
                 .collect::<Vec<_>>();
+
+            let (fetching, specs): (HashSet<_>, Vec<_>) = specs.into_iter().unzip();
+
+            if !self
+                .repo
+                .delegates()?
+                .iter()
+                .all(|d| fetching.contains(d.as_key()))
+            {
+                return Err(error::Transfer::NoDelegates);
+            }
             log::debug!(target: "worker", "Transferring staging to production {url}");
 
             let mut opts = git::raw::FetchOptions::default();
@@ -349,21 +365,21 @@ impl<'a> StagingPhaseFinal<'a> {
         self.trusted
             .iter()
             .map(|remote| {
-                let verification = match (
-                    self.repo.identity_doc_of(remote),
-                    SignedRefs::load(remote, self.repo.deref()),
-                ) {
-                    (Ok(doc), Ok(refs)) => VerifiedRemote::Success {
-                        _doc: doc,
-                        remote: Remote::new(*remote, refs),
-                    },
-                    (Err(e), _) => VerifiedRemote::Failed {
-                        reason: e.to_string(),
-                    },
-                    (_, Err(e)) => VerifiedRemote::Failed {
-                        reason: e.to_string(),
-                    },
-                };
+                let verification =
+                    match (self.repo.identity_doc_of(remote), self.repo.remote(remote)) {
+                        (Ok(doc), Ok(remote)) => match self.repo.validate_remote(&remote) {
+                            Ok(()) => VerifiedRemote::Success { _doc: doc, remote },
+                            Err(e) => VerifiedRemote::Failed {
+                                reason: e.to_string(),
+                            },
+                        },
+                        (Err(e), _) => VerifiedRemote::Failed {
+                            reason: e.to_string(),
+                        },
+                        (_, Err(e)) => VerifiedRemote::Failed {
+                            reason: e.to_string(),
+                        },
+                    };
                 (*remote, verification)
             })
             .collect()

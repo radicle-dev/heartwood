@@ -1,8 +1,9 @@
 use std::{collections::HashSet, thread, time};
 
 use radicle::crypto::{test::signer::MockSigner, Signer};
+use radicle::git;
 use radicle::node::{FetchResult, Handle as _};
-use radicle::storage::{ReadRepository, ReadStorage};
+use radicle::storage::{ReadRepository, ReadStorage, WriteRepository, WriteStorage};
 use radicle::test::fixtures;
 use radicle::{assert_matches, rad};
 
@@ -194,7 +195,90 @@ fn test_replication() {
 
     assert_eq!(inventory.first(), Some(&acme));
     assert_eq!(alice_refs, bob_refs);
-    assert_matches!(alice.storage.repository(acme).unwrap().verify(), Ok(()));
+    assert_matches!(alice.storage.repository(acme).unwrap().validate(), Ok(()));
+}
+
+#[test]
+fn test_replication_no_delegates() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let alice = Node::init(tmp.path());
+    let mut bob = Node::init(tmp.path());
+    let (repo, _) = fixtures::repository(tmp.path().join("acme"));
+
+    let acme = bob.project_from("acme", "", &repo);
+
+    // Populate repo, but don't sign the refs.
+    let branches = fixtures::populate(&repo, 1);
+    git::push(&repo, "rad", branches.iter().map(|b| (b, b))).unwrap();
+
+    let mut alice = alice.spawn(service::Config::default());
+    let bob = bob.spawn(service::Config::default());
+
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    alice.handle.track_repo(acme, Scope::All).unwrap();
+    let result = alice.handle.fetch(acme, bob.id).unwrap();
+
+    assert_matches!(
+        result,
+        FetchResult::Failed {
+            reason
+        } if reason == "no delegates in transfer"
+    );
+}
+
+#[test]
+fn test_replication_invalid() {
+    let tmp = tempfile::tempdir().unwrap();
+    let alice = Node::init(tmp.path());
+    let mut bob = Node::init(tmp.path());
+    let carol = MockSigner::default();
+    let acme = bob.project("acme", "");
+    let repo = bob.storage.repository_mut(acme).unwrap();
+    let (_, head) = repo.head().unwrap();
+    let id = repo.identity_head().unwrap();
+
+    // Create some unsigned refs for Carol in Bob's storage.
+    repo.raw()
+        .reference(
+            &git::qualified!("refs/heads/carol").with_namespace(carol.public_key().into()),
+            *head,
+            true,
+            &String::default(),
+        )
+        .unwrap();
+    repo.raw()
+        .reference(
+            &git::refs::storage::id(carol.public_key()),
+            id.into(),
+            true,
+            &String::default(),
+        )
+        .unwrap();
+
+    let mut alice = alice.spawn(service::Config::default());
+    let bob = bob.spawn(service::Config::default());
+
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    alice.handle.track_node(*carol.public_key(), None).unwrap();
+    alice.handle.track_repo(acme, Scope::Trusted).unwrap();
+    let result = alice.handle.fetch(acme, bob.id).unwrap();
+
+    // Fetch is successful despite not fetching Carol's refs, since she isn't a delegate.
+    assert!(result.is_success());
+
+    let repo = alice.storage.repository(acme).unwrap();
+    let mut remotes = repo.remote_ids().unwrap();
+
+    assert_eq!(remotes.next().unwrap().unwrap(), bob.id);
+    assert!(remotes.next().is_none());
+
+    repo.validate().unwrap();
 }
 
 #[test]
@@ -244,7 +328,7 @@ fn test_migrated_clone() {
         .unwrap();
 
     assert_eq!(alice_refs, bob_refs);
-    assert_matches!(alice.storage.repository(acme).unwrap().verify(), Ok(()));
+    assert_matches!(alice.storage.repository(acme).unwrap().validate(), Ok(()));
 }
 
 #[test]

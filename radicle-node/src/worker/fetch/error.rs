@@ -30,6 +30,8 @@ pub enum Transfer {
     Identity(#[from] identity::IdentityError),
     #[error(transparent)]
     Storage(#[from] storage::Error),
+    #[error("no delegates in transfer")]
+    NoDelegates,
 }
 
 #[derive(Debug, Error)]
