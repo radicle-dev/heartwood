@@ -47,7 +47,7 @@ impl<'a> Tunnel<'a> {
     pub fn run(&mut self, timeout: time::Duration) -> io::Result<()> {
         let (remote_w, remote_r) = self.channels.split();
         let (local, _) = self.listener.accept()?;
-        let (mut local_r, mut local_w) = (local.try_clone()?, local);
+        let (mut local_r, local_w) = (local.try_clone()?, local);
 
         local_r.set_read_timeout(Some(timeout))?;
         local_w.set_write_timeout(Some(timeout))?;
@@ -58,21 +58,7 @@ impl<'a> Tunnel<'a> {
         thread::scope(|s| {
             let remote_to_local = thread::Builder::new()
                 .name(self.local.to_string())
-                .spawn_scoped(s, || {
-                    let mut buffer = [0; u16::MAX as usize + 1];
-
-                    loop {
-                        match remote_r.read(&mut buffer) {
-                            Ok(0) => return Ok(()),
-                            Ok(n) => local_w.write_all(&buffer[..n])?,
-                            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                                // This is the expected error when the git fetch closes the connection.
-                                return Ok(());
-                            }
-                            Err(e) => return Err(e),
-                        }
-                    }
-                })?;
+                .spawn_scoped(s, || remote_r.pipe(local_w))?;
 
             let local_to_remote = thread::Builder::new()
                 .name(self.local.to_string())

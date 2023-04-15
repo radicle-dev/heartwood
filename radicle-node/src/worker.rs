@@ -365,17 +365,10 @@ impl Worker {
                 Self::eof(remote, stream, stream_w, &mut self.handle).map_err(UploadError::from)
             });
 
-            let stream_to_daemon = s.spawn(move || -> Result<(), io::Error> {
-                let mut buffer = [0; u16::MAX as usize + 1];
-
-                loop {
-                    match stream_r.read(&mut buffer) {
-                        Ok(n) => daemon_w.write_all(&buffer[..n])?,
-                        Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
-                        Err(e) => return Err(e),
-                    }
-                }
-                daemon_w.shutdown(net::Shutdown::Both)
+            let stream_to_daemon = s.spawn(move || {
+                stream_r
+                    .pipe(&mut daemon_w)
+                    .and_then(|()| daemon_w.shutdown(net::Shutdown::Both))
             });
 
             stream_to_daemon.join().unwrap()?;

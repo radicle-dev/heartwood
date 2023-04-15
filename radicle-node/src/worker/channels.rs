@@ -72,6 +72,24 @@ pub struct ChannelReader<T = Vec<u8>> {
     receiver: chan::Receiver<ChannelEvent<T>>,
 }
 
+impl ChannelReader<Vec<u8>> {
+    pub fn pipe<W: io::Write>(&mut self, mut writer: W) -> io::Result<()> {
+        loop {
+            match self.receiver.recv() {
+                Ok(ChannelEvent::Data(data)) => writer.write_all(&data)?,
+                Ok(ChannelEvent::Eof) => return Ok(()),
+                Ok(ChannelEvent::Close) => return Err(io::ErrorKind::ConnectionReset.into()),
+                Err(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::BrokenPipe,
+                        "error reading from stream: channel is disconnected",
+                    ))
+                }
+            }
+        }
+    }
+}
+
 impl Read for ChannelReader<Vec<u8>> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let read = self.buffer.read(buf)?;
