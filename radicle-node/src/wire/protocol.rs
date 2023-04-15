@@ -32,6 +32,7 @@ use crate::service::{session, DisconnectReason, Service};
 use crate::wire::frame;
 use crate::wire::frame::{Frame, FrameData, StreamId};
 use crate::wire::Encode;
+use crate::worker;
 use crate::worker::{ChannelEvent, Fetch, Task, TaskResult};
 use crate::Link;
 use crate::{address, service};
@@ -64,20 +65,12 @@ pub type WireWriter<G> = NetWriter<NoiseState<G, Sha256>, Socks5Session<net::Tcp
 /// Reactor action.
 type Action<G> = reactor::Action<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>;
 
-/// Worker channels used to send Git frames back and forth.
-struct WorkerChannels {
-    /// Send data to the git worker.
-    sender: chan::Sender<ChannelEvent>,
-    /// Receive data from the git worker.
-    receiver: chan::Receiver<ChannelEvent>,
-}
-
 /// Streams associated with a connected peer.
 struct Streams {
     /// Active streams and their associated worker channels.
     /// Note that the gossip and control streams are not included here as they are always
     /// implied to exist.
-    streams: HashMap<StreamId, WorkerChannels>,
+    streams: HashMap<StreamId, worker::Channels>,
     /// Connection direction.
     link: Link,
     /// Sequence number used to compute the next stream id.
@@ -95,12 +88,12 @@ impl Streams {
     }
 
     /// Get a known stream.
-    fn get(&self, stream: &StreamId) -> Option<&WorkerChannels> {
+    fn get(&self, stream: &StreamId) -> Option<&worker::Channels> {
         self.streams.get(stream)
     }
 
     /// Open a new stream.
-    fn open(&mut self) -> (StreamId, WorkerChannels) {
+    fn open(&mut self) -> (StreamId, worker::Channels) {
         self.seq += 1;
 
         let id = StreamId::git(self.link)
@@ -114,27 +107,21 @@ impl Streams {
     }
 
     /// Register an open stream.
-    fn register(&mut self, stream: StreamId) -> Option<WorkerChannels> {
-        let (wire_send, wire_recv) = chan::unbounded::<ChannelEvent>();
-        let (work_send, work_recv) = chan::unbounded::<ChannelEvent>();
+    fn register(&mut self, stream: StreamId) -> Option<worker::Channels> {
+        let (wire, worker) =
+            worker::Channels::pair().expect("Streams::register: fatal: unable to create channels");
 
         match self.streams.entry(stream) {
             Entry::Vacant(e) => {
-                e.insert(WorkerChannels {
-                    sender: wire_send,
-                    receiver: work_recv,
-                });
-                Some(WorkerChannels {
-                    sender: work_send,
-                    receiver: wire_recv,
-                })
+                e.insert(worker);
+                Some(wire)
             }
             Entry::Occupied(_) => None,
         }
     }
 
     /// Unregister an open stream.
-    fn unregister(&mut self, stream: &StreamId) -> Option<WorkerChannels> {
+    fn unregister(&mut self, stream: &StreamId) -> Option<worker::Channels> {
         self.streams.remove(stream)
     }
 }
@@ -412,7 +399,7 @@ where
             return;
         };
 
-        for data in c.receiver.try_iter() {
+        for data in c.try_iter() {
             let frame = match data {
                 ChannelEvent::Data(data) => Frame::git(stream, data),
                 ChannelEvent::Close => Frame::control(*link, frame::Control::Close { stream }),
@@ -534,10 +521,7 @@ where
                             })) => {
                                 log::debug!(target: "wire", "Received stream open for id={stream} from {nid}");
 
-                                let Some(WorkerChannels {
-                                    sender: work_send,
-                                    receiver: wire_recv,
-                                }) = streams.register(stream) else {
+                                let Some(channels) = streams.register(stream) else {
                                     log::warn!(target: "wire", "Peer attempted to open already-open stream id={stream}");
                                     continue;
                                 };
@@ -545,8 +529,7 @@ where
                                 let task = Task {
                                     fetch: Fetch::Responder { remote: *nid },
                                     stream,
-                                    send: work_send,
-                                    recv: wire_recv,
+                                    channels,
                                 };
                                 if self.worker.send(task).is_err() {
                                     log::error!(target: "wire", "Worker pool is disconnected; cannot send task");
@@ -557,7 +540,7 @@ where
                                 ..
                             })) => {
                                 if let Some(channels) = streams.get(&stream) {
-                                    if channels.sender.send(ChannelEvent::Eof).is_err() {
+                                    if channels.send(ChannelEvent::Eof).is_err() {
                                         log::error!(target: "wire", "Worker is disconnected; cannot send `EOF`");
                                     }
                                 } else {
@@ -571,7 +554,7 @@ where
                                 log::debug!(target: "wire", "Received stream close command for id={stream} from {nid}");
 
                                 if let Some(chans) = streams.unregister(&stream) {
-                                    chans.sender.send(ChannelEvent::Close).ok();
+                                    chans.send(ChannelEvent::Close).ok();
                                 }
                             }
                             Ok(Some(Frame {
@@ -586,7 +569,7 @@ where
                                 ..
                             })) => {
                                 if let Some(channels) = streams.get(&stream) {
-                                    if channels.sender.send(ChannelEvent::Data(data)).is_err() {
+                                    if channels.send(ChannelEvent::Data(data)).is_err() {
                                         log::error!(target: "wire", "Worker is disconnected; cannot send data");
                                     }
                                 } else {
@@ -835,8 +818,7 @@ where
                             remote,
                         },
                         stream,
-                        send: channels.sender,
-                        recv: channels.receiver,
+                        channels,
                     };
 
                     if self.worker.send(task).is_err() {

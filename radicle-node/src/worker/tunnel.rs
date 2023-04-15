@@ -1,5 +1,5 @@
 use std::{
-    io::{self, Read, Write},
+    io::{self, Read},
     net, thread, time,
 };
 
@@ -69,7 +69,7 @@ impl<'a> Tunnel<'a> {
                         match local_r.read(&mut buffer) {
                             Ok(0) => break,
                             Ok(n) => {
-                                remote_w.write_all(&buffer[..n])?;
+                                remote_w.send(buffer[..n].to_vec())?;
 
                                 if let Err(e) = self.handle.flush(nid, stream_id) {
                                     log::error!(

@@ -17,10 +17,10 @@ use radicle::{git, Storage};
 use crate::runtime::Handle;
 use crate::storage;
 use crate::wire::StreamId;
-use channels::{ChannelReader, ChannelWriter, Channels};
+use channels::{ChannelReader, ChannelWriter};
 use tunnel::Tunnel;
 
-pub use channels::ChannelEvent;
+pub use channels::{ChannelEvent, Channels};
 
 /// Worker pool configuration.
 pub struct Config {
@@ -133,8 +133,7 @@ impl Fetch {
 pub struct Task {
     pub fetch: Fetch,
     pub stream: StreamId,
-    pub send: chan::Sender<ChannelEvent>,
-    pub recv: chan::Receiver<ChannelEvent>,
+    pub channels: Channels,
 }
 
 /// Worker response.
@@ -170,11 +169,9 @@ impl Worker {
     fn process(&mut self, task: Task) {
         let Task {
             fetch,
-            recv,
-            send,
+            channels,
             stream,
         } = task;
-        let channels = Channels::new(send, recv);
         let result = self._process(&fetch, stream, channels);
 
         log::trace!(target: "worker", "Sending response back to service..");
@@ -339,18 +336,18 @@ impl Worker {
         log::debug!(target: "worker", "Entering Git protocol loop for {rid}..");
 
         thread::scope(|s| {
-            let daemon_to_stream = s.spawn(|| -> Result<(), UploadError> {
+            let daemon_to_stream = thread::Builder::new().name(self.name.clone()).spawn_scoped(s, || {
                 let mut buffer = [0; u16::MAX as usize + 1];
 
                 loop {
                     match daemon_r.read(&mut buffer) {
                         Ok(0) => break,
                         Ok(n) => {
-                            stream_w.write_all(&buffer[..n])?;
+                            stream_w.send(buffer[..n].to_vec())?;
 
                             if let Err(e) = self.handle.flush(remote, stream) {
                                 log::error!(target: "worker", "Worker channel disconnected; aborting");
-                                return Err(e.into());
+                                return Err(e);
                             }
                         }
                         Err(e) => {
@@ -358,12 +355,12 @@ impl Worker {
                                 log::debug!(target: "worker", "Daemon closed the git connection for {rid}");
                                 break;
                             }
-                            return Err(e.into());
+                            return Err(e);
                         }
                     }
                 }
-                Self::eof(remote, stream, stream_w, &mut self.handle).map_err(UploadError::from)
-            });
+                Self::eof(remote, stream, stream_w, &mut self.handle)
+            })?;
 
             let stream_to_daemon = s.spawn(move || {
                 stream_r
@@ -529,11 +526,6 @@ pub mod pktline {
         /// Create a new packet-line reader.
         pub fn new(stream: &'a mut R) -> Self {
             Self { stream }
-        }
-
-        /// Get the underlying stream.
-        pub fn stream(&mut self) -> &mut R {
-            self.stream
         }
 
         /// Parse a Git request packet-line.

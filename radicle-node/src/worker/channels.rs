@@ -1,4 +1,5 @@
-use std::io::{Read, Write};
+use std::io::Read;
+use std::ops::Deref;
 use std::{fmt, io};
 
 use crossbeam_channel as chan;
@@ -14,6 +15,12 @@ pub enum ChannelEvent<T = Vec<u8>> {
     Eof,
 }
 
+impl<T> From<T> for ChannelEvent<T> {
+    fn from(value: T) -> Self {
+        Self::Data(value)
+    }
+}
+
 impl<T> fmt::Debug for ChannelEvent<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -26,42 +33,41 @@ impl<T> fmt::Debug for ChannelEvent<T> {
 
 /// Worker channels for communicating through the git stream with the remote.
 pub struct Channels<T = Vec<u8>> {
-    pub sender: ChannelWriter<T>,
-    pub receiver: ChannelReader<T>,
+    sender: ChannelWriter<T>,
+    receiver: ChannelReader<T>,
 }
 
-impl Write for Channels {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.sender.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.sender.flush()
-    }
-}
-
-impl Read for Channels {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.receiver.read(buf)
-    }
-}
-
-impl<T> Channels<T> {
+impl<T: AsRef<[u8]>> Channels<T> {
     pub fn new(
         sender: chan::Sender<ChannelEvent<T>>,
         receiver: chan::Receiver<ChannelEvent<T>>,
     ) -> Self {
-        Channels {
-            sender: ChannelWriter(sender),
-            receiver: ChannelReader {
-                receiver,
-                buffer: io::Cursor::new(Vec::new()),
-            },
-        }
+        let sender = ChannelWriter { sender };
+        let receiver = ChannelReader::new(receiver);
+
+        Self { sender, receiver }
+    }
+
+    pub fn pair() -> io::Result<(Channels<T>, Channels<T>)> {
+        let (l_send, r_recv) = chan::unbounded::<ChannelEvent<T>>();
+        let (r_send, l_recv) = chan::unbounded::<ChannelEvent<T>>();
+
+        let l = Channels::new(l_send, l_recv);
+        let r = Channels::new(r_send, r_recv);
+
+        Ok((l, r))
+    }
+
+    pub fn try_iter(&self) -> impl Iterator<Item = ChannelEvent<T>> + '_ {
+        self.receiver.try_iter()
     }
 
     pub fn split(&mut self) -> (&mut ChannelWriter<T>, &mut ChannelReader<T>) {
         (&mut self.sender, &mut self.receiver)
+    }
+
+    pub fn send(&self, event: ChannelEvent<T>) -> io::Result<()> {
+        self.sender.send(event)
     }
 }
 
@@ -72,11 +78,26 @@ pub struct ChannelReader<T = Vec<u8>> {
     receiver: chan::Receiver<ChannelEvent<T>>,
 }
 
-impl ChannelReader<Vec<u8>> {
+impl<T> Deref for ChannelReader<T> {
+    type Target = chan::Receiver<ChannelEvent<T>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.receiver
+    }
+}
+
+impl<T: AsRef<[u8]>> ChannelReader<T> {
+    pub fn new(receiver: chan::Receiver<ChannelEvent<T>>) -> Self {
+        Self {
+            buffer: io::Cursor::new(Vec::new()),
+            receiver,
+        }
+    }
+
     pub fn pipe<W: io::Write>(&mut self, mut writer: W) -> io::Result<()> {
         loop {
             match self.receiver.recv() {
-                Ok(ChannelEvent::Data(data)) => writer.write_all(&data)?,
+                Ok(ChannelEvent::Data(data)) => writer.write_all(data.as_ref())?,
                 Ok(ChannelEvent::Eof) => return Ok(()),
                 Ok(ChannelEvent::Close) => return Err(io::ErrorKind::ConnectionReset.into()),
                 Err(_) => {
@@ -93,33 +114,39 @@ impl ChannelReader<Vec<u8>> {
 impl Read for ChannelReader<Vec<u8>> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let read = self.buffer.read(buf)?;
-        if read == 0 {
-            let event = self.receiver.recv().map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::BrokenPipe,
-                    "error reading from stream: channel is disconnected",
-                )
-            })?;
+        if read > 0 {
+            return Ok(read);
+        }
 
-            match event {
-                ChannelEvent::Data(data) => {
-                    self.buffer = io::Cursor::new(data);
-                    self.buffer.read(buf)
-                }
-                ChannelEvent::Eof => Err(io::ErrorKind::UnexpectedEof.into()),
-                ChannelEvent::Close => Err(io::ErrorKind::ConnectionReset.into()),
+        match self.receiver.recv() {
+            Ok(ChannelEvent::Data(data)) => {
+                self.buffer = io::Cursor::new(data);
+                self.buffer.read(buf)
             }
-        } else {
-            Ok(read)
+            Ok(ChannelEvent::Eof) => Err(io::ErrorKind::UnexpectedEof.into()),
+            Ok(ChannelEvent::Close) => Err(io::ErrorKind::ConnectionReset.into()),
+
+            Err(_) => Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "error reading from stream: channel is disconnected",
+            )),
         }
     }
 }
 
 /// Wraps a [`chan::Sender`] and provides it with [`io::Write`].
 #[derive(Clone)]
-pub struct ChannelWriter<T = Vec<u8>>(chan::Sender<ChannelEvent<T>>);
+pub struct ChannelWriter<T = Vec<u8>> {
+    sender: chan::Sender<ChannelEvent<T>>,
+}
 
-impl ChannelWriter {
+impl<T: AsRef<[u8]>> ChannelWriter<T> {
+    pub fn send(&self, event: impl Into<ChannelEvent<T>>) -> io::Result<()> {
+        self.sender
+            .send(event.into())
+            .map_err(|_| io::Error::from(io::ErrorKind::BrokenPipe))
+    }
+
     /// Since the git protocol is tunneled over an existing connection, we can't signal the end of
     /// the protocol via the usual means, which is to close the connection. Git also doesn't have
     /// any special message we can send to signal the end of the protocol.
@@ -127,28 +154,7 @@ impl ChannelWriter {
     /// Hence, we there's no other way for the server to know that we're done sending requests
     /// than to send a special message outside the git protocol. This message can then be processed
     /// by the remote worker to end the protocol. We use the special "eof" control message for this.
-    pub fn eof(&self) -> Result<(), chan::SendError<ChannelEvent>> {
-        self.0.send(ChannelEvent::Eof)
-    }
-}
-
-impl Write for ChannelWriter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let data = buf.to_vec();
-        self.0.send(ChannelEvent::Data(data)).map_err(|m| {
-            io::Error::new(
-                io::ErrorKind::BrokenPipe,
-                format!(
-                    "error writing to stream: channel is disconnected: dropped {:?}",
-                    m.into_inner()
-                ),
-            )
-        })?;
-
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+    pub fn eof(&self) -> Result<(), chan::SendError<ChannelEvent<T>>> {
+        self.sender.send(ChannelEvent::Eof)
     }
 }
