@@ -33,7 +33,7 @@ use crate::wire::frame;
 use crate::wire::frame::{Frame, FrameData, StreamId};
 use crate::wire::Encode;
 use crate::worker;
-use crate::worker::{ChannelEvent, Fetch, Task, TaskResult};
+use crate::worker::{ChannelEvent, FetchRequest, FetchResult, Task, TaskResult};
 use crate::Link;
 use crate::{address, service};
 
@@ -343,11 +343,11 @@ where
     fn worker_result(&mut self, task: TaskResult) {
         log::debug!(
             target: "wire",
-            "Received fetch result from worker: stream={} remote={} fetch={:?} result={:?}",
-            task.stream, task.fetch.remote(), task.result, task.fetch
+            "Received fetch result from worker: stream={} remote={} result={:?}",
+            task.stream, task.remote, task.result
         );
 
-        let nid = task.fetch.remote();
+        let nid = task.remote;
         let Some((fd, peer)) = self
             .peers
             .iter_mut()
@@ -364,8 +364,17 @@ where
         let remote = *nid;
 
         // Only call into the service if we initiated this fetch.
-        if let Some((rid, namespaces)) = task.fetch.initiated() {
-            self.service.fetched(rid, namespaces, remote, task.result);
+        match task.result {
+            FetchResult::Initiator {
+                rid,
+                namespaces,
+                result,
+            } => {
+                self.service.fetched(rid, namespaces, remote, result);
+            }
+            FetchResult::Responder { .. } => {
+                // We don't do anything with upload results for now.
+            }
         }
 
         // Nb. It's possible that the stream would already be unregistered if we received an early
@@ -527,7 +536,7 @@ where
                                 };
 
                                 let task = Task {
-                                    fetch: Fetch::Responder { remote: *nid },
+                                    fetch: FetchRequest::Responder { remote: *nid },
                                     stream,
                                     channels,
                                 };
@@ -812,7 +821,7 @@ where
 
                     let link = *link;
                     let task = Task {
-                        fetch: Fetch::Initiator {
+                        fetch: FetchRequest::Initiator {
                             rid,
                             namespaces,
                             remote,
