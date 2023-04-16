@@ -174,6 +174,26 @@ impl RefsAnnouncement {
         }
         Ok(false)
     }
+
+    /// Check if an announcement tells us that a node is in sync with a local remote.
+    pub fn is_synced<S: ReadStorage>(
+        &self,
+        remote: &NodeId,
+        storage: S,
+    ) -> Result<bool, storage::Error> {
+        let repo = match storage.repository(self.rid) {
+            // If the repo doesn't exist, we're not in sync.
+            Err(e) if e.is_not_found() => return Ok(false),
+            Err(e) => return Err(e),
+            Ok(r) => r,
+        };
+
+        if let Some((_, refs)) = self.refs.iter().find(|(nid, _)| nid == remote) {
+            let local_refs = repo.remote(remote)?.refs.unverified();
+            return Ok(&local_refs == refs);
+        }
+        Ok(false)
+    }
 }
 
 /// Node announcing its inventory to the network.

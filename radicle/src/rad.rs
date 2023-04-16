@@ -12,10 +12,10 @@ use crate::identity::doc::{DocError, Id};
 use crate::identity::project::Project;
 use crate::identity::{doc, IdentityError};
 use crate::storage::git::transport;
-use crate::storage::git::{Repository, Storage};
+use crate::storage::git::Repository;
 use crate::storage::refs::SignedRefs;
-use crate::storage::WriteRepository;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId};
+use crate::storage::{WriteRepository, WriteStorage};
 use crate::{identity, storage};
 
 /// Name of the radicle storage remote.
@@ -44,13 +44,13 @@ pub enum InitError {
 }
 
 /// Initialize a new radicle project from a git repository.
-pub fn init<G: Signer>(
+pub fn init<G: Signer, S: WriteStorage>(
     repo: &git2::Repository,
     name: &str,
     description: &str,
     default_branch: BranchName,
     signer: &G,
-    storage: &Storage,
+    storage: S,
 ) -> Result<(Id, identity::Doc<Verified>, SignedRefs<Verified>), InitError> {
     // TODO: Better error when project id already exists in storage, but remote doesn't.
     let pk = signer.public_key();

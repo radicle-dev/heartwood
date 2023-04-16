@@ -1,8 +1,7 @@
-use std::ops::Deref;
 use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::{fmt, io, time};
+use std::{fmt, io};
 
 use crossbeam_channel as chan;
 use radicle::node::Seeds;
@@ -14,8 +13,8 @@ use crate::profile::Home;
 use crate::runtime::Emitter;
 use crate::service;
 use crate::service::tracking;
-use crate::service::Event;
 use crate::service::{CommandError, QueryState};
+use crate::service::{Event, Events};
 use crate::service::{NodeId, Sessions};
 use crate::wire;
 use crate::wire::StreamId;
@@ -69,57 +68,10 @@ pub struct Handle {
     emitter: Emitter<Event>,
 }
 
-/// Events feed.
-pub struct Events(chan::Receiver<Event>);
-
-impl Deref for Events {
-    type Target = chan::Receiver<Event>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Events {
-    /// Listen for events, and wait for the given predicate to return something,
-    /// or timeout if the specified amount of time has elapsed.
-    pub fn wait<F>(
-        &self,
-        mut f: F,
-        timeout: time::Duration,
-    ) -> Result<Event, chan::RecvTimeoutError>
-    where
-        F: FnMut(&Event) -> bool,
-    {
-        let start = time::Instant::now();
-
-        loop {
-            if let Some(timeout) = timeout.checked_sub(start.elapsed()) {
-                match self.recv_timeout(timeout) {
-                    Ok(event) => {
-                        if f(&event) {
-                            return Ok(event);
-                        }
-                    }
-                    Err(err @ chan::RecvTimeoutError::Disconnected) => {
-                        return Err(err);
-                    }
-                    Err(chan::RecvTimeoutError::Timeout) => {
-                        // Keep trying until our timeout reaches zero.
-                        continue;
-                    }
-                }
-            } else {
-                return Err(chan::RecvTimeoutError::Timeout);
-            }
-        }
-    }
-}
-
 impl Handle {
     /// Subscribe to events stream.
     pub fn events(&self) -> Events {
-        Events(self.emitter.subscribe())
+        Events::from(self.emitter.subscribe())
     }
 }
 

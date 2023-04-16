@@ -3,9 +3,10 @@ use std::iter;
 use std::net;
 use std::ops::{Deref, DerefMut};
 
-use crossbeam_channel as chan;
 use log::*;
+use radicle::rad;
 use radicle::storage::ReadRepository;
+use radicle::Storage;
 
 use crate::address;
 use crate::address::Store;
@@ -24,9 +25,8 @@ use crate::service::*;
 use crate::storage::git::transport::remote;
 use crate::storage::Inventory;
 use crate::storage::{Namespaces, RemoteId, WriteStorage};
-use crate::test::arbitrary;
-use crate::test::simulator;
 use crate::test::storage::MockStorage;
+use crate::test::{arbitrary, fixtures, simulator};
 use crate::Link;
 use crate::{LocalDuration, LocalTime};
 
@@ -41,6 +41,7 @@ pub struct Peer<S, G> {
     pub ip: net::IpAddr,
     pub rng: fastrand::Rng,
     pub local_addr: net::SocketAddr,
+    pub tempdir: tempfile::TempDir,
 
     initialized: bool,
 }
@@ -81,12 +82,13 @@ impl Peer<MockStorage, MockSigner> {
     pub fn new(name: &'static str, ip: impl Into<net::IpAddr>) -> Self {
         Self::with_storage(name, ip, MockStorage::empty())
     }
+}
 
-    pub fn with_storage(
-        name: &'static str,
-        ip: impl Into<net::IpAddr>,
-        storage: MockStorage,
-    ) -> Self {
+impl<S> Peer<S, MockSigner>
+where
+    S: WriteStorage + 'static,
+{
+    pub fn with_storage(name: &'static str, ip: impl Into<net::IpAddr>, storage: S) -> Self {
         Self::config(name, ip, storage, Config::default())
     }
 }
@@ -118,6 +120,25 @@ impl Default for Config<MockSigner> {
     }
 }
 
+impl<G: Signer> Peer<Storage, G> {
+    pub fn project(&mut self, name: &str, description: &str) -> Id {
+        radicle::storage::git::transport::local::register(self.storage().clone());
+
+        let (repo, _) = fixtures::repository(self.tempdir.path().join(name));
+        let (rid, _, _) = rad::init(
+            &repo,
+            name,
+            description,
+            radicle::git::refname!("master"),
+            self.signer(),
+            self.storage(),
+        )
+        .unwrap();
+
+        rid
+    }
+}
+
 impl<S, G> Peer<S, G>
 where
     S: WriteStorage + 'static,
@@ -132,6 +153,7 @@ where
         let routing = routing::Table::memory().unwrap();
         let tracking = tracking::Store::memory().unwrap();
         let tracking = tracking::Config::new(config.policy, config.scope, tracking);
+        let tempdir = tempfile::tempdir().unwrap();
         let id = *config.signer.public_key();
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
@@ -160,6 +182,7 @@ where
             local_addr,
             rng: config.rng,
             initialized: false,
+            tempdir,
         }
     }
 
@@ -294,9 +317,12 @@ where
         .expect("`inventory-announcement` must be sent");
     }
 
-    pub fn connect_to(&mut self, peer: &Self) {
-        let remote_id = simulator::Peer::<S, G>::id(peer);
-        let remote_addr = simulator::Peer::<S, G>::addr(peer);
+    pub fn connect_to<T: WriteStorage + 'static, H: Signer + 'static>(
+        &mut self,
+        peer: &Peer<T, H>,
+    ) {
+        let remote_id = simulator::Peer::<T, H>::id(peer);
+        let remote_addr = simulator::Peer::<T, H>::addr(peer);
 
         self.initialize();
         self.service
@@ -343,7 +369,7 @@ where
     }
 
     /// Get a stream of the peer's emitted events.
-    pub fn events(&mut self) -> chan::Receiver<Event> {
+    pub fn events(&mut self) -> Events {
         self.service.events()
     }
 

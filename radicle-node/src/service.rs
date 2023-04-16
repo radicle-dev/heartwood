@@ -2,6 +2,7 @@
 #![allow(clippy::collapsible_match)]
 #![allow(clippy::collapsible_if)]
 pub mod config;
+pub mod events;
 pub mod filter;
 pub mod message;
 pub mod reactor;
@@ -42,6 +43,7 @@ use crate::Link;
 
 pub use crate::node::NodeId;
 pub use crate::service::config::{Config, Network};
+pub use crate::service::events::{Event, Events};
 pub use crate::service::message::{Message, ZeroBytes};
 pub use crate::service::session::Session;
 
@@ -81,27 +83,6 @@ pub use message::ADDRESS_LIMIT;
 pub use message::INVENTORY_LIMIT;
 /// Maximum number of project git references imposed by message size limits.
 pub use message::REF_REMOTE_LIMIT;
-
-/// A service event.
-#[derive(Debug, Clone)]
-pub enum Event {
-    RefsFetched {
-        remote: NodeId,
-        rid: Id,
-        updated: Vec<RefUpdate>,
-    },
-    SeedDiscovered {
-        rid: Id,
-        nid: NodeId,
-    },
-    SeedDropped {
-        rid: Id,
-        nid: NodeId,
-    },
-    PeerConnected {
-        nid: NodeId,
-    },
-}
 
 /// Result of syncing our routing table with a node's inventory.
 #[derive(Default)]
@@ -369,8 +350,8 @@ where
     }
 
     /// Subscriber to inner `Emitter` events.
-    pub fn events(&mut self) -> chan::Receiver<Event> {
-        self.emitter.subscribe()
+    pub fn events(&mut self) -> Events {
+        Events::from(self.emitter.subscribe())
     }
 
     /// Get I/O reactor.
@@ -907,6 +888,22 @@ where
                 if !peer.refs_announced(message.rid, announcement.clone()) {
                     trace!(target: "service", "Ignoring stale refs announcement from {announcer} (time={timestamp})");
                     return Ok(false);
+                }
+
+                // Check if the announcer is in sync with our own refs, and if so emit an event.
+                // This event is used for showing sync progress to users.
+                match message.is_synced(&self.node_id(), &self.storage) {
+                    Ok(synced) => {
+                        if synced {
+                            self.emitter.emit(Event::RefsSynced {
+                                rid: message.rid,
+                                remote: *announcer,
+                            });
+                        }
+                    }
+                    Err(e) => {
+                        error!(target: "service", "Error checking refs announcement sync status: {e}");
+                    }
                 }
 
                 // TODO: Buffer/throttle fetches.

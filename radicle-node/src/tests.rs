@@ -4,9 +4,11 @@ use std::collections::BTreeSet;
 use std::default::*;
 use std::io;
 use std::sync::Arc;
+use std::time;
 
 use crossbeam_channel as chan;
 use netservices::LinkDirection as Link;
+use radicle::storage::ReadRepository;
 
 use crate::collections::{HashMap, HashSet};
 use crate::crypto::test::signer::MockSigner;
@@ -1129,6 +1131,49 @@ fn test_queued_fetch() {
     alice.fetched(rid2, Namespaces::All, bob.id, Ok(vec![]));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid3);
+}
+
+#[test]
+fn test_refs_synced_event() {
+    let temp = tempfile::tempdir().unwrap();
+    let storage = Storage::open(temp.path()).unwrap();
+    let mut alice = Peer::with_storage("alice", [8, 8, 8, 8], storage);
+    let bob = Peer::new("eve", [9, 9, 9, 9]);
+    let acme = alice.project("acme", "");
+    let events = alice.events();
+    let refs = alice
+        .storage()
+        .repository(acme)
+        .unwrap()
+        .remote(&alice.id)
+        .unwrap()
+        .refs
+        .unverified();
+    let ann = AnnouncementMessage::from(RefsAnnouncement {
+        rid: acme,
+        refs: vec![(alice.id, refs)].try_into().unwrap(),
+        timestamp: bob.timestamp(),
+    });
+    let msg = ann.signed(bob.signer());
+
+    alice.connect_to(&bob);
+    alice.receive(bob.id, Message::Announcement(msg));
+
+    events
+        .wait(
+            |e| {
+                if let Event::RefsSynced { remote, rid } = e {
+                    assert_eq!(remote, &bob.id);
+                    assert_eq!(rid, &acme);
+
+                    true
+                } else {
+                    false
+                }
+            },
+            time::Duration::from_secs(3),
+        )
+        .unwrap();
 }
 
 #[test]
