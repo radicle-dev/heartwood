@@ -346,7 +346,7 @@ impl Worker {
                     match daemon_r.read(&mut buffer) {
                         Ok(0) => break,
                         Ok(n) => {
-                            stream_w.write_all(&buffer[..n]).unwrap();
+                            stream_w.write_all(&buffer[..n])?;
 
                             if let Err(e) = self.handle.flush(remote, stream) {
                                 log::error!(target: "worker", "Worker channel disconnected; aborting");
@@ -362,7 +362,7 @@ impl Worker {
                         }
                     }
                 }
-                Ok(())
+                Self::eof(remote, stream, stream_w, &mut self.handle).map_err(UploadError::from)
             });
 
             let stream_to_daemon = s.spawn(move || -> Result<(), io::Error> {
@@ -382,9 +382,7 @@ impl Worker {
             daemon_to_stream.join().unwrap()?;
 
             Ok::<(), UploadError>(())
-        })?;
-
-        Self::eof(remote, stream, stream_w, &mut self.handle).map_err(UploadError::from)
+        })
     }
 
     fn _fetch<S>(
