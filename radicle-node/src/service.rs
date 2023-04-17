@@ -512,7 +512,7 @@ where
                 resp.send(untracked).ok();
             }
             Command::AnnounceRefs(id) => {
-                if let Err(err) = self.announce_refs(id, &Namespaces::from_iter([self.node_id()])) {
+                if let Err(err) = self.announce_refs(id, [self.node_id()]) {
                     error!("Error announcing refs: {}", err);
                 }
             }
@@ -582,12 +582,11 @@ where
     pub fn fetched(
         &mut self,
         rid: Id,
-        namespaces: Namespaces,
         remote: NodeId,
-        result: Result<Vec<RefUpdate>, FetchError>,
+        result: Result<(Vec<RefUpdate>, HashSet<NodeId>), FetchError>,
     ) {
         let result = match result {
-            Ok(updated) => {
+            Ok((updated, namespaces)) => {
                 log::debug!(target: "service", "Fetched {rid} from {remote} successfully");
 
                 for update in &updated {
@@ -599,7 +598,10 @@ where
                     updated: updated.clone(),
                 });
 
-                FetchResult::Success { updated }
+                FetchResult::Success {
+                    updated,
+                    namespaces,
+                }
             }
             Err(err) => {
                 let reason = err.to_string();
@@ -630,8 +632,11 @@ where
             // because the user might want to announce his fork, once he has created one,
             // or may choose to not announce anything.
             match result {
-                FetchResult::Success { updated } if !updated.is_empty() => {
-                    if let Err(e) = self.announce_refs(rid, &namespaces) {
+                FetchResult::Success {
+                    updated,
+                    namespaces,
+                } if !updated.is_empty() => {
+                    if let Err(e) = self.announce_refs(rid, namespaces) {
                         error!(target: "service", "Failed to announce new refs: {e}");
                     }
                 }
@@ -1190,39 +1195,27 @@ where
     }
 
     /// Announce local refs for given id.
-    fn announce_refs(&mut self, rid: Id, namespaces: &Namespaces) -> Result<(), storage::Error> {
+    fn announce_refs(
+        &mut self,
+        rid: Id,
+        remotes: impl IntoIterator<Item = NodeId>,
+    ) -> Result<(), storage::Error> {
         let repo = self.storage.repository(rid)?;
         let peers = self.sessions.connected().map(|(_, p)| p);
         let timestamp = self.time();
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
 
-        match namespaces {
-            Namespaces::All => {
-                for (remote_id, remote) in repo.remotes()?.into_iter() {
-                    if refs.push((remote_id, remote.refs.unverified())).is_err() {
-                        warn!(
-                            target: "service",
-                            "refs announcement limit ({}) exceeded, peers will see only some of your repository references",
-                            REF_REMOTE_LIMIT,
-                        );
-                        break;
-                    }
-                }
-            }
-            Namespaces::Trusted(trusted) => {
-                for remote_id in trusted.iter() {
-                    if refs
-                        .push((*remote_id, repo.remote(remote_id)?.refs.unverified()))
-                        .is_err()
-                    {
-                        warn!(
-                            target: "service",
-                            "refs announcement limit ({}) exceeded, peers will see only some of your repository references",
-                            REF_REMOTE_LIMIT,
-                        );
-                        break;
-                    }
-                }
+        for remote_id in remotes.into_iter() {
+            if refs
+                .push((remote_id, repo.remote(&remote_id)?.refs.unverified()))
+                .is_err()
+            {
+                warn!(
+                    target: "service",
+                    "refs announcement limit ({}) exceeded, peers will see only some of your repository references",
+                    REF_REMOTE_LIMIT,
+                );
+                break;
             }
         }
 
@@ -1428,7 +1421,7 @@ where
 
         for rid in missing {
             match self.seeds(&rid) {
-                Ok(mut seeds) => {
+                Ok(seeds) => {
                     if seeds.has_connections() {
                         for seed in seeds.connected() {
                             self.fetch(rid, seed);

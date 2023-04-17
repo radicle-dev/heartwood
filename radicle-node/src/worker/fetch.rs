@@ -8,7 +8,7 @@ use std::ops::Deref;
 
 use radicle::crypto::{PublicKey, Unverified, Verified};
 use radicle::git::url;
-use radicle::prelude::{Doc, Id};
+use radicle::prelude::{Doc, Id, NodeId};
 use radicle::storage::git::Repository;
 use radicle::storage::refs::{SignedRefs, IDENTITY_BRANCH};
 use radicle::storage::{Namespaces, RefUpdate, Remote, RemoteId};
@@ -242,7 +242,7 @@ impl<'a> StagingPhaseFinal<'a> {
     ///
     /// All references that were updated are returned as a
     /// [`RefUpdate`].
-    pub fn transfer(self) -> Result<Vec<RefUpdate>, error::Transfer> {
+    pub fn transfer(self) -> Result<(Vec<RefUpdate>, HashSet<NodeId>), error::Transfer> {
         let verifications = self.verify();
         let production = match &self.repo {
             StagedRepository::Cloning(repo) => self.production.create(repo.id)?,
@@ -253,7 +253,7 @@ impl<'a> StagingPhaseFinal<'a> {
         let mut updates = Vec::new();
 
         let callbacks = ref_updates(&mut updates);
-        {
+        let remotes = {
             let specs = verifications
                 .into_iter()
                 .flat_map(|(remote, verified)| match verified {
@@ -339,14 +339,16 @@ impl<'a> StagingPhaseFinal<'a> {
             opts.prune(git::raw::FetchPrune::Off);
 
             remote.fetch(&specs, Some(&mut opts), None)?;
-        }
+
+            fetching
+        };
         let head = production.set_head()?;
         log::debug!(target: "worker", "Head for {} set to {head}", production.id);
 
         let head = production.set_identity_head()?;
         log::debug!(target: "worker", "'refs/rad/id' for {} set to {head}", production.id);
 
-        Ok(updates)
+        Ok((updates, remotes))
     }
 
     fn remotes(&self) -> impl Iterator<Item = Remote> + '_ {
@@ -364,23 +366,21 @@ impl<'a> StagingPhaseFinal<'a> {
     fn verify(&self) -> BTreeMap<RemoteId, VerifiedRemote> {
         self.trusted
             .iter()
+            .filter_map(|remote| self.repo.remote(remote).ok())
             .map(|remote| {
-                let verification =
-                    match (self.repo.identity_doc_of(remote), self.repo.remote(remote)) {
-                        (Ok(doc), Ok(remote)) => match self.repo.validate_remote(&remote) {
-                            Ok(()) => VerifiedRemote::Success { _doc: doc, remote },
-                            Err(e) => VerifiedRemote::Failed {
-                                reason: e.to_string(),
-                            },
-                        },
-                        (Err(e), _) => VerifiedRemote::Failed {
+                let remote_id = remote.id;
+                let verification = match self.repo.identity_doc_of(&remote_id) {
+                    Ok(doc) => match self.repo.validate_remote(&remote) {
+                        Ok(()) => VerifiedRemote::Success { _doc: doc, remote },
+                        Err(e) => VerifiedRemote::Failed {
                             reason: e.to_string(),
                         },
-                        (_, Err(e)) => VerifiedRemote::Failed {
-                            reason: e.to_string(),
-                        },
-                    };
-                (*remote, verification)
+                    },
+                    Err(e) => VerifiedRemote::Failed {
+                        reason: e.to_string(),
+                    },
+                };
+                (remote_id, verification)
             })
             .collect()
     }

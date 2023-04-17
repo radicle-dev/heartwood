@@ -365,12 +365,8 @@ where
 
         // Only call into the service if we initiated this fetch.
         match task.result {
-            FetchResult::Initiator {
-                rid,
-                namespaces,
-                result,
-            } => {
-                self.service.fetched(rid, namespaces, remote, result);
+            FetchResult::Initiator { rid, result } => {
+                self.service.fetched(rid, remote, result);
             }
             FetchResult::Responder { .. } => {
                 // We don't do anything with upload results for now.

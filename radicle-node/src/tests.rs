@@ -24,7 +24,6 @@ use crate::service::ServiceState as _;
 use crate::service::*;
 use crate::storage::git::transport::{local, remote};
 use crate::storage::git::Storage;
-use crate::storage::Namespaces;
 use crate::storage::ReadStorage;
 use crate::test::arbitrary;
 use crate::test::assert_matches;
@@ -1121,14 +1120,14 @@ fn test_queued_fetch() {
     alice.elapse(KEEP_ALIVE_DELTA);
 
     // Finish the 1st fetch.
-    alice.fetched(rid1, Namespaces::All, bob.id, Ok(vec![]));
+    alice.fetched(rid1, bob.id, Ok((vec![], Default::default())));
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid2);
     // ... but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    alice.fetched(rid2, Namespaces::All, bob.id, Ok(vec![]));
+    alice.fetched(rid2, bob.id, Ok((vec![], Default::default())));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid3);
 }

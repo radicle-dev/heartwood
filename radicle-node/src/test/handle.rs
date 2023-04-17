@@ -6,7 +6,6 @@ use crate::node::{FetchResult, Seeds};
 use crate::runtime::HandleError;
 use crate::service::NodeId;
 use crate::service::{self, tracking};
-use crate::storage::RefUpdate;
 
 #[derive(Default, Clone)]
 pub struct Handle {
@@ -32,7 +31,10 @@ impl radicle::node::Handle for Handle {
     }
 
     fn fetch(&mut self, _id: Id, _from: NodeId) -> Result<FetchResult, Self::Error> {
-        Ok(FetchResult::from(Ok::<Vec<RefUpdate>, Self::Error>(vec![])))
+        Ok(FetchResult::Success {
+            updated: vec![],
+            namespaces: HashSet::new(),
+        })
     }
 
     fn track_repo(&mut self, id: Id, _scope: tracking::Scope) -> Result<bool, Self::Error> {

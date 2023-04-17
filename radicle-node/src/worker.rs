@@ -2,6 +2,7 @@ mod channels;
 mod fetch;
 mod tunnel;
 
+use std::collections::HashSet;
 use std::io::{prelude::*, BufReader};
 use std::ops::ControlFlow;
 use std::thread::JoinHandle;
@@ -112,10 +113,8 @@ pub enum FetchResult {
     Initiator {
         /// Repo fetched.
         rid: Id,
-        /// Namespaces fetched.
-        namespaces: Namespaces,
-        /// Fetch result.
-        result: Result<Vec<RefUpdate>, FetchError>,
+        /// Fetch result, including remotes fetched.
+        result: Result<(Vec<RefUpdate>, HashSet<NodeId>), FetchError>,
     },
     Responder {
         /// Upload result.
@@ -200,11 +199,7 @@ impl Worker {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {}", rid);
                 let result = self.fetch(rid, remote, stream, &namespaces, channels);
 
-                FetchResult::Initiator {
-                    rid,
-                    namespaces,
-                    result,
-                }
+                FetchResult::Initiator { rid, result }
             }
             FetchRequest::Responder { remote } => {
                 log::debug!(target: "worker", "Worker processing incoming fetch..");
@@ -233,7 +228,7 @@ impl Worker {
         stream: StreamId,
         namespaces: &Namespaces,
         mut channels: Channels,
-    ) -> Result<Vec<RefUpdate>, FetchError> {
+    ) -> Result<(Vec<RefUpdate>, HashSet<NodeId>), FetchError> {
         let staging = fetch::StagingPhaseInitial::new(&self.storage, rid, namespaces.clone())?;
         match self._fetch(
             &staging.repo,

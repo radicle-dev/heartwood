@@ -1,8 +1,9 @@
 //! A simple P2P network simulator. Acts as the _reactor_, but without doing any I/O.
 #![allow(clippy::collapsible_if)]
 #![allow(dead_code)]
+#![allow(clippy::type_complexity)]
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};
 use std::rc::Rc;
@@ -65,9 +66,8 @@ pub enum Input {
     /// Fetch completed for a node.
     Fetched(
         Id,
-        Namespaces,
         NodeId,
-        Rc<Result<Vec<RefUpdate>, FetchError>>,
+        Rc<Result<(Vec<RefUpdate>, HashSet<NodeId>), FetchError>>,
     ),
     /// Used to advance the state machine after some wall time has passed.
     Wake,
@@ -110,7 +110,7 @@ impl fmt::Display for Scheduled {
             Input::Wake => {
                 write!(f, "{}: Tock", self.node)
             }
-            Input::Fetched(rid, _, nid, _) => {
+            Input::Fetched(rid, nid, _) => {
                 write!(f, "{} <<~ {} ({}): Fetched", self.node, nid, rid)
             }
         }
@@ -409,15 +409,21 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             p.received_message(id, msg);
                         }
                     }
-                    Input::Fetched(rid, ns, nid, result) => {
+                    Input::Fetched(rid, nid, result) => {
                         let result = Rc::try_unwrap(result).unwrap();
                         let mut repo = match p.storage().repository_mut(rid) {
                             Ok(repo) => repo,
                             Err(e) if e.is_not_found() => p.storage().create(rid).unwrap(),
                             Err(e) => panic!("Failed to open repository: {e}"),
                         };
-                        fetch(&mut repo, &nid, ns.clone()).unwrap();
-                        p.fetched(rid, ns, nid, result);
+                        match &result {
+                            Ok((_, remotes)) => {
+                                fetch(&mut repo, &nid, Namespaces::Trusted(remotes.clone()))
+                                    .unwrap();
+                            }
+                            Err(err) => panic!("Error fetching: {err}"),
+                        }
+                        p.fetched(rid, nid, result);
                     }
                 }
                 while let Some(o) = p.next() {
@@ -621,7 +627,6 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             remote,
                             input: Input::Fetched(
                                 rid,
-                                namespaces,
                                 remote,
                                 Rc::new(Err(FetchError::Io(io::ErrorKind::Other.into()))),
                             ),
@@ -633,7 +638,17 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         Scheduled {
                             node,
                             remote,
-                            input: Input::Fetched(rid, namespaces, remote, Rc::new(Ok(vec![]))),
+                            input: Input::Fetched(
+                                rid,
+                                remote,
+                                Rc::new(Ok((
+                                    vec![],
+                                    match namespaces {
+                                        Namespaces::Trusted(hs) => hs,
+                                        Namespaces::All => HashSet::new(),
+                                    },
+                                ))),
+                            ),
                         },
                     );
                 }

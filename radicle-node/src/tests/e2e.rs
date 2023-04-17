@@ -169,7 +169,7 @@ fn test_replication() {
     assert!(result.is_success());
 
     let updated = match result {
-        FetchResult::Success { updated } => updated,
+        FetchResult::Success { updated, .. } => updated,
         FetchResult::Failed { reason } => {
             panic!("Fetch failed from {}: {reason}", bob.id);
         }
@@ -446,7 +446,7 @@ fn test_fetch_preserve_owned_refs() {
 
     // Fetch shouldn't prune any of our own refs.
     let result = alice.handle.fetch(acme, bob.id).unwrap();
-    let updated = result.success().unwrap();
+    let (updated, _) = result.success().unwrap();
     assert_eq!(updated, vec![]);
 
     let after = alice
@@ -540,7 +540,10 @@ fn test_fetch_up_to_date() {
 
     // Fetch again! This time, everything's up to date.
     let result = alice.handle.fetch(acme, bob.id).unwrap();
-    assert_eq!(result.success(), Some(vec![]));
+    assert_eq!(
+        result.success(),
+        Some((vec![], HashSet::from_iter([bob.id])))
+    );
 }
 
 #[test]

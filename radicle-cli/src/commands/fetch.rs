@@ -110,7 +110,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 pub fn fetch(rid: Id, node: &mut Node) -> Result<FetchResults, node::Error> {
     // Get seeds. This consults the local routing table only.
-    let mut seeds = node.seeds(rid)?;
+    let seeds = node.seeds(rid)?;
     let mut results = FetchResults::default();
 
     if seeds.has_connections() {

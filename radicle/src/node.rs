@@ -2,7 +2,7 @@ mod features;
 pub mod routing;
 pub mod tracking;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::io::{BufRead, BufReader};
 use std::ops::Deref;
 use std::os::unix::net::UnixStream;
@@ -195,7 +195,6 @@ impl Command {
 #[serde(tag = "state", content = "id")]
 pub enum Seed {
     Disconnected(NodeId),
-    Fetching(NodeId),
     Connected(NodeId),
 }
 
@@ -207,31 +206,24 @@ impl Seeds {
         self.0.insert(seed);
     }
 
-    pub fn connected(&mut self) -> impl Iterator<Item = &NodeId> {
+    pub fn connected(&self) -> impl Iterator<Item = &NodeId> {
         self.0.iter().filter_map(|s| match s {
             Seed::Connected(node) => Some(node),
-            Seed::Fetching(_) | Seed::Disconnected(_) => None,
+            Seed::Disconnected(_) => None,
         })
     }
 
-    pub fn disconnected(&mut self) -> impl Iterator<Item = &NodeId> {
+    pub fn disconnected(&self) -> impl Iterator<Item = &NodeId> {
         self.0.iter().filter_map(|s| match s {
             Seed::Disconnected(node) => Some(node),
-            Seed::Fetching(_) | Seed::Connected(_) => None,
-        })
-    }
-
-    pub fn fetching(&mut self) -> impl Iterator<Item = &NodeId> {
-        self.0.iter().filter_map(|s| match s {
-            Seed::Fetching(node) => Some(node),
-            Seed::Connected(_) | Seed::Disconnected(_) => None,
+            Seed::Connected(_) => None,
         })
     }
 
     pub fn has_connections(&self) -> bool {
         self.0.iter().any(|s| match s {
             Seed::Connected(_) => true,
-            Seed::Disconnected(_) | Seed::Fetching(_) => false,
+            Seed::Disconnected(_) => false,
         })
     }
 
@@ -242,18 +234,19 @@ impl Seeds {
     pub fn is_disconnected(&self, node: &NodeId) -> bool {
         self.0.contains(&Seed::Disconnected(*node))
     }
-
-    pub fn is_fetching(&self, node: &NodeId) -> bool {
-        self.0.contains(&Seed::Fetching(*node))
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "kebab-case")]
 pub enum FetchResult {
-    Success { updated: Vec<RefUpdate> },
+    Success {
+        updated: Vec<RefUpdate>,
+        namespaces: HashSet<NodeId>,
+    },
     // TODO: Create enum for reason.
-    Failed { reason: String },
+    Failed {
+        reason: String,
+    },
 }
 
 impl FetchResult {
@@ -261,18 +254,24 @@ impl FetchResult {
         matches!(self, FetchResult::Success { .. })
     }
 
-    pub fn success(self) -> Option<Vec<RefUpdate>> {
+    pub fn success(self) -> Option<(Vec<RefUpdate>, HashSet<NodeId>)> {
         match self {
-            Self::Success { updated } => Some(updated),
+            Self::Success {
+                updated,
+                namespaces,
+            } => Some((updated, namespaces)),
             _ => None,
         }
     }
 }
 
-impl<S: ToString> From<Result<Vec<RefUpdate>, S>> for FetchResult {
-    fn from(value: Result<Vec<RefUpdate>, S>) -> Self {
+impl<S: ToString> From<Result<(Vec<RefUpdate>, HashSet<NodeId>), S>> for FetchResult {
+    fn from(value: Result<(Vec<RefUpdate>, HashSet<NodeId>), S>) -> Self {
         match value {
-            Ok(updated) => Self::Success { updated },
+            Ok((updated, namespaces)) => Self::Success {
+                updated,
+                namespaces,
+            },
             Err(err) => Self::Failed {
                 reason: err.to_string(),
             },
@@ -296,10 +295,14 @@ impl FetchResults {
     }
 
     /// Iterate over successful fetches.
-    pub fn success(&self) -> impl Iterator<Item = (&NodeId, &[RefUpdate])> {
+    pub fn success(&self) -> impl Iterator<Item = (&NodeId, &[RefUpdate], HashSet<NodeId>)> {
         self.0.iter().filter_map(|(nid, r)| {
-            if let FetchResult::Success { updated } = r {
-                Some((nid, updated.as_slice()))
+            if let FetchResult::Success {
+                updated,
+                namespaces,
+            } = r
+            {
+                Some((nid, updated.as_slice(), namespaces.clone()))
             } else {
                 None
             }
