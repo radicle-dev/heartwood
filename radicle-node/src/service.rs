@@ -424,7 +424,7 @@ where
     }
 
     pub fn tick(&mut self, now: LocalTime) {
-        trace!("Tick +{}", now - self.start_time);
+        trace!(target: "service", "Tick +{}", now - self.start_time);
 
         self.clock = now;
     }
@@ -826,14 +826,14 @@ where
                 // Discard inventory messages we've already seen, otherwise update
                 // out last seen time.
                 if !peer.inventory_announced(announcement.clone()) {
-                    debug!(target: "service", "Ignoring stale inventory announcement from {announcer} (t={})", self.time());
+                    trace!(target: "service", "Ignoring stale inventory announcement from {announcer} (t={})", self.time());
                     return Ok(false);
                 }
 
                 match self.sync_routing(&message.inventory, *announcer, message.timestamp) {
                     Ok(synced) => {
                         if synced.is_empty() {
-                            debug!(target: "service", "No routes updated by inventory announcement from {announcer}");
+                            trace!(target: "service", "No routes updated by inventory announcement from {announcer}");
                             return Ok(false);
                         }
                     }
@@ -905,7 +905,7 @@ where
                 // Discard announcement messages we've already seen, otherwise update
                 // our last seen time.
                 if !peer.refs_announced(message.rid, announcement.clone()) {
-                    debug!(target: "service", "Ignoring stale refs announcement from {announcer} (time={timestamp})");
+                    trace!(target: "service", "Ignoring stale refs announcement from {announcer} (time={timestamp})");
                     return Ok(false);
                 }
 
@@ -951,7 +951,7 @@ where
                 // Discard node messages we've already seen, otherwise update
                 // our last seen time.
                 if !peer.node_announced(announcement.clone()) {
-                    debug!(target: "service", "Ignoring stale node announcement from {announcer}");
+                    trace!(target: "service", "Ignoring stale node announcement from {announcer}");
                     return Ok(false);
                 }
 
