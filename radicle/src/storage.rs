@@ -296,7 +296,7 @@ pub trait ReadRepository {
     fn blob_at<'a>(&'a self, commit: Oid, path: &'a Path)
         -> Result<git2::Blob<'a>, git_ext::Error>;
 
-    /// Validate all remotes with [`ReadStorage::validate`].
+    /// Validate all remotes with [`ReadRepository::validate_remote`].
     fn validate(&self) -> Result<(), VerifyError> {
         for (_, remote) in self.remotes()? {
             self.validate_remote(&remote)?;
