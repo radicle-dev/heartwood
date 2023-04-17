@@ -300,9 +300,11 @@ impl Repository {
         Identity::load_at(head, self)
     }
 
-    pub fn project_of(&self, remote: &RemoteId) -> Result<Project, IdentityError> {
-        let doc = self.identity_doc_of(remote)?;
-        let proj = doc.project()?;
+    /// Get the canonical project information.
+    pub fn project(&self) -> Result<Project, IdentityError> {
+        let head = self.identity_head()?;
+        let doc = self.identity_doc_at(head)?;
+        let proj = doc.verified()?.project()?;
 
         Ok(proj)
     }
