@@ -30,6 +30,10 @@ name = "rad-self"
 path = "src/rad-self.rs"
 
 [[bin]]
+name = "rad-set-canonical-refs"
+path = "src/rad-set-canonical-refs.rs"
+
+[[bin]]
 name = "rad-push"
 path = "src/rad-push.rs"
 
