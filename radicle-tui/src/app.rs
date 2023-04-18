@@ -4,7 +4,6 @@ use tui_realm_stdlib::Phantom;
 use tuirealm::application::PollStrategy;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
-use tuirealm::props::{AttrValue, Attribute};
 use tuirealm::{Application, Frame, MockComponent, NoUserEvent, State, StateValue};
 
 use radicle_tui::cob::patch::{self};
@@ -40,7 +39,6 @@ pub enum PatchCid {
     Navigation,
     Activity,
     Files,
-    Context,
 }
 
 /// All component ids known to this application.
@@ -48,7 +46,6 @@ pub enum PatchCid {
 pub enum Cid {
     Home(HomeCid),
     Patch(PatchCid),
-    Shortcuts,
     GlobalListener,
 }
 
@@ -232,15 +229,6 @@ impl ViewPage for Home {
         let issue_browser = ui::issue_browser(theme).to_boxed();
         let patch_browser = ui::patch_browser(theme, &context.patches, &context.profile).to_boxed();
 
-        let shortcuts = ui::shortcuts(
-            theme,
-            vec![
-                ui::shortcut(theme, "tab", "section"),
-                ui::shortcut(theme, "q", "quit"),
-            ],
-        )
-        .to_boxed();
-
         app.remount(
             Cid::Home(HomeCid::Navigation),
             navigation,
@@ -251,7 +239,6 @@ impl ViewPage for Home {
         app.remount(Cid::Home(HomeCid::IssueBrowser), issue_browser, vec![])?;
         app.remount(Cid::Home(HomeCid::PatchBrowser), patch_browser, vec![])?;
 
-        app.remount(Cid::Shortcuts, shortcuts, vec![])?;
         Ok(())
     }
 
@@ -269,17 +256,10 @@ impl ViewPage for Home {
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
         let navigation_h = 2u16;
-        let shortcuts_h = app
-            .query(&Cid::Shortcuts, Attribute::Height)
-            .ok()
-            .flatten()
-            .unwrap_or(AttrValue::Size(0))
-            .unwrap_size();
-        let layout = layout::default_page(area, navigation_h, shortcuts_h);
+        let layout = layout::default_page(area, navigation_h);
 
         app.view(&Cid::Home(HomeCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
-        app.view(&Cid::Shortcuts, frame, layout[2]);
     }
 
     fn activate(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
@@ -312,18 +292,8 @@ impl ViewPage for PatchView {
     ) -> Result<()> {
         if let Some((id, patch)) = context.patches.get(context.selected_patch) {
             let navigation = ui::patch_navigation(theme).to_boxed();
-            let activity = ui::patch_activity(theme).to_boxed();
-            let files = ui::patch_files(theme).to_boxed();
-            let context = ui::patch_context(theme, (*id, patch), &context.profile).to_boxed();
-            let shortcuts = ui::shortcuts(
-                theme,
-                vec![
-                    ui::shortcut(theme, "esc", "back"),
-                    ui::shortcut(theme, "tab", "section"),
-                    ui::shortcut(theme, "q", "quit"),
-                ],
-            )
-            .to_boxed();
+            let activity = ui::patch_activity(theme, (*id, patch), &context.profile).to_boxed();
+            let files = ui::patch_files(theme, (*id, patch), &context.profile).to_boxed();
 
             app.remount(
                 Cid::Patch(PatchCid::Navigation),
@@ -332,8 +302,6 @@ impl ViewPage for PatchView {
             )?;
             app.remount(Cid::Patch(PatchCid::Activity), activity, vec![])?;
             app.remount(Cid::Patch(PatchCid::Files), files, vec![])?;
-            app.remount(Cid::Patch(PatchCid::Context), context, vec![])?;
-            app.remount(Cid::Shortcuts, shortcuts, vec![])?;
         }
         Ok(())
     }
@@ -351,19 +319,11 @@ impl ViewPage for PatchView {
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
         let navigation_h = 2u16;
-        let context_h = 1u16;
-        let shortcuts_h = app
-            .query(&Cid::Shortcuts, Attribute::Height)
-            .ok()
-            .flatten()
-            .unwrap_or(AttrValue::Size(0))
-            .unwrap_size();
-        let layout = layout::page_with_context(area, navigation_h, context_h, shortcuts_h);
+
+        let layout = layout::default_page(area, navigation_h);
 
         app.view(&Cid::Patch(PatchCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
-        app.view(&Cid::Patch(PatchCid::Context), frame, layout[2]);
-        app.view(&Cid::Shortcuts, frame, layout[3]);
     }
 
     fn activate(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {

@@ -122,8 +122,16 @@ pub fn table(theme: &theme::Theme, items: &[impl List], profile: &Profile) -> Wi
 }
 
 pub fn issue_browser(theme: &theme::Theme) -> Widget<IssueBrowser> {
+    let shortcuts = shortcuts(
+        theme,
+        vec![
+            shortcut(theme, "tab", "section"),
+            shortcut(theme, "q", "quit"),
+        ],
+    );
+
     let not_implemented = label("not implemented").foreground(theme.colors.default_fg);
-    let browser = IssueBrowser::new(not_implemented);
+    let browser = IssueBrowser::new(not_implemented, shortcuts);
 
     Widget::new(browser)
 }
@@ -133,6 +141,16 @@ pub fn patch_browser(
     items: &[(PatchId, Patch)],
     profile: &Profile,
 ) -> Widget<Browser<(PatchId, Patch)>> {
+    let shortcuts = shortcuts(
+        theme,
+        vec![
+            shortcut(theme, "tab", "section"),
+            shortcut(theme, "↑/↓", "navigate"),
+            shortcut(theme, "enter", "show"),
+            shortcut(theme, "q", "quit"),
+        ],
+    );
+
     let widths = AttrValue::Payload(PropPayload::Vec(vec![
         PropValue::U16(2),
         PropValue::U16(43),
@@ -153,21 +171,51 @@ pub fn patch_browser(
     let table = table(theme, items, profile)
         .custom("widths", widths)
         .custom("header", header);
-    let browser: Browser<(PatchId, Patch)> = Browser::new(table);
+    let browser: Browser<(PatchId, Patch)> = Browser::new(table, shortcuts);
 
     Widget::new(browser)
 }
 
-pub fn patch_activity(theme: &theme::Theme) -> Widget<PatchActivity> {
+pub fn patch_activity(
+    theme: &theme::Theme,
+    patch: (PatchId, &Patch),
+    profile: &Profile,
+) -> Widget<PatchActivity> {
+    let (id, patch) = patch;
+    let shortcuts = shortcuts(
+        theme,
+        vec![
+            shortcut(theme, "esc", "back"),
+            shortcut(theme, "tab", "section"),
+            shortcut(theme, "q", "quit"),
+        ],
+    );
+    let context = patch_context(theme, (id, patch), profile);
+
     let not_implemented = label("not implemented").foreground(theme.colors.default_fg);
-    let activity = PatchActivity::new(not_implemented);
+    let activity = PatchActivity::new(not_implemented, context, shortcuts);
 
     Widget::new(activity)
 }
 
-pub fn patch_files(theme: &theme::Theme) -> Widget<PatchFiles> {
+pub fn patch_files(
+    theme: &theme::Theme,
+    patch: (PatchId, &Patch),
+    profile: &Profile,
+) -> Widget<PatchFiles> {
+    let (id, patch) = patch;
+    let shortcuts = shortcuts(
+        theme,
+        vec![
+            shortcut(theme, "esc", "back"),
+            shortcut(theme, "tab", "section"),
+            shortcut(theme, "q", "quit"),
+        ],
+    );
+    let context = patch_context(theme, (id, patch), profile);
+
     let not_implemented = label("not implemented").foreground(theme.colors.default_fg);
-    let files = PatchFiles::new(not_implemented);
+    let files = PatchFiles::new(not_implemented, context, shortcuts);
 
     Widget::new(files)
 }
@@ -198,7 +246,7 @@ pub fn patch_context(
         .background(Color::Rgb(50, 50, 50));
 
     let context_bar = ContextBar::new(context, id, author, title, comments);
-    Widget::new(context_bar)
+    Widget::new(context_bar).height(1)
 }
 
 pub fn home_navigation(theme: &theme::Theme) -> Widget<Tabs> {
@@ -226,7 +274,14 @@ pub fn dashboard(theme: &theme::Theme, id: &Id, project: &Project) -> Widget<Das
         )
         .to_boxed(),
     );
-    let dashboard = Dashboard::new(about);
+    let shortcuts = shortcuts(
+        theme,
+        vec![
+            shortcut(theme, "tab", "section"),
+            shortcut(theme, "q", "quit"),
+        ],
+    );
+    let dashboard = Dashboard::new(about, shortcuts);
 
     Widget::new(dashboard)
 }
