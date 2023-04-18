@@ -35,6 +35,7 @@ Usage
 Options
 
     --no-announce     Don't announce issue to peers
+    --quiet, -q       Don't print anything
     --help            Print help
 "#,
 };
@@ -95,6 +96,7 @@ pub enum Operation {
 pub struct Options {
     pub op: Operation,
     pub announce: bool,
+    pub quiet: bool,
 }
 
 impl Args for Options {
@@ -111,6 +113,7 @@ impl Args for Options {
         let mut state: Option<State> = None;
         let mut tags = Vec::new();
         let mut announce = true;
+        let mut quiet = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -160,6 +163,9 @@ impl Args for Options {
                 Long("no-announce") => {
                     announce = false;
                 }
+                Long("quiet") | Short('q') => {
+                    quiet = true;
+                }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "c" | "show" => op = Some(OperationName::Show),
                     "d" | "delete" => op = Some(OperationName::Delete),
@@ -203,7 +209,14 @@ impl Args for Options {
             OperationName::List => Operation::List { assigned },
         };
 
-        Ok((Options { op, announce }, vec![]))
+        Ok((
+            Options {
+                op,
+                announce,
+                quiet,
+            },
+            vec![],
+        ))
     }
 }
 
@@ -231,7 +244,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             tags,
         } => {
             let issue = issues.create(title, description, tags.as_slice(), &[], &signer)?;
-            show_issue(&issue)?;
+            if !options.quiet {
+                show_issue(&issue)?;
+            }
         }
         Operation::Show { id } => {
             let id = id.resolve(&repo.backend)?;
@@ -304,7 +319,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                         .as_slice(),
                     &signer,
                 )?;
-                show_issue(&issue)?;
+                if !options.quiet {
+                    show_issue(&issue)?;
+                }
             }
         }
         Operation::List { assigned } => {

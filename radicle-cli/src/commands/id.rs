@@ -31,6 +31,7 @@ Usage
     rad id (accept|reject|close|commit) [--rev <revision-id>] [--no-confirm] [<option>...]
 
 Options
+
     --help                 Print help
 "#,
 };
