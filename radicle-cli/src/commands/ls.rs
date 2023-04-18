@@ -18,41 +18,69 @@ Usage
 
 Options
 
-    --help    Print help
+    --versbose, -v  Verbose output
+    --help          Print help
 "#,
 };
 
-pub struct Options {}
+pub struct Options {
+    verbose: bool,
+}
 
 impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
+        let mut verbose = false;
 
         if let Some(arg) = parser.next()? {
             match arg {
                 Long("help") => {
                     return Err(Error::Help.into());
                 }
+                Long("verbose") | Short('v') => verbose = true,
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
         }
 
-        Ok((Options {}, vec![]))
+        Ok((Options { verbose }, vec![]))
     }
 }
 
-pub fn run(_options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
+pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let mut table = term::Table::default();
 
     for id in storage.repositories()? {
-        let Ok(repo) = storage.repository(id) else { continue };
-        let Ok((_, head)) = repo.head() else { continue };
-        let Ok(proj) = repo.project() else { continue };
-
+        let repo = match storage.repository(id) {
+            Ok(repo) => repo,
+            Err(err) => {
+                if options.verbose {
+                    term::warning(&format!("failed to load project '{id}': {err}"));
+                }
+                continue;
+            }
+        };
+        let head = match repo.head() {
+            Ok((_, head)) => head,
+            Err(err) => {
+                if options.verbose {
+                    term::warning(&format!("failed to get head of project '{id}': {err}"));
+                }
+                continue;
+            }
+        };
+        let proj = match repo.project() {
+            Ok(proj) => proj,
+            Err(err) => {
+                if options.verbose {
+                    term::warning(&format!("failed to get local project '{id}': {err}"));
+                }
+                continue;
+            }
+        };
         let head = term::format::oid(head);
         table.push([
             term::format::bold(proj.name().to_owned()),
