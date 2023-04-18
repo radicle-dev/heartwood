@@ -22,7 +22,7 @@ use widget::Widget;
 use self::cob::patch;
 use self::components::context::ContextBar;
 use self::components::list::{List, Table};
-use self::components::workspace::{Browser, IssueBrowser, PatchActivity, PatchFiles};
+use self::components::workspace::{Browser, Dashboard, IssueBrowser, PatchActivity, PatchFiles};
 use self::theme::Theme;
 
 pub fn global_listener() -> Widget<GlobalListener> {
@@ -212,8 +212,8 @@ pub fn patch_navigation(theme: &theme::Theme) -> Widget<Tabs> {
     tabs(theme, vec![label("activity"), label("files")])
 }
 
-pub fn dashboard(theme: &theme::Theme, id: &Id, project: &Project) -> Widget<LabeledContainer> {
-    labeled_container(
+pub fn dashboard(theme: &theme::Theme, id: &Id, project: &Project) -> Widget<Dashboard> {
+    let about = labeled_container(
         theme,
         "about",
         property_list(
@@ -225,5 +225,8 @@ pub fn dashboard(theme: &theme::Theme, id: &Id, project: &Project) -> Widget<Lab
             ],
         )
         .to_boxed(),
-    )
+    );
+    let dashboard = Dashboard::new(about);
+
+    Widget::new(dashboard)
 }

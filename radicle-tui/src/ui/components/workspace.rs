@@ -8,6 +8,7 @@ use tuirealm::{AttrValue, Attribute, Frame, MockComponent, State};
 use crate::ui::layout;
 use crate::ui::widget::{Widget, WidgetComponent};
 
+use super::container::LabeledContainer;
 use super::label::Label;
 use super::list::{List, Table};
 
@@ -44,9 +45,37 @@ impl<T: List> WidgetComponent for Browser<T> {
     }
 }
 
+pub struct Dashboard {
+    about: Widget<LabeledContainer>,
+}
+impl Dashboard {
+    pub fn new(about: Widget<LabeledContainer>) -> Self {
+        Self { about }
+    }
+}
+
+impl WidgetComponent for Dashboard {
+    fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(4)].as_ref())
+            .split(area);
+        self.about.view(frame, layout[0]);
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
+        CmdResult::None
+    }
+}
+
 pub struct IssueBrowser {
     label: Widget<Label>,
 }
+
 impl IssueBrowser {
     pub fn new(label: Widget<Label>) -> Self {
         Self { label }

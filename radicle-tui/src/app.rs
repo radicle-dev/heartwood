@@ -14,7 +14,9 @@ use radicle_tui::ui;
 use radicle_tui::ui::components::container::{GlobalListener, LabeledContainer, Tabs};
 use radicle_tui::ui::components::context::{ContextBar, Shortcuts};
 use radicle_tui::ui::components::list::PropertyList;
-use radicle_tui::ui::components::workspace::{Browser, IssueBrowser, PatchActivity, PatchFiles};
+use radicle_tui::ui::components::workspace::{
+    Browser, Dashboard, IssueBrowser, PatchActivity, PatchFiles,
+};
 use radicle_tui::ui::layout;
 use radicle_tui::ui::theme::{self, Theme};
 use radicle_tui::ui::widget::Widget;
@@ -425,6 +427,12 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<Browser<(PatchId, Patc
             },
             _ => None,
         }
+    }
+}
+
+impl tuirealm::Component<Message, NoUserEvent> for Widget<Dashboard> {
+    fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
+        None
     }
 }
 
