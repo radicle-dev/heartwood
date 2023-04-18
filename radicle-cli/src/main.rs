@@ -291,6 +291,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "sync" => {
+            term::run_command_args::<rad_sync::Options, _>(
+                rad_sync::HELP,
+                "Sync",
+                rad_sync::run,
+                args.to_vec(),
+            );
+        }
         "tag" => {
             term::run_command_args::<rad_tag::Options, _>(
                 rad_tag::HELP,

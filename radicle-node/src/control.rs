@@ -6,7 +6,7 @@ use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{io, net};
+use std::{io, net, thread, time};
 
 use radicle::node::Handle;
 use serde_json as json;
@@ -15,6 +15,9 @@ use crate::identity::Id;
 use crate::node::NodeId;
 use crate::node::{Command, CommandName, CommandResult};
 use crate::runtime;
+
+/// Maximum timeout for waiting for node events.
+const MAX_TIMEOUT: time::Duration = time::Duration::MAX;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -25,16 +28,16 @@ pub enum Error {
 }
 
 /// Listen for commands on the control socket, and process them.
-pub fn listen<H: Handle<Error = runtime::HandleError>>(
+pub fn listen<H: Handle<Error = runtime::HandleError> + 'static>(
     listener: UnixListener,
-    mut handle: H,
+    handle: H,
 ) -> Result<(), Error> {
     log::debug!(target: "control", "Control thread listening on socket..");
 
     for incoming in listener.incoming() {
         match incoming {
             Ok(mut stream) => {
-                if let Err(e) = command(&stream, &mut handle) {
+                if let Err(e) = command(&stream, handle.clone()) {
                     if let CommandError::Shutdown = e {
                         log::debug!(target: "control", "Shutdown requested..");
                         // Channel might already be disconnected if shutdown
@@ -74,9 +77,9 @@ enum CommandError {
     Shutdown,
 }
 
-fn command<H: Handle<Error = runtime::HandleError>>(
+fn command<H: Handle<Error = runtime::HandleError> + 'static>(
     stream: &UnixStream,
-    handle: &mut H,
+    mut handle: H,
 ) -> Result<(), CommandError> {
     let mut reader = BufReader::new(stream);
     let writer = LineWriter::new(stream);
@@ -99,7 +102,7 @@ fn command<H: Handle<Error = runtime::HandleError>>(
         }
         CommandName::Fetch => {
             let (rid, nid): (Id, NodeId) = parse::args(cmd)?;
-            fetch(rid, nid, LineWriter::new(stream), handle)?;
+            fetch(rid, nid, writer, &mut handle)?;
         }
         CommandName::Seeds => {
             let rid: Id = parse::arg(cmd)?;
@@ -184,6 +187,24 @@ fn command<H: Handle<Error = runtime::HandleError>>(
                 return Err(CommandError::Runtime(e));
             }
         },
+        CommandName::Subscribe => {
+            let mut stream = stream.try_clone()?;
+
+            thread::spawn(move || {
+                match handle.subscribe(MAX_TIMEOUT) {
+                    Ok(events) => {
+                        for e in events {
+                            let event = e?;
+                            let event = serde_json::to_string(&event)?;
+
+                            writeln!(stream, "{event}")?;
+                        }
+                    }
+                    Err(e) => log::error!(target: "control", "Error subscribing to events: {e}"),
+                }
+                Ok::<_, io::Error>(())
+            });
+        }
         CommandName::Status => {
             CommandResult::ok().to_writer(writer).ok();
         }

@@ -56,7 +56,15 @@ macro_rules! tip {
     })
 }
 
+#[macro_export]
+macro_rules! notice {
+    ($($arg:tt)*) => ({
+        $crate::io::notice_args(format_args!($($arg)*));
+    })
+}
+
 pub use info;
+pub use notice;
 pub use success;
 pub use tip;
 
@@ -66,6 +74,10 @@ pub fn success_args(args: fmt::Arguments) {
 
 pub fn tip_args(args: fmt::Arguments) {
     println!("👉 {}", style(format!("{args}")).italic());
+}
+
+pub fn notice_args(args: fmt::Arguments) {
+    println!("{} {args}", Paint::new("!").dim());
 }
 
 pub fn columns() -> Option<usize> {

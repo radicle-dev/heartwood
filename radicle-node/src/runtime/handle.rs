@@ -1,7 +1,7 @@
 use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::{fmt, io};
+use std::{fmt, io, time};
 
 use crossbeam_channel as chan;
 use radicle::node::Seeds;
@@ -183,6 +183,13 @@ impl radicle::node::Handle for Handle {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::SyncInventory(sender))?;
         receiver.recv().map_err(Error::from)
+    }
+
+    fn subscribe(
+        &self,
+        _timeout: time::Duration,
+    ) -> Result<Box<dyn Iterator<Item = Result<Event, io::Error>>>, Error> {
+        Ok(Box::new(self.events().into_iter().map(Ok)))
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Error> {

@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
+use std::{io, time};
 
 use crate::identity::Id;
-use crate::node::{FetchResult, Seeds};
+use crate::node::{Event, FetchResult, Seeds};
 use crate::runtime::HandleError;
 use crate::service::NodeId;
 use crate::service::{self, tracking};
@@ -10,8 +11,8 @@ use crate::service::{self, tracking};
 #[derive(Default, Clone)]
 pub struct Handle {
     pub updates: Arc<Mutex<Vec<Id>>>,
-    pub tracking_repos: HashSet<Id>,
-    pub tracking_nodes: HashSet<NodeId>,
+    pub tracking_repos: Arc<Mutex<HashSet<Id>>>,
+    pub tracking_nodes: Arc<Mutex<HashSet<NodeId>>>,
 }
 
 impl radicle::node::Handle for Handle {
@@ -38,19 +39,26 @@ impl radicle::node::Handle for Handle {
     }
 
     fn track_repo(&mut self, id: Id, _scope: tracking::Scope) -> Result<bool, Self::Error> {
-        Ok(self.tracking_repos.insert(id))
+        Ok(self.tracking_repos.lock().unwrap().insert(id))
     }
 
     fn untrack_repo(&mut self, id: Id) -> Result<bool, Self::Error> {
-        Ok(self.tracking_repos.remove(&id))
+        Ok(self.tracking_repos.lock().unwrap().remove(&id))
     }
 
     fn track_node(&mut self, id: NodeId, _alias: Option<String>) -> Result<bool, Self::Error> {
-        Ok(self.tracking_nodes.insert(id))
+        Ok(self.tracking_nodes.lock().unwrap().insert(id))
+    }
+
+    fn subscribe(
+        &self,
+        _timeout: time::Duration,
+    ) -> Result<Box<dyn Iterator<Item = Result<Event, io::Error>>>, Self::Error> {
+        Ok(Box::new(std::iter::empty()))
     }
 
     fn untrack_node(&mut self, id: NodeId) -> Result<bool, Self::Error> {
-        Ok(self.tracking_nodes.remove(&id))
+        Ok(self.tracking_nodes.lock().unwrap().remove(&id))
     }
 
     fn announce_refs(&mut self, id: Id) -> Result<(), Self::Error> {

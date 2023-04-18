@@ -2,7 +2,6 @@
 #![allow(clippy::collapsible_match)]
 #![allow(clippy::collapsible_if)]
 pub mod config;
-pub mod events;
 pub mod filter;
 pub mod message;
 pub mod reactor;
@@ -41,9 +40,9 @@ use crate::storage::{ReadRepository, RefUpdate};
 use crate::worker::FetchError;
 use crate::Link;
 
+pub use crate::node::events::{Event, Events};
 pub use crate::node::NodeId;
 pub use crate::service::config::{Config, Network};
-pub use crate::service::events::{Event, Events};
 pub use crate::service::message::{Message, ZeroBytes};
 pub use crate::service::session::Session;
 

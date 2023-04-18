@@ -46,6 +46,8 @@ pub mod rad_review;
 pub mod rad_rm;
 #[path = "commands/self.rs"]
 pub mod rad_self;
+#[path = "commands/sync.rs"]
+pub mod rad_sync;
 #[path = "commands/tag.rs"]
 pub mod rad_tag;
 #[path = "commands/track.rs"]

@@ -552,6 +552,50 @@ fn test_cob_replication() {
 }
 
 #[test]
+fn rad_sync() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let working = environment.tmp().join("working");
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let eve = environment.node("eve");
+    let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    fixtures::repository(working.join("acme"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("acme"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let mut alice = alice.spawn(Config::default());
+    let mut bob = bob.spawn(Config::default());
+    let mut eve = eve.spawn(Config::default());
+
+    bob.handle.track_repo(acme, Scope::All).unwrap();
+    eve.handle.track_repo(acme, Scope::All).unwrap();
+
+    alice.connect(&bob);
+    eve.connect(&alice);
+
+    bob.routes_to(&[(acme, alice.id)]);
+    eve.routes_to(&[(acme, alice.id)]);
+    alice.routes_to(&[(acme, alice.id), (acme, eve.id), (acme, bob.id)]);
+
+    test(
+        "examples/rad-sync.md",
+        working.join("acme"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 //
 //     alice -- seed -- bob
 //

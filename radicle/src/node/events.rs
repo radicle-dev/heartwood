@@ -3,11 +3,12 @@ use std::time;
 
 use crossbeam_channel as chan;
 
-use radicle::prelude::*;
-use radicle::storage::RefUpdate;
+use crate::prelude::*;
+use crate::storage::RefUpdate;
 
 /// A service event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case", tag = "type")]
 pub enum Event {
     RefsFetched {
         remote: NodeId,
@@ -33,6 +34,15 @@ pub enum Event {
 
 /// Events feed.
 pub struct Events(chan::Receiver<Event>);
+
+impl IntoIterator for Events {
+    type Item = Event;
+    type IntoIter = chan::IntoIter<Event>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
 
 impl From<chan::Receiver<Event>> for Events {
     fn from(value: chan::Receiver<Event>) -> Self {
