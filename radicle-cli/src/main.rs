@@ -171,6 +171,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "fork" => {
+            term::run_command_args::<rad_fork::Options, _>(
+                rad_fork::HELP,
+                "Fork",
+                rad_fork::run,
+                args.to_vec(),
+            );
+        }
         "help" => {
             term::run_command_args::<rad_help::Options, _>(
                 rad_help::HELP,
