@@ -44,7 +44,7 @@ $ rad patch
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ Define power requirements 191a14e R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0   │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago │
+│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..         ]│
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 ```
@@ -57,7 +57,7 @@ $ rad patch show 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
 │                                                                                         │
 │ See details.                                                                            │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago │
+│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..         ]│
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 
 commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
@@ -117,8 +117,8 @@ $ rad patch
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Define power requirements 191a14e R1 27857ec (flux-capacitor-power, patch/191a14e) ahead 2, behind 0 │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago              │
-│ ↑ updated to b8f7bfbbb3c6a207b349e9f45bf535c706805871 (27857ec) 3 months ago                         │
-│ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago                    │
+│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..                      ]│
+│ ↑ updated to b8f7bfbbb3c6a207b349e9f45bf535c706805871 (27857ec) [..                                 ]│
+│ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..                            ]│
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

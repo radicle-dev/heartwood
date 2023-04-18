@@ -30,8 +30,8 @@ $ rad patch
 ╭───────────────────────────────────────────────────────────────────────────────────╮
 │ Define power requirements a07ef77 R1 27857ec ahead 2, behind 0                    │
 ├───────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 3 months ago │
-│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) 3 months ago      │
+│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..         ]│
+│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) [..              ]│
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -80,9 +80,9 @@ $ rad patch --merged
 ╭───────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Define power requirements a07ef77 R2 f6484e0 (flux-capacitor-power, master) ahead 3, behind 0 │
 ├───────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 3 months ago             │
-│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) 3 months ago                  │
-│ ↑ updated to 0795d619232479e910f95bb9c873ee1ec305c43c (f6484e0) 3 months ago                  │
-│ ✓ merged by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 3 months ago       │
+│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..                     ]│
+│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) [..                          ]│
+│ ↑ updated to 0795d619232479e910f95bb9c873ee1ec305c43c (f6484e0) [..                          ]│
+│ ✓ merged by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [..               ]│
 ╰───────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

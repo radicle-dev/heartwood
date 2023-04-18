@@ -163,6 +163,31 @@ impl TestFormula {
         Ok(self)
     }
 
+    /// Convert instances of '[..   ]' to '[..]' where the number of ' 's are arbitrary.
+    ///
+    /// Supporting these bracket types help support using the '[..]' pattern while preserving
+    /// spaces important for text alignment.
+    fn map_spaced_brackets(s: &str) -> String {
+        let mut ret = String::new();
+        let mut pos = 0;
+
+        for c in s.chars() {
+            match (c, pos) {
+                ('[', 0) => pos += 1,
+                (' ', 1) => continue,
+                ('.', 1) => pos += 1,
+                ('.', 2) => pos += 1,
+                ('.', 3) => continue,
+                (' ', 3) => continue,
+                (']', 3) => pos = 0,
+                (_, _) => pos = 0,
+            }
+            ret.push(c);
+        }
+
+        ret
+    }
+
     pub fn run(&mut self) -> Result<bool, io::Error> {
         let assert = Assert::new().substitutions(self.subs.clone());
 
@@ -213,12 +238,14 @@ impl TestFormula {
                 match result {
                     Ok(output) => {
                         let assert = OutputAssert::new(output).with_assert(assert.clone());
+                        let expected = Self::map_spaced_brackets(&assertion.expected);
+                        let matches = assert.stdout_matches(&expected);
                         match assertion.exit {
                             ExitStatus::Success => {
-                                assert.stdout_matches(&assertion.expected).success();
+                                matches.success();
                             }
                             ExitStatus::Failure => {
-                                assert.stdout_matches(&assertion.expected).failure();
+                                matches.failure();
                             }
                         }
                     }
@@ -324,6 +351,40 @@ Running a simple command such as `head`:
 $ head -n 2 Cargo.toml
 [package]
 name = "radicle-cli-test"
+```
+"#
+        .trim()
+        .as_bytes()
+        .to_owned();
+
+        let mut formula = TestFormula::new();
+        formula
+            .cwd(env!("CARGO_MANIFEST_DIR"))
+            .read(
+                Path::new("test.md"),
+                io::BufReader::new(io::Cursor::new(input)),
+            )
+            .unwrap();
+        formula.run().unwrap();
+    }
+
+    #[test]
+    fn test_example_spaced_brackets() {
+        let input = r#"
+Running a simple command such as `head`:
+```
+$ echo "    hello"
+[..]hello
+$ echo "    hello"
+[..  ]hello
+$ echo "    hello"
+[  ..]hello
+$ echo "[bug, good-first-issue]"
+[bug, good-first-issue]
+$ echo "[bug, good-first-issue]"
+[bug, [  ..    ]-issue]
+$ echo "[bug, good-first-issue]"
+[bug, [  ...   ]-issue]
 ```
 "#
         .trim()
