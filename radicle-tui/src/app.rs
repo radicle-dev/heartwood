@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use anyhow::Result;
 
 use tui_realm_stdlib::Phantom;
@@ -69,6 +67,7 @@ pub enum Message {
     Home(HomeMessage),
     Patch(PatchMessage),
     NavigationChanged(u16),
+    Tick,
     Quit,
 }
 
@@ -147,35 +146,33 @@ impl Tui<Cid, Message> for App {
         self.active_page.as_mut().view(app, frame);
     }
 
-    fn update(
-        &mut self,
-        app: &mut Application<Cid, Message, NoUserEvent>,
-        interval: u64,
-    ) -> Result<()> {
-        if let Ok(messages) = app.tick(PollStrategy::TryFor(Duration::from_millis(interval))) {
-            let theme = theme::default_dark();
-            for message in messages {
-                match message {
-                    Message::Home(HomeMessage::Show) => {
-                        self.mount_home_view(app, &theme)?;
-                    }
-                    Message::Patch(PatchMessage::Show(index)) => {
-                        self.context.selected_patch = index;
-                        self.mount_patch_view(app, &theme)?;
-                    }
-                    Message::Patch(PatchMessage::Leave) => {
-                        self.mount_home_view(app, &theme)?;
-                    }
-                    Message::Quit => self.quit = true,
-                    _ => {
-                        self.active_page.update(message);
-                        self.active_page.activate(app)?;
+    fn update(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<bool> {
+        match app.tick(PollStrategy::Once) {
+            Ok(messages) if !messages.is_empty() => {
+                let theme = theme::default_dark();
+                for message in messages {
+                    match message {
+                        Message::Home(HomeMessage::Show) => {
+                            self.mount_home_view(app, &theme)?;
+                        }
+                        Message::Patch(PatchMessage::Show(index)) => {
+                            self.context.selected_patch = index;
+                            self.mount_patch_view(app, &theme)?;
+                        }
+                        Message::Patch(PatchMessage::Leave) => {
+                            self.mount_home_view(app, &theme)?;
+                        }
+                        Message::Quit => self.quit = true,
+                        _ => {
+                            self.active_page.update(message);
+                            self.active_page.activate(app)?;
+                        }
                     }
                 }
+                Ok(true)
             }
+            _ => Ok(false),
         }
-
-        Ok(())
     }
 
     fn quit(&self) -> bool {
@@ -230,7 +227,7 @@ impl ViewPage for Home {
         let navigation = ui::home_navigation(theme).to_boxed();
 
         let dashboard = ui::dashboard(theme, &context.id, &context.project).to_boxed();
-        let issue_browser = ui::issue_browser(&theme).to_boxed();
+        let issue_browser = ui::issue_browser(theme).to_boxed();
         let patch_browser = ui::patch_browser(theme, &context.patches, &context.profile).to_boxed();
 
         let shortcuts = ui::shortcuts(
@@ -383,6 +380,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<GlobalListener> {
                 code: Key::Char('q'),
                 ..
             }) => Some(Message::Quit),
+            Event::WindowResize(_, _) => Some(Message::Tick),
             _ => None,
         }
     }
@@ -409,13 +407,13 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<Browser<(PatchId, Patc
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
                 self.perform(Cmd::Move(MoveDirection::Up));
-                None
+                Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Down, ..
             }) => {
                 self.perform(Cmd::Move(MoveDirection::Down));
-                None
+                Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..

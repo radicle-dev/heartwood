@@ -25,12 +25,9 @@ where
     /// Should initialize an application by mounting and activating components.
     fn init(&mut self, app: &mut Application<Id, Message, NoUserEvent>) -> Result<()>;
 
-    /// Should update the current state by handling a message from the view.
-    fn update(
-        &mut self,
-        app: &mut Application<Id, Message, NoUserEvent>,
-        interval: u64,
-    ) -> Result<()>;
+    /// Should update the current state by handling a message from the view. Returns true
+    /// if view should be updated (e.g. a message was received and the current state changed).
+    fn update(&mut self, app: &mut Application<Id, Message, NoUserEvent>) -> Result<bool>;
 
     /// Should draw the application to a frame.
     fn view(&mut self, app: &mut Application<Id, Message, NoUserEvent>, frame: &mut Frame);
@@ -76,17 +73,19 @@ impl Window {
         Id: Eq + PartialEq + Clone + Hash,
         Message: Eq,
     {
+        let mut update = true;
         let mut app = Application::init(
             EventListenerCfg::default().default_input_listener(Duration::from_millis(interval)),
         );
         tui.init(&mut app)?;
 
         while !tui.quit() {
-            tui.update(&mut app, interval)?;
-
-            self.terminal.raw_mut().draw(|frame| {
-                tui.view(&mut app, frame);
-            })?;
+            if update {
+                self.terminal.raw_mut().draw(|frame| {
+                    tui.view(&mut app, frame);
+                })?;
+            }
+            update = tui.update(&mut app)?;
         }
 
         Ok(())
