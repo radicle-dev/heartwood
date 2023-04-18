@@ -88,6 +88,8 @@ enum VerifiedRemote {
         // Nb. unused but we want to ensure that we verify the identity
         _doc: Doc<Verified>,
         remote: Remote<Verified>,
+        /// Unsigned refs.
+        unsigned: Vec<git::RefString>,
     },
 }
 
@@ -251,6 +253,7 @@ impl<'a> StagingPhaseFinal<'a> {
         let url = url::File::new(self.repo.path().to_path_buf()).to_string();
         let mut remote = production.backend.remote_anonymous(&url)?;
         let mut updates = Vec::new();
+        let mut delete = HashSet::new();
 
         let callbacks = ref_updates(&mut updates);
         let remotes = {
@@ -266,9 +269,14 @@ impl<'a> StagingPhaseFinal<'a> {
                         );
                         vec![]
                     }
-                    VerifiedRemote::Success { remote, .. } => {
+                    VerifiedRemote::Success {
+                        remote, unsigned, ..
+                    } => {
                         let ns = remote.id.to_namespace();
                         let mut refspecs = vec![];
+
+                        // Unsigned refs should be deleted.
+                        delete.insert((remote.id, unsigned));
 
                         //  First add the standard git refs.
                         let heads = ns.join(git::refname!("refs/heads"));
@@ -338,8 +346,22 @@ impl<'a> StagingPhaseFinal<'a> {
             // should be devised.
             opts.prune(git::raw::FetchPrune::Off);
 
+            // Fetch into production copy.
             remote.fetch(&specs, Some(&mut opts), None)?;
 
+            // Delete unsigned refs.
+            for (namespace, unsigned) in delete {
+                for refstr in unsigned {
+                    let q = git::Qualified::from_refstr(&refstr)
+                        .expect("StagingPhaseFinal::transfer: unsigned references are qualified");
+
+                    if let Ok(mut r) = production.reference(&namespace, &q) {
+                        log::debug!(target: "worker", "Deleting unsigned ref {namespace}/{q}..");
+
+                        r.delete()?;
+                    }
+                }
+            }
             fetching
         };
         let head = production.set_head()?;
@@ -363,7 +385,11 @@ impl<'a> StagingPhaseFinal<'a> {
                 let remote_id = remote.id;
                 let verification = match self.repo.identity_doc_of(&remote_id) {
                     Ok(doc) => match self.repo.validate_remote(&remote) {
-                        Ok(()) => VerifiedRemote::Success { _doc: doc, remote },
+                        Ok(unsigned) => VerifiedRemote::Success {
+                            _doc: doc,
+                            remote,
+                            unsigned,
+                        },
                         Err(e) => VerifiedRemote::Failed {
                             reason: e.to_string(),
                         },

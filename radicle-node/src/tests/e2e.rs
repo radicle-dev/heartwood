@@ -205,13 +205,16 @@ fn test_replication_no_delegates() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path());
     let mut bob = Node::init(tmp.path());
-    let (repo, _) = fixtures::repository(tmp.path().join("acme"));
 
-    let acme = bob.project_from("acme", "", &repo);
-
-    // Populate repo, but don't sign the refs.
-    let branches = fixtures::populate(&repo, 1);
-    git::push(&repo, "rad", branches.iter().map(|b| (b, b))).unwrap();
+    let acme = bob.project("acme", "");
+    // Delete one of the signed refs.
+    bob.storage
+        .repository_mut(acme)
+        .unwrap()
+        .reference(&bob.id, &git::qualified!("refs/heads/master"))
+        .unwrap()
+        .delete()
+        .unwrap();
 
     let mut alice = alice.spawn(service::Config::default());
     let bob = bob.spawn(service::Config::default());

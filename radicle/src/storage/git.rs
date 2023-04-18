@@ -202,8 +202,6 @@ pub enum VerifyError {
     InvalidIdentity(#[from] IdentityError),
     #[error("refs error: {0}")]
     Refs(#[from] refs::Error),
-    #[error("unknown reference `{1}` in remote `{0}`")]
-    UnknownRef(RemoteId, git::RefString),
     #[error("missing reference `{1}` in remote `{0}`")]
     MissingRef(RemoteId, git::RefString),
     #[error("git: {0}")]
@@ -371,9 +369,10 @@ impl ReadRepository for Repository {
         .get(&self.backend)
     }
 
-    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<(), VerifyError> {
+    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Vec<RefString>, VerifyError> {
         // Contains a copy of the signed refs of this remote.
-        let mut refs = BTreeMap::from((*remote.refs).clone());
+        let mut signed = BTreeMap::from((*remote.refs).clone());
+        let mut unsigned = Vec::new();
 
         // Check all repository references, making sure they are present in the signed refs map.
         for (refname, oid) in self.references_of(&remote.id)? {
@@ -381,24 +380,24 @@ impl ReadRepository for Repository {
             if refname == refs::SIGREFS_BRANCH.to_ref_string() {
                 continue;
             }
-            let signed_oid = refs
-                .remove(&refname)
-                .ok_or_else(|| VerifyError::UnknownRef(remote.id, refname.clone()))?;
-
-            if oid != signed_oid {
-                return Err(VerifyError::InvalidRefTarget(remote.id, refname, *oid));
+            if let Some(signed_oid) = signed.remove(&refname) {
+                if oid != signed_oid {
+                    return Err(VerifyError::InvalidRefTarget(remote.id, refname, *oid));
+                }
+            } else {
+                unsigned.push(refname);
             }
         }
 
         // The refs that are left in the map, are ones that were signed, but are not
         // in the repository. If any are left, bail.
-        if let Some((name, _)) = refs.into_iter().next() {
+        if let Some((name, _)) = signed.into_iter().next() {
             return Err(VerifyError::MissingRef(remote.id, name));
         }
         // Finally, verify the identity history of remote.
         self.identity_of(&remote.id)?.verified(self.id)?;
 
-        Ok(())
+        Ok(unsigned)
     }
 
     fn reference(

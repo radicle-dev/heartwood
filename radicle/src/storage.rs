@@ -304,10 +304,11 @@ pub trait ReadRepository {
         Ok(())
     }
 
-    /// Validate all the remote's references in the repository, checking that they are signed as
-    /// part of the remote's signed refs. Also verify that no signed reference is missing from the
-    /// repository.
-    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<(), VerifyError>;
+    /// Validates a remote's signed refs and identity.
+    ///
+    /// Returns any ref found under that remote that isn't signed.
+    /// If a signed ref is missing from the repository, an error is returned.
+    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Vec<RefString>, VerifyError>;
 
     /// Get the head of this repository.
     ///
