@@ -10,7 +10,7 @@ use radicle::crypto::{PublicKey, Unverified, Verified};
 use radicle::git::url;
 use radicle::prelude::{Doc, Id, NodeId};
 use radicle::storage::git::Repository;
-use radicle::storage::refs::{SignedRefs, IDENTITY_BRANCH};
+use radicle::storage::refs::IDENTITY_BRANCH;
 use radicle::storage::{Namespaces, RefUpdate, Remote, RemoteId};
 use radicle::storage::{ReadRepository, ReadStorage, WriteRepository, WriteStorage};
 use radicle::{git, Storage};
@@ -354,19 +354,11 @@ impl<'a> StagingPhaseFinal<'a> {
     fn remotes(&self) -> impl Iterator<Item = Remote> + '_ {
         self.trusted
             .iter()
-            .filter_map(|remote| match SignedRefs::load(remote, self.repo.deref()) {
-                Ok(refs) => Some(Remote::new(*remote, refs)),
-                Err(err) => {
-                    log::warn!(target: "worker", "{remote} failed rad/sigrefs verification: {err}");
-                    None
-                }
-            })
+            .filter_map(|remote| self.repo.remote(remote).ok())
     }
 
     fn verify(&self) -> BTreeMap<RemoteId, VerifiedRemote> {
-        self.trusted
-            .iter()
-            .filter_map(|remote| self.repo.remote(remote).ok())
+        self.remotes()
             .map(|remote| {
                 let remote_id = remote.id;
                 let verification = match self.repo.identity_doc_of(&remote_id) {
