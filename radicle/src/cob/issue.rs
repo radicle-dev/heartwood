@@ -59,6 +59,23 @@ pub enum State {
     Open,
 }
 
+impl FromStr for State {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "closedSolved" => Ok(Self::Closed {
+                reason: CloseReason::Solved,
+            }),
+            "closedOther" => Ok(Self::Closed {
+                reason: CloseReason::Other,
+            }),
+            "open" => Ok(Self::Open),
+            _ => Err("Unrecognised issue state"),
+        }
+    }
+}
+
 impl std::fmt::Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -429,7 +446,8 @@ impl<'a> Deref for Issues<'a> {
 #[serde(rename_all = "camelCase")]
 pub struct IssueCounts {
     pub open: usize,
-    pub closed: usize,
+    pub closed_other: usize,
+    pub closed_solved: usize,
 }
 
 impl<'a> Issues<'a> {
@@ -497,7 +515,12 @@ impl<'a> Issues<'a> {
                 .fold(IssueCounts::default(), |mut state, (_, p, _)| {
                     match p.state() {
                         State::Open => state.open += 1,
-                        State::Closed { .. } => state.closed += 1,
+                        State::Closed {
+                            reason: CloseReason::Other,
+                        } => state.closed_other += 1,
+                        State::Closed {
+                            reason: CloseReason::Solved,
+                        } => state.closed_solved += 1,
                     }
                     state
                 });

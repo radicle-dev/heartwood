@@ -9,7 +9,7 @@ use axum::http::Method;
 use axum::response::{IntoResponse, Json};
 use axum::routing::get;
 use axum::Router;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
 use tower_http::cors::{self, CorsLayer};
@@ -113,6 +113,29 @@ async fn root_handler() -> impl IntoResponse {
 pub struct PaginationQuery {
     pub page: Option<usize>,
     pub per_page: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CobsQuery<T> {
+    pub page: Option<usize>,
+    pub per_page: Option<usize>,
+    #[serde(default)]
+    #[serde(deserialize_with = "parse_state")]
+    #[serde(bound(deserialize = "T: std::str::FromStr, T::Err: std::fmt::Display"))]
+    pub state: Option<T>,
+}
+
+fn parse_state<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+    D: Deserializer<'de>,
+{
+    let state: String = Deserialize::deserialize(deserializer)?;
+    T::from_str(&state)
+        .map(Some)
+        .map_err(serde::de::Error::custom)
 }
 
 mod project {

@@ -21,7 +21,7 @@ use radicle_surf::{Glob, Oid, Repository};
 
 use crate::api::error::Error;
 use crate::api::project::Info;
-use crate::api::{self, Context, PaginationQuery};
+use crate::api::{self, CobsQuery, Context, PaginationQuery};
 use crate::axum_extra::{Path, Query};
 
 const CACHE_1_HOUR: &str = "public, max-age=3600, must-revalidate";
@@ -416,15 +416,30 @@ async fn readme_handler(
 async fn issues_handler(
     State(ctx): State<Context>,
     Path(project): Path<Id>,
-    Query(qs): Query<PaginationQuery>,
+    Query(qs): Query<CobsQuery<issue::State>>,
 ) -> impl IntoResponse {
-    let PaginationQuery { page, per_page } = qs;
+    let CobsQuery {
+        page,
+        per_page,
+        state,
+    } = qs;
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
+    let state = state.unwrap_or_default();
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
     let issues = issue::Issues::open(&repo)?;
-    let mut issues: Vec<_> = issues.all()?.filter_map(|r| r.ok()).collect::<Vec<_>>();
+    let mut issues: Vec<_> = issues
+        .all()?
+        .filter_map(|r| {
+            let (id, issue, clock) = r.ok()?;
+            if issue.state() == &state {
+                Some((id, issue, clock))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
     issues.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
     let issues = issues
         .into_iter()
@@ -687,15 +702,30 @@ async fn patch_update_handler(
 async fn patches_handler(
     State(ctx): State<Context>,
     Path(project): Path<Id>,
-    Query(qs): Query<PaginationQuery>,
+    Query(qs): Query<CobsQuery<patch::State>>,
 ) -> impl IntoResponse {
-    let PaginationQuery { page, per_page } = qs;
+    let CobsQuery {
+        page,
+        per_page,
+        state,
+    } = qs;
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
+    let state = state.unwrap_or_default();
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
     let patches = patch::Patches::open(&repo)?;
-    let mut patches = patches.all()?.filter_map(|r| r.ok()).collect::<Vec<_>>();
+    let mut patches = patches
+        .all()?
+        .filter_map(|r| {
+            let (id, patch, clock) = r.ok()?;
+            if patch.state() == state {
+                Some((id, patch, clock))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
     patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
     let patches = patches
         .into_iter()
@@ -1440,6 +1470,24 @@ mod routes {
     }
 
     #[tokio::test]
+    async fn test_projects_issues_invalid_state() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(seed(tmp.path()));
+        let response = get(&app, format!("/projects/{RID}/issues?state=merged")).await;
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            response.json().await,
+            json!(
+              {
+                "success": false,
+                "error": "Failed to deserialize query string",
+              }
+            )
+        );
+    }
+
+    #[tokio::test]
     async fn test_projects_issues_create() {
         const CREATED_ISSUE_ID: &str = "b457364fbe2ef0eac69a835a087f60ee13ccb367";
 
@@ -1682,7 +1730,11 @@ mod routes {
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
         let app = super::router(ctx.to_owned());
-        let response = get(&app, format!("/projects/{CONTRIBUTOR_RID}/patches")).await;
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches?state=open"),
+        )
+        .await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(

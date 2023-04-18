@@ -530,6 +530,20 @@ pub enum State {
     Merged,
 }
 
+impl FromStr for State {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "open" => Ok(Self::Open),
+            "draft" => Ok(Self::Draft),
+            "merged" => Ok(Self::Merged),
+            "archived" => Ok(Self::Archived),
+            _ => Err("Unrecognised patch state"),
+        }
+    }
+}
+
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
