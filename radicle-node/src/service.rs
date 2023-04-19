@@ -418,7 +418,7 @@ where
         trace!(target: "service", "Wake +{}", now - self.start_time);
 
         if now - self.last_idle >= IDLE_INTERVAL {
-            debug!(target: "service", "Running 'idle' task...");
+            trace!(target: "service", "Running 'idle' task...");
 
             self.keep_alive(&now);
             self.disconnect_unresponsive_peers(&now);
@@ -427,7 +427,7 @@ where
             self.last_idle = now;
         }
         if now - self.last_sync >= SYNC_INTERVAL {
-            debug!(target: "service", "Running 'sync' task...");
+            trace!(target: "service", "Running 'sync' task...");
 
             if let Err(e) = self.fetch_missing_inventory() {
                 error!(target: "service", "Error fetching missing inventory: {e}");
@@ -447,7 +447,7 @@ where
             self.last_announce = now;
         }
         if now - self.last_prune >= PRUNE_INTERVAL {
-            debug!(target: "service", "Running 'prune' task...");
+            trace!(target: "service", "Running 'prune' task...");
 
             if let Err(err) = self.prune_routing_entries(&now) {
                 error!("Error pruning routing entries: {}", err);
@@ -461,7 +461,7 @@ where
     }
 
     pub fn command(&mut self, cmd: Command) {
-        debug!(target: "service", "Received command {:?}", cmd);
+        info!(target: "service", "Received command {:?}", cmd);
 
         match cmd {
             Command::Connect(nid, addr) => {
@@ -589,10 +589,10 @@ where
     ) {
         let result = match result {
             Ok((updated, namespaces)) => {
-                log::debug!(target: "service", "Fetched {rid} from {remote} successfully");
+                debug!(target: "service", "Fetched {rid} from {remote} successfully");
 
                 for update in &updated {
-                    log::debug!(target: "service", "Ref updated: {update} for {rid}");
+                    debug!(target: "service", "Ref updated: {update} for {rid}");
                 }
                 self.emitter.emit(Event::RefsFetched {
                     remote,
@@ -620,15 +620,15 @@ where
         };
 
         if let Some(results) = self.fetch_reqs.remove(&(rid, remote)) {
-            log::debug!(target: "service", "Found existing fetch request, sending result..");
+            debug!(target: "service", "Found existing fetch request, sending result..");
 
             if results.send(result).is_err() {
-                log::error!(target: "service", "Error sending fetch result for {rid}..");
+                error!(target: "service", "Error sending fetch result for {rid}..");
             } else {
-                log::debug!(target: "service", "Sent fetch result for {rid}..");
+                debug!(target: "service", "Sent fetch result for {rid}..");
             }
         } else {
-            log::debug!(target: "service", "No fetch requests found for {rid}..");
+            debug!(target: "service", "No fetch requests found for {rid}..");
 
             // We only announce refs here when the fetch wasn't user-requested. This is
             // because the user might want to announce his fork, once he has created one,
@@ -642,7 +642,7 @@ where
                         error!(target: "service", "Failed to announce new refs: {e}");
                     }
                 }
-                _ => log::debug!(target: "service", "Nothing to announce, no refs were updated.."),
+                _ => debug!(target: "service", "Nothing to announce, no refs were updated.."),
             }
         }
         // TODO: Since this fetch could be either a full clone
@@ -656,7 +656,7 @@ where
 
         if let Some(s) = self.sessions.get_mut(&remote) {
             if let Some(dequeued) = s.fetched(rid) {
-                log::debug!(target: "service", "Dequeued fetch {dequeued} from session {remote}..");
+                debug!(target: "service", "Dequeued fetch {dequeued} from session {remote}..");
 
                 self.fetch(dequeued, &remote);
             }
@@ -853,12 +853,12 @@ where
                                     // Do nothing.
                                 }
                                 Ok(false) => {
-                                    log::debug!(target: "service", "Missing tracked inventory {id}; initiating fetch..");
+                                    debug!(target: "service", "Missing tracked inventory {id}; initiating fetch..");
 
                                     self.fetch(*id, announcer);
                                 }
                                 Err(e) => {
-                                    log::error!(target: "service", "Error checking local inventory: {e}");
+                                    error!(target: "service", "Error checking local inventory: {e}");
                                 }
                             }
                         }
@@ -1265,7 +1265,7 @@ where
 
     fn connect(&mut self, nid: NodeId, addr: Address) -> bool {
         if self.sessions.contains_key(&nid) {
-            log::warn!(target: "service", "Attempted connection to peer {nid} which already has a session");
+            warn!(target: "service", "Attempted connection to peer {nid} which already has a session");
             return false;
         }
         let persistent = self.config.is_persistent(&nid);
@@ -1438,7 +1438,7 @@ where
                         // iterate over those entries in the above circumstances. This is
                         // merely an optimization though, we can also iterate over all tracked
                         // repos and check which ones are not in our inventory.
-                        warn!(target: "service", "No connected seeds found for {rid}..");
+                        debug!(target: "service", "No connected seeds found for {rid}..");
                     }
                 }
                 Err(e) => {
