@@ -932,9 +932,12 @@ where
                             }
                         }
                     } else {
-                        debug!(target: "service", "No sessions connected to {announcer}");
+                        trace!(
+                            target: "service",
+                            "Skipping fetch of {}, no sessions connected to {announcer}",
+                            message.rid
+                        );
                     }
-
                     return Ok(relay);
                 } else {
                     debug!(
@@ -1059,8 +1062,9 @@ where
             return Ok(());
         };
         peer.last_active = self.clock;
+        message.log(log::Level::Debug, remote);
 
-        debug!(target: "service", "Received message {:?} from {}", &message, peer.id);
+        trace!(target: "service", "Received message {:?} from {}", &message, peer.id);
 
         match (&mut peer.state, message) {
             // Process a peer announcement.

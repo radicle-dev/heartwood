@@ -407,6 +407,38 @@ impl Message {
             until,
         })
     }
+
+    pub fn log(&self, level: log::Level, remote: &NodeId) {
+        if !log::log_enabled!(level) {
+            return;
+        }
+        let msg = match self {
+            Self::Announcement(Announcement { node, message, .. }) => match message {
+                AnnouncementMessage::Node(NodeAnnouncement { addresses, .. }) => format!(
+                    "Node announced by {node} with {} addresses, relayed by {remote}",
+                    addresses.len()
+                ),
+                AnnouncementMessage::Refs(RefsAnnouncement { rid, refs, .. }) => {
+                    format!(
+                        "Refs announced by {node} for {rid} with {} remotes, relayed by {remote}",
+                        refs.len()
+                    )
+                }
+                AnnouncementMessage::Inventory(InventoryAnnouncement { inventory, .. }) => {
+                    format!(
+                        "Inventory announced by {node} with {} item(s), relayed by {remote}",
+                        inventory.len()
+                    )
+                }
+            },
+            Self::Ping { .. } => format!("Ping received from {remote}"),
+            Self::Pong { .. } => format!("Pong received from {remote}"),
+            Self::Subscribe(Subscribe { .. }) => {
+                format!("Subscription filter received from {remote}")
+            }
+        };
+        log::log!(target: "service", level, "{msg}");
+    }
 }
 
 /// A ping message.
