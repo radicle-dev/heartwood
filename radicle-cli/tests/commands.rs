@@ -429,6 +429,47 @@ fn rad_fetch() {
 }
 
 #[test]
+fn rad_fork() {
+    let mut environment = Environment::new();
+    let working = environment.tmp().join("working");
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+
+    let mut alice = alice.spawn(Config::default());
+    let bob = bob.spawn(Config::default());
+
+    alice.connect(&bob);
+    fixtures::repository(working.join("alice"));
+
+    // Alice initializes a repo after her node has started, and after bob has connected to it.
+    test(
+        "examples/rad-init-sync.md",
+        &working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    // Wait for bob to get any updates to the routing table.
+    bob.converge([&alice]);
+
+    test(
+        "examples/rad-fetch.md",
+        working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+    test(
+        "examples/rad-fork.md",
+        working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 // User tries to clone; no seeds are available, but user has the repo locally.
 fn test_clone_without_seeds() {
     logger::init(log::Level::Debug);
