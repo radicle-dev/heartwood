@@ -7,7 +7,7 @@ use crate::node;
 use crate::node::Address;
 use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
-use crate::service::{NodeId, Timestamp};
+use crate::service::{Link, NodeId, Timestamp};
 use crate::storage;
 use crate::storage::refs::SignedRefs;
 use crate::storage::{ReadRepository, ReadStorage};
@@ -408,33 +408,36 @@ impl Message {
         })
     }
 
-    pub fn log(&self, level: log::Level, remote: &NodeId) {
+    pub fn log(&self, level: log::Level, remote: &NodeId, link: Link) {
         if !log::log_enabled!(level) {
             return;
         }
+        let (verb, prep) = if link.is_inbound() {
+            ("Received", "from")
+        } else {
+            ("Sending", "to")
+        };
         let msg = match self {
             Self::Announcement(Announcement { node, message, .. }) => match message {
                 AnnouncementMessage::Node(NodeAnnouncement { addresses, .. }) => format!(
-                    "Node announced by {node} with {} addresses, relayed by {remote}",
+                    "{verb} node announcement of {node} with {} addresses {prep} {remote}",
                     addresses.len()
                 ),
-                AnnouncementMessage::Refs(RefsAnnouncement { rid, refs, .. }) => {
-                    format!(
-                        "Refs announced by {node} for {rid} with {} remotes, relayed by {remote}",
-                        refs.len()
-                    )
-                }
+                AnnouncementMessage::Refs(RefsAnnouncement { rid, refs, .. }) => format!(
+                    "{verb} refs announcement of {node} for {rid} with {} remotes {prep} {remote}",
+                    refs.len()
+                ),
                 AnnouncementMessage::Inventory(InventoryAnnouncement { inventory, .. }) => {
                     format!(
-                        "Inventory announced by {node} with {} item(s), relayed by {remote}",
+                        "{verb} inventory announcement of {node} with {} item(s) {prep} {remote}",
                         inventory.len()
                     )
                 }
             },
-            Self::Ping { .. } => format!("Ping received from {remote}"),
-            Self::Pong { .. } => format!("Pong received from {remote}"),
+            Self::Ping { .. } => format!("{verb} ping {prep} {remote}"),
+            Self::Pong { .. } => format!("{verb} pong {prep} {remote}"),
             Self::Subscribe(Subscribe { .. }) => {
-                format!("Subscription filter received from {remote}")
+                format!("{verb} subscription filter {prep} {remote}")
             }
         };
         log::log!(target: "service", level, "{msg}");

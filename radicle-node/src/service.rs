@@ -1062,7 +1062,7 @@ where
             return Ok(());
         };
         peer.last_active = self.clock;
-        message.log(log::Level::Debug, remote);
+        message.log(log::Level::Debug, remote, Link::Inbound);
 
         trace!(target: "service", "Received message {:?} from {}", &message, peer.id);
 

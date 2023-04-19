@@ -4,6 +4,7 @@ use log::*;
 
 use crate::prelude::*;
 use crate::service::session::Session;
+use crate::service::Link;
 use crate::storage::Namespaces;
 
 use super::message::{Announcement, AnnouncementMessage};
@@ -49,7 +50,9 @@ impl Reactor {
     }
 
     pub fn write(&mut self, remote: &Session, msg: Message) {
-        debug!(target: "service", "Write {:?} to {}", &msg, remote);
+        msg.log(log::Level::Debug, &remote.id, Link::Outbound);
+        trace!(target: "service", "Write {:?} to {}", &msg, remote);
+
         self.io.push_back(Io::Write(remote.id, vec![msg]));
     }
 
@@ -57,7 +60,7 @@ impl Reactor {
         let msgs = msgs.into_iter().collect::<Vec<_>>();
 
         for (ix, msg) in msgs.iter().enumerate() {
-            debug!(
+            trace!(
                 target: "service",
                 "Write {:?} to {} ({}/{})",
                 msg,
@@ -65,6 +68,7 @@ impl Reactor {
                 ix + 1,
                 msgs.len()
             );
+            msg.log(log::Level::Debug, &remote.id, Link::Outbound);
         }
         self.io.push_back(Io::Write(remote.id, msgs));
     }
