@@ -29,7 +29,6 @@ Options
     --force                             Force start even if an existing control socket is found
     --help                              Print help
     --listen             <address>      Address to listen on
-
 "#;
 
 #[derive(Debug)]
@@ -134,14 +133,13 @@ impl Options {
 fn execute() -> anyhow::Result<()> {
     logger::init(log::Level::Debug)?;
 
+    let options = Options::from_env()?;
+
     log::info!(target: "node", "Starting node..");
     log::info!(target: "node", "Version {} ({})", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));
-
-    let options = Options::from_env()?;
-    let home = profile::home()?;
-
     log::info!(target: "node", "Unlocking node keystore..");
 
+    let home = profile::home()?;
     let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
         .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
     let keystore = Keystore::new(&home.keys());
