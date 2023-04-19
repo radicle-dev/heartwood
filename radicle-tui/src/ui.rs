@@ -177,16 +177,16 @@ pub fn patch_context(
     let comments = patch::format_comments(patch);
 
     let context = label(" patch ").background(Color::Rgb(238, 111, 248));
-    let id = label(&format!(" {} ", id))
+    let id = label(&format!(" {id} "))
         .foreground(Color::Rgb(117, 113, 249))
         .background(Color::Rgb(40, 40, 40));
-    let title = label(&format!(" {} ", title))
+    let title = label(&format!(" {title} "))
         .foreground(Color::Rgb(70, 70, 70))
         .background(Color::Rgb(40, 40, 40));
-    let author = label(&format!(" {} ", author))
+    let author = label(&format!(" {author} "))
         .foreground(Color::Rgb(117, 113, 249))
         .background(Color::Rgb(40, 40, 40));
-    let comments = label(&format!(" {} ", comments))
+    let comments = label(&format!(" {comments} "))
         .foreground(Color::Rgb(70, 70, 70))
         .background(Color::Rgb(50, 50, 50));
 

@@ -28,9 +28,9 @@ pub fn format_author(patch: &Patch, profile: &Profile) -> String {
     let end = &author_did.to_human()[43..47];
 
     if *author_did == profile.did() {
-        format!("did:key:{}...{} (you)", start, end)
+        format!("did:key:{start}...{end} (you)")
     } else {
-        format!("did:key:{}...{}", start, end)
+        format!("did:key:{start}...{end}")
     }
 }
 
@@ -53,7 +53,7 @@ pub fn format_comments(patch: &Patch) -> String {
         Some((_, rev)) => rev.discussion().len(),
         None => 0,
     };
-    format!("{}", count)
+    format!("{count}")
 }
 
 impl List for (PatchId, Patch) {
