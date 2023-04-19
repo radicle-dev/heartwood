@@ -45,6 +45,10 @@ Usage
     rad patch checkout <patch-id> [<option>...]
     rad patch delete <patch-id> [<option>...]
 
+Show options
+
+    -p, --patch                Show the actual patch diff
+
 Create/Update options
 
         --[no-]announce        Announce patch to network (default: false)
@@ -84,6 +88,7 @@ pub enum Operation {
     },
     Show {
         patch_id: Rev,
+        diff: bool,
     },
     Update {
         patch_id: Option<Rev>,
@@ -125,6 +130,7 @@ impl Args for Options {
         let mut message = Message::default();
         let mut push = true;
         let mut filter = Some(patch::State::Open);
+        let mut diff = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -156,6 +162,11 @@ impl Args for Options {
                 }
                 Long("no-push") => {
                     push = false;
+                }
+
+                // Show options.
+                Long("patch") | Short('p') if op == Some(OperationName::Show) => {
+                    diff = true;
                 }
 
                 // List options.
@@ -205,6 +216,7 @@ impl Args for Options {
             OperationName::List => Operation::List { filter },
             OperationName::Show => Operation::Show {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                diff,
             },
             OperationName::Delete => Operation::Delete {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -249,9 +261,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::List { filter } => {
             list::run(&repository, &profile, Some(workdir), filter)?;
         }
-        Operation::Show { patch_id } => {
+        Operation::Show { patch_id, diff } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            show::run(&profile, &repository, &workdir, &patch_id)?;
+            show::run(&profile, &repository, &workdir, &patch_id, diff)?;
         }
         Operation::Update {
             ref patch_id,

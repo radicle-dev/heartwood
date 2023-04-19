@@ -40,6 +40,7 @@ pub fn run(
     // TODO: Should be optional.
     workdir: &git::raw::Repository,
     patch_id: &PatchId,
+    diff: bool,
 ) -> anyhow::Result<()> {
     let patches = patch::Patches::open(stored)?;
     let Some(patch) = patches.get(patch_id)? else {
@@ -91,10 +92,11 @@ pub fn run(
         widget.push(line);
     }
     widget.print();
-    term::blank();
 
-    show_patch_diff(&patch, stored, workdir)?;
-    term::blank();
-
+    if diff {
+        term::blank();
+        show_patch_diff(&patch, stored, workdir)?;
+        term::blank();
+    }
     Ok(())
 }

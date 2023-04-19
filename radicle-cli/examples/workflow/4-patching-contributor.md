@@ -57,17 +57,6 @@ $ rad patch show a07ef7743a32a2e902672ea3526d1db6ee08108a
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (you) [..         ]│
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
-
-commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
-Author: radicle <radicle@localhost>
-Date:   Thu Dec 15 17:28:04 2022 +0000
-
-    Define power requirements
-
-diff --git a/REQUIREMENTS b/REQUIREMENTS
-new file mode 100644
-index 0000000..e69de29
-
 ```
 
 Wait, let's add a README too! Just for fun.
