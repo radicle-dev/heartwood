@@ -25,6 +25,9 @@ pub enum Error {
     /// Public key doesn't match the remote namespace we're pushing to.
     #[error("public key `{0}` does not match remote namespace")]
     KeyMismatch(PublicKey),
+    /// No public key is given
+    #[error("no public key given as a remote namespace, perhaps you are attempting to push to restricted refs")]
+    NoKey,
     /// Invalid command received.
     #[error("invalid command `{0}`")]
     InvalidCommand(String),
@@ -52,8 +55,6 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
             }
         }
     }?;
-    // Default to profile key.
-    let namespace = url.namespace.unwrap_or(profile.public_key);
 
     let proj = profile.storage.repository_mut(url.repo)?;
     if proj.is_empty()? {
@@ -82,10 +83,17 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                 // 1. Our key is not in ssh-agent, which means we won't be able to sign the refs.
                 // 2. Our key is not the one loaded in the profile, which means that the signed refs
                 //    won't match the remote we're pushing to.
+                // 3. The URL namespace is not set, which is used for fetching canonical refs.
                 let signer = if *service == GIT_RECEIVE_PACK {
-                    if profile.public_key != namespace {
-                        return Err(Error::KeyMismatch(profile.public_key).into());
+                    match url.namespace {
+                        Some(namespace) => {
+                            if profile.public_key != namespace {
+                                return Err(Error::KeyMismatch(profile.public_key).into());
+                            }
+                        }
+                        None => return Err(Error::NoKey.into()),
                     }
+
                     let signer = profile.signer()?;
 
                     Some(signer)
@@ -101,7 +109,10 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                 let mut child = process::Command::new(service)
                     .arg(proj.path())
                     .env("GIT_DIR", proj.path())
-                    .env("GIT_NAMESPACE", namespace.to_string())
+                    .env(
+                        "GIT_NAMESPACE",
+                        url.namespace.map(|ns| ns.to_string()).unwrap_or_default(),
+                    )
                     .stdout(process::Stdio::inherit())
                     .stderr(process::Stdio::inherit())
                     .stdin(process::Stdio::inherit())
