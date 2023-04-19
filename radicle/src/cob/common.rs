@@ -117,8 +117,8 @@ pub enum TagError {
 pub struct Tag(String);
 
 impl Tag {
-    pub fn new(name: impl Into<String>) -> Result<Self, TagError> {
-        let name = name.into();
+    pub fn new(name: impl ToString) -> Result<Self, TagError> {
+        let name = name.to_string();
 
         if name.chars().any(|c| c.is_whitespace()) || name.is_empty() {
             return Err(TagError::InvalidName(name));

@@ -27,7 +27,7 @@ Usage
     rad issue [<option>...]
     rad issue delete <issue-id> [<option>...]
     rad issue list [--assigned <did>] [<option>...]
-    rad issue open [--title <title>] [--description <text>] [<option>...]
+    rad issue open [--title <title>] [--description <text>] [--tag <tag>] [<option>...]
     rad issue react <issue-id> [--emoji <char>] [<option>...]
     rad issue show <issue-id> [<option>...]
     rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
@@ -42,7 +42,7 @@ Options
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct Metadata {
     title: String,
-    labels: Vec<Tag>,
+    tags: Vec<Tag>,
     assignees: Vec<Did>,
 }
 
@@ -70,6 +70,7 @@ pub enum Operation {
     Open {
         title: Option<String>,
         description: Option<String>,
+        tags: Vec<Tag>,
     },
     Show {
         id: Rev,
@@ -108,6 +109,7 @@ impl Args for Options {
         let mut reaction: Option<Reaction> = None;
         let mut description: Option<String> = None;
         let mut state: Option<State> = None;
+        let mut tags = Vec::new();
         let mut announce = true;
 
         while let Some(arg) = parser.next()? {
@@ -117,6 +119,13 @@ impl Args for Options {
                 }
                 Long("title") if op == Some(OperationName::Open) => {
                     title = Some(parser.value()?.to_string_lossy().into());
+                }
+                Long("tag") if op == Some(OperationName::Open) => {
+                    let val = parser.value()?;
+                    let name = term::args::string(&val);
+                    let tag = Tag::new(name)?;
+
+                    tags.push(tag);
                 }
                 Long("closed") if op == Some(OperationName::State) => {
                     state = Some(State::Closed {
@@ -172,7 +181,11 @@ impl Args for Options {
         }
 
         let op = match op.unwrap_or_default() {
-            OperationName::Open => Operation::Open { title, description },
+            OperationName::Open => Operation::Open {
+                title,
+                description,
+                tags,
+            },
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
             },
@@ -215,8 +228,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Open {
             title: Some(title),
             description: Some(description),
+            tags,
         } => {
-            let issue = issues.create(title, description, &[], &[], &signer)?;
+            let issue = issues.create(title, description, tags.as_slice(), &[], &signer)?;
             show_issue(&issue)?;
         }
         Operation::Show { id } => {
@@ -238,10 +252,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 issue.react(*comment_id, reaction, &signer)?;
             }
         }
-        Operation::Open { title, description } => {
+        Operation::Open {
+            title,
+            description,
+            tags,
+        } => {
             let meta = Metadata {
                 title: title.unwrap_or("Enter a title".to_owned()),
-                labels: vec![],
+                tags,
                 assignees: vec![],
             };
             let yaml = serde_yaml::to_string(&meta)?;
@@ -278,7 +296,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 let issue = issues.create(
                     &meta.title,
                     description.trim(),
-                    meta.labels.as_slice(),
+                    meta.tags.as_slice(),
                     meta.assignees
                         .into_iter()
                         .map(cob::ActorId::from)
