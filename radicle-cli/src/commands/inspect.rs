@@ -8,7 +8,7 @@ use anyhow::{anyhow, Context as _};
 use chrono::prelude::*;
 use json_color::{Color, Colorizer};
 
-use radicle::crypto::Unverified;
+use radicle::crypto::{Unverified, Verified};
 use radicle::identity::Untrusted;
 use radicle::identity::{Doc, Id};
 use radicle::storage::{ReadRepository, ReadStorage};
@@ -120,9 +120,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let signer = term::signer(&profile)?;
-    let project = storage
-        .get(signer.public_key(), id)?
+    let repo = storage
+        .repository(id)
         .context("No project with the given RID exists")?;
+    let project = Doc::<Verified>::canonical(&repo)?;
 
     match options.target {
         Target::Refs => {
