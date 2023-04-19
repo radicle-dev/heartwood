@@ -171,10 +171,16 @@ pub fn timeline(
             ));
         }
         for (reviewer, review) in revision.reviews() {
-            let verdict = match review.verdict() {
-                Some(Verdict::Accept) => term::format::positive(term::format::dim("✓ accepted")),
-                Some(Verdict::Reject) => term::format::negative(term::format::dim("✗ rejected")),
-                None => term::format::negative(term::format::dim("⋄ reviewed")),
+            let verdict = review.verdict();
+            let verdict_symbol = match verdict {
+                Some(Verdict::Accept) => term::format::positive("✓"),
+                Some(Verdict::Reject) => term::format::negative("✗"),
+                None => term::format::dim("⋄"),
+            };
+            let verdict_verb = match verdict {
+                Some(Verdict::Accept) => term::format::default("accepted"),
+                Some(Verdict::Reject) => term::format::default("rejected"),
+                None => term::format::default("reviewed"),
             };
             let peer = repository.remote(reviewer)?;
             let mut badges = Vec::new();
@@ -190,7 +196,8 @@ pub fn timeline(
                 review.timestamp(),
                 term::Line::spaced(
                     [
-                        verdict.into(),
+                        verdict_symbol.into(),
+                        verdict_verb.into(),
                         term::format::default("by").into(),
                         term::format::tertiary(reviewer).into(),
                     ]
