@@ -68,9 +68,9 @@ fn parse_args() -> anyhow::Result<Command> {
 /// Third party applications use it to parse Radicle Cli's version.
 fn print_version(mut w: impl std::io::Write) -> anyhow::Result<()> {
     if VERSION.contains("-dev") {
-        write!(w, "{NAME} {VERSION}+{GIT_HEAD}")?;
+        writeln!(w, "{NAME} {VERSION}+{GIT_HEAD}")?;
     } else {
-        write!(w, "{NAME} {VERSION} ({GIT_HEAD})")?;
+        writeln!(w, "{NAME} {VERSION} ({GIT_HEAD})")?;
     }
     Ok(())
 }
