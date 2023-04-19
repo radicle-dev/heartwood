@@ -385,11 +385,13 @@ where
         for rid in self.storage.inventory()? {
             self.routing.insert(rid, self.node_id(), time.as_millis())?;
 
-            if self
-                .track_repo(&rid, tracking::Scope::All)
-                .expect("Service::command: error tracking repository")
-            {
-                info!(target: "service", "Tracking local repository {rid}");
+            if !self.is_tracking(&rid)? {
+                if self
+                    .track_repo(&rid, tracking::Scope::Trusted)
+                    .expect("Service::initialize: error tracking repository")
+                {
+                    info!(target: "service", "Tracking local repository {rid}");
+                }
             }
         }
         // Setup subscription filter for tracked repos.
