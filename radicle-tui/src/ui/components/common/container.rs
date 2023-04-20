@@ -7,7 +7,7 @@ use tuirealm::tui::text::{Span, Spans};
 use tuirealm::tui::widgets::Block;
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
-use crate::ui::components::label::Label;
+use crate::ui::components::common::label::Label;
 use crate::ui::layout;
 use crate::ui::state::TabState;
 use crate::ui::widget::{Widget, WidgetComponent};

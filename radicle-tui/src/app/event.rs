@@ -5,12 +5,12 @@ use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
-use radicle_tui::ui::components::container::{GlobalListener, LabeledContainer, Tabs};
-use radicle_tui::ui::components::context::{ContextBar, Shortcuts};
-use radicle_tui::ui::components::list::PropertyList;
-use radicle_tui::ui::components::workspace::{
-    Browser, Dashboard, IssueBrowser, PatchActivity, PatchFiles,
-};
+use radicle_tui::ui::components::common::container::{GlobalListener, LabeledContainer, Tabs};
+use radicle_tui::ui::components::common::context::{ContextBar, Shortcuts};
+use radicle_tui::ui::components::common::list::PropertyList;
+use radicle_tui::ui::components::common::Browser;
+use radicle_tui::ui::components::home::{Dashboard, IssueBrowser};
+use radicle_tui::ui::components::patch;
 
 use radicle_tui::ui::widget::Widget;
 
@@ -86,7 +86,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchActivity> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<patch::Activity> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
@@ -97,7 +97,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchActivity> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchFiles> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<patch::Files> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {

@@ -7,9 +7,9 @@ use super::common;
 use super::Widget;
 
 use crate::ui::cob::patch;
-use crate::ui::components::container::Tabs;
-use crate::ui::components::context::ContextBar;
-use crate::ui::components::workspace::{PatchActivity, PatchFiles};
+use crate::ui::components::common::container::Tabs;
+use crate::ui::components::common::context::ContextBar;
+use crate::ui::components::patch::Activity;
 use crate::ui::theme::Theme;
 
 pub fn navigation(theme: &Theme) -> Widget<Tabs> {
@@ -19,11 +19,7 @@ pub fn navigation(theme: &Theme) -> Widget<Tabs> {
     )
 }
 
-pub fn activity(
-    theme: &Theme,
-    patch: (PatchId, &Patch),
-    profile: &Profile,
-) -> Widget<PatchActivity> {
+pub fn activity(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widget<Activity> {
     let (id, patch) = patch;
     let shortcuts = common::shortcuts(
         theme,
@@ -36,12 +32,12 @@ pub fn activity(
     let context = context(theme, (id, patch), profile);
 
     let not_implemented = common::label("not implemented").foreground(theme.colors.default_fg);
-    let activity = PatchActivity::new(not_implemented, context, shortcuts);
+    let activity = Activity::new(not_implemented, context, shortcuts);
 
     Widget::new(activity)
 }
 
-pub fn files(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widget<PatchFiles> {
+pub fn files(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widget<Activity> {
     let (id, patch) = patch;
     let shortcuts = common::shortcuts(
         theme,
@@ -54,7 +50,7 @@ pub fn files(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widg
     let context = context(theme, (id, patch), profile);
 
     let not_implemented = common::label("not implemented").foreground(theme.colors.default_fg);
-    let files = PatchFiles::new(not_implemented, context, shortcuts);
+    let files = Activity::new(not_implemented, context, shortcuts);
 
     Widget::new(files)
 }
