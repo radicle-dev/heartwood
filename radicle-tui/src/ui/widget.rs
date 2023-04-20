@@ -1,3 +1,7 @@
+pub mod common;
+pub mod home;
+pub mod patch;
+
 use std::ops::Deref;
 
 use tuirealm::command::{Cmd, CmdResult};

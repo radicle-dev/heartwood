@@ -22,11 +22,14 @@ where
     Id: Clone + Hash + Eq + PartialEq,
     UserEvent: Clone + Eq + PartialEq + PartialOrd,
 {
-    vec![Sub::new(
-        SubEventClause::Keyboard(KeyEvent {
-            code: Key::Char('q'),
-            modifiers: KeyModifiers::NONE,
-        }),
-        SubClause::Always,
-    )]
+    vec![
+        Sub::new(
+            SubEventClause::Keyboard(KeyEvent {
+                code: Key::Char('q'),
+                modifiers: KeyModifiers::NONE,
+            }),
+            SubClause::Always,
+        ),
+        Sub::new(SubEventClause::WindowResize, SubClause::Always),
+    ]
 }
