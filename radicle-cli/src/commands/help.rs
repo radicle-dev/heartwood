@@ -39,6 +39,7 @@ const COMMANDS: &[Help] = &[
     rad_unassign::HELP,
     rad_untag::HELP,
     rad_untrack::HELP,
+    rad_remote::HELP,
 ];
 
 #[derive(Default)]
