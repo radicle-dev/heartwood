@@ -99,6 +99,14 @@ pub fn rid(val: &OsString) -> anyhow::Result<Id> {
     Id::from_str(&val).map_err(|_| anyhow!("invalid Repository ID '{}'", val))
 }
 
+pub fn pubkey(val: &OsString) -> anyhow::Result<NodeId> {
+    let Ok(did) = did(val) else {
+        let nid = nid(val)?;
+        return Ok(nid)
+    };
+    Ok(did.as_key().to_owned())
+}
+
 pub fn addr(val: &OsString) -> anyhow::Result<Address> {
     let val = val.to_string_lossy();
     Address::from_str(&val).map_err(|_| anyhow!("invalid address '{}'", val))

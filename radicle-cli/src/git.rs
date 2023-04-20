@@ -10,12 +10,14 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use anyhow::Context as _;
+use thiserror::Error;
 
 use radicle::crypto::ssh;
 use radicle::git;
 use radicle::git::raw as git2;
 use radicle::git::{Version, VERSION_REQUIRED};
 use radicle::prelude::{Id, NodeId};
+use radicle::storage::git::transport;
 
 pub use radicle::git::raw::{
     build::CheckoutBuilder, AnnotatedCommit, Commit, Direction, ErrorCode, MergeAnalysis,
@@ -57,6 +59,45 @@ impl Display for Rev {
 impl From<String> for Rev {
     fn from(value: String) -> Self {
         Rev(value)
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum RemoteError {
+    #[error("url malformed: {0}")]
+    ParseUrl(#[from] transport::local::UrlError),
+    #[error("remote `url` not found")]
+    MissingUrl,
+    #[error("remote `name` not found")]
+    MissingName,
+}
+
+#[derive(Clone)]
+pub struct Remote<'a> {
+    pub(crate) name: String,
+    pub(crate) url: radicle::git::Url,
+    inner: git2::Remote<'a>,
+}
+
+impl Remote<'_> {
+    pub fn refspecs(&self) -> git2::Refspecs {
+        self.inner.refspecs()
+    }
+}
+
+impl<'a> TryFrom<git2::Remote<'a>> for Remote<'a> {
+    type Error = RemoteError;
+
+    fn try_from(value: git2::Remote<'a>) -> Result<Self, Self::Error> {
+        let url = value.url().map_or(Err(RemoteError::MissingUrl), |url| {
+            Ok(radicle::git::Url::from_str(url)?)
+        })?;
+        let name = value.name().ok_or(RemoteError::MissingName)?;
+        Ok(Self {
+            name: name.to_owned(),
+            url,
+            inner: value,
+        })
     }
 }
 
@@ -175,22 +216,25 @@ pub fn is_signing_configured(repo: &Path) -> Result<bool, anyhow::Error> {
 }
 
 /// Return the list of radicle remotes for the given repository.
-pub fn remotes(repo: &git2::Repository) -> anyhow::Result<Vec<(String, NodeId)>> {
-    let mut remotes = Vec::new();
-
-    for name in repo.remotes().iter().flatten().flatten() {
-        let remote = repo.find_remote(name)?;
-        for refspec in remote.refspecs() {
-            if refspec.direction() != git2::Direction::Fetch {
-                continue;
-            }
-            if let Some((peer, _)) = refspec.src().and_then(self::parse_remote) {
-                remotes.push((name.to_owned(), peer));
-            }
-        }
-    }
-
+pub fn rad_remotes(repo: &git2::Repository) -> anyhow::Result<Vec<Remote>> {
+    let remotes: Vec<_> = repo
+        .remotes()?
+        .iter()
+        .filter_map(|name| {
+            let remote = repo.find_remote(name?).ok()?;
+            Remote::try_from(remote).ok()
+        })
+        .collect();
     Ok(remotes)
+}
+
+/// Check if the git remote is configured for the `Repository`.
+pub fn is_remote(repo: &git2::Repository, alias: &str) -> anyhow::Result<bool> {
+    match repo.find_remote(alias) {
+        Ok(_) => Ok(true),
+        Err(err) if err.code() == git2::ErrorCode::NotFound => Ok(false),
+        Err(err) => Err(err.into()),
+    }
 }
 
 /// Get the repository's "rad" remote.
@@ -202,6 +246,15 @@ pub fn rad_remote(repo: &Repository) -> anyhow::Result<(git2::Remote, Id)> {
         )),
         Err(err) => Err(err).context("could not read git remote configuration"),
     }
+}
+
+pub fn add_remote<'a>(
+    repo: &'a Repository,
+    name: &'a str,
+    url: &'a radicle::git::Url,
+) -> anyhow::Result<Remote<'a>> {
+    let remote = repo.remote(name, &url.to_string())?;
+    Ok(Remote::try_from(remote)?)
 }
 
 /// Setup an upstream tracking branch for the given remote and branch.
