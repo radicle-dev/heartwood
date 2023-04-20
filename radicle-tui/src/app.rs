@@ -18,7 +18,7 @@ use radicle_tui::ui::components::workspace::{
 };
 use radicle_tui::ui::layout;
 use radicle_tui::ui::theme::{self, Theme};
-use radicle_tui::ui::widget::Widget;
+use radicle_tui::ui::widget::{self, Widget};
 
 use radicle_tui::Tui;
 
@@ -66,7 +66,6 @@ pub enum Message {
     Home(HomeMessage),
     Patch(PatchMessage),
     NavigationChanged(u16),
-    Tick,
     Quit,
 }
 
@@ -135,7 +134,7 @@ impl Tui<Cid, Message> for App {
         self.mount_home_view(app, &self.theme.clone())?;
 
         // Add global key listener and subscribe to key events
-        let global = ui::global_listener().to_boxed();
+        let global = ui::widget::common::global_listener().to_boxed();
         app.mount(Cid::GlobalListener, global, subs::global())?;
 
         Ok(())
@@ -223,11 +222,12 @@ impl ViewPage for Home {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let navigation = ui::home_navigation(theme).to_boxed();
+        let navigation = widget::home::navigation(theme).to_boxed();
 
-        let dashboard = ui::dashboard(theme, &context.id, &context.project).to_boxed();
-        let issue_browser = ui::issue_browser(theme).to_boxed();
-        let patch_browser = ui::patch_browser(theme, &context.patches, &context.profile).to_boxed();
+        let dashboard = widget::home::dashboard(theme, &context.id, &context.project).to_boxed();
+        let issue_browser = widget::home::issues(theme).to_boxed();
+        let patch_browser =
+            widget::home::patches(theme, &context.patches, &context.profile).to_boxed();
 
         app.remount(
             Cid::Home(HomeCid::Navigation),
@@ -291,9 +291,10 @@ impl ViewPage for PatchView {
         theme: &Theme,
     ) -> Result<()> {
         if let Some((id, patch)) = context.patches.get(context.selected_patch) {
-            let navigation = ui::patch_navigation(theme).to_boxed();
-            let activity = ui::patch_activity(theme, (*id, patch), &context.profile).to_boxed();
-            let files = ui::patch_files(theme, (*id, patch), &context.profile).to_boxed();
+            let navigation = widget::patch::navigation(theme).to_boxed();
+            let activity =
+                widget::patch::activity(theme, (*id, patch), &context.profile).to_boxed();
+            let files = widget::patch::files(theme, (*id, patch), &context.profile).to_boxed();
 
             app.remount(
                 Cid::Patch(PatchCid::Navigation),
@@ -342,7 +343,6 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<GlobalListener> {
                 code: Key::Char('q'),
                 ..
             }) => Some(Message::Quit),
-            Event::WindowResize(_, _) => Some(Message::Tick),
             _ => None,
         }
     }
@@ -369,13 +369,13 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<Browser<(PatchId, Patc
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
                 self.perform(Cmd::Move(MoveDirection::Up));
-                Some(Message::Tick)
+                None
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Down, ..
             }) => {
                 self.perform(Cmd::Move(MoveDirection::Down));
-                Some(Message::Tick)
+                None
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
