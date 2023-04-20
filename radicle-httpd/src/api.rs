@@ -14,8 +14,8 @@ use serde_json::json;
 use tokio::sync::RwLock;
 use tower_http::cors::{self, CorsLayer};
 
-use radicle::cob::issue::Issues;
-use radicle::cob::patch::Patches;
+use radicle::cob::issue;
+use radicle::cob::patch;
 use radicle::identity::Id;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::Profile;
@@ -50,8 +50,8 @@ impl Context {
         let doc = repo.identity_doc()?.1.verified()?;
         let payload = doc.project()?;
         let delegates = doc.delegates;
-        let issues = Issues::open(&repo)?.counts()?;
-        let patches = Patches::open(&repo)?.counts()?;
+        let issues = issue::Issues::open(&repo)?.counts()?;
+        let patches = patch::Patches::open(&repo)?.counts()?;
 
         Ok(project::Info {
             payload,
@@ -113,6 +113,52 @@ async fn root_handler() -> impl IntoResponse {
 pub struct PaginationQuery {
     pub page: Option<usize>,
     pub per_page: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CobsQuery<T> {
+    pub page: Option<usize>,
+    pub per_page: Option<usize>,
+    pub state: Option<T>,
+}
+
+#[derive(Default, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum IssueState {
+    Closed,
+    #[default]
+    Open,
+}
+
+impl IssueState {
+    pub fn matches(&self, issue: &issue::State) -> bool {
+        match self {
+            Self::Open => matches!(issue, issue::State::Open),
+            Self::Closed => matches!(issue, issue::State::Closed { .. }),
+        }
+    }
+}
+
+#[derive(Default, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum PatchState {
+    #[default]
+    Open,
+    Draft,
+    Archived,
+    Merged,
+}
+
+impl PatchState {
+    pub fn matches(&self, patch: &patch::State) -> bool {
+        match self {
+            Self::Open => matches!(patch, patch::State::Open),
+            Self::Draft => matches!(patch, patch::State::Draft),
+            Self::Archived => matches!(patch, patch::State::Archived),
+            Self::Merged => matches!(patch, patch::State::Merged),
+        }
+    }
 }
 
 mod project {

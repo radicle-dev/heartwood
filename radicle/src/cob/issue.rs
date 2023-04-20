@@ -63,7 +63,7 @@ impl std::fmt::Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Closed { .. } => write!(f, "closed"),
-            Self::Open { .. } => write!(f, "open"),
+            Self::Open => write!(f, "open"),
         }
     }
 }
@@ -71,8 +71,8 @@ impl std::fmt::Display for State {
 impl State {
     pub fn lifecycle_message(self) -> String {
         match self {
-            State::Open => "Open issue".to_owned(),
-            State::Closed { .. } => "Close issue".to_owned(),
+            Self::Open => "Open issue".to_owned(),
+            Self::Closed { .. } => "Close issue".to_owned(),
         }
     }
 }
