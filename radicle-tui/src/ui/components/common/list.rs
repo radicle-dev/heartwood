@@ -7,7 +7,7 @@ use tuirealm::tui::layout::{Constraint, Rect};
 use tuirealm::tui::widgets::{Cell, Row, TableState};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
-use crate::ui::components::label::Label;
+use crate::ui::components::common::label::Label;
 use crate::ui::layout;
 use crate::ui::theme::Theme;
 use crate::ui::widget::{Widget, WidgetComponent};

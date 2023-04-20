@@ -7,7 +7,7 @@ use radicle::cob::patch::{Patch, PatchId};
 
 use tuirealm::props::{Color, TextSpan};
 
-use crate::ui::components::list::List;
+use crate::ui::components::common::list::List;
 use crate::ui::theme::Theme;
 
 pub fn format_status(_patch: &Patch) -> String {

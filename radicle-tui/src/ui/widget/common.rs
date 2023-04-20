@@ -2,15 +2,15 @@ use radicle::Profile;
 use tuirealm::props::{AttrValue, Attribute};
 use tuirealm::MockComponent;
 
-use crate::ui::components::container::{GlobalListener, LabeledContainer, Tabs};
-use crate::ui::components::context::{Shortcut, Shortcuts};
-use crate::ui::components::label::Label;
-use crate::ui::components::list::{Property, PropertyList};
+use crate::ui;
+
+use ui::components::common::container::{GlobalListener, LabeledContainer, Tabs};
+use ui::components::common::context::{Shortcut, Shortcuts};
+use ui::components::common::label::Label;
+use ui::components::common::list::{List, Property, PropertyList, Table};
+use ui::theme::Theme;
 
 use super::Widget;
-
-use crate::ui::components::list::{List, Table};
-use crate::ui::theme::Theme;
 
 pub fn global_listener() -> Widget<GlobalListener> {
     Widget::new(GlobalListener::default())

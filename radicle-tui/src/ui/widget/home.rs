@@ -4,8 +4,9 @@ use radicle::Profile;
 use tuirealm::props::{PropPayload, PropValue, TextSpan};
 use tuirealm::AttrValue;
 
-use crate::ui::components::container::Tabs;
-use crate::ui::components::workspace::{Browser, Dashboard, IssueBrowser};
+use crate::ui::components::common::container::Tabs;
+use crate::ui::components::common::Browser;
+use crate::ui::components::home::{Dashboard, IssueBrowser};
 use crate::ui::theme::Theme;
 
 use super::{common, Widget};
