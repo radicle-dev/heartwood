@@ -23,10 +23,7 @@ pub fn run(
 
     let url = Url::from(id).with_namespace(*pubkey);
     let remote = add_remote(repository, &name, &url)?;
-    term::success!(
-        "Remote {} added with {url}",
-        remote.name,
-    );
+    term::success!("Remote {} added with {url}", remote.name,);
     Ok(())
 }
 

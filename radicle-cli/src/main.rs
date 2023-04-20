@@ -337,6 +337,12 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             rad_web::run,
             args.to_vec(),
         ),
+        "remote" => term::run_command_args::<rad_remote::Options, _>(
+            rad_remote::HELP,
+            "Remote",
+            rad_remote::run,
+            args.to_vec(),
+        ),
         _ => {
             let exe = format!("{NAME}-{exe}");
             let status = process::Command::new(exe.clone()).args(args).status();

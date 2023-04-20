@@ -640,6 +640,39 @@ fn test_replication_via_seed() {
 }
 
 #[test]
+fn rad_remote() {
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let working = environment.tmp().join("working");
+    let home = alice.home.clone();
+    // Setup a test repository.
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&home),
+        [],
+    )
+    .unwrap();
+
+    let mut alice = alice.spawn(Config::default());
+    alice
+        .handle
+        .track_node(bob.id, Some("bob".to_owned()))
+        .unwrap();
+
+    test(
+        "examples/rad-remote.md",
+        working.join("alice"),
+        Some(&home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_workflow() {
     let mut environment = Environment::new();
     let alice = environment.node("alice");
