@@ -5,6 +5,7 @@ pub use radicle_term::{style, Paint};
 
 use radicle::cob::{ObjectId, Timestamp};
 use radicle::node::NodeId;
+use radicle::prelude::Did;
 use radicle::profile::Profile;
 
 use crate::terminal as term;
@@ -33,13 +34,19 @@ pub fn cob(id: &ObjectId) -> String {
     format!("{:.7}", id.to_string())
 }
 
+/// Format a DID.
+pub fn did(did: &Did) -> Paint<String> {
+    let nid = did.as_key().to_human();
+    Paint::new(format!("{}…{}", &nid[..7], &nid[nid.len() - 7..]))
+}
+
 /// Format a timestamp.
-pub fn timestamp(time: &Timestamp) -> String {
+pub fn timestamp(time: &Timestamp) -> Paint<String> {
     let fmt = timeago::Formatter::new();
     let now = Timestamp::now();
     let duration = time::Duration::from_secs(now.as_secs() - time.as_secs());
 
-    fmt.convert(duration)
+    Paint::new(fmt.convert(duration))
 }
 
 /// Identity formatter that takes a profile and displays it as

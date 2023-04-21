@@ -19,6 +19,10 @@ pub enum DidError {
 pub struct Did(crypto::PublicKey);
 
 impl Did {
+    /// We use the format specified by the DID `key` method, which is described as:
+    ///
+    /// `did:key:MULTIBASE(base58-btc, MULTICODEC(public-key-type, raw-public-key-bytes))`
+    ///
     pub fn encode(&self) -> String {
         format!("did:key:{}", self.0.to_human())
     }

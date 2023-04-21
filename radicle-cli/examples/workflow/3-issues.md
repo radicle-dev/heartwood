@@ -17,7 +17,11 @@ The issue is now listed under our project.
 
 ```
 $ rad issue list
-b05e945bb63c11bf80320f4e26ad1d1f7c51f755 "flux capacitor underpowered" ❲unassigned❳
+╭───────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title                         Author            Tags   Assignees   Opened       │
+├───────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   b05e945   flux capacitor underpowered   z6Mkt67…v4N1tRk                      [    ..    ] │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Great! Now we've documented the issue for ourselves and others.
@@ -35,7 +39,11 @@ It will now show in the list of issues assigned to us.
 
 ```
 $ rad issue list --assigned
-b05e945bb63c11bf80320f4e26ad1d1f7c51f755 "flux capacitor underpowered" did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title                         Author            Tags   Assignees         Opened       │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   b05e945   flux capacitor underpowered   z6Mkt67…v4N1tRk          z6Mkt67…v4N1tRk   [    ..    ] │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Note: this can always be undone with the `unassign` subcommand.

@@ -350,9 +350,7 @@ impl PublicKey {
 
     /// Encode public key in human-readable format.
     ///
-    /// We use the format specified by the DID `key` method, which is described as:
-    ///
-    /// `did:key:MULTIBASE(base58-btc, MULTICODEC(public-key-type, raw-public-key-bytes))`
+    /// `MULTIBASE(base58-btc, MULTICODEC(public-key-type, raw-public-key-bytes))`
     ///
     pub fn to_human(&self) -> String {
         let mut buf = [0; 2 + ed25519::PublicKey::BYTES];

@@ -314,10 +314,22 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 None => None,
             };
 
-            let mut t = term::Table::new(term::table::TableOptions::default());
+            let mut t = term::Table::new(term::table::TableOptions::bordered());
+            t.push([
+                term::format::dim(String::from("●")),
+                term::format::bold(String::from("ID")),
+                term::format::bold(String::from("Title")),
+                term::format::bold(String::from("Author")),
+                term::format::bold(String::from("Tags")),
+                term::format::bold(String::from("Assignees")),
+                term::format::bold(String::from("Opened")),
+            ]);
+            t.divider();
+
             for result in issues.all()? {
                 let (id, issue, _) = result?;
                 let assigned: Vec<_> = issue.assigned().collect();
+                let state = issue.state();
 
                 if Some(true) == assignee.map(|a| !assigned.contains(&Did::from(a))) {
                     continue;
@@ -325,17 +337,28 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
                 let assigned: String = assigned
                     .iter()
-                    .map(|p| p.to_string())
+                    .map(|p| term::format::did(p).to_string())
                     .collect::<Vec<_>>()
                     .join(", ");
+
+                let mut tags = issue.tags().map(|t| t.to_string()).collect::<Vec<_>>();
+                tags.sort();
+
                 t.push([
-                    id.to_string(),
-                    format!("{:?}", issue.title()),
-                    if assigned.is_empty() {
-                        String::from("❲unassigned❳")
-                    } else {
-                        assigned.to_string()
+                    match state {
+                        State::Open => term::format::positive("●").into(),
+                        State::Closed { .. } => term::format::negative("●").into(),
                     },
+                    term::format::tertiary(term::format::cob(&id)).to_owned(),
+                    term::format::default(issue.title().to_owned()),
+                    term::format::did(&issue.author().id).dim(),
+                    term::format::secondary(tags.join(", ")),
+                    if assigned.is_empty() {
+                        term::format::dim(String::default())
+                    } else {
+                        term::format::default(assigned.to_string())
+                    },
+                    term::format::timestamp(&issue.timestamp()).dim().italic(),
                 ]);
             }
             t.print();

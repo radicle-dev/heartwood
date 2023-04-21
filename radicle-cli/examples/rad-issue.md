@@ -17,7 +17,11 @@ The issue is now listed under our project.
 
 ```
 $ rad issue list
-2e8c1bf3fe0532a314778357c886608a966a34bd "flux capacitor underpowered" ❲unassigned❳
+╭───────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title                         Author            Tags   Assignees   Opened       │
+├───────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   2e8c1bf   flux capacitor underpowered   z6MknSL…StBU8Vi                      [    ..    ] │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Show the issue information issue.
@@ -48,7 +52,11 @@ It will now show in the list of issues assigned to us.
 
 ```
 $ rad issue list --assigned
-2e8c1bf3fe0532a314778357c886608a966a34bd "flux capacitor underpowered" did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title                         Author            Tags   Assignees         Opened       │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   2e8c1bf   flux capacitor underpowered   z6MknSL…StBU8Vi          z6MknSL…StBU8Vi   [    ..    ] │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Note: this can always be undone with the `unassign` subcommand.

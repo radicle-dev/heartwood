@@ -257,7 +257,6 @@ fn rad_node() {
 }
 
 #[test]
-#[ignore]
 fn rad_patch() {
     let mut environment = Environment::new();
     let profile = environment.profile("alice");
@@ -641,7 +640,6 @@ fn test_replication_via_seed() {
 }
 
 #[test]
-#[ignore]
 fn rad_workflow() {
     let mut environment = Environment::new();
     let alice = environment.node("alice");
