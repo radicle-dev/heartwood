@@ -63,7 +63,7 @@ pub const SYNC_INTERVAL: LocalDuration = LocalDuration::from_secs(60);
 /// How often to run the "prune" task.
 pub const PRUNE_INTERVAL: LocalDuration = LocalDuration::from_mins(30);
 /// Duration to wait on an unresponsive peer before dropping its connection.
-pub const STALE_CONNECTION_TIMEOUT: LocalDuration = LocalDuration::from_mins(1);
+pub const STALE_CONNECTION_TIMEOUT: LocalDuration = LocalDuration::from_mins(2);
 /// How much time should pass after a peer was last active for a *ping* to be sent.
 pub const KEEP_ALIVE_DELTA: LocalDuration = LocalDuration::from_mins(1);
 /// Maximum time difference between the local time, and an announcement timestamp.
