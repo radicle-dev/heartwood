@@ -3,11 +3,11 @@ pub use refspecs::{AsRefspecs, Refspec, SpecialRefs};
 
 pub mod error;
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::ops::Deref;
 
 use radicle::crypto::{PublicKey, Unverified, Verified};
-use radicle::git::url;
+use radicle::git::{url, Namespaced};
 use radicle::prelude::{Doc, Id, NodeId};
 use radicle::storage::git::Repository;
 use radicle::storage::refs::IDENTITY_BRANCH;
@@ -29,7 +29,7 @@ pub struct StagingPhaseInitial<'a> {
     /// The original [`Storage`] we are finalising changes into.
     production: &'a Storage,
     /// The `Namespaces` passed by the fetching caller.
-    namespaces: Namespaces,
+    pub(super) namespaces: Namespaces,
     _tmp: tempfile::TempDir,
 }
 
@@ -51,8 +51,36 @@ impl Deref for StagedRepository {
 
     fn deref(&self) -> &Self::Target {
         match self {
-            StagedRepository::Cloning(repo) => repo,
-            StagedRepository::Fetching(repo) => repo,
+            Self::Cloning(repo) => repo,
+            Self::Fetching(repo) => repo,
+        }
+    }
+}
+
+pub enum FinalStagedRepository {
+    Cloning {
+        repo: Repository,
+        trusted: HashSet<NodeId>,
+    },
+    Fetching {
+        repo: Repository,
+        refs: BTreeSet<Namespaced<'static>>,
+    },
+}
+
+impl FinalStagedRepository {
+    pub fn is_cloning(&self) -> bool {
+        matches!(self, Self::Cloning { .. })
+    }
+}
+
+impl Deref for FinalStagedRepository {
+    type Target = Repository;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Cloning { repo, .. } => repo,
+            Self::Fetching { repo, .. } => repo,
         }
     }
 }
@@ -70,13 +98,9 @@ impl Deref for StagedRepository {
 /// [`StagingPhaseFinal::transfer`].
 pub struct StagingPhaseFinal<'a> {
     /// The inner [`Repository`] for staging fetches into.
-    pub(super) repo: StagedRepository,
+    pub(super) repo: FinalStagedRepository,
     /// The original [`Storage`] we are finalising changes into.
     production: &'a Storage,
-    /// The delegates and tracked remotes that the fetch is being
-    /// performed for. These are passed through from the
-    /// [`StagingPhaseInitial::namespaces`], if the variant is `Trusted`.
-    trusted: HashSet<RemoteId>,
     _tmp: tempfile::TempDir,
 }
 
@@ -128,15 +152,34 @@ impl<'a> StagingPhaseInitial<'a> {
         }
     }
 
+    pub fn ls_remote_refs(&self) -> Vec<git::PatternString> {
+        match &self.namespaces {
+            Namespaces::All => {
+                vec![git::refspec::pattern!("refs/namespaces/*")]
+            }
+            Namespaces::Trusted(trusted) => trusted
+                .iter()
+                .map(|ns| {
+                    git::refname!("refs/namespaces")
+                        .join(git::Component::from(ns))
+                        .with_pattern(git::refspec::STAR)
+                })
+                .collect::<Vec<_>>(),
+        }
+    }
+
     /// Convert the [`StagingPhaseInitial`] into [`StagingPhaseFinal`] to continue
     /// the fetch process.
-    pub fn into_final(self) -> Result<StagingPhaseFinal<'a>, error::Transition> {
-        let trusted = match &self.repo {
+    pub fn into_final(
+        self,
+        refs: BTreeSet<Namespaced<'static>>,
+    ) -> Result<StagingPhaseFinal<'a>, error::Transition> {
+        let repo = match self.repo {
             StagedRepository::Cloning(repo) => {
-                log::debug!(target: "worker", "Loading remotes for clone of {}", self.repo.id);
-                let oid = ReadRepository::identity_head(repo)?;
+                log::debug!(target: "worker", "Loading remotes for clone of {}", repo.id);
+                let oid = ReadRepository::identity_head(&repo)?;
                 log::trace!(target: "worker", "Loading 'rad/id' @ {oid}");
-                let (doc, _) = Doc::<Unverified>::load_at(oid, repo)?;
+                let (doc, _) = Doc::<Unverified>::load_at(oid, &repo)?;
                 let doc = doc.verified()?;
                 let mut trusted = match self.namespaces.clone() {
                     Namespaces::All => HashSet::new(),
@@ -144,26 +187,14 @@ impl<'a> StagingPhaseInitial<'a> {
                 };
                 let delegates = doc.delegates.map(PublicKey::from);
                 trusted.extend(delegates);
-                trusted
+                FinalStagedRepository::Cloning { repo, trusted }
             }
-            StagedRepository::Fetching(repo) => {
-                log::debug!(target: "worker", "Loading remotes for fetching of {}", self.repo.id);
-                match self.namespaces.clone() {
-                    Namespaces::All => {
-                        let mut trusted = repo.remote_ids()?.collect::<Result<HashSet<_>, _>>()?;
-                        trusted.extend(repo.delegates()?.map(PublicKey::from));
-                        trusted
-                    }
-
-                    Namespaces::Trusted(trusted) => trusted,
-                }
-            }
+            StagedRepository::Fetching(repo) => FinalStagedRepository::Fetching { repo, refs },
         };
 
         Ok(StagingPhaseFinal {
-            repo: self.repo,
+            repo,
             production: self.production,
-            trusted,
             _tmp: self._tmp,
         })
     }
@@ -218,14 +249,11 @@ impl<'a> StagingPhaseFinal<'a> {
     /// Return the fetch refspecs for fetching the necessary
     /// references.
     pub fn refspecs(&self) -> Vec<Refspec<git::PatternString, git::PatternString>> {
-        match self.repo {
-            StagedRepository::Cloning(_) => Namespaces::Trusted(self.trusted.clone()).as_refspecs(),
-            StagedRepository::Fetching(_) => {
-                self.remotes().fold(Vec::new(), |mut specs, remote| {
-                    specs.extend(remote.as_refspecs());
-                    specs
-                })
+        match &self.repo {
+            FinalStagedRepository::Cloning { trusted, .. } => {
+                Namespaces::Trusted(trusted.clone()).as_refspecs()
             }
+            FinalStagedRepository::Fetching { refs, .. } => refs.as_refspecs(),
         }
     }
 
@@ -245,10 +273,10 @@ impl<'a> StagingPhaseFinal<'a> {
     /// All references that were updated are returned as a
     /// [`RefUpdate`].
     pub fn transfer(self) -> Result<(Vec<RefUpdate>, HashSet<NodeId>), error::Transfer> {
-        let verifications = self.verify();
+        let verifications = self.verify()?;
         let production = match &self.repo {
-            StagedRepository::Cloning(repo) => self.production.create(repo.id)?,
-            StagedRepository::Fetching(repo) => self.production.repository(repo.id)?,
+            FinalStagedRepository::Cloning { repo, .. } => self.production.create(repo.id)?,
+            FinalStagedRepository::Fetching { repo, .. } => self.production.repository(repo.id)?,
         };
         let url = url::File::new(self.repo.path().to_path_buf()).to_string();
         let mut remote = production.backend.remote_anonymous(&url)?;
@@ -373,14 +401,22 @@ impl<'a> StagingPhaseFinal<'a> {
         Ok((updates, remotes))
     }
 
-    fn remotes(&self) -> impl Iterator<Item = Remote> + '_ {
-        self.trusted
-            .iter()
-            .filter_map(|remote| self.repo.remote(remote).ok())
+    fn remotes(&self) -> Result<Box<dyn Iterator<Item = Remote> + '_>, git::raw::Error> {
+        match &self.repo {
+            FinalStagedRepository::Cloning { trusted, .. } => Ok(Box::new(
+                trusted
+                    .iter()
+                    .filter_map(|remote| self.repo.remote(remote).ok()),
+            )),
+            FinalStagedRepository::Fetching { repo, .. } => Ok(Box::new(
+                repo.remotes()?.filter_map(|r| r.ok().map(|(_, r)| r)),
+            )),
+        }
     }
 
-    fn verify(&self) -> BTreeMap<RemoteId, VerifiedRemote> {
-        self.remotes()
+    fn verify(&self) -> Result<BTreeMap<RemoteId, VerifiedRemote>, git::raw::Error> {
+        Ok(self
+            .remotes()?
             .map(|remote| {
                 let remote_id = remote.id;
                 let verification = match self.repo.identity_doc_of(&remote_id) {
@@ -400,7 +436,7 @@ impl<'a> StagingPhaseFinal<'a> {
                 };
                 (remote_id, verification)
             })
-            .collect()
+            .collect())
     }
 }
 

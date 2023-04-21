@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::Write as _;
 
@@ -154,6 +155,26 @@ impl AsRefspecs for Remote {
                     src: name.clone(),
                     dst: name,
                     force: true,
+                }
+            })
+            .collect()
+    }
+}
+
+impl<'a> AsRefspecs for BTreeSet<git::Namespaced<'a>> {
+    fn as_refspecs(&self) -> Vec<Refspec<git::PatternString, git::PatternString>> {
+        let reserved = [(*IDENTITY_BRANCH).clone(), (*SIGREFS_BRANCH).clone()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        self.iter()
+            .map(|r| {
+                // Only force ordinary refs.
+                let suffix = r.strip_namespace();
+                let force = !reserved.contains(&suffix);
+                Refspec {
+                    src: r.clone().to_ref_string().into(),
+                    dst: r.clone().to_ref_string().into(),
+                    force,
                 }
             })
             .collect()
