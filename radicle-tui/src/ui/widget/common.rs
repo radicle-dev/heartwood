@@ -1,8 +1,9 @@
 use radicle::Profile;
-use tuirealm::props::{AttrValue, Attribute};
+use tuirealm::props::{AttrValue, Attribute, PropPayload, PropValue, TextSpan};
 use tuirealm::MockComponent;
 
 use crate::ui;
+use crate::ui::components::common::container::Header;
 
 use ui::components::common::container::{GlobalListener, LabeledContainer, Tabs};
 use ui::components::common::context::{Shortcut, Shortcuts};
@@ -26,17 +27,26 @@ pub fn label(content: &str) -> Widget<Label> {
         .width(width)
 }
 
+pub fn container_header(theme: &Theme, label: &str) -> Widget<Header> {
+    let content = AttrValue::Payload(PropPayload::Vec(vec![PropValue::TextSpan(
+        TextSpan::from(&format!(" {label} ")).fg(theme.colors.default_fg),
+    )]));
+    let widths = AttrValue::Payload(PropPayload::Vec(vec![PropValue::U16(100)]));
+
+    Widget::new(Header::default())
+        .content(content)
+        .custom("widths", widths)
+}
+
 pub fn labeled_container(
     theme: &Theme,
     title: &str,
     component: Box<dyn MockComponent>,
 ) -> Widget<LabeledContainer> {
-    let title = label(&format!(" {title} "))
-        .foreground(theme.colors.default_fg)
-        .background(theme.colors.labeled_container_bg);
-    let container = LabeledContainer::new(title, component);
+    let header = container_header(theme, title);
+    let container = LabeledContainer::new(header, component);
 
-    Widget::new(container).background(theme.colors.labeled_container_bg)
+    Widget::new(container)
 }
 
 pub fn shortcut(theme: &Theme, short: &str, long: &str) -> Widget<Shortcut> {
