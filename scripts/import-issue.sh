@@ -5,19 +5,34 @@
 set -e
 
 if ! command -v curl > /dev/null; then
-  echo "Error: curl is not installed"
-  exit 1
+  echo "Error: curl is not installed" ; exit 1
 fi
 
 if ! command -v jq > /dev/null; then
-  echo "Error: jq is not installed"
-  exit 1
+  echo "Error: jq is not installed" ; exit 1
 fi
 
 if ! command -v rad > /dev/null; then
-  echo "Error: rad is not installed"
-  exit 1
+  echo "Error: rad is not installed" ; exit 1
 fi
+
+if ! command -v pcregrep > /dev/null; then
+  echo "Error: pcregrep is not installed" ; exit 1
+fi
+
+if ! command -v sed > /dev/null; then
+  echo "Error: sed is not installed" ; exit 1
+fi
+
+function removeImgTags {
+  local html="$(cat)"
+  local imgTags="$(echo "$html" | pcregrep -M '<img [^>]*>')"
+
+  for imgTag in "$imgTags"; do
+    html="$(echo "$html" | sed -z "s@$imgTag@@")"
+  done
+  echo "$html"
+}
 
 # Check if the correct number of arguments is provided
 if [ "$#" -ne 3 ]; then
@@ -36,7 +51,7 @@ response="$(curl -s "$url")"
 
 # Extract the title and body from the JSON response
 title="$(echo "$response" | jq -r '.title')"
-body="$(echo "$response" | jq -r '.body')"
+body="$(echo "$response" | jq -r '.body' | removeImgTags)"
 labels="$(echo "$response" | jq -r '.labels | .[].name')"
 
 tags=()
