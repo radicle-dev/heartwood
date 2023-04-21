@@ -202,7 +202,15 @@ impl Args for Options {
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val)
-                    if op.is_some() && op != Some(OperationName::List) && patch_id.is_none() =>
+                    if patch_id.is_none()
+                        && [
+                            Some(OperationName::Show),
+                            Some(OperationName::Update),
+                            Some(OperationName::Delete),
+                            Some(OperationName::Archive),
+                            Some(OperationName::Checkout),
+                        ]
+                        .contains(&op) =>
                 {
                     let val = string(&val);
                     patch_id = Some(Rev::from(val));
