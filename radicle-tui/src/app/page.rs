@@ -81,8 +81,7 @@ impl ViewPage for Home {
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
-        let navigation_h = 1u16;
-        let layout = layout::default_page(area, navigation_h);
+        let layout = layout::default_page(area);
 
         app.view(&Cid::Home(HomeCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
@@ -145,9 +144,7 @@ impl ViewPage for PatchView {
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
-        let navigation_h = 2u16;
-
-        let layout = layout::default_page(area, navigation_h);
+        let layout = layout::default_page(area);
 
         app.view(&Cid::Patch(PatchCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);

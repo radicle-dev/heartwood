@@ -25,6 +25,7 @@ pub struct Icons {
     pub property_divider: char,
     pub shortcutbar_divider: char,
     pub tab_divider: char,
+    pub tab_overline: char,
     pub whitespace: char,
 }
 
@@ -55,7 +56,7 @@ pub fn default_dark() -> Theme {
         colors: Colors {
             default_fg: Color::Rgb(200, 200, 200),
             tabs_fg: Color::Rgb(100, 100, 100),
-            tabs_highlighted_fg: Color::Rgb(38, 162, 105),
+            tabs_highlighted_fg: Color::Rgb(85, 85, 255),
             workspaces_info_fg: Color::Rgb(220, 140, 40),
             labeled_container_bg: Color::Rgb(20, 20, 20),
             item_list_highlighted_bg: Color::Rgb(40, 40, 40),
@@ -74,6 +75,7 @@ pub fn default_dark() -> Theme {
             property_divider: '∙',
             shortcutbar_divider: '∙',
             tab_divider: '|',
+            tab_overline: '▔',
             whitespace: ' ',
         },
     }

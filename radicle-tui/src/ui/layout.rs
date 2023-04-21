@@ -46,7 +46,8 @@ pub fn h_stack(
     widgets.into_iter().zip(layout.into_iter()).collect()
 }
 
-pub fn default_page(area: Rect, nav_h: u16) -> Vec<Rect> {
+pub fn default_page(area: Rect) -> Vec<Rect> {
+    let nav_h = 3u16;
     let margin_h = 1u16;
     let content_h = area.height.saturating_sub(nav_h.saturating_add(margin_h));
 

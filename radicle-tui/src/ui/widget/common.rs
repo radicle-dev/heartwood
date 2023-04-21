@@ -27,6 +27,11 @@ pub fn label(content: &str) -> Widget<Label> {
         .width(width)
 }
 
+pub fn reversable_label(content: &str) -> Widget<Label> {
+    let content = &format!(" {content} ");
+    label(content)
+}
+
 pub fn container_header(theme: &Theme, label: &str) -> Widget<Header> {
     let content = AttrValue::Payload(PropPayload::Vec(vec![PropValue::TextSpan(
         TextSpan::from(&format!(" {label} ")).fg(theme.colors.default_fg),
@@ -112,13 +117,11 @@ pub fn property_list(_theme: &Theme, properties: Vec<Widget<Property>>) -> Widge
 }
 
 pub fn tabs(theme: &Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
-    let divider = label(&theme.icons.tab_divider.to_string());
-    let tabs = Tabs::new(tabs, divider);
+    let line =
+        label(&theme.icons.tab_overline.to_string()).foreground(theme.colors.tabs_highlighted_fg);
+    let tabs = Tabs::new(tabs, line);
 
-    Widget::new(tabs)
-        .height(1)
-        .foreground(theme.colors.tabs_fg)
-        .highlight(theme.colors.tabs_highlighted_fg)
+    Widget::new(tabs).height(2)
 }
 
 pub fn table(

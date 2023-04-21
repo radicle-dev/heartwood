@@ -1,14 +1,15 @@
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{
     AttrValue, Attribute, BorderSides, BorderType, Color, PropPayload, PropValue, Props, Style,
+    TextModifiers,
 };
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
-use tuirealm::tui::text::{Span, Spans};
 use tuirealm::tui::widgets::{Block, Cell, Row};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::components::common::label::Label;
 use crate::ui::ext::HeaderBlock;
+use crate::ui::layout;
 use crate::ui::state::TabState;
 use crate::ui::widget::{Widget, WidgetComponent};
 
@@ -35,16 +36,16 @@ impl WidgetComponent for GlobalListener {
 #[derive(Clone)]
 pub struct Tabs {
     tabs: Vec<Widget<Label>>,
-    divider: Widget<Label>,
+    line: Widget<Label>,
     state: TabState,
 }
 
 impl Tabs {
-    pub fn new(tabs: Vec<Widget<Label>>, divider: Widget<Label>) -> Self {
+    pub fn new(tabs: Vec<Widget<Label>>, line: Widget<Label>) -> Self {
         let count = &tabs.len();
         Self {
             tabs,
-            divider,
+            line,
             state: TabState {
                 selected: 0,
                 len: *count as u16,
@@ -59,27 +60,46 @@ impl WidgetComponent for Tabs {
         let display = properties
             .get_or(Attribute::Display, AttrValue::Flag(true))
             .unwrap_flag();
-        let foreground = properties
-            .get_or(Attribute::Foreground, AttrValue::Color(Color::Reset))
-            .unwrap_color();
-        let highlight = properties
-            .get_or(Attribute::HighlightedColor, AttrValue::Color(Color::Reset))
-            .unwrap_color();
 
         if display {
-            let spans = self
-                .tabs
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(vec![
+                    Constraint::Length(1),
+                    Constraint::Length(1),
+                    Constraint::Length(1),
+                ])
+                .split(area);
+
+            // Render tabs on first row, highlighting the selected tab.
+            let mut tabs = vec![];
+            for (index, tab) in self.tabs.iter().enumerate() {
+                let mut tab = tab.clone().to_boxed();
+                if index == selected as usize {
+                    tab.attr(
+                        Attribute::TextProps,
+                        AttrValue::TextModifiers(TextModifiers::REVERSED),
+                    );
+                }
+                tabs.push(tab.clone().to_boxed() as Box<dyn MockComponent>);
+            }
+            tabs.push(Widget::new(Label::default()).to_boxed());
+
+            let tab_layout = layout::h_stack(tabs, layout[1]);
+            for (mut tab, area) in tab_layout {
+                tab.view(frame, area);
+            }
+
+            // Repeat and render line on second row.
+            let overlines = vec![self.line.clone(); area.width as usize];
+            let overlines = overlines
                 .iter()
-                .map(|tab| Spans::from(vec![Span::from(tab)]))
-                .collect::<Vec<_>>();
-
-            let tabs = tuirealm::tui::widgets::Tabs::new(spans)
-                .style(Style::default().fg(foreground))
-                .highlight_style(Style::default().fg(highlight))
-                .divider(Span::from(&self.divider))
-                .select(selected as usize);
-
-            frame.render_widget(tabs, area);
+                .map(|l| l.clone().to_boxed() as Box<dyn MockComponent>)
+                .collect();
+            let line_layout = layout::h_stack(overlines, layout[2]);
+            for (mut line, area) in line_layout {
+                line.view(frame, area);
+            }
         }
     }
 

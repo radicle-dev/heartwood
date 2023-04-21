@@ -15,7 +15,10 @@ use crate::ui::theme::Theme;
 pub fn navigation(theme: &Theme) -> Widget<Tabs> {
     common::tabs(
         theme,
-        vec![common::label("activity"), common::label("files")],
+        vec![
+            common::reversable_label("activity").foreground(theme.colors.tabs_highlighted_fg),
+            common::reversable_label("files").foreground(theme.colors.tabs_highlighted_fg),
+        ],
     )
 }
 

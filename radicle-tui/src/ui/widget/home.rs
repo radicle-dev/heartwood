@@ -13,9 +13,9 @@ pub fn navigation(theme: &Theme) -> Widget<Tabs> {
     common::tabs(
         theme,
         vec![
-            common::label("dashboard"),
-            common::label("issues"),
-            common::label("patches"),
+            common::reversable_label("dashboard").foreground(theme.colors.tabs_highlighted_fg),
+            common::reversable_label("issues").foreground(theme.colors.tabs_highlighted_fg),
+            common::reversable_label("patches").foreground(theme.colors.tabs_highlighted_fg),
         ],
     )
 }
