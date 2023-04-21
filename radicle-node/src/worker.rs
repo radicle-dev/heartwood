@@ -2,7 +2,7 @@ mod channels;
 mod fetch;
 mod tunnel;
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::io::{prelude::*, BufReader};
 use std::ops::ControlFlow;
 use std::thread::JoinHandle;
@@ -13,7 +13,7 @@ use crossbeam_channel as chan;
 use radicle::identity::Id;
 use radicle::prelude::NodeId;
 use radicle::storage::{Namespaces, ReadRepository, RefUpdate};
-use radicle::{git, Storage};
+use radicle::{git, storage, Storage};
 
 use crate::runtime::Handle;
 use crate::wire::StreamId;
@@ -230,35 +230,44 @@ impl Worker {
         mut channels: Channels,
     ) -> Result<(Vec<RefUpdate>, HashSet<NodeId>), FetchError> {
         let staging = fetch::StagingPhaseInitial::new(&self.storage, rid, namespaces.clone())?;
-        match self._fetch(
-            &staging.repo,
-            remote,
-            staging.refspecs(),
-            stream,
-            &mut channels,
-        ) {
-            Ok(()) => log::debug!(target: "worker", "Initial fetch for {rid} exited successfully"),
-            Err(e) => match (&staging.repo, e) {
-                // When fetching, if the error comes from `git-fetch` returning an error, we
-                // keep going because it could be due to a rejected ref (eg. on `rad/sigrefs`),
-                // and that is non-fatal.
-                (fetch::StagedRepository::Fetching(_), e @ FetchError::CommandFailed { .. }) => {
-                    log::warn!(target: "worker", "Initial fetch for {rid} returned an error: {e}");
-                    log::warn!(target: "worker", "It's possible that some of the refs were rejected..");
+        let refs = if staging.repo.is_cloning() {
+            match self._fetch(
+                &staging.repo,
+                staging.repo.is_cloning(),
+                remote,
+                staging.refspecs(),
+                stream,
+                &mut channels,
+            ) {
+                Ok(_) => {
+                    log::debug!(target: "worker", "Initial fetch for {rid} exited successfully")
                 }
-                // When cloning, any error is fatal, since we'll end up with an empty repository.
-                // Likewise, when fetching, if the error is coming from some other place, we
-                // abort the fetch.
-                (fetch::StagedRepository::Cloning(_) | fetch::StagedRepository::Fetching(_), e) => {
+                Err(e) => {
                     log::error!(target: "worker", "Initial fetch for {rid} failed: {e}");
                     return Err(e);
                 }
-            },
-        }
+            }
+            // TODO(finto): we need to return an empty set here.  The
+            // crux of the matter is that dip into the fetch module
+            // when we want to setup and data and pop out into this
+            // module when we want to execute I/O, but now our fetch
+            // module depends on data returned by the I/O action
+            BTreeSet::new()
+        } else {
+            self.ls_refs(
+                &staging.repo,
+                staging.ls_remote_refs(),
+                remote,
+                stream,
+                &mut channels,
+            )?
+        };
 
-        let staging = staging.into_final()?;
+        let staging = staging.into_final(refs)?;
+
         match self._fetch(
             &staging.repo,
+            staging.repo.is_cloning(),
             remote,
             staging.refspecs(),
             stream,
@@ -370,9 +379,86 @@ impl Worker {
         })
     }
 
-    fn _fetch<S>(
+    fn ls_refs(
         &self,
         repo: &fetch::StagedRepository,
+        namespaces: impl IntoIterator<Item = git::PatternString>,
+        remote: NodeId,
+        stream: StreamId,
+        channels: &mut Channels,
+    ) -> Result<BTreeSet<git::Namespaced<'static>>, FetchError> {
+        let mut tunnel = Tunnel::with(channels, stream, self.nid, remote, self.handle.clone())?;
+        let tunnel_addr = tunnel.local_addr();
+        let mut cmd = process::Command::new("git");
+        cmd.current_dir(repo.path())
+            .env_clear()
+            .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT_TRACE")))
+            .envs(git::env::GIT_DEFAULT_CONFIG)
+            .args(["-c", "protocol.version=2"])
+            .arg("ls-remote")
+            .arg(format!("git://{tunnel_addr}/{}", repo.id.canonical()));
+
+        for ns in namespaces.into_iter() {
+            cmd.arg(ns.as_str());
+        }
+
+        cmd.stdout(process::Stdio::piped())
+            .stderr(process::Stdio::piped())
+            .stdin(process::Stdio::piped());
+
+        log::debug!(target: "worker", "Running command: {:?}", cmd);
+
+        let mut child = cmd.spawn()?;
+        let stderr = child.stderr.take().unwrap();
+        let stdout = child.stdout.take().unwrap();
+
+        thread::Builder::new().name(self.name.clone()).spawn(|| {
+            for line in BufReader::new(stderr).lines().flatten() {
+                log::debug!(target: "worker", "Git: {}", line);
+            }
+        })?;
+
+        tunnel.run(self.timeout)?;
+
+        let result = child.wait()?;
+        if result.success() {
+            let mut refs = BTreeSet::new();
+
+            for line in BufReader::new(stdout).lines().flatten() {
+                log::debug!(target: "worker", "Git: {line}");
+                let r = match line.split_whitespace().next_back() {
+                    Some(r) => r,
+                    None => {
+                        log::trace!(target: "worker", "Git: ls-remote returned unexpected format {line}");
+                        continue;
+                    }
+                };
+                match git::RefString::try_from(r) {
+                    Ok(r) => {
+                        if let Some(ns) = r.to_namespaced() {
+                            refs.insert(ns.to_owned());
+                        } else {
+                            log::debug!(target: "worker", "Git: non-namespaced ref '{r}'")
+                        }
+                    }
+                    Err(err) => {
+                        log::warn!(target: "worker", "Git: invalid refname '{r}' {err}")
+                    }
+                }
+            }
+
+            Ok(refs)
+        } else {
+            Err(FetchError::CommandFailed {
+                code: result.code().unwrap_or(1),
+            })
+        }
+    }
+
+    fn _fetch<S>(
+        &self,
+        repo: &storage::git::Repository,
+        is_cloning: bool,
         remote: NodeId,
         specs: S,
         stream: StreamId,
@@ -402,11 +488,11 @@ impl Worker {
             .into_refspecs()
             .into_iter()
             // Filter out our own refs, if we aren't cloning.
-            .filter(|fs| repo.is_cloning() || !fs.dst.starts_with(namespace.as_str()))
+            .filter(|fs| is_cloning || !fs.dst.starts_with(namespace.as_str()))
             .map(|spec| spec.to_string())
             .collect::<Vec<_>>();
 
-        if !repo.is_cloning() {
+        if !is_cloning {
             // Make sure we don't fetch our own refs via a glob pattern.
             fetchspecs.push(format!("^refs/namespaces/{}/*", self.nid));
         }
