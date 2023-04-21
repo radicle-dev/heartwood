@@ -1,5 +1,3 @@
-use tui_realm_stdlib::Phantom;
-
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{AttrValue, Attribute, Color, Props, Style};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
@@ -28,14 +26,6 @@ impl WidgetComponent for GlobalListener {
     fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
         CmdResult::None
     }
-}
-
-/// Some user events need to be handled globally (e.g. user presses key `q` to quit
-/// the application). This component can be used in conjunction with SubEventClause
-/// to handle those events.
-#[derive(Default, MockComponent)]
-pub struct GlobalPhantom {
-    component: Phantom,
 }
 
 /// A tab header that displays all labels horizontally aligned and separated

@@ -1,6 +1,5 @@
 use radicle::cob::patch::{Patch, PatchId};
 
-use tui_realm_stdlib::Phantom;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
@@ -127,12 +126,6 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<ContextBar> {
 }
 
 impl tuirealm::Component<Message, NoUserEvent> for Widget<Shortcuts> {
-    fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
-        None
-    }
-}
-
-impl tuirealm::Component<Message, NoUserEvent> for Phantom {
     fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
         None
     }
