@@ -69,15 +69,15 @@ impl List for (PatchId, Patch) {
         let author = format_author(patch, profile);
         let author = TextSpan::from(author).fg(theme.colors.browser_patch_list_author);
 
-        let tags = format_tags(patch);
-        let tags = TextSpan::from(tags).fg(theme.colors.browser_patch_list_tags);
+        let timestamp = format_timestamp(patch);
+        let timestamp = TextSpan::from(timestamp).fg(theme.colors.browser_patch_list_timestamp);
 
         let comments = format_comments(patch);
         let comments = TextSpan::from(comments).fg(theme.colors.browser_patch_list_comments);
 
-        let timestamp = format_timestamp(patch);
-        let timestamp = TextSpan::from(timestamp).fg(theme.colors.browser_patch_list_timestamp);
+        let tags = format_tags(patch);
+        let tags = TextSpan::from(tags).fg(theme.colors.browser_patch_list_tags);
 
-        vec![status, title, author, tags, comments, timestamp]
+        vec![status, title, author, timestamp, comments, tags]
     }
 }

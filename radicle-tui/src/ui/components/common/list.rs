@@ -1,16 +1,19 @@
 use radicle::Profile;
-use tuirealm::command::{Cmd, CmdResult, Direction};
+use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{
-    AttrValue, Attribute, Color, PropPayload, PropValue, Props, Style, TextModifiers, TextSpan,
+    AttrValue, Attribute, BorderSides, BorderType, Color, PropPayload, PropValue, Props, Style,
+    TextSpan,
 };
-use tuirealm::tui::layout::{Constraint, Rect};
-use tuirealm::tui::widgets::{Cell, Row, TableState};
+use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
+use tuirealm::tui::widgets::{Block, Cell, Row, TableState};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::components::common::label::Label;
 use crate::ui::layout;
 use crate::ui::theme::Theme;
 use crate::ui::widget::{Widget, WidgetComponent};
+
+use super::container::Header;
 
 pub trait List {
     fn row(&self, theme: &Theme, profile: &Profile) -> Vec<TextSpan>;
@@ -105,18 +108,17 @@ impl WidgetComponent for PropertyList {
 }
 
 pub struct Table {
+    header: Widget<Header>,
     state: TableState,
 }
 
-impl Default for Table {
-    fn default() -> Self {
+impl Table {
+    pub fn new(header: Widget<Header>) -> Self {
         let mut state = TableState::default();
         state.select(Some(0));
-        Self { state }
+        Self { header, state }
     }
-}
 
-impl Table {
     fn select_previous(&mut self) {
         let index = match self.state.selected() {
             Some(selected) if selected == 0 => 0,
@@ -133,18 +135,6 @@ impl Table {
             None => 0,
         };
         self.state.select(Some(index));
-    }
-
-    fn header<'a>(spans: Vec<PropValue>) -> Row<'a> {
-        Row::new(
-            spans
-                .iter()
-                .map(|span| {
-                    Cell::from(span.clone().unwrap_text_span().content)
-                        .style(Style::default().add_modifier(TextModifiers::BOLD))
-                })
-                .collect::<Vec<_>>(),
-        )
     }
 
     fn rows<'a>(spans: Vec<Vec<TextSpan>>) -> Vec<Row<'a>> {
@@ -173,19 +163,9 @@ impl WidgetComponent for Table {
         let content = properties
             .get_or(Attribute::Content, AttrValue::Table(vec![]))
             .unwrap_table();
-        let background = properties
-            .get_or(Attribute::Background, AttrValue::Color(Color::Reset))
-            .unwrap_color();
         let highlight = properties
             .get_or(Attribute::HighlightedColor, AttrValue::Color(Color::Reset))
             .unwrap_color();
-        let header = properties
-            .get_or(
-                Attribute::Custom("header"),
-                AttrValue::Payload(PropPayload::Vec(vec![])),
-            )
-            .unwrap_payload()
-            .unwrap_vec();
         let widths = properties
             .get_or(
                 Attribute::Custom("widths"),
@@ -194,18 +174,27 @@ impl WidgetComponent for Table {
             .unwrap_payload()
             .unwrap_vec();
 
-        let header = Self::header(header);
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(3), Constraint::Min(1)])
+            .split(area);
+
         let rows = Self::rows(content);
         let widths = Self::widths(widths);
 
-        let table = tuirealm::tui::widgets::Table::new(rows)
+        let rows = tuirealm::tui::widgets::Table::new(rows)
+            .block(
+                Block::default()
+                    .borders(BorderSides::BOTTOM | BorderSides::LEFT | BorderSides::RIGHT)
+                    .border_style(Style::default().fg(Color::Rgb(48, 48, 48)))
+                    .border_type(BorderType::Rounded),
+            )
             .highlight_style(Style::default().bg(highlight))
-            .style(Style::default().bg(background))
             .column_spacing(3u16)
-            .header(header)
             .widths(&widths);
 
-        frame.render_stateful_widget(table, area, &mut self.state);
+        self.header.view(frame, layout[0]);
+        frame.render_stateful_widget(rows, layout[1], &mut self.state);
     }
 
     fn state(&self) -> State {
@@ -213,6 +202,8 @@ impl WidgetComponent for Table {
     }
 
     fn perform(&mut self, properties: &Props, cmd: Cmd) -> CmdResult {
+        use tuirealm::command::Direction;
+
         let content = properties
             .get_or(Attribute::Content, AttrValue::Table(vec![]))
             .unwrap_table();

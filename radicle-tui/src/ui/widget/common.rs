@@ -38,6 +38,22 @@ pub fn container_header(theme: &Theme, label: &str) -> Widget<Header> {
         .custom("widths", widths)
 }
 
+pub fn table_header(theme: &Theme, labels: &[&str], widths: &[u16]) -> Widget<Header> {
+    let content = labels
+        .iter()
+        .map(|label| {
+            PropValue::TextSpan(TextSpan::from(label.to_string()).fg(theme.colors.default_fg))
+        })
+        .collect::<Vec<_>>();
+    let widths = AttrValue::Payload(PropPayload::Vec(
+        widths.iter().map(|w| PropValue::U16(*w)).collect(),
+    ));
+
+    Widget::new(Header::default())
+        .content(AttrValue::Payload(PropPayload::Vec(content)))
+        .custom("widths", widths)
+}
+
 pub fn labeled_container(
     theme: &Theme,
     title: &str,
@@ -105,12 +121,25 @@ pub fn tabs(theme: &Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
         .highlight(theme.colors.tabs_highlighted_fg)
 }
 
-pub fn table(theme: &Theme, items: &[impl List], profile: &Profile) -> Widget<Table> {
-    let table = Table::default();
+pub fn table(
+    theme: &Theme,
+    labels: &[&str],
+    widths: &[u16],
+    items: &[impl List],
+    profile: &Profile,
+) -> Widget<Table> {
     let items = items.iter().map(|item| item.row(theme, profile)).collect();
+
+    let header = table_header(theme, labels, widths);
+    let table = Table::new(header);
+
+    let widths = AttrValue::Payload(PropPayload::Vec(
+        widths.iter().map(|w| PropValue::U16(*w)).collect(),
+    ));
 
     Widget::new(table)
         .content(AttrValue::Table(items))
+        .custom("widths", widths)
         .background(theme.colors.labeled_container_bg)
         .highlight(theme.colors.item_list_highlighted_bg)
 }

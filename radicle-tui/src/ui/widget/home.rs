@@ -1,8 +1,6 @@
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::identity::{Id, Project};
 use radicle::Profile;
-use tuirealm::props::{PropPayload, PropValue, TextSpan};
-use tuirealm::AttrValue;
 
 use crate::ui::components::common::container::Tabs;
 use crate::ui::components::common::Browser;
@@ -63,26 +61,10 @@ pub fn patches(
         ],
     );
 
-    let widths = AttrValue::Payload(PropPayload::Vec(vec![
-        PropValue::U16(2),
-        PropValue::U16(43),
-        PropValue::U16(15),
-        PropValue::U16(15),
-        PropValue::U16(5),
-        PropValue::U16(20),
-    ]));
-    let header = AttrValue::Payload(PropPayload::Vec(vec![
-        PropValue::TextSpan(TextSpan::from("")),
-        PropValue::TextSpan(TextSpan::from("title")),
-        PropValue::TextSpan(TextSpan::from("author")),
-        PropValue::TextSpan(TextSpan::from("tags")),
-        PropValue::TextSpan(TextSpan::from("comments")),
-        PropValue::TextSpan(TextSpan::from("date")),
-    ]));
+    let labels = vec!["", "title", "author", "time", "comments", "tags"];
+    let widths = vec![3u16, 42, 15, 10, 5, 25];
 
-    let table = common::table(theme, items, profile)
-        .custom("widths", widths)
-        .custom("header", header);
+    let table = common::table(theme, &labels, &widths, items, profile);
     let browser: Browser<(PatchId, Patch)> = Browser::new(table, shortcuts);
 
     Widget::new(browser)
