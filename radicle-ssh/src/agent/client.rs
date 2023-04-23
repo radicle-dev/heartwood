@@ -40,6 +40,12 @@ pub enum Error {
     Signature(Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
+impl Error {
+    pub fn is_not_running(&self) -> bool {
+        matches!(self, Self::EnvVar("SSH_AUTH_SOCK"))
+    }
+}
+
 /// SSH agent client.
 pub struct AgentClient<S> {
     stream: S,

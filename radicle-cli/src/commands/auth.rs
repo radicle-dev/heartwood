@@ -91,11 +91,18 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     let profile = Profile::init(home, passphrase.clone())?;
     spinner.finish();
 
-    let spinner = term::spinner("Adding your radicle key to ssh-agent...");
-    if register(&profile, passphrase).is_ok() {
-        spinner.finish();
-    } else {
-        spinner.warn();
+    match ssh::agent::Agent::connect() {
+        Ok(mut agent) => {
+            let mut spinner = term::spinner("Adding your radicle key to ssh-agent...");
+            if register(&mut agent, &profile, passphrase).is_ok() {
+                spinner.finish();
+            } else {
+                spinner.message("Could not register radicle key in ssh-agent.");
+                spinner.warn();
+            }
+        }
+        Err(e) if e.is_not_running() => {}
+        Err(e) => Err(e)?,
     }
 
     term::success!(
@@ -112,41 +119,58 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Try loading the identity's key into SSH Agent, falling back to verifying `RAD_PASSPHRASE` for
+/// use.
 pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
-    let agent = ssh::agent::Agent::connect()?;
+    // Authenticate with SSH Agent only if it is running.
+    match ssh::agent::Agent::connect() {
+        Ok(mut agent) => {
+            if agent.request_identities()?.contains(&profile.public_key) {
+                term::success!("Signing key already in ssh-agent");
+                return Ok(());
+            }
 
-    // TODO: Only show this if we're not authenticated.
-    term::headline(format!(
-        "Authenticating as {}",
-        term::format::Identity::new(profile).styled()
-    ));
+            term::headline(format!(
+                "Authenticating as {}",
+                term::format::Identity::new(profile).styled()
+            ));
 
-    let profile = &profile;
-    if !agent.signer(profile.public_key).is_ready()? {
-        term::warning("Adding your radicle key to ssh-agent...");
+            // TODO: We should show the spinner on the passphrase prompt,
+            // otherwise it seems like the passphrase is valid even if it isn't.
+            term::warning("Adding your radicle key to ssh-agent...");
+            let passphrase = if options.stdin {
+                term::passphrase_stdin()
+            } else {
+                term::passphrase(RAD_PASSPHRASE)
+            }?;
+            let spinner = term::spinner("Unlocking...");
+            register(&mut agent, profile, passphrase)?;
+            spinner.finish();
+            term::success!("Radicle key added to ssh-agent");
 
-        // TODO: We should show the spinner on the passphrase prompt,
-        // otherwise it seems like the passphrase is valid even if it isn't.
-        let passphrase = if options.stdin {
-            term::passphrase_stdin()
-        } else {
-            term::passphrase(RAD_PASSPHRASE)
-        }?;
-        let spinner = term::spinner("Unlocking...");
-        register(profile, passphrase)?;
-        spinner.finish();
-
-        term::success!("Radicle key added to ssh-agent");
-    } else {
-        term::success!("Signing key already in ssh-agent");
+            return Ok(());
+        }
+        Err(e) if e.is_not_running() => {}
+        Err(e) => Err(e)?,
     };
 
-    Ok(())
+    // Try RAD_PASSPHRASE fallback.
+    if let Some(passphrase) = profile::env::passphrase() {
+        ssh::keystore::MemorySigner::load(&profile.keystore, passphrase)
+            .map_err(|_| anyhow!("RAD_PASSPHRASE failed"))?;
+        return Ok(());
+    };
+
+    // ssh-agent is the de-facto solution.
+    anyhow::bail!("ssh-agent not running");
 }
 
 /// Register key with ssh-agent.
-pub fn register(profile: &Profile, passphrase: Passphrase) -> anyhow::Result<()> {
-    let mut agent = ssh::agent::Agent::connect()?;
+pub fn register(
+    agent: &mut ssh::agent::Agent,
+    profile: &Profile,
+    passphrase: Passphrase,
+) -> anyhow::Result<()> {
     let secret = profile
         .keystore
         .secret_key(passphrase)?
