@@ -116,7 +116,13 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 }
 
 pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
-    let agent = ssh::agent::Agent::connect()?;
+    let agent = match ssh::agent::Agent::connect() {
+        Err(ssh::agent::Error::EnvVar("SSH_AUTH_SOCK")) => {
+            term::warning("Authenticating without SSH Agent...");
+            return Ok(());
+        }
+        v => v,
+    }?;
 
     // TODO: Only show this if we're not authenticated.
     term::headline(format!(
