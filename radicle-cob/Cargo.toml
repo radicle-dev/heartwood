@@ -6,7 +6,7 @@ authors = [
   "Fintan Halpenny <fintan.halpenny@gmail.com>",
 ]
 edition = "2021"
-license = "GPL-3.0-or-later"
+license = "MIT OR Apache-2.0"
 description = "Library for implementing Radicle Collaborative Objects"
 keywords = ["radicle", "collaborative objects", "cob", "cobs"]
 

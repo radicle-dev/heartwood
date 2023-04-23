@@ -1,7 +1,4 @@
 // Copyright © 2022 The Radicle Link Contributors
-//
-// This file is part of radicle-link, distributed under the GPLv3 with Radicle
-// Linking Exception. For full terms see the included LICENSE file.
 
 //! [`ChangeGraphInfo`] provides a useful debugging structure for
 //! representing a single [`crate::CollaborativeObject`]'s underlying
