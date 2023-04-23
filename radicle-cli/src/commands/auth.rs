@@ -124,31 +124,28 @@ pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
         v => v,
     }?;
 
-    // TODO: Only show this if we're not authenticated.
+    if agent.signer(profile.public_key).is_ready()? {
+        term::success!("Signing key already in ssh-agent");
+        return Ok(());
+    }
     term::headline(format!(
         "🌱 Authenticating as {}",
         term::format::Identity::new(profile).styled()
     ));
 
-    let profile = &profile;
-    if !agent.signer(profile.public_key).is_ready()? {
-        term::warning("Adding your radicle key to ssh-agent...");
-
-        // TODO: We should show the spinner on the passphrase prompt,
-        // otherwise it seems like the passphrase is valid even if it isn't.
-        let passphrase = if options.stdin {
-            term::passphrase_stdin()
-        } else {
-            term::passphrase(RAD_PASSPHRASE)
-        }?;
-        let spinner = term::spinner("Unlocking...");
-        register(profile, passphrase)?;
-        spinner.finish();
-
-        term::success!("Radicle key added to ssh-agent");
+    // TODO: We should show the spinner on the passphrase prompt,
+    // otherwise it seems like the passphrase is valid even if it isn't.
+    term::warning("Adding your radicle key to ssh-agent...");
+    let passphrase = if options.stdin {
+        term::passphrase_stdin()
     } else {
-        term::success!("Signing key already in ssh-agent");
-    };
+        term::passphrase(RAD_PASSPHRASE)
+    }?;
+    let spinner = term::spinner("Unlocking...");
+    register(profile, passphrase)?;
+    spinner.finish();
+
+    term::success!("Radicle key added to ssh-agent");
 
     Ok(())
 }
