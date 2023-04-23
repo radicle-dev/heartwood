@@ -313,6 +313,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 Some(Assigned::Peer(id)) => Some(id.into()),
                 None => None,
             };
+            let whoami = profile.id();
 
             let mut t = term::Table::new(term::table::TableOptions::bordered());
             t.push([
@@ -337,7 +338,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
                 let assigned: String = assigned
                     .iter()
-                    .map(|p| term::format::did(p).to_string())
+                    .map(|p| {
+                        if p.to_string() == whoami.to_string() {
+                            "You".to_string()
+                        } else {
+                            term::format::did(p).to_string()
+                        }
+                    })
                     .collect::<Vec<_>>()
                     .join(", ");
 
