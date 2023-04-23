@@ -86,3 +86,9 @@ $ rad patch --merged
 │ ✓ merged by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [      ...        ]│
 ╰───────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
+
+To publish our new state to the network, we simply push:
+
+```
+$ git push
+```

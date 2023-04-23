@@ -769,4 +769,12 @@ fn rad_workflow() {
         [],
     )
     .unwrap();
+
+    test(
+        "examples/workflow/6-pulling-contributor.md",
+        &working.join("bob").join("heartwood"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
 }

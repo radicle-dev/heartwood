@@ -32,7 +32,7 @@ Check the remote configuration:
 
 ```
 $ git remote --verbose
-rad	rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (fetch)
+rad	rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji (fetch)
 rad	rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (push)
 ```
 

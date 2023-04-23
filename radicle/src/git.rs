@@ -375,10 +375,12 @@ pub fn write_tree<'r>(
 pub fn configure_remote<'r>(
     repo: &'r git2::Repository,
     name: &str,
-    url: &Url,
+    fetch: &Url,
+    push: &Url,
 ) -> Result<git2::Remote<'r>, git2::Error> {
-    let fetch = format!("+refs/heads/*:refs/remotes/{name}/*");
-    let remote = repo.remote_with_fetch(name, url.to_string().as_str(), &fetch)?;
+    let fetchspec = format!("+refs/heads/*:refs/remotes/{name}/*");
+    let remote = repo.remote_with_fetch(name, fetch.to_string().as_str(), &fetchspec)?;
+    repo.remote_set_pushurl(name, Some(push.to_string().as_str()))?;
 
     Ok(remote)
 }

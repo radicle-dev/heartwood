@@ -76,13 +76,10 @@ pub enum RemoteError {
 pub struct Remote<'a> {
     pub(crate) name: String,
     pub(crate) url: radicle::git::Url,
-    inner: git2::Remote<'a>,
-}
+    pub(crate) pushurl: Option<radicle::git::Url>,
 
-impl Remote<'_> {
-    pub fn refspecs(&self) -> git2::Refspecs {
-        self.inner.refspecs()
-    }
+    #[allow(dead_code)]
+    inner: git2::Remote<'a>,
 }
 
 impl<'a> TryFrom<git2::Remote<'a>> for Remote<'a> {
@@ -92,10 +89,16 @@ impl<'a> TryFrom<git2::Remote<'a>> for Remote<'a> {
         let url = value.url().map_or(Err(RemoteError::MissingUrl), |url| {
             Ok(radicle::git::Url::from_str(url)?)
         })?;
+        let pushurl = value
+            .pushurl()
+            .map(radicle::git::Url::from_str)
+            .transpose()?;
         let name = value.name().ok_or(RemoteError::MissingName)?;
+
         Ok(Self {
             name: name.to_owned(),
             url,
+            pushurl,
             inner: value,
         })
     }

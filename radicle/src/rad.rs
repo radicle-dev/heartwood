@@ -70,9 +70,9 @@ pub fn init<G: Signer, S: WriteStorage>(
     })?;
     let doc = identity::Doc::initial(proj, delegate).verified()?;
     let (project, _) = Repository::init(&doc, pk, storage, signer)?;
-    let url = git::Url::from(project.id).with_namespace(*pk);
+    let url = git::Url::from(project.id);
 
-    git::configure_remote(repo, &REMOTE_NAME, &url)?;
+    git::configure_remote(repo, &REMOTE_NAME, &url, &url.clone().with_namespace(*pk))?;
     git::push(
         repo,
         &REMOTE_NAME,
@@ -221,10 +221,15 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
     opts.no_reinit(true).description(project.description());
 
     let repo = git2::Repository::init_opts(path.as_ref(), &opts)?;
-    let url = git::Url::from(proj).with_namespace(*remote);
+    let url = git::Url::from(proj);
 
     // Configure and fetch all refs from remote.
-    git::configure_remote(&repo, &REMOTE_NAME, &url)?;
+    git::configure_remote(
+        &repo,
+        &REMOTE_NAME,
+        &url,
+        &url.clone().with_namespace(*remote),
+    )?;
     git::fetch(&repo, &REMOTE_NAME).map_err(CheckoutError::Fetch)?;
 
     {

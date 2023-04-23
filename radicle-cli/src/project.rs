@@ -22,7 +22,7 @@ impl<'a> SetupRemote<'a> {
     /// Run the setup for the given peer.
     pub fn run(&self, node: NodeId) -> anyhow::Result<Option<(Remote, RefString)>> {
         let url = radicle::git::Url::from(self.project).with_namespace(node);
-        let mut remote = radicle::git::configure_remote(self.repo, &node.to_string(), &url)?;
+        let mut remote = radicle::git::configure_remote(self.repo, &node.to_string(), &url, &url)?;
 
         // Fetch the refs into the working copy.
         if self.fetch {
