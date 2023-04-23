@@ -151,7 +151,7 @@ impl<T: AsRef<[u8]>> ChannelWriter<T> {
     /// the protocol via the usual means, which is to close the connection. Git also doesn't have
     /// any special message we can send to signal the end of the protocol.
     ///
-    /// Hence, we there's no other way for the server to know that we're done sending requests
+    /// Hence, there's no other way for the server to know that we're done sending requests
     /// than to send a special message outside the git protocol. This message can then be processed
     /// by the remote worker to end the protocol. We use the special "eof" control message for this.
     pub fn eof(&self) -> Result<(), chan::SendError<ChannelEvent<T>>> {

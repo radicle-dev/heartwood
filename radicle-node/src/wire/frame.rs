@@ -85,36 +85,27 @@ impl StreamId {
     /// Get the kind of stream this is.
     pub fn kind(&self) -> Result<StreamKind, u8> {
         let id = *self.0;
-        match (id >> 1) & 0b11 {
-            0 => Ok(StreamKind::Control),
-            1 => Ok(StreamKind::Gossip),
-            2 => Ok(StreamKind::Git),
-            n => Err(n as u8),
-        }
+        let kind = ((id >> 1) & 0b11) as u8;
+
+        StreamKind::try_from(kind)
     }
 
     /// Create a control identifier.
     pub fn control(link: Link) -> Self {
-        match link {
-            Link::Outbound => Self(VarInt::from(0b000u8)),
-            Link::Inbound => Self(VarInt::from(0b001u8)),
-        }
+        let link = if link.is_outbound() { 0 } else { 1 };
+        Self(VarInt::from((StreamKind::Control as u8) << 1 | link))
     }
 
     /// Create a gossip identifier.
     pub fn gossip(link: Link) -> Self {
-        match link {
-            Link::Outbound => Self(VarInt::from(0b010u8)),
-            Link::Inbound => Self(VarInt::from(0b011u8)),
-        }
+        let link = if link.is_outbound() { 0 } else { 1 };
+        Self(VarInt::from((StreamKind::Gossip as u8) << 1 | link))
     }
 
     /// Create a git identifier.
     pub fn git(link: Link) -> Self {
-        match link {
-            Link::Outbound => Self(VarInt::from(0b100u8)),
-            Link::Inbound => Self(VarInt::from(0b101u8)),
-        }
+        let link = if link.is_outbound() { 0 } else { 1 };
+        Self(VarInt::from((StreamKind::Git as u8) << 1 | link))
     }
 
     /// Get the nth identifier while preserving the stream type and initiator.
@@ -157,13 +148,27 @@ impl wire::Encode for StreamId {
 
 /// Type of stream.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
 pub enum StreamKind {
     /// Control stream, used to open and close streams.
-    Control,
+    Control = 0b00,
     /// Gossip stream, used to exchange messages.
-    Gossip,
+    Gossip = 0b01,
     /// Git stream, used for replication.
-    Git,
+    Git = 0b10,
+}
+
+impl TryFrom<u8> for StreamKind {
+    type Error = u8;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0b00 => Ok(StreamKind::Control),
+            0b01 => Ok(StreamKind::Gossip),
+            0b10 => Ok(StreamKind::Git),
+            n => Err(n),
+        }
+    }
 }
 
 /// Protocol frame.
@@ -355,5 +360,29 @@ impl wire::Encode for Frame {
             }
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_stream_id() {
+        assert_eq!(StreamId(VarInt(0b000)).kind().unwrap(), StreamKind::Control);
+        assert_eq!(StreamId(VarInt(0b010)).kind().unwrap(), StreamKind::Gossip);
+        assert_eq!(StreamId(VarInt(0b100)).kind().unwrap(), StreamKind::Git);
+        assert_eq!(StreamId(VarInt(0b001)).link(), Link::Inbound);
+        assert_eq!(StreamId(VarInt(0b000)).link(), Link::Outbound);
+        assert_eq!(StreamId(VarInt(0b101)).link(), Link::Inbound);
+        assert_eq!(StreamId(VarInt(0b100)).link(), Link::Outbound);
+
+        assert_eq!(StreamId::git(Link::Outbound), StreamId(VarInt(0b100)));
+        assert_eq!(StreamId::control(Link::Outbound), StreamId(VarInt(0b000)));
+        assert_eq!(StreamId::gossip(Link::Outbound), StreamId(VarInt(0b010)));
+
+        assert_eq!(StreamId::git(Link::Inbound), StreamId(VarInt(0b101)));
+        assert_eq!(StreamId::control(Link::Inbound), StreamId(VarInt(0b001)));
+        assert_eq!(StreamId::gossip(Link::Inbound), StreamId(VarInt(0b011)));
     }
 }
