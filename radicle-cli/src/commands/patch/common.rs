@@ -153,10 +153,10 @@ pub fn push_to_storage(
         }
 
         let output = match head_branch.upstream() {
-            Ok(_) => git::run::<_, _, &str, &str>(Path::new("."), ["push", "rad"], [])?,
+            Ok(_) => git::run::<_, _, &str, &str>(Path::new("."), ["push", "rad", "--force"], [])?,
             Err(_) => git::run::<_, _, &str, &str>(
                 Path::new("."),
-                ["push", "--set-upstream", "rad", branch_name(head_branch)?],
+                ["push", "--set-upstream", "rad", branch_name(head_branch)?, "--force"],
                 [],
             )?,
         };

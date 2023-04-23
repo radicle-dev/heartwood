@@ -164,7 +164,7 @@ impl Args for Options {
                     push = false;
                 }
 
-                // Show options.
+                 // Show options.
                 Long("patch") | Short('p') if op == Some(OperationName::Show) => {
                     diff = true;
                 }
