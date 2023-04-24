@@ -116,36 +116,50 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 }
 
 pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
-    let agent = match ssh::agent::Agent::connect() {
-        Err(ssh::agent::Error::EnvVar("SSH_AUTH_SOCK")) => {
-            term::warning("Authenticating without SSH Agent...");
-            return Ok(());
+    let use_ssh_agent = match ssh::agent::Agent::connect() {
+        Ok(agent) => {
+            if agent.signer(profile.public_key).is_ready()? {
+                term::success!("Signing key already in ssh-agent");
+                return Ok(());
+            }
+            true
         }
-        v => v,
-    }?;
+        Err(ssh::agent::Error::EnvVar("SSH_AUTH_SOCK")) => {
+            term::warning("ssh-agent not running...");
+            false
+        }
+        Err(e) => return Err(e.into()),
+    };
 
-    if agent.signer(profile.public_key).is_ready()? {
-        term::success!("Signing key already in ssh-agent");
-        return Ok(());
-    }
     term::headline(format!(
         "🌱 Authenticating as {}",
         term::format::Identity::new(profile).styled()
     ));
+    if use_ssh_agent {
+        // TODO: We should show the spinner on the passphrase prompt,
+        // otherwise it seems like the passphrase is valid even if it isn't.
+        term::warning("Adding your radicle key to ssh-agent...");
+        let passphrase = if options.stdin {
+            term::passphrase_stdin()
+        } else {
+            term::passphrase(RAD_PASSPHRASE)
+        }?;
+        let spinner = term::spinner("Unlocking...");
+        register(profile, passphrase)?;
+        spinner.finish();
 
-    // TODO: We should show the spinner on the passphrase prompt,
-    // otherwise it seems like the passphrase is valid even if it isn't.
-    term::warning("Adding your radicle key to ssh-agent...");
-    let passphrase = if options.stdin {
-        term::passphrase_stdin()
+        term::success!("Radicle key added to ssh-agent");
     } else {
-        term::passphrase(RAD_PASSPHRASE)
-    }?;
-    let spinner = term::spinner("Unlocking...");
-    register(profile, passphrase)?;
-    spinner.finish();
-
-    term::success!("Radicle key added to ssh-agent");
+        term::warning("Checking 'RAD_PASSPHRASE'...");
+        if let Some(passphrase) = profile::env::passphrase() {
+            ssh::keystore::MemorySigner::load(&profile.keystore, passphrase)?;
+            term::success!("Ok");
+        } else {
+            anyhow::bail!(
+                "Set the 'RAD_PASSPHRASE' environment variable to use without ssh-agent."
+            );
+        }
+    }
 
     Ok(())
 }
