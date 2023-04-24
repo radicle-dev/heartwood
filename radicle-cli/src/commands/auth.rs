@@ -66,6 +66,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 }
 
+/// Connect to the SSH Agent or None if its not present.
+#[inline]
+fn connect_ssh_agent() -> Result<Option<ssh::agent::Agent>, ssh::agent::Error> {
+    match ssh::agent::Agent::connect() {
+        Ok(agent) => Ok(Some(agent)),
+        Err(ssh::agent::Error::EnvVar("SSH_AUTH_SOCK")) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 pub fn init(options: Options) -> anyhow::Result<()> {
     term::headline(format!(
         "Initializing your {} 🌱 identity",
@@ -94,11 +104,13 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     let profile = Profile::init(home, passphrase.clone())?;
     spinner.finish();
 
-    let spinner = term::spinner("Adding your radicle key to ssh-agent...");
-    if register(&profile, passphrase).is_ok() {
-        spinner.finish();
-    } else {
-        spinner.warn();
+    if let Some(mut agent) = connect_ssh_agent()? {
+        let spinner = term::spinner("Adding your radicle key to ssh-agent...");
+        if register(&mut agent, &profile, passphrase).is_ok() {
+            spinner.finish();
+        } else {
+            spinner.warn();
+        }
     }
 
     term::success!(
@@ -115,17 +127,8 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[inline]
-fn connect_ssh_agent() -> anyhow::Result<Option<ssh::agent::Agent>> {
-    match ssh::agent::Agent::connect() {
-        Ok(agent) => Ok(Some(agent)),
-        Err(ssh::agent::Error::EnvVar("SSH_AUTH_SOCK")) => Ok(None),
-        Err(e) => return Err(e.into()),
-    }
-}
-
 pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
-    let mut agent = connect_ssh_agent()?;
+    let agent = connect_ssh_agent()?;
     let use_ssh_agent = match agent {
         Some(agent) => {
             if agent.signer(profile.public_key).is_ready()? {
@@ -151,33 +154,31 @@ pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
             term::passphrase(RAD_PASSPHRASE)
         }?;
         let spinner = term::spinner("Unlocking...");
-        register(profile, passphrase)?;
+        let mut agent = connect_ssh_agent()?.unwrap();
+        register(&mut agent, profile, passphrase)?;
         spinner.finish();
 
         term::success!("Radicle key added to ssh-agent");
+    } else if let Some(passphrase) = profile::env::passphrase() {
+        ssh::keystore::MemorySigner::load(&profile.keystore, passphrase)?;
+        term::success!("Ok");
     } else {
-        term::warning("Checking 'RAD_PASSPHRASE'...");
-        if let Some(passphrase) = profile::env::passphrase() {
-            ssh::keystore::MemorySigner::load(&profile.keystore, passphrase)?;
-            term::success!("Ok");
-        } else {
-            anyhow::bail!(
-                "Set the 'RAD_PASSPHRASE' environment variable to use without ssh-agent."
-            );
-        }
+        anyhow::bail!("Set the 'RAD_PASSPHRASE' environment variable to use without ssh-agent.");
     }
 
     Ok(())
 }
 
 /// Register key with ssh-agent.
-pub fn register(profile: &Profile, passphrase: Passphrase) -> anyhow::Result<()> {
-    let mut agent = ssh::agent::Agent::connect()?;
+pub fn register(
+    agent: &mut ssh::agent::Agent,
+    profile: &Profile,
+    passphrase: Passphrase,
+) -> anyhow::Result<()> {
     let secret = profile
         .keystore
         .secret_key(passphrase)?
         .ok_or_else(|| anyhow!("Key not found in {:?}", profile.keystore.path()))?;
-
     agent.register(&secret)?;
 
     Ok(())
