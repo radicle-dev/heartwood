@@ -70,7 +70,7 @@ Fast-forward
  create mode 100644 README.md
  create mode 100644 REQUIREMENTS.md
 ✓ Updated master f2de534 -> f6484e0 via fast-forward
-✓ Patch state updated, use `rad push` to publish
+✓ Patch state updated, use `git push rad` to publish
 ```
 
 The patch is now merged and closed :).

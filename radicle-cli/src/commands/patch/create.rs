@@ -132,7 +132,7 @@ pub fn run(
         }
     } else {
         term::info!("To publish your patch to the network, run:");
-        term::indented(term::format::secondary("rad push"));
+        term::indented(term::format::secondary("git push rad"));
     }
 
     Ok(())

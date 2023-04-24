@@ -298,7 +298,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     term::success!(
         "Patch state updated, use {} to publish",
-        term::format::secondary("`rad push`")
+        term::format::secondary("`git push rad`")
     );
 
     Ok(())

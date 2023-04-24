@@ -206,6 +206,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
 
     let mut node = radicle::Node::new(profile.socket());
     let mut spinner = term::spinner("Initializing...");
+    let mut push_cmd = String::from("git push");
 
     match radicle::rad::init(
         &repo,
@@ -242,6 +243,8 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                     proj.default_branch(),
                     &radicle::git::refs::workdir::branch(proj.default_branch()),
                 )?;
+            } else {
+                push_cmd = format!("git push {}", *radicle::rad::REMOTE_NAME);
             }
 
             if options.setup_signing {
@@ -277,7 +280,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             if !options.announce {
                 term::blank();
                 term::info!("To publish your project to the network, run:");
-                term::indented(term::format::secondary("rad push"));
+                term::indented(term::format::secondary(push_cmd));
             }
             term::blank();
         }

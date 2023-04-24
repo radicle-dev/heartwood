@@ -18,7 +18,7 @@ Your project id is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji. You can show it any time b
     rad .
 
 To publish your project to the network, run:
-    rad push
+    git push
 
 ```
 

@@ -34,7 +34,7 @@ master <- z6Mkt67…v4N1tRk/flux-capacitor-power (3e674d1)
 ✓ Patch a07ef7743a32a2e902672ea3526d1db6ee08108a created 🌱
 
 To publish your patch to the network, run:
-    rad push
+    git push rad
 ```
 
 It will now be listed as one of the project's open patches.
