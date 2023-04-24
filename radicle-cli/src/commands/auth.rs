@@ -115,20 +115,26 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[inline]
+fn connect_ssh_agent() -> anyhow::Result<Option<ssh::agent::Agent>> {
+    match ssh::agent::Agent::connect() {
+        Ok(agent) => Ok(Some(agent)),
+        Err(ssh::agent::Error::EnvVar("SSH_AUTH_SOCK")) => Ok(None),
+        Err(e) => return Err(e.into()),
+    }
+}
+
 pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
-    let use_ssh_agent = match ssh::agent::Agent::connect() {
-        Ok(agent) => {
+    let mut agent = connect_ssh_agent()?;
+    let use_ssh_agent = match agent {
+        Some(agent) => {
             if agent.signer(profile.public_key).is_ready()? {
                 term::success!("Signing key already in ssh-agent");
                 return Ok(());
             }
             true
         }
-        Err(ssh::agent::Error::EnvVar("SSH_AUTH_SOCK")) => {
-            term::warning("ssh-agent not running...");
-            false
-        }
-        Err(e) => return Err(e.into()),
+        None => false,
     };
 
     term::headline(format!(
