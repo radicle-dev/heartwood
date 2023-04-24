@@ -420,11 +420,11 @@ impl Message {
         let msg = match self {
             Self::Announcement(Announcement { node, message, .. }) => match message {
                 AnnouncementMessage::Node(NodeAnnouncement { addresses, .. }) => format!(
-                    "{verb} node announcement of {node} with {} addresses {prep} {remote}",
+                    "{verb} node announcement of {node} with {} address(es) {prep} {remote}",
                     addresses.len()
                 ),
                 AnnouncementMessage::Refs(RefsAnnouncement { rid, refs, .. }) => format!(
-                    "{verb} refs announcement of {node} for {rid} with {} remotes {prep} {remote}",
+                    "{verb} refs announcement of {node} for {rid} with {} remote(s) {prep} {remote}",
                     refs.len()
                 ),
                 AnnouncementMessage::Inventory(InventoryAnnouncement { inventory, .. }) => {
