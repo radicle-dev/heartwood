@@ -18,7 +18,7 @@ Now that the project is tracked we can fetch it and we will have it in
 our local storage.
 
 ```
-$ rad fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Fetched repository from 1 seed(s)
 ```

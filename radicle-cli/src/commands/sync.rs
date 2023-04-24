@@ -5,9 +5,9 @@ use std::{io, time};
 
 use anyhow::{anyhow, Context as _};
 
-use radicle::node::Event;
-use radicle::node::Handle as _;
-use radicle::prelude::{Id, NodeId};
+use radicle::node;
+use radicle::node::{Event, FetchResult, FetchResults, Handle as _, Node};
+use radicle::prelude::{Id, NodeId, Profile};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -20,11 +20,18 @@ pub const HELP: Help = Help {
 Usage
 
     rad sync [<rid>] [<option>...]
+    rad sync [<rid>] [--fetch] [--seed <nid>] [<option>...]
 
     By default, the current repository is synced.
 
+    When `--fetch` is specified, this command will fetch from
+    all connected seeds. To instead specify a seed, use the
+    `--seed <nid>` option in combination with `--fetch`.
+
 Options
 
+    --fetch, -f         Fetch from seeds instead of having seeds fetch from us
+    --seed <nid>        Seed to fetch from (use with `--fetch`)
     --timeout <secs>    How many seconds to wait while syncing
     --verbose, -v       Verbose output
     --help              Print help
@@ -33,10 +40,19 @@ Options
 };
 
 #[derive(Default, Debug)]
+pub enum SyncMode {
+    Fetch,
+    #[default]
+    Announce,
+}
+
+#[derive(Default, Debug)]
 pub struct Options {
     pub rid: Option<Id>,
+    pub seed: Option<NodeId>,
     pub verbose: bool,
     pub timeout: time::Duration,
+    pub mode: SyncMode,
 }
 
 impl Args for Options {
@@ -47,11 +63,21 @@ impl Args for Options {
         let mut verbose = false;
         let mut timeout = time::Duration::from_secs(9);
         let mut rid = None;
+        let mut seed = None;
+        let mut mode = SyncMode::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("verbose") | Short('v') => {
                     verbose = true;
+                }
+                Long("seed") if matches!(mode, SyncMode::Fetch) => {
+                    let val = parser.value()?;
+                    let val = term::args::nid(&val)?;
+                    seed = Some(val);
+                }
+                Long("fetch") | Short('f') => {
+                    mode = SyncMode::Fetch;
                 }
                 Long("timeout") | Short('t') => {
                     let value = parser.value()?;
@@ -76,6 +102,8 @@ impl Args for Options {
                 rid,
                 verbose,
                 timeout,
+                seed,
+                mode,
             },
             vec![],
         ))
@@ -95,7 +123,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     };
 
     let mut node = radicle::Node::new(profile.socket());
-    let events = node.subscribe(options.timeout)?;
+
+    match options.mode {
+        SyncMode::Announce => announce(rid, node, options.timeout),
+        SyncMode::Fetch => fetch(rid, profile, &mut node, options.seed),
+    }
+}
+
+fn announce(rid: Id, mut node: Node, timeout: time::Duration) -> anyhow::Result<()> {
+    let events = node.subscribe(timeout)?;
     let seeds = node.seeds(rid)?;
     let mut seeds = seeds.connected().collect::<BTreeSet<_>>();
 
@@ -143,4 +179,65 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         anyhow::bail!("all seeds timed out");
     }
     Ok(())
+}
+
+pub fn fetch(
+    rid: Id,
+    profile: Profile,
+    node: &mut Node,
+    seed: Option<NodeId>,
+) -> anyhow::Result<()> {
+    if !profile.tracking()?.is_repo_tracked(&rid)? {
+        anyhow::bail!("repository {rid} is not tracked");
+    }
+
+    let results = if let Some(seed) = seed {
+        let result = fetch_from(rid, &seed, node)?;
+        FetchResults::from(vec![(seed, result)])
+    } else {
+        fetch_all(rid, node)?
+    };
+    let success = results.success().count();
+    let failed = results.failed().count();
+
+    if success == 0 {
+        term::error(format!("Failed to fetch repository from {failed} seed(s)"));
+    } else {
+        term::success!("Fetched repository from {success} seed(s)");
+    }
+    Ok(())
+}
+
+pub fn fetch_all(rid: Id, node: &mut Node) -> Result<FetchResults, node::Error> {
+    // Get seeds. This consults the local routing table only.
+    let seeds = node.seeds(rid)?;
+    let mut results = FetchResults::default();
+
+    if seeds.has_connections() {
+        // Fetch from all seeds.
+        for seed in seeds.connected() {
+            let result = fetch_from(rid, seed, node)?;
+            results.push(*seed, result);
+        }
+    }
+    Ok(results)
+}
+
+pub fn fetch_from(rid: Id, seed: &NodeId, node: &mut Node) -> Result<FetchResult, node::Error> {
+    let spinner = term::spinner(format!(
+        "Fetching {} from {}..",
+        term::format::tertiary(rid),
+        term::format::tertiary(term::format::node(seed))
+    ));
+    let result = node.fetch(rid, *seed)?;
+
+    match &result {
+        FetchResult::Success { .. } => {
+            spinner.finish();
+        }
+        FetchResult::Failed { reason } => {
+            spinner.error(reason);
+        }
+    }
+    Ok(result)
 }

@@ -12,8 +12,6 @@ pub mod rad_comment;
 pub mod rad_delegate;
 #[path = "commands/edit.rs"]
 pub mod rad_edit;
-#[path = "commands/fetch.rs"]
-pub mod rad_fetch;
 #[path = "commands/fork.rs"]
 pub mod rad_fork;
 #[path = "commands/help.rs"]

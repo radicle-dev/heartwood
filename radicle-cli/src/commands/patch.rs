@@ -23,7 +23,7 @@ use radicle::cob::patch;
 use radicle::cob::patch::PatchId;
 use radicle::{prelude::*, Node};
 
-use crate::commands::rad_fetch as fetch;
+use crate::commands::rad_sync as sync;
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
@@ -259,7 +259,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repository = profile.storage.repository(id)?;
 
     if options.fetch {
-        fetch::fetch(repository.id(), &mut Node::new(profile.socket()))?;
+        sync::fetch_all(repository.id(), &mut Node::new(profile.socket()))?;
     }
 
     match options.op {

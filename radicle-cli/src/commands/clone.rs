@@ -18,7 +18,7 @@ use radicle::storage;
 use radicle::storage::git::Storage;
 
 use crate::commands::rad_checkout as checkout;
-use crate::commands::rad_fetch as fetch;
+use crate::commands::rad_sync as sync;
 use crate::project;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -176,7 +176,7 @@ pub fn clone<G: Signer>(
         );
     }
 
-    let results = fetch::fetch(id, node)?;
+    let results = sync::fetch_all(id, node)?;
     let Ok(repository) = storage.repository(id) else {
         // If we don't have the project locally, even after attempting to fetch,
         // there's nothing we can do.
