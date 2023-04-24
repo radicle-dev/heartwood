@@ -37,9 +37,10 @@ fn get_branch(git_ref: git::Qualified) -> git::RefString {
     std::iter::once(head).chain(tail).collect()
 }
 
-/// Determine the merge target for this patch. This can ben any tracked remote's "default"
-/// branch, as well as your own (eg. `rad/master`).
+/// Determine the merge target for this patch. This can be any tracked remote's "default" branch,
+/// as well as your own (eg. `rad/master`).
 pub fn get_merge_target(
+    workdir: &git::raw::Repository,
     storage: &Repository,
     head_branch: &git::raw::Branch,
 ) -> anyhow::Result<(git::RefString, git::Oid)> {
@@ -51,6 +52,7 @@ pub fn get_merge_target(
         anyhow::bail!("commits are already included in the target branch; nothing to do");
     }
 
+    crate::git::anonymous_fetch(workdir, &git::Url::from(storage.id), &target_oid)?;
     Ok((get_branch(qualified_ref), (*target_oid).into()))
 }
 

@@ -101,6 +101,17 @@ impl<'a> TryFrom<git2::Remote<'a>> for Remote<'a> {
     }
 }
 
+/// Helper function to fetch from a git remote by Oid.
+///
+/// Support using Git2 is not yet implemented.
+pub fn anonymous_fetch(workdir: &Repository, endpoint: &git::Url, oid: &Oid) -> anyhow::Result<()> {
+    crate::git::git(
+        workdir.path(),
+        ["fetch", &endpoint.to_string(), &oid.to_string()],
+    )?;
+    Ok(())
+}
+
 /// Get the git repository in the current directory.
 pub fn repository() -> Result<Repository, anyhow::Error> {
     match Repository::open(".") {

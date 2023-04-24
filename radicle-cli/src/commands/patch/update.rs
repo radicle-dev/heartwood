@@ -73,7 +73,7 @@ pub fn run(
 
     push_to_storage(storage, &head_branch, options)?;
 
-    let (_, target_oid) = get_merge_target(storage, &head_branch)?;
+    let (_, target_oid) = get_merge_target(workdir, storage, &head_branch)?;
     let mut patches = patch::Patches::open(storage)?;
 
     let patch_id = match patch_id {

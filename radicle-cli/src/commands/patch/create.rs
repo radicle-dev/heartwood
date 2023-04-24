@@ -89,7 +89,7 @@ pub fn run(
     let mut patches = patch::Patches::open(storage)?;
     let head_branch = try_branch(workdir.head()?)?;
     push_to_storage(storage, &head_branch, &options)?;
-    let (target_ref, target_oid) = get_merge_target(storage, &head_branch)?;
+    let (target_ref, target_oid) = get_merge_target(workdir, storage, &head_branch)?;
 
     // TODO: Handle case where `rad/master` isn't up to date with the target.
     // In that case we should warn the user that their master branch is not up
