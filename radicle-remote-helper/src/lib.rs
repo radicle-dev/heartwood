@@ -1,4 +1,5 @@
 #![allow(clippy::collapsible_if)]
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::path::PathBuf;
 use std::{env, io, process};
 
@@ -125,11 +126,17 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
                         // Connect to local node and announce refs to the network.
                         // If our node is not running, we simply skip this step, as the
                         // refs will be announced eventually, when the node restarts.
-                        let mut node = radicle::Node::new(profile.socket());
-                        if node.is_running() {
-                            eprint!("Announcing refs... ");
-                            node.announce_refs(url.repo)?;
-                            eprintln!("ok");
+                        if radicle::Node::new(profile.socket()).is_running() {
+                            let stderr = io::stderr().as_raw_fd();
+
+                            process::Command::new("rad")
+                                .arg("sync")
+                                .arg(proj.id.to_string())
+                                .arg("--verbose")
+                                .stdout(unsafe { process::Stdio::from_raw_fd(stderr) })
+                                .stderr(process::Stdio::inherit())
+                                .spawn()?
+                                .wait()?;
                         }
                     }
                 }

@@ -72,6 +72,13 @@ index 0000000..e69de29
 
 ```
 
+We can also see that it set an upstream for our patch branch:
+```
+$ git branch -vv
+* flux-capacitor-power 3e674d1 [rad/flux-capacitor-power] Define power requirements
+  master               f2de534 [rad/master] Second commit
+```
+
 Wait, let's add a README too! Just for fun.
 
 ```

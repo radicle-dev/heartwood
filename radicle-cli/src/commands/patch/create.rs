@@ -88,8 +88,18 @@ pub fn run(
 ) -> anyhow::Result<()> {
     let mut patches = patch::Patches::open(storage)?;
     let head_branch = try_branch(workdir.head()?)?;
-    push_to_storage(storage, &head_branch, &options)?;
+    let head_branch_name = push_to_storage(workdir, storage, &head_branch, &options)?;
+
     let (target_ref, target_oid) = get_merge_target(storage, &head_branch)?;
+
+    if head_branch.upstream().is_err() {
+        radicle::git::set_upstream(
+            workdir,
+            &radicle::rad::REMOTE_NAME,
+            branch_name(&head_branch)?,
+            &head_branch_name,
+        )?;
+    }
 
     // TODO: Handle case where `rad/master` isn't up to date with the target.
     // In that case we should warn the user that their master branch is not up

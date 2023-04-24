@@ -71,7 +71,7 @@ pub fn run(
     // `HEAD`; This is what we are proposing as a patch.
     let head_branch = try_branch(workdir.head()?)?;
 
-    push_to_storage(storage, &head_branch, options)?;
+    push_to_storage(workdir, storage, &head_branch, options)?;
 
     let (_, target_oid) = get_merge_target(storage, &head_branch)?;
     let mut patches = patch::Patches::open(storage)?;

@@ -221,7 +221,7 @@ impl TestFormula {
                 } else {
                     PathBuf::from(&assertion.command)
                 };
-                log::debug!(target: "test", "{path}: Running `{}` in `{}`..", cmd.display(), self.cwd.display());
+                log::debug!(target: "test", "{path}: Running `{}` with {:?} in `{}`..", cmd.display(), assertion.args, self.cwd.display());
 
                 if !self.cwd.exists() {
                     log::error!(target: "test", "{path}: Directory {} does not exist..", self.cwd.display());

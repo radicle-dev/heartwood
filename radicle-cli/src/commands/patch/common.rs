@@ -1,6 +1,4 @@
-use std::path::Path;
-
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 
 use radicle::cob::patch::{Clock, MergeTarget, Patch, PatchId, Patches};
 use radicle::git;
@@ -136,11 +134,15 @@ pub fn try_branch(reference: git::raw::Reference<'_>) -> anyhow::Result<git::raw
 ///
 /// The branch must be in storage for others to merge the `Patch`.
 pub fn push_to_storage(
+    working: &git::raw::Repository,
     storage: &Repository,
     head_branch: &git::raw::Branch,
     options: &Options,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<git::RefString> {
     let head_oid = branch_oid(head_branch)?;
+    let branch = branch_name(head_branch)?.try_into()?;
+    let branch = radicle::git::refs::workdir::branch(branch);
+
     if storage.commit(head_oid).is_err() {
         if !options.push {
             term::blank();
@@ -152,21 +154,13 @@ pub fn push_to_storage(
             .into());
         }
 
-        let output = match head_branch.upstream() {
-            Ok(_) => git::run::<_, _, &str, &str>(Path::new("."), ["push", "rad"], [])?,
-            Err(_) => git::run::<_, _, &str, &str>(
-                Path::new("."),
-                ["push", "--set-upstream", "rad", branch_name(head_branch)?],
-                [],
-            )?,
-        };
-        if options.verbose {
-            term::blob(output);
+        let (mut remote, _) = radicle::rad::remote(working)?;
 
-            return Ok(());
-        }
+        remote
+            .push::<&str>(&[&branch], None)
+            .context("failed to push to storage")?;
     }
-    Ok(())
+    Ok(branch)
 }
 
 /// Find patches with a merge base equal to the one provided.

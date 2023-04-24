@@ -21,6 +21,7 @@ use anyhow::anyhow;
 
 use radicle::cob::patch;
 use radicle::cob::patch::PatchId;
+use radicle::storage::git::transport;
 use radicle::{prelude::*, Node};
 
 use crate::commands::rad_sync as sync;
@@ -257,6 +258,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     let profile = ctx.profile()?;
     let repository = profile.storage.repository(id)?;
+
+    transport::local::register(profile.storage.clone());
 
     if options.fetch {
         sync::fetch_all(repository.id(), &mut Node::new(profile.socket()))?;
