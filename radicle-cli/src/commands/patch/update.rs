@@ -16,16 +16,16 @@ blank is also okay.
 
 fn select_patch(
     patches: &patch::Patches,
-    workdir: &git::raw::Repository,
+    storage: &Repository,
     head_branch: &git::raw::Branch,
     target_oid: git::Oid,
     whoami: &Did,
 ) -> anyhow::Result<patch::PatchId> {
     let head_oid = branch_oid(head_branch)?;
-    let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
+    let base_oid = storage.backend.merge_base(*target_oid, *head_oid)?;
 
     let mut result =
-        find_unmerged_with_base(*head_oid, *target_oid, base_oid, patches, workdir, whoami)?;
+        find_unmerged_with_base(*head_oid, *target_oid, base_oid, patches, storage, whoami)?;
 
     let Some((id, _, _)) = result.pop() else {
         anyhow::bail!("No patches found to update, please specify a patch id");
@@ -40,7 +40,7 @@ fn select_patch(
 }
 
 fn show_update_commit_info(
-    workdir: &git::raw::Repository,
+    storage: &Repository,
     current_revision: &patch::Revision,
     head_branch: &git::raw::Branch,
 ) -> anyhow::Result<()> {
@@ -54,7 +54,7 @@ fn show_update_commit_info(
 
     // Difference between the two revisions.
     let head_oid = branch_oid(head_branch)?;
-    term::patch::print_commits_ahead_behind(workdir, *head_oid, *current_revision.head())?;
+    term::patch::print_commits_ahead_behind(&storage.backend, *head_oid, *current_revision.head())?;
 
     Ok(())
 }
@@ -79,7 +79,7 @@ pub fn run(
 
     let patch_id = match patch_id {
         Some(patch_id) => patch_id,
-        None => select_patch(&patches, workdir, &head_branch, target_oid, &profile.did())?,
+        None => select_patch(&patches, storage, &head_branch, target_oid, &profile.did())?,
     };
     let Ok(mut patch) = patches.get_mut(&patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
@@ -95,11 +95,11 @@ pub fn run(
     }
 
     if !quiet {
-        show_update_commit_info(workdir, current_revision, &head_branch)?;
+        show_update_commit_info(storage, current_revision, &head_branch)?;
     }
 
     let head_oid = branch_oid(&head_branch)?;
-    let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
+    let base_oid = storage.backend.merge_base(*target_oid, *head_oid)?;
     let message = message.get(REVISION_MSG)?;
     let message = message.replace(REVISION_MSG.trim(), "");
     let message = message.trim();

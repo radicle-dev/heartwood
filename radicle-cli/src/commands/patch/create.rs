@@ -26,11 +26,11 @@ and description.
 
 pub fn handle_patch_message(
     message: term::patch::Message,
-    workdir: &git::raw::Repository,
+    storage: &Repository,
     head_branch: &git::raw::Branch,
 ) -> anyhow::Result<(String, String)> {
     let head_oid = branch_oid(head_branch)?;
-    let head_commit = workdir.find_commit(*head_oid)?;
+    let head_commit = storage.backend.find_commit(*head_oid)?;
     let commit_message = head_commit
         .message()
         .ok_or(anyhow!("commit summary is not valid UTF-8; aborting"))?;
@@ -47,7 +47,7 @@ pub fn handle_patch_message(
 }
 
 fn show_patch_commit_info(
-    workdir: &git::raw::Repository,
+    storage: &Repository,
     node_id: &NodeId,
     head_branch: &git::raw::Branch,
     target_ref: &git::RefStr,
@@ -55,8 +55,8 @@ fn show_patch_commit_info(
 ) -> anyhow::Result<()> {
     let head_oid = branch_oid(head_branch)?;
     // The merge base is basically the commit at which the histories diverge.
-    let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
-    let commits = patch_commits(workdir, &base_oid, &head_oid)?;
+    let base_oid = storage.backend.merge_base(*target_oid, *head_oid)?;
+    let commits = patch_commits(&storage.backend, &base_oid, &head_oid)?;
 
     term::info!(
         "{} <- {}/{} ({})",
@@ -69,7 +69,7 @@ fn show_patch_commit_info(
     // TODO: Test case where the target branch has been re-written passed the merge-base, since the fork was created
     // This can also happen *after* the patch is created.
 
-    term::patch::print_commits_ahead_behind(workdir, *head_oid, *target_oid)?;
+    term::patch::print_commits_ahead_behind(&storage.backend, *head_oid, *target_oid)?;
 
     // List commits in patch that aren't in the target branch.
     term::blank();
@@ -91,7 +91,6 @@ pub fn run(
     let mut patches = patch::Patches::open(storage)?;
     let head_branch = try_branch(workdir.head()?)?;
     let head_branch_name = push_to_storage(workdir, storage, &head_branch, &options)?;
-
     let (target_ref, target_oid) = get_merge_target(storage, &head_branch)?;
 
     if head_branch.upstream().is_err() {
@@ -109,15 +108,15 @@ pub fn run(
     // base.
 
     if !quiet {
-        show_patch_commit_info(workdir, profile.id(), &head_branch, &target_ref, target_oid)?;
+        show_patch_commit_info(storage, profile.id(), &head_branch, &target_ref, target_oid)?;
         term::blank();
     }
 
     // TODO: List matching working copy refs for all targets.
 
-    let (title, description) = handle_patch_message(message, workdir, &head_branch)?;
+    let (title, description) = handle_patch_message(message, storage, &head_branch)?;
     let head_oid = branch_oid(&head_branch)?;
-    let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
+    let base_oid = storage.backend.merge_base(*target_oid, *head_oid)?;
     let signer = term::signer(profile)?;
     let patch = if draft {
         patches.draft(

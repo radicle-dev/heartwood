@@ -35,8 +35,8 @@ fn get_branch(git_ref: git::Qualified) -> git::RefString {
     std::iter::once(head).chain(tail).collect()
 }
 
-/// Determine the merge target for this patch. This can ben any tracked remote's "default"
-/// branch, as well as your own (eg. `rad/master`).
+/// Determine the merge target for this patch. This can be any tracked remote's "default" branch,
+/// as well as your own (eg. `rad/master`).
 pub fn get_merge_target(
     storage: &Repository,
     head_branch: &git::raw::Branch,
@@ -170,7 +170,7 @@ pub fn find_unmerged_with_base(
     target_head: Oid,
     merge_base: Oid,
     patches: &Patches,
-    workdir: &git::raw::Repository,
+    storage: &Repository,
     whoami: &Did,
 ) -> anyhow::Result<Vec<(PatchId, Patch, Clock)>> {
     // My patches.
@@ -187,7 +187,7 @@ pub fn find_unmerged_with_base(
             continue;
         }
         // Merge-base between the two patches.
-        if workdir.merge_base(**patch.head(), target_head)? == merge_base {
+        if storage.backend.merge_base(**patch.head(), target_head)? == merge_base {
             matches.push((id, patch, clock));
         }
     }
