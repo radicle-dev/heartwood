@@ -154,7 +154,9 @@ pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
             term::passphrase(RAD_PASSPHRASE)
         }?;
         let spinner = term::spinner("Unlocking...");
-        let mut agent = connect_ssh_agent()?.unwrap();
+        let Some(mut agent) = connect_ssh_agent()? else {
+            anyhow::bail!("SSH agent unexpectedly stopped running");
+        };
         register(&mut agent, profile, passphrase)?;
         spinner.finish();
 
