@@ -67,10 +67,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 pub fn init(options: Options) -> anyhow::Result<()> {
-    term::headline(format!(
-        "Initializing your {} 🌱 identity",
-        term::format::highlight("radicle")
-    ));
+    term::headline("Initializing your radicle 👾 identity");
 
     if let Ok(version) = radicle::git::version() {
         if version < radicle::git::VERSION_REQUIRED {
@@ -120,7 +117,7 @@ pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
 
     // TODO: Only show this if we're not authenticated.
     term::headline(format!(
-        "🌱 Authenticating as {}",
+        "Authenticating as {}",
         term::format::Identity::new(profile).styled()
     ));
 

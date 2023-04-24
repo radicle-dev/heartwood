@@ -126,7 +126,7 @@ pub fn run(
         &signer,
     )?;
 
-    term::success!("Patch {} created 🌱", term::format::highlight(patch.id));
+    term::success!("Patch {} created", term::format::highlight(patch.id));
     term::blank();
 
     if options.announce {

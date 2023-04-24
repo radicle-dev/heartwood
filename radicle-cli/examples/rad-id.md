@@ -14,7 +14,7 @@ Let's add Bob as a delegate using their DID
 
 ```
 $ rad id edit --title "Add Bob" --description "Add Bob as a delegate" --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
-✓ Identity proposal '0d396a83a5e1dda2b8929f7dc401d19dd1a79fb8' created 🌱
+✓ Identity proposal '0d396a83a5e1dda2b8929f7dc401d19dd1a79fb8' created
 title: Add Bob
 description: Add Bob as a delegate
 status: ❲open❳
@@ -208,7 +208,7 @@ At this point, we can commit the proposal and update the identity:
 
 ```
 $ rad id commit 0d396a83a5e1dda2b8929f7dc401d19dd1a79fb8 --no-confirm
-✓ Committed new identity 'c96e764965aaeff1c6ea3e5b97e2b9828773c8b0' 🌱
+✓ Committed new identity 'c96e764965aaeff1c6ea3e5b97e2b9828773c8b0'
 title: Add Bob
 description: Add Bob as a delegate
 status: ❲committed❳
@@ -255,7 +255,7 @@ the `--threshold` option:
 
 ```
 $ rad id edit --title "Update threshold" --description "Update to safer threshold" --threshold 2 --no-confirm
-✓ Identity proposal 'f435d6e89c8f922ede691287c0d8b7f82afa591e' created 🌱
+✓ Identity proposal 'f435d6e89c8f922ede691287c0d8b7f82afa591e' created
 title: Update threshold
 description: Update to safer threshold
 status: ❲open❳

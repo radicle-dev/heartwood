@@ -4,7 +4,7 @@ The example below is run with `RAD_PASSPHRASE` set.
 ```
 $ rad auth
 
-Initializing your radicle 🌱 identity
+Initializing your radicle 👾 identity
 
 ✓ Creating your Ed25519 keypair...
 ! Adding your radicle key to ssh-agent...

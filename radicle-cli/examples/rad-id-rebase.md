@@ -6,7 +6,7 @@ delegates creating proposals concurrently.
 
 ```
 $ rad id edit --title "Add Alice" --description "Add Alice as a delegate" --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
-✓ Identity proposal '04603c0d3ea4d137487024a51c9360adfc511114' created 🌱
+✓ Identity proposal '04603c0d3ea4d137487024a51c9360adfc511114' created
 title: Add Alice
 description: Add Alice as a delegate
 status: ❲open❳
@@ -48,7 +48,7 @@ Quorum Reached
 
 ```
 $ rad id edit --title "Add Bob" --description "Add Bob as a delegate" --delegates did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG --no-confirm
-✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' created 🌱
+✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' created
 title: Add Bob
 description: Add Bob as a delegate
 status: ❲open❳
@@ -138,7 +138,7 @@ Quorum Reached
 
 ```
 $ rad id commit 04603c0d3ea4d137487024a51c9360adfc511114 --no-confirm
-✓ Committed new identity '29ae4b72f5a315328f06fbd68dc1c396a2d5c45e' 🌱
+✓ Committed new identity '29ae4b72f5a315328f06fbd68dc1c396a2d5c45e'
 title: Add Alice
 description: Add Alice as a delegate
 status: ❲committed❳
@@ -249,7 +249,7 @@ So, let's fix this by running a rebase on the proposal's revision:
 
 ```
 $ rad id rebase 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --no-confirm
-✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' rebased 🌱
+✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' rebased
 ✓ Revision 'a6db848f8dba4ef2a9c16301e7d21ad87b707f1e'
 title: Add Bob
 description: Add Bob as a delegate
@@ -294,7 +294,7 @@ We can now update the proposal to have both keys in the delegates set:
 
 ```
 $ rad id update 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev a6db848f8dba4ef2a9c16301e7d21ad87b707f1e --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
-✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' updated 🌱
+✓ Identity proposal '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774' updated
 ✓ Revision '4bac5e3ef20e412e9421886fbb76dc7a64d6b5dc'
 title: Add Bob
 description: Add Bob as a delegate
@@ -386,7 +386,7 @@ Quorum Reached
 
 ```
 $ rad id commit 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --rev 4bac5e3ef20e412e9421886fbb76dc7a64d6b5dc --no-confirm
-✓ Committed new identity '60de897bc24898f6908fd1272633c0b15aa4096f' 🌱
+✓ Committed new identity '60de897bc24898f6908fd1272633c0b15aa4096f'
 title: Add Bob
 description: Add Bob as a delegate
 status: ❲committed❳

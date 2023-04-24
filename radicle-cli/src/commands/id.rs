@@ -297,7 +297,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 &signer,
             )?;
             term::success!(
-                "Identity proposal '{}' created 🌱",
+                "Identity proposal '{}' created",
                 term::format::highlight(proposal.id)
             );
             print(&proposal, &previous, None)?;
@@ -343,7 +343,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 proposal.edit(update.title, update.description, &signer)?;
                 let revision = proposal.update(previous.current, update.proposed, &signer)?;
                 term::success!(
-                    "Identity proposal '{}' updated 🌱",
+                    "Identity proposal '{}' updated",
                     term::format::highlight(proposal.id)
                 );
                 term::success!(
@@ -363,7 +363,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 let revision =
                     proposal.update(previous.current, revision.proposed.clone(), &signer)?;
                 term::success!(
-                    "Identity proposal '{}' rebased 🌱",
+                    "Identity proposal '{}' rebased",
                     term::format::highlight(proposal.id)
                 );
                 term::success!(
@@ -416,7 +416,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if yes {
                 let id = Proposal::commit(&proposal, &rid, signer.public_key(), &repo, &signer)?;
                 proposal.commit(&signer)?;
-                term::success!("Committed new identity '{}' 🌱", id.current);
+                term::success!("Committed new identity '{}'", id.current);
                 print(&proposal, &previous, None)?;
             }
         }

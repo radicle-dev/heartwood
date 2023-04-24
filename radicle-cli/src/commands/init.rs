@@ -165,7 +165,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     let interactive = options.interactive;
 
     term::headline(format!(
-        "Initializing local 🌱 project in {}",
+        "Initializing radicle 👾 project in {}",
         if path == cwd {
             term::format::highlight(".").to_string()
         } else {
@@ -272,9 +272,11 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
 
             term::blank();
             term::info!(
-                "Your project id is {}. You can show it any time by running:",
+                "Your project's Repository ID {} is {}.",
+                term::format::dim("(RID)"),
                 term::format::highlight(id.urn())
             );
+            term::info!("You can show it any time by running:");
             term::indented(term::format::secondary("rad ."));
 
             if !options.announce {
@@ -282,11 +284,9 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 term::info!("To publish your project to the network, run:");
                 term::indented(term::format::secondary(push_cmd));
             }
-            term::blank();
         }
         Err(err) => {
             spinner.failed();
-            term::blank();
             anyhow::bail!(err);
 
             // TODO: Handle error: "this repository is already initialized with remote {}"
@@ -309,13 +309,13 @@ pub fn setup_signing(
     let key = ssh::fmt::fingerprint(node_id);
     let yes = if !git::is_signing_configured(repo)? {
         term::headline(format!(
-            "Configuring 🌱 signing key {}...",
+            "Configuring radicle signing key {}...",
             term::format::tertiary(key)
         ));
         true
     } else if interactive.yes() {
         term::confirm(format!(
-            "Configure 🌱 signing key {} in local checkout?",
+            "Configure radicle signing key {} in local checkout?",
             term::format::tertiary(key),
         ))
     } else {

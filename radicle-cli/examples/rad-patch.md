@@ -31,7 +31,7 @@ master <- z6MknSL…StBU8Vi/flux-capacitor-power (3e674d1)
 
 3e674d1 Define power requirements
 
-✓ Patch 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 created 🌱
+✓ Patch 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 created
 
 To publish your patch to the network, run:
     git push rad
