@@ -157,7 +157,7 @@ pub fn push_to_storage(
         let (mut remote, _) = radicle::rad::remote(working)?;
 
         remote
-            .push::<&str>(&[&branch], None)
+            .push::<&str>(&[&format!("+{branch}:{branch}")], None)
             .context("failed to push to storage")?;
     }
     Ok(branch)
