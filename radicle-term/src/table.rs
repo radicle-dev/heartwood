@@ -20,7 +20,7 @@ use std::fmt;
 
 use crate as term;
 use crate::cell::Cell;
-use crate::{Color, Label, Line, Max, Paint, Size};
+use crate::{Color, Line, Max, Paint, Size};
 
 pub use crate::Element;
 
@@ -82,7 +82,7 @@ impl<const W: usize, T> Default for Table<W, T> {
 
 impl<const W: usize, T: Cell + fmt::Debug> Element for Table<W, T>
 where
-    T::Padded: Into<Label>,
+    T::Padded: Into<Line>,
 {
     fn size(&self) -> Size {
         Table::size(self)
@@ -123,11 +123,11 @@ where
                         } else {
                             self.widths[i] + self.opts.spacing
                         };
-                        line.push(cell.pad(pad));
+                        line = line.extend(cell.pad(pad).into());
                     }
 
                     if let Some(width) = width {
-                        line.truncate(width, "…");
+                        line = line.truncate(width, "…");
                     }
                     if let Some(color) = border {
                         line.push(Paint::new(" │").fg(color));

@@ -157,9 +157,9 @@ impl IntoIterator for Line {
     }
 }
 
-impl From<Label> for Line {
-    fn from(label: Label) -> Self {
-        Self { items: vec![label] }
+impl<T: Into<Label>> From<T> for Line {
+    fn from(value: T) -> Self {
+        Self::new(value)
     }
 }
 
@@ -218,19 +218,19 @@ mod test {
         let line = Line::default().item("banana").item("peach").item("apple");
 
         let mut actual = line.clone();
-        actual.truncate(9, "…");
+        actual = actual.truncate(9, "…");
         assert_eq!(actual.to_string(), "bananape…");
 
         let mut actual = line.clone();
-        actual.truncate(7, "…");
+        actual = actual.truncate(7, "…");
         assert_eq!(actual.to_string(), "banana…");
 
         let mut actual = line.clone();
-        actual.truncate(1, "…");
+        actual = actual.truncate(1, "…");
         assert_eq!(actual.to_string(), "…");
 
         let mut actual = line;
-        actual.truncate(0, "…");
+        actual = actual.truncate(0, "…");
         assert_eq!(actual.to_string(), "");
     }
 }

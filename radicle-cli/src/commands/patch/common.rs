@@ -68,8 +68,23 @@ pub fn patch_merge_target_oid(target: MergeTarget, repository: &Repository) -> a
     }
 }
 
+/// Get the diff stats between two commits.
+pub fn diff_stats(
+    repo: &git::raw::Repository,
+    old: &Oid,
+    new: &Oid,
+) -> Result<git::raw::DiffStats, git::raw::Error> {
+    let old = repo.find_commit(*old)?;
+    let new = repo.find_commit(*new)?;
+    let old_tree = old.tree()?;
+    let new_tree = new.tree()?;
+    let diff = repo.diff_tree_to_tree(Some(&old_tree), Some(&new_tree), None)?;
+
+    diff.stats()
+}
+
 /// Create a human friendly message about git's sync status.
-pub fn pretty_sync_status(
+pub fn ahead_behind(
     repo: &git::raw::Repository,
     revision_oid: Oid,
     head_oid: Oid,
@@ -89,35 +104,21 @@ pub fn pretty_sync_status(
         .item(behind))
 }
 
-/// Make a human friendly string for commit version information.
-///
-/// For example '<oid> (branch1[, branch2])'.
-pub fn pretty_commit_version(
-    revision_oid: &Oid,
-    repo: Option<&git::raw::Repository>,
-) -> anyhow::Result<term::Line> {
-    let oid = term::format::secondary(term::format::oid(*revision_oid));
-    let mut line = term::Line::new(oid);
+/// Get the branches that point to a commit.
+pub fn branches(target: &Oid, repo: &git::raw::Repository) -> anyhow::Result<Vec<String>> {
     let mut branches: Vec<String> = vec![];
 
-    if let Some(repo) = repo {
-        for r in repo.references()?.flatten() {
-            if !r.is_branch() {
-                continue;
-            }
-            if let (Some(oid), Some(name)) = (&r.target(), &r.shorthand()) {
-                if oid == revision_oid {
-                    branches.push(name.to_string());
-                };
-            };
+    for r in repo.references()?.flatten() {
+        if !r.is_branch() {
+            continue;
         }
-    };
-    if !branches.is_empty() {
-        line.push(term::Label::space());
-        line.push(term::format::yellow(format!("({})", branches.join(", "))));
+        if let (Some(oid), Some(name)) = (&r.target(), &r.shorthand()) {
+            if oid == target {
+                branches.push(name.to_string());
+            };
+        };
     }
-
-    Ok(line)
+    Ok(branches)
 }
 
 #[inline]

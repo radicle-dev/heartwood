@@ -41,19 +41,22 @@ It will now be listed as one of the project's open patches.
 
 ```
 $ rad patch
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Define power requirements 191a14e R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0   │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...    ]│
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title                      Author                  Head     +   -   Opened       │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●  191a14e  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  4 months ago │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 ```
 $ rad patch show 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 -p
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Title   Define power requirements                                                       │
-│ Patch   191a14e520f2eeff7c0e3ee0a5523c5217eecb89                                        │
-│ Author  did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                        │
-│ Status  open                                                                            │
+│ Title     Define power requirements                                                     │
+│ Patch     191a14e520f2eeff7c0e3ee0a5523c5217eecb89                                      │
+│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
+│ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33                                      │
+│ Branches  flux-capacitor-power                                                          │
+│ Commits   ahead 1, behind 0                                                             │
+│ Status    open                                                                          │
 │                                                                                         │
 │ See details.                                                                            │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
@@ -120,12 +123,20 @@ $ rad review 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --accept --no-message --no
 Showing the patch list now will reveal the favorable verdict:
 
 ```
-$ rad patch
-╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Define power requirements 191a14e R1 27857ec (flux-capacitor-power, patch/191a14e) ahead 2, behind 0 │
-├──────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [         ...            ]│
-│ ↑ updated to b8f7bfbbb3c6a207b349e9f45bf535c706805871 (27857ec) [                    ...            ]│
-│ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [               ...            ]│
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+$ rad patch show 191a14e
+╭─────────────────────────────────────────────────────────────────────────────────────────╮
+│ Title     Define power requirements                                                     │
+│ Patch     191a14e520f2eeff7c0e3ee0a5523c5217eecb89                                      │
+│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
+│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                                      │
+│ Branches  flux-capacitor-power, patch/191a14e                                           │
+│ Commits   ahead 2, behind 0                                                             │
+│ Status    open                                                                          │
+│                                                                                         │
+│ See details.                                                                            │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...    ]│
+│ ↑ updated to b8f7bfbbb3c6a207b349e9f45bf535c706805871 (27857ec) [               ...    ]│
+│ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [          ...    ]│
+╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```

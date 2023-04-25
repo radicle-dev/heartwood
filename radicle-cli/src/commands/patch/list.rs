@@ -1,13 +1,13 @@
 use anyhow::anyhow;
 
 use radicle::cob::patch;
-use radicle::cob::patch::{Patch, PatchId, Patches, Revision, Verdict};
-use radicle::git;
+use radicle::cob::patch::{Patch, PatchId, Patches, Verdict};
 use radicle::prelude::*;
 use radicle::profile::Profile;
 use radicle::storage::git::Repository;
 
 use crate::terminal as term;
+use term::table::{Table, TableOptions};
 use term::Element as _;
 
 use super::common;
@@ -16,7 +16,6 @@ use super::common;
 pub fn run(
     repository: &Repository,
     profile: &Profile,
-    workdir: Option<git::raw::Repository>,
     filter: Option<patch::State>,
 ) -> anyhow::Result<()> {
     let me = *profile.id();
@@ -48,62 +47,89 @@ pub fn run(
         return Ok(());
     }
 
+    let mut table = Table::<9, term::Line>::new(TableOptions {
+        spacing: 2,
+        border: Some(term::colors::FAINT),
+        ..TableOptions::default()
+    });
+
+    table.push([
+        term::format::dim(String::from("●")).into(),
+        term::format::bold(String::from("ID")).into(),
+        term::format::bold(String::from("Title")).into(),
+        term::format::bold(String::from("Author")).into(),
+        term::format::bold(String::new()).into(),
+        term::format::bold(String::from("Head")).into(),
+        term::format::bold(String::from("+")).into(),
+        term::format::bold(String::from("-")).into(),
+        term::format::bold(String::from("Opened")).into(),
+    ]);
+    table.divider();
+
+    let mut errors = Vec::new();
     for (id, patch) in &mut own {
-        widget(&me, id, patch, workdir.as_ref(), repository)?.print();
+        match row(&me, id, patch, repository) {
+            Ok(r) => table.push(r),
+            Err(e) => errors.push((patch.title(), id, e.to_string())),
+        }
     }
     for (id, patch) in &mut other {
-        widget(profile.id(), id, patch, workdir.as_ref(), repository)?.print();
+        match row(&me, id, patch, repository) {
+            Ok(r) => table.push(r),
+            Err(e) => errors.push((patch.title(), id, e.to_string())),
+        }
+    }
+    table.print();
+
+    if !errors.is_empty() {
+        for (title, id, error) in errors {
+            term::error(format!(
+                "{} Patch {title:?} ({id}) failed to load: {error}",
+                term::format::negative("Error:")
+            ));
+        }
     }
 
     Ok(())
 }
 
-pub fn header(
-    patch_id: &PatchId,
-    patch: &Patch,
-    workdir: Option<&git::raw::Repository>,
-    repository: &Repository,
-    revision: &Revision,
-) -> anyhow::Result<term::Line> {
-    let target_head = common::patch_merge_target_oid(patch.target(), repository)?;
-    let header = term::Line::spaced([
-        term::format::bold(patch.title()).into(),
-        term::format::highlight(term::format::cob(patch_id)).into(),
-        term::format::dim(format!("R{}", patch.version())).into(),
-    ])
-    .space()
-    .extend(common::pretty_commit_version(&revision.head(), workdir)?)
-    .space()
-    .extend(common::pretty_sync_status(
-        repository.raw(),
-        revision.head().into(),
-        target_head,
-    )?);
-
-    Ok(header)
-}
-
-/// Patch widget.
-pub fn widget<'a>(
+/// Patch row.
+pub fn row(
     whoami: &PublicKey,
-    patch_id: &PatchId,
+    id: &PatchId,
     patch: &Patch,
-    workdir: Option<&git::raw::Repository>,
     repository: &Repository,
-) -> anyhow::Result<term::VStack<'a>> {
+) -> anyhow::Result<[term::Line; 9]> {
+    let state = patch.state();
     let (_, revision) = patch
         .latest()
         .ok_or_else(|| anyhow!("patch is malformed: no revisions found"))?;
-    let header = header(patch_id, patch, workdir, repository, revision)?;
-    let mut widget = term::VStack::default()
-        .child(header)
-        .divider()
-        .border(Some(term::colors::FAINT));
+    let stats = common::diff_stats(repository.raw(), revision.base(), &revision.head())?;
+    let author = patch.author().id;
 
-    for line in timeline(whoami, patch_id, patch, repository)? {
-        widget.push(line);
-    }
-    Ok(widget)
+    Ok([
+        match state {
+            patch::State::Open => term::format::positive("●").into(),
+            patch::State::Archived { .. } => term::format::yellow("●").into(),
+            patch::State::Draft => term::format::dim("●").into(),
+            patch::State::Merged { .. } => term::format::primary("✔").into(),
+        },
+        term::format::tertiary(term::format::cob(id)).into(),
+        term::format::default(patch.title().to_owned()).into(),
+        term::format::did(&author).dim().into(),
+        if author.as_key() == whoami {
+            term::format::primary("(you)".to_owned()).into()
+        } else {
+            term::format::default(String::new()).into()
+        },
+        term::format::secondary(term::format::oid(revision.head())).into(),
+        term::format::positive(format!("+{}", stats.insertions())).into(),
+        term::format::negative(format!("-{}", stats.deletions())).into(),
+        term::format::timestamp(&patch.timestamp())
+            .dim()
+            .italic()
+            .into(),
+    ])
 }
 
 pub fn timeline(

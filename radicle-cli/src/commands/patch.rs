@@ -270,7 +270,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             create::run(&repository, &profile, &workdir, message.clone(), options)?;
         }
         Operation::List { filter } => {
-            list::run(&repository, &profile, Some(workdir), filter)?;
+            list::run(&repository, &profile, filter)?;
         }
         Operation::Show { patch_id, diff } => {
             let patch_id = patch_id.resolve(&repository.backend)?;

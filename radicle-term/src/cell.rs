@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use super::Paint;
+use super::{Element, Line, Paint};
 
 use unicode_width::UnicodeWidthStr;
 
@@ -14,8 +14,10 @@ pub trait Cell: Display {
     /// Cell display width in number of terminal columns.
     fn width(&self) -> usize;
     /// Truncate cell if longer than given width. Shows the delimiter if truncated.
+    #[must_use]
     fn truncate(&self, width: usize, delim: &str) -> Self::Truncated;
     /// Pad the cell so that it is the given width, while keeping the content left-aligned.
+    #[must_use]
     fn pad(&self, width: usize) -> Self::Padded;
 }
 
@@ -39,6 +41,27 @@ impl Cell for Paint<String> {
             item: self.item.pad(width),
             style: self.style,
         }
+    }
+}
+
+impl Cell for Line {
+    type Truncated = Line;
+    type Padded = Line;
+
+    fn width(&self) -> usize {
+        <Self as Element>::size(self).cols
+    }
+
+    fn pad(&self, width: usize) -> Self::Padded {
+        let mut line = self.clone();
+        Line::pad(&mut line, width);
+        line
+    }
+
+    fn truncate(&self, width: usize, delim: &str) -> Self::Truncated {
+        let mut line = self.clone();
+        Line::truncate(&mut line, width, delim);
+        line
     }
 }
 

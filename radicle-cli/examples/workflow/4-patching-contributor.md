@@ -41,17 +41,20 @@ It will now be listed as one of the project's open patches.
 
 ```
 $ rad patch
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Define power requirements a07ef77 R0 3e674d1 (flux-capacitor-power) ahead 1, behind 0   │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (you) [    ...    ]│
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title                      Author                  Head     +   -   Opened       │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●  a07ef77  Define power requirements  z6Mkt67…v4N1tRk  (you)  3e674d1  +0  -0  4 months ago │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 $ rad patch show a07ef7743a32a2e902672ea3526d1db6ee08108a
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Title   Define power requirements                                                       │
-│ Patch   a07ef7743a32a2e902672ea3526d1db6ee08108a                                        │
-│ Author  did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk                        │
-│ Status  open                                                                            │
+│ Title     Define power requirements                                                     │
+│ Patch     a07ef7743a32a2e902672ea3526d1db6ee08108a                                      │
+│ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk                      │
+│ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33                                      │
+│ Branches  flux-capacitor-power                                                          │
+│ Commits   ahead 1, behind 0                                                             │
+│ Status    open                                                                          │
 │                                                                                         │
 │ See details.                                                                            │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤

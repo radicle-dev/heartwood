@@ -26,12 +26,19 @@ $ git branch -r
   bob/flux-capacitor-power
   bob/master
   rad/master
-$ rad patch
+$ rad patch show a07ef77
 ╭───────────────────────────────────────────────────────────────────────────────────╮
-│ Define power requirements a07ef77 R1 27857ec ahead 2, behind 0                    │
+│ Title    Define power requirements                                                │
+│ Patch    a07ef7743a32a2e902672ea3526d1db6ee08108a                                 │
+│ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk                 │
+│ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                                 │
+│ Commits  ahead 2, behind 0                                                        │
+│ Status   open                                                                     │
+│                                                                                   │
+│ See details.                                                                      │
 ├───────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [    ...    ]│
-│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) [         ...    ]│
+│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [    ...   ] │
+│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) [         ...   ] │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -76,15 +83,23 @@ Fast-forward
 The patch is now merged and closed :).
 
 ```
-$ rad patch --merged
-╭───────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Define power requirements a07ef77 R2 f6484e0 (flux-capacitor-power, master) ahead 3, behind 0 │
-├───────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [            ...        ]│
-│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) [                 ...        ]│
-│ ↑ updated to 0795d619232479e910f95bb9c873ee1ec305c43c (f6484e0) [                 ...        ]│
-│ ✓ merged by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [      ...        ]│
-╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+$ rad patch show a07ef77
+╭─────────────────────────────────────────────────────────────────────────────────────────╮
+│ Title     Define power requirements                                                     │
+│ Patch     a07ef7743a32a2e902672ea3526d1db6ee08108a                                      │
+│ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk                      │
+│ Head      f6484e0f43e48a8983b9b39bf9bd4cd889f1d520                                      │
+│ Branches  flux-capacitor-power, master                                                  │
+│ Commits   ahead 3, behind 0                                                             │
+│ Status    merged                                                                        │
+│                                                                                         │
+│ See details.                                                                            │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [        ...     ] │
+│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) [             ...     ] │
+│ ↑ updated to 0795d619232479e910f95bb9c873ee1ec305c43c (f6484e0) [             ...     ] │
+│ ✓ merged by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [  ...     ] │
+╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 To publish our new state to the network, we simply push:
