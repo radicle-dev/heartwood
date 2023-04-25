@@ -9,13 +9,13 @@ storage. In this scenario, we know that the project is
 have to track the project.
 
 ```
-$ rad track rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad track rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-fetch
 ✓ Tracking policy updated for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'trusted'
-! Warning: fetch after track is not yet supported
 ```
 
 Now that the project is tracked we can fetch it and we will have it in
-our local storage.
+our local storage. Note that the `track` command can also be told to fetch
+by passing the `--fetch` option.
 
 ```
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji

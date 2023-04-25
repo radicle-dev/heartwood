@@ -6,6 +6,7 @@ use radicle::node::tracking::{Alias, Scope};
 use radicle::node::{Handle, NodeId};
 use radicle::{prelude::*, Node};
 
+use crate::commands::rad_sync as sync;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
@@ -16,7 +17,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad track <nid> [--[no-]fetch] [--alias <name>] [<option>...]
+    rad track <nid> [--alias <name>] [<option>...]
     rad track <rid> [--[no-]fetch] [--scope <scope>] [<option>...]
 
     The `track` command takes either an NID or an RID. Based on the argument, it will
@@ -30,7 +31,7 @@ Usage
 Options
 
     --alias <name>         Associate an alias to a tracked node
-    --fetch                Fetch refs after tracking
+    --[no-]fetch           Fetch refs after tracking
     --scope <scope>        Node (remote) tracking scope for a repository
     --verbose, -v          Verbose output
     --help                 Print help
@@ -94,7 +95,8 @@ impl Args for Options {
                         .ok_or_else(|| anyhow!("scope specified is not UTF-8"))?
                         .parse()?;
                 }
-                (Long("no-fetch"), _) => fetch = false,
+                (Long("fetch"), Some(Operation::TrackRepo { .. })) => fetch = true,
+                (Long("no-fetch"), Some(Operation::TrackRepo { .. })) => fetch = false,
                 (Long("verbose") | Short('v'), _) => verbose = true,
                 (Long("help"), _) => {
                     return Err(Error::Help.into());
@@ -121,15 +123,17 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = radicle::Node::new(profile.socket());
 
     match options.op {
-        Operation::TrackNode { nid, alias } => track_node(nid, alias, &mut node),
-        Operation::TrackRepo { rid, scope } => track_repo(rid, scope, &mut node),
-    }?;
+        Operation::TrackNode { nid, alias } => {
+            track_node(nid, alias, &mut node)?;
+        }
+        Operation::TrackRepo { rid, scope } => {
+            track_repo(rid, scope, &mut node)?;
 
-    if options.fetch {
-        // TODO: Run a proper fetch here.
-        term::warning("fetch after track is not yet supported");
+            if options.fetch {
+                sync::fetch(rid, profile, &mut node, None)?;
+            }
+        }
     }
-
     Ok(())
 }
 

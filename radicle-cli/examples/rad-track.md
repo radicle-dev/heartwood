@@ -2,7 +2,7 @@ To configure our node's tracking policy, we can use the `rad track` command.
 For example, let's track a remote node we know about, and alias it to "eve":
 
 ```
-$ rad track did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias eve --no-fetch
+$ rad track did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias eve
 ✓ Tracking policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (eve)
 ```
 
