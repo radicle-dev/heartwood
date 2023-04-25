@@ -325,6 +325,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::List { assigned } => {
+            if issues.is_empty()? {
+                term::print(term::format::italic("Nothing to show."));
+                return Ok(());
+            }
+
             let assignee = match assigned {
                 Some(Assigned::Me) => Some(*profile.id()),
                 Some(Assigned::Peer(id)) => Some(id.into()),

@@ -223,6 +223,11 @@ where
         }))
     }
 
+    /// Return true if the list of issues is empty.
+    pub fn is_empty(&self) -> Result<bool, Error> {
+        Ok(self.count()? == 0)
+    }
+
     /// Return objects count.
     pub fn count(&self) -> Result<usize, Error> {
         let raw = cob::list(self.repo, T::type_name())?;
