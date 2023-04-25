@@ -724,8 +724,8 @@ where
         };
         let link = session.link;
 
-        // If the peer disconnected while we were waiting for a [`Message::FetchOk`],
-        // return a failure to any potential fetcher.
+        // If the peer disconnected while we were fetching, return a failure to any
+        // potential fetcher.
         for rid in session.fetching() {
             if let Some(resp) = self.fetch_reqs.remove(&(rid, remote)) {
                 resp.send(FetchResult::Failed {
