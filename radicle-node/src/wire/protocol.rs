@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::prelude::RawFd;
 use std::sync::Arc;
-use std::{io, net};
+use std::{io, net, time};
 
 use amplify::Wrapper as _;
 use crossbeam_channel as chan;
@@ -42,6 +42,10 @@ pub const NOISE_XK: HandshakePattern = HandshakePattern {
     initiator: cyphernet::encrypt::noise::InitiatorPattern::Xmitted,
     responder: cyphernet::encrypt::noise::OneWayPattern::Known,
 };
+
+/// Default time to wait to receive something from a worker channel. Applies to
+/// workers waiting for data from remotes as well.
+pub const DEFAULT_CHANNEL_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 
 /// Control message used internally between workers, users, and the service.
 #[allow(clippy::large_enum_variant)]
@@ -108,8 +112,8 @@ impl Streams {
 
     /// Register an open stream.
     fn register(&mut self, stream: StreamId) -> Option<worker::Channels> {
-        let (wire, worker) =
-            worker::Channels::pair().expect("Streams::register: fatal: unable to create channels");
+        let (wire, worker) = worker::Channels::pair(DEFAULT_CHANNEL_TIMEOUT)
+            .expect("Streams::register: fatal: unable to create channels");
 
         match self.streams.entry(stream) {
             Entry::Vacant(e) => {
