@@ -84,6 +84,7 @@ pub fn run(
     profile: &Profile,
     workdir: &git::raw::Repository,
     message: term::patch::Message,
+    draft: bool,
     options: Options,
 ) -> anyhow::Result<()> {
     let mut patches = patch::Patches::open(storage)?;
@@ -116,15 +117,27 @@ pub fn run(
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
     let signer = term::signer(profile)?;
-    let patch = patches.create(
-        title,
-        &description,
-        patch::MergeTarget::default(),
-        base_oid,
-        head_oid,
-        &[],
-        &signer,
-    )?;
+    let patch = if draft {
+        patches.draft(
+            title,
+            &description,
+            patch::MergeTarget::default(),
+            base_oid,
+            head_oid,
+            &[],
+            &signer,
+        )
+    } else {
+        patches.create(
+            title,
+            &description,
+            patch::MergeTarget::default(),
+            base_oid,
+            head_oid,
+            &[],
+            &signer,
+        )
+    }?;
 
     term::success!("Patch {} created", term::format::highlight(patch.id));
     term::blank();

@@ -1029,7 +1029,7 @@ impl<'a> Patches<'a> {
         Ok(Self { raw })
     }
 
-    /// Create a patch.
+    /// Open a new patch.
     pub fn create<'g, G: Signer>(
         &'g mut self,
         title: impl ToString,
@@ -1040,18 +1040,39 @@ impl<'a> Patches<'a> {
         tags: &[Tag],
         signer: &G,
     ) -> Result<PatchMut<'a, 'g>, Error> {
-        let (id, patch, clock) =
-            Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
-                tx.revision(String::default(), base, oid)?;
-                tx.edit(title, description, target)?;
-                tx.tag(tags.to_owned(), [])?;
+        self._create(
+            title,
+            description,
+            target,
+            base,
+            oid,
+            tags,
+            State::default(),
+            signer,
+        )
+    }
 
-                Ok(())
-            })?;
-        // Just a sanity check that our clock is advancing as expected.
-        debug_assert_eq!(clock.get(), 1);
-
-        Ok(PatchMut::new(id, patch, clock, self))
+    /// Draft a patch. This patch will be created in a [`State::Draft`] state.
+    pub fn draft<'g, G: Signer>(
+        &'g mut self,
+        title: impl ToString,
+        description: impl ToString,
+        target: MergeTarget,
+        base: impl Into<git::Oid>,
+        oid: impl Into<git::Oid>,
+        tags: &[Tag],
+        signer: &G,
+    ) -> Result<PatchMut<'a, 'g>, Error> {
+        self._create(
+            title,
+            description,
+            target,
+            base,
+            oid,
+            tags,
+            State::Draft,
+            signer,
+        )
     }
 
     /// Patches count by state.
@@ -1131,6 +1152,35 @@ impl<'a> Patches<'a> {
         Ok(self
             .proposed()?
             .filter(move |(_, p, _)| p.author().id() == who))
+    }
+
+    /// Create a patch. This is an internal function used by `create` and `draft`.
+    fn _create<'g, G: Signer>(
+        &'g mut self,
+        title: impl ToString,
+        description: impl ToString,
+        target: MergeTarget,
+        base: impl Into<git::Oid>,
+        oid: impl Into<git::Oid>,
+        tags: &[Tag],
+        state: State,
+        signer: &G,
+    ) -> Result<PatchMut<'a, 'g>, Error> {
+        let (id, patch, clock) =
+            Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
+                tx.revision(String::default(), base, oid)?;
+                tx.edit(title, description, target)?;
+                tx.tag(tags.to_owned(), [])?;
+
+                if state != State::default() {
+                    tx.lifecycle(state)?;
+                }
+                Ok(())
+            })?;
+        // Just a sanity check that our clock is advancing as expected.
+        debug_assert_eq!(clock.get(), 1);
+
+        Ok(PatchMut::new(id, patch, clock, self))
     }
 }
 

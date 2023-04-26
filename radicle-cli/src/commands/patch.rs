@@ -40,7 +40,7 @@ Usage
     rad patch [<option>...]
     rad patch list [--all|--merged|--open|--archived] [<option>...]
     rad patch show <patch-id> [<option>...]
-    rad patch open [<option>...]
+    rad patch open [--draft] [<option>...]
     rad patch archive <patch-id> [<option>...]
     rad patch update <patch-id> [<option>...]
     rad patch checkout <patch-id> [<option>...]
@@ -50,8 +50,9 @@ Show options
 
     -p, --patch                Show the actual patch diff
 
-Create/Update options
+Open/Update options
 
+        --draft                Open patch in draft mode
         --[no-]announce        Announce patch to network (default: false)
         --[no-]push            Push patch head to storage (default: true)
     -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
@@ -86,6 +87,7 @@ pub enum OperationName {
 pub enum Operation {
     Open {
         message: Message,
+        draft: bool,
     },
     Show {
         patch_id: Rev,
@@ -132,6 +134,7 @@ impl Args for Options {
         let mut push = true;
         let mut filter = Some(patch::State::Open);
         let mut diff = false;
+        let mut draft = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -163,6 +166,11 @@ impl Args for Options {
                 }
                 Long("no-push") => {
                     push = false;
+                }
+
+                // Open options.
+                Long("draft") if op == Some(OperationName::Open) => {
+                    draft = true;
                 }
 
                 // Show options.
@@ -221,7 +229,7 @@ impl Args for Options {
         }
 
         let op = match op.unwrap_or_default() {
-            OperationName::Open => Operation::Open { message },
+            OperationName::Open => Operation::Open { message, draft },
             OperationName::List => Operation::List { filter },
             OperationName::Show => Operation::Show {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -266,8 +274,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     match options.op {
-        Operation::Open { ref message } => {
-            create::run(&repository, &profile, &workdir, message.clone(), options)?;
+        Operation::Open { ref message, draft } => {
+            create::run(
+                &repository,
+                &profile,
+                &workdir,
+                message.clone(),
+                draft,
+                options,
+            )?;
         }
         Operation::List { filter } => {
             list::run(&repository, &profile, filter)?;
