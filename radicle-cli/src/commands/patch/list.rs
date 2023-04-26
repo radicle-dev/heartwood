@@ -149,9 +149,6 @@ pub fn timeline(
             let peer = repository.remote(&merge.node)?;
             let mut badges = Vec::new();
 
-            if peer.delegate {
-                badges.push(term::format::secondary("(delegate)").into());
-            }
             if peer.id == *whoami {
                 badges.push(term::format::primary("(you)").into());
             }
@@ -185,9 +182,6 @@ pub fn timeline(
             let peer = repository.remote(reviewer)?;
             let mut badges = Vec::new();
 
-            if peer.delegate {
-                badges.push(term::format::secondary("(delegate)").into());
-            }
             if peer.id == *whoami {
                 badges.push(term::format::primary("(you)").into());
             }

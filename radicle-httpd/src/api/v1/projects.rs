@@ -318,6 +318,7 @@ async fn tree_handler(
 async fn remotes_handler(State(ctx): State<Context>, Path(project): Path<Id>) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
+    let delegates = repo.delegates()?;
     let remotes = repo
         .remotes()?
         .filter_map(|r| r.map(|r| r.1).ok())
@@ -335,7 +336,7 @@ async fn remotes_handler(State(ctx): State<Context>, Path(project): Path<Id>) ->
             json!({
                 "id": remote.id,
                 "heads": refs,
-                "delegate": remote.delegate,
+                "delegate": delegates.contains(&remote.id.into()),
             })
         })
         .collect::<Vec<_>>();
@@ -351,6 +352,7 @@ async fn remote_handler(
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
+    let delegates = repo.delegates()?;
     let remote = repo.remote(&node_id)?;
     let refs = remote
         .refs
@@ -364,7 +366,7 @@ async fn remote_handler(
     let remote = json!({
         "id": remote.id,
         "heads": refs,
-        "delegate": remote.delegate,
+        "delegate": delegates.contains(&remote.id.into()),
     });
 
     Ok::<_, Error>(Json(remote))
@@ -1251,7 +1253,7 @@ mod routes {
                 "heads": {
                   "master": HEAD
                 },
-                "delegate": false
+                "delegate": true
               }
             ])
         );
@@ -1275,7 +1277,7 @@ mod routes {
                 "heads": {
                     "master": HEAD
                 },
-                "delegate": false
+                "delegate": true
             })
         );
     }

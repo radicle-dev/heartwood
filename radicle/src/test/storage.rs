@@ -154,10 +154,7 @@ impl ReadRepository for MockRepository {
     fn remote(&self, id: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
         self.remotes
             .get(id)
-            .map(|refs| Remote {
-                refs: refs.clone(),
-                delegate: false,
-            })
+            .map(|refs| Remote { refs: refs.clone() })
             .ok_or(refs::Error::InvalidRef)
     }
 
@@ -165,15 +162,7 @@ impl ReadRepository for MockRepository {
         Ok(self
             .remotes
             .iter()
-            .map(|(id, refs)| {
-                (
-                    *id,
-                    Remote {
-                        refs: refs.clone(),
-                        delegate: false,
-                    },
-                )
-            })
+            .map(|(id, refs)| (*id, Remote { refs: refs.clone() }))
             .collect())
     }
 

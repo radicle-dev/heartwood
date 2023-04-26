@@ -208,17 +208,12 @@ pub struct Remote<V = Verified> {
     /// Git references published under this remote, and their hashes.
     #[serde(flatten)]
     pub refs: SignedRefs<V>,
-    /// Whether this remote is a delegate for the project.
-    pub delegate: bool,
 }
 
 impl Remote<Unverified> {
     /// Create a new unverified remotes object.
     pub fn new(refs: impl Into<SignedRefs<Unverified>>) -> Self {
-        Self {
-            refs: refs.into(),
-            delegate: false,
-        }
+        Self { refs: refs.into() }
     }
 }
 
@@ -226,26 +221,19 @@ impl Remote<Unverified> {
     pub fn verified(self) -> Result<Remote<Verified>, crypto::Error> {
         let refs = self.refs.verified()?;
 
-        Ok(Remote {
-            refs,
-            delegate: self.delegate,
-        })
+        Ok(Remote { refs })
     }
 }
 
 impl Remote<Verified> {
     /// Create a new unverified remotes object.
     pub fn new(refs: impl Into<SignedRefs<Verified>>) -> Self {
-        Self {
-            refs: refs.into(),
-            delegate: false,
-        }
+        Self { refs: refs.into() }
     }
 
     pub fn unverified(self) -> Remote<Unverified> {
         Remote {
             refs: self.refs.unverified(),
-            delegate: self.delegate,
         }
     }
 }
