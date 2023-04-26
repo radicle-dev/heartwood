@@ -734,3 +734,81 @@ fn test_connection_crossing() {
 
     assert!(s1 ^ s2, "Exactly one session should be established");
 }
+
+#[test]
+fn test_outdated_sigrefs() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+
+    let mut alice = Node::init(tmp.path());
+    let bob = Node::init(tmp.path());
+    let eve = Node::init(tmp.path());
+
+    let rid = alice.project("acme", "");
+
+    let mut alice = alice.spawn(service::Config::default());
+    let mut bob = bob.spawn(service::Config::default());
+    let mut eve = eve.spawn(service::Config::default());
+
+    bob.handle.track_repo(rid, Scope::All).unwrap();
+    eve.handle.track_repo(rid, Scope::All).unwrap();
+    alice.connect(&bob);
+    bob.connect(&eve);
+    eve.connect(&alice);
+    converge([&alice, &bob, &eve]);
+
+    bob.handle.fetch(rid, alice.id).unwrap();
+    assert!(bob.storage.contains(&rid).unwrap());
+    rad::fork(rid, &bob.signer, &bob.storage).unwrap();
+
+    eve.handle.fetch(rid, alice.id).unwrap();
+    assert!(eve.storage.contains(&rid).unwrap());
+    rad::fork(rid, &eve.signer, &eve.storage).unwrap();
+
+    alice
+        .handle
+        .track_node(eve.id, Some("eve".to_string()))
+        .unwrap();
+    alice.handle.fetch(rid, eve.id).unwrap();
+    let repo = alice.storage.repository(rid).unwrap();
+    assert!(repo.remote(&eve.id).is_ok());
+
+    bob.handle.fetch(rid, eve.id).unwrap();
+    let repo = bob.storage.repository(rid).unwrap();
+    let eve_remote = repo.remote(&eve.id).unwrap();
+    let old_refs = eve_remote.refs;
+
+    // At this stage, Alice and Bob have Eve's fork and Eve does not
+    // have Bob's fork
+
+    eve.issue(
+        rid,
+        "Outdated Sigrefs",
+        "Outdated sigrefs are harshing my vibes",
+    );
+    let repo = eve.storage.repository(rid).unwrap();
+    let eves_refs = repo.remote(&eve.id).unwrap().refs;
+
+    // Get the current state of eve's refs in alice's storage
+    alice.handle.fetch(rid, eve.id).unwrap();
+    let repo = alice.storage.repository(rid).unwrap();
+    let eve_remote = repo.remote(&eve.id).unwrap();
+    let eves_refs_expected = eve_remote.refs;
+    assert_ne!(eves_refs_expected, old_refs);
+    assert_eq!(eves_refs_expected, eves_refs);
+
+    alice
+        .handle
+        .track_node(bob.id, Some("bob".to_string()))
+        .unwrap();
+    alice.handle.fetch(rid, bob.id).unwrap();
+
+    // Ensure that bob's refs have not changed
+    let repo = alice.storage.repository(rid).unwrap();
+    let eve_remote = repo.remote(&eve.id).unwrap();
+    let eves_refs = eve_remote.refs;
+
+    assert_ne!(eves_refs, old_refs);
+    assert_eq!(eves_refs_expected, eves_refs);
+}
