@@ -66,6 +66,7 @@ pub fn run(
     workdir: &git::raw::Repository,
     patch_id: Option<patch::PatchId>,
     message: term::patch::Message,
+    quiet: bool,
     options: &Options,
 ) -> anyhow::Result<()> {
     // `HEAD`; This is what we are proposing as a patch.
@@ -87,11 +88,15 @@ pub fn run(
     // TODO(cloudhead): Handle error.
     let (_, current_revision) = patch.latest().unwrap();
     if current_revision.head() == branch_oid(&head_branch)? {
-        term::info!("Nothing to do, patch is already up to date.");
+        if !quiet {
+            term::info!("Nothing to do, patch is already up to date.");
+        }
         return Ok(());
     }
 
-    show_update_commit_info(workdir, current_revision, &head_branch)?;
+    if !quiet {
+        show_update_commit_info(workdir, current_revision, &head_branch)?;
+    }
 
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
@@ -101,10 +106,14 @@ pub fn run(
     let signer = term::signer(profile)?;
     let revision = patch.update(message, base_oid, *head_oid, &signer)?;
 
-    term::success!(
-        "Patch updated to revision {}",
-        term::format::tertiary(revision),
-    );
+    if quiet {
+        term::print(revision);
+    } else {
+        term::success!(
+            "Patch updated to revision {}",
+            term::format::tertiary(revision),
+        );
+    }
 
     if options.announce {
         // TODO

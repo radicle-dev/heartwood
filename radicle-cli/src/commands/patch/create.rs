@@ -85,6 +85,7 @@ pub fn run(
     workdir: &git::raw::Repository,
     message: term::patch::Message,
     draft: bool,
+    quiet: bool,
     options: Options,
 ) -> anyhow::Result<()> {
     let mut patches = patch::Patches::open(storage)?;
@@ -107,9 +108,10 @@ pub fn run(
     // to date, and error out, unless the user specifies manually the merge
     // base.
 
-    show_patch_commit_info(workdir, profile.id(), &head_branch, &target_ref, target_oid)?;
-
-    term::blank();
+    if !quiet {
+        show_patch_commit_info(workdir, profile.id(), &head_branch, &target_ref, target_oid)?;
+        term::blank();
+    }
 
     // TODO: List matching working copy refs for all targets.
 
@@ -139,8 +141,10 @@ pub fn run(
         )
     }?;
 
-    term::success!("Patch {} created", term::format::highlight(patch.id));
-    term::blank();
+    if !quiet {
+        term::success!("Patch {} created", term::format::highlight(patch.id));
+        term::blank();
+    }
 
     if options.announce {
         let mut node = Node::new(profile.socket());
@@ -153,10 +157,13 @@ pub fn run(
                 return Err(e.into());
             }
         }
-    } else {
+    } else if !quiet {
         term::info!("To publish your patch to the network, run:");
         term::indented(term::format::secondary("git push rad"));
     }
 
+    if quiet {
+        term::print(patch.id);
+    }
     Ok(())
 }
