@@ -572,6 +572,53 @@ fn test_cob_replication() {
 }
 
 #[test]
+fn test_cob_deletion() {
+    let mut environment = Environment::new();
+    let working = tempfile::tempdir().unwrap();
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
+
+    let rid = alice.project("heartwood", "");
+
+    let mut alice = alice.spawn(Config::default());
+    let mut bob = bob.spawn(Config::default());
+
+    alice.handle.track_repo(rid, Scope::All).unwrap();
+    bob.handle.track_repo(rid, Scope::All).unwrap();
+    alice.connect(&bob);
+    bob.routes_to(&[(rid, alice.id)]);
+
+    let alice_repo = alice.storage.repository(rid).unwrap();
+    let mut alice_issues = radicle::cob::issue::Issues::open(&alice_repo).unwrap();
+    let issue = alice_issues
+        .create(
+            "Something's fishy",
+            "I don't know what it is",
+            &[],
+            &[],
+            &alice.signer,
+        )
+        .unwrap();
+    let issue_id = issue.id();
+    log::debug!(target: "test", "Issue {} created", issue_id);
+
+    bob.rad("clone", &[rid.to_string().as_str()], working.path())
+        .unwrap();
+
+    let bob_repo = bob.storage.repository(rid).unwrap();
+    let bob_issues = radicle::cob::issue::Issues::open(&bob_repo).unwrap();
+    assert!(bob_issues.get(issue_id).unwrap().is_some());
+
+    let alice_issues = radicle::cob::issue::Issues::open(&alice_repo).unwrap();
+    alice_issues.remove(issue_id, &alice.signer).unwrap();
+
+    bob.handle.fetch(rid, alice.id).unwrap();
+    let bob_repo = bob.storage.repository(rid).unwrap();
+    let bob_issues = radicle::cob::issue::Issues::open(&bob_repo).unwrap();
+    assert!(bob_issues.get(issue_id).unwrap().is_none());
+}
+
+#[test]
 fn rad_sync() {
     logger::init(log::Level::Debug);
 
