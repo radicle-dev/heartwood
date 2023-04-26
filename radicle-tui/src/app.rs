@@ -4,7 +4,6 @@ pub mod subscription;
 
 use anyhow::Result;
 
-use radicle::cob::patch::{Patch, PatchId};
 use radicle::identity::{Id, Project};
 use radicle::profile::Profile;
 
@@ -16,6 +15,10 @@ use radicle_tui::cob::patch::{self};
 use radicle_tui::ui;
 use radicle_tui::ui::theme::{self, Theme};
 use radicle_tui::Tui;
+
+use page::{HomeView, PatchView};
+
+use self::page::PageStack;
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum HomeCid {
@@ -43,12 +46,12 @@ pub enum Cid {
 /// Messages handled by this application.
 #[derive(Debug, Eq, PartialEq)]
 pub enum HomeMessage {
-    Show,
+    PatchChanged(usize),
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum PatchMessage {
-    Show(usize),
+    Show,
     Leave,
 }
 
@@ -65,14 +68,12 @@ pub struct Context {
     profile: Profile,
     id: Id,
     project: Project,
-    selected_patch: usize,
-    patches: Vec<(PatchId, Patch)>,
 }
 
 #[allow(dead_code)]
 pub struct App {
     context: Context,
-    active_page: Box<dyn page::ViewPage>,
+    pages: PageStack,
     theme: Theme,
     quit: bool,
 }
@@ -81,49 +82,63 @@ pub struct App {
 /// components and sets focus to a default one.
 impl App {
     pub fn new(profile: Profile, id: Id, project: Project) -> Self {
-        let patches = patch::load_all(&profile, id);
         Self {
             context: Context {
                 id,
                 profile,
                 project,
-                selected_patch: 0,
-                patches,
             },
+            pages: PageStack::default(),
             theme: theme::default_dark(),
-            active_page: Box::<page::Home>::default(),
             quit: false,
         }
     }
 
-    fn mount_home_view(
+    fn view_home(
         &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        self.active_page = Box::<page::Home>::default();
-        self.active_page.mount(app, &self.context, theme)?;
-        self.active_page.activate(app)?;
+        let patches = patch::load_all(&self.context.profile, self.context.id);
+        let home = Box::new(HomeView::new(patches));
+        self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())
     }
 
-    fn mount_patch_view(
+    fn view_patch(
         &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        self.active_page = Box::<page::PatchView>::default();
-        self.active_page.mount(app, &self.context, theme)?;
-        self.active_page.activate(app)?;
+        let page = self.pages.peek_mut()?;
+        let state = page.state().unwrap_map();
+        let patches = state
+            .and_then(|mut values| values.remove("patches"))
+            .and_then(|value| value.unwrap_patches());
 
-        Ok(())
+        match patches {
+            Some((patches, selection)) => match patches.get(selection) {
+                Some((id, patch)) => {
+                    let view = Box::new(PatchView::new((*id, patch.clone())));
+                    self.pages.push(view, app, &self.context, theme)?;
+
+                    Ok(())
+                }
+                None => Err(anyhow::anyhow!(
+                    "Could not mount 'page::PatchView'. Patch not found."
+                )),
+            },
+            None => Err(anyhow::anyhow!(
+                "Could not mount 'page::PatchView'. No state value for 'patches' found."
+            )),
+        }
     }
 }
 
 impl Tui<Cid, Message> for App {
     fn init(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        self.mount_home_view(app, &self.theme.clone())?;
+        self.view_home(app, &self.theme.clone())?;
 
         // Add global key listener and subscribe to key events
         let global = ui::widget::common::global_listener().to_boxed();
@@ -133,7 +148,9 @@ impl Tui<Cid, Message> for App {
     }
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
-        self.active_page.as_mut().view(app, frame);
+        if let Ok(page) = self.pages.peek_mut() {
+            page.view(app, frame);
+        }
     }
 
     fn update(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<bool> {
@@ -142,20 +159,15 @@ impl Tui<Cid, Message> for App {
                 let theme = theme::default_dark();
                 for message in messages {
                     match message {
-                        Message::Home(HomeMessage::Show) => {
-                            self.mount_home_view(app, &theme)?;
-                        }
-                        Message::Patch(PatchMessage::Show(index)) => {
-                            self.context.selected_patch = index;
-                            self.mount_patch_view(app, &theme)?;
+                        Message::Patch(PatchMessage::Show) => {
+                            self.view_patch(app, &theme)?;
                         }
                         Message::Patch(PatchMessage::Leave) => {
-                            self.mount_home_view(app, &theme)?;
+                            self.pages.pop(app)?;
                         }
                         Message::Quit => self.quit = true,
                         _ => {
-                            self.active_page.update(message);
-                            self.active_page.activate(app)?;
+                            self.pages.peek_mut()?.update(app, message)?;
                         }
                     }
                 }

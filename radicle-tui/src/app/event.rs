@@ -13,7 +13,7 @@ use radicle_tui::ui::components::patch;
 
 use radicle_tui::ui::widget::Widget;
 
-use super::{Message, PatchMessage};
+use super::{HomeMessage, Message, PatchMessage};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -51,23 +51,24 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<Browser<(PatchId, Patc
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
-                self.perform(Cmd::Move(MoveDirection::Up));
-                Some(Message::Tick)
+                match self.perform(Cmd::Move(MoveDirection::Up)) {
+                    CmdResult::Changed(State::One(StateValue::Usize(index))) => {
+                        Some(Message::Home(HomeMessage::PatchChanged(index)))
+                    }
+                    _ => Some(Message::Tick),
+                }
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Down, ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Down));
-                Some(Message::Tick)
-            }
+            }) => match self.perform(Cmd::Move(MoveDirection::Down)) {
+                CmdResult::Changed(State::One(StateValue::Usize(index))) => {
+                    Some(Message::Home(HomeMessage::PatchChanged(index)))
+                }
+                _ => Some(Message::Tick),
+            },
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
-            }) => match self.perform(Cmd::Submit) {
-                CmdResult::Submit(State::One(StateValue::Usize(index))) => {
-                    Some(Message::Patch(PatchMessage::Show(index)))
-                }
-                _ => None,
-            },
+            }) => Some(Message::Patch(PatchMessage::Show)),
             _ => None,
         }
     }

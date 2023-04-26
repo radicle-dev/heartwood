@@ -80,9 +80,9 @@ impl Window {
 
         while !tui.quit() {
             if update {
-                self.terminal.raw_mut().draw(|frame| {
-                    tui.view(&mut app, frame);
-                })?;
+                self.terminal
+                    .raw_mut()
+                    .draw(|frame| tui.view(&mut app, frame))?;
             }
             update = tui.update(&mut app)?;
         }
