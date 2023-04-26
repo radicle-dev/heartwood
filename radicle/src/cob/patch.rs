@@ -980,6 +980,26 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         self.lifecycle(State::Archived, signer)
     }
 
+    /// Mark a patch as ready to be reviewed. Returns `false` if the patch was not a draft.
+    pub fn ready<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
+        if self.state() != State::Draft {
+            return Ok(false);
+        }
+        self.lifecycle(State::Open, signer)?;
+
+        Ok(true)
+    }
+
+    /// Mark an open patch as a draft. Returns `false` if the patch was not open.
+    pub fn unready<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
+        if self.state() != State::Open {
+            return Ok(false);
+        }
+        self.lifecycle(State::Draft, signer)?;
+
+        Ok(true)
+    }
+
     /// Tag a patch.
     pub fn tag<G: Signer>(
         &mut self,

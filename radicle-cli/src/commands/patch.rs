@@ -10,6 +10,8 @@ mod create;
 mod delete;
 #[path = "patch/list.rs"]
 mod list;
+#[path = "patch/ready.rs"]
+mod ready;
 #[path = "patch/show.rs"]
 mod show;
 #[path = "patch/update.rs"]
@@ -45,6 +47,7 @@ Usage
     rad patch update <patch-id> [<option>...]
     rad patch checkout <patch-id> [<option>...]
     rad patch delete <patch-id> [<option>...]
+    rad patch ready <patch-id> [--undo] [<option>...]
 
 Show options
 
@@ -66,6 +69,10 @@ List options
         --merged               Show only merged patches
         --open                 Show only open patches (default)
 
+Ready options
+
+        --undo                 Convert a patch back to a draft
+
 Other options
 
         --help                 Print help
@@ -80,6 +87,7 @@ pub enum OperationName {
     Archive,
     Delete,
     Checkout,
+    Ready,
     #[default]
     List,
 }
@@ -102,6 +110,10 @@ pub enum Operation {
     },
     Archive {
         patch_id: Rev,
+    },
+    Ready {
+        patch_id: Rev,
+        undo: bool,
     },
     Delete {
         patch_id: Rev,
@@ -138,6 +150,7 @@ impl Args for Options {
         let mut filter = Some(patch::State::Open);
         let mut diff = false;
         let mut draft = false;
+        let mut undo = false;
         let mut quiet = false;
 
         while let Some(arg) = parser.next()? {
@@ -187,6 +200,11 @@ impl Args for Options {
                     diff = true;
                 }
 
+                // Ready options.
+                Long("undo") if op == Some(OperationName::Ready) => {
+                    undo = true;
+                }
+
                 // List options.
                 Long("all") => {
                     filter = None;
@@ -217,6 +235,7 @@ impl Args for Options {
                     "d" | "delete" => op = Some(OperationName::Delete),
                     "c" | "checkout" => op = Some(OperationName::Checkout),
                     "a" | "archive" => op = Some(OperationName::Archive),
+                    "y" | "ready" => op = Some(OperationName::Ready),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val)
@@ -226,6 +245,7 @@ impl Args for Options {
                             Some(OperationName::Update),
                             Some(OperationName::Delete),
                             Some(OperationName::Archive),
+                            Some(OperationName::Ready),
                             Some(OperationName::Checkout),
                         ]
                         .contains(&op) =>
@@ -261,6 +281,10 @@ impl Args for Options {
             },
             OperationName::Checkout => Operation::Checkout {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+            },
+            OperationName::Ready => Operation::Ready {
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                undo,
             },
         };
 
@@ -335,6 +359,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Archive { ref patch_id } => {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
             archive::run(&repository, &profile, &patch_id)?;
+        }
+        Operation::Ready { ref patch_id, undo } => {
+            let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
+            ready::run(&repository, &profile, &patch_id, undo)?;
         }
         Operation::Delete { patch_id } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
