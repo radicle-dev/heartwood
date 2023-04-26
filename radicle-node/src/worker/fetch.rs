@@ -398,6 +398,16 @@ impl<'a> StagingPhaseFinal<'a> {
         let head = production.set_identity_head()?;
         log::debug!(target: "worker", "'refs/rad/id' for {} set to {head}", production.id);
 
+        #[cfg(test)]
+        // N.b. This is to prevent us from shooting ourselves in the
+        // foot with storage inconsistencies.
+        radicle::debug_assert_matches!(
+            production.validate(),
+            Ok(()),
+            "repository {} is not valid",
+            production.id,
+        );
+
         Ok((updates, remotes))
     }
 
