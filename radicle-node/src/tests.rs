@@ -1150,7 +1150,7 @@ fn test_refs_synced_event() {
         .unverified();
     let ann = AnnouncementMessage::from(RefsAnnouncement {
         rid: acme,
-        refs: vec![(alice.id, refs)].try_into().unwrap(),
+        refs: vec![refs].try_into().unwrap(),
         timestamp: bob.timestamp(),
     });
     let msg = ann.signed(bob.signer());

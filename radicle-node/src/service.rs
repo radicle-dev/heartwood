@@ -868,9 +868,9 @@ where
             }
             // Process a peer inventory update announcement by (maybe) fetching.
             AnnouncementMessage::Refs(message) => {
-                for (remote_id, theirs) in message.refs.iter() {
-                    if theirs.verify(remote_id).is_err() {
-                        warn!(target: "service", "Peer {relayer} relayed refs announcement with invalid signature for {remote_id}");
+                for theirs in message.refs.iter() {
+                    if theirs.verify(&theirs.id).is_err() {
+                        warn!(target: "service", "Peer {relayer} relayed refs announcement with invalid signature for {}", theirs.id);
                         return Err(session::Error::Misbehavior);
                     }
                 }
@@ -1033,10 +1033,7 @@ where
                         trusted.remove(&self.node_id());
 
                         // Check if there is at least one trusted ref.
-                        Ok(message
-                            .refs
-                            .iter()
-                            .any(|(pub_key, _refs)| trusted.contains(pub_key)))
+                        Ok(message.refs.iter().any(|refs| trusted.contains(&refs.id)))
                     }
                     Err(NamespacesError::NoTrusted { rid }) => {
                         debug!(target: "service", "No trusted nodes to fetch {}", &rid);
@@ -1212,7 +1209,7 @@ where
 
         for remote_id in remotes.into_iter() {
             if refs
-                .push((remote_id, repo.remote(&remote_id)?.refs.unverified()))
+                .push(repo.remote(&remote_id)?.refs.unverified())
                 .is_err()
             {
                 warn!(

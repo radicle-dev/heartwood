@@ -205,8 +205,6 @@ impl<V> From<Remotes<V>> for HashMap<RemoteId, Refs> {
 /// A project remote.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Remote<V = Verified> {
-    /// ID of remote.
-    pub id: PublicKey,
     /// Git references published under this remote, and their hashes.
     #[serde(flatten)]
     pub refs: SignedRefs<V>,
@@ -214,13 +212,10 @@ pub struct Remote<V = Verified> {
     pub delegate: bool,
 }
 
-impl<V> Remote<V> {
-    // TODO(finto): This function seems out of place in the API for a couple of reasons:
-    // * The SignedRefs aren't guaranteed to be by the `id`
-    // * I could write `Remote::<Verified>::new(id, refs) and because of the above, it's a LIE
-    pub fn new(id: PublicKey, refs: impl Into<SignedRefs<V>>) -> Self {
+impl Remote<Unverified> {
+    /// Create a new unverified remotes object.
+    pub fn new(refs: impl Into<SignedRefs<Unverified>>) -> Self {
         Self {
-            id,
             refs: refs.into(),
             delegate: false,
         }
@@ -229,10 +224,9 @@ impl<V> Remote<V> {
 
 impl Remote<Unverified> {
     pub fn verified(self) -> Result<Remote<Verified>, crypto::Error> {
-        let refs = self.refs.verified(&self.id)?;
+        let refs = self.refs.verified()?;
 
         Ok(Remote {
-            id: self.id,
             refs,
             delegate: self.delegate,
         })
@@ -240,12 +234,27 @@ impl Remote<Unverified> {
 }
 
 impl Remote<Verified> {
+    /// Create a new unverified remotes object.
+    pub fn new(refs: impl Into<SignedRefs<Verified>>) -> Self {
+        Self {
+            refs: refs.into(),
+            delegate: false,
+        }
+    }
+
     pub fn unverified(self) -> Remote<Unverified> {
         Remote {
-            id: self.id,
             refs: self.refs.unverified(),
             delegate: self.delegate,
         }
+    }
+}
+
+impl<V> Deref for Remote<V> {
+    type Target = SignedRefs<V>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.refs
     }
 }
 

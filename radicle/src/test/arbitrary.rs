@@ -4,7 +4,7 @@ use std::ops::RangeBounds;
 use std::{iter, net};
 
 use crypto::test::signer::MockSigner;
-use crypto::{PublicKey, Signer, Unverified, Verified};
+use crypto::{PublicKey, Unverified, Verified};
 use nonempty::NonEmpty;
 use qcheck::Arbitrary;
 
@@ -137,9 +137,10 @@ impl Arbitrary for SignedRefs<Unverified> {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let bytes: [u8; 64] = Arbitrary::arbitrary(g);
         let signature = crypto::Signature::from(bytes);
+        let id = PublicKey::arbitrary(g);
         let refs = Refs::arbitrary(g);
 
-        Self::new(refs, signature)
+        Self::new(refs, id, signature)
     }
 }
 
@@ -195,7 +196,7 @@ impl Arbitrary for storage::Remote<crypto::Verified> {
         let signer = MockSigner::arbitrary(g);
         let signed = refs.signed(&signer).unwrap();
 
-        storage::Remote::new(*signer.public_key(), signed)
+        storage::Remote::<crypto::Verified>::new(signed)
     }
 }
 

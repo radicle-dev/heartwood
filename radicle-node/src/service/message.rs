@@ -147,7 +147,7 @@ pub struct RefsAnnouncement {
     /// Repository identifier.
     pub rid: Id,
     /// Updated refs.
-    pub refs: BoundedVec<(NodeId, SignedRefs<Unverified>), REF_REMOTE_LIMIT>,
+    pub refs: BoundedVec<SignedRefs<Unverified>, REF_REMOTE_LIMIT>,
     /// Time of announcement.
     pub timestamp: Timestamp,
 }
@@ -163,8 +163,8 @@ impl RefsAnnouncement {
             Ok(r) => r,
         };
 
-        for (remote_id, theirs) in self.refs.iter() {
-            if let Ok(ours) = repo.remote(remote_id) {
+        for theirs in self.refs.iter() {
+            if let Ok(ours) = repo.remote(&theirs.id) {
                 if *ours.refs != theirs.refs {
                     return Ok(true);
                 }
@@ -188,7 +188,7 @@ impl RefsAnnouncement {
             Ok(r) => r,
         };
 
-        if let Some((_, refs)) = self.refs.iter().find(|(nid, _)| nid == remote) {
+        if let Some(refs) = self.refs.iter().find(|refs| &refs.id == remote) {
             let local_refs = repo.remote(remote)?.refs.unverified();
             return Ok(&local_refs == refs);
         }
@@ -534,8 +534,7 @@ mod tests {
         assert_eq!(refs.capacity(), REF_REMOTE_LIMIT);
 
         for _ in 0..refs.capacity() {
-            refs.push((*signer.public_key(), signed_refs.clone()))
-                .unwrap();
+            refs.push(signed_refs.clone()).unwrap();
         }
 
         let msg: Message = AnnouncementMessage::from(RefsAnnouncement {
@@ -588,9 +587,7 @@ mod tests {
         let signer = MockSigner::new(&mut fastrand::Rng::new());
         let timestamp = 0;
         let signed_refs = refs.signed(&signer).unwrap();
-        let refs = BoundedVec::collect_from(
-            &mut [(*signer.public_key(), signed_refs.unverified())].into_iter(),
-        );
+        let refs = BoundedVec::collect_from(&mut [signed_refs.unverified()].into_iter());
         let message = AnnouncementMessage::Refs(RefsAnnouncement {
             rid,
             refs,

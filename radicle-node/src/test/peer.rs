@@ -279,7 +279,7 @@ where
             if let Ok(false) = repo.is_empty() {
                 if let Ok(remotes) = repo.remotes() {
                     for (remote_id, remote) in remotes.into_iter() {
-                        if let Err(e) = refs.push((remote_id, remote.refs.unverified())) {
+                        if let Err(e) = refs.push(remote.refs.unverified()) {
                             debug!(target: "test", "Failed to push {remote_id} to refs: {e}");
                             break;
                         }

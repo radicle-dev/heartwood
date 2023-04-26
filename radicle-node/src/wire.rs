@@ -429,6 +429,7 @@ impl<V> Encode for SignedRefs<V> {
     fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
         let mut n = 0;
 
+        n += self.id.encode(writer)?;
         n += self.refs.encode(writer)?;
         n += self.signature.encode(writer)?;
 
@@ -438,10 +439,11 @@ impl<V> Encode for SignedRefs<V> {
 
 impl Decode for SignedRefs<Unverified> {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        let id = NodeId::decode(reader)?;
         let refs = Refs::decode(reader)?;
         let signature = Signature::decode(reader)?;
 
-        Ok(Self::new(refs, signature))
+        Ok(Self::new(refs, id, signature))
     }
 }
 

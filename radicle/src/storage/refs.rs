@@ -70,7 +70,7 @@ impl Refs {
     /// Verify the given signature on these refs, and return [`SignedRefs`] on success.
     pub fn verified(
         self,
-        signer: &PublicKey,
+        signer: PublicKey,
         signature: Signature,
     ) -> Result<SignedRefs<Verified>, Error> {
         let refs = self;
@@ -80,6 +80,7 @@ impl Refs {
             Ok(()) => Ok(SignedRefs {
                 refs,
                 signature,
+                id: signer,
                 _verified: PhantomData,
             }),
             Err(e) => Err(e.into()),
@@ -98,6 +99,7 @@ impl Refs {
         Ok(SignedRefs {
             refs,
             signature,
+            id: *signer.public_key(),
             _verified: PhantomData,
         })
     }
@@ -200,27 +202,34 @@ impl DerefMut for Refs {
 /// [`Unverified`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SignedRefs<V> {
+    /// The signed refs.
     pub refs: Refs,
+    /// The signature of the signer over the refs.
     #[serde(skip)]
     pub signature: Signature,
+    /// This is the remote under which these refs exist, and the public key of the signer.
+    pub id: PublicKey,
+
     #[serde(skip)]
     _verified: PhantomData<V>,
 }
 
 impl SignedRefs<Unverified> {
-    pub fn new(refs: Refs, signature: Signature) -> Self {
+    pub fn new(refs: Refs, id: PublicKey, signature: Signature) -> Self {
         Self {
             refs,
             signature,
+            id,
             _verified: PhantomData,
         }
     }
 
-    pub fn verified(self, signer: &PublicKey) -> Result<SignedRefs<Verified>, crypto::Error> {
-        match self.verify(signer) {
+    pub fn verified(self) -> Result<SignedRefs<Verified>, crypto::Error> {
+        match self.verify(&self.id) {
             Ok(()) => Ok(SignedRefs {
                 refs: self.refs,
                 signature: self.signature,
+                id: self.id,
                 _verified: PhantomData,
             }),
             Err(e) => Err(e),
@@ -238,16 +247,16 @@ impl SignedRefs<Unverified> {
 }
 
 impl SignedRefs<Verified> {
-    pub fn load<S>(remote: &RemoteId, repo: &S) -> Result<Self, Error>
+    pub fn load<S>(remote: RemoteId, repo: &S) -> Result<Self, Error>
     where
         S: ReadRepository,
     {
-        let oid = repo.reference_oid(remote, &SIGREFS_BRANCH)?;
+        let oid = repo.reference_oid(&remote, &SIGREFS_BRANCH)?;
 
         SignedRefs::load_at(oid, remote, repo)
     }
 
-    pub fn load_at<S>(oid: Oid, remote: &RemoteId, repo: &S) -> Result<Self, Error>
+    pub fn load_at<S>(oid: Oid, remote: RemoteId, repo: &S) -> Result<Self, Error>
     where
         S: storage::ReadRepository,
     {
@@ -262,6 +271,7 @@ impl SignedRefs<Verified> {
                 Ok(Self {
                     refs,
                     signature,
+                    id: remote,
                     _verified: PhantomData,
                 })
             }
@@ -335,6 +345,7 @@ impl SignedRefs<Verified> {
         SignedRefs {
             refs: self.refs,
             signature: self.signature,
+            id: self.id,
             _verified: PhantomData,
         }
     }

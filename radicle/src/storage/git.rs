@@ -436,8 +436,8 @@ impl ReadRepository for Repository {
     }
 
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
-        let refs = SignedRefs::load(remote, self)?;
-        Ok(Remote::new(*remote, refs))
+        let refs = SignedRefs::load(*remote, self)?;
+        Ok(Remote::<Verified>::new(refs))
     }
 
     fn references_of(&self, remote: &RemoteId) -> Result<Refs, Error> {
