@@ -144,7 +144,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .revisions()
         .nth(revision_ix)
         .ok_or_else(|| anyhow!("revision R{} does not exist", revision_ix))?;
-    let message = options.message.get(REVIEW_HELP_MSG);
+    let message = options.message.get(REVIEW_HELP_MSG)?;
     let message = message.replace(REVIEW_HELP_MSG.trim(), "");
     let message = if message.is_empty() {
         None

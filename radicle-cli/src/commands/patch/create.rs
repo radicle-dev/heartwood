@@ -34,7 +34,7 @@ pub fn handle_patch_message(
     let commit_message = head_commit
         .message()
         .ok_or(anyhow!("commit summary is not valid UTF-8; aborting"))?;
-    let message = message.get(&format!("{commit_message}{PATCH_MSG}"));
+    let message = message.get(&format!("{commit_message}{PATCH_MSG}"))?;
     let message = message.replace(PATCH_MSG.trim(), ""); // Delete help message.
     let (title, description) = message.split_once("\n\n").unwrap_or((&message, ""));
     let (title, description) = (title.trim(), description.trim());

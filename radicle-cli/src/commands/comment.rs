@@ -93,7 +93,7 @@ fn comment(
     repo: &storage::git::Repository,
     signer: impl Signer,
 ) -> anyhow::Result<()> {
-    let message = options.message.clone().get("Enter a comment...");
+    let message = options.message.clone().get("Enter a comment...")?;
     if message.is_empty() {
         return Ok(());
     }

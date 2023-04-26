@@ -100,7 +100,7 @@ pub fn run(
 
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = workdir.merge_base(*target_oid, *head_oid)?;
-    let message = message.get(REVISION_MSG);
+    let message = message.get(REVISION_MSG)?;
     let message = message.replace(REVISION_MSG.trim(), "");
     let message = message.trim();
     let signer = term::signer(profile)?;
