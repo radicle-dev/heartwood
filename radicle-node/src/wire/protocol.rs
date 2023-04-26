@@ -843,6 +843,12 @@ where
                         channels,
                     };
 
+                    if !self.worker.is_empty() {
+                        log::warn!(
+                            target: "wire",
+                            "Worker pool is busy: {} tasks pending, fetch requests may be delayed", self.worker.len()
+                        );
+                    }
                     if self.worker.send(task).is_err() {
                         log::error!(target: "wire", "Worker pool is disconnected; cannot send fetch request");
                     }
