@@ -48,6 +48,16 @@ pub enum CloseReason {
     Solved,
 }
 
+impl std::fmt::Display for CloseReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let reason = match self {
+            Self::Other => "unspecified",
+            Self::Solved => "solved",
+        };
+        write!(f, "{reason}")
+    }
+}
+
 /// Issue state.
 #[derive(Debug, Default, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "status")]

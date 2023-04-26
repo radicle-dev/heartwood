@@ -11,6 +11,8 @@ use radicle::node::Handle;
 use radicle::prelude::Did;
 use radicle::storage::WriteStorage;
 use radicle::{cob, Node};
+use radicle_term::table::TableOptions;
+use radicle_term::{Paint, Table, VStack};
 
 use crate::git::Rev;
 use crate::terminal as term;
@@ -406,14 +408,58 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn show_issue(issue: &issue::Issue) -> anyhow::Result<()> {
     let tags: Vec<String> = issue.tags().cloned().map(|t| t.into()).collect();
-    let assignees: Vec<String> = issue.assigned().map(|a| a.to_string()).collect();
+    let assignees: Vec<String> = issue.assigned().map(|a| term::format::did(&a).to_string()).collect();
 
-    term::info!("title: {}", issue.title());
-    term::info!("state: {}", issue.state());
-    term::info!("tags: [{}]", tags.join(", "));
-    term::info!("assignees: [{}]", assignees.join(", "));
-    term::blank();
-    term::info!("{}", issue.description().unwrap_or_default());
+    let mut attrs = Table::<2, Paint<String>>::new(TableOptions {
+        spacing: 2,
+        ..TableOptions::default()
+    });
+
+    attrs.push([
+        term::format::tertiary("Title".to_owned()),
+        term::format::bold(issue.title().to_owned()),
+    ]);
+
+    if !tags.is_empty() {
+        attrs.push([
+            term::format::tertiary("Tags".to_owned()),
+            term::format::secondary(tags.join(", ")),
+        ]);
+    }
+
+    if !assignees.is_empty() {
+        attrs.push([
+            term::format::tertiary("Assignees".to_owned()),
+            term::format::dim(assignees.join(", ")),
+        ]);
+    }
+
+    attrs.push([
+        term::format::tertiary("Status".to_owned()),
+        match issue.state() {
+            issue::State::Open => term::format::positive("open".to_owned()),
+            issue::State::Closed { reason } => term::format::default(format!(
+                "{} {}",
+                term::format::negative("closed"),
+                term::format::default(format!("as {reason}"))
+            )),
+        },
+    ]);
+
+    let description = issue.description().unwrap_or_default();
+    let widget = VStack::default()
+        .border(Some(term::colors::FAINT))
+        .child(attrs)
+        .children(if !description.is_empty() {
+            vec![
+                term::Label::blank().boxed(),
+                term::textarea(term::format::dim(description)).boxed(),
+            ]
+        } else {
+            vec![]
+        });
+
+    widget.print();
 
     Ok(())
 }

@@ -5,12 +5,12 @@ Let's say the new car you are designing with your peers has a problem with its f
 
 ```
 $ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
-title: flux capacitor underpowered
-state: open
-tags: []
-assignees: []
-
-Flux capacitor power requirements exceed current supply
+╭─────────────────────────────────────────────────────────╮
+│ Title   flux capacitor underpowered                     │
+│ Status  open                                            │
+│                                                         │
+│ Flux capacitor power requirements exceed current supply │
+╰─────────────────────────────────────────────────────────╯
 ```
 
 The issue is now listed under our project.
@@ -44,6 +44,19 @@ $ rad issue list --assigned
 ├─────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ●   b05e945   flux capacitor underpowered   z6Mkt67…v4N1tRk          z6Mkt67…v4N1tRk   [    ..    ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+In addition, you can see that when you run `rad issue show` you are listed under the `Assignees`.
+
+```
+$ rad issue show b05e945
+╭─────────────────────────────────────────────────────────╮
+│ Title      flux capacitor underpowered                  │
+│ Assignees  z6Mkt67…v4N1tRk                              │
+│ Status     open                                         │
+│                                                         │
+│ Flux capacitor power requirements exceed current supply │
+╰─────────────────────────────────────────────────────────╯
 ```
 
 Note: this can always be undone with the `unassign` subcommand.
