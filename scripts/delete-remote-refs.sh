@@ -8,10 +8,10 @@ if [ "$#" -lt 2 ]; then
 fi
 
 RAD_HOME=${RAD_HOME:-"$HOME/.radicle"}
-REPO=$1
+REPO=$(echo "$1" | sed 's/rad://')
 REMOTE=$2
 
-cd $RAD_HOME/storage/$1
+cd $RAD_HOME/storage/$REPO
 
 refs=$(git for-each-ref --format="%(refname)")
 pattern="refs/namespaces/$2/refs/*"
