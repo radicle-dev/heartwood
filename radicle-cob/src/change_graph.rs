@@ -130,8 +130,9 @@ impl GraphBuilder {
         let resource_commit = *change.resource();
         let commit_id = commit.id;
 
-        self.graph.node(commit_id, change);
-
+        if !self.graph.contains(&commit_id) {
+            self.graph.node(commit_id, change);
+        }
         commit.parents.into_iter().filter_map(move |parent| {
             if parent.id != resource_commit && !self.graph.has_dependency(&commit_id, &parent.id) {
                 Some((parent, commit_id))

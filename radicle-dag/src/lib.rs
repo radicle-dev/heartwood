@@ -103,6 +103,11 @@ impl<K: Eq + Copy + Hash, V> Dag<K, V> {
         }
     }
 
+    /// Check if the graph contains a node.
+    pub fn contains(&self, key: &K) -> bool {
+        self.graph.contains_key(key)
+    }
+
     /// Get a node.
     pub fn get(&self, key: &K) -> Option<&Node<K, V>> {
         self.graph.get(key)
