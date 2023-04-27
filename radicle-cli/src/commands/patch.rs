@@ -40,7 +40,7 @@ pub const HELP: Help = Help {
 Usage
 
     rad patch [<option>...]
-    rad patch list [--all|--merged|--open|--archived] [<option>...]
+    rad patch list [--all|--merged|--open|--archived|--draft] [<option>...]
     rad patch show <patch-id> [<option>...]
     rad patch open [--draft] [<option>...]
     rad patch archive <patch-id> [<option>...]
@@ -68,6 +68,7 @@ List options
         --archived             Show only archived patches
         --merged               Show only merged patches
         --open                 Show only open patches (default)
+        --draft                Show only draft patches
 
 Ready options
 
@@ -208,6 +209,9 @@ impl Args for Options {
                 // List options.
                 Long("all") => {
                     filter = None;
+                }
+                Long("draft") => {
+                    filter = Some(patch::State::Draft);
                 }
                 Long("archived") => {
                     filter = Some(patch::State::Archived);

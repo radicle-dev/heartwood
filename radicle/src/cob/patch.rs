@@ -276,12 +276,17 @@ impl Patch {
 
     /// Check if the patch is open.
     pub fn is_open(&self) -> bool {
-        matches!(self.state.get().get(), State::Open)
+        matches!(self.state(), State::Open)
     }
 
     /// Check if the patch is archived.
     pub fn is_archived(&self) -> bool {
-        matches!(self.state.get().get(), &State::Archived)
+        matches!(self.state(), State::Archived)
+    }
+
+    /// Check if the patch is a draft.
+    pub fn is_draft(&self) -> bool {
+        matches!(self.state(), State::Draft)
     }
 }
 
@@ -982,7 +987,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
 
     /// Mark a patch as ready to be reviewed. Returns `false` if the patch was not a draft.
     pub fn ready<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
-        if self.state() != State::Draft {
+        if !self.is_draft() {
             return Ok(false);
         }
         self.lifecycle(State::Open, signer)?;
@@ -992,7 +997,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
 
     /// Mark an open patch as a draft. Returns `false` if the patch was not open.
     pub fn unready<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
-        if self.state() != State::Open {
+        if !self.is_open() {
             return Ok(false);
         }
         self.lifecycle(State::Draft, signer)?;
