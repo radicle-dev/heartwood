@@ -128,6 +128,14 @@ impl Streams {
     fn unregister(&mut self, stream: &StreamId) -> Option<worker::Channels> {
         self.streams.remove(stream)
     }
+
+    /// Close all streams.
+    fn shutdown(&mut self) {
+        for (sid, chans) in self.streams.drain() {
+            log::debug!(target: "wire", "Closing worker stream {sid}");
+            chans.close().ok();
+        }
+    }
 }
 
 /// Peer connection state machine.
@@ -215,9 +223,11 @@ impl Peer {
 
     /// Switch to disconnecting state.
     fn disconnecting(&mut self, reason: DisconnectReason) {
-        if let Self::Connected { nid: id, .. } = self {
+        if let Self::Connected { nid, streams, .. } = self {
+            streams.shutdown();
+
             *self = Self::Disconnecting {
-                id: Some(*id),
+                id: Some(*nid),
                 reason,
             };
         } else if let Self::Inbound {} = self {
@@ -666,10 +676,14 @@ where
                 // therefore there is no need to initiate a disconnection. We simply remove
                 // the peer from the map.
                 match self.peers.remove(&fd) {
-                    Some(peer) => {
+                    Some(mut peer) => {
                         let reason = DisconnectReason::Connection(Arc::new(io::Error::from(
                             io::ErrorKind::ConnectionReset,
                         )));
+
+                        if let Peer::Connected { streams, .. } = &mut peer {
+                            streams.shutdown();
+                        }
 
                         if let Some(id) = peer.id() {
                             self.service.disconnected(*id, &reason);

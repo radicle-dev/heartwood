@@ -70,6 +70,10 @@ impl<T: AsRef<[u8]>> Channels<T> {
     pub fn send(&self, event: ChannelEvent<T>) -> io::Result<()> {
         self.sender.send(event)
     }
+
+    pub fn close(self) -> Result<(), chan::SendError<ChannelEvent<T>>> {
+        self.sender.close()
+    }
 }
 
 /// Wraps a [`chan::Receiver`] and provides it with [`io::Read`].
@@ -174,5 +178,10 @@ impl<T: AsRef<[u8]>> ChannelWriter<T> {
     /// by the remote worker to end the protocol. We use the special "eof" control message for this.
     pub fn eof(&self) -> Result<(), chan::SendError<ChannelEvent<T>>> {
         self.sender.send(ChannelEvent::Eof)
+    }
+
+    /// Permanently close this stream.
+    pub fn close(self) -> Result<(), chan::SendError<ChannelEvent<T>>> {
+        self.sender.send(ChannelEvent::Close)
     }
 }
