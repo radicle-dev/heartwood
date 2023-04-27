@@ -105,6 +105,12 @@ pub enum Error {
     NotFound(TypeName, ObjectId),
     #[error("signed refs: {0}")]
     SignRefs(#[from] storage::Error),
+    #[error("failed to find reference '{name}': {err}")]
+    RefLookup {
+        name: git::RefString,
+        #[source]
+        err: git::Error,
+    },
 }
 
 /// Storage for collaborative objects of a specific type `T` in a single repository.
@@ -237,10 +243,23 @@ where
 
     /// Remove an object.
     pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), Error> {
-        cob::remove(self.repo, signer.public_key(), T::type_name(), id)?;
-        self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
-
-        Ok(())
+        let name = git::refs::storage::cob(signer.public_key(), T::type_name(), id);
+        match self
+            .repo
+            .reference_oid(signer.public_key(), &name.strip_namespace())
+        {
+            Ok(_) => {
+                cob::remove(self.repo, signer.public_key(), T::type_name(), id)?;
+                self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
+                Ok(())
+            }
+            Err(git::Error::NotFound(_)) => Ok(()),
+            Err(git::Error::Git(err)) if err.code() == git::raw::ErrorCode::NotFound => Ok(()),
+            Err(err) => Err(Error::RefLookup {
+                name: name.to_ref_string(),
+                err,
+            }),
+        }
     }
 }
 
