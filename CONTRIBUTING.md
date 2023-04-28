@@ -163,7 +163,24 @@ When proposing changes via a patch:
   codebase, write a proposal in English first, and get consensus on that before
   proposing the code changes.
 
-## Writing Git commit messages
+**Preparing commits**
+
+1. Each commit in your patch must pass all the tests, lints and checks. This is
+   so that they can be built into binaries and to make git bisecting possible.
+2. Do not include any commits that are fixes or refactorings of previous patch
+   commits. These should be squashed to the minimal diff required to make the
+   change, unless it's helpful to make a large change over multiple commits,
+   while still respecting (1). Do not include `fixup!` commits either.
+3. A commit *may* include a category prefix such as `cli:` or `node:` if it
+   mainly concerns a certain area of the codebase. For example. These prefixes
+   should usually be the name of the crate, minus any common prefix. Eg.
+   `cli:`, and *not* `radicle-cli:`. For documentation, you can use `docs:`,
+   and for CI-related files, you can use `ci:`.
+
+To help with the above, use `git commit --amend` and `git rebase -i`. You can
+also interactively construct a commit from a working tree using `git add -p`.
+
+## Writing commit messages
 
 A properly formed git commit subject line should always be able to complete the
 following sentence:
@@ -177,7 +194,7 @@ For example, the following message is well formed:
      Add support for .gif files
 
 While these ones are **not**: `Adding support for .gif files`,
-`Added support for .gif files`.
+`Added support for .gif files`, `add support for .gif files`.
 
 When it comes to formatting, here's a model git commit message[1]:
 
