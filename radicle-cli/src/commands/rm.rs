@@ -4,8 +4,10 @@ use std::fs;
 use anyhow::anyhow;
 
 use radicle::identity::Id;
+use radicle::node;
+use radicle::node::Handle as _;
+use radicle::Profile;
 
-use crate::commands::rad_untrack;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
@@ -70,19 +72,36 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let rid = options.rid;
     let path = radicle::storage::git::paths::repository(storage, &rid);
-    let mut node = radicle::Node::new(profile.socket());
 
     if !path.exists() {
         anyhow::bail!("repository {rid} was not found");
     }
 
     if !options.confirm || term::confirm(format!("Remove {rid}?")) {
-        if let Err(e) = rad_untrack::untrack_repo(rid, &mut node) {
-            term::warning(&format!("Failed to untrack repository: {e}"));
-            term::warning("Make sure to untrack this repository when your node is running");
-        }
+        untrack(&rid, &profile)?;
         fs::remove_dir_all(path)?;
         term::success!("Successfully removed {rid} from storage");
+    }
+
+    Ok(())
+}
+
+fn untrack(rid: &Id, profile: &Profile) -> anyhow::Result<()> {
+    let mut node = radicle::Node::new(profile.socket());
+
+    let result = if node.is_running() {
+        node.untrack_repo(*rid).map_err(anyhow::Error::from)
+    } else {
+        let mut store =
+            node::tracking::store::Config::open(profile.home.node().join(node::TRACKING_DB_FILE))?;
+        store.untrack_repo(rid).map_err(anyhow::Error::from)
+    };
+
+    if let Err(e) = result {
+        term::warning(&format!("Failed to untrack repository: {e}"));
+        term::warning("Make sure to untrack this repository when your node is running");
+    } else {
+        term::success!("Untracked {rid}")
     }
 
     Ok(())

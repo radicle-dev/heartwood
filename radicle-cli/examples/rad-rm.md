@@ -10,8 +10,7 @@ Now let's delete the `heartwood` project:
 
 ```
 $ rad rm rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-confirm
-! Warning: Failed to untrack repository: failed to connect to node: No such file or directory (os error 2)
-! Warning: Make sure to untrack this repository when your node is running
+✓ Untracked rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✓ Successfully removed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from storage
 ```
 
