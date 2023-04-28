@@ -22,11 +22,13 @@ pub const HELP: Help = Help {
 Usage
 
     rad node status [<option>...]
-    rad node start [<option>...]
+    rad node start [--daemon|-d] [<option>...] [-- <node-option>...]
     rad node stop [<option>...]
     rad node connect <nid> <addr> [<option>...]
     rad node routing [<option>...]
     rad node tracking [--repos|--nodes] [<option>...]
+
+    For `<node-option>` see `radicle-node --help`.
 
 Options
 
@@ -41,12 +43,20 @@ pub struct Options {
 }
 
 pub enum Operation {
-    Connect { nid: NodeId, addr: Address },
+    Connect {
+        nid: NodeId,
+        addr: Address,
+    },
     Routing,
-    Start,
+    Start {
+        daemon: bool,
+        options: Vec<OsString>,
+    },
     Status,
     Stop,
-    Tracking { mode: TrackingMode },
+    Tracking {
+        mode: TrackingMode,
+    },
 }
 
 #[derive(Default)]
@@ -71,6 +81,8 @@ impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
         use lexopt::prelude::*;
 
+        let mut daemon = false;
+        let mut options = vec![];
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut tracking_mode = TrackingMode::default();
@@ -111,6 +123,12 @@ impl Args for Options {
                 Long("nodes") if matches!(op, Some(OperationName::Tracking)) => {
                     tracking_mode = TrackingMode::Nodes
                 }
+                Long("daemon") | Short('d') if matches!(op, Some(OperationName::Start)) => {
+                    daemon = true;
+                }
+                Value(val) if matches!(op, Some(OperationName::Start)) => {
+                    options.push(val);
+                }
                 _ => return Err(anyhow!(arg.unexpected())),
             }
         }
@@ -121,7 +139,7 @@ impl Args for Options {
                 addr: addr.ok_or_else(|| anyhow!("an address must be provided"))?,
             },
             OperationName::Routing => Operation::Routing,
-            OperationName::Start => Operation::Start,
+            OperationName::Start => Operation::Start { daemon, options },
             OperationName::Status => Operation::Status,
             OperationName::Stop => Operation::Stop,
             OperationName::Tracking => Operation::Tracking {
@@ -145,7 +163,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 radicle::node::routing::Table::reader(profile.home.node().join(ROUTING_DB_FILE))?;
             routing::run(&store)?;
         }
-        Operation::Start => control::start()?,
+        Operation::Start { daemon, options } => control::start(daemon, options)?,
         Operation::Status => {
             let node = Node::new(profile.socket());
             control::status(&node);

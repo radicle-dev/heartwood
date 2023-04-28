@@ -1,5 +1,5 @@
 //! Logging module.
-use std::io;
+use std::io::{self, Write};
 
 use chrono::prelude::*;
 use colored::*;
@@ -18,35 +18,28 @@ impl Log for Logger {
         if self.enabled(record.metadata()) {
             let target = record.target();
 
-            if record.level() == Level::Error {
-                write(record, target, io::stderr());
-            } else {
-                write(record, target, io::stdout());
-            }
+            let message = format!(
+                "{:<5} {:<8} {}",
+                record.level(),
+                target.cyan(),
+                record.args()
+            );
 
-            fn write(record: &log::Record, target: &str, mut stream: impl io::Write) {
-                let message = format!(
-                    "{:<5} {:<8} {}",
-                    record.level(),
-                    target.cyan(),
-                    record.args()
-                );
+            let message = format!(
+                "{} {}",
+                Local::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                message,
+            );
 
-                let message = format!(
-                    "{} {}",
-                    Local::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                    message,
-                );
+            let message = match record.level() {
+                Level::Error => message.red(),
+                Level::Warn => message.yellow(),
+                Level::Info => message.normal(),
+                Level::Debug => message.dimmed(),
+                Level::Trace => message.white().dimmed(),
+            };
 
-                let message = match record.level() {
-                    Level::Error => message.red(),
-                    Level::Warn => message.yellow(),
-                    Level::Info => message.normal(),
-                    Level::Debug => message.dimmed(),
-                    Level::Trace => message.white().dimmed(),
-                };
-                writeln!(stream, "{message}").expect("write shouldn't fail");
-            }
+            writeln!(io::stdout(), "{message}").expect("write shouldn't fail");
         }
     }
 
