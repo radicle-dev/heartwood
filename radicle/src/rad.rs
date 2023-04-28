@@ -265,6 +265,8 @@ pub enum RemoteError {
     InvalidUtf8,
     #[error("remote `{0}` not found")]
     NotFound(String),
+    #[error("expected remote for {expected} but found {found}")]
+    RidMismatch { found: Id, expected: Id },
 }
 
 /// Get the radicle ("rad") remote of a repository, and return the associated project id.
@@ -280,6 +282,18 @@ pub fn remote(repo: &git2::Repository) -> Result<(git2::Remote<'_>, Id), RemoteE
     let url = git::Url::from_str(url)?;
 
     Ok((remote, url.repo))
+}
+
+/// Delete the radicle ("rad") remote of a repository.
+pub fn remove_remote(repo: &git2::Repository) -> Result<(), RemoteError> {
+    repo.remote_delete(&REMOTE_NAME).map_err(|e| {
+        if e.code() == git2::ErrorCode::NotFound {
+            RemoteError::NotFound(REMOTE_NAME.to_string())
+        } else {
+            RemoteError::from(e)
+        }
+    })?;
+    Ok(())
 }
 
 /// Get the Id of project in current working directory

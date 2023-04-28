@@ -11,6 +11,7 @@ Now let's delete the `heartwood` project:
 ```
 $ rad rm rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-confirm
 ✓ Untracked rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+✓ Successfully removed 'rad' remote
 ✓ Successfully removed rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from storage
 ```
 

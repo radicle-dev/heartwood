@@ -251,6 +251,28 @@ pub fn rad_remote(repo: &Repository) -> anyhow::Result<(git2::Remote, Id)> {
     }
 }
 
+pub fn remove_remote(repo: &Repository, rid: &Id) -> anyhow::Result<()> {
+    // N.b. ensure that we are removing the remote for the correct RID
+    match radicle::rad::remote(repo) {
+        Ok((_, rid_)) => {
+            if rid_ != *rid {
+                return Err(radicle::rad::RemoteError::RidMismatch {
+                    found: rid_,
+                    expected: *rid,
+                }
+                .into());
+            }
+        }
+        Err(radicle::rad::RemoteError::NotFound(_)) => return Ok(()),
+        Err(err) => return Err(err).context("could not read git remote configuration"),
+    };
+
+    match radicle::rad::remove_remote(repo) {
+        Ok(()) => Ok(()),
+        Err(err) => Err(err).context("could not read git remote configuration"),
+    }
+}
+
 pub fn add_remote<'a>(
     repo: &'a Repository,
     name: &'a str,

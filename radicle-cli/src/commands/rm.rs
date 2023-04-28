@@ -6,8 +6,10 @@ use anyhow::anyhow;
 use radicle::identity::Id;
 use radicle::node;
 use radicle::node::Handle as _;
+use radicle::storage;
 use radicle::Profile;
 
+use crate::git;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
@@ -71,7 +73,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
     let rid = options.rid;
-    let path = radicle::storage::git::paths::repository(storage, &rid);
+    let path = storage::git::paths::repository(storage, &rid);
 
     if !path.exists() {
         anyhow::bail!("repository {rid} was not found");
@@ -79,6 +81,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     if !options.confirm || term::confirm(format!("Remove {rid}?")) {
         untrack(&rid, &profile)?;
+        remove_remote(&rid)?;
         fs::remove_dir_all(path)?;
         term::success!("Successfully removed {rid} from storage");
     }
@@ -102,6 +105,23 @@ fn untrack(rid: &Id, profile: &Profile) -> anyhow::Result<()> {
         term::warning("Make sure to untrack this repository when your node is running");
     } else {
         term::success!("Untracked {rid}")
+    }
+
+    Ok(())
+}
+
+fn remove_remote(rid: &Id) -> anyhow::Result<()> {
+    let cwd = std::env::current_dir()?;
+    if let Err(e) = git::Repository::open(cwd)
+        .map_err(|err| err.into())
+        .and_then(|repo| git::remove_remote(&repo, rid))
+    {
+        term::warning(&format!(
+            "Attempted to remove 'rad' remote from working copy: {e}"
+        ));
+        term::warning("In case a working copy exists, make sure to `git remote remove rad`");
+    } else {
+        term::success!("Successfully removed 'rad' remote");
     }
 
     Ok(())
