@@ -26,10 +26,10 @@ $ git branch -r
   bob/flux-capacitor-power
   bob/master
   rad/master
-$ rad patch show a07ef77
+$ rad patch show 5f0a547
 ╭───────────────────────────────────────────────────────────────────────────────────╮
 │ Title    Define power requirements                                                │
-│ Patch    a07ef7743a32a2e902672ea3526d1db6ee08108a                                 │
+│ Patch    5f0a547f7a91bf002bb0542035a647fd5af134a5                                 │
 │ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk                 │
 │ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                                 │
 │ Commits  ahead 2, behind 0                                                        │
@@ -38,7 +38,7 @@ $ rad patch show a07ef77
 │ See details.                                                                      │
 ├───────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [    ...   ] │
-│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) [         ...   ] │
+│ ↑ updated to b7e2356fb7e3981980b42603eea969851d17a40d (27857ec) [         ...   ] │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -55,10 +55,10 @@ $ git commit --fixup HEAD~
 [flux-capacitor-power f6484e0] fixup! Define power requirements
  1 file changed, 0 insertions(+), 0 deletions(-)
  rename REQUIREMENTS => REQUIREMENTS.md (100%)
-$ rad patch update --message "Define power requirements" --message "See details." a07ef7743a32a2e902672ea3526d1db6ee08108a
+$ rad patch update --message "Define power requirements" --message "See details." 5f0a547f7a91bf002bb0542035a647fd5af134a5
 Updating 27857ec -> f6484e0
 1 commit(s) ahead, 0 commit(s) behind
-✓ Patch updated to revision 0795d619232479e910f95bb9c873ee1ec305c43c
+✓ Patch updated to revision 4486280d0dec743d6a1a0c05754f8e40426c681d
 ```
 
 Great, all fixed up, lets merge the code.
@@ -66,8 +66,8 @@ Great, all fixed up, lets merge the code.
 ```
 $ git checkout master
 Your branch is up to date with 'rad/master'.
-$ rad merge 0795d619232479e910f95bb9c873ee1ec305c43c
-Merging a07ef77 R2 (f6484e0) by z6Mkt67…v4N1tRk into master (f2de534) via fast-forward...
+$ rad merge 4486280d0dec743d6a1a0c05754f8e40426c681d
+Merging 5f0a547 R2 (f6484e0) by z6Mkt67…v4N1tRk into master (f2de534) via fast-forward...
 Running `git merge --ff-only f6484e0f43e48a8983b9b39bf9bd4cd889f1d520`...
 Updating f2de534..f6484e0
 Fast-forward
@@ -83,10 +83,10 @@ Fast-forward
 The patch is now merged and closed :).
 
 ```
-$ rad patch show a07ef77
+$ rad patch show 5f0a547
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                                     │
-│ Patch     a07ef7743a32a2e902672ea3526d1db6ee08108a                                      │
+│ Patch     5f0a547f7a91bf002bb0542035a647fd5af134a5                                      │
 │ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk                      │
 │ Head      f6484e0f43e48a8983b9b39bf9bd4cd889f1d520                                      │
 │ Branches  flux-capacitor-power, master                                                  │
@@ -96,8 +96,8 @@ $ rad patch show a07ef77
 │ See details.                                                                            │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [        ...     ] │
-│ ↑ updated to 11483929d8714a92992229f65433e06288f3b760 (27857ec) [             ...     ] │
-│ ↑ updated to 0795d619232479e910f95bb9c873ee1ec305c43c (f6484e0) [             ...     ] │
+│ ↑ updated to b7e2356fb7e3981980b42603eea969851d17a40d (27857ec) [             ...     ] │
+│ ↑ updated to 4486280d0dec743d6a1a0c05754f8e40426c681d (f6484e0) [             ...     ] │
 │ ✓ merged by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [  ...     ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```

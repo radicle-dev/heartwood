@@ -14,7 +14,7 @@ Let's add Bob as a delegate using their DID
 
 ```
 $ rad id edit --title "Add Bob" --description "Add Bob as a delegate" --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
-✓ Identity proposal '0d396a83a5e1dda2b8929f7dc401d19dd1a79fb8' created
+✓ Identity proposal 'c2fe23ff387d5e040d0ed8eb2651942f5d0c2aa5' created
 title: Add Bob
 description: Add Bob as a delegate
 status: ❲open❳
@@ -89,7 +89,7 @@ Finally, we can see whether the `Quorum` was reached:
 Let's see what happens when we reject the change:
 
 ```
-$ rad id reject 0d396a83a5e1dda2b8929f7dc401d19dd1a79fb8 --no-confirm
+$ rad id reject c2fe23ff387d5e040d0ed8eb2651942f5d0c2aa5 --no-confirm
 ✓ Rejected proposal 👎
 title: Add Bob
 description: Add Bob as a delegate
@@ -145,7 +145,7 @@ increased to `1`.
 Instead, let's accept the proposal:
 
 ```
-$ rad id accept 0d396a --no-confirm
+$ rad id accept c2fe23f --no-confirm
 ✓ Accepted proposal ✓
 title: Add Bob
 description: Add Bob as a delegate
@@ -207,7 +207,7 @@ As well as that, the `Quorum` has now been reached:
 At this point, we can commit the proposal and update the identity:
 
 ```
-$ rad id commit 0d396a83a5e1dda2b8929f7dc401d19dd1a79fb8 --no-confirm
+$ rad id commit c2fe23ff387d5e040d0ed8eb2651942f5d0c2aa5 --no-confirm
 ✓ Committed new identity 'c96e764965aaeff1c6ea3e5b97e2b9828773c8b0'
 title: Add Bob
 description: Add Bob as a delegate
@@ -255,7 +255,7 @@ the `--threshold` option:
 
 ```
 $ rad id edit --title "Update threshold" --description "Update to safer threshold" --threshold 2 --no-confirm
-✓ Identity proposal 'f435d6e89c8f922ede691287c0d8b7f82afa591e' created
+✓ Identity proposal '27864167e392d63e77df2a7413c988857bd32839' created
 title: Update threshold
 description: Update to safer threshold
 status: ❲open❳
@@ -298,8 +298,8 @@ Quorum Reached
 But we change our minds and decide to close the proposal instead:
 
 ```
-$ rad id close f435d6e89c8f922ede691287c0d8b7f82afa591e --no-confirm
-✓ Closed identity proposal 'f435d6e89c8f922ede691287c0d8b7f82afa591e'
+$ rad id close 27864167e392d63e77df2a7413c988857bd32839 --no-confirm
+✓ Closed identity proposal '27864167e392d63e77df2a7413c988857bd32839'
 title: Update threshold
 description: Update to safer threshold
 status: ❲closed❳
@@ -348,15 +348,15 @@ Radicle identity, then we can use the list command:
 
 ```
 $ rad id list
-0d396a83a5e1dda2b8929f7dc401d19dd1a79fb8 "Add Bob"          ❲committed❳
-f435d6e89c8f922ede691287c0d8b7f82afa591e "Update threshold" ❲closed❳
+27864167e392d63e77df2a7413c988857bd32839 "Update threshold" ❲closed❳
+c2fe23ff387d5e040d0ed8eb2651942f5d0c2aa5 "Add Bob"          ❲committed❳
 ```
 
 And if we want to view the latest state of any proposal we can use the
 show command:
 
 ```
-$ rad id show f435d6e89c8f922ede691287c0d8b7f82afa591e
+$ rad id show 27864167e392d63e77df2a7413c988857bd32839
 title: Update threshold
 description: Update to safer threshold
 status: ❲closed❳

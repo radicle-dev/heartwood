@@ -31,7 +31,7 @@ master <- z6MknSL…StBU8Vi/flux-capacitor-power (3e674d1)
 
 3e674d1 Define power requirements
 
-✓ Patch 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 created
+✓ Patch de3096d5cc422136016ac210b870bfa9d0f11481 created
 
 To publish your patch to the network, run:
     git push rad
@@ -44,14 +44,14 @@ $ rad patch
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author                  Head     +   -   Opened       │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  191a14e  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  4 months ago │
+│ ●  de3096d  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  4 months ago │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 ```
-$ rad patch show 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 -p
+$ rad patch show de3096d5cc422136016ac210b870bfa9d0f11481 -p
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                                     │
-│ Patch     191a14e520f2eeff7c0e3ee0a5523c5217eecb89                                      │
+│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                                      │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33                                      │
 │ Branches  flux-capacitor-power                                                          │
@@ -91,52 +91,52 @@ $ git commit --message "Add README, just for the fun"
 [flux-capacitor-power 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
-$ rad patch update --message "Add README, just for the fun" 191a14e520f2eeff7c0e3ee0a5523c5217eecb89
+$ rad patch update --message "Add README, just for the fun" de3096d5cc422136016ac210b870bfa9d0f11481
 Updating 3e674d1 -> 27857ec
 1 commit(s) ahead, 0 commit(s) behind
-✓ Patch updated to revision b8f7bfbbb3c6a207b349e9f45bf535c706805871
+✓ Patch updated to revision d00f978a43a255c7f2f9f23d39b555d103900c6d
 ```
 
 And let's leave a quick comment for our team:
 
 ```
-$ rad comment 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --message 'I cannot wait to get back to the 90s!'
-16cb902f2657dc6ff9cf0f2c1a6ec4dc63340d23
-$ rad comment 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --message 'I cannot wait to get back to the 90s!' --reply-to 16cb902f2657dc6ff9cf0f2c1a6ec4dc63340d23
-16363eca043df797de835fca477848ee37513084
+$ rad comment de3096d5cc422136016ac210b870bfa9d0f11481 --message 'I cannot wait to get back to the 90s!'
+225353d1b9195f6cf4cfe098ce7935d4c933c36e
+$ rad comment de3096d5cc422136016ac210b870bfa9d0f11481 --message 'I cannot wait to get back to the 90s!' --reply-to 225353d1b9195f6cf4cfe098ce7935d4c933c36e
+089c2d74d18036c75b1b4d3a32770c720a6967e2
 ```
 
 Now, let's checkout the patch that we just created:
 
 ```
-$ rad patch checkout 191a14e52
-✓ Switched to branch patch/191a14e
+$ rad patch checkout de3096d
+✓ Switched to branch patch/de3096d
 ```
 
 We can also add a review verdict as such:
 
 ```
-$ rad review 191a14e520f2eeff7c0e3ee0a5523c5217eecb89 --accept --no-message --no-sync
-✓ Patch 191a14e accepted
+$ rad review de3096d5cc422136016ac210b870bfa9d0f11481 --accept --no-message --no-sync
+✓ Patch de3096d accepted
 ```
 
 Showing the patch list now will reveal the favorable verdict:
 
 ```
-$ rad patch show 191a14e
+$ rad patch show de3096d
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                                     │
-│ Patch     191a14e520f2eeff7c0e3ee0a5523c5217eecb89                                      │
+│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                                      │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                                      │
-│ Branches  flux-capacitor-power, patch/191a14e                                           │
+│ Branches  flux-capacitor-power, patch/de3096d                                           │
 │ Commits   ahead 2, behind 0                                                             │
 │ Status    open                                                                          │
 │                                                                                         │
 │ See details.                                                                            │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...    ]│
-│ ↑ updated to b8f7bfbbb3c6a207b349e9f45bf535c706805871 (27857ec) [               ...    ]│
+│ ↑ updated to d00f978a43a255c7f2f9f23d39b555d103900c6d (27857ec) [               ...    ]│
 │ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [          ...    ]│
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```

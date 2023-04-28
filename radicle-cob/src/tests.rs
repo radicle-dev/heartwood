@@ -28,6 +28,7 @@ fn roundtrip() {
         &storage,
         &signer,
         proj.project.content_id,
+        vec![],
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
@@ -60,6 +61,7 @@ fn list_cobs() {
         &storage,
         &signer,
         proj.project.content_id,
+        vec![],
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
@@ -74,6 +76,7 @@ fn list_cobs() {
         &storage,
         &signer,
         proj.project.content_id,
+        vec![],
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
@@ -108,6 +111,7 @@ fn update_cob() {
         &storage,
         &signer,
         proj.project.content_id,
+        vec![],
         &proj.identifier(),
         Create {
             history_type: "test".to_string(),
@@ -167,6 +171,7 @@ fn traverse_cobs() {
         &storage,
         &terry_signer,
         terry_proj.project.content_id,
+        vec![],
         &terry_proj.identifier(),
         Create {
             contents: nonempty!(b"issue 1".to_vec()),

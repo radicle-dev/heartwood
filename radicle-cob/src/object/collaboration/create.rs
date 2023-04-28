@@ -52,6 +52,7 @@ pub fn create<S, G>(
     storage: &S,
     signer: &G,
     resource: Oid,
+    parents: Vec<Oid>,
     identifier: &S::Identifier,
     args: Create,
 ) -> Result<CollaborativeObject, error::Create>
@@ -61,7 +62,7 @@ where
 {
     let Create { ref typename, .. } = &args;
     let init_change = storage
-        .store(resource, vec![], signer, args.template())
+        .store(resource, parents, signer, args.template())
         .map_err(error::Create::from)?;
     let object_id = init_change.id().into();
 

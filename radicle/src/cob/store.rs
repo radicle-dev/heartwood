@@ -181,11 +181,14 @@ where
         actions: impl Into<NonEmpty<T::Action>>,
         signer: &G,
     ) -> Result<(ObjectId, T, Lamport), Error> {
-        let contents = actions.into().try_map(encoding::encode)?;
+        let actions = actions.into();
+        let parents = actions.iter().flat_map(T::Action::parents).collect();
+        let contents = actions.try_map(encoding::encode)?;
         let cob = cob::create(
             self.repo,
             signer,
             self.identity,
+            parents,
             signer.public_key(),
             Create {
                 history_type: HISTORY_TYPE.to_owned(),

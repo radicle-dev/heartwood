@@ -9,16 +9,16 @@ To open a patch in draft mode, we use the `--draft` option:
 
 ```
 $ rad patch open --draft -m "Nothing yet" --quiet
-3bdbfc4f85b942293ba7adb8e47bf3202a602e8b
+6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
 ```
 
 We can confirm it's a draft by running `show`:
 
 ```
-$ rad patch show 3bdbfc4f85b942293ba7adb8e47bf3202a602e8b
+$ rad patch show 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Nothing yet                                                                   │
-│ Patch     3bdbfc4f85b942293ba7adb8e47bf3202a602e8b                                      │
+│ Patch     6d7793b859860db775fd8ff1d18ffb6de2b9ca0e                                      │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7                                      │
 │ Branches  cloudhead/draft                                                               │
@@ -32,14 +32,14 @@ $ rad patch show 3bdbfc4f85b942293ba7adb8e47bf3202a602e8b
 Once the patch is ready for review, we can use the `ready` command:
 
 ```
-$ rad patch ready 3bdbfc4f85b942293ba7adb8e47bf3202a602e8b
+$ rad patch ready 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
 ```
 
 ```
-$ rad patch show 3bdbfc4f85b942293ba7adb8e47bf3202a602e8b
+$ rad patch show 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Nothing yet                                                                   │
-│ Patch     3bdbfc4f85b942293ba7adb8e47bf3202a602e8b                                      │
+│ Patch     6d7793b859860db775fd8ff1d18ffb6de2b9ca0e                                      │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7                                      │
 │ Branches  cloudhead/draft                                                               │
@@ -54,11 +54,11 @@ If for whatever reason, it needed to go back into draft mode, we could use
 the `--undo` flag:
 
 ```
-$ rad patch ready --undo 3bdbfc4f85b942293ba7adb8e47bf3202a602e8b
-$ rad patch show 3bdbfc4f85b942293ba7adb8e47bf3202a602e8b
+$ rad patch ready --undo 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
+$ rad patch show 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Nothing yet                                                                   │
-│ Patch     3bdbfc4f85b942293ba7adb8e47bf3202a602e8b                                      │
+│ Patch     6d7793b859860db775fd8ff1d18ffb6de2b9ca0e                                      │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7                                      │
 │ Branches  cloudhead/draft                                                               │

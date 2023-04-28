@@ -1784,7 +1784,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
-        const CREATED_PATCH_ID: &str = "f69641cba6d7df2c22844d7f39225b5cda54d363";
+        const CREATED_PATCH_ID: &str = "198b7bc8d19ef2f09e9fbd30645a46e4cd520713";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -1978,7 +1978,7 @@ mod routes {
                   "reviews": [],
                 },
                 {
-                  "id": "b1a8c5b3e1686891808fcac0d795d0bad1e69709",
+                  "id": "660ce23a54788d85d44a133357b53fc99f5d7a92",
                   "description": "This is a new revision",
                   "base": PARENT,
                   "oid": HEAD,
