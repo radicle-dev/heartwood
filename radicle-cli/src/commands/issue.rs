@@ -408,7 +408,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn show_issue(issue: &issue::Issue) -> anyhow::Result<()> {
     let tags: Vec<String> = issue.tags().cloned().map(|t| t.into()).collect();
-    let assignees: Vec<String> = issue.assigned().map(|a| term::format::did(&a).to_string()).collect();
+    let assignees: Vec<String> = issue
+        .assigned()
+        .map(|a| term::format::did(&a).to_string())
+        .collect();
 
     let mut attrs = Table::<2, Paint<String>>::new(TableOptions {
         spacing: 2,
