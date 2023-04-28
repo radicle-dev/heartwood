@@ -63,16 +63,16 @@ pub fn context(_theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> W
     let comments = patch::format_comments(patch);
 
     let context = common::label(" patch ").background(Color::Rgb(238, 111, 248));
-    let id = common::label(&format!(" {} ", id))
+    let id = common::label(&format!(" {id} "))
         .foreground(Color::Rgb(117, 113, 249))
         .background(Color::Rgb(40, 40, 40));
-    let title = common::label(&format!(" {} ", title))
+    let title = common::label(&format!(" {title} "))
         .foreground(Color::Rgb(70, 70, 70))
         .background(Color::Rgb(40, 40, 40));
-    let author = common::label(&format!(" {} ", author))
+    let author = common::label(&format!(" {author} "))
         .foreground(Color::Rgb(117, 113, 249))
         .background(Color::Rgb(40, 40, 40));
-    let comments = common::label(&format!(" {} ", comments))
+    let comments = common::label(&format!(" {comments} "))
         .foreground(Color::Rgb(70, 70, 70))
         .background(Color::Rgb(50, 50, 50));
 
