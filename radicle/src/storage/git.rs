@@ -595,7 +595,7 @@ impl WriteRepository for Repository {
         let refs = self.references_of(remote)?;
         let signed = refs.signed(signer)?;
 
-        signed.save(remote, self)?;
+        signed.save(self)?;
 
         Ok(signed)
     }

@@ -281,13 +281,9 @@ impl SignedRefs<Verified> {
 
     /// Save the signed refs to disk.
     /// This creates a new commit on the signed refs branch, and updates the branch pointer.
-    pub fn save<S: WriteRepository>(
-        &self,
-        // TODO: This should be part of the signed refs.
-        remote: &RemoteId,
-        repo: &S,
-    ) -> Result<Updated, Error> {
+    pub fn save<S: WriteRepository>(&self, repo: &S) -> Result<Updated, Error> {
         let sigref = &SIGREFS_BRANCH;
+        let remote = &self.id;
         let parent = match repo.reference(remote, sigref) {
             Ok(r) => Some(r.peel_to_commit()?),
             Err(git_ext::Error::Git(e)) if git_ext::is_not_found_err(&e) => None,
@@ -323,7 +319,7 @@ impl SignedRefs<Verified> {
             Some(&sigref),
             &author,
             &author,
-            &format!("Update signature for {remote}\n"),
+            "Update signed refs\n",
             &tree,
             &parent.iter().collect::<Vec<&git2::Commit>>(),
         );
