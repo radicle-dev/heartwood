@@ -11,6 +11,11 @@ RAD_HOME=${RAD_HOME:-"$HOME/.radicle"}
 REPO=$(echo "$1" | sed 's/rad://')
 REMOTE=$2
 
+if [ "$REMOTE" == "$(rad self --nid)" ]; then
+  echo "Error: refusing to delete your own remote"
+  exit 1
+fi
+
 cd $RAD_HOME/storage/$REPO
 
 refs=$(git for-each-ref --format="%(refname)")
