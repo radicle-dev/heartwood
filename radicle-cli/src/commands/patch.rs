@@ -8,6 +8,8 @@ mod common;
 mod create;
 #[path = "patch/delete.rs"]
 mod delete;
+#[path = "patch/edit.rs"]
+mod edit;
 #[path = "patch/list.rs"]
 mod list;
 #[path = "patch/ready.rs"]
@@ -48,10 +50,15 @@ Usage
     rad patch checkout <patch-id> [<option>...]
     rad patch delete <patch-id> [<option>...]
     rad patch ready <patch-id> [--undo] [<option>...]
+    rad patch edit <patch-id> [<option>...]
 
 Show options
 
     -p, --patch                Show the actual patch diff
+
+Edit options
+
+    -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
 
 Open/Update options
 
@@ -91,6 +98,7 @@ pub enum OperationName {
     Ready,
     #[default]
     List,
+    Edit,
 }
 
 #[derive(Debug)]
@@ -124,6 +132,10 @@ pub enum Operation {
     },
     List {
         filter: Option<patch::State>,
+    },
+    Edit {
+        patch_id: Rev,
+        message: Message,
     },
 }
 
@@ -240,6 +252,7 @@ impl Args for Options {
                     "c" | "checkout" => op = Some(OperationName::Checkout),
                     "a" | "archive" => op = Some(OperationName::Archive),
                     "y" | "ready" => op = Some(OperationName::Ready),
+                    "e" | "edit" => op = Some(OperationName::Edit),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val)
@@ -251,6 +264,7 @@ impl Args for Options {
                             Some(OperationName::Archive),
                             Some(OperationName::Ready),
                             Some(OperationName::Checkout),
+                            Some(OperationName::Edit),
                         ]
                         .contains(&op) =>
                 {
@@ -289,6 +303,10 @@ impl Args for Options {
             OperationName::Ready => Operation::Ready {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
                 undo,
+            },
+            OperationName::Edit => Operation::Edit {
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                message,
             },
         };
 
@@ -375,6 +393,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Checkout { patch_id } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
             checkout::run(&repository, &workdir, &patch_id)?;
+        }
+        Operation::Edit { patch_id, message } => {
+            let patch_id = patch_id.resolve(&repository.backend)?;
+            edit::run(&repository, &profile, &patch_id, message)?;
         }
     }
     Ok(())

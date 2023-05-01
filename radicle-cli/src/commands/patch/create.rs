@@ -12,18 +12,6 @@ use crate::terminal as term;
 use super::common::*;
 use super::Options;
 
-const PATCH_MSG: &str = r#"
-<!--
-Please enter a patch message for your changes. An empty
-message aborts the patch proposal.
-
-The first line is the patch title. The patch description
-follows, and must be separated with a blank line, just
-like a commit message. Markdown is supported in the title
-and description.
--->
-"#;
-
 pub fn handle_patch_message(
     message: term::patch::Message,
     storage: &Repository,

@@ -11,6 +11,18 @@ use crate::terminal::args::Error;
 
 use super::Options;
 
+pub const PATCH_MSG: &str = r#"
+<!--
+Please enter a patch message for your changes. An empty
+message aborts the patch proposal.
+
+The first line is the patch title. The patch description
+follows, and must be separated with a blank line, just
+like a commit message. Markdown is supported in the title
+and description.
+-->
+"#;
+
 /// Give the name of the branch or an appropriate error.
 #[inline]
 pub fn branch_name<'a>(branch: &'a git::raw::Branch) -> anyhow::Result<&'a str> {
