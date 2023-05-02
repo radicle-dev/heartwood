@@ -736,6 +736,62 @@ fn test_connection_crossing() {
 }
 
 #[test]
+#[should_panic]
+/// Alice is going to try to fetch outdated refs of Bob, from Eve. This is a non-fastfoward fetch
+/// on the sigrefs branch.
+fn test_non_fastforward_sigrefs() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+
+    let alice = Node::init(tmp.path());
+    let mut bob = Node::init(tmp.path());
+    let eve = Node::init(tmp.path());
+
+    let rid = bob.project("acme", "");
+
+    let mut alice = alice.spawn(service::Config::default());
+    let bob = bob.spawn(service::Config::default());
+    let mut eve = eve.spawn(service::Config::default());
+
+    alice.handle.track_repo(rid, Scope::All).unwrap();
+    eve.handle.track_repo(rid, Scope::All).unwrap();
+
+    alice.connect(&bob);
+    alice.connect(&eve);
+    eve.connect(&bob);
+
+    converge([&alice, &bob, &eve]);
+
+    // Eve fetches the inital project from Bob.
+    eve.handle.fetch(rid, bob.id).unwrap();
+    // Alice fetches it too.
+    alice.handle.fetch(rid, bob.id).unwrap();
+
+    // Now Eve disconnects from Bob so she doesn't fetch his update.
+    eve.handle
+        .command(service::Command::Disconnect(bob.id))
+        .unwrap();
+
+    // Bob updates his refs.
+    bob.issue(
+        rid,
+        "Updated Sigrefs",
+        "Updated sigrefs are harshing my vibes",
+    );
+    // Alice fetches from Bob.
+    alice.handle.fetch(rid, bob.id).unwrap();
+
+    // Now Alice has the latest, and when she tries to fetch from Eve, it breaks because
+    // Eve has old refs.
+    assert_matches!(
+        alice.handle.fetch(rid, eve.id).unwrap(),
+        FetchResult::Success { .. }
+    );
+}
+
+#[test]
+#[should_panic]
 fn test_outdated_sigrefs() {
     logger::init(log::Level::Debug);
 
@@ -774,7 +830,10 @@ fn test_outdated_sigrefs() {
     let repo = alice.storage.repository(rid).unwrap();
     assert!(repo.remote(&eve.id).is_ok());
 
-    bob.handle.fetch(rid, eve.id).unwrap();
+    assert_matches!(
+        bob.handle.fetch(rid, eve.id).unwrap(),
+        FetchResult::Success { .. }
+    );
     let repo = bob.storage.repository(rid).unwrap();
     let eve_remote = repo.remote(&eve.id).unwrap();
     let old_refs = eve_remote.refs;
@@ -791,7 +850,10 @@ fn test_outdated_sigrefs() {
     let eves_refs = repo.remote(&eve.id).unwrap().refs;
 
     // Get the current state of eve's refs in alice's storage
-    alice.handle.fetch(rid, eve.id).unwrap();
+    assert_matches!(
+        alice.handle.fetch(rid, eve.id).unwrap(),
+        FetchResult::Success { .. }
+    );
     let repo = alice.storage.repository(rid).unwrap();
     let eve_remote = repo.remote(&eve.id).unwrap();
     let eves_refs_expected = eve_remote.refs;
@@ -802,7 +864,10 @@ fn test_outdated_sigrefs() {
         .handle
         .track_node(bob.id, Some("bob".to_string()))
         .unwrap();
-    alice.handle.fetch(rid, bob.id).unwrap();
+    assert_matches!(
+        alice.handle.fetch(rid, bob.id).unwrap(),
+        FetchResult::Success { .. }
+    );
 
     // Ensure that bob's refs have not changed
     let repo = alice.storage.repository(rid).unwrap();
