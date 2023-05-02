@@ -12,28 +12,6 @@ use crate::terminal as term;
 use super::common::*;
 use super::Options;
 
-pub fn handle_patch_message(
-    message: term::patch::Message,
-    storage: &Repository,
-    head_branch: &git::raw::Branch,
-) -> anyhow::Result<(String, String)> {
-    let head_oid = branch_oid(head_branch)?;
-    let head_commit = storage.backend.find_commit(*head_oid)?;
-    let commit_message = head_commit
-        .message()
-        .ok_or(anyhow!("commit summary is not valid UTF-8; aborting"))?;
-    let message = message.get(&format!("{commit_message}{PATCH_MSG}"))?;
-    let message = message.replace(PATCH_MSG.trim(), ""); // Delete help message.
-    let (title, description) = message.split_once("\n\n").unwrap_or((&message, ""));
-    let (title, description) = (title.trim(), description.trim());
-
-    if title.is_empty() {
-        anyhow::bail!("a patch title must be provided");
-    }
-
-    Ok((title.to_string(), description.to_owned()))
-}
-
 fn show_patch_commit_info(
     storage: &Repository,
     node_id: &NodeId,
@@ -102,8 +80,13 @@ pub fn run(
 
     // TODO: List matching working copy refs for all targets.
 
-    let (title, description) = handle_patch_message(message, storage, &head_branch)?;
     let head_oid = branch_oid(&head_branch)?;
+    let head_commit = storage.backend.find_commit(*head_oid)?;
+    let head_commit_msg = head_commit
+        .message()
+        .ok_or(anyhow!("commit summary is not valid UTF-8; aborting"))?;
+    let (title, description) = term::patch::get_message(message, head_commit_msg)?;
+
     let base_oid = storage.backend.merge_base(*target_oid, *head_oid)?;
     let signer = term::signer(profile)?;
     let patch = if draft {

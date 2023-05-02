@@ -1,9 +1,10 @@
-use super::common::*;
 use super::*;
 
 use radicle::cob::patch;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
+
+use crate::terminal as term;
 
 pub fn run(
     repository: &Repository,
@@ -17,26 +18,14 @@ pub fn run(
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
-    let title = patch.title();
-    let description = patch.description();
-    let message = message.get(&format!("{title}\n\n{description}\n\n{PATCH_MSG}"))?;
-    let message = message.replace(PATCH_MSG.trim(), ""); // Delete help message.
-    let (title, description) = message.split_once("\n\n").unwrap_or((&message, ""));
-    let (title, description) = (title.trim(), description.trim());
+    let default_msg = term::patch::message(patch.title(), patch.description());
+    let (title, description) = term::patch::get_message(message, &default_msg)?;
 
-    if title.is_empty() {
-        anyhow::bail!("a patch title must be provided");
-    } else if title == patch.title() && description == patch.description() {
+    if title == patch.title() && description == patch.description() {
         // Nothing to do
         return Ok(());
     }
-
-    patch.edit(
-        title.to_string(),
-        description.to_string(),
-        patch.target(),
-        &signer,
-    )?;
+    patch.edit(title, description, patch.target(), &signer)?;
 
     Ok(())
 }
