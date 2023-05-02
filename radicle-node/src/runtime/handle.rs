@@ -114,7 +114,7 @@ impl Handle {
         self.controller.cmd(wire::Control::Flush { remote, stream })
     }
 
-    fn command(&self, cmd: service::Command) -> Result<(), io::Error> {
+    pub(crate) fn command(&self, cmd: service::Command) -> Result<(), io::Error> {
         self.controller.cmd(wire::Control::User(cmd))
     }
 }

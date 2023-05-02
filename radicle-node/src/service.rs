@@ -126,6 +126,8 @@ pub enum Command {
     SyncInventory(chan::Sender<bool>),
     /// Connect to node with the given address.
     Connect(NodeId, Address),
+    /// Disconnect from node.
+    Disconnect(NodeId),
     /// Lookup seeds for the given repository in the routing table.
     Seeds(Id, chan::Sender<Seeds>),
     /// Fetch the given repository from the network.
@@ -149,6 +151,7 @@ impl fmt::Debug for Command {
             Self::AnnounceInventory => write!(f, "AnnounceInventory"),
             Self::SyncInventory(_) => write!(f, "SyncInventory(..)"),
             Self::Connect(id, addr) => write!(f, "Connect({id}, {addr})"),
+            Self::Disconnect(id) => write!(f, "Disconnect({id})"),
             Self::Seeds(id, _) => write!(f, "Seeds({id})"),
             Self::Fetch(id, node, _) => write!(f, "Fetch({id}, {node})"),
             Self::TrackRepo(id, scope, _) => write!(f, "TrackRepo({id}, {scope})"),
@@ -465,6 +468,9 @@ where
         match cmd {
             Command::Connect(nid, addr) => {
                 self.connect(nid, addr);
+            }
+            Command::Disconnect(nid) => {
+                self.reactor.disconnect(nid, DisconnectReason::Command);
             }
             Command::Seeds(rid, resp) => match self.seeds(&rid) {
                 Ok(seeds) => {
@@ -1547,6 +1553,8 @@ pub enum DisconnectReason {
     Fetch(FetchError),
     /// Session error.
     Session(session::Error),
+    /// User requested disconnect
+    Command,
 }
 
 impl DisconnectReason {
@@ -1564,6 +1572,7 @@ impl DisconnectReason {
         match self {
             Self::Dial(_) => false,
             Self::Connection(_) => true,
+            Self::Command => false,
             Self::Fetch(_) => true,
             Self::Session(err) => err.is_transient(),
         }
@@ -1575,6 +1584,7 @@ impl fmt::Display for DisconnectReason {
         match self {
             Self::Dial(err) => write!(f, "{err}"),
             Self::Connection(err) => write!(f, "{err}"),
+            Self::Command => write!(f, "command"),
             Self::Session(err) => write!(f, "{err}"),
             Self::Fetch(err) => write!(f, "fetch: {err}"),
         }
