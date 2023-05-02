@@ -612,7 +612,12 @@ fn test_cob_deletion() {
     let alice_issues = radicle::cob::issue::Issues::open(&alice_repo).unwrap();
     alice_issues.remove(issue_id, &alice.signer).unwrap();
 
-    bob.handle.fetch(rid, alice.id).unwrap();
+    log::debug!(target: "test", "Removing issue..");
+
+    radicle::assert_matches!(
+        bob.handle.fetch(rid, alice.id).unwrap(),
+        radicle::node::FetchResult::Success { .. }
+    );
     let bob_repo = bob.storage.repository(rid).unwrap();
     let bob_issues = radicle::cob::issue::Issues::open(&bob_repo).unwrap();
     assert!(bob_issues.get(issue_id).unwrap().is_none());

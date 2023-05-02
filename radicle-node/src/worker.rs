@@ -229,7 +229,8 @@ impl Worker {
         namespaces: &Namespaces,
         mut channels: Channels,
     ) -> Result<(Vec<RefUpdate>, HashSet<NodeId>), FetchError> {
-        let staging = fetch::StagingPhaseInitial::new(&self.storage, rid, namespaces.clone())?;
+        let staging =
+            fetch::StagingPhaseInitial::new(&self.storage, rid, self.nid, namespaces.clone())?;
         let refs = if staging.repo.is_cloning() {
             match self._fetch(
                 &staging.repo,

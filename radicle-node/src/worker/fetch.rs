@@ -28,6 +28,8 @@ pub struct StagingPhaseInitial<'a> {
     pub(super) repo: StagedRepository,
     /// The original [`Storage`] we are finalising changes into.
     production: &'a Storage,
+    /// The local Node ID.
+    nid: NodeId,
     /// The `Namespaces` passed by the fetching caller.
     pub(super) namespaces: Namespaces,
     _tmp: tempfile::TempDir,
@@ -101,6 +103,8 @@ pub struct StagingPhaseFinal<'a> {
     pub(super) repo: FinalStagedRepository,
     /// The original [`Storage`] we are finalising changes into.
     production: &'a Storage,
+    /// The local Node ID.
+    nid: NodeId,
     _tmp: tempfile::TempDir,
 }
 
@@ -115,6 +119,7 @@ enum VerifiedRemote {
         /// Unsigned refs.
         unsigned: Vec<git::RefString>,
     },
+    UpToDate,
 }
 
 impl<'a> StagingPhaseInitial<'a> {
@@ -123,6 +128,7 @@ impl<'a> StagingPhaseInitial<'a> {
     pub fn new(
         production: &'a Storage,
         rid: Id,
+        nid: NodeId,
         namespaces: Namespaces,
     ) -> Result<Self, error::Init> {
         let tmp = tempfile::TempDir::new()?;
@@ -131,6 +137,7 @@ impl<'a> StagingPhaseInitial<'a> {
         let repo = Self::repository(&staging, production, rid)?;
         Ok(Self {
             repo,
+            nid,
             production,
             namespaces,
             _tmp: tmp,
@@ -194,6 +201,7 @@ impl<'a> StagingPhaseInitial<'a> {
 
         Ok(StagingPhaseFinal {
             repo,
+            nid: self.nid,
             production: self.production,
             _tmp: self._tmp,
         })
@@ -273,27 +281,45 @@ impl<'a> StagingPhaseFinal<'a> {
     /// All references that were updated are returned as a
     /// [`RefUpdate`].
     pub fn transfer(self) -> Result<(Vec<RefUpdate>, HashSet<NodeId>), error::Transfer> {
-        let verifications = self.verify()?;
-        let production = match &self.repo {
-            FinalStagedRepository::Cloning { repo, .. } => self.production.create(repo.id)?,
-            FinalStagedRepository::Fetching { repo, .. } => self.production.repository(repo.id)?,
+        // Nb. we have to verify in a different order when fetching vs. cloning, due to needing
+        // access to the existing repository in the fetching case.
+        let (production, verifications) = match &self.repo {
+            FinalStagedRepository::Cloning { repo, .. } => {
+                let verifications = self.verify::<Repository>(None)?;
+                let prod = self.production.create(repo.id)?;
+
+                (prod, verifications)
+            }
+            FinalStagedRepository::Fetching { repo, .. } => {
+                let prod = self.production.repository(repo.id)?;
+                let verifications = self.verify(Some(&prod))?;
+
+                (prod, verifications)
+            }
         };
         let url = url::File::new(self.repo.path().to_path_buf()).to_string();
         let mut remote = production.backend.remote_anonymous(&url)?;
         let mut updates = Vec::new();
         let mut delete = HashSet::new();
+        let mut skipped = HashSet::new();
 
         let callbacks = ref_updates(&mut updates);
-        let remotes = {
+        let mut remotes = {
             let specs = verifications
                 .into_iter()
                 .flat_map(|(remote, verified)| match verified {
+                    VerifiedRemote::UpToDate => {
+                        log::debug!(target: "worker", "{remote} is up-to-date");
+                        skipped.insert(remote);
+
+                        vec![]
+                    }
                     VerifiedRemote::Failed { reason } => {
                         // TODO: We should include the skipped remotes in the fetch result,
                         // with the reason why they're skipped.
                         log::warn!(
                             target: "worker",
-                            "{remote} failed to verify, will not fetch any further refs: {reason}",
+                            "{remote} failed to verify, ignoring ref updates: {reason}",
                         );
                         vec![]
                     }
@@ -356,11 +382,12 @@ impl<'a> StagingPhaseFinal<'a> {
 
             let (fetching, specs): (HashSet<_>, Vec<_>) = specs.into_iter().unzip();
 
-            if !self
-                .repo
-                .delegates()?
-                .iter()
-                .all(|d| fetching.contains(d.as_key()))
+            if self.repo.is_cloning()
+                && !self
+                    .repo
+                    .delegates()?
+                    .iter()
+                    .all(|d| fetching.contains(d.as_key()))
             {
                 return Err(error::Transfer::NoDelegates);
             }
@@ -408,6 +435,10 @@ impl<'a> StagingPhaseFinal<'a> {
             production.id,
         );
 
+        // Extend the list of remotes we attempted to fetch from with the skipped remotes.
+        // This confirms to the user that the remote was indeed tried.
+        remotes.extend(skipped);
+
         Ok((updates, remotes))
     }
 
@@ -418,17 +449,68 @@ impl<'a> StagingPhaseFinal<'a> {
                     .iter()
                     .filter_map(|remote| self.repo.remote(remote).ok()),
             )),
-            FinalStagedRepository::Fetching { repo, .. } => Ok(Box::new(
-                repo.remotes()?.filter_map(|r| r.ok().map(|(_, r)| r)),
-            )),
+            FinalStagedRepository::Fetching { repo, refs } => {
+                // Only verify remotes we're fetching refs from.
+                let remotes = refs
+                    .iter()
+                    .filter_map(|r| NodeId::from_namespaced(r).ok())
+                    .collect::<HashSet<_>>();
+                let remotes = remotes.into_iter().filter_map(|r| repo.remote(&r).ok());
+
+                Ok(Box::new(remotes))
+            }
         }
     }
 
-    fn verify(&self) -> Result<BTreeMap<RemoteId, VerifiedRemote>, git::raw::Error> {
-        Ok(self
+    fn verify<R: ReadRepository>(
+        &self,
+        local: Option<&R>,
+    ) -> Result<BTreeMap<RemoteId, VerifiedRemote>, git::raw::Error> {
+        let result = self
             .remotes()?
+            .filter(|remote| remote.id != self.nid || self.repo.is_cloning())
             .map(|remote| {
                 let remote_id = remote.id;
+
+                log::debug!(target: "worker", "Verifying remote {remote_id}..");
+
+                // If we have a local copy, ie. we're not cloning, we check that the signed refs
+                // are being fast-forwarded.
+                if let Some(local) = local {
+                    if let (Ok(local), Ok(staging)) = (
+                        local.reference_oid(&remote_id, &git::refs::storage::SIGREFS_BRANCH),
+                        self.repo.reference_oid(&remote_id, &git::refs::storage::SIGREFS_BRANCH),
+                    ) {
+                        if local != staging  {
+                            match self
+                                .repo
+                                .backend
+                                .graph_descendant_of(staging.into(), local.into())
+                            {
+                                Ok(true) => {
+                                    log::debug!(target: "worker", "Signed refs for {remote_id} fast-foward: {local} -> {staging}");
+                                }
+                                Ok(false) => {
+                                    return (
+                                        remote_id,
+                                        VerifiedRemote::Failed {
+                                            reason: "signed refs have diverged".to_owned()
+                                        }
+                                    );
+                                }
+                                Err(e) => {
+                                    return (
+                                        remote_id,
+                                        VerifiedRemote::Failed { reason: e.to_string() },
+                                    );
+                                }
+                            }
+                        } else {
+                            return (remote_id, VerifiedRemote::UpToDate);
+                        }
+                    }
+                }
+
                 let verification = match self.repo.identity_doc_of(&remote_id) {
                     Ok(doc) => match self.repo.validate_remote(&remote) {
                         Ok(unsigned) => VerifiedRemote::Success {
@@ -446,7 +528,9 @@ impl<'a> StagingPhaseFinal<'a> {
                 };
                 (remote_id, verification)
             })
-            .collect())
+            .collect();
+
+        Ok(result)
     }
 }
 

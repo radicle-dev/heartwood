@@ -364,6 +364,13 @@ impl PublicKey {
     pub fn to_namespace(&self) -> git_ref_format::RefString {
         git_ref_format::refname!("refs/namespaces").join(git_ref_format::Component::from(self))
     }
+
+    #[cfg(feature = "git-ref-format")]
+    pub fn from_namespaced(refstr: &git_ref_format::Namespaced) -> Result<Self, PublicKeyError> {
+        let name = refstr.namespace().into_inner();
+
+        Self::from_str(name.deref().as_str())
+    }
 }
 
 impl FromStr for PublicKey {

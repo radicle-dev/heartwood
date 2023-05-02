@@ -736,7 +736,6 @@ fn test_connection_crossing() {
 }
 
 #[test]
-#[should_panic]
 /// Alice is going to try to fetch outdated refs of Bob, from Eve. This is a non-fastfoward fetch
 /// on the sigrefs branch.
 fn test_non_fastforward_sigrefs() {
@@ -791,7 +790,6 @@ fn test_non_fastforward_sigrefs() {
 }
 
 #[test]
-#[should_panic]
 fn test_outdated_sigrefs() {
     logger::init(log::Level::Debug);
 
@@ -850,6 +848,7 @@ fn test_outdated_sigrefs() {
     let eves_refs = repo.remote(&eve.id).unwrap().refs;
 
     // Get the current state of eve's refs in alice's storage
+    log::debug!(target: "test", "Alice fetches from Eve..");
     assert_matches!(
         alice.handle.fetch(rid, eve.id).unwrap(),
         FetchResult::Success { .. }
@@ -860,6 +859,8 @@ fn test_outdated_sigrefs() {
     assert_ne!(eves_refs_expected, old_refs);
     assert_eq!(eves_refs_expected, eves_refs);
 
+    log::debug!(target: "test", "Alice fetches from Bob..");
+
     alice
         .handle
         .track_node(bob.id, Some("bob".to_string()))
@@ -869,7 +870,7 @@ fn test_outdated_sigrefs() {
         FetchResult::Success { .. }
     );
 
-    // Ensure that bob's refs have not changed
+    // Ensure that Eve's refs have not changed after fetching the old refs from Bob.
     let repo = alice.storage.repository(rid).unwrap();
     let eve_remote = repo.remote(&eve.id).unwrap();
     let eves_refs = eve_remote.refs;

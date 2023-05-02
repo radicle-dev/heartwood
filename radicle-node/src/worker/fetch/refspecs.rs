@@ -42,18 +42,15 @@ impl AsRefspecs for SpecialRefs {
             Namespaces::All => {
                 let id = NAMESPACES_GLOB.join(&*IDENTITY_BRANCH);
                 let sigrefs = NAMESPACES_GLOB.join(&*SIGREFS_BRANCH);
-                vec![
-                    Refspec {
-                        src: id.clone(),
-                        dst: id,
-                        force: false,
-                    },
-                    Refspec {
-                        src: sigrefs.clone(),
-                        dst: sigrefs,
-                        force: false,
-                    },
-                ]
+
+                [id, sigrefs]
+                    .into_iter()
+                    .map(|spec| Refspec {
+                        src: spec.clone(),
+                        dst: spec,
+                        force: true,
+                    })
+                    .collect()
             }
             Namespaces::Trusted(pks) => pks.iter().flat_map(rad_refs).collect(),
         }
@@ -70,13 +67,13 @@ fn rad_refs(pk: &PublicKey) -> Vec<Refspec<git::PatternString, git::PatternStrin
     let id = Refspec {
         src: id.clone(),
         dst: id,
-        force: false,
+        force: true,
     };
     let sigrefs = git::PatternString::from(ns.join(&*SIGREFS_BRANCH));
     let sigrefs = Refspec {
         src: sigrefs.clone(),
         dst: sigrefs,
-        force: false,
+        force: true,
     };
     vec![id, sigrefs]
 }
@@ -104,7 +101,7 @@ impl AsRefspecs for Namespaces {
             Namespaces::All => vec![Refspec {
                 src: (*storage::git::NAMESPACES_GLOB).clone(),
                 dst: (*storage::git::NAMESPACES_GLOB).clone(),
-                force: false,
+                force: true,
             }],
             Namespaces::Trusted(pks) => pks
                 .iter()
@@ -113,7 +110,7 @@ impl AsRefspecs for Namespaces {
                     Refspec {
                         src: ns.clone(),
                         dst: ns,
-                        force: false,
+                        force: true,
                     }
                 })
                 .collect(),
@@ -163,19 +160,11 @@ impl AsRefspecs for Remote {
 
 impl<'a> AsRefspecs for BTreeSet<git::Namespaced<'a>> {
     fn as_refspecs(&self) -> Vec<Refspec<git::PatternString, git::PatternString>> {
-        let reserved = [(*IDENTITY_BRANCH).clone(), (*SIGREFS_BRANCH).clone()]
-            .into_iter()
-            .collect::<BTreeSet<_>>();
         self.iter()
-            .map(|r| {
-                // Only force ordinary refs.
-                let suffix = r.strip_namespace();
-                let force = !reserved.contains(&suffix);
-                Refspec {
-                    src: r.clone().to_ref_string().into(),
-                    dst: r.clone().to_ref_string().into(),
-                    force,
-                }
+            .map(|r| Refspec {
+                src: r.clone().to_ref_string().into(),
+                dst: r.clone().to_ref_string().into(),
+                force: true,
             })
             .collect()
     }
