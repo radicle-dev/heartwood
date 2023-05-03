@@ -18,16 +18,10 @@ pub fn run(
     profile: &Profile,
     filter: Option<patch::State>,
 ) -> anyhow::Result<()> {
-    let me = *profile.id();
     let patches = Patches::open(repository)?;
-    let all = patches.all()?;
 
-    // Patches the user authored.
-    let mut own = Vec::new();
-    // Patches other users authored.
-    let mut other = Vec::new();
-
-    for patch in all {
+    let mut all = Vec::new();
+    for patch in patches.all()? {
         let (id, patch, _) = patch?;
 
         if let Some(filter) = filter {
@@ -35,14 +29,10 @@ pub fn run(
                 continue;
             }
         }
-        if patch.author().id().as_key() == &me {
-            own.push((id, patch));
-        } else {
-            other.push((id, patch));
-        }
+        all.push((id, patch));
     }
 
-    if own.is_empty() && other.is_empty() {
+    if all.is_empty() {
         term::print(term::format::italic("Nothing to show."));
         return Ok(());
     }
@@ -66,14 +56,17 @@ pub fn run(
     ]);
     table.divider();
 
+    let me = *profile.id();
+    all.sort_by(|(id1, p1), (id2, p2)| {
+        let is_me = (p2.author().id().as_key() == &me).cmp(&(p1.author().id().as_key() == &me));
+        let by_timestamp = p2.timestamp().cmp(&p1.timestamp());
+        let by_id = id1.cmp(id2);
+
+        is_me.then(by_timestamp).then(by_id)
+    });
+
     let mut errors = Vec::new();
-    for (id, patch) in &mut own {
-        match row(&me, id, patch, repository) {
-            Ok(r) => table.push(r),
-            Err(e) => errors.push((patch.title(), id, e.to_string())),
-        }
-    }
-    for (id, patch) in &mut other {
+    for (id, patch) in &mut all {
         match row(&me, id, patch, repository) {
             Ok(r) => table.push(r),
             Err(e) => errors.push((patch.title(), id, e.to_string())),
