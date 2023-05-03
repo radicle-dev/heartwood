@@ -214,7 +214,7 @@ impl Worker {
                         Err(e) => break Err(e),
                     }
                 };
-                log::debug!(target: "worker", "Upload process on stream {stream} exited successfully");
+                log::debug!(target: "worker", "Upload process on stream {stream} exited with result {result:?}");
 
                 FetchResult::Responder { result }
             }
@@ -315,7 +315,7 @@ impl Worker {
 
         match self._upload_pack(rid, remote, request, stream, stream_r, stream_w) {
             Ok(()) => {
-                log::debug!(target: "worker", "Upload of {rid} to {remote} exited successfully");
+                log::debug!(target: "worker", "Upload of {rid} to {remote} on stream {stream} exited successfully");
 
                 Ok(ControlFlow::Continue(()))
             }
@@ -372,9 +372,17 @@ impl Worker {
             })?;
 
             let stream_to_daemon = s.spawn(move || {
-                stream_r
+                match stream_r
                     .pipe(&mut daemon_w)
                     .and_then(|()| daemon_w.shutdown(net::Shutdown::Both))
+                {
+                    Ok(()) => Ok(()),
+                    // On macOS, this error is returned if the socket is already closed.
+                    // We don't consider that a problem, as it just returns `Ok(())` on
+                    // Linux.
+                    Err(e) if e.kind() == io::ErrorKind::NotConnected => Ok(()),
+                    Err(e) => Err(e),
+                }
             });
 
             stream_to_daemon.join().unwrap()?;
