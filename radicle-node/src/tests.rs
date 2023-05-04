@@ -926,7 +926,7 @@ fn test_persistent_peer_reconnect_attempt() {
             .find(|io| matches!(io, Io::Connect(a, _) if a == &bob.id()))
             .unwrap();
 
-        alice.attempted(bob.id(), &bob.address());
+        alice.attempted(bob.id(), bob.address());
     }
 }
 
@@ -966,7 +966,7 @@ fn test_persistent_peer_reconnect_success() {
         })
         .expect("Alice attempts a re-connection");
 
-    alice.attempted(bob.id(), &bob.addr());
+    alice.attempted(bob.id(), bob.addr());
     alice.connected(bob.id(), Link::Outbound);
 }
 

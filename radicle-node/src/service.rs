@@ -672,11 +672,11 @@ where
         // Inbound connection attempt.
     }
 
-    pub fn attempted(&mut self, nid: NodeId, addr: &Address) {
+    pub fn attempted(&mut self, nid: NodeId, addr: Address) {
         debug!(target: "service", "Attempted connection to {nid} ({addr})");
 
         if let Some(sess) = self.sessions.get_mut(&nid) {
-            sess.to_attempted();
+            sess.to_attempted(addr);
         } else {
             #[cfg(debug_assertions)]
             panic!("Service::attempted: unknown session {nid}@{addr}");
@@ -691,8 +691,12 @@ where
 
         if link.is_outbound() {
             if let Some(peer) = self.sessions.get_mut(&remote) {
-                peer.to_connected(self.clock);
+                let attempted = peer.to_connected(self.clock);
                 self.reactor.write_all(peer, msgs);
+
+                if let Err(e) = self.addresses.connected(&remote, &attempted, self.time()) {
+                    error!(target: "service", "Error updating address book with connection: {e}");
+                }
             }
         } else {
             match self.sessions.entry(remote) {
@@ -1276,6 +1280,9 @@ where
         }
         let persistent = self.config.is_persistent(&nid);
 
+        if let Err(e) = self.addresses.attempted(&nid, &addr, self.time()) {
+            error!(target: "service", "Error updating address book with connection attempt: {e}");
+        }
         self.sessions.insert(
             nid,
             Session::outbound(
@@ -1396,26 +1403,36 @@ where
         }
     }
 
-    fn choose_addresses(&mut self) -> Vec<(NodeId, Address)> {
-        let sessions = self
+    /// Get a list of peers available to connect to.
+    fn available_peers(&mut self) -> Vec<(NodeId, Address)> {
+        let outbound = self
             .sessions
             .values()
-            .filter(|s| s.is_connected() && s.link.is_outbound())
-            .map(|s| (s.id, s))
-            .collect::<HashMap<_, _>>();
+            .filter(|s| s.link.is_outbound())
+            .filter(|s| s.is_connected() || s.is_connecting())
+            .count();
 
-        let wanted = TARGET_OUTBOUND_PEERS.saturating_sub(sessions.len());
+        let wanted = TARGET_OUTBOUND_PEERS.saturating_sub(outbound);
+        // Don't connect to more peers than needed.
         if wanted == 0 {
             return Vec::new();
         }
 
-        self.addresses
-            .entries()
-            .unwrap()
-            .filter(|(node_id, _)| !sessions.contains_key(node_id))
-            .take(wanted)
-            .map(|(n, s)| (n, s.addr))
-            .collect()
+        match self.addresses.entries() {
+            Ok(entries) => {
+                // Nb. we don't want to connect to any peers that already have a session with us,
+                // even if it's in a disconnected state. Those sessions are re-attempted automatically.
+                entries
+                    .filter(|(nid, _)| !self.sessions.contains_key(nid))
+                    .take(wanted)
+                    .map(|(n, s)| (n, s.addr))
+                    .collect()
+            }
+            Err(e) => {
+                error!(target: "service", "Unable to lookup available peers in address book: {e}");
+                Vec::new()
+            }
+        }
     }
 
     /// Fetch all repositories that are tracked but missing from our inventory.
@@ -1456,11 +1473,7 @@ where
     }
 
     fn maintain_connections(&mut self) {
-        let addrs = self.choose_addresses();
-        if addrs.is_empty() {
-            debug!(target: "service", "No eligible peers available to connect to");
-        }
-        for (id, addr) in addrs {
+        for (id, addr) in self.available_peers() {
             self.connect(id, addr.clone());
         }
     }

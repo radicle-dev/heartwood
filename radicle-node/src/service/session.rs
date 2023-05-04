@@ -1,10 +1,10 @@
 use std::collections::{HashSet, VecDeque};
-use std::fmt;
+use std::{fmt, mem};
 
 use crate::service::config::Limits;
 use crate::service::message;
 use crate::service::message::Message;
-use crate::service::{Id, LocalTime, NodeId, Reactor, Rng};
+use crate::service::{Address, Id, LocalTime, NodeId, Reactor, Rng};
 use crate::Link;
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
@@ -24,7 +24,7 @@ pub enum State {
     /// Initial state for outgoing connections.
     Initial,
     /// Connection attempted successfully.
-    Attempted,
+    Attempted { addr: Address },
     /// Initial state after handshake protocol hand-off.
     Connected {
         /// Connected since this time.
@@ -49,7 +49,7 @@ impl fmt::Display for State {
             Self::Initial => {
                 write!(f, "initial")
             }
-            Self::Attempted => {
+            Self::Attempted { .. } => {
                 write!(f, "attempted")
             }
             Self::Connected { .. } => {
@@ -244,26 +244,31 @@ impl Session {
         None
     }
 
-    pub fn to_attempted(&mut self) {
+    pub fn to_attempted(&mut self, addr: Address) {
         assert!(
             self.is_initial(),
             "Can only transition to 'attempted' state from 'initial' state"
         );
-        self.state = State::Attempted;
+        self.state = State::Attempted { addr };
         self.attempts += 1;
     }
 
-    pub fn to_connected(&mut self, since: LocalTime) {
-        assert!(
-            self.is_connecting(),
-            "Can only transition to 'connected' state from 'connecting' state"
-        );
+    pub fn to_connected(&mut self, since: LocalTime) -> Address {
         self.attempts = 0;
-        self.state = State::Connected {
-            since,
-            ping: PingState::default(),
-            fetching: HashSet::default(),
-        };
+
+        let previous = mem::replace(
+            &mut self.state,
+            State::Connected {
+                since,
+                ping: PingState::default(),
+                fetching: HashSet::default(),
+            },
+        );
+        if let State::Attempted { addr } = previous {
+            addr
+        } else {
+            panic!("Session::to_connected: can only transition to 'connected' state from 'connecting' state");
+        }
     }
 
     /// Move the session state to "disconnected". Returns any pending RID

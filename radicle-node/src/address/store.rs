@@ -145,7 +145,7 @@ impl Store for Book {
                 )?;
                 stmt.bind((1, node))?;
                 stmt.bind((2, AddressType::from(&addr.addr)))?;
-                stmt.bind((3, addr.addr))?;
+                stmt.bind((3, &addr.addr))?;
                 stmt.bind((4, addr.source))?;
                 stmt.bind((5, timestamp as i64))?;
                 stmt.next()?;
@@ -197,6 +197,42 @@ impl Store for Book {
         }
         Ok(Box::new(entries.into_iter()))
     }
+
+    fn attempted(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error> {
+        let mut stmt = self.db.prepare(
+            "UPDATE `addresses`
+             SET last_attempt = ?1
+             WHERE node = ?2
+             AND type = ?3
+             AND value = ?4",
+        )?;
+
+        stmt.bind((1, time as i64))?;
+        stmt.bind((2, nid))?;
+        stmt.bind((3, AddressType::from(addr)))?;
+        stmt.bind((4, addr))?;
+        stmt.next()?;
+
+        Ok(())
+    }
+
+    fn connected(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error> {
+        let mut stmt = self.db.prepare(
+            "UPDATE `addresses`
+             SET last_success = ?1
+             WHERE node = ?2
+             AND type = ?3
+             AND value = ?4",
+        )?;
+
+        stmt.bind((1, time as i64))?;
+        stmt.bind((2, nid))?;
+        stmt.bind((3, AddressType::from(addr)))?;
+        stmt.bind((4, addr))?;
+        stmt.next()?;
+
+        Ok(())
+    }
 }
 
 /// Address store.
@@ -226,6 +262,10 @@ pub trait Store {
     }
     /// Get the address entries in the store.
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error>;
+    /// Mark a node as attempted at a certain time.
+    fn attempted(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
+    /// Mark a node as successfully connected at a certain time.
+    fn connected(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
 }
 
 impl TryFrom<&sql::Value> for Source {

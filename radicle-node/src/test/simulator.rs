@@ -378,7 +378,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     Input::Connecting { id, addr } => {
                         if self.attempts.insert((node, id)) {
                             // TODO: Also call `inbound` for inbound attempts.
-                            p.attempted(id, &addr);
+                            p.attempted(id, addr);
                         }
                     }
                     Input::Connected { id, link } => {

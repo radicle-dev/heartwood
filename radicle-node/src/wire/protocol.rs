@@ -798,7 +798,7 @@ where
                         NetTransport::<WireSession<G>>::with_session(session, Link::Outbound)
                     }) {
                         Ok(transport) => {
-                            self.service.attempted(node_id, &addr);
+                            self.service.attempted(node_id, addr);
                             // TODO: Keep track of peer address for when peer disconnects before
                             // handshake is complete.
                             self.peers

@@ -88,7 +88,7 @@ impl TryFrom<&sql::Value> for Address {
     }
 }
 
-impl sql::BindableWithIndex for Address {
+impl sql::BindableWithIndex for &Address {
     fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
         self.to_string().bind(stmt, i)
     }

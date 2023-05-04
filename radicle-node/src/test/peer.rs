@@ -332,7 +332,7 @@ where
             .find(|o| matches!(o, Io::Connect { .. }))
             .unwrap();
 
-        self.service.attempted(remote_id, &remote_addr);
+        self.service.attempted(remote_id, remote_addr);
         self.service.connected(remote_id, Link::Outbound);
 
         let mut msgs = self.messages(remote_id);
