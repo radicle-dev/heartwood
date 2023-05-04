@@ -9,6 +9,7 @@ use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, Issues, State};
 use radicle::node::Handle;
 use radicle::prelude::Did;
+use radicle::profile;
 use radicle::storage::WriteStorage;
 use radicle::{cob, Node};
 use radicle_term::table::TableOptions;
@@ -327,75 +328,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::List { assigned } => {
-            if issues.is_empty()? {
-                term::print(term::format::italic("Nothing to show."));
-                return Ok(());
-            }
-
-            let assignee = match assigned {
-                Some(Assigned::Me) => Some(*profile.id()),
-                Some(Assigned::Peer(id)) => Some(id.into()),
-                None => None,
-            };
-
-            let mut all = Vec::new();
-            for result in issues.all()? {
-                let (id, issue, _) = result?;
-
-                if Some(true) == assignee.map(|a| !issue.assigned().any(|v| v == Did::from(a))) {
-                    continue;
-                }
-
-                all.push((id, issue))
-            }
-
-            all.sort_by(|(id1, i1), (id2, i2)| {
-                let by_timestamp = i2.timestamp().cmp(&i1.timestamp());
-                let by_id = id1.cmp(id2);
-
-                by_timestamp.then(by_id)
-            });
-
-            let mut t = term::Table::new(term::table::TableOptions::bordered());
-            t.push([
-                term::format::dim(String::from("●")),
-                term::format::bold(String::from("ID")),
-                term::format::bold(String::from("Title")),
-                term::format::bold(String::from("Author")),
-                term::format::bold(String::from("Tags")),
-                term::format::bold(String::from("Assignees")),
-                term::format::bold(String::from("Opened")),
-            ]);
-            t.divider();
-
-            for (id, issue) in all {
-                let assigned: String = issue
-                    .assigned()
-                    .map(|p| term::format::did(&p).to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-
-                let mut tags = issue.tags().map(|t| t.to_string()).collect::<Vec<_>>();
-                tags.sort();
-
-                t.push([
-                    match issue.state() {
-                        State::Open => term::format::positive("●").into(),
-                        State::Closed { .. } => term::format::negative("●").into(),
-                    },
-                    term::format::tertiary(term::format::cob(&id)).to_owned(),
-                    term::format::default(issue.title().to_owned()),
-                    term::format::did(&issue.author().id).dim(),
-                    term::format::secondary(tags.join(", ")),
-                    if assigned.is_empty() {
-                        term::format::dim(String::default())
-                    } else {
-                        term::format::default(assigned.to_string())
-                    },
-                    term::format::timestamp(&issue.timestamp()).dim().italic(),
-                ]);
-            }
-            t.print();
+            list(&issues, &profile, &assigned)?;
         }
         Operation::Delete { id } => {
             let id = id.resolve(&repo.backend)?;
@@ -412,6 +345,84 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             Err(e) => return Err(e.into()),
         }
     }
+
+    Ok(())
+}
+
+fn list(
+    issues: &Issues,
+    profile: &profile::Profile,
+    assigned: &Option<Assigned>,
+) -> anyhow::Result<()> {
+    if issues.is_empty()? {
+        term::print(term::format::italic("Nothing to show."));
+        return Ok(());
+    }
+
+    let assignee = match assigned {
+        Some(Assigned::Me) => Some(*profile.id()),
+        Some(Assigned::Peer(id)) => Some((*id).into()),
+        None => None,
+    };
+
+    let mut all = Vec::new();
+    for result in issues.all()? {
+        let (id, issue, _) = result?;
+
+        if Some(true) == assignee.map(|a| !issue.assigned().any(|v| v == Did::from(a))) {
+            continue;
+        }
+
+        all.push((id, issue))
+    }
+
+    all.sort_by(|(id1, i1), (id2, i2)| {
+        let by_timestamp = i2.timestamp().cmp(&i1.timestamp());
+        let by_id = id1.cmp(id2);
+
+        by_timestamp.then(by_id)
+    });
+
+    let mut t = term::Table::new(term::table::TableOptions::bordered());
+    t.push([
+        term::format::dim(String::from("●")),
+        term::format::bold(String::from("ID")),
+        term::format::bold(String::from("Title")),
+        term::format::bold(String::from("Author")),
+        term::format::bold(String::from("Tags")),
+        term::format::bold(String::from("Assignees")),
+        term::format::bold(String::from("Opened")),
+    ]);
+    t.divider();
+
+    for (id, issue) in all {
+        let assigned: String = issue
+            .assigned()
+            .map(|p| term::format::did(&p).to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut tags = issue.tags().map(|t| t.to_string()).collect::<Vec<_>>();
+        tags.sort();
+
+        t.push([
+            match issue.state() {
+                State::Open => term::format::positive("●").into(),
+                State::Closed { .. } => term::format::negative("●").into(),
+            },
+            term::format::tertiary(term::format::cob(&id)).to_owned(),
+            term::format::default(issue.title().to_owned()),
+            term::format::did(&issue.author().id).dim(),
+            term::format::secondary(tags.join(", ")),
+            if assigned.is_empty() {
+                term::format::dim(String::default())
+            } else {
+                term::format::default(assigned.to_string())
+            },
+            term::format::timestamp(&issue.timestamp()).dim().italic(),
+        ]);
+    }
+    t.print();
 
     Ok(())
 }
