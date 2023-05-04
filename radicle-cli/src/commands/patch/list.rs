@@ -52,17 +52,20 @@ pub fn run(
         term::format::bold(String::from("Head")).into(),
         term::format::bold(String::from("+")).into(),
         term::format::bold(String::from("-")).into(),
-        term::format::bold(String::from("Opened")).into(),
+        term::format::bold(String::from("Updated")).into(),
     ]);
     table.divider();
 
     let me = *profile.id();
     all.sort_by(|(id1, p1), (id2, p2)| {
         let is_me = (p2.author().id().as_key() == &me).cmp(&(p1.author().id().as_key() == &me));
-        let by_timestamp = p2.timestamp().cmp(&p1.timestamp());
         let by_id = id1.cmp(id2);
+        let by_rev_time = p2
+            .latest()
+            .map(|(_, r)| r.timestamp())
+            .cmp(&p1.latest().map(|(_, r)| r.timestamp()));
 
-        is_me.then(by_timestamp).then(by_id)
+        is_me.then(by_rev_time).then(by_id)
     });
 
     let mut errors = Vec::new();
@@ -118,10 +121,15 @@ pub fn row(
         term::format::secondary(term::format::oid(revision.head())).into(),
         term::format::positive(format!("+{}", stats.insertions())).into(),
         term::format::negative(format!("-{}", stats.deletions())).into(),
-        term::format::timestamp(&patch.timestamp())
-            .dim()
-            .italic()
-            .into(),
+        term::format::timestamp(
+            &patch
+                .latest()
+                .map(|(_, r)| r.timestamp())
+                .unwrap_or_default(),
+        )
+        .dim()
+        .italic()
+        .into(),
     ])
 }
 

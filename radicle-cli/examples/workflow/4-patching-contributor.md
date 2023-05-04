@@ -42,7 +42,7 @@ It will now be listed as one of the project's open patches.
 ```
 $ rad patch
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title                      Author                  Head     +   -   Opened       │
+│ ●  ID       Title                      Author                  Head     +   -   Updated      │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ●  5f0a547  Define power requirements  z6Mkt67…v4N1tRk  (you)  3e674d1  +0  -0  4 months ago │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯

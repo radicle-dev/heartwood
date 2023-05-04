@@ -42,7 +42,7 @@ It will now be listed as one of the project's open patches.
 ```
 $ rad patch
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title                      Author                  Head     +   -   Opened       │
+│ ●  ID       Title                      Author                  Head     +   -   Updated      │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ●  de3096d  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  4 months ago │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
