@@ -21,6 +21,7 @@ Usage
 
 Options
 
+    --alias              <alias>        Identify yourself with an alias on the network
     --connect            <peer>         Connect to the given peer address on start
     --external-address   <address>      Publicly accessible address (default 0.0.0.0:8776)
     --git-daemon         <address>      Address to bind git-daemon to (default 0.0.0.0:9418)
@@ -33,6 +34,7 @@ Options
 
 #[derive(Debug)]
 struct Options {
+    alias: Option<String>,
     connect: Vec<(NodeId, Address)>,
     external_addresses: Vec<Address>,
     daemon: Option<net::SocketAddr>,
@@ -48,6 +50,7 @@ impl Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_env();
+        let mut alias = None;
         let mut connect = Vec::new();
         let mut external_addresses = Vec::new();
         let mut limits = service::config::Limits::default();
@@ -59,6 +62,13 @@ impl Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
+                Long("alias") => {
+                    let name: String = parser.value()?.parse()?;
+                    if name.len() > 32 {
+                        anyhow::bail!("alias '{}' is longer than 32 characters", name);
+                    }
+                    alias = Some(name);
+                }
                 Long("connect") => {
                     let peer: PeerAddr<NodeId, Address> = parser.value()?.parse()?;
                     connect.push((peer.id, peer.addr.clone()));
@@ -118,6 +128,7 @@ impl Options {
         }
 
         Ok(Self {
+            alias,
             connect,
             daemon,
             external_addresses,
@@ -148,6 +159,7 @@ fn execute() -> anyhow::Result<()> {
     log::info!(target: "node", "Node ID is {}", signer.public_key());
 
     let config = service::Config {
+        alias: options.alias,
         connect: options.connect.into_iter().collect(),
         external_addresses: options.external_addresses,
         limits: options.limits,

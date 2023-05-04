@@ -37,6 +37,9 @@ impl Default for Limits {
 /// Service configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
+    /// Alias chosen by the operator.
+    /// Doesn't have to be unique on the network.
+    pub alias: Option<String>,
     /// Peers to connect to on startup.
     /// Connections to these peers will be maintained.
     pub connect: Vec<(NodeId, Address)>,
@@ -57,6 +60,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            alias: None,
             connect: Vec::default(),
             external_addresses: vec![],
             network: Network::default(),
@@ -87,7 +91,10 @@ impl Config {
     pub fn alias(&self) -> [u8; 32] {
         let mut alias = [0u8; 32];
 
-        alias[..9].copy_from_slice("anonymous".as_bytes());
+        if let Some(name) = &self.alias {
+            alias[..name.len()].copy_from_slice(name.as_bytes());
+        }
+
         alias
     }
 }
