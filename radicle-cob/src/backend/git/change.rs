@@ -137,6 +137,14 @@ impl change::Storage for git2::Repository {
         })
     }
 
+    fn parents_of(&self, id: &Oid) -> Result<Vec<Oid>, Self::LoadError> {
+        Ok(self
+            .find_commit(**id)?
+            .parent_ids()
+            .map(Oid::from)
+            .collect::<Vec<_>>())
+    }
+
     fn load(&self, id: Self::ObjectId) -> Result<Change, Self::LoadError> {
         let commit = Commit::read(self, id.into())?;
         let timestamp = git2::Time::from(commit.committer().time).seconds() as u64;

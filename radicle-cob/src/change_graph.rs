@@ -32,15 +32,16 @@ impl ChangeGraph {
     {
         log::info!("loading object '{}' '{}'", typename, oid);
         let mut builder = GraphBuilder::default();
-        let mut edges_to_process: Vec<(object::Commit, Oid)> = Vec::new();
+        let mut edges_to_process: Vec<(Oid, Oid)> = Vec::new();
 
         // Populate the initial set of edges_to_process from the refs we have
         for reference in tip_refs {
             log::trace!("loading object from reference '{}'", reference.name);
             match storage.load(reference.target.id) {
                 Ok(change) => {
-                    let commit = reference.target.clone();
-                    let new_edges = builder.add_change(commit, change);
+                    let new_edges = builder
+                        .add_change(storage, reference.target.id, change)
+                        .ok()?;
                     edges_to_process.extend(new_edges);
                 }
                 Err(e) => {
@@ -55,23 +56,22 @@ impl ChangeGraph {
         }
 
         // Process edges until we have no more to process
-        while let Some((parent_commit, child_commit_id)) = edges_to_process.pop() {
+        while let Some((parent_commit_id, child_commit_id)) = edges_to_process.pop() {
             log::trace!(
                 "loading change parent='{}', child='{}'",
-                parent_commit.id,
+                parent_commit_id,
                 child_commit_id
             );
-            match storage.load(parent_commit.id) {
+            match storage.load(parent_commit_id) {
                 Ok(change) => {
-                    let parent_commit_id = parent_commit.id;
-                    let new_edges = builder.add_change(parent_commit, change);
+                    let new_edges = builder.add_change(storage, parent_commit_id, change).ok()?;
                     edges_to_process.extend(new_edges);
                     builder.add_edge(child_commit_id, parent_commit_id);
                 }
                 Err(e) => {
                     log::warn!(
                         "unable to load changetree from commit '{}', error '{}'",
-                        parent_commit.id,
+                        parent_commit_id,
                         e
                     );
                 }
@@ -122,24 +122,32 @@ impl Default for GraphBuilder {
 impl GraphBuilder {
     /// Add a change to the graph which we are building up, returning any edges
     /// corresponding to the parents of this node in the change graph
-    fn add_change(
+    fn add_change<S>(
         &mut self,
-        commit: object::Commit,
+        storage: &S,
+        commit_id: Oid,
         change: Change,
-    ) -> impl Iterator<Item = (object::Commit, Oid)> + '_ {
+    ) -> Result<Vec<(Oid, Oid)>, S::LoadError>
+    where
+        S: change::Storage<ObjectId = Oid, Parent = Oid, Signatures = ExtendedSignature>,
+    {
         let resource_commit = *change.resource();
-        let commit_id = commit.id;
 
         if !self.graph.contains(&commit_id) {
             self.graph.node(commit_id, change);
         }
-        commit.parents.into_iter().filter_map(move |parent| {
-            if parent.id != resource_commit && !self.graph.has_dependency(&commit_id, &parent.id) {
-                Some((parent, commit_id))
-            } else {
-                None
-            }
-        })
+
+        Ok(storage
+            .parents_of(&commit_id)?
+            .into_iter()
+            .filter_map(move |parent| {
+                if parent != resource_commit && !self.graph.has_dependency(&commit_id, &parent) {
+                    Some((parent, commit_id))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<(Oid, Oid)>>())
     }
 
     fn add_edge(&mut self, child: Oid, parent: Oid) {

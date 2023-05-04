@@ -50,8 +50,6 @@ pub struct Reference {
 pub struct Commit {
     /// The content identifier of the commit.
     pub id: Oid,
-    /// The parents of the commit.
-    pub parents: Vec<Commit>,
 }
 
 pub trait Storage {
@@ -129,10 +127,8 @@ pub mod convert {
 
     impl<'a> From<git2::Commit<'a>> for Commit {
         fn from(commit: git2::Commit<'a>) -> Self {
-            let parents = commit.parents().map(Commit::from).collect();
             Commit {
                 id: commit.id().into(),
-                parents,
             }
         }
     }

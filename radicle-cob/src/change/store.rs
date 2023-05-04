@@ -3,6 +3,7 @@
 use std::{error::Error, fmt};
 
 use nonempty::NonEmpty;
+use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -37,6 +38,9 @@ pub trait Storage {
         &self,
         id: Self::ObjectId,
     ) -> Result<Change<Self::Parent, Self::ObjectId, Self::Signatures>, Self::LoadError>;
+
+    /// Returns the parents of the object with the specified ID.
+    fn parents_of(&self, id: &Oid) -> Result<Vec<Oid>, Self::LoadError>;
 }
 
 /// Change template, used to create a new change.
