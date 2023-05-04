@@ -91,6 +91,15 @@ impl change::Storage for Storage {
     > {
         self.as_raw().load(id)
     }
+
+    fn parents_of(&self, id: &git_ext::Oid) -> Result<Vec<git_ext::Oid>, Self::LoadError> {
+        Ok(self
+            .as_raw()
+            .find_commit(**id)?
+            .parent_ids()
+            .map(git_ext::Oid::from)
+            .collect::<Vec<_>>())
+    }
 }
 
 impl object::Storage for Storage {

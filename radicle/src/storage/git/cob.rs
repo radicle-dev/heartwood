@@ -60,6 +60,10 @@ impl change::Storage for Repository {
     fn load(&self, id: Self::ObjectId) -> Result<cob::Change, Self::LoadError> {
         self.backend.load(id)
     }
+
+    fn parents_of(&self, id: &Oid) -> Result<Vec<Oid>, Self::LoadError> {
+        self.backend.parents_of(id)
+    }
 }
 
 impl cob::object::Storage for Repository {
