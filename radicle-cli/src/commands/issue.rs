@@ -338,6 +338,24 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 None => None,
             };
 
+            let mut all = Vec::new();
+            for result in issues.all()? {
+                let (id, issue, _) = result?;
+
+                if Some(true) == assignee.map(|a| !issue.assigned().any(|v| v == Did::from(a))) {
+                    continue;
+                }
+
+                all.push((id, issue))
+            }
+
+            all.sort_by(|(id1, i1), (id2, i2)| {
+                let by_timestamp = i2.timestamp().cmp(&i1.timestamp());
+                let by_id = id1.cmp(id2);
+
+                by_timestamp.then(by_id)
+            });
+
             let mut t = term::Table::new(term::table::TableOptions::bordered());
             t.push([
                 term::format::dim(String::from("●")),
@@ -350,18 +368,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             ]);
             t.divider();
 
-            for result in issues.all()? {
-                let (id, issue, _) = result?;
-                let assigned: Vec<_> = issue.assigned().collect();
-                let state = issue.state();
-
-                if Some(true) == assignee.map(|a| !assigned.contains(&Did::from(a))) {
-                    continue;
-                }
-
-                let assigned: String = assigned
-                    .iter()
-                    .map(|p| term::format::did(p).to_string())
+            for (id, issue) in all {
+                let assigned: String = issue
+                    .assigned()
+                    .map(|p| term::format::did(&p).to_string())
                     .collect::<Vec<_>>()
                     .join(", ");
 
@@ -369,7 +379,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 tags.sort();
 
                 t.push([
-                    match state {
+                    match issue.state() {
                         State::Open => term::format::positive("●").into(),
                         State::Closed { .. } => term::format::negative("●").into(),
                     },
