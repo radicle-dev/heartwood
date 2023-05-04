@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context as _};
 use radicle::cob::common::{Reaction, Tag};
 use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, Issues, State};
+use radicle::crypto::Signer;
 use radicle::node::Handle;
 use radicle::prelude::Did;
 use radicle::profile;
@@ -271,61 +272,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::Open {
-            title,
-            description,
-            tags,
+            ref title,
+            ref description,
+            ref tags,
         } => {
-            let meta = Metadata {
-                title: title.unwrap_or("Enter a title".to_owned()),
-                tags,
-                assignees: vec![],
-            };
-            let yaml = serde_yaml::to_string(&meta)?;
-            let doc = format!(
-                "{}---\n\n{}",
-                yaml,
-                description.unwrap_or("Enter a description...".to_owned())
-            );
-
-            if let Some(text) = term::Editor::new().edit(&doc)? {
-                let mut meta = String::new();
-                let mut frontmatter = false;
-                let mut lines = text.lines();
-
-                while let Some(line) = lines.by_ref().next() {
-                    if line.trim() == "---" {
-                        if frontmatter {
-                            break;
-                        } else {
-                            frontmatter = true;
-                            continue;
-                        }
-                    }
-                    if frontmatter {
-                        meta.push_str(line);
-                        meta.push('\n');
-                    }
-                }
-
-                let description: String = lines.collect::<Vec<&str>>().join("\n");
-                let meta: Metadata =
-                    serde_yaml::from_str(&meta).context("failed to parse yaml front-matter")?;
-
-                let issue = issues.create(
-                    &meta.title,
-                    description.trim(),
-                    meta.tags.as_slice(),
-                    meta.assignees
-                        .into_iter()
-                        .map(cob::ActorId::from)
-                        .collect::<Vec<_>>()
-                        .as_slice(),
-                    &signer,
-                )?;
-                if !options.quiet {
-                    show_issue(&issue)?;
-                }
-            }
+            open(
+                &mut issues,
+                &signer,
+                &options,
+                title.clone(),
+                description.clone(),
+                tags.to_vec(),
+            )?;
         }
         Operation::List { assigned } => {
             list(&issues, &profile, &assigned)?;
@@ -423,6 +381,69 @@ fn list(
         ]);
     }
     t.print();
+
+    Ok(())
+}
+
+fn open<G: Signer>(
+    issues: &mut Issues,
+    signer: &G,
+    options: &Options,
+    title: Option<String>,
+    description: Option<String>,
+    tags: Vec<Tag>,
+) -> anyhow::Result<()> {
+    let meta = Metadata {
+        title: title.unwrap_or("Enter a title".to_owned()),
+        tags,
+        assignees: vec![],
+    };
+    let yaml = serde_yaml::to_string(&meta)?;
+    let doc = format!(
+        "{}---\n\n{}",
+        yaml,
+        description.unwrap_or("Enter a description...".to_owned())
+    );
+
+    if let Some(text) = term::Editor::new().edit(&doc)? {
+        let mut meta = String::new();
+        let mut frontmatter = false;
+        let mut lines = text.lines();
+
+        while let Some(line) = lines.by_ref().next() {
+            if line.trim() == "---" {
+                if frontmatter {
+                    break;
+                } else {
+                    frontmatter = true;
+                    continue;
+                }
+            }
+            if frontmatter {
+                meta.push_str(line);
+                meta.push('\n');
+            }
+        }
+
+        let description: String = lines.collect::<Vec<&str>>().join("\n");
+        let meta: Metadata =
+            serde_yaml::from_str(&meta).context("failed to parse yaml front-matter")?;
+
+        let issue = issues.create(
+            &meta.title,
+            description.trim(),
+            meta.tags.as_slice(),
+            meta.assignees
+                .into_iter()
+                .map(cob::ActorId::from)
+                .collect::<Vec<_>>()
+                .as_slice(),
+            signer,
+        )?;
+        if !options.quiet {
+            show_issue(&issue)?;
+        }
+    }
 
     Ok(())
 }
