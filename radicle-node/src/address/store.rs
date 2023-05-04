@@ -12,6 +12,7 @@ use crate::address::types;
 use crate::address::{KnownAddress, Source};
 use crate::service::NodeId;
 use crate::wire::AddressType;
+use crate::LocalTime;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -175,7 +176,7 @@ impl Store for Book {
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT node, type, value, source FROM addresses ORDER BY node")?
+            .prepare("SELECT node, type, value, source, last_success, last_attempt FROM addresses ORDER BY node")?
             .into_iter();
         let mut entries = Vec::new();
 
@@ -184,14 +185,18 @@ impl Store for Book {
             let _typ = row.read::<AddressType, _>("type");
             let addr = row.read::<Address, _>("value");
             let source = row.read::<Source, _>("source");
+            let last_success = row.read::<Option<i64>, _>("last_success");
+            let last_attempt = row.read::<Option<i64>, _>("last_attempt");
+            let last_success = last_success.map(|t| LocalTime::from_millis(t as u128));
+            let last_attempt = last_attempt.map(|t| LocalTime::from_millis(t as u128));
 
             entries.push((
                 node,
                 KnownAddress {
                     addr,
                     source,
-                    last_success: None,
-                    last_attempt: None,
+                    last_success,
+                    last_attempt,
                 },
             ));
         }

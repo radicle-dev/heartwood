@@ -20,7 +20,7 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 
 use crate::address;
-use crate::address::AddressBook;
+use crate::address::{AddressBook, KnownAddress};
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::identity::IdentityError;
@@ -997,7 +997,7 @@ where
                     timestamp,
                     addresses
                         .iter()
-                        .map(|a| address::KnownAddress::new(a.clone(), address::Source::Peer)),
+                        .map(|a| KnownAddress::new(a.clone(), address::Source::Peer)),
                 ) {
                     Ok(updated) => {
                         // Only relay if we received new information.
@@ -1404,7 +1404,7 @@ where
     }
 
     /// Get a list of peers available to connect to.
-    fn available_peers(&mut self) -> Vec<(NodeId, Address)> {
+    fn available_peers(&mut self) -> Vec<(NodeId, KnownAddress)> {
         let outbound = self
             .sessions
             .values()
@@ -1425,7 +1425,6 @@ where
                 entries
                     .filter(|(nid, _)| !self.sessions.contains_key(nid))
                     .take(wanted)
-                    .map(|(n, s)| (n, s.addr))
                     .collect()
             }
             Err(e) => {
@@ -1473,8 +1472,17 @@ where
     }
 
     fn maintain_connections(&mut self) {
-        for (id, addr) in self.available_peers() {
-            self.connect(id, addr.clone());
+        let now = self.clock;
+
+        // Nb. We use the `MAX_RECONNECTION_DELTA` to know when it's ok to reconnect, because
+        // these aren't persistent peers. They could go offline for a long time and we don't want to
+        // be too persistent.
+        for (id, ka) in self
+            .available_peers()
+            .into_iter()
+            .filter(|(_, ka)| now - ka.last_attempt.unwrap_or_default() >= MAX_RECONNECTION_DELTA)
+        {
+            self.connect(id, ka.addr.clone());
         }
     }
 

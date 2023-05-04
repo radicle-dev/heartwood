@@ -202,12 +202,9 @@ where
         Address::from(net::SocketAddr::from((self.ip, 8776)))
     }
 
-    pub fn import_addresses<P>(&mut self, peers: P)
-    where
-        P: AsRef<[Self]>,
-    {
+    pub fn import_addresses<'a>(&mut self, peers: impl IntoIterator<Item = &'a Self>) {
         let timestamp = self.timestamp();
-        for peer in peers.as_ref() {
+        for peer in peers.into_iter() {
             let known_address = address::KnownAddress::new(peer.address(), address::Source::Peer);
             self.service
                 .addresses_mut()

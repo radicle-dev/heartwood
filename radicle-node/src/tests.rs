@@ -1019,6 +1019,41 @@ fn test_maintain_connections() {
 }
 
 #[test]
+fn test_maintain_connections_failed_attempt() {
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+
+    alice.connect_to(&bob);
+    // Make sure Alice knows about Eve.
+    alice.receive(bob.id, eve.node_announcement());
+    alice.disconnected(bob.id(), &DisconnectReason::Command);
+    alice
+        .outbox()
+        .find(|o| matches!(o, Io::Connect(id, _) if id == &eve.id))
+        .expect("Alice attempts Eve");
+    alice.attempted(eve.id, eve.addr());
+
+    // Disconnect Eve and make sure Alice doesn't try to re-connect immediately.
+    alice.disconnected(eve.id(), &DisconnectReason::Command);
+    assert!(!alice.outbox().any(|o| matches!(o, Io::Connect(_, _))));
+
+    // Now pass some time and try again.
+    alice.elapse(MAX_RECONNECTION_DELTA);
+    alice
+        .outbox()
+        .find(|o| matches!(o, Io::Connect(id, _) if id == &eve.id))
+        .expect("Alice attempts Eve again");
+
+    // Disconnect Eve and make sure Alice doesn't try to re-connect immediately.
+    alice.disconnected(eve.id(), &DisconnectReason::Command);
+    assert!(!alice.outbox().any(|o| matches!(o, Io::Connect(_, _))));
+    // Or even after some short time..
+    alice.elapse(MIN_RECONNECTION_DELTA);
+    assert!(!alice.outbox().any(|o| matches!(o, Io::Connect(_, _))));
+}
+
+#[test]
 fn test_track_repo_subscribe() {
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
