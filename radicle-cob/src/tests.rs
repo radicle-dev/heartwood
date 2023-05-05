@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 
 use crypto::test::signer::MockSigner;
-use git_ref_format::{refname, Component, RefString};
+use git_ext::ref_format::{refname, Component, RefString};
 use nonempty::nonempty;
 use qcheck::Arbitrary;
 use radicle_crypto::Signer;

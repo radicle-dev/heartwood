@@ -513,6 +513,8 @@ fn test_clone_without_seeds() {
 
 #[test]
 fn test_cob_replication() {
+    logger::init(log::Level::Debug);
+
     let mut environment = Environment::new();
     let working = tempfile::tempdir().unwrap();
     let mut alice = environment.node("alice");

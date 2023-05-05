@@ -31,7 +31,7 @@ pub enum TypesError {
     #[error(transparent)]
     ParseObjectId(#[from] cob::object::ParseObjectId),
     #[error(transparent)]
-    RefFormat(#[from] git_ref_format::Error),
+    RefFormat(#[from] git::fmt::Error),
 }
 
 impl cob::Store for Repository {}

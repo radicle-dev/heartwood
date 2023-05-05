@@ -14,17 +14,14 @@ keywords = ["radicle", "collaborative objects", "cob", "cobs"]
 
 [dependencies]
 fastrand = { version = "1.9.0" }
-git-commit = { version = "0.3" }
-git-ref-format = { version = "0.2" }
-git-trailers = { version = "0.1" }
 log = { version = "0.4.17" }
 nonempty = { version = "0.8.1", features = ["serialize"] }
-radicle-git-ext = { version = "0" }
+radicle-git-ext = { version = "0", features = ["serde"] }
 serde_json = { version = "1.0" }
 thiserror = { version = "1.0" }
 
 [dependencies.git2]
-version = "0.16.1"
+version = "0.17.0"
 default-features = false
 features = ["vendored-libgit2"]
 
@@ -43,7 +40,6 @@ features = ["derive"]
 
 [dev-dependencies]
 fastrand = { version = "1.9.0", default-features = false }
-git-ref-format = { version = "0.2", features = ["macro"] }
 tempfile = { version = "3" }
 qcheck = { version = "1", default-features = false }
 qcheck-macros = { version = "1", default-features = false }

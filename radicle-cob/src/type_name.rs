@@ -2,7 +2,7 @@
 
 use std::{fmt, str::FromStr};
 
-use git_ref_format::{Component, RefString};
+use git_ext::ref_format::{Component, RefString};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

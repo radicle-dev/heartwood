@@ -361,7 +361,7 @@ pub mod canonical {
     #[derive(Debug, thiserror::Error)]
     pub enum Error {
         #[error(transparent)]
-        InvalidRef(#[from] git_ref_format::Error),
+        InvalidRef(#[from] git::fmt::Error),
         #[error("invalid canonical format")]
         InvalidFormat,
         #[error(transparent)]

@@ -30,7 +30,7 @@ pub mod error {
         #[error(transparent)]
         Git(#[from] git2::Error),
         #[error(transparent)]
-        Format(#[from] git_ref_format::Error),
+        Format(#[from] git_ext::ref_format::Error),
     }
 }
 

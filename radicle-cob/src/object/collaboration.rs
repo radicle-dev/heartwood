@@ -82,9 +82,9 @@ impl CollaborativeObject {
 ///   * The parsing of the [`TypeName`] fails
 pub fn parse_refstr<R>(name: &R) -> Option<(TypeName, ObjectId)>
 where
-    R: AsRef<git_ref_format::RefStr>,
+    R: AsRef<git_ext::ref_format::RefStr>,
 {
-    use git_ref_format::Qualified;
+    use git_ext::ref_format::Qualified;
     let name = name.as_ref();
     let refs_cobs = match name.to_namespaced() {
         None => Qualified::from_refstr(name)?,

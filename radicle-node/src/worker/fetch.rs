@@ -1,5 +1,5 @@
 mod refspecs;
-pub use refspecs::{AsRefspecs, Refspec, SpecialRefs};
+pub use refspecs::SpecialRefs;
 
 pub mod error;
 
@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::ops::Deref;
 
 use radicle::crypto::{PublicKey, Unverified, Verified};
+use radicle::git::refspec;
 use radicle::git::{url, Namespaced};
 use radicle::prelude::{Doc, Id, NodeId};
 use radicle::storage::git::Repository;
@@ -14,6 +15,8 @@ use radicle::storage::refs::IDENTITY_BRANCH;
 use radicle::storage::{Namespaces, RefUpdate, Remote, RemoteId};
 use radicle::storage::{ReadRepository, ReadStorage, WriteRepository, WriteStorage};
 use radicle::{git, Storage};
+
+pub type Refspec = refspec::Refspec<git::PatternString, git::PatternString>;
 
 /// The initial phase of staging a fetch from a remote.
 ///
@@ -146,15 +149,14 @@ impl<'a> StagingPhaseInitial<'a> {
 
     /// Return the fetch refspecs for fetching the necessary `rad`
     /// references.
-    pub fn refspecs(&self) -> Vec<Refspec<git::PatternString, git::PatternString>> {
+    pub fn refspecs(&self) -> Vec<Refspec> {
         let id = git::PatternString::from(IDENTITY_BRANCH.clone().into_refstring());
         match self.repo {
-            StagedRepository::Cloning(_) => Refspec {
+            StagedRepository::Cloning(_) => vec![Refspec {
                 src: id.clone(),
                 dst: id,
                 force: false,
-            }
-            .into_refspecs(),
+            }],
             StagedRepository::Fetching(_) => SpecialRefs(self.namespaces.clone()).into_refspecs(),
         }
     }
@@ -229,7 +231,7 @@ impl<'a> StagingPhaseInitial<'a> {
                     // don't need to be re-fetched from the remote.
                     let mut remote = copy.remote_anonymous(&url)?;
                     let refspecs: Vec<_> = Namespaces::All
-                        .into_refspecs()
+                        .to_refspecs()
                         .into_iter()
                         .map(|s| s.to_string())
                         .collect();
@@ -256,12 +258,19 @@ impl<'a> StagingPhaseInitial<'a> {
 impl<'a> StagingPhaseFinal<'a> {
     /// Return the fetch refspecs for fetching the necessary
     /// references.
-    pub fn refspecs(&self) -> Vec<Refspec<git::PatternString, git::PatternString>> {
+    pub fn refspecs(&self) -> Vec<Refspec> {
         match &self.repo {
             FinalStagedRepository::Cloning { trusted, .. } => {
-                Namespaces::Trusted(trusted.clone()).as_refspecs()
+                Namespaces::Trusted(trusted.clone()).to_refspecs()
             }
-            FinalStagedRepository::Fetching { refs, .. } => refs.as_refspecs(),
+            FinalStagedRepository::Fetching { refs, .. } => refs
+                .iter()
+                .map(|r| Refspec {
+                    src: r.clone().to_ref_string().into(),
+                    dst: r.clone().to_ref_string().into(),
+                    force: true,
+                })
+                .collect(),
         }
     }
 
@@ -358,8 +367,8 @@ impl<'a> StagingPhaseFinal<'a> {
                         refspecs.push((
                             remote.id,
                             Refspec {
-                                src: id.clone(),
-                                dst: id,
+                                src: id.clone().into(),
+                                dst: id.into(),
                                 // Nb. The identity branch is allowed to be force-updated.
                                 force: true,
                             }
@@ -368,8 +377,8 @@ impl<'a> StagingPhaseFinal<'a> {
                         refspecs.push((
                             remote.id,
                             Refspec {
-                                src: sigrefs.clone(),
-                                dst: sigrefs,
+                                src: sigrefs.clone().into(),
+                                dst: sigrefs.into(),
                                 // Nb. Sigrefs are never force-updated.
                                 force: false,
                             }

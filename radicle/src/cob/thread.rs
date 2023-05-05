@@ -497,7 +497,7 @@ mod tests {
     #[test]
     fn test_redact_comment() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, _) = radicle::test::setup::context(&tmp);
+        let radicle::test::setup::Context { signer, .. } = radicle::test::setup::Context::new(&tmp);
         let repo = gen::<MockRepository>(1);
         let mut alice = Actor::new(signer);
         let mut thread = Thread::default();

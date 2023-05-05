@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 use crypto::{Signer, Unverified, Verified};
-use git_ref_format::refspec;
 use once_cell::sync::Lazy;
 
 use crate::git;
@@ -25,10 +24,10 @@ pub use crate::storage::Error;
 
 use super::RemoteId;
 
-pub static NAMESPACES_GLOB: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("refs/namespaces/*"));
+pub static NAMESPACES_GLOB: Lazy<git::refspec::PatternString> =
+    Lazy::new(|| git::refspec::pattern!("refs/namespaces/*"));
 pub static SIGREFS_GLOB: Lazy<refspec::PatternString> =
-    Lazy::new(|| refspec::pattern!("refs/namespaces/*/rad/sigrefs"));
+    Lazy::new(|| git::refspec::pattern!("refs/namespaces/*/rad/sigrefs"));
 pub static CANONICAL_IDENTITY: Lazy<git::Qualified> = Lazy::new(|| {
     git::Qualified::from_components(
         git::name::component!("rad"),

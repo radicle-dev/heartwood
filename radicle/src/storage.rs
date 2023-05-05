@@ -16,11 +16,12 @@ pub use radicle_git_ext::Oid;
 
 use crate::collections::HashMap;
 use crate::git::ext as git_ext;
-use crate::git::{Qualified, RefError, RefString};
+use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefString};
 use crate::identity;
 use crate::identity::doc::DocError;
 use crate::identity::Did;
 use crate::identity::{Id, IdentityError};
+use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
 
 use self::refs::SignedRefs;
@@ -36,6 +37,29 @@ pub enum Namespaces {
     All,
     /// The trusted set of namespaces.
     Trusted(HashSet<PublicKey>),
+}
+
+impl Namespaces {
+    pub fn to_refspecs(&self) -> Vec<Refspec<PatternString, PatternString>> {
+        match self {
+            Namespaces::All => vec![Refspec {
+                src: (*NAMESPACES_GLOB).clone(),
+                dst: (*NAMESPACES_GLOB).clone(),
+                force: true,
+            }],
+            Namespaces::Trusted(pks) => pks
+                .iter()
+                .map(|pk| {
+                    let ns = pk.to_namespace().with_pattern(git::refspec::STAR);
+                    Refspec {
+                        src: ns.clone(),
+                        dst: ns,
+                        force: true,
+                    }
+                })
+                .collect(),
+        }
+    }
 }
 
 impl FromIterator<PublicKey> for Namespaces {
@@ -235,6 +259,22 @@ impl Remote<Verified> {
         Remote {
             refs: self.refs.unverified(),
         }
+    }
+
+    pub fn to_refspecs(&self) -> Vec<Refspec<PatternString, PatternString>> {
+        let ns = self.id.to_namespace();
+        // Nb. the references in Refs are expected to be Qualified
+        self.refs
+            .iter()
+            .map(|(name, _)| {
+                let name = PatternString::from(ns.join(name));
+                Refspec {
+                    src: name.clone(),
+                    dst: name,
+                    force: true,
+                }
+            })
+            .collect()
     }
 }
 

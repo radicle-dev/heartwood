@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::{ffi::OsString, fmt, str::FromStr};
 
-use git_ref_format::{Component, RefString};
+use git_ext::ref_format::{Component, RefString};
 use thiserror::Error;
 
 use crate::crypto;

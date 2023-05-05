@@ -2,8 +2,8 @@
 
 use std::{convert::TryFrom as _, fmt, ops::Deref, str::FromStr};
 
+use git_ext::ref_format::{Component, RefString};
 use git_ext::Oid;
-use git_ref_format::{Component, RefString};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

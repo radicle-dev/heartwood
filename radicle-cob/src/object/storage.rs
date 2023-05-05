@@ -2,8 +2,8 @@
 
 use std::{collections::HashMap, error::Error};
 
+use git_ext::ref_format::RefString;
 use git_ext::Oid;
-use git_ref_format::RefString;
 
 use crate::change::Change;
 use crate::{ObjectId, TypeName};
@@ -95,7 +95,7 @@ pub trait Storage {
 pub mod convert {
     use std::str;
 
-    use git_ref_format::RefString;
+    use git_ext::ref_format::RefString;
     use thiserror::Error;
 
     use super::{Commit, Reference};
@@ -109,7 +109,7 @@ pub mod convert {
             err: git2::Error,
         },
         #[error(transparent)]
-        Ref(#[from] git_ref_format::Error),
+        Ref(#[from] git_ext::ref_format::Error),
         #[error(transparent)]
         Utf8(#[from] str::Utf8Error),
     }

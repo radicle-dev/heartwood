@@ -575,7 +575,9 @@ mod test {
     #[test]
     fn test_issue_create_and_assign() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
 
         let assignee: ActorId = arbitrary::gen(1);
@@ -612,7 +614,9 @@ mod test {
     #[test]
     fn test_issue_create_and_reassign() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
 
         let assignee: ActorId = arbitrary::gen(1);
@@ -642,7 +646,9 @@ mod test {
     #[test]
     fn test_issue_create_and_get() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
         let created = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
@@ -664,7 +670,9 @@ mod test {
     #[test]
     fn test_issue_create_and_change_state() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
@@ -698,7 +706,9 @@ mod test {
     #[test]
     fn test_issue_create_and_unassign() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
 
         let assignee: ActorId = arbitrary::gen(1);
@@ -726,7 +736,9 @@ mod test {
     #[test]
     fn test_issue_edit_title() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
@@ -744,7 +756,9 @@ mod test {
     #[test]
     fn test_issue_react() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
@@ -767,7 +781,9 @@ mod test {
     #[test]
     fn test_issue_reply() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
         let mut issue = issues
             .create("My first issue", "Blah blah blah.", &[], &[], &signer)
@@ -805,7 +821,9 @@ mod test {
     #[test]
     fn test_issue_tag() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
         let bug_tag = Tag::new("bug").unwrap();
         let ux_tag = Tag::new("ux").unwrap();
@@ -835,7 +853,9 @@ mod test {
     #[test]
     fn test_issue_comment() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let author = *signer.public_key();
         let mut issues = Issues::open(&project).unwrap();
         let mut issue = issues
@@ -886,7 +906,9 @@ mod test {
     #[test]
     fn test_issue_all() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
 
         issues.create("First", "Blah", &[], &[], &signer).unwrap();
@@ -910,7 +932,9 @@ mod test {
     #[test]
     fn test_issue_multilines() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
         let mut issues = Issues::open(&project).unwrap();
         let created = issues
             .create(

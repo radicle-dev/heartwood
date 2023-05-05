@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use git_ref_format as fmt;
-use radicle_git_ext as git_ext;
+use git_ext::ref_format as fmt;
 
 use crate::crypto::{Signer, Verified};
 use crate::identity::doc::{Doc, DocError, Id};

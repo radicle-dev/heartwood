@@ -1,7 +1,7 @@
 // Copyright © 2019-2020 The Radicle Foundation <hello@radicle.foundation>
 
-use git_trailers::{OwnedTrailer, Token, Trailer};
-use radicle_git_ext as ext;
+use git_ext::commit::trailers::{OwnedTrailer, Token, Trailer};
+use std::ops::Deref as _;
 
 pub mod error {
     use thiserror::Error;
@@ -30,11 +30,10 @@ impl ResourceCommitTrailer {
 impl TryFrom<&Trailer<'_>> for ResourceCommitTrailer {
     type Error = error::InvalidResourceTrailer;
 
-    fn try_from(Trailer { values, token }: &Trailer<'_>) -> Result<Self, Self::Error> {
-        let val = values.first().ok_or(Self::Error::NoValue)?;
+    fn try_from(Trailer { value, token }: &Trailer<'_>) -> Result<Self, Self::Error> {
         let ext_oid =
-            radicle_git_ext::Oid::try_from(val.as_ref()).map_err(|_| Self::Error::InvalidOid)?;
-        if Some(token) == Token::try_from("Rad-Resource").ok().as_ref() {
+            git_ext::Oid::try_from(value.as_ref()).map_err(|_| Self::Error::InvalidOid)?;
+        if token.deref() == "Rad-Resource" {
             Ok(ResourceCommitTrailer(ext_oid.into()))
         } else {
             Err(Self::Error::WrongToken)
@@ -60,7 +59,7 @@ impl From<ResourceCommitTrailer> for Trailer<'_> {
     fn from(containing: ResourceCommitTrailer) -> Self {
         Trailer {
             token: Token::try_from("Rad-Resource").unwrap(),
-            values: vec![containing.0.to_string().into()],
+            value: containing.0.to_string().into(),
         }
     }
 }
@@ -71,8 +70,8 @@ impl From<ResourceCommitTrailer> for OwnedTrailer {
     }
 }
 
-impl From<ext::Oid> for ResourceCommitTrailer {
-    fn from(oid: ext::Oid) -> Self {
+impl From<git_ext::Oid> for ResourceCommitTrailer {
+    fn from(oid: git_ext::Oid) -> Self {
         Self(oid.into())
     }
 }

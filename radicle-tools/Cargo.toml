@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1" }
-git-ref-format = { version = "0", features = ["serde", "macro"] }
+# N.b. this is required to use macros, even though it's re-exported
+# through radicle
+radicle-git-ext = { version = "0", features = ["serde"] }
 
 [dependencies.radicle]
 version = "0"

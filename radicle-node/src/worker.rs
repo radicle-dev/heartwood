@@ -478,7 +478,7 @@ impl Worker {
         channels: &mut Channels,
     ) -> Result<(), FetchError>
     where
-        S: fetch::AsRefspecs,
+        S: IntoIterator<Item = fetch::Refspec>,
     {
         let mut tunnel = Tunnel::with(channels, stream, self.nid, remote, self.handle.clone())?;
         let tunnel_addr = tunnel.local_addr();
@@ -498,7 +498,6 @@ impl Worker {
 
         let namespace = self.nid.to_namespace();
         let mut fetchspecs = specs
-            .into_refspecs()
             .into_iter()
             // Filter out our own refs, if we aren't cloning.
             .filter(|fs| is_cloning || !fs.dst.starts_with(namespace.as_str()))

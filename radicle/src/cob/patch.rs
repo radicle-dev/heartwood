@@ -1391,21 +1391,21 @@ mod test {
     #[test]
     fn test_patch_create_and_get() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
-        let mut patches = Patches::open(&project).unwrap();
+        let ctx = test::setup::Context::new(&tmp);
+        let signer = &ctx.signer;
+        let pr = ctx.branch_with(test::setup::initial_blobs());
+        let mut patches = Patches::open(&ctx.project).unwrap();
         let author: Did = signer.public_key().into();
         let target = MergeTarget::Delegates;
-        let oid = git::Oid::from_str("e2a85016a458cd809c0ecee81f8c99613b0b0945").unwrap();
-        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 target,
-                base,
-                oid,
+                pr.base,
+                pr.oid,
                 &[],
-                &signer,
+                signer,
             )
             .unwrap();
 
@@ -1426,8 +1426,8 @@ mod test {
         assert_eq!(revision.author.id(), &author);
         assert_eq!(revision.description(), "");
         assert_eq!(revision.discussion.len(), 0);
-        assert_eq!(revision.oid, oid);
-        assert_eq!(revision.base, base);
+        assert_eq!(revision.oid, pr.oid);
+        assert_eq!(revision.base, pr.base);
 
         let (id, _, _) = patches.find_by_revision(rev_id).unwrap().unwrap();
         assert_eq!(id, patch_id);
@@ -1436,17 +1436,19 @@ mod test {
     #[test]
     fn test_patch_discussion() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
-        let mut patches = Patches::open(&project).unwrap();
+        let ctx = test::setup::Context::new(&tmp);
+        let signer = &ctx.signer;
+        let pr = ctx.branch_with(test::setup::initial_blobs());
+        let mut patches = Patches::open(&ctx.project).unwrap();
         let patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                git::Oid::try_from("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap(),
-                git::Oid::try_from("e2a85016a458cd809c0ecee81f8c99613b0b0945").unwrap(),
+                pr.base,
+                pr.oid,
                 &[],
-                &signer,
+                signer,
             )
             .unwrap();
 
@@ -1455,7 +1457,7 @@ mod test {
         let (revision_id, _) = patch.revisions().last().unwrap();
         assert!(
             patch
-                .comment(*revision_id, "patch comment", None, &signer)
+                .comment(*revision_id, "patch comment", None, signer)
                 .is_ok(),
             "can comment on patch"
         );
@@ -1468,25 +1470,25 @@ mod test {
     #[test]
     fn test_patch_merge() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
-        let oid = git::Oid::from_str("e2a85016a458cd809c0ecee81f8c99613b0b0945").unwrap();
-        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let mut patches = Patches::open(&project).unwrap();
+        let ctx = test::setup::Context::new(&tmp);
+        let signer = &ctx.signer;
+        let pr = ctx.branch_with(test::setup::initial_blobs());
+        let mut patches = Patches::open(&ctx.project).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                base,
-                oid,
+                pr.base,
+                pr.oid,
                 &[],
-                &signer,
+                signer,
             )
             .unwrap();
 
         let id = patch.id;
         let (rid, _) = patch.revisions().next().unwrap();
-        let _merge = patch.merge(*rid, base, &signer).unwrap();
+        let _merge = patch.merge(*rid, pr.base, signer).unwrap();
 
         let patch = patches.get(&id).unwrap().unwrap();
 
@@ -1496,25 +1498,25 @@ mod test {
 
         let merge = merges.first().unwrap();
         assert_eq!(merge.node, *signer.public_key());
-        assert_eq!(merge.commit, base);
+        assert_eq!(merge.commit, pr.base);
     }
 
     #[test]
     fn test_patch_review() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
-        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let mut patches = Patches::open(&project).unwrap();
+        let ctx = test::setup::Context::new(&tmp);
+        let signer = &ctx.signer;
+        let pr = ctx.branch_with(test::setup::initial_blobs());
+        let mut patches = Patches::open(&ctx.project).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                base,
-                oid,
+                pr.base,
+                pr.oid,
                 &[],
-                &signer,
+                signer,
             )
             .unwrap();
 
@@ -1525,7 +1527,7 @@ mod test {
                 Some(Verdict::Accept),
                 Some("LGTM".to_owned()),
                 vec![],
-                &signer,
+                signer,
             )
             .unwrap();
 
@@ -1626,20 +1628,20 @@ mod test {
     #[test]
     fn test_patch_review_edit() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
-        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let ctx = test::setup::Context::new(&tmp);
+        let signer = &ctx.signer;
+        let pr = ctx.branch_with(test::setup::initial_blobs());
         let blob = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d133999").unwrap();
-        let mut patches = Patches::open(&project).unwrap();
+        let mut patches = Patches::open(&ctx.project).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                base,
-                oid,
+                pr.base,
+                pr.oid,
                 &[],
-                &signer,
+                signer,
             )
             .unwrap();
 
@@ -1650,7 +1652,7 @@ mod test {
             location: CodeLocation {
                 blob,
                 path: Path::new("file.rs").to_path_buf(),
-                commit: oid,
+                commit: pr.oid,
                 lines: 1..3,
             },
             comment: "Nice!".to_owned(),
@@ -1662,7 +1664,7 @@ mod test {
                 Some(Verdict::Accept),
                 Some("LGTM".to_owned()),
                 inline.clone(),
-                &signer,
+                signer,
             )
             .unwrap();
         patch
@@ -1671,7 +1673,7 @@ mod test {
                 Some(Verdict::Reject),
                 Some("LGTM".to_owned()),
                 vec![],
-                &signer,
+                signer,
             )
             .unwrap(); // Overwrite the verdict.
 
@@ -1691,7 +1693,7 @@ mod test {
                 Some(Verdict::Reject),
                 Some("Whoops!".to_owned()),
                 vec![],
-                &signer,
+                signer,
             )
             .unwrap(); // Overwrite the comment.
         let (_, revision) = patch.latest().unwrap();
@@ -1704,19 +1706,19 @@ mod test {
     #[test]
     fn test_patch_reject_to_accept() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
-        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let mut patches = Patches::open(&project).unwrap();
+        let ctx = test::setup::Context::new(&tmp);
+        let signer = &ctx.signer;
+        let pr = ctx.branch_with(test::setup::initial_blobs());
+        let mut patches = Patches::open(&ctx.project).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                base,
-                oid,
+                pr.base,
+                pr.oid,
                 &[],
-                &signer,
+                signer,
             )
             .unwrap();
 
@@ -1729,7 +1731,7 @@ mod test {
                 Some(Verdict::Reject),
                 Some("Nah".to_owned()),
                 vec![],
-                &signer,
+                signer,
             )
             .unwrap();
         patch
@@ -1738,7 +1740,7 @@ mod test {
                 Some(Verdict::Accept),
                 Some("LGTM".to_owned()),
                 vec![],
-                &signer,
+                signer,
             )
             .unwrap();
 
@@ -1755,19 +1757,19 @@ mod test {
     #[test]
     fn test_patch_review_remove_fields() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
-        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let mut patches = Patches::open(&project).unwrap();
+        let ctx = test::setup::Context::new(&tmp);
+        let signer = &ctx.signer;
+        let pr = ctx.branch_with(test::setup::initial_blobs());
+        let mut patches = Patches::open(&ctx.project).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                base,
-                oid,
+                pr.base,
+                pr.oid,
                 &[],
-                &signer,
+                signer,
             )
             .unwrap();
 
@@ -1780,10 +1782,10 @@ mod test {
                 Some(Verdict::Reject),
                 Some("Nah".to_owned()),
                 vec![],
-                &signer,
+                signer,
             )
             .unwrap();
-        patch.review(rid, None, None, vec![], &signer).unwrap();
+        patch.review(rid, None, None, vec![], signer).unwrap();
 
         let id = patch.id;
         let patch = patches.get_mut(&id).unwrap();
@@ -1797,20 +1799,19 @@ mod test {
     #[test]
     fn test_patch_update() {
         let tmp = tempfile::tempdir().unwrap();
-        let (_, signer, project) = test::setup::context(&tmp);
-        let base = git::Oid::from_str("af08e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let rev0_oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let rev1_oid = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let mut patches = Patches::open(&project).unwrap();
+        let ctx = test::setup::Context::new(&tmp);
+        let signer = &ctx.signer;
+        let pr = ctx.branch_with(test::setup::initial_blobs());
+        let mut patches = Patches::open(&ctx.project).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                base,
-                rev0_oid,
+                pr.base,
+                pr.oid,
                 &[],
-                &signer,
+                signer,
             )
             .unwrap();
 
@@ -1818,8 +1819,9 @@ mod test {
         assert_eq!(patch.description(), "Blah blah blah.");
         assert_eq!(patch.version(), 0);
 
+        let update = ctx.branch_with(test::setup::update_blobs());
         let _ = patch
-            .update("I've made changes.", base, rev1_oid, &signer)
+            .update("I've made changes.", pr.base, update.oid, signer)
             .unwrap();
         assert_eq!(patch.clock.get(), 2);
 
@@ -1837,7 +1839,7 @@ mod test {
         let (_, revision) = patch.latest().unwrap();
 
         assert_eq!(patch.version(), 1);
-        assert_eq!(revision.oid, rev1_oid);
+        assert_eq!(revision.oid, update.oid);
         assert_eq!(revision.description(), "I've made changes.");
     }
 }

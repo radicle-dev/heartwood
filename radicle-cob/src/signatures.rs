@@ -8,9 +8,9 @@ use std::{
 };
 
 use crypto::{ssh, PublicKey};
-use git_commit::{
+use git_ext::commit::{
+    headers::Signature::{Pgp, Ssh},
     Commit,
-    Signature::{Pgp, Ssh},
 };
 
 pub use ssh::ExtendedSignature;

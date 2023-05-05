@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::Command;
 use std::str::FromStr;
 
-use git_ref_format as format;
+use git_ext::ref_format as format;
 use once_cell::sync::Lazy;
 
 use crate::collections::HashMap;
@@ -17,8 +17,8 @@ pub use ext::Error;
 pub use ext::NotFound;
 pub use ext::Oid;
 pub use git2 as raw;
-pub use git_ref_format as fmt;
-pub use git_ref_format::{
+pub use git_ext::ref_format as fmt;
+pub use git_ext::ref_format::{
     component, lit, name, qualified, refname, refspec,
     refspec::{PatternStr, PatternString},
     Component, Namespaced, Qualified, RefStr, RefString,
@@ -152,6 +152,7 @@ pub mod refs {
 
     pub mod storage {
         use format::{
+            lit,
             name::component,
             refspec::{self, PatternString},
         };
@@ -181,7 +182,7 @@ pub mod refs {
         /// `refs/namespaces/<remote>/refs/heads/<branch>`
         ///
         pub fn branch<'a>(remote: &RemoteId, branch: &RefStr) -> Namespaced<'a> {
-            Qualified::from(git_ref_format::lit::refs_heads(branch)).with_namespace(remote.into())
+            Qualified::from(lit::refs_heads(branch)).with_namespace(remote.into())
         }
 
         /// Get the branch where the project's identity document is stored.

@@ -59,6 +59,8 @@ pub enum Action {
         revision: RevisionId,
     },
     Revision {
+        // N.b. the `Oid` is a blob identifier and not a commit, so we
+        // do not need to propagate it via HistoryAction.
         current: Oid,
         proposed: Doc<Verified>,
     },
@@ -68,16 +70,7 @@ pub enum Action {
     },
 }
 
-impl HistoryAction for Action {
-    fn parents(&self) -> Vec<Oid> {
-        match self {
-            Self::Revision { current, .. } => {
-                vec![*current]
-            }
-            _ => vec![],
-        }
-    }
-}
+impl HistoryAction for Action {}
 
 /// Error applying an operation onto a state.
 #[derive(Error, Debug)]

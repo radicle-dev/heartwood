@@ -3,10 +3,12 @@
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
-use git_commit::{self as commit, Commit};
+use git_ext::author;
+use git_ext::author::Author;
+use git_ext::commit::{headers::Headers, Commit};
 use git_ext::Oid;
-use git_trailers::OwnedTrailer;
 use nonempty::NonEmpty;
+use radicle_git_ext::commit::trailers::OwnedTrailer;
 
 use crate::history::entry::Timestamp;
 use crate::signatures;
@@ -23,14 +25,16 @@ pub mod error {
     use std::str::Utf8Error;
     use std::string::FromUtf8Error;
 
+    use git_ext::commit;
     use git_ext::Oid;
-    use git_trailers::Error as TrailerError;
     use thiserror::Error;
 
     use crate::signatures::error::Signatures;
 
     #[derive(Debug, Error)]
     pub enum Create {
+        #[error(transparent)]
+        WriteCommit(#[from] commit::error::Write),
         #[error(transparent)]
         FromUtf8(#[from] FromUtf8Error),
         #[error(transparent)]
@@ -46,7 +50,7 @@ pub mod error {
     #[derive(Debug, Error)]
     pub enum Load {
         #[error(transparent)]
-        Read(#[from] git_commit::error::Read),
+        Read(#[from] commit::error::Read),
         #[error(transparent)]
         Signatures(#[from] Signatures),
         #[error(transparent)]
@@ -73,8 +77,6 @@ pub mod error {
         ResourceTrailer(#[from] super::trailers::error::InvalidResourceTrailer),
         #[error("non utf-8 characters in commit message")]
         Utf8(#[from] FromUtf8Error),
-        #[error(transparent)]
-        Trailer(#[from] TrailerError),
     }
 }
 
@@ -262,7 +264,7 @@ where
     let author = repo.signature()?;
     let timestamp = author.when().seconds();
 
-    let mut headers = commit::Headers::new();
+    let mut headers = Headers::new();
     headers.push(
         "gpgsig",
         signature
@@ -270,13 +272,13 @@ where
             .map_err(signatures::error::Signatures::from)?
             .as_str(),
     );
-    let author = commit::Author::try_from(&author)?;
+    let author = Author::try_from(&author)?;
 
     #[cfg(debug_assertions)]
     let (author, timestamp) = if let Ok(s) = std::env::var(crate::git::RAD_COMMIT_TIME) {
         let timestamp = s.trim().parse::<i64>().unwrap();
-        let author = commit::Author {
-            time: git_commit::author::Time::new(timestamp, 0),
+        let author = Author {
+            time: author::Time::new(timestamp, 0),
             ..author
         };
         (author, timestamp)

@@ -19,7 +19,6 @@ colored = { version = "1.9.0" }
 crossbeam-channel = { version = "0.5.6" }
 cyphernet = { version = "0.2.0", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
 fastrand = { version = "1.9.0" }
-git-ref-format = { version = "0.2", features = ["serde", "macro"] }
 io-reactor = { version = "0.1.2", features = ["popol"] }
 lexopt = { version = "0.2.1" }
 libc = { version = "0.2.137" }
@@ -28,6 +27,9 @@ localtime = { version = "1.2.0" }
 netservices = { version = "0.2.2", features = ["io-reactor", "socket2"] }
 nonempty = { version = "0.8.1", features = ["serialize"] }
 qcheck = { version = "1", default-features = false, optional = true }
+# N.b. this is required to use macros, even though it's re-exported
+# through radicle
+radicle-git-ext = { version = "0", features = ["serde"] }
 sqlite = { version = "0.30.3" }
 sqlite3-src = { version = "0.4.0", features = ["bundled"] } # Ensures static linking
 scrypt = { version = "0.10.0", default-features = false }
