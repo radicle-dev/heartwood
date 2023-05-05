@@ -228,8 +228,12 @@ impl Issue {
             .expect("Issue::author: at least one comment is present")
     }
 
-    pub fn description(&self) -> Option<&str> {
-        self.thread.comments().next().map(|(_, c)| c.body())
+    pub fn description(&self) -> (&CommentId, &str) {
+        self.thread
+            .comments()
+            .next()
+            .map(|(id, c)| (id, c.body()))
+            .expect("Issue::description: at least one comment is present")
     }
 
     pub fn thread(&self) -> &Thread {
@@ -701,7 +705,7 @@ mod test {
         assert_eq!(created, issue);
         assert_eq!(issue.title(), "My first issue");
         assert_eq!(issue.author().id, Did::from(signer.public_key()));
-        assert_eq!(issue.description(), Some("Blah blah blah."));
+        assert_eq!(issue.description().1, "Blah blah blah.");
         assert_eq!(issue.comments().count(), 1);
         assert_eq!(issue.state(), &State::Open);
     }
@@ -809,9 +813,9 @@ mod test {
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let r = issue.description().unwrap();
+        let (_, desc) = issue.description();
 
-        assert_eq!(r, "Bob Loblaw law blog");
+        assert_eq!(desc, "Bob Loblaw law blog");
     }
 
     #[test]
@@ -1013,7 +1017,7 @@ mod test {
         assert_eq!(created, issue);
         assert_eq!(issue.title(), "My first issue");
         assert_eq!(issue.author().id, Did::from(signer.public_key()));
-        assert_eq!(issue.description(), Some("Blah blah blah.\nYah yah yah"));
+        assert_eq!(issue.description().1, "Blah blah blah.\nYah yah yah");
         assert_eq!(issue.comments().count(), 1);
         assert_eq!(issue.state(), &State::Open);
     }

@@ -11,6 +11,7 @@ use radicle::crypto::Signer;
 use radicle::node::Handle;
 use radicle::prelude::Did;
 use radicle::profile;
+use radicle::storage;
 use radicle::storage::WriteStorage;
 use radicle::{cob, Node};
 use radicle_term::table::TableOptions;
@@ -30,6 +31,7 @@ Usage
 
     rad issue [<option>...]
     rad issue delete <issue-id> [<option>...]
+    rad issue edit <issue-id> [<option>...]
     rad issue list [--assigned <did>] [<option>...]
     rad issue open [--title <title>] [--description <text>] [--tag <tag>] [<option>...]
     rad issue react <issue-id> [--emoji <char>] [<option>...]
@@ -53,6 +55,7 @@ pub struct Metadata {
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub enum OperationName {
+    Edit,
     Open,
     Delete,
     #[default]
@@ -72,6 +75,11 @@ pub enum Assigned {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Operation {
+    Edit {
+        id: Rev,
+        title: Option<String>,
+        description: Option<String>,
+    },
     Open {
         title: Option<String>,
         description: Option<String>,
@@ -191,6 +199,11 @@ impl Args for Options {
         }
 
         let op = match op.unwrap_or_default() {
+            OperationName::Edit => Operation::Edit {
+                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
+                title,
+                description,
+            },
             OperationName::Open => Operation::Open {
                 title,
                 description,
@@ -242,6 +255,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut issues = Issues::open(&repo)?;
 
     match options.op {
+        Operation::Edit {
+            id,
+            title,
+            description,
+        } => {
+            edit(&mut issues, &signer, &repo, id, title, description)?;
+        }
         Operation::Open {
             title: Some(title),
             description: Some(description),
@@ -407,6 +427,7 @@ fn list(
     Ok(())
 }
 
+/// Get Issue meta-data and description from the user through the editor.
 fn prompt_issue(
     title: &str,
     description: &str,
@@ -497,6 +518,87 @@ fn open<G: Signer>(
     Ok(())
 }
 
+fn edit<G: radicle::crypto::Signer>(
+    issues: &mut issue::Issues,
+    signer: &G,
+    repo: &storage::git::Repository,
+    id: Rev,
+    title: Option<String>,
+    description: Option<String>,
+) -> anyhow::Result<()> {
+    let id = id.resolve(&repo.backend)?;
+    let mut issue = issues.get_mut(&id)?;
+    let (desc_id, issue_desc) = issue.description();
+    let desc_id = *desc_id;
+
+    if title.is_some() || description.is_some() {
+        // Editing by command line arguments
+        issue.transaction("Edit", signer, |tx| {
+            if let Some(t) = title {
+                tx.edit(t)?;
+            }
+            if let Some(d) = description {
+                tx.edit_comment(desc_id, d)?;
+            }
+
+            Ok(())
+        })?;
+        return Ok(());
+    }
+
+    // Editing by editor
+    let tags: Vec<_> = issue.tags().cloned().collect();
+    let assigned: Vec<_> = issue.assigned().collect();
+
+    let Some((meta, description)) = prompt_issue(
+        issue.title(),
+        issue_desc,
+        &tags,
+        &assigned,
+    )? else {
+        return Ok(());
+    };
+
+    issue.transaction("Edit", signer, |tx| {
+        tx.edit(meta.title)?;
+        tx.edit_comment(desc_id, description)?;
+
+        let add: Vec<_> = meta
+            .tags
+            .iter()
+            .filter(|t| !tags.contains(t))
+            .cloned()
+            .collect();
+        let remove: Vec<_> = tags
+            .iter()
+            .filter(|t| !meta.tags.contains(t))
+            .cloned()
+            .collect();
+        tx.tag(add, remove)?;
+
+        let assign: Vec<_> = meta
+            .assignees
+            .iter()
+            .filter(|t| !assigned.contains(t))
+            .cloned()
+            .map(cob::ActorId::from)
+            .collect();
+        let unassign: Vec<_> = assigned
+            .iter()
+            .filter(|t| !meta.assignees.contains(t))
+            .cloned()
+            .map(cob::ActorId::from)
+            .collect();
+        tx.assign(assign, unassign)?;
+
+        Ok(())
+    })?;
+
+    show_issue(&issue)?;
+
+    Ok(())
+}
+
 fn show_issue(issue: &issue::Issue) -> anyhow::Result<()> {
     let tags: Vec<String> = issue.tags().cloned().map(|t| t.into()).collect();
     let assignees: Vec<String> = issue
@@ -540,7 +642,7 @@ fn show_issue(issue: &issue::Issue) -> anyhow::Result<()> {
         },
     ]);
 
-    let description = issue.description().unwrap_or_default();
+    let (_, description) = issue.description();
     let widget = VStack::default()
         .border(Some(term::colors::FAINT))
         .child(attrs)
