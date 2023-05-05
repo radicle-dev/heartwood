@@ -172,6 +172,7 @@ impl Semilattice for Patch {
         self.target.merge(other.target);
         self.tags.merge(other.tags);
         self.revisions.merge(other.revisions);
+        self.timeline.merge(other.timeline);
     }
 }
 

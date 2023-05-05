@@ -34,6 +34,8 @@ pub type IssueId = ObjectId;
 pub enum Error {
     #[error("apply failed")]
     Apply,
+    #[error("description missing")]
+    DescriptionMissing,
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::OpError),
     #[error("store: {0}")]
@@ -247,6 +249,16 @@ impl store::Transaction<Issue> {
         self.push(Action::Assign { add, remove })
     }
 
+    /// Edit an issue comment.
+    pub fn edit_comment(&mut self, id: CommentId, body: impl ToString) -> Result<(), store::Error> {
+        self.push(Action::Thread {
+            action: thread::Action::Edit {
+                id,
+                body: body.to_string(),
+            },
+        })
+    }
+
     /// Set the issue title.
     pub fn edit(&mut self, title: impl ToString) -> Result<(), store::Error> {
         self.push(Action::Edit {
@@ -333,6 +345,21 @@ impl<'a, 'g> IssueMut<'a, 'g> {
     /// Set the issue title.
     pub fn edit<G: Signer>(&mut self, title: impl ToString, signer: &G) -> Result<EntryId, Error> {
         self.transaction("Edit", signer, |tx| tx.edit(title))
+    }
+
+    /// Set the issue description.
+    pub fn edit_description<G: Signer>(
+        &mut self,
+        description: impl ToString,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        let Some((id, _)) = self.thread.comments().next() else {
+            return Err(Error::DescriptionMissing);
+        };
+        let id = *id;
+        self.transaction("Edit description", signer, |tx| {
+            tx.edit_comment(id, description)
+        })
     }
 
     /// Lifecycle an issue.
@@ -734,7 +761,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_edit_title() {
+    fn test_issue_edit() {
         let tmp = tempfile::tempdir().unwrap();
         let test::setup::Context {
             signer, project, ..
@@ -751,6 +778,28 @@ mod test {
         let r = issue.title();
 
         assert_eq!(r, "Sorry typo");
+    }
+
+    #[test]
+    fn test_issue_edit_description() {
+        let tmp = tempfile::tempdir().unwrap();
+        let test::setup::Context {
+            signer, project, ..
+        } = test::setup::Context::new(&tmp);
+        let mut issues = Issues::open(&project).unwrap();
+        let mut issue = issues
+            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
+            .unwrap();
+
+        issue
+            .edit_description("Bob Loblaw law blog", &signer)
+            .unwrap();
+
+        let id = issue.id;
+        let issue = issues.get(&id).unwrap().unwrap();
+        let r = issue.description().unwrap();
+
+        assert_eq!(r, "Bob Loblaw law blog");
     }
 
     #[test]
