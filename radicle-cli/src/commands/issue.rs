@@ -407,6 +407,61 @@ fn list(
     Ok(())
 }
 
+fn prompt_issue(
+    title: &str,
+    description: &str,
+    tags: &[Tag],
+    assignees: &[Did],
+) -> anyhow::Result<Option<(Metadata, String)>> {
+    let title = if title.is_empty() {
+        "Enter a title"
+    } else {
+        title
+    };
+    let description = if description.is_empty() {
+        "Enter a description..."
+    } else {
+        description
+    };
+
+    let meta = Metadata {
+        title: title.to_string(),
+        tags: tags.to_vec(),
+        assignees: assignees.to_vec(),
+    };
+    let yaml = serde_yaml::to_string(&meta)?;
+    let doc = format!("{yaml}---\n\n{description}");
+
+    let Some(text) = term::Editor::new().edit(&doc)? else {
+        return Ok(None);
+    };
+
+    let mut meta = String::new();
+    let mut frontmatter = false;
+    let mut lines = text.lines();
+
+    while let Some(line) = lines.by_ref().next() {
+        if line.trim() == "---" {
+            if frontmatter {
+                break;
+            } else {
+                frontmatter = true;
+                continue;
+            }
+        }
+        if frontmatter {
+            meta.push_str(line);
+            meta.push('\n');
+        }
+    }
+
+    let description: String = lines.collect::<Vec<&str>>().join("\n");
+    let meta: Metadata =
+        serde_yaml::from_str(&meta).context("failed to parse yaml front-matter")?;
+
+    Ok(Some((meta, description)))
+}
+
 fn open<G: Signer>(
     issues: &mut Issues,
     signer: &G,
@@ -415,56 +470,28 @@ fn open<G: Signer>(
     description: Option<String>,
     tags: Vec<Tag>,
 ) -> anyhow::Result<()> {
-    let meta = Metadata {
-        title: title.unwrap_or("Enter a title".to_owned()),
-        tags,
-        assignees: vec![],
+    let Some((meta, description)) = prompt_issue(
+        &title.unwrap_or_default(),
+        &description.unwrap_or_default(),
+        &tags,
+        &[],
+    )? else {
+        return Ok(());
     };
-    let yaml = serde_yaml::to_string(&meta)?;
-    let doc = format!(
-        "{}---\n\n{}",
-        yaml,
-        description.unwrap_or("Enter a description...".to_owned())
-    );
 
-    if let Some(text) = term::Editor::new().edit(&doc)? {
-        let mut meta = String::new();
-        let mut frontmatter = false;
-        let mut lines = text.lines();
-
-        while let Some(line) = lines.by_ref().next() {
-            if line.trim() == "---" {
-                if frontmatter {
-                    break;
-                } else {
-                    frontmatter = true;
-                    continue;
-                }
-            }
-            if frontmatter {
-                meta.push_str(line);
-                meta.push('\n');
-            }
-        }
-
-        let description: String = lines.collect::<Vec<&str>>().join("\n");
-        let meta: Metadata =
-            serde_yaml::from_str(&meta).context("failed to parse yaml front-matter")?;
-
-        let issue = issues.create(
-            &meta.title,
-            description.trim(),
-            meta.tags.as_slice(),
-            meta.assignees
-                .into_iter()
-                .map(cob::ActorId::from)
-                .collect::<Vec<_>>()
-                .as_slice(),
-            signer,
-        )?;
-        if !options.quiet {
-            show_issue(&issue)?;
-        }
+    let issue = issues.create(
+        &meta.title,
+        description.trim(),
+        meta.tags.as_slice(),
+        meta.assignees
+            .into_iter()
+            .map(cob::ActorId::from)
+            .collect::<Vec<_>>()
+            .as_slice(),
+        signer,
+    )?;
+    if !options.quiet {
+        show_issue(&issue)?;
     }
 
     Ok(())
