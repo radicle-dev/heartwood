@@ -16,7 +16,7 @@ use log::*;
 use crate::crypto::Signer;
 use crate::git::raw as git;
 use crate::prelude::{Address, Id};
-use crate::service::reactor::Io;
+use crate::service::io::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
 use crate::storage::{Namespaces, RefUpdate};
 use crate::storage::{WriteRepository, WriteStorage};

@@ -27,7 +27,7 @@ use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
 use crate::prelude::Deserializer;
-use crate::service::reactor::Io;
+use crate::service::io::Io;
 use crate::service::{session, DisconnectReason, Service};
 use crate::wire::frame;
 use crate::wire::frame::{Frame, FrameData, StreamId};

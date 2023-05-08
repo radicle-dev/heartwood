@@ -4,7 +4,7 @@ use std::{fmt, mem};
 use crate::service::config::Limits;
 use crate::service::message;
 use crate::service::message::Message;
-use crate::service::{Address, Id, LocalTime, NodeId, Reactor, Rng};
+use crate::service::{Address, Id, LocalTime, NodeId, Outbox, Rng};
 use crate::Link;
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
@@ -295,7 +295,7 @@ impl Session {
         }
     }
 
-    pub fn ping(&mut self, reactor: &mut Reactor) -> Result<(), Error> {
+    pub fn ping(&mut self, reactor: &mut Outbox) -> Result<(), Error> {
         if let State::Connected { ping, .. } = &mut self.state {
             let msg = message::Ping::new(&mut self.rng);
             *ping = PingState::AwaitingResponse(msg.ponglen);

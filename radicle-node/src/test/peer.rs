@@ -18,8 +18,8 @@ use crate::node::routing;
 use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service;
+use crate::service::io::Io;
 use crate::service::message::*;
-use crate::service::reactor::Io;
 use crate::service::tracking::{Policy, Scope};
 use crate::service::*;
 use crate::storage::git::transport::remote;
@@ -354,7 +354,7 @@ where
     pub fn messages(&mut self, remote: NodeId) -> impl Iterator<Item = Message> {
         let mut msgs = Vec::new();
 
-        self.service.reactor().outbox().retain(|o| match o {
+        self.service.outbox().queue().retain(|o| match o {
             Io::Write(a, messages) if *a == remote => {
                 msgs.extend(messages.clone());
                 false
@@ -372,12 +372,12 @@ where
 
     /// Get a draining iterator over the peer's I/O outbox.
     pub fn outbox(&mut self) -> impl Iterator<Item = Io> + '_ {
-        iter::from_fn(|| self.service.reactor().next())
+        iter::from_fn(|| self.service.outbox().next())
     }
 
     /// Get a draining iterator over the peer's I/O outbox, which only returns fetches.
     pub fn fetches(&mut self) -> impl Iterator<Item = (Id, NodeId, Namespaces)> + '_ {
-        iter::from_fn(|| self.service.reactor().next()).filter_map(|io| {
+        iter::from_fn(|| self.service.outbox().next()).filter_map(|io| {
             if let Io::Fetch {
                 rid,
                 remote,

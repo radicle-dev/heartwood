@@ -9,7 +9,7 @@ use crate::storage::Namespaces;
 
 use super::message::{Announcement, AnnouncementMessage};
 
-/// Output of a state transition.
+/// I/O operation to execute at the network/wire level.
 #[derive(Debug)]
 pub enum Io {
     /// There are some messages ready to be sent to a peer.
@@ -31,14 +31,14 @@ pub enum Io {
     Wakeup(LocalDuration),
 }
 
-/// Interface to the network reactor.
+/// Interface to the network.
 #[derive(Debug, Default)]
-pub struct Reactor {
+pub struct Outbox {
     /// Outgoing I/O queue.
     io: VecDeque<Io>,
 }
 
-impl Reactor {
+impl Outbox {
     /// Connect to a peer.
     pub fn connect(&mut self, id: NodeId, addr: Address) {
         self.io.push_back(Io::Connect(id, addr));
@@ -117,12 +117,12 @@ impl Reactor {
     }
 
     #[cfg(any(test, feature = "test"))]
-    pub(crate) fn outbox(&mut self) -> &mut VecDeque<Io> {
+    pub(crate) fn queue(&mut self) -> &mut VecDeque<Io> {
         &mut self.io
     }
 }
 
-impl Iterator for Reactor {
+impl Iterator for Outbox {
     type Item = Io;
 
     fn next(&mut self) -> Option<Self::Item> {
