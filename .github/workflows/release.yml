@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [master]
+    branches: [master, release/*]
 
 jobs:
   release-linux-binaries:
@@ -37,27 +37,46 @@ jobs:
           image: ${{ matrix.docker_image }}
           options: ${{ matrix.docker_options }}
           run: |
+            staging="radicle-${{ matrix.target }}"
+            mkdir -p "$staging"
             rustup target add ${{ matrix.target }}
             cargo build --target=${{ matrix.target }} --package=radicle-httpd --release
+            cp target/${{ matrix.target }}/release/radicle-httpd "$staging"/
+
             cargo build --target=${{ matrix.target }} --package=radicle-node --release
+            cp target/${{ matrix.target }}/release/radicle-node "$staging"/
+
             cargo build --target=${{ matrix.target }} --bin rad --release
+            cp target/${{ matrix.target }}/release/rad "$staging"/
+
             cargo build --target=${{ matrix.target }} --bin git-remote-rad --release
+            cp target/${{ matrix.target }}/release/git-remote-rad "$staging"/
+
+            tar czf "$staging.tar.gz" "$staging"
+            cp "$staging.tar.gz" "$staging"/
             chmod --recursive go+r /root/.cargo/registry
-      - shell: bash
-        run: |
-          staging="radicle-${{ matrix.target }}"
-          mkdir -p "$staging"
-          cp target/${{ matrix.target }}/release/radicle-httpd "$staging"/
-          cp target/${{ matrix.target }}/release/radicle-node "$staging"/
-          cp target/${{ matrix.target }}/release/rad "$staging"/
-          cp target/${{ matrix.target }}/release/git-remote-rad "$staging"/
-          tar czf "$staging.tar.gz" "$staging"
-          cp "$staging.tar.gz" "$staging"/
+      - name: Build the debug binaries
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.docker_image }}
+          options: ${{ matrix.docker_options }}
+          run: |
+            staging="radicle-${{ matrix.target }}"
+            mkdir -p "$staging/debug"
+
+            cargo build --target ${{ matrix.target }} --bin git-remote-rad
+            cp target/${{ matrix.target }}/debug/git-remote-rad "$staging"/debug/
+
+            cargo build --target=${{ matrix.target }} --bin rad
+            cp target/${{ matrix.target }}/debug/rad "$staging"/debug/
+
+            tar czf "$staging-debug.tar.gz" "$staging"/debug
+            cp "$staging-debug.tar.gz" "$staging"/debug/
       - shell: bash
         run: |
           echo "$SSH_PRIVATE_KEY" >ssh-private-key
           chmod go-rwx ssh-private-key
-          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz mkdir -p "/mnt/radicle/releases/${{ github.sha }}/${{ matrix.target }}"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz mkdir -p "/mnt/radicle/releases/${{ github.sha }}/${{ matrix.target }}/debug"
           scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key -r radicle-${{ matrix.target }}/* "github-actions@files.radicle.xyz:/mnt/radicle/releases/${{ github.sha }}/${{ matrix.target }}"
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -85,26 +104,42 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.67
       - name: Build the release binaries
         run: |
-          rustup target add ${{ matrix.target }}
-          cargo build --target ${{ matrix.target }} --package=radicle-httpd --release
-          cargo build --target ${{ matrix.target }} --package=radicle-node --release
-          cargo build --target ${{ matrix.target }} --bin rad --release
-          cargo build --target ${{ matrix.target }} --bin git-remote-rad --release
-      - shell: bash
-        run: |
           staging="radicle-${{ matrix.target }}"
           mkdir -p "$staging"
+          rustup target add ${{ matrix.target }}
+
+          cargo build --target ${{ matrix.target }} --package=radicle-httpd --release
           cp target/${{ matrix.target }}/release/radicle-httpd "$staging"/
+
+          cargo build --target ${{ matrix.target }} --package=radicle-node --release
           cp target/${{ matrix.target }}/release/radicle-node "$staging"/
+
+          cargo build --target ${{ matrix.target }} --bin rad --release
           cp target/${{ matrix.target }}/release/rad "$staging"/
+
+          cargo build --target ${{ matrix.target }} --bin git-remote-rad --release
           cp target/${{ matrix.target }}/release/git-remote-rad "$staging"/
+
           tar czf "$staging.tar.gz" "$staging"
           cp "$staging.tar.gz" "$staging"/
+      - name: Build the debug binaries
+        run: |
+          staging="radicle-${{ matrix.target }}"
+          mkdir -p "$staging/debug"
+
+          cargo build --target ${{ matrix.target }} --bin git-remote-rad
+          cp target/${{ matrix.target }}/debug/git-remote-rad "$staging"/debug/
+
+          cargo build --target=${{ matrix.target }} --bin rad
+          cp target/${{ matrix.target }}/debug/rad "$staging"/debug/
+
+          tar czf "$staging-debug.tar.gz" "$staging"/debug
+          cp "$staging-debug.tar.gz" "$staging"/debug/
       - shell: bash
         run: |
           echo "$SSH_PRIVATE_KEY" >ssh-private-key
           chmod go-rwx ssh-private-key
-          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz mkdir -p "/mnt/radicle/releases/${{ github.sha }}/${{ matrix.target }}"
+          ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key github-actions@files.radicle.xyz mkdir -p "/mnt/radicle/releases/${{ github.sha }}/${{ matrix.target }}/debug"
           scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i ssh-private-key -r radicle-${{ matrix.target }}/* "github-actions@files.radicle.xyz:/mnt/radicle/releases/${{ github.sha }}/${{ matrix.target }}"
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
