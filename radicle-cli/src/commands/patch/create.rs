@@ -1,5 +1,3 @@
-use anyhow::anyhow;
-
 use radicle::cob::patch;
 use radicle::git;
 use radicle::node::Handle;
@@ -81,13 +79,10 @@ pub fn run(
     // TODO: List matching working copy refs for all targets.
 
     let head_oid = branch_oid(&head_branch)?;
-    let head_commit = storage.backend.find_commit(*head_oid)?;
-    let head_commit_msg = head_commit
-        .message()
-        .ok_or(anyhow!("commit summary is not valid UTF-8; aborting"))?;
-    let (title, description) = term::patch::get_message(message, head_commit_msg)?;
-
     let base_oid = storage.backend.merge_base(*target_oid, *head_oid)?;
+    let (title, description) =
+        term::patch::get_create_message(message, &storage.backend, &base_oid.into(), &head_oid)?;
+
     let signer = term::signer(profile)?;
     let patch = if draft {
         patches.draft(

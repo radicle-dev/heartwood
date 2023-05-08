@@ -65,6 +65,9 @@ pub enum Error {
     /// Patch COB error.
     #[error(transparent)]
     Patch(#[from] radicle::cob::patch::Error),
+    /// Patch edit message error.
+    #[error(transparent)]
+    PatchEdit(#[from] cli::patch::Error),
     /// Patch not found in store.
     #[error("patch `{0}` not found")]
     NotFound(patch::PatchId),
@@ -254,11 +257,12 @@ fn patch_open<G: Signer>(
     // not fail, since the reference will already exist with the correct OID.
     push_ref(src, &dst, false, working, stored.raw())?;
 
-    let mut patches = patch::Patches::open(stored)?;
-    let fallback = commit.message().unwrap_or_default();
-    let (title, description) = cli::patch::get_message(msg, fallback)?;
     let (_, target) = stored.canonical_head()?;
     let base = stored.backend.merge_base(*target, commit.id())?;
+    let (title, description) =
+        cli::patch::get_create_message(msg, &stored.backend, &base.into(), &commit.id().into())?;
+
+    let mut patches = patch::Patches::open(stored)?;
     let result = match patches.create(
         &title,
         &description,
@@ -361,7 +365,13 @@ fn patch_update<G: Signer>(
     if patch.revisions().any(|(_, r)| *r.head() == commit.id()) {
         return Ok(());
     }
-    let message = cli::patch::get_update_message(msg)?;
+    let message = cli::patch::get_update_message(
+        msg,
+        &stored.backend,
+        patch.latest().1,
+        &commit.id().into(),
+    )?;
+
     let (_, target) = stored.canonical_head()?;
     let base = stored.backend.merge_base(*target, commit.id())?;
     let revision = patch.update(message, base, commit.id(), signer)?;

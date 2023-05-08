@@ -72,10 +72,10 @@ We can also create patches by pushing to the `rad/patches` remote. It's a bit
 simpler:
 
 ``` (stderr)
-$ git checkout -b feature/2 -q
+$ git checkout -b feature/2 -q master
 $ git commit -a -m "Add more things" -q --allow-empty
 $ git push rad/patches
-✓ Patch 2af090f48003d86f735163794bfffdb2691f369e opened
+✓ Patch b8ab1c99c1c8205680a3494f04fb3934ec738ddd opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -85,7 +85,7 @@ We see both branches with upstreams now:
 ```
 $ git branch -vv
   feature/1 42d894a [rad/patches/2647168c23e7c2b2c1936d695443944e143bc3f7] Add things
-* feature/2 b94a835 [rad/patches/2af090f48003d86f735163794bfffdb2691f369e] Add more things
+* feature/2 8b0ea80 [rad/patches/b8ab1c99c1c8205680a3494f04fb3934ec738ddd] Add more things
   master    f2de534 [rad/master] Second commit
 ```
 
@@ -97,7 +97,7 @@ $ rad patch
 │ ●  ID       Title            Author                  Head     +   -   Updated      │
 ├────────────────────────────────────────────────────────────────────────────────────┤
 │ ●  2647168  Add things #1    z6MknSL…StBU8Vi  (you)  42d894a  +0  -0  [    ...   ] │
-│ ●  2af090f  Add more things  z6MknSL…StBU8Vi  (you)  b94a835  +0  -0  [    ...   ] │
+│ ●  b8ab1c9  Add more things  z6MknSL…StBU8Vi  (you)  8b0ea80  +0  -0  [    ...   ] │
 ╰────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -116,9 +116,9 @@ $ git commit -a -m "Improve code" -q --allow-empty
 
 ``` (stderr)
 $ git push
-✓ Patch 2af090f updated to f532e40e44de298b27d2255acb50b99bf0377a04
+✓ Patch b8ab1c9 updated to 8767880c31b9e4a04cdb07ad6faa9ce453980399
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   b94a835..662843e  feature/2 -> patches/2af090f48003d86f735163794bfffdb2691f369e
+   8b0ea80..02bef3f  feature/2 -> patches/b8ab1c99c1c8205680a3494f04fb3934ec738ddd
 ```
 
 This last `git push` worked without specifying an upstream branch despite the
@@ -136,22 +136,21 @@ This allows for pushing to the remote patch branch without using the full
 We can then see that the patch head has moved:
 
 ```
-$ rad patch show 2af090f
+$ rad patch show b8ab1c9
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Add more things                                                    │
-│ Patch     2af090f48003d86f735163794bfffdb2691f369e                           │
+│ Patch     b8ab1c99c1c8205680a3494f04fb3934ec738ddd                           │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
-│ Head      662843ed81e76efa69d7901fb7bdd775043015d0                           │
+│ Head      02bef3fac41b2f98bb3c02b868a53ddfecb55b5f                           │
 │ Branches  feature/2                                                          │
-│ Commits   ahead 3, behind 0                                                  │
+│ Commits   ahead 2, behind 0                                                  │
 │ Status    open                                                               │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ 662843e Improve code                                                         │
-│ b94a835 Add more things                                                      │
-│ 42d894a Add things                                                           │
+│ 02bef3f Improve code                                                         │
+│ 8b0ea80 Add more things                                                      │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
-│ ↑ updated to f532e40e44de298b27d2255acb50b99bf0377a04 (662843e) [   ...    ] │
+│ ↑ updated to 8767880c31b9e4a04cdb07ad6faa9ce453980399 (02bef3f) [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -159,19 +158,19 @@ And we can check that all the refs are properly updated in our repository:
 
 ```
 $ git rev-parse HEAD
-662843ed81e76efa69d7901fb7bdd775043015d0
+02bef3fac41b2f98bb3c02b868a53ddfecb55b5f
 ```
 
 ```
 $ git status --short --branch
-## feature/2...rad/patches/2af090f48003d86f735163794bfffdb2691f369e
+## feature/2...rad/patches/b8ab1c99c1c8205680a3494f04fb3934ec738ddd
 ```
 
 ```
-$ git rev-parse refs/remotes/rad/patches/2af090f48003d86f735163794bfffdb2691f369e
-662843ed81e76efa69d7901fb7bdd775043015d0
-$ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi refs/heads/patches/2af090f48003d86f735163794bfffdb2691f369e
-662843ed81e76efa69d7901fb7bdd775043015d0	refs/heads/patches/2af090f48003d86f735163794bfffdb2691f369e
+$ git rev-parse refs/remotes/rad/patches/b8ab1c99c1c8205680a3494f04fb3934ec738ddd
+02bef3fac41b2f98bb3c02b868a53ddfecb55b5f
+$ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi refs/heads/patches/b8ab1c99c1c8205680a3494f04fb3934ec738ddd
+02bef3fac41b2f98bb3c02b868a53ddfecb55b5f	refs/heads/patches/b8ab1c99c1c8205680a3494f04fb3934ec738ddd
 ```
 
 ## Force push
@@ -183,7 +182,7 @@ Let's try.
 
 ```
 $ git commit --amend -m "Amended commit" --allow-empty
-[feature/2 3507cd5] Amended commit
+[feature/2 9304dbc] Amended commit
  Date: [..]
 ```
 
@@ -192,7 +191,7 @@ Now let's push to the patch head.
 ``` (stderr) (fail)
 $ git push
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- ! [rejected]        feature/2 -> patches/2af090f48003d86f735163794bfffdb2691f369e (non-fast-forward)
+ ! [rejected]        feature/2 -> patches/b8ab1c99c1c8205680a3494f04fb3934ec738ddd (non-fast-forward)
 error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
 hint: Updates were rejected because a pushed branch tip is behind its remote
 hint: counterpart. Check out this branch and integrate the remote changes
@@ -205,30 +204,29 @@ use `--force` to force the update.
 
 ``` (stderr)
 $ git push --force
-✓ Patch 2af090f updated to d7590abe04594263eeb88cc0e28502139ec8414f
+✓ Patch b8ab1c9 updated to f24334f8cea7b7a5bcaf3bc6deb1408c9bf507ad
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- + 662843e...3507cd5 feature/2 -> patches/2af090f48003d86f735163794bfffdb2691f369e (forced update)
+ + 02bef3f...9304dbc feature/2 -> patches/b8ab1c99c1c8205680a3494f04fb3934ec738ddd (forced update)
 ```
 
 That worked. We can see the new revision if we call `rad patch show`:
 
 ```
-$ rad patch show 2af090f
+$ rad patch show b8ab1c9
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Add more things                                                    │
-│ Patch     2af090f48003d86f735163794bfffdb2691f369e                           │
+│ Patch     b8ab1c99c1c8205680a3494f04fb3934ec738ddd                           │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
-│ Head      3507cd57811fe5f21f6a0a610a1ac8068b3a5d9f                           │
+│ Head      9304dbc445925187994a7a93222a3f8bde73b785                           │
 │ Branches  feature/2                                                          │
-│ Commits   ahead 3, behind 0                                                  │
+│ Commits   ahead 2, behind 0                                                  │
 │ Status    open                                                               │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ 3507cd5 Amended commit                                                       │
-│ b94a835 Add more things                                                      │
-│ 42d894a Add things                                                           │
+│ 9304dbc Amended commit                                                       │
+│ 8b0ea80 Add more things                                                      │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
-│ ↑ updated to f532e40e44de298b27d2255acb50b99bf0377a04 (662843e) [   ...    ] │
-│ ↑ updated to d7590abe04594263eeb88cc0e28502139ec8414f (3507cd5) [   ...    ] │
+│ ↑ updated to 8767880c31b9e4a04cdb07ad6faa9ce453980399 (02bef3f) [   ...    ] │
+│ ↑ updated to f24334f8cea7b7a5bcaf3bc6deb1408c9bf507ad (9304dbc) [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```

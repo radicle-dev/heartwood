@@ -18,8 +18,7 @@ pub fn run(
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
-    let default_msg = term::patch::message(patch.title(), patch.description());
-    let (title, description) = term::patch::get_message(message, &default_msg)?;
+    let (title, description) = term::patch::get_edit_message(message, &patch)?;
 
     let title = if title != patch.title() {
         Some(title)

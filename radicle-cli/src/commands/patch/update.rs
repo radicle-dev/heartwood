@@ -92,7 +92,7 @@ pub fn run(
 
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = storage.backend.merge_base(*target_oid, *head_oid)?;
-    let message = term::patch::get_update_message(message)?;
+    let message = term::patch::get_update_message(message, workdir, current_revision, &head_oid)?;
     let signer = term::signer(profile)?;
     let revision = patch.update(message, base_oid, *head_oid, &signer)?;
 

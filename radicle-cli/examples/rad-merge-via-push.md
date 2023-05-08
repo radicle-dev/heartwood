@@ -9,10 +9,10 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
  * [new reference]   HEAD -> refs/patches
 ```
 ``` (stderr) RAD_SOCKET=/dev/null
-$ git checkout -b feature/2 -q
+$ git checkout -b feature/2 -q master
 $ git commit --allow-empty -q -m "Second change"
 $ git push rad HEAD:refs/patches
-✓ Patch bf923942537708f7aec4680a321be68cf933e747 opened
+✓ Patch 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -23,7 +23,7 @@ This creates some remote tracking branches for us:
 $ git branch -r
   rad/master
   rad/patches/0ec956c94256fa101db4c32956ce195a1aa0edf2
-  rad/patches/bf923942537708f7aec4680a321be68cf933e747
+  rad/patches/928d76e22ef98a8406f2e4e4bcc8878533bbdfe0
 ```
 
 And some remote refs:
@@ -36,12 +36,12 @@ $ rad inspect --refs
         |-- cobs
         |   `-- xyz.radicle.patch
         |       |-- 0ec956c94256fa101db4c32956ce195a1aa0edf2
-        |       `-- bf923942537708f7aec4680a321be68cf933e747
+        |       `-- 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0
         |-- heads
         |   |-- master
         |   `-- patches
         |       |-- 0ec956c94256fa101db4c32956ce195a1aa0edf2
-        |       `-- bf923942537708f7aec4680a321be68cf933e747
+        |       `-- 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0
         `-- rad
             |-- id
             `-- sigrefs
@@ -61,9 +61,9 @@ When we push to `rad/master`, we automatically merge the patches:
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad master
 ✓ Patch 0ec956c94256fa101db4c32956ce195a1aa0edf2 merged
-✓ Patch bf923942537708f7aec4680a321be68cf933e747 merged
+✓ Patch 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0 merged
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   f2de534..e9fff34  master -> master
+   f2de534..d6399c7  master -> master
 ```
 ```
 $ rad patch --merged
@@ -71,7 +71,7 @@ $ rad patch --merged
 │ ●  ID       Title          Author                  Head     +   -   Updated      │
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │ ✔  0ec956c  First change   z6MknSL…StBU8Vi  (you)  20aa5dd  +0  -0  [   ...    ] │
-│ ✔  bf92394  Second change  z6MknSL…StBU8Vi  (you)  e9fff34  +0  -0  [   ...    ] │
+│ ✔  928d76e  Second change  z6MknSL…StBU8Vi  (you)  daf349f  +0  -0  [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -92,7 +92,7 @@ $ rad inspect --refs
         |-- cobs
         |   `-- xyz.radicle.patch
         |       |-- 0ec956c94256fa101db4c32956ce195a1aa0edf2
-        |       `-- bf923942537708f7aec4680a321be68cf933e747
+        |       `-- 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0
         |-- heads
         |   `-- master
         `-- rad
