@@ -33,22 +33,22 @@ $ git branch -r
   bob/master
   rad/master
 $ rad patch show 5f0a547
-╭───────────────────────────────────────────────────────────────────────────────────╮
-│ Title    Define power requirements                                                │
-│ Patch    5f0a547f7a91bf002bb0542035a647fd5af134a5                                 │
-│ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk                 │
-│ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                                 │
-│ Commits  ahead 2, behind 0                                                        │
-│ Status   open                                                                     │
-│                                                                                   │
-│ See details.                                                                      │
-├───────────────────────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                                              │
-│ 3e674d1 Define power requirements                                                 │
-├───────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [    ...   ] │
-│ ↑ updated to b7e2356fb7e3981980b42603eea969851d17a40d (27857ec) [         ...   ] │
-╰───────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Title    Define power requirements                                           │
+│ Patch    5f0a547f7a91bf002bb0542035a647fd5af134a5                            │
+│ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk            │
+│ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                            │
+│ Commits  ahead 2, behind 0                                                   │
+│ Status   open                                                                │
+│                                                                              │
+│ See details.                                                                 │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun                                         │
+│ 3e674d1 Define power requirements                                            │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by bob (z6Mkt67…v4N1tRk) [   ...    ]                               │
+│ ↑ updated to b7e2356fb7e3981980b42603eea969851d17a40d (27857ec) [   ...    ] │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Wait! There's a mistake.  The REQUIREMENTS should be a markdown file.  Let's
@@ -93,26 +93,26 @@ The patch is now merged and closed :).
 
 ```
 $ rad patch show 5f0a547
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                                     │
-│ Patch     5f0a547f7a91bf002bb0542035a647fd5af134a5                                      │
-│ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk                      │
-│ Head      f6484e0f43e48a8983b9b39bf9bd4cd889f1d520                                      │
-│ Branches  flux-capacitor-power, master                                                  │
-│ Commits   ahead 3, behind 0                                                             │
-│ Status    merged                                                                        │
-│                                                                                         │
-│ See details.                                                                            │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ f6484e0 fixup! Define power requirements                                                │
-│ 27857ec Add README, just for the fun                                                    │
-│ 3e674d1 Define power requirements                                                       │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [        ...     ] │
-│ ↑ updated to b7e2356fb7e3981980b42603eea969851d17a40d (27857ec) [             ...     ] │
-│ ↑ updated to 4486280d0dec743d6a1a0c05754f8e40426c681d (f6484e0) [             ...     ] │
-│ ✓ merged by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [  ...     ] │
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Title     Define power requirements                                          │
+│ Patch     5f0a547f7a91bf002bb0542035a647fd5af134a5                           │
+│ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk           │
+│ Head      f6484e0f43e48a8983b9b39bf9bd4cd889f1d520                           │
+│ Branches  flux-capacitor-power, master                                       │
+│ Commits   ahead 3, behind 0                                                  │
+│ Status    merged                                                             │
+│                                                                              │
+│ See details.                                                                 │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ f6484e0 fixup! Define power requirements                                     │
+│ 27857ec Add README, just for the fun                                         │
+│ 3e674d1 Define power requirements                                            │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by bob (z6Mkt67…v4N1tRk) [   ...    ]                               │
+│ ↑ updated to b7e2356fb7e3981980b42603eea969851d17a40d (27857ec) [   ...    ] │
+│ ↑ updated to 4486280d0dec743d6a1a0c05754f8e40426c681d (f6484e0) [   ...    ] │
+│ ✓ merged by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 To publish our new state to the network, we simply push:

@@ -733,7 +733,7 @@ async fn patches_handler(
         .all()?
         .filter_map(|r| {
             let (id, patch, clock) = r.ok()?;
-            (state.matches(&patch.state())).then_some((id, patch, clock))
+            (state.matches(patch.state())).then_some((id, patch, clock))
         })
         .collect::<Vec<_>>();
     patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));

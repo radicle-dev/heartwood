@@ -312,6 +312,8 @@ fn list(
     profile: &profile::Profile,
     assigned: &Option<Assigned>,
 ) -> anyhow::Result<()> {
+    let me = *profile.id();
+
     if issues.is_empty()? {
         term::print(term::format::italic("Nothing to show."));
         return Ok(());
@@ -347,21 +349,34 @@ fn list(
         term::format::bold(String::from("ID")),
         term::format::bold(String::from("Title")),
         term::format::bold(String::from("Author")),
+        term::format::bold(String::new()),
         term::format::bold(String::from("Tags")),
         term::format::bold(String::from("Assignees")),
         term::format::bold(String::from("Opened")),
     ]);
     t.divider();
 
+    let store = profile.tracking()?;
+
     for (id, issue) in all {
         let assigned: String = issue
             .assigned()
-            .map(|p| term::format::did(&p).to_string())
+            .map(|ref p| {
+                if let Ok(Some(alias)) = store.node_policy(p).map(|node| node.and_then(|n| n.alias))
+                {
+                    format!("{alias} ({})", term::format::did(p))
+                } else {
+                    term::format::did(p).to_string()
+                }
+            })
             .collect::<Vec<_>>()
             .join(", ");
 
         let mut tags = issue.tags().map(|t| t.to_string()).collect::<Vec<_>>();
         tags.sort();
+
+        let author = issue.author().id;
+        let alias = store.node_policy(&author)?.and_then(|node| node.alias);
 
         t.push([
             match issue.state() {
@@ -371,6 +386,13 @@ fn list(
             term::format::tertiary(term::format::cob(&id)).to_owned(),
             term::format::default(issue.title().to_owned()),
             term::format::did(&issue.author().id).dim(),
+            if author.as_key() == &me {
+                term::format::primary("(you)".to_owned())
+            } else if let Some(alias) = alias {
+                term::format::primary(alias)
+            } else {
+                term::format::default(String::new())
+            },
             term::format::secondary(tags.join(", ")),
             if assigned.is_empty() {
                 term::format::dim(String::default())
@@ -381,7 +403,6 @@ fn list(
         ]);
     }
     t.print();
-
     Ok(())
 }
 

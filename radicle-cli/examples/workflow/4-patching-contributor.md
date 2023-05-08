@@ -47,21 +47,21 @@ $ rad patch
 │ ●  5f0a547  Define power requirements  z6Mkt67…v4N1tRk  (you)  3e674d1  +0  -0  [    ...   ] │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 $ rad patch show 5f0a547f7a91bf002bb0542035a647fd5af134a5
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                                     │
-│ Patch     5f0a547f7a91bf002bb0542035a647fd5af134a5                                      │
-│ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk                      │
-│ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33                                      │
-│ Branches  flux-capacitor-power                                                          │
-│ Commits   ahead 1, behind 0                                                             │
-│ Status    open                                                                          │
-│                                                                                         │
-│ See details.                                                                            │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ 3e674d1 Define power requirements                                                       │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (you) [    ...    ]│
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────╮
+│ Title     Define power requirements                                │
+│ Patch     5f0a547f7a91bf002bb0542035a647fd5af134a5                 │
+│ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk │
+│ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33                 │
+│ Branches  flux-capacitor-power                                     │
+│ Commits   ahead 1, behind 0                                        │
+│ Status    open                                                     │
+│                                                                    │
+│ See details.                                                       │
+├────────────────────────────────────────────────────────────────────┤
+│ 3e674d1 Define power requirements                                  │
+├────────────────────────────────────────────────────────────────────┤
+│ ● opened by (you) (z6Mkt67…v4N1tRk) [   ...    ]                   │
+╰────────────────────────────────────────────────────────────────────╯
 ```
 
 We can also confirm that the patch branch is in storage:

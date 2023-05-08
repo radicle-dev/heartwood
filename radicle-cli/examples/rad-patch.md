@@ -44,26 +44,26 @@ $ rad patch
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author                  Head     +   -   Updated      │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  de3096d  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  [    ...   ] │
+│ ●  de3096d  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 ```
 $ rad patch show de3096d5cc422136016ac210b870bfa9d0f11481 -p
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                                     │
-│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                                      │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
-│ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33                                      │
-│ Branches  flux-capacitor-power                                                          │
-│ Commits   ahead 1, behind 0                                                             │
-│ Status    open                                                                          │
-│                                                                                         │
-│ See details.                                                                            │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ 3e674d1 Define power requirements                                                       │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...    ]│
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────╮
+│ Title     Define power requirements                                │
+│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                 │
+│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
+│ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33                 │
+│ Branches  flux-capacitor-power                                     │
+│ Commits   ahead 1, behind 0                                        │
+│ Status    open                                                     │
+│                                                                    │
+│ See details.                                                       │
+├────────────────────────────────────────────────────────────────────┤
+│ 3e674d1 Define power requirements                                  │
+├────────────────────────────────────────────────────────────────────┤
+│ ● opened by (you) (z6MknSL…StBU8Vi) [    ...    ]                  │
+╰────────────────────────────────────────────────────────────────────╯
 
 commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
 Author: radicle <radicle@localhost>
@@ -126,24 +126,24 @@ Showing the patch list now will reveal the favorable verdict:
 
 ```
 $ rad patch show de3096d
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                                     │
-│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                                      │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
-│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                                      │
-│ Branches  flux-capacitor-power, patch/de3096d                                           │
-│ Commits   ahead 2, behind 0                                                             │
-│ Status    open                                                                          │
-│                                                                                         │
-│ See details.                                                                            │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                                                    │
-│ 3e674d1 Define power requirements                                                       │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...    ]│
-│ ↑ updated to d00f978a43a255c7f2f9f23d39b555d103900c6d (27857ec) [               ...    ]│
-│ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [          ...    ]│
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Title     Define power requirements                                          │
+│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                           │
+│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
+│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                           │
+│ Branches  flux-capacitor-power, patch/de3096d                                │
+│ Commits   ahead 2, behind 0                                                  │
+│ Status    open                                                               │
+│                                                                              │
+│ See details.                                                                 │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun                                         │
+│ 3e674d1 Define power requirements                                            │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
+│ ↑ updated to d00f978a43a255c7f2f9f23d39b555d103900c6d (27857ec) [   ...    ] │
+│ ✓ accepted by (you) (z6MknSL…StBU8Vi) [   ...    ]                           │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 If you make a mistake on the patch description, you can always change it!
@@ -151,22 +151,22 @@ If you make a mistake on the patch description, you can always change it!
 ```
 $ rad patch edit de3096d --message "Define power requirements" --message "Add requirements file"
 $ rad patch show de3096d
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                                     │
-│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                                      │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
-│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                                      │
-│ Branches  flux-capacitor-power, patch/de3096d                                           │
-│ Commits   ahead 2, behind 0                                                             │
-│ Status    open                                                                          │
-│                                                                                         │
-│ Add requirements file                                                                   │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                                                    │
-│ 3e674d1 Define power requirements                                                       │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...    ]│
-│ ↑ updated to d00f978a43a255c7f2f9f23d39b555d103900c6d (27857ec) [               ...    ]│
-│ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [          ...    ]│
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Title     Define power requirements                                          │
+│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                           │
+│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
+│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                           │
+│ Branches  flux-capacitor-power, patch/de3096d                                │
+│ Commits   ahead 2, behind 0                                                  │
+│ Status    open                                                               │
+│                                                                              │
+│ Add requirements file                                                        │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun                                         │
+│ 3e674d1 Define power requirements                                            │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
+│ ↑ updated to d00f978a43a255c7f2f9f23d39b555d103900c6d (27857ec) [   ...    ] │
+│ ✓ accepted by (you) (z6MknSL…StBU8Vi) [   ...    ]                           │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```

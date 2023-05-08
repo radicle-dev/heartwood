@@ -66,9 +66,13 @@ pub fn run(
         is_me.then(by_rev_time).then(by_id)
     });
 
+    let store = profile.tracking()?;
+
     let mut errors = Vec::new();
     for (id, patch) in &mut all {
-        match row(&me, id, patch, repository) {
+        let author_id = patch.author().id();
+        let alias = store.node_policy(author_id)?.and_then(|node| node.alias);
+        match row(&me, alias, id, patch, repository) {
             Ok(r) => table.push(r),
             Err(e) => errors.push((patch.title(), id, e.to_string())),
         }
@@ -90,6 +94,7 @@ pub fn run(
 /// Patch row.
 pub fn row(
     whoami: &PublicKey,
+    alias: Option<String>,
     id: &PatchId,
     patch: &Patch,
     repository: &Repository,
@@ -113,6 +118,8 @@ pub fn row(
         term::format::did(&author).dim().into(),
         if author.as_key() == whoami {
             term::format::primary("(you)".to_owned()).into()
+        } else if let Some(alias) = alias {
+            term::format::primary(alias).into()
         } else {
             term::format::default(String::new()).into()
         },
@@ -132,22 +139,39 @@ pub fn row(
 }
 
 pub fn timeline(
-    whoami: &PublicKey,
+    profile: &Profile,
     patch_id: &PatchId,
     patch: &Patch,
     repository: &Repository,
 ) -> anyhow::Result<Vec<term::Line>> {
-    let you = patch.author().id().as_key() == whoami;
+    let whoami = profile.id();
+    let store = profile.tracking()?;
+    let alias = if patch.author().id().as_key() == whoami {
+        Some("(you)".to_string())
+    } else {
+        store
+            .node_policy(patch.author().id())?
+            .and_then(|node| node.alias)
+    };
+
     let mut open = term::Line::spaced([
         term::format::positive("●").into(),
         term::format::default("opened by").into(),
-        term::format::tertiary(patch.author().id()).into(),
     ]);
 
-    if you {
+    open.push(term::Label::space());
+
+    if let Some(ref alias) = alias {
+        open.push(term::format::primary(alias));
         open.push(term::Label::space());
-        open.push(term::format::primary("(you)"));
+        open.push(term::format::tertiary(format!(
+            "({})",
+            term::format::node(patch.author().id())
+        )));
+    } else {
+        open.push(term::format::tertiary(patch.author().id()));
     }
+
     let mut timeline = vec![(patch.timestamp(), open)];
 
     for (revision_id, revision) in patch.revisions() {
@@ -172,11 +196,11 @@ pub fn timeline(
 
         for (nid, merge) in patch.merges().filter(|(_, m)| m.revision == *revision_id) {
             let peer = repository.remote(nid)?;
-            let mut badges = Vec::new();
-
-            if peer.id == *whoami {
-                badges.push(term::format::primary("(you)").into());
-            }
+            let alias = if peer.id == *whoami {
+                Some("(you)".to_string())
+            } else {
+                store.node_policy(&peer.id)?.and_then(|node| node.alias)
+            };
 
             timeline.push((
                 merge.timestamp,
@@ -185,10 +209,22 @@ pub fn timeline(
                         term::format::primary("✓").bold().into(),
                         term::format::default("merged").into(),
                         term::format::default("by").into(),
-                        term::format::tertiary(Did::from(peer.id)).into(),
+                        if let Some(ref alias) = alias {
+                            term::format::primary(alias).into()
+                        } else {
+                            term::format::default(String::new()).into()
+                        },
+                        if alias.is_some() {
+                            term::format::tertiary(format!(
+                                "({})",
+                                term::format::node(&Did::from(peer.id))
+                            ))
+                            .into()
+                        } else {
+                            term::format::tertiary(Did::from(peer.id)).into()
+                        },
                     ]
-                    .into_iter()
-                    .chain(badges),
+                    .into_iter(),
                 ),
             ));
         }
@@ -205,11 +241,11 @@ pub fn timeline(
                 None => term::format::default("reviewed"),
             };
             let peer = repository.remote(reviewer)?;
-            let mut badges = Vec::new();
-
-            if peer.id == *whoami {
-                badges.push(term::format::primary("(you)").into());
-            }
+            let alias = if peer.id == *whoami {
+                Some("(you)".to_string())
+            } else {
+                store.node_policy(&peer.id)?.and_then(|node| node.alias)
+            };
 
             timeline.push((
                 review.timestamp(),
@@ -218,10 +254,22 @@ pub fn timeline(
                         verdict_symbol.into(),
                         verdict_verb.into(),
                         term::format::default("by").into(),
-                        term::format::tertiary(reviewer).into(),
+                        if let Some(ref alias) = alias {
+                            term::format::primary(alias).into()
+                        } else {
+                            term::format::default(String::new()).into()
+                        },
+                        if alias.is_some() {
+                            term::format::tertiary(format!(
+                                "({})",
+                                term::format::node(&Did::from(reviewer))
+                            ))
+                            .into()
+                        } else {
+                            term::format::tertiary(Did::from(reviewer)).into()
+                        },
                     ]
-                    .into_iter()
-                    .chain(badges),
+                    .into_iter(),
                 ),
             ));
         }

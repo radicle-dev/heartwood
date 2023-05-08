@@ -17,19 +17,19 @@ We can see a patch was created:
 
 ```
 $ rad patch show 8f0e8ec
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Title     Add things                                                                    │
-│ Patch     8f0e8ecb47a17e8f3219f33150a4092d645e4875                                      │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
-│ Head      42d894a83c9c356552a57af09ccdbd5587a99045                                      │
-│ Branches  feature/1                                                                     │
-│ Commits   ahead 1, behind 0                                                             │
-│ Status    open                                                                          │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ 42d894a Add things                                                                      │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ..    ] │
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────╮
+│ Title     Add things                                               │
+│ Patch     8f0e8ecb47a17e8f3219f33150a4092d645e4875                 │
+│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
+│ Head      42d894a83c9c356552a57af09ccdbd5587a99045                 │
+│ Branches  feature/1                                                │
+│ Commits   ahead 1, behind 0                                        │
+│ Status    open                                                     │
+├────────────────────────────────────────────────────────────────────┤
+│ 42d894a Add things                                                 │
+├────────────────────────────────────────────────────────────────────┤
+│ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                   │
+╰────────────────────────────────────────────────────────────────────╯
 ```
 
 If we check our local branch, we can see its upstream is set to track a remote
@@ -135,22 +135,22 @@ We can then see that the patch head has moved:
 
 ```
 $ rad patch show 8678aaf
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Title     Add more things                                                               │
-│ Patch     8678aafff1d1e28430952abf431e60b87e28023c                                      │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
-│ Head      662843ed81e76efa69d7901fb7bdd775043015d0                                      │
-│ Branches  feature/2                                                                     │
-│ Commits   ahead 3, behind 0                                                             │
-│ Status    open                                                                          │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ 662843e Improve code                                                                    │
-│ b94a835 Add more things                                                                 │
-│ 42d894a Add things                                                                      │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [   ...    ] │
-│ ↑ updated to 4b6618a6ccb0b406659364a70a00bb60e4cd7cf0 (662843e) [              ...    ] │
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Title     Add more things                                                    │
+│ Patch     8678aafff1d1e28430952abf431e60b87e28023c                           │
+│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
+│ Head      662843ed81e76efa69d7901fb7bdd775043015d0                           │
+│ Branches  feature/2                                                          │
+│ Commits   ahead 3, behind 0                                                  │
+│ Status    open                                                               │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ 662843e Improve code                                                         │
+│ b94a835 Add more things                                                      │
+│ 42d894a Add things                                                           │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
+│ ↑ updated to 4b6618a6ccb0b406659364a70a00bb60e4cd7cf0 (662843e) [   ...    ] │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 And we can check that all the refs are properly updated in our repository:
@@ -212,21 +212,21 @@ That worked. We can see the new revision if we call `rad patch show`:
 
 ```
 $ rad patch show 8678aaf
-╭─────────────────────────────────────────────────────────────────────────────────────────╮
-│ Title     Add more things                                                               │
-│ Patch     8678aafff1d1e28430952abf431e60b87e28023c                                      │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
-│ Head      3507cd57811fe5f21f6a0a610a1ac8068b3a5d9f                                      │
-│ Branches  feature/2                                                                     │
-│ Commits   ahead 3, behind 0                                                             │
-│ Status    open                                                                          │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ 3507cd5 Amended commit                                                                  │
-│ b94a835 Add more things                                                                 │
-│ 42d894a Add things                                                                      │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...   ] │
-│ ↑ updated to 4b6618a6ccb0b406659364a70a00bb60e4cd7cf0 (662843e) [    ...   ]            │
-│ ↑ updated to 983f2d21c9fbe91c21ddfbcd3e3d6cd13db0a944 (3507cd5) [    ...   ]            │
-╰─────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Title     Add more things                                                    │
+│ Patch     8678aafff1d1e28430952abf431e60b87e28023c                           │
+│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
+│ Head      3507cd57811fe5f21f6a0a610a1ac8068b3a5d9f                           │
+│ Branches  feature/2                                                          │
+│ Commits   ahead 3, behind 0                                                  │
+│ Status    open                                                               │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ 3507cd5 Amended commit                                                       │
+│ b94a835 Add more things                                                      │
+│ 42d894a Add things                                                           │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
+│ ↑ updated to 4b6618a6ccb0b406659364a70a00bb60e4cd7cf0 (662843e) [   ...    ] │
+│ ↑ updated to 983f2d21c9fbe91c21ddfbcd3e3d6cd13db0a944 (3507cd5) [   ...    ] │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```

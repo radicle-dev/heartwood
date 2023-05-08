@@ -130,7 +130,7 @@ pub fn run(
         .children(commits.into_iter().map(|l| l.boxed()))
         .divider();
 
-    for line in list::timeline(profile.id(), patch_id, &patch, stored)? {
+    for line in list::timeline(profile, patch_id, &patch, stored)? {
         widget.push(line);
     }
     widget.print();

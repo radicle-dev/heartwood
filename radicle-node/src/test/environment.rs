@@ -18,7 +18,9 @@ use radicle::git;
 use radicle::git::refname;
 use radicle::identity::Id;
 use radicle::node::routing::Store;
+use radicle::node::tracking::store as TrackingStore;
 use radicle::node::Handle as _;
+use radicle::node::TRACKING_DB_FILE;
 use radicle::profile::Home;
 use radicle::profile::Profile;
 use radicle::rad;
@@ -74,6 +76,8 @@ impl Environment {
     pub fn node(&mut self, name: &str) -> Node<MemorySigner> {
         let profile = self.profile(name);
         let signer = MemorySigner::load(&profile.keystore, "radicle".to_owned().into()).unwrap();
+        let tracking_db = profile.home.node().join(TRACKING_DB_FILE);
+        TrackingStore::Config::open(tracking_db).unwrap();
 
         Node {
             id: *profile.id(),
@@ -90,6 +94,8 @@ impl Environment {
         let storage = Storage::open(home.storage()).unwrap();
         let keystore = Keystore::new(&home.keys());
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
+        let tracking_db = home.node().join(TRACKING_DB_FILE);
+        TrackingStore::Config::open(tracking_db).unwrap();
 
         transport::local::register(storage.clone());
         keystore
