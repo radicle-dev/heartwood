@@ -58,26 +58,26 @@ pub fn files(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widg
     Widget::new(files)
 }
 
-pub fn context(_theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widget<ContextBar> {
+pub fn context(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widget<ContextBar> {
     let (id, patch) = patch;
     let id = patch::format_id(id);
     let title = patch.title();
     let author = patch::format_author(patch, profile);
     let comments = patch::format_comments(patch);
 
-    let context = common::label(" patch ").background(Color::Rgb(238, 111, 248));
+    let context = common::label(" patch ").background(theme.colors.context_badge_bg);
     let id = common::label(&format!(" {id} "))
-        .foreground(Color::Rgb(117, 113, 249))
-        .background(Color::Rgb(40, 40, 40));
+        .foreground(theme.colors.context_id_fg)
+        .background(theme.colors.context_id_bg);
     let title = common::label(&format!(" {title} "))
-        .foreground(Color::Rgb(70, 70, 70))
-        .background(Color::Rgb(40, 40, 40));
+        .foreground(theme.colors.default_fg)
+        .background(theme.colors.context_bg);
     let author = common::label(&format!(" {author} "))
-        .foreground(Color::Rgb(117, 113, 249))
-        .background(Color::Rgb(40, 40, 40));
+        .foreground(theme.colors.context_id_author_fg)
+        .background(theme.colors.context_bg);
     let comments = common::label(&format!(" {comments} "))
         .foreground(Color::Rgb(70, 70, 70))
-        .background(Color::Rgb(50, 50, 50));
+        .background(theme.colors.context_light_bg);
 
     let context_bar = ContextBar::new(context, id, author, title, comments);
 
