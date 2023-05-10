@@ -1,9 +1,17 @@
-use std::fmt;
+use std::sync;
+use std::sync::atomic::AtomicBool;
+use std::{fmt, io};
 
+use is_terminal::IsTerminal;
 use unicode_width::UnicodeWidthStr;
 
 use super::color::Color;
 use super::style::{Property, Style};
+
+/// Whether paint styling is enabled or not.
+static ENABLED: AtomicBool = AtomicBool::new(true);
+/// Whether paint styling should be forced.
+static FORCED: AtomicBool = AtomicBool::new(false);
 
 /// A structure encapsulating an item and styling.
 #[derive(Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Copy, Clone)]
@@ -251,7 +259,36 @@ impl<T: fmt::Display> fmt::Display for Paint<T> {
 impl Paint<()> {
     /// Returns `true` if coloring is enabled and `false` otherwise.
     pub fn is_enabled() -> bool {
-        concolor::get(concolor::Stream::Stdout).ansi_color()
+        if FORCED.load(sync::atomic::Ordering::SeqCst) {
+            return true;
+        }
+        let clicolor = anstyle_query::clicolor();
+        let clicolor_enabled = clicolor.unwrap_or(false);
+        let clicolor_disabled = !clicolor.unwrap_or(true);
+        let is_terminal = io::stdout().is_terminal();
+        let is_enabled = ENABLED.load(sync::atomic::Ordering::SeqCst);
+
+        is_terminal
+            && is_enabled
+            && !anstyle_query::no_color()
+            && !clicolor_disabled
+            && (anstyle_query::term_supports_color() || clicolor_enabled || anstyle_query::is_ci())
+            || anstyle_query::clicolor_force()
+    }
+
+    /// Enable paint styling.
+    pub fn enable() {
+        ENABLED.store(true, sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Force paint styling.
+    pub fn force() {
+        FORCED.store(true, sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Disable paint styling.
+    pub fn disable() {
+        ENABLED.store(false, sync::atomic::Ordering::SeqCst);
     }
 }
 

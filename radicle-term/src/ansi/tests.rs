@@ -10,7 +10,7 @@ static SERIAL: Mutex<()> = Mutex::new(());
 fn colors_enabled() {
     let _guard = SERIAL.lock();
 
-    concolor::set(concolor::ColorChoice::Always);
+    Paint::force();
 
     assert_eq!(
         Paint::new("text/plain").to_string(),
@@ -144,7 +144,7 @@ fn colors_enabled() {
 fn colors_disabled() {
     let _guard = SERIAL.lock();
 
-    concolor::set(concolor::ColorChoice::Never);
+    Paint::disable();
 
     assert_eq!(
         Paint::new("text/plain").to_string(),
@@ -246,7 +246,7 @@ fn wrapping() {
     let inner = || format!("{} b {}", Paint::red("a"), Paint::green("c"));
     let inner2 = || format!("0 {} 1", Paint::magenta(&inner()).wrap());
 
-    concolor::set(concolor::ColorChoice::Always);
+    Paint::force();
 
     assert_eq!(
         Paint::new("text/plain").wrap().to_string(),
