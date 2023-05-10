@@ -254,6 +254,14 @@ impl Config {
         }
         Ok(Box::new(entries.into_iter()))
     }
+
+    /// Retrieve `alias` of given node.
+    /// Calls `Self::node_policy` under the hood.
+    pub fn alias(&self, nid: &NodeId) -> Option<String> {
+        self.node_policy(nid)
+            .map(|node| node.and_then(|n| n.alias))
+            .unwrap_or(None)
+    }
 }
 
 #[cfg(test)]

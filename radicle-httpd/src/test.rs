@@ -16,6 +16,7 @@ use radicle::crypto::ssh::keystore::MemorySigner;
 use radicle::crypto::ssh::Keystore;
 use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git::{raw as git2, RefString};
+use radicle::node::tracking::store as TrackingStore;
 use radicle::profile::Home;
 use radicle::storage::ReadStorage;
 use radicle::Storage;
@@ -83,6 +84,9 @@ pub fn contributor(dir: &Path) -> Context {
 }
 
 fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G) -> Context {
+    let tracking_db = dir.join("radicle").join("node").join("tracking.db");
+    TrackingStore::Config::open(tracking_db).unwrap();
+
     let workdir = dir.join("hello-world");
 
     env::set_var("RAD_COMMIT_TIME", TIMESTAMP.to_string());

@@ -12,6 +12,7 @@ use radicle::cob::thread;
 use radicle::cob::thread::{CommentId, Thread};
 use radicle::cob::{ActorId, Author, Reaction, Timestamp};
 use radicle::git::RefString;
+use radicle::node::tracking::store as TrackingStore;
 use radicle::storage::{git, refs, ReadRepository};
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
@@ -92,26 +93,31 @@ pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
 }
 
 /// Returns JSON for an `issue`.
-pub(crate) fn issue(id: IssueId, issue: Issue) -> Value {
+pub(crate) fn issue(id: IssueId, issue: Issue, aliases: &TrackingStore::Config) -> Value {
     json!({
         "id": id.to_string(),
-        "author": issue.author(),
+        "author": author(&issue.author(), aliases.alias(issue.author().id())),
         "title": issue.title(),
         "state": issue.state(),
         "assignees": issue.assigned().collect::<Vec<_>>(),
         "discussion": issue
           .comments()
-          .map(|(id, comment)| Comment::new(id, comment, issue.thread()))
+          .map(|(id, comment)| Comment::new(id, comment, issue.thread(), aliases))
           .collect::<Vec<_>>(),
         "tags": issue.tags().collect::<Vec<_>>(),
     })
 }
 
 /// Returns JSON for a `patch`.
-pub(crate) fn patch(id: PatchId, patch: Patch, repo: &git::Repository) -> Value {
+pub(crate) fn patch(
+    id: PatchId,
+    patch: Patch,
+    repo: &git::Repository,
+    aliases: &TrackingStore::Config,
+) -> Value {
     json!({
         "id": id.to_string(),
-        "author": patch.author(),
+        "author": author(patch.author(), aliases.alias(patch.author().id())),
         "title": patch.title(),
         "description": patch.description(),
         "state": patch.state(),
@@ -126,13 +132,24 @@ pub(crate) fn patch(id: PatchId, patch: Patch, repo: &git::Repository) -> Value 
                 "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or(vec![]),
                 "merges": rev.merges().collect::<Vec<_>>(),
                 "discussions": rev.discussion().comments()
-                  .map(|(id, comment)| Comment::new(id, comment, rev.discussion()))
+                  .map(|(id, comment)| Comment::new(id, comment, rev.discussion(), aliases))
                   .collect::<Vec<_>>(),
                 "timestamp": rev.timestamp(),
                 "reviews": rev.reviews().collect::<Vec<_>>(),
             })
         }).collect::<Vec<_>>(),
     })
+}
+
+/// Returns JSON for an `author` and fills in `alias` when present.
+fn author(author: &Author, alias: Option<String>) -> Value {
+    match alias {
+        Some(alias) => json!({
+            "id": author.id,
+            "alias": alias,
+        }),
+        None => json!(author),
+    }
 }
 
 /// Returns the name part of a path string.
@@ -168,7 +185,7 @@ fn get_refs(
 #[serde(rename_all = "camelCase")]
 struct Comment<'a> {
     id: CommentId,
-    author: Author,
+    author: Value,
     body: &'a str,
     reactions: Vec<(&'a ActorId, &'a Reaction)>,
     timestamp: Timestamp,
@@ -176,10 +193,16 @@ struct Comment<'a> {
 }
 
 impl<'a> Comment<'a> {
-    fn new(id: &'a CommentId, comment: &'a thread::Comment, thread: &'a Thread) -> Self {
+    fn new(
+        id: &'a CommentId,
+        comment: &'a thread::Comment,
+        thread: &'a Thread,
+        aliases: &TrackingStore::Config,
+    ) -> Self {
+        let comment_author = Author::new(comment.author());
         Self {
             id: *id,
-            author: Author::new(comment.author()),
+            author: author(&comment_author, aliases.alias(comment_author.id())),
             body: comment.body(),
             reactions: thread.reactions(id).collect::<Vec<_>>(),
             timestamp: comment.timestamp(),

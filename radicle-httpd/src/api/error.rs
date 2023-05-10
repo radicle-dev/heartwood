@@ -69,6 +69,10 @@ pub enum Error {
     /// Identity doc error.
     #[error(transparent)]
     IdentityDoc(#[from] radicle::identity::doc::DocError),
+
+    /// Tracking store error.
+    #[error(transparent)]
+    TrackingStore(#[from] radicle::node::tracking::store::Error),
 }
 
 impl IntoResponse for Error {
