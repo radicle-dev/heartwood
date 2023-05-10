@@ -10,7 +10,7 @@ build = "../build.rs"
 test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "qcheck", "snapbox"]
 
 [dependencies]
-amplify = { version = "4.0.0-beta.7" }
+amplify = { version = "4.0.0" }
 anyhow = { version = "1" }
 bloomy = { version = "1.2" }
 byteorder = { version = "1" }
@@ -29,7 +29,7 @@ nonempty = { version = "0.8.1", features = ["serialize"] }
 qcheck = { version = "1", default-features = false, optional = true }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
-radicle-git-ext = { version = "0", features = ["serde"] }
+radicle-git-ext = { version = "0.5.0", features = ["serde"] }
 sqlite = { version = "0.30.3" }
 sqlite3-src = { version = "0.4.0", features = ["bundled"] } # Ensures static linking
 scrypt = { version = "0.10.0", default-features = false }

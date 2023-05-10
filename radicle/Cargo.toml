@@ -10,7 +10,7 @@ default = []
 test = ["qcheck", "radicle-crypto/test"]
 
 [dependencies]
-amplify = { version = "4.0.0-beta.7", default-features = false, features = ["std"] }
+amplify = { version = "4.0.0", default-features = false, features = ["std"] }
 crossbeam-channel = { version = "0.5.6" }
 cyphernet = { version = "0.2.0", features = ["tor", "dns", "ed25519"] }
 fastrand = { version = "1.9.0" }
@@ -22,7 +22,7 @@ once_cell = { version = "1.13" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 siphasher = { version = "0.3.10" }
-radicle-git-ext = { version = "0", features = ["serde"] }
+radicle-git-ext = { version = "0.5.0", features = ["serde"] }
 sqlite = { version = "0.30.3" }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }

@@ -16,7 +16,7 @@ keywords = ["radicle", "collaborative objects", "cob", "cobs"]
 fastrand = { version = "1.9.0" }
 log = { version = "0.4.17" }
 nonempty = { version = "0.8.1", features = ["serialize"] }
-radicle-git-ext = { version = "0", features = ["serde"] }
+radicle-git-ext = { version = "0.5.0", features = ["serde"] }
 serde_json = { version = "1.0" }
 thiserror = { version = "1.0" }
 

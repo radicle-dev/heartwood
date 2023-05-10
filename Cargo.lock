@@ -928,7 +928,6 @@ version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54d2d2c6b5f0b38d20c51883abe9ee5879fb50e56a8255bb35ac0b0c679504c5"
 dependencies = [
- "minicbor",
  "serde",
  "thiserror",
 ]
@@ -1415,12 +1414,6 @@ name = "mime"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a60c7ce501c71e03a9c9c0d35b861413ae925bd979cc7a4e30d060069aaac8d"
-
-[[package]]
-name = "minicbor"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "124d887cb82f0b1469bdac3d1b65764a381eed1a54fdab0070e5772b13114521"
 
 [[package]]
 name = "miniz_oxide"
@@ -1969,9 +1962,9 @@ dependencies = [
 
 [[package]]
 name = "radicle-git-ext"
-version = "0.4.3"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69d38277eb376789c3ed50a673c99b7fead98c172dd976060b029b527e605148"
+checksum = "7d6531d5c9b029df83b8887c27d56e05de59f2821f70fc5e8fce0646437ecda5"
 dependencies = [
  "git-ref-format",
  "git2",
@@ -2077,9 +2070,9 @@ checksum = "db20136bbc9ae63f3fec8e5a6c369f4902fac2244501b5dfc6d668e43475aaa4"
 
 [[package]]
 name = "radicle-surf"
-version = "0.10.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7607a6c93d4cc399479cc0da0d259a42a0ed0b7ae2b051ed80ea8ed35f1246b1"
+checksum = "66d6e854e920d75b05463c8466d86c2c00868100947e60575f63bf93bf198f1f"
 dependencies = [
  "anyhow",
  "base64",
