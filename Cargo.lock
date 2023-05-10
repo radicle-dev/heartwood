@@ -2093,6 +2093,7 @@ version = "0.2.0"
 dependencies = [
  "radicle",
  "radicle-crypto",
+ "radicle-git-ext",
  "thiserror",
 ]
 

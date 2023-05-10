@@ -62,6 +62,13 @@ $ rad patch show 5f0a547f7a91bf002bb0542035a647fd5af134a5
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
+We can also confirm that the patch branch is in storage:
+
+```
+$ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk refs/heads/flux-capacitor-power
+3e674d1a1df90807e934f9ae5da2591dd6848a33	refs/heads/flux-capacitor-power
+```
+
 Wait, let's add a README too! Just for fun.
 
 ```

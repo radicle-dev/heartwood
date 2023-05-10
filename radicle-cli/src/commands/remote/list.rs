@@ -1,3 +1,4 @@
+use radicle::rad;
 use radicle_term::{Element, Table};
 
 use crate::git;
@@ -11,13 +12,22 @@ pub fn run(repo: &git::Repository) -> anyhow::Result<()> {
             let Some(url) = url else {
                 continue;
             };
-            let nid = url.namespace.map_or(
-                term::format::dim("the canonical upstream".to_string()).italic(),
-                |namespace| term::format::tertiary(namespace.to_string()),
-            );
+
+            let description = if r.name == rad::PATCHES_REMOTE_NAME.as_str() {
+                if dir == "fetch" {
+                    // Fetching from the patches remote is not allowed.
+                    continue;
+                }
+                term::format::dim("(patches upstream)".to_string()).italic()
+            } else {
+                url.namespace.map_or(
+                    term::format::dim("(canonical upstream)".to_string()).italic(),
+                    |namespace| term::format::tertiary(namespace.to_string()),
+                )
+            };
             table.push([
                 term::format::bold(r.name.clone()),
-                nid,
+                description,
                 term::format::parens(term::format::secondary(dir.to_owned())),
             ]);
         }

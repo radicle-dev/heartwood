@@ -457,6 +457,27 @@ impl ReadRepository for Repository {
         Ok(refs.into())
     }
 
+    fn references_glob(
+        &self,
+        pattern: &self::PatternStr,
+    ) -> Result<Vec<(Qualified, Oid)>, self::ext::Error> {
+        let mut refs = Vec::new();
+
+        for r in self.backend.references_glob(pattern)? {
+            let r = r?;
+            let c = r.peel_to_commit()?;
+
+            if let Some(name) = r
+                .name()
+                .and_then(|n| git::RefStr::try_from_str(n).ok())
+                .and_then(git::Qualified::from_refstr)
+            {
+                refs.push((name.to_owned(), c.id().into()));
+            }
+        }
+        Ok(refs)
+    }
+
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
         let mut remotes = Vec::new();
         for remote in Repository::remotes(self)? {

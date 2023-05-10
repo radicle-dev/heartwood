@@ -20,6 +20,12 @@ use crate::{identity, storage};
 
 /// Name of the radicle storage remote.
 pub static REMOTE_NAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("rad"));
+/// Name of the radicle storage remote.
+pub static REMOTE_COMPONENT: Lazy<git::Component> = Lazy::new(|| git::fmt::name::component!("rad"));
+/// Name of the radicle patches remote.
+pub static PATCHES_REMOTE_NAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("rad/patches"));
+/// Refname used for pushing patches.
+pub static PATCHES_REFNAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("refs/patches"));
 
 #[derive(Error, Debug)]
 pub enum InitError {
@@ -72,7 +78,19 @@ pub fn init<G: Signer, S: WriteStorage>(
     let (project, _) = Repository::init(&doc, pk, storage, signer)?;
     let url = git::Url::from(project.id);
 
+    git::configure_repository(repo)?;
     git::configure_remote(repo, &REMOTE_NAME, &url, &url.clone().with_namespace(*pk))?;
+    git::configure_patches_remote(
+        repo,
+        &PATCHES_REMOTE_NAME,
+        &git::Refspec {
+            src: git::refname!("HEAD"),
+            dst: PATCHES_REFNAME.clone(),
+            force: false,
+        },
+        &url.with_namespace(*pk),
+    )?;
+
     git::push(
         repo,
         &REMOTE_NAME,
@@ -249,7 +267,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
         repo.checkout_head(None)?;
 
         // Setup remote tracking for default branch.
-        git::set_upstream(&repo, &REMOTE_NAME, project.default_branch(), branch_ref)?;
+        git::set_upstream(&repo, &*REMOTE_NAME, project.default_branch(), branch_ref)?;
     }
 
     Ok(repo)

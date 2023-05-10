@@ -60,11 +60,12 @@ pub fn run(
     let (target_ref, target_oid) = get_merge_target(storage, &head_branch)?;
 
     if head_branch.upstream().is_err() {
+        // TODO(cloudhead): Disable this when invoked from remote helper.
         radicle::git::set_upstream(
             workdir,
-            &radicle::rad::REMOTE_NAME,
+            &*radicle::rad::REMOTE_NAME,
             branch_name(&head_branch)?,
-            &head_branch_name,
+            head_branch_name,
         )?;
     }
 

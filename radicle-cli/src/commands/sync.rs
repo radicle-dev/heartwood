@@ -136,7 +136,7 @@ fn announce(rid: Id, mut node: Node, timeout: time::Duration) -> anyhow::Result<
     let mut seeds = seeds.connected().collect::<BTreeSet<_>>();
 
     if seeds.is_empty() {
-        term::info!("Not connected to any seeds");
+        term::info!("Not connected to any seeds.");
         return Ok(());
     }
     node.announce_refs(rid)?;

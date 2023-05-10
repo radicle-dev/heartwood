@@ -20,7 +20,7 @@ pub use git2 as raw;
 pub use git_ext::ref_format as fmt;
 pub use git_ext::ref_format::{
     component, lit, name, qualified, refname, refspec,
-    refspec::{PatternStr, PatternString},
+    refspec::{PatternStr, PatternString, Refspec},
     Component, Namespaced, Qualified, RefStr, RefString,
 };
 pub use radicle_git_ext as ext;
@@ -136,6 +136,7 @@ pub enum ListRefsError {
 
 pub mod refs {
     use super::*;
+    use radicle_cob as cob;
 
     /// Try to get a qualified reference from a generic reference.
     pub fn qualified_from<'a>(r: &'a git2::Reference) -> Result<(Qualified<'a>, Oid), RefError> {
@@ -156,8 +157,6 @@ pub mod refs {
             name::component,
             refspec::{self, PatternString},
         };
-
-        use radicle_cob as cob;
 
         use super::*;
 
@@ -220,10 +219,46 @@ pub mod refs {
                 .join(Component::from(typename))
                 .join(Component::from(object_id))
         }
+
+        /// A patch reference.
+        ///
+        /// `refs/namespaces/<remote>/refs/heads/patches/<object_id>`
+        ///
+        pub fn patch<'a>(remote: &RemoteId, object_id: &cob::ObjectId) -> Namespaced<'a> {
+            Qualified::from_components(
+                component!("heads"),
+                component!("patches"),
+                Some(object_id.into()),
+            )
+            .with_namespace(remote.into())
+        }
+
+        /// Staging/temporary references.
+        pub mod staging {
+            use super::*;
+
+            /// Where patches are pushed initially, when they don't have an object-id yet.
+            /// This is a short-lived reference, which is deleted after the patch has been opened.
+            /// The `<oid>` is the commit proposed in the patch.
+            ///
+            /// `refs/namespaces/<remote>/refs/patch/heads/<oid>`
+            ///
+            pub fn patch<'a>(remote: &RemoteId, oid: impl Into<Oid>) -> Namespaced<'a> {
+                // SAFETY: OIDs are valid reference names and valid path component.
+                #[allow(clippy::unwrap_used)]
+                let oid = RefString::try_from(oid.into().to_string()).unwrap();
+                #[allow(clippy::unwrap_used)]
+                let oid = Component::from_refstr(oid).unwrap();
+
+                Qualified::from_components(component!("patch"), component!("heads"), Some(oid))
+                    .with_namespace(remote.into())
+            }
+        }
     }
 
     pub mod workdir {
         use super::*;
+        use format::name::component;
 
         /// Create a [`RefString`] that corresponds to `refs/heads/<branch>`.
         pub fn branch(branch: &RefStr) -> RefString {
@@ -243,6 +278,30 @@ pub mod refs {
         /// Create a [`RefString`] that corresponds to `refs/tags/<branch>`.
         pub fn tag(name: &RefStr) -> RefString {
             refname!("refs/tags").join(name)
+        }
+
+        /// A patch head.
+        ///
+        /// `refs/heads/patches/<patch-id>`
+        ///
+        pub fn patch<'a>(patch_id: &cob::ObjectId) -> Qualified<'a> {
+            Qualified::from_components(
+                component!("heads"),
+                component!("patches"),
+                Some(patch_id.into()),
+            )
+        }
+
+        /// A patch head.
+        ///
+        /// `refs/remotes/rad/patches/<patch-id>`
+        ///
+        pub fn patch_upstream<'a>(patch_id: &cob::ObjectId) -> Qualified<'a> {
+            Qualified::from_components(
+                component!("remotes"),
+                crate::rad::REMOTE_COMPONENT.clone(),
+                [component!("patches"), patch_id.into()],
+            )
         }
     }
 }
@@ -365,12 +424,23 @@ pub fn write_tree<'r>(
     Ok(tree)
 }
 
+/// Configure a radicle repository.
+///
+/// * Sets `push.default = upstream`.
+pub fn configure_repository(repo: &git2::Repository) -> Result<(), git2::Error> {
+    let mut cfg = repo.config()?;
+    cfg.set_str("push.default", "upstream")?;
+
+    Ok(())
+}
+
 /// Configure a repository's radicle remote.
 ///
 /// The entry for this remote will be:
 /// ```text
 /// [remote.<name>]
-///   url = <url>
+///   url = <fetch>
+///   pushurl = <push>
 ///   fetch +refs/heads/*:refs/remotes/<name>/*
 /// ```
 pub fn configure_remote<'r>(
@@ -381,7 +451,36 @@ pub fn configure_remote<'r>(
 ) -> Result<git2::Remote<'r>, git2::Error> {
     let fetchspec = format!("+refs/heads/*:refs/remotes/{name}/*");
     let remote = repo.remote_with_fetch(name, fetch.to_string().as_str(), &fetchspec)?;
-    repo.remote_set_pushurl(name, Some(push.to_string().as_str()))?;
+
+    if push != fetch {
+        repo.remote_set_pushurl(name, Some(push.to_string().as_str()))?;
+    }
+    Ok(remote)
+}
+
+/// Configure a repository's patches remote.
+///
+/// The entry for this remote will be:
+/// ```text
+/// [remote.<name>]
+///   url = <url>
+///   pushurl = <url>
+///   push HEAD:refs/patches
+/// ```
+pub fn configure_patches_remote<'r>(
+    repo: &'r git2::Repository,
+    name: &str,
+    refspec: &Refspec<RefString, RefString>,
+    push: &Url,
+) -> Result<git2::Remote<'r>, git2::Error> {
+    let push = push.to_string();
+    let remote = repo.remote(name, &push)?;
+
+    // This fetchspec basically prevents fetching from this remote,
+    // as it shouldn't be used for fetching.
+    repo.remote_add_fetch(name, "refs/patches:refs/patches")?;
+    repo.remote_set_pushurl(name, Some(&push))?;
+    repo.remote_add_push(name, refspec.to_string().as_str())?;
 
     Ok(remote)
 }
@@ -428,10 +527,14 @@ pub fn push<'a>(
 /// ```
 pub fn set_upstream(
     repo: &git2::Repository,
-    remote: &str,
-    branch: &str,
-    merge: &str,
+    remote: impl AsRef<str>,
+    branch: impl AsRef<str>,
+    merge: impl AsRef<str>,
 ) -> Result<(), git2::Error> {
+    let remote = remote.as_ref();
+    let branch = branch.as_ref();
+    let merge = merge.as_ref();
+
     let mut config = repo.config()?;
     let branch_remote = format!("branch.{branch}.remote");
     let branch_merge = format!("branch.{branch}.merge");
@@ -500,8 +603,8 @@ pub mod url {
 
     impl File {
         /// Create a new file URL pointing to the given path.
-        pub fn new(path: PathBuf) -> Self {
-            Self { path }
+        pub fn new(path: impl Into<PathBuf>) -> Self {
+            Self { path: path.into() }
         }
     }
 
@@ -515,8 +618,7 @@ pub mod url {
 /// Git environment variables.
 pub mod env {
     /// Set of environment vars to reset git's configuration to default.
-    pub const GIT_DEFAULT_CONFIG: [(&str, &str); 3] = [
-        ("GIT_CONFIG", "/dev/null"),
+    pub const GIT_DEFAULT_CONFIG: [(&str, &str); 2] = [
         ("GIT_CONFIG_GLOBAL", "/dev/null"),
         ("GIT_CONFIG_NOSYSTEM", "1"),
     ];

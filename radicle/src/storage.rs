@@ -385,7 +385,7 @@ pub trait ReadRepository {
     /// Get the [`git2::Commit`] found using its `oid`.
     ///
     /// Returns `None` if the commit did not exist.
-    fn commit(&self, oid: Oid) -> Result<git2::Commit, git_ext::Error>;
+    fn commit(&self, oid: Oid) -> Result<git2::Commit, git::ext::Error>;
 
     /// Perform a revision walk of a commit history starting from the given head.
     fn revwalk(&self, head: Oid) -> Result<git2::Revwalk, git2::Error>;
@@ -399,6 +399,16 @@ pub trait ReadRepository {
 
     /// Get all references of the given remote.
     fn references_of(&self, remote: &RemoteId) -> Result<Refs, Error>;
+
+    /// Get all references following a pattern.
+    /// Skips references with names that are not parseable into [`Qualified`].
+    ///
+    /// This function always peels reference to the commit. For tags, this means the [`Oid`] of the
+    /// commit pointed to by the tag is returned, and not the [`Oid`] of the tag itsself.
+    fn references_glob(
+        &self,
+        pattern: &git::PatternStr,
+    ) -> Result<Vec<(Qualified, Oid)>, git::ext::Error>;
 
     /// Get the given remote.
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error>;

@@ -201,6 +201,13 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
+    fn references_glob(
+        &self,
+        _pattern: &git::PatternStr,
+    ) -> Result<Vec<(fmt::Qualified, Oid)>, git::ext::Error> {
+        todo!()
+    }
+
     fn identity_doc(
         &self,
     ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), IdentityError> {

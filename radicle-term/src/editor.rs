@@ -1,5 +1,6 @@
 use std::ffi::OsString;
 use std::io::Write;
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::path::PathBuf;
 use std::process;
 use std::{env, fs, io};
@@ -66,7 +67,11 @@ impl Editor {
                 )
             );
         };
-        process::Command::new(cmd).arg(&self.path).spawn()?.wait()?;
+        process::Command::new(cmd)
+            .stdout(unsafe { process::Stdio::from_raw_fd(io::stderr().as_raw_fd()) })
+            .arg(&self.path)
+            .spawn()?
+            .wait()?;
 
         let text = fs::read_to_string(&self.path)?;
         if text.trim().is_empty() {

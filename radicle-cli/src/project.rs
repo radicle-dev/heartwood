@@ -37,7 +37,7 @@ impl<'a> SetupRemote<'a> {
             let local_branch = radicle::git::refs::workdir::branch(
                 node_ref.join(&self.default_branch).as_refstr(),
             );
-            radicle::git::set_upstream(self.repo, &node.to_string(), &branch_name, &local_branch)?;
+            radicle::git::set_upstream(self.repo, node.to_string(), &branch_name, local_branch)?;
 
             return Ok(Some((remote, branch_name)));
         }

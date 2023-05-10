@@ -1,34 +1,25 @@
-#![allow(clippy::collapsible_if)]
-use std::os::fd::{AsRawFd, FromRawFd};
+//! The Radicle Git remote helper.
+//!
+//! Communication with the user is done via `stderr` (`eprintln`).
+//! Communication with Git tooling is done via `stdout` (`println`).
+mod fetch;
+mod list;
+mod push;
+
 use std::path::PathBuf;
-use std::{env, io, process};
+use std::{env, io};
 
 use thiserror::Error;
 
-use radicle::crypto::PublicKey;
-use radicle::node::Handle;
+use radicle::git;
 use radicle::storage::git::transport::local::{Url, UrlError};
-use radicle::storage::{ReadRepository, WriteRepository, WriteStorage};
-
-/// The service invoked by git on the remote repository, during a push.
-const GIT_RECEIVE_PACK: &str = "git-receive-pack";
-/// The service invoked by git on the remote repository, during a fetch.
-const GIT_UPLOAD_PACK: &str = "git-upload-pack";
+use radicle::storage::{ReadRepository, WriteStorage};
 
 #[derive(Debug, Error)]
 pub enum Error {
     /// Remote repository not found (or empty).
     #[error("remote repository `{0}` not found")]
     RepositoryNotFound(PathBuf),
-    /// Secret key is not registered, eg. with ssh-agent.
-    #[error("public key `{0}` is not registered with ssh-agent")]
-    KeyNotRegistered(PublicKey),
-    /// Public key doesn't match the remote namespace we're pushing to.
-    #[error("public key `{0}` does not match remote namespace")]
-    KeyMismatch(PublicKey),
-    /// No public key is given
-    #[error("no public key given as a remote namespace, perhaps you are attempting to push to restricted refs")]
-    NoKey,
     /// Invalid command received.
     #[error("invalid command `{0}`")]
     InvalidCommand(String),
@@ -38,12 +29,31 @@ pub enum Error {
     /// Error with the remote url.
     #[error("invalid remote url: {0}")]
     RemoteUrl(#[from] UrlError),
+    /// I/O error.
+    #[error("i/o error: {0}")]
+    Io(#[from] io::Error),
+    /// The `GIT_DIR` env var is not set.
+    #[error("the `GIT_DIR` environment variable is not set")]
+    NoGitDir,
+    /// Git error.
+    #[error("git: {0}")]
+    Git(#[from] git::raw::Error),
+    /// Storage error.
+    #[error(transparent)]
+    Storage(#[from] radicle::storage::Error),
+    /// Fetch error.
+    #[error(transparent)]
+    Fetch(#[from] fetch::Error),
+    /// Push error.
+    #[error(transparent)]
+    Push(#[from] push::Error),
+    /// List error.
+    #[error(transparent)]
+    List(#[from] list::Error),
 }
 
 /// Run the radicle remote helper using the given profile.
-pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 'static>> {
-    // `GIT_DIR` is expected to be set, though we aren't using it right now.
-    let _git_dir = env::var("GIT_DIR").map(PathBuf::from)?;
+pub fn run(profile: radicle::Profile) -> Result<(), Error> {
     let url: Url = {
         let args = env::args().skip(1).take(2).collect::<Vec<_>>();
 
@@ -52,104 +62,87 @@ pub fn run(profile: radicle::Profile) -> Result<(), Box<dyn std::error::Error + 
             [_, url] => url.parse(),
 
             _ => {
-                return Err(Error::InvalidArguments(args).into());
+                return Err(Error::InvalidArguments(args));
             }
         }
     }?;
 
-    let proj = profile.storage.repository_mut(url.repo)?;
-    if proj.is_empty()? {
-        return Err(Error::RepositoryNotFound(proj.path().to_path_buf()).into());
+    let stored = profile.storage.repository_mut(url.repo)?;
+    if stored.is_empty()? {
+        return Err(Error::RepositoryNotFound(stored.path().to_path_buf()));
     }
+
+    // `GIT_DIR` is expected to be set by Git tooling, and points to the working copy.
+    let working = env::var("GIT_DIR")
+        .map(PathBuf::from)
+        .map_err(|_| Error::NoGitDir)?;
 
     let stdin = io::stdin();
-    loop {
-        let mut line = String::new();
-        let read = stdin.read_line(&mut line)?;
-        if read == 0 {
-            break;
-        }
+    let mut line = String::new();
 
-        let tokens = line.trim().split(' ').collect::<Vec<_>>();
+    loop {
+        let tokens = read_line(&stdin, &mut line)?;
+
         match tokens.as_slice() {
-            // First we are asked about capabilities.
             ["capabilities"] => {
-                println!("connect");
+                println!("option");
+                println!("push"); // Implies `list` command.
+                println!("fetch");
                 println!();
             }
-            // Since we send a `connect` back, this is what is requested next.
-            ["connect", service] => {
-                // Don't allow push if either of these conditions is true:
-                //
-                // 1. Our key is not in ssh-agent, which means we won't be able to sign the refs.
-                // 2. Our key is not the one loaded in the profile, which means that the signed refs
-                //    won't match the remote we're pushing to.
-                // 3. The URL namespace is not set, which is used for fetching canonical refs.
-                let signer = if *service == GIT_RECEIVE_PACK {
-                    match url.namespace {
-                        Some(namespace) => {
-                            if profile.public_key != namespace {
-                                return Err(Error::KeyMismatch(profile.public_key).into());
-                            }
-                        }
-                        None => return Err(Error::NoKey.into()),
-                    }
-
-                    let signer = profile.signer()?;
-
-                    Some(signer)
-                } else {
-                    None
-                };
-
-                if *service == GIT_UPLOAD_PACK {
-                    // TODO: Fetch from network.
-                }
-                println!(); // Empty line signifies connection is established.
-
-                let mut child = process::Command::new(service)
-                    .arg(proj.path())
-                    .env("GIT_DIR", proj.path())
-                    .env(
-                        "GIT_NAMESPACE",
-                        url.namespace.map(|ns| ns.to_string()).unwrap_or_default(),
-                    )
-                    .stdout(process::Stdio::inherit())
-                    .stderr(process::Stdio::inherit())
-                    .stdin(process::Stdio::inherit())
-                    .spawn()?;
-
-                if child.wait()?.success() && *service == GIT_RECEIVE_PACK {
-                    if let Some(signer) = signer {
-                        proj.sign_refs(&signer)?;
-                        proj.set_head()?;
-                        // Connect to local node and announce refs to the network.
-                        // If our node is not running, we simply skip this step, as the
-                        // refs will be announced eventually, when the node restarts.
-                        if radicle::Node::new(profile.socket()).is_running() {
-                            let stderr = io::stderr().as_raw_fd();
-
-                            process::Command::new("rad")
-                                .arg("sync")
-                                .arg(proj.id.to_string())
-                                .arg("--verbose")
-                                .stdout(unsafe { process::Stdio::from_raw_fd(stderr) })
-                                .stderr(process::Stdio::inherit())
-                                .spawn()?
-                                .wait()?;
-                        }
-                    }
-                }
+            ["option", "verbosity"] => {
+                println!("ok");
             }
-            // An empty line means end of input.
+            ["option", "push-option", _opt] => {
+                println!("unsupported");
+            }
+            ["option", "progress", ..] => {
+                println!("unsupported");
+            }
+            ["option", ..] => {
+                println!("unsupported");
+            }
+            ["fetch", _oid, refstr] => {
+                return fetch::run(vec![refstr.to_string()], &working, url, stored, &stdin)
+                    .map_err(Error::from);
+            }
+            ["push", refspec] => {
+                return push::run(
+                    vec![refspec.to_string()],
+                    &working,
+                    url,
+                    stored,
+                    &profile,
+                    &stdin,
+                )
+                .map_err(Error::from);
+            }
+            ["list"] => {
+                list::for_fetch(&url, &stored)?;
+            }
+            ["list", "for-push"] => {
+                list::for_push(&profile, &stored)?;
+            }
             [] => {
-                break;
+                return Ok(());
             }
             _ => {
-                return Err(Error::InvalidCommand(line).into());
+                return Err(Error::InvalidCommand(line.trim().to_owned()));
             }
         }
     }
+}
 
-    Ok(())
+/// Read one line from stdin, and split it into tokens.
+pub(crate) fn read_line<'a>(stdin: &io::Stdin, line: &'a mut String) -> io::Result<Vec<&'a str>> {
+    line.clear();
+
+    let read = stdin.read_line(line)?;
+    if read == 0 {
+        return Ok(vec![]);
+    }
+    let line = line.trim();
+    let tokens = line.split(' ').filter(|t| !t.is_empty()).collect();
+
+    Ok(tokens)
 }

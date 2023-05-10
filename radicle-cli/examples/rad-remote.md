@@ -9,9 +9,10 @@ Now, we can see that there is a new remote in the list of remotes:
 
 ```
 $ rad remote list
-bob z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (fetch)
-rad the canonical upstream                           (fetch)
-rad z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (push)
+bob         z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (fetch)
+rad         (canonical upstream)                             (fetch)
+rad         z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (push)
+rad/patches (patches upstream)                               (push)
 ```
 
 You can see both `bob` and `rad` as remotes.  The `rad` remote is our personal remote of the project.

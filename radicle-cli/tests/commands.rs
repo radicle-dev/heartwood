@@ -293,6 +293,28 @@ fn rad_patch_draft() {
 }
 
 #[test]
+fn rad_patch_via_push() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let working = tempfile::tempdir().unwrap();
+    let home = &profile.home;
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
+    test(
+        "examples/rad-patch-via-push.md",
+        working.path(),
+        Some(home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_rm() {
     let mut environment = Environment::new();
     let profile = environment.profile("alice");
@@ -786,6 +808,60 @@ fn rad_remote() {
         "examples/rad-remote.md",
         working.join("alice"),
         Some(&home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn git_push_and_pull() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn(Config::default());
+    let mut bob = bob.spawn(Config::default());
+
+    bob.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/rad-clone.md",
+        &working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+    test(
+        "examples/git/git-push.md",
+        &working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+    test(
+        "examples/git/git-pull.md",
+        &working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+    test(
+        "examples/git/git-push-delete.md",
+        &working.join("alice"),
+        Some(&alice.home),
         [],
     )
     .unwrap();

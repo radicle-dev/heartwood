@@ -239,9 +239,9 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 // Setup eg. `master` -> `rad/master`
                 radicle::git::set_upstream(
                     &repo,
-                    &radicle::rad::REMOTE_NAME,
+                    &*radicle::rad::REMOTE_NAME,
                     proj.default_branch(),
-                    &radicle::git::refs::workdir::branch(proj.default_branch()),
+                    radicle::git::refs::workdir::branch(proj.default_branch()),
                 )?;
             } else {
                 push_cmd = format!("git push {}", *radicle::rad::REMOTE_NAME);
