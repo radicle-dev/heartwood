@@ -36,6 +36,12 @@ pub struct Test {
     context: Vec<String>,
     /// Test assertions to run.
     assertions: Vec<Assertion>,
+    /// Whether to check stderr's output instead of stdout.
+    stderr: bool,
+    /// Whether to expect an error status code.
+    fail: bool,
+    /// Local env vars to use just for this test.
+    env: HashMap<String, String>,
 }
 
 /// An assertion is a command to run with an expected output.
@@ -118,6 +124,18 @@ impl TestFormula {
                 if fenced {
                     // End existing code block.
                     self.tests.push(mem::take(&mut test));
+                } else {
+                    for token in line.split_whitespace() {
+                        if token.contains("stderr") {
+                            test.stderr = true;
+                        }
+                        if token.contains("fail") {
+                            test.fail = true;
+                        }
+                        if let Some((key, val)) = token.split_once('=') {
+                            test.env.insert(key.to_owned(), val.to_owned());
+                        }
+                    }
                 }
                 fenced = !fenced;
 
@@ -135,14 +153,18 @@ impl TestFormula {
                         command: cmd.to_owned(),
                         args: args.to_owned(),
                         expected: String::new(),
-                        exit: ExitStatus::Success,
+                        exit: if test.fail {
+                            ExitStatus::Failure
+                        } else {
+                            ExitStatus::Success
+                        },
                     });
-                } else if let Some(test) = test.assertions.last_mut() {
+                } else if let Some(a) = test.assertions.last_mut() {
                     if line.starts_with(ERROR_PREFIX) {
-                        test.exit = ExitStatus::Failure;
+                        a.exit = ExitStatus::Failure;
                     }
-                    test.expected.push_str(line.as_str());
-                    test.expected.push('\n');
+                    a.expected.push_str(line.as_str());
+                    a.expected.push('\n');
                 } else {
                     return Err(Error::Parse);
                 }
@@ -193,6 +215,20 @@ impl TestFormula {
 
         fs::create_dir_all(&self.cwd)?;
 
+        let mut bins = env::var("PATH").unwrap_or_default();
+        if let Ok(manifest) = env::var("CARGO_MANIFEST_DIR") {
+            let profile = if cfg!(debug_assertions) {
+                "debug"
+            } else {
+                "release"
+            };
+            let path = Path::new(manifest.as_str());
+            let path = path.parent().unwrap().join("target").join(profile);
+
+            bins = format!("{}:{bins}", path.display());
+        }
+        log::debug!(target: "test", "Using PATH={bins}");
+
         for test in &self.tests {
             for assertion in &test.assertions {
                 let path = assertion
@@ -226,10 +262,13 @@ impl TestFormula {
                 if !self.cwd.exists() {
                     log::error!(target: "test", "{path}: Directory {} does not exist..", self.cwd.display());
                 }
+
                 let result = Command::new(cmd.clone())
                     .env_clear()
-                    .envs(env::vars().filter(|(k, _)| k == "PATH"))
+                    .env("PATH", &bins)
+                    .env("RUST_BACKTRACE", "1")
                     .envs(self.env.clone())
+                    .envs(test.env.clone())
                     .current_dir(&self.cwd)
                     .args(&assertion.args)
                     .with_assert(assert.clone())
@@ -239,7 +278,12 @@ impl TestFormula {
                     Ok(output) => {
                         let assert = OutputAssert::new(output).with_assert(assert.clone());
                         let expected = Self::map_spaced_brackets(&assertion.expected);
-                        let matches = assert.stdout_matches(&expected);
+
+                        let matches = if test.stderr {
+                            assert.stderr_matches(&expected)
+                        } else {
+                            assert.stdout_matches(&expected)
+                        };
                         match assertion.exit {
                             ExitStatus::Success => {
                                 matches.success();
@@ -326,6 +370,9 @@ $ rad sync
                             exit: ExitStatus::Success,
                         },
                     ],
+                    fail: false,
+                    stderr: false,
+                    env: HashMap::default(),
                 },
                 Test {
                     context: vec![String::from("Super, now let's move on to the next step.")],
@@ -336,6 +383,9 @@ $ rad sync
                         expected: String::new(),
                         exit: ExitStatus::Success,
                     }],
+                    fail: false,
+                    stderr: false,
+                    env: HashMap::default(),
                 },
             ],
         };
