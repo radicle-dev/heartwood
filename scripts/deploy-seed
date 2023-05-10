@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+HOST=seed.radicle.xyz
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+HEAD="$(git rev-parse HEAD)"
+
+if [ "$BRANCH" != "master" ]; then
+  echo "You must be on the master branch to run this script."
+  exit 1
+fi
+
+echo "Using commit $HEAD"
+echo "Copying files.."
+scp .env.seed          root@"$HOST":.env
+scp docker-compose.yml root@"$HOST":docker-compose.yml
+
+echo "Deploying.."
+ssh root@$HOST << EOF
+ docker system prune --all --force
+ RADICLE_IMAGE_TAG=$HEAD docker-compose --file docker-compose.yml pull
+ RADICLE_IMAGE_TAG=$HEAD docker-compose --file docker-compose.yml down
+ RADICLE_IMAGE_TAG=$HEAD docker-compose --file docker-compose.yml up --detach
+EOF

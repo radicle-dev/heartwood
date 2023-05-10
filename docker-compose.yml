@@ -10,8 +10,6 @@ services:
       RUST_LOG: debug
       RAD_PASSPHRASE: seed
       RUST_BACKTRACE: 1
-      GIT_TRACE: 1
-      GIT_TRACE_PACKET: 1
     volumes:
       - /mnt/radicle/heartwood:/root/
     init: true
