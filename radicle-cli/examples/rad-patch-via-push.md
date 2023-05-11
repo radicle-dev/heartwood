@@ -25,6 +25,8 @@ $ rad patch show 8f0e8ec
 │ Commits   ahead 1, behind 0                                                             │
 │ Status    open                                                                          │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ 42d894a Add things                                                                      │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ..    ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -140,6 +142,10 @@ $ rad patch show 8678aaf
 │ Commits   ahead 3, behind 0                                                             │
 │ Status    open                                                                          │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ 662843e Improve code                                                                    │
+│ b94a835 Add more things                                                                 │
+│ 42d894a Add things                                                                      │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [   ...    ] │
 │ ↑ updated to 4b6618a6ccb0b406659364a70a00bb60e4cd7cf0 (662843e) [              ...    ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
@@ -212,6 +218,10 @@ $ rad patch show 8678aaf
 │ Branches  feature/2                                                                     │
 │ Commits   ahead 3, behind 0                                                             │
 │ Status    open                                                                          │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ 3507cd5 Amended commit                                                                  │
+│ b94a835 Add more things                                                                 │
+│ 42d894a Add things                                                                      │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 4 months ago │
 │ ↑ updated to 4b6618a6ccb0b406659364a70a00bb60e4cd7cf0 (662843e) 4 months ago            │

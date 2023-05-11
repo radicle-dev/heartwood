@@ -29,6 +29,31 @@ fn show_patch_diff(patch: &patch::Patch, storage: &Repository) -> anyhow::Result
     Ok(())
 }
 
+fn patch_commits(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<Vec<term::Line>> {
+    let target_head = patch_merge_target_oid(patch.target(), stored)?;
+    let base_oid = stored.raw().merge_base(target_head, **patch.head())?;
+    let range = format!("{}..{}", base_oid, patch.head());
+
+    let mut revwalk = stored.revwalk(*patch.head())?;
+    let mut lines = Vec::new();
+
+    revwalk.push_range(&range)?;
+
+    for commit in revwalk {
+        let commit = commit?;
+        let commit = stored.raw().find_commit(commit)?;
+
+        lines.push(term::Line::spaced([
+            term::label(term::format::secondary(term::format::oid(commit.id()))),
+            term::label(term::format::default(
+                commit.summary().unwrap_or_default().to_owned(),
+            )),
+        ]));
+    }
+
+    Ok(lines)
+}
+
 pub fn run(
     profile: &Profile,
     stored: &Repository,
@@ -90,6 +115,7 @@ pub fn run(
         .into(),
     ]);
 
+    let commits = patch_commits(&patch, stored)?;
     let description = patch.description().trim();
     let mut widget = VStack::default()
         .border(Some(term::colors::FAINT))
@@ -102,6 +128,8 @@ pub fn run(
         } else {
             vec![]
         })
+        .divider()
+        .children(commits.into_iter().map(|l| l.boxed()))
         .divider();
 
     for line in list::timeline(profile.id(), patch_id, &patch, stored)? {

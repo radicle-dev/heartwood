@@ -60,6 +60,8 @@ $ rad patch show de3096d5cc422136016ac210b870bfa9d0f11481 -p
 │                                                                                         │
 │ See details.                                                                            │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ 3e674d1 Define power requirements                                                       │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...    ]│
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 
@@ -135,6 +137,9 @@ $ rad patch show de3096d
 │                                                                                         │
 │ See details.                                                                            │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun                                                    │
+│ 3e674d1 Define power requirements                                                       │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...    ]│
 │ ↑ updated to d00f978a43a255c7f2f9f23d39b555d103900c6d (27857ec) [               ...    ]│
 │ ✓ accepted by z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [          ...    ]│
@@ -156,6 +161,9 @@ $ rad patch show de3096d
 │ Status    open                                                                          │
 │                                                                                         │
 │ Add requirements file                                                                   │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun                                                    │
+│ 3e674d1 Define power requirements                                                       │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...    ]│
 │ ↑ updated to d00f978a43a255c7f2f9f23d39b555d103900c6d (27857ec) [               ...    ]│

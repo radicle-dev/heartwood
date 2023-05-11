@@ -146,6 +146,10 @@ impl Line {
         self.items.push(Label::space());
         self
     }
+
+    pub fn boxed(self) -> Box<dyn Element> {
+        Box::new(self)
+    }
 }
 
 impl IntoIterator for Line {

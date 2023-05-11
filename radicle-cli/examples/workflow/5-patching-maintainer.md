@@ -43,6 +43,9 @@ $ rad patch show 5f0a547
 │                                                                                   │
 │ See details.                                                                      │
 ├───────────────────────────────────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun                                              │
+│ 3e674d1 Define power requirements                                                 │
+├───────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [    ...   ] │
 │ ↑ updated to b7e2356fb7e3981980b42603eea969851d17a40d (27857ec) [         ...   ] │
 ╰───────────────────────────────────────────────────────────────────────────────────╯
@@ -100,6 +103,10 @@ $ rad patch show 5f0a547
 │ Status    merged                                                                        │
 │                                                                                         │
 │ See details.                                                                            │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ f6484e0 fixup! Define power requirements                                                │
+│ 27857ec Add README, just for the fun                                                    │
+│ 3e674d1 Define power requirements                                                       │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [        ...     ] │
 │ ↑ updated to b7e2356fb7e3981980b42603eea969851d17a40d (27857ec) [             ...     ] │

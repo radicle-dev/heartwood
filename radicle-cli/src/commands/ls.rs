@@ -18,7 +18,7 @@ Usage
 
 Options
 
-    --versbose, -v  Verbose output
+    --verbose, -v   Verbose output
     --help          Print help
 "#,
 };
