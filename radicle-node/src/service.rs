@@ -474,6 +474,11 @@ where
             }
             Command::Seeds(rid, resp) => match self.seeds(&rid) {
                 Ok(seeds) => {
+                    debug!(
+                        target: "service",
+                        "Found {} connected seed(s) and {} disconnected seed(s) for {}",
+                        seeds.connected().count(), seeds.disconnected().count(),  rid
+                    );
                     resp.send(seeds).ok();
                 }
                 Err(e) => {
@@ -1303,7 +1308,7 @@ where
             disconnected: usize,
         }
 
-        let (stats, seeds) = match self.routing.get(rid) {
+        let (_, seeds) = match self.routing.get(rid) {
             Ok(seeds) => seeds.into_iter().fold(
                 (Stats::default(), Seeds::default()),
                 |(mut stats, mut seeds), node| {
@@ -1316,7 +1321,6 @@ where
                             stats.disconnected += 1;
                         }
                     }
-
                     (stats, seeds)
                 },
             ),
@@ -1324,12 +1328,6 @@ where
                 return Err(Error::Routing(err));
             }
         };
-        debug!(
-            target: "service",
-            "Found {} connected seed(s) and {} disconnected seed(s) for {}",
-            stats.connected, stats.disconnected,  rid
-        );
-
         Ok(seeds)
     }
 
