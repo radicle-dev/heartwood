@@ -131,7 +131,7 @@ impl Read for ChannelReader<Vec<u8>> {
             return Ok(read);
         }
 
-        match self.receiver.recv() {
+        match self.receiver.recv_timeout(self.timeout) {
             Ok(ChannelEvent::Data(data)) => {
                 self.buffer = io::Cursor::new(data);
                 self.buffer.read(buf)
@@ -139,7 +139,11 @@ impl Read for ChannelReader<Vec<u8>> {
             Ok(ChannelEvent::Eof) => Err(io::ErrorKind::UnexpectedEof.into()),
             Ok(ChannelEvent::Close) => Err(io::ErrorKind::ConnectionReset.into()),
 
-            Err(_) => Err(io::Error::new(
+            Err(chan::RecvTimeoutError::Timeout) => Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "error reading from stream: channel timed out",
+            )),
+            Err(chan::RecvTimeoutError::Disconnected) => Err(io::Error::new(
                 io::ErrorKind::BrokenPipe,
                 "error reading from stream: channel is disconnected",
             )),
