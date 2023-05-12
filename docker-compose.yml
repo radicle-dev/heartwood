@@ -63,6 +63,9 @@ services:
     restart: unless-stopped
     networks:
       - radicle-services
+    volumes:
+      - $PWD/caddy_data:/data/caddy
+      - $PWD/caddy_config:/config/caddy
 
 networks:
   radicle-services:
