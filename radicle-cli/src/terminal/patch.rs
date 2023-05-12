@@ -1,3 +1,5 @@
+use std::io;
+
 use radicle::git;
 
 use crate::terminal as term;
@@ -18,7 +20,13 @@ impl Message {
     /// Get the `Message` as a string according to the method.
     pub fn get(self, help: &str) -> std::io::Result<String> {
         let comment = match self {
-            Message::Edit => term::Editor::new().extension("markdown").edit(help)?,
+            Message::Edit => {
+                if term::is_terminal(&io::stderr()) {
+                    term::Editor::new().extension("markdown").edit(help)?
+                } else {
+                    Some(help.to_owned())
+                }
+            }
             Message::Blank => None,
             Message::Text(c) => Some(c),
         };
@@ -68,7 +76,7 @@ pub fn message(title: &str, description: &str) -> String {
 pub fn get_message(
     message: term::patch::Message,
     default_msg: &str,
-) -> anyhow::Result<(String, String)> {
+) -> io::Result<(String, String)> {
     let display_msg = default_msg.trim_end();
 
     let message = message.get(&format!("{display_msg}\n{PATCH_MSG}"))?;
@@ -78,7 +86,10 @@ pub fn get_message(
     let (title, description) = (title.trim().to_string(), description.trim().to_string());
 
     if title.is_empty() {
-        anyhow::bail!("a patch title must be provided");
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "a patch title must be provided",
+        ));
     }
 
     Ok((title, description))

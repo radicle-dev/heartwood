@@ -8,6 +8,7 @@ $ git checkout -b feature/1
 Switched to a new branch 'feature/1'
 $ git commit -a -m "Add things" -q --allow-empty
 $ git push rad HEAD:refs/patches
+✓ Patch 8f0e8ecb47a17e8f3219f33150a4092d645e4875 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -72,6 +73,7 @@ simpler:
 $ git checkout -b feature/2 -q
 $ git commit -a -m "Add more things" -q --allow-empty
 $ git push rad/patches
+✓ Patch 8678aafff1d1e28430952abf431e60b87e28023c opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```

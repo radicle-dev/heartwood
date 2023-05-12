@@ -17,6 +17,10 @@ version = "0"
 path = "../radicle-crypto"
 version = "0"
 
+[dependencies.radicle-cli]
+path = "../radicle-cli"
+version = "0"
+
 [[bin]]
 name = "git-remote-rad"
 path = "src/git-remote-rad.rs"

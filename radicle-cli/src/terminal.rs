@@ -4,10 +4,11 @@ pub mod format;
 pub mod io;
 pub use io::{proposal, signer};
 pub mod patch;
-pub use radicle_term::*;
 
 use std::ffi::OsString;
 use std::process;
+
+pub use radicle_term::*;
 
 use radicle::profile::Profile;
 

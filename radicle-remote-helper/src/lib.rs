@@ -111,7 +111,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                     vec![refspec.to_string()],
                     &working,
                     url,
-                    stored,
+                    &stored,
                     &profile,
                     &stdin,
                 )

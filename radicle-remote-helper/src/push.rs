@@ -8,12 +8,15 @@ use std::{io, process};
 use radicle::storage::git::cob::object::ParseObjectId;
 use thiserror::Error;
 
-use radicle::crypto::PublicKey;
+use radicle::cob::patch;
+use radicle::crypto::{PublicKey, Signer};
 use radicle::node::{Handle, NodeId};
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::WriteRepository;
+use radicle::storage::{self, ReadRepository};
 use radicle::Profile;
 use radicle::{git, rad};
+use radicle_cli::terminal as cli;
 
 use crate::read_line;
 
@@ -52,6 +55,9 @@ pub enum Error {
     /// Parse error for object IDs.
     #[error(transparent)]
     ParseObjectId(#[from] ParseObjectId),
+    /// Patch COB error.
+    #[error(transparent)]
+    Patch(#[from] radicle::cob::patch::Error),
 }
 
 enum Command {
@@ -94,11 +100,11 @@ impl FromStr for Command {
 }
 
 /// Run a git push command.
-pub fn run<R: WriteRepository>(
+pub fn run(
     mut specs: Vec<String>,
     working: &Path,
     url: Url,
-    stored: R,
+    stored: &storage::git::Repository,
     profile: &Profile,
     stdin: &io::Stdin,
 ) -> Result<(), Error> {
@@ -148,16 +154,15 @@ pub fn run<R: WriteRepository>(
             }
             Command::Push(git::Refspec { src, dst, force }) => {
                 let working = git::raw::Repository::open(working)?;
-                let stored = stored.raw();
 
                 if let Some(oid) = dst.strip_prefix(git::refname!("refs/heads/patches")) {
                     let oid = git::Oid::from_str(oid)?;
 
-                    patch_update(src, dst, *force, &oid, &nid, &working, stored)
+                    patch_update(src, dst, *force, &oid, &nid, &working, stored.raw())
                 } else if dst == &*rad::PATCHES_REFNAME {
-                    patch_open(src, &nid, &working, stored)
+                    patch_open(src, &nid, &working, stored, &signer)
                 } else {
-                    push_ref(src, dst, *force, &nid, &working, stored)
+                    push_ref(src, dst, *force, &nid, &working, stored.raw())
                 }
             }
         };
@@ -182,7 +187,7 @@ pub fn run<R: WriteRepository>(
         // If our node is not running, we simply skip this step, as the
         // refs will be announced eventually, when the node restarts.
         if radicle::Node::new(profile.socket()).is_running() {
-            let rid = stored.id().to_string();
+            let rid = stored.id.to_string();
             let stderr = io::stderr().as_raw_fd();
             // Nb. allow this to fail. The push to local storage was still successful.
             execute("rad", ["sync", &rid, "--verbose"], unsafe {
@@ -199,11 +204,12 @@ pub fn run<R: WriteRepository>(
 }
 
 /// Open a new patch.
-fn patch_open(
+fn patch_open<G: Signer>(
     src: &git::RefStr,
     nid: &NodeId,
     working: &git::raw::Repository,
-    stored: &git::raw::Repository,
+    stored: &storage::git::Repository,
+    signer: &G,
 ) -> Result<(), Error> {
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
@@ -216,23 +222,37 @@ fn patch_open(
     //
     // In case the reference is not properly deleted, the next attempt to open a patch should
     // not fail, since the reference will already exist with the correct OID.
-    push_ref(src, dst, false, nid, working, stored)?;
+    push_ref(src, dst, false, nid, working, stored.raw())?;
 
-    let result = match execute(
-        "rad",
-        ["patch", "open", "--quiet", "--no-push"],
-        process::Stdio::piped(),
+    let mut patches = patch::Patches::open(stored).unwrap();
+    let message = commit.message().unwrap_or_default();
+    let (title, description) = cli::patch::get_message(cli::patch::Message::Edit, message)?;
+    let (_, target) = stored.canonical_head()?;
+    let base = stored.backend.merge_base(*target, commit.id())?;
+    let result = match patches.create(
+        title,
+        &description,
+        patch::MergeTarget::default(),
+        base,
+        commit.id(),
+        &[],
+        signer,
     ) {
         Ok(patch) => {
-            let patch = patch.trim();
-            let patch = radicle::cob::ObjectId::from_str(patch)?;
+            let patch = patch.id;
+
+            eprintln!(
+                "{} Patch {} opened",
+                cli::format::positive("✓"),
+                cli::format::tertiary(patch)
+            );
 
             // Create long-lived patch head reference, now that we know the Patch ID.
             //
             //  refs/namespaces/<nid>/refs/heads/patches/<patch-id>
             //
             let refname = git::refs::storage::patch(nid, &patch);
-            let _ = stored.reference(
+            let _ = stored.raw().reference(
                 refname.as_str(),
                 commit.id(),
                 true,
@@ -271,10 +291,15 @@ fn patch_open(
         }
         Err(e) => Err(e),
     };
-    // Delete short-lived patch head reference.
-    stored.find_reference(dst).map(|mut r| r.delete()).ok();
 
-    result
+    // Delete short-lived patch head reference.
+    stored
+        .raw()
+        .find_reference(dst)
+        .map(|mut r| r.delete())
+        .ok();
+
+    result.map_err(Error::from)
 }
 
 /// Update an existing patch.

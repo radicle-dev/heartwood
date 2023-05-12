@@ -2092,6 +2092,7 @@ name = "radicle-remote-helper"
 version = "0.2.0"
 dependencies = [
  "radicle",
+ "radicle-cli",
  "radicle-crypto",
  "radicle-git-ext",
  "thiserror",
