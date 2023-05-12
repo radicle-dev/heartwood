@@ -574,7 +574,7 @@ where
                                 log::debug!(target: "wire", "Received stream close command for id={stream} from {nid}");
 
                                 if let Some(chans) = streams.unregister(&stream) {
-                                    chans.send(ChannelEvent::Close).ok();
+                                    chans.close().ok();
                                 }
                             }
                             Ok(Some(Frame {
