@@ -15,11 +15,9 @@ Initializing radicle 👾 project in .
 }
 
 Your project's Repository ID (RID) is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji.
-You can show it any time by running:
-    rad .
+You can show it any time by running `rad .`
 
-To publish your project to the network, run:
-    git push
+To publish your project to the network, run `git push`
 ```
 
 Projects can be listed with the `ls` command:

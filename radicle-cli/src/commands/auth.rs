@@ -111,9 +111,9 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     );
 
     term::blank();
-    term::tip!(
+    term::info!(
         "To create a radicle project, run {} from a git repository.",
-        term::format::secondary("`rad init`")
+        term::format::command("rad init")
     );
 
     Ok(())

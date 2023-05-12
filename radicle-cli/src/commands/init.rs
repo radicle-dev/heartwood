@@ -276,13 +276,17 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 term::format::dim("(RID)"),
                 term::format::highlight(id.urn())
             );
-            term::info!("You can show it any time by running:");
-            term::indented(term::format::secondary("rad ."));
+            term::info!(
+                "You can show it any time by running {}",
+                term::format::command("rad .")
+            );
 
             if !options.announce {
                 term::blank();
-                term::info!("To publish your project to the network, run:");
-                term::indented(term::format::secondary(push_cmd));
+                term::info!(
+                    "To publish your project to the network, run {}",
+                    term::format::command(push_cmd)
+                );
             }
         }
         Err(err) => {

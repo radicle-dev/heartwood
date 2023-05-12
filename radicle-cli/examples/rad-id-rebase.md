@@ -186,7 +186,7 @@ Now, when we go to accept the second proposal:
 $ rad id accept 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --no-confirm
 ! Warning: Revision is out of date
 ! Warning: d96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f
-👉 Consider using 'rad id rebase' to update the proposal to the latest identity
+* Consider using 'rad id rebase' to update the proposal to the latest identity
 ✓ Accepted proposal ✓
 title: Add Bob
 description: Add Bob as a delegate
@@ -231,9 +231,9 @@ Quorum Reached
 
 Note that a warning was emitted:
 
-    ** Warning: Revision is out of date
-    ** Warning: d96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f
-    => Consider using 'rad id rebase' to update the proposal to the latest identity
+    ! Warning: Revision is out of date
+    ! Warning: d96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f
+    * Consider using 'rad id rebase' to update the proposal to the latest identity
 
 If we attempt to commit this revision, the command will fail:
 
@@ -241,7 +241,7 @@ If we attempt to commit this revision, the command will fail:
 $ rad id commit 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --no-confirm
 ! Warning: Revision is out of date
 ! Warning: d96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f
-👉 Consider using 'rad id rebase' to update the proposal to the latest identity
+* Consider using 'rad id rebase' to update the proposal to the latest identity
 ✗ Id failed: the identity hashes do match 'd96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f' for the revision '3f6ae4f8645c8b0cbcd35ea924df7b13aca52774'
 ```
 

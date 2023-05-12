@@ -29,6 +29,11 @@ pub fn parens<D: fmt::Display>(input: Paint<D>) -> Paint<String> {
     Paint::new(format!("({})", input.item)).with_style(input.style)
 }
 
+/// Format a command suggestion, eg. `rad init`.
+pub fn command<D: fmt::Display>(cmd: D) -> Paint<String> {
+    primary(format!("`{cmd}`"))
+}
+
 /// Format a COB id.
 pub fn cob(id: &ObjectId) -> String {
     format!("{:.7}", id.to_string())

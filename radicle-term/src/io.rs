@@ -73,7 +73,11 @@ pub fn success_args(args: fmt::Arguments) {
 }
 
 pub fn tip_args(args: fmt::Arguments) {
-    println!("👉 {}", style(format!("{args}")).italic());
+    println!(
+        "{} {}",
+        format::yellow("*"),
+        style(format!("{args}")).italic()
+    );
 }
 
 pub fn notice_args(args: fmt::Arguments) {

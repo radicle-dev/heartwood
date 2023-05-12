@@ -12,6 +12,5 @@ Initializing radicle 👾 project in .
 ✓ Announcing inventory..
 
 Your project's Repository ID (RID) is rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji.
-You can show it any time by running:
-    rad .
+You can show it any time by running `rad .`
 ```
