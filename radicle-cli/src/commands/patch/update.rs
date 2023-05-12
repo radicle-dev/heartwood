@@ -7,13 +7,6 @@ use super::common::*;
 use super::Options;
 use crate::terminal as term;
 
-const REVISION_MSG: &str = r#"
-<!--
-Please enter a comment for your patch update. Leaving this
-blank is also okay.
--->
-"#;
-
 fn select_patch(
     patches: &patch::Patches,
     storage: &Repository,
@@ -100,9 +93,7 @@ pub fn run(
 
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = storage.backend.merge_base(*target_oid, *head_oid)?;
-    let message = message.get(REVISION_MSG)?;
-    let message = message.replace(REVISION_MSG.trim(), "");
-    let message = message.trim();
+    let message = term::patch::get_update_message(message)?;
     let signer = term::signer(profile)?;
     let revision = patch.update(message, base_oid, *head_oid, &signer)?;
 

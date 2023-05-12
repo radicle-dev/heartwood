@@ -58,6 +58,12 @@ pub enum Error {
     /// Patch COB error.
     #[error(transparent)]
     Patch(#[from] radicle::cob::patch::Error),
+    /// Patch not found in store.
+    #[error("patch `{0}` not found")]
+    NotFound(patch::PatchId),
+    /// COB store error.
+    #[error(transparent)]
+    Cob(#[from] radicle::cob::store::Error),
 }
 
 enum Command {
@@ -158,7 +164,7 @@ pub fn run(
                 if let Some(oid) = dst.strip_prefix(git::refname!("refs/heads/patches")) {
                     let oid = git::Oid::from_str(oid)?;
 
-                    patch_update(src, dst, *force, &oid, &nid, &working, stored.raw())
+                    patch_update(src, dst, *force, &oid, &nid, &working, stored, &signer)
                 } else if dst == &*rad::PATCHES_REFNAME {
                     patch_open(src, &nid, &working, stored, &signer)
                 } else {
@@ -224,7 +230,7 @@ fn patch_open<G: Signer>(
     // not fail, since the reference will already exist with the correct OID.
     push_ref(src, dst, false, nid, working, stored.raw())?;
 
-    let mut patches = patch::Patches::open(stored).unwrap();
+    let mut patches = patch::Patches::open(stored)?;
     let message = commit.message().unwrap_or_default();
     let (title, description) = cli::patch::get_message(cli::patch::Message::Edit, message)?;
     let (_, target) = stored.canonical_head()?;
@@ -303,31 +309,40 @@ fn patch_open<G: Signer>(
 }
 
 /// Update an existing patch.
-fn patch_update(
+#[allow(clippy::too_many_arguments)]
+fn patch_update<G: Signer>(
     src: &git::RefStr,
     dst: &git::RefStr,
     force: bool,
     oid: &git::Oid,
     nid: &NodeId,
     working: &git::raw::Repository,
-    stored: &git::raw::Repository,
+    stored: &storage::git::Repository,
+    signer: &G,
 ) -> Result<(), Error> {
-    push_ref(src, dst, force, nid, working, stored)?;
+    let reference = working.find_reference(src.as_str())?;
+    let commit = reference.peel_to_commit()?;
+    let patch_id = radicle::cob::ObjectId::from(oid);
 
-    // Patch ID.
-    let oid = radicle::cob::ObjectId::from(oid);
-    let stderr = io::stderr().as_raw_fd();
+    push_ref(src, dst, force, nid, working, stored.raw())?;
 
-    // Nb. Git tooling checks that we aren't attempting a forced update without the `--force`
-    // option of `git push`. There's no need for us to check here.
+    let mut patches = patch::Patches::open(stored)?;
+    let Ok(mut patch) = patches.get_mut(&patch_id) else {
+        return Err(Error::NotFound(patch_id));
+    };
+    let message = cli::patch::get_update_message(cli::patch::Message::Edit)?;
+    let (_, target) = stored.canonical_head()?;
+    let base = stored.backend.merge_base(*target, commit.id())?;
+    let revision = patch.update(message, base, commit.id(), signer)?;
 
-    execute(
-        "rad",
-        ["patch", "update", "--quiet", "--no-push", &oid.to_string()],
-        unsafe { process::Stdio::from_raw_fd(stderr) },
-    )
-    .map(|_| ())
-    .map_err(Error::from)
+    eprintln!(
+        "{} Patch {} updated to {}",
+        cli::format::positive("✓"),
+        cli::format::dim(cli::format::cob(&patch_id)),
+        cli::format::tertiary(revision)
+    );
+
+    Ok(())
 }
 
 /// Push a single reference to storage.

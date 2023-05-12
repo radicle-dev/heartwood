@@ -114,7 +114,7 @@ $ git commit -a -m "Improve code" -q --allow-empty
 
 ``` (stderr)
 $ git push
-4b6618a6ccb0b406659364a70a00bb60e4cd7cf0
+✓ Patch 8678aaf updated to 4b6618a6ccb0b406659364a70a00bb60e4cd7cf0
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    b94a835..662843e  feature/2 -> patches/8678aafff1d1e28430952abf431e60b87e28023c
 ```
@@ -203,7 +203,7 @@ use `--force` to force the update.
 
 ``` (stderr)
 $ git push --force
-983f2d21c9fbe91c21ddfbcd3e3d6cd13db0a944
+✓ Patch 8678aaf updated to 983f2d21c9fbe91c21ddfbcd3e3d6cd13db0a944
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 662843e...3507cd5 feature/2 -> patches/8678aafff1d1e28430952abf431e60b87e28023c (forced update)
 ```

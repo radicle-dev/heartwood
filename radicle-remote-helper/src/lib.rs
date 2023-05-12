@@ -1,3 +1,4 @@
+#![warn(clippy::unwrap_used)]
 //! The Radicle Git remote helper.
 //!
 //! Communication with the user is done via `stderr` (`eprintln`).

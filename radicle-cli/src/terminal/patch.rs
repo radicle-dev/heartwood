@@ -63,6 +63,13 @@ and description.
 -->
 "#;
 
+const REVISION_MSG: &str = r#"
+<!--
+Please enter a comment for your patch update. Leaving this
+blank is also okay.
+-->
+"#;
+
 /// Combine the title and description fields to display to the user.
 #[inline]
 pub fn message(title: &str, description: &str) -> String {
@@ -93,6 +100,15 @@ pub fn get_message(
     }
 
     Ok((title, description))
+}
+
+/// Get a patch update message.
+pub fn get_update_message(message: term::patch::Message) -> io::Result<String> {
+    let message = message.get(REVISION_MSG)?;
+    let message = message.replace(REVISION_MSG.trim(), "");
+    let message = message.trim();
+
+    Ok(message.to_owned())
 }
 
 /// List the given commits in a table.
