@@ -12,11 +12,11 @@ fi
 
 echo "Using commit $HEAD"
 echo "Copying files.."
-scp .env.seed          root@"$HOST":.env
-scp docker-compose.yml root@"$HOST":docker-compose.yml
+scp .env.seed          seed@"$HOST":.env
+scp docker-compose.yml seed@"$HOST":docker-compose.yml
 
 echo "Deploying.."
-ssh root@$HOST << EOF
+ssh seed@"$HOST" << EOF
  docker system prune --all --force
  RADICLE_IMAGE_TAG=$HEAD docker-compose --file docker-compose.yml pull
  RADICLE_IMAGE_TAG=$HEAD docker-compose --file docker-compose.yml down
