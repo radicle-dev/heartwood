@@ -30,9 +30,7 @@ fn show_patch_diff(patch: &patch::Patch, storage: &Repository) -> anyhow::Result
 }
 
 fn patch_commits(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<Vec<term::Line>> {
-    let target_head = patch_merge_target_oid(patch.target(), stored)?;
-    let base_oid = stored.raw().merge_base(target_head, **patch.head())?;
-    let range = format!("{}..{}", base_oid, patch.head());
+    let range = format!("{}..{}", patch.base(), patch.head());
 
     let mut revwalk = stored.revwalk(*patch.head())?;
     let mut lines = Vec::new();

@@ -262,6 +262,16 @@ impl Patch {
             .oid
     }
 
+    /// Get the commit of the target branch on which this patch is based.
+    /// This can change via a patch update.
+    pub fn base(&self) -> &git::Oid {
+        &self
+            .latest()
+            .map(|(_, r)| r)
+            .expect("Patch::base: at least one revision is present")
+            .base
+    }
+
     /// Index of latest revision in the revisions list.
     pub fn version(&self) -> RevisionIx {
         self.revisions
