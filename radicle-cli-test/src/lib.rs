@@ -8,9 +8,6 @@ use snapbox::cmd::{Command, OutputAssert};
 use snapbox::{Assert, Substitutions};
 use thiserror::Error;
 
-/// Error lines in the CLI are prefixed with this string.
-const ERROR_PREFIX: &str = "✗";
-
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("parsing failed")]
@@ -160,9 +157,6 @@ impl TestFormula {
                         },
                     });
                 } else if let Some(a) = test.assertions.last_mut() {
-                    if line.starts_with(ERROR_PREFIX) {
-                        a.exit = ExitStatus::Failure;
-                    }
                     a.expected.push_str(line.as_str());
                     a.expected.push('\n');
                 } else {

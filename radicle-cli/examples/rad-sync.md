@@ -18,7 +18,7 @@ $ rad sync
 If we try to sync again after the nodes have synced, we will get a timeout
 after one second, since the nodes will not emit any message:
 
-```
+``` (fail)
 $ rad sync --timeout 1
 ✗ Syncing with 2 node(s)..
 ! Seed z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk timed out..

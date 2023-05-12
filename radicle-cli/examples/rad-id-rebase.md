@@ -237,7 +237,7 @@ Note that a warning was emitted:
 
 If we attempt to commit this revision, the command will fail:
 
-```
+``` (fail)
 $ rad id commit 3f6ae4f8645c8b0cbcd35ea924df7b13aca52774 --no-confirm
 ! Warning: Revision is out of date
 ! Warning: d96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f
