@@ -3,7 +3,6 @@
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
-use git_ext::author;
 use git_ext::author::Author;
 use git_ext::commit::{headers::Headers, Commit};
 use git_ext::Oid;
@@ -286,7 +285,7 @@ where
     let (author, timestamp) = if let Ok(s) = std::env::var(crate::git::RAD_COMMIT_TIME) {
         let timestamp = s.trim().parse::<i64>().unwrap();
         let author = Author {
-            time: author::Time::new(timestamp, 0),
+            time: git_ext::author::Time::new(timestamp, 0),
             ..author
         };
         (author, timestamp)

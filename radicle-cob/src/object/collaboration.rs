@@ -63,11 +63,11 @@ impl CollaborativeObject {
 /// [`TypeName`] and [`ObjectId`] from it.
 ///
 /// This assumes that the `refname` is in a
-/// [`git_ref_format::Qualified`] format. If it has any
+/// [`git_ext::ref_format::Qualified`] format. If it has any
 /// `refs/namespaces`, they will be stripped to access the underlying
-/// [`git_ref_format::Qualified`] format.
+/// [`git_ext::ref_format::Qualified`] format.
 ///
-/// In the [`git_ref_format::Qualified`] format it assumes that the
+/// In the [`git_ext::ref_format::Qualified`] format it assumes that the
 /// reference name is of the form:
 ///
 ///   `refs/<category>/<typename>/<object_id>[/<rest>*]`
@@ -77,7 +77,7 @@ impl CollaborativeObject {
 ///
 /// Also note that this will return `None` if:
 ///
-///   * The `refname` is not [`git_ref_format::Qualified`]
+///   * The `refname` is not [`git_ext::ref_format::Qualified`]
 ///   * The parsing of the [`ObjectId`] fails
 ///   * The parsing of the [`TypeName`] fails
 pub fn parse_refstr<R>(name: &R) -> Option<(TypeName, ObjectId)>
