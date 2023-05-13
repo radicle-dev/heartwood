@@ -440,7 +440,6 @@ impl ReadRepository for Repository {
     }
 
     fn references_of(&self, remote: &RemoteId) -> Result<Refs, Error> {
-        // TODO: Only return known refs, eg. heads/ rad/ tags/ etc..
         let entries = self
             .backend
             .references_glob(format!("refs/namespaces/{remote}/*").as_str())?;
@@ -451,8 +450,20 @@ impl ReadRepository for Repository {
             let name = e.name().ok_or(Error::InvalidRef)?;
             let (_, refname) = git::parse_ref::<RemoteId>(name)?;
             let oid = e.target().ok_or(Error::InvalidRef)?;
+            let (_, category, _, _) = refname.non_empty_components();
 
-            refs.insert(refname.into(), oid.into());
+            // Only sign known ref categories.
+            if [
+                git::name::HEADS,
+                git::name::TAGS,
+                git::name::NOTES,
+                &git::name::component!("rad"),
+                &git::name::component!("cobs"),
+            ]
+            .contains(&category.as_ref())
+            {
+                refs.insert(refname.into(), oid.into());
+            }
         }
         Ok(refs.into())
     }
