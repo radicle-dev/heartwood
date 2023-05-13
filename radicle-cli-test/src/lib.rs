@@ -216,8 +216,9 @@ impl TestFormula {
             } else {
                 "release"
             };
+            let cargo_target_dir = env::var("CARGO_TARGET_DIR").unwrap_or("target".to_string());
             let path = Path::new(manifest.as_str());
-            let path = path.parent().unwrap().join("target").join(profile);
+            let path = path.parent().unwrap().join(cargo_target_dir).join(profile);
 
             bins = format!("{}:{bins}", path.display());
         }
