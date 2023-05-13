@@ -282,8 +282,9 @@ impl Paint<()> {
     }
 
     /// Force paint styling.
-    pub fn force() {
-        FORCED.store(true, sync::atomic::Ordering::SeqCst);
+    /// Useful when you want to output colors to a non-TTY.
+    pub fn force(force: bool) {
+        FORCED.store(force, sync::atomic::Ordering::SeqCst);
     }
 
     /// Disable paint styling.
