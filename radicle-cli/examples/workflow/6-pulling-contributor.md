@@ -18,7 +18,7 @@ Now let's checkout `master` and pull the maintainer's changes:
 ```
 $ git checkout master
 Your branch is up to date with 'rad/master'.
-$ git pull --all
+$ git pull --all --ff
 Fetching rad
 Fetching z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 Updating f2de534..f6484e0
