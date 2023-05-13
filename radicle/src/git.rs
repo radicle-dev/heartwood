@@ -237,11 +237,11 @@ pub mod refs {
         pub mod staging {
             use super::*;
 
-            /// Where patches are pushed initially, when they don't have an object-id yet.
+            /// Where patch heads are pushed initially, before patch creation.
             /// This is a short-lived reference, which is deleted after the patch has been opened.
             /// The `<oid>` is the commit proposed in the patch.
             ///
-            /// `refs/namespaces/<remote>/refs/patch/heads/<oid>`
+            /// `refs/namespaces/<remote>/refs/tmp/heads/<oid>`
             ///
             pub fn patch<'a>(remote: &RemoteId, oid: impl Into<Oid>) -> Namespaced<'a> {
                 // SAFETY: OIDs are valid reference names and valid path component.
@@ -250,7 +250,7 @@ pub mod refs {
                 #[allow(clippy::unwrap_used)]
                 let oid = Component::from_refstr(oid).unwrap();
 
-                Qualified::from_components(component!("patch"), component!("heads"), Some(oid))
+                Qualified::from_components(component!("tmp"), component!("heads"), Some(oid))
                     .with_namespace(remote.into())
             }
         }
