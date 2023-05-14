@@ -273,20 +273,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     //
     // Perform merge
     //
-    match merge_style {
+    let head = match merge_style {
         MergeStyle::Commit => {
-            merge_commit(&repo, patch_id, &patch_commit, &patch, signer.public_key())?;
+            merge_commit(&repo, patch_id, &patch_commit, &patch, signer.public_key())
         }
-        MergeStyle::FastForward => {
-            fast_forward(&repo, &revision.head())?;
-        }
-    }
+        MergeStyle::FastForward => fast_forward(&repo, &revision.head()),
+    }?;
 
     term::success!(
         "Updated {} {} -> {} via {}",
         term::format::highlight(branch),
         term::format::secondary(term::format::oid(head_oid)),
-        term::format::secondary(term::format::oid(revision.head())),
+        term::format::secondary(term::format::oid(head)),
         merge_style_pretty
     );
 
@@ -294,7 +292,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     // Update patch COB
     //
     // TODO: Don't allow merging the same revision twice?
-    patch.merge(revision_id, head_oid.into(), &signer)?;
+    patch.merge(revision_id, head, &signer)?;
 
     term::success!(
         "Patch state updated, use {} to publish",
@@ -317,7 +315,7 @@ fn merge_commit(
     patch_commit: &git::raw::AnnotatedCommit,
     patch: &Patch,
     whoami: &PublicKey,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<git::Oid> {
     let description = patch.description().trim();
     let mut merge_opts = git::raw::MergeOptions::new();
     let mut merge_msg = format!(
@@ -367,24 +365,25 @@ fn merge_commit(
     let tree = repo.find_tree(tree)?;
     let parents = &[&repo.head()?.peel_to_commit()?, &commit];
 
-    repo.commit(
-        Some("HEAD"),
-        &author,
-        &committer,
-        &merge_msg,
-        &tree,
-        parents,
-    )
-    .context("merge commit failed")?;
+    let oid = repo
+        .commit(
+            Some("HEAD"),
+            &author,
+            &committer,
+            &merge_msg,
+            &tree,
+            parents,
+        )
+        .context("merge commit failed")?;
 
     // Cleanup merge state.
     repo.cleanup_state().context("merge state cleanup failed")?;
 
-    Ok(())
+    Ok(oid.into())
 }
 
 /// Perform fast-forward merge of patch.
-fn fast_forward(repo: &git::raw::Repository, patch_oid: &git::Oid) -> anyhow::Result<()> {
+fn fast_forward(repo: &git::raw::Repository, patch_oid: &git::Oid) -> anyhow::Result<git::Oid> {
     let oid = patch_oid.to_string();
     let args = ["merge", "--ff-only", &oid];
 
@@ -399,5 +398,5 @@ fn fast_forward(repo: &git::raw::Repository, patch_oid: &git::Oid) -> anyhow::Re
 
     term::blob(output);
 
-    Ok(())
+    Ok(*patch_oid)
 }
