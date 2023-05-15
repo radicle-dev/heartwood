@@ -9,6 +9,8 @@ use crate::terminal::args::{Args, Error, Help};
 
 #[path = "node/control.rs"]
 mod control;
+#[path = "node/events.rs"]
+mod events;
 #[path = "node/routing.rs"]
 mod routing;
 #[path = "node/tracking.rs"]
@@ -21,6 +23,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
+    rad node events [<option>...]
     rad node status [<option>...]
     rad node start [--daemon|-d] [<option>...] [-- <node-option>...]
     rad node stop [<option>...]
@@ -47,6 +50,7 @@ pub enum Operation {
         nid: NodeId,
         addr: Address,
     },
+    Events,
     Routing,
     Start {
         daemon: bool,
@@ -69,6 +73,7 @@ pub enum TrackingMode {
 #[derive(Default)]
 pub enum OperationName {
     Connect,
+    Events,
     Routing,
     Start,
     #[default]
@@ -96,6 +101,7 @@ impl Args for Options {
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "connect" => op = Some(OperationName::Connect),
+                    "events" => op = Some(OperationName::Events),
                     "routing" => op = Some(OperationName::Routing),
                     "start" => op = Some(OperationName::Start),
                     "status" => op = Some(OperationName::Status),
@@ -138,6 +144,7 @@ impl Args for Options {
                 nid: nid.ok_or_else(|| anyhow!("an NID must be provided"))?,
                 addr: addr.ok_or_else(|| anyhow!("an address must be provided"))?,
             },
+            OperationName::Events => Operation::Events,
             OperationName::Routing => Operation::Routing,
             OperationName::Start => Operation::Start { daemon, options },
             OperationName::Status => Operation::Status,
@@ -157,6 +164,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Connect { nid, addr } => {
             let mut node = Node::new(profile.socket());
             control::connect(&mut node, nid, addr)?
+        }
+        Operation::Events => {
+            let node = Node::new(profile.socket());
+            events::run(node)?;
         }
         Operation::Routing => {
             let store =
