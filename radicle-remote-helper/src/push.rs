@@ -330,6 +330,11 @@ fn patch_update<G: Signer>(
     let Ok(mut patch) = patches.get_mut(&patch_id) else {
         return Err(Error::NotFound(patch_id));
     };
+
+    // Don't update patch if it already has a revision matching this commit.
+    if patch.revisions().any(|(_, r)| *r.head() == commit.id()) {
+        return Ok(());
+    }
     let message = cli::patch::get_update_message(cli::patch::Message::Edit)?;
     let (_, target) = stored.canonical_head()?;
     let base = stored.backend.merge_base(*target, commit.id())?;
