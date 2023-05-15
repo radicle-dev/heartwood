@@ -2141,6 +2141,7 @@ dependencies = [
  "anyhow",
  "inquire",
  "is-terminal",
+ "libc",
  "once_cell",
  "pretty_assertions",
  "tempfile",

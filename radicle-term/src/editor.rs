@@ -67,8 +67,17 @@ impl Editor {
                 )
             );
         };
+
+        // We duplicate the stderr file descriptor to pass it to the child process, otherwise, if
+        // we simply pass the `RawFd` of our stderr, `Command` will close our stderr when the
+        // child exits.
+        let stderr = io::stderr().as_raw_fd();
+        let stderr = unsafe { libc::dup(stderr) };
+
         process::Command::new(cmd)
-            .stdout(unsafe { process::Stdio::from_raw_fd(io::stderr().as_raw_fd()) })
+            .stdout(unsafe { process::Stdio::from_raw_fd(stderr) })
+            .stderr(process::Stdio::inherit())
+            .stdin(process::Stdio::inherit())
             .arg(&self.path)
             .spawn()?
             .wait()?;
