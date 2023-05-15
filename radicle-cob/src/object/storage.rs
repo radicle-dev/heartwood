@@ -1,6 +1,6 @@
 // Copyright © 2021 The Radicle Link Contributors
 
-use std::{collections::HashMap, error::Error};
+use std::{collections::BTreeMap, error::Error};
 
 use git_ext::ref_format::RefString;
 use git_ext::Oid;
@@ -70,7 +70,7 @@ pub trait Storage {
 
     /// Get all references to objects of a given type within a particular
     /// identity
-    fn types(&self, typename: &TypeName) -> Result<HashMap<ObjectId, Objects>, Self::TypesError>;
+    fn types(&self, typename: &TypeName) -> Result<BTreeMap<ObjectId, Objects>, Self::TypesError>;
 
     /// Update a ref to a particular collaborative object
     fn update(

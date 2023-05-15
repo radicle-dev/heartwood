@@ -3,14 +3,14 @@ use std::ffi::OsStr;
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::path::Path;
 use std::str::FromStr;
-use std::{io, process};
+use std::{assert_eq, io, process};
 
-use radicle::storage::git::cob::object::ParseObjectId;
 use thiserror::Error;
 
 use radicle::cob::patch;
 use radicle::crypto::{PublicKey, Signer};
 use radicle::node::{Handle, NodeId};
+use radicle::storage::git::cob::object::ParseObjectId;
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::WriteRepository;
 use radicle::storage::{self, ReadRepository};
@@ -129,6 +129,8 @@ pub fn run(
     let mut line = String::new();
     let mut ok = HashSet::new();
 
+    assert_eq!(signer.public_key(), &nid);
+
     // Read all the `push` lines.
     loop {
         let tokens = read_line(stdin, &mut line)?;
@@ -168,7 +170,7 @@ pub fn run(
                 } else if dst == &*rad::PATCHES_REFNAME {
                     patch_open(src, &nid, &working, stored, &signer)
                 } else {
-                    push_ref(src, dst, *force, &nid, &working, stored.raw())
+                    push(src, dst, *force, &nid, &working, stored, &signer)
                 }
             }
         };
@@ -236,7 +238,7 @@ fn patch_open<G: Signer>(
     let (_, target) = stored.canonical_head()?;
     let base = stored.backend.merge_base(*target, commit.id())?;
     let result = match patches.create(
-        title,
+        &title,
         &description,
         patch::MergeTarget::default(),
         base,
@@ -347,6 +349,80 @@ fn patch_update<G: Signer>(
         cli::format::tertiary(revision)
     );
 
+    Ok(())
+}
+
+fn push<G: Signer>(
+    src: &git::RefStr,
+    dst: &git::RefStr,
+    force: bool,
+    nid: &NodeId,
+    working: &git::raw::Repository,
+    stored: &storage::git::Repository,
+    signer: &G,
+) -> Result<(), Error> {
+    let head = working.find_reference(src.as_str())?;
+    let head = head.peel_to_commit()?.id();
+    // It's ok for the destination reference to be unknown, eg. when pushing a new branch.
+    let old = stored
+        .backend
+        .find_reference(nid.to_namespace().join(dst).as_str())
+        .ok();
+
+    push_ref(src, dst, force, nid, working, stored.raw())?;
+
+    if let Some(old) = old {
+        let proj = stored.project()?;
+        let master = &*git::Qualified::from(git::lit::refs_heads(proj.default_branch()));
+
+        // If we're pushing to the project's default branch, we want to see if any patches got
+        // merged, and if so, update the patch COB.
+        if dst == master {
+            let old = old.peel_to_commit()?.id();
+            // Only delegates should publish the merge result to the COB.
+            if stored.delegates()?.contains(&nid.into()) {
+                patch_merge(old.into(), head.into(), working, stored, signer)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Merge a patch.
+fn patch_merge<G: Signer>(
+    old: git::Oid,
+    new: git::Oid,
+    working: &git::raw::Repository,
+    stored: &storage::git::Repository,
+    signer: &G,
+) -> Result<(), Error> {
+    let mut revwalk = working.revwalk()?;
+    revwalk.push_range(&format!("{old}..{new}"))?;
+
+    let commits = revwalk
+        .map(|r| r.map(git::Oid::from))
+        .collect::<Result<HashSet<git::Oid>, _>>()?;
+
+    let mut patches = patch::Patches::open(stored)?;
+    for patch in patches.all()? {
+        let (id, patch, clock) = patch?;
+        let Some((revision_id, revision)) = patch.latest() else {
+            continue;
+        };
+
+        if patch.is_open() && commits.contains(&revision.head()) {
+            let revision_id = *revision_id;
+            let mut patch = patch::PatchMut::new(id, patch, clock, &mut patches);
+
+            patch.merge(revision_id, new, signer)?;
+
+            eprintln!(
+                "{} Patch {} merged",
+                cli::format::positive("✓"),
+                cli::format::tertiary(id)
+            );
+        }
+    }
     Ok(())
 }
 

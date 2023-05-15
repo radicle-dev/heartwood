@@ -1,5 +1,5 @@
 //! COB storage Git backend.
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use radicle_cob as cob;
 use radicle_cob::change;
@@ -95,7 +95,8 @@ impl cob::object::Storage for Repository {
     fn types(
         &self,
         typename: &cob::TypeName,
-    ) -> Result<HashMap<cob::ObjectId, cob::object::Objects>, Self::TypesError> {
+    ) -> Result<BTreeMap<cob::ObjectId, cob::object::Objects>, Self::TypesError> {
+        // TODO: Use glob here.
         let mut references = self.backend.references()?.filter_map(|reference| {
             let reference = reference.ok()?;
             match RefStr::try_from_str(reference.name()?) {
@@ -115,7 +116,7 @@ impl cob::object::Storage for Repository {
             }
         });
 
-        references.try_fold(HashMap::new(), |mut objects, result| {
+        references.try_fold(BTreeMap::new(), |mut objects, result| {
             let (oid, reference) = result?;
             objects
                 .entry(oid)

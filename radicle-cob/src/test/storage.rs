@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryFrom as _};
+use std::{collections::BTreeMap, convert::TryFrom as _};
 
 use tempfile::TempDir;
 
@@ -130,8 +130,8 @@ impl object::Storage for Storage {
     fn types(
         &self,
         typename: &crate::TypeName,
-    ) -> Result<HashMap<ObjectId, object::Objects>, Self::TypesError> {
-        let mut objects = HashMap::new();
+    ) -> Result<BTreeMap<ObjectId, object::Objects>, Self::TypesError> {
+        let mut objects = BTreeMap::new();
         for r in self.raw.references_glob("refs/rad/*")? {
             let r = r?;
             let name = r.name().unwrap();

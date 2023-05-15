@@ -970,6 +970,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         commit: git::Oid,
         signer: &G,
     ) -> Result<EntryId, Error> {
+        // TODO: Don't allow merging the same revision twice?
         self.transaction("Merge revision", signer, |tx| tx.merge(revision, commit))
     }
 

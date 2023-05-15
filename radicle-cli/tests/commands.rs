@@ -814,6 +814,35 @@ fn rad_remote() {
 }
 
 #[test]
+fn rad_merge_via_push() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn(Config::default());
+
+    test(
+        "examples/rad-merge-via-push.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn git_push_and_pull() {
     logger::init(log::Level::Debug);
 
