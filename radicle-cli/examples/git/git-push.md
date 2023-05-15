@@ -56,6 +56,6 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
 ```
 
 ```
-$ rad sync
+$ rad sync --announce
 ✓ Synced with 1 node(s)
 ```

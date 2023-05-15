@@ -21,16 +21,24 @@ Usage
 
     rad sync [<rid>] [<option>...]
     rad sync [<rid>] [--fetch] [--seed <nid>] [<option>...]
+    rad sync [<rid>] [--announce] [<option>...]
 
-    By default, the current repository is synced.
+    By default, the current repository is synchronized both ways.
 
-    When `--fetch` is specified, this command will fetch from
-    all connected seeds. To instead specify a seed, use the
-    `--seed <nid>` option in combination with `--fetch`.
+    The process begins by fetching changes from connected seeds,
+    followed by announcing local refs to peers, thereby prompting
+    them to fetch from us.
+
+    When `--fetch` is specified, a seed may be given with the `--seed`
+    option.
+
+    When either `--fetch` or `--announce` are specified, this command
+    will only fetch or announce.
 
 Options
 
-    --fetch, -f         Fetch from seeds instead of having seeds fetch from us
+    --fetch, -f         Fetch from seeds
+    --announce, -a      Announce refs to seeds
     --seed <nid>        Seed to fetch from (use with `--fetch`)
     --timeout <secs>    How many seconds to wait while syncing
     --verbose, -v       Verbose output
@@ -39,11 +47,12 @@ Options
 "#,
 };
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub enum SyncMode {
     Fetch,
-    #[default]
     Announce,
+    #[default]
+    Both,
 }
 
 #[derive(Default, Debug)]
@@ -76,8 +85,11 @@ impl Args for Options {
                     let val = term::args::nid(&val)?;
                     seed = Some(val);
                 }
-                Long("fetch") | Short('f') => {
+                Long("fetch") | Short('f') if mode == SyncMode::Both => {
                     mode = SyncMode::Fetch;
+                }
+                Long("announce") | Short('a') if mode == SyncMode::Both => {
+                    mode = SyncMode::Announce;
                 }
                 Long("timeout") | Short('t') => {
                     let value = parser.value()?;
@@ -127,6 +139,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     match options.mode {
         SyncMode::Announce => announce(rid, node, options.timeout),
         SyncMode::Fetch => fetch(rid, profile, &mut node, options.seed),
+        SyncMode::Both => {
+            fetch(rid, profile, &mut node, options.seed)?;
+            announce(rid, node, options.timeout)?;
+
+            Ok(())
+        }
     }
 }
 
