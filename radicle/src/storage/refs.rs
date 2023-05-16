@@ -315,6 +315,18 @@ impl SignedRefs<Verified> {
 
         let sigref = sigref.with_namespace(remote.into());
         let author = repo.raw().signature()?;
+
+        #[cfg(debug_assertions)]
+        let author = if let Ok(s) = std::env::var("RAD_COMMIT_TIME") {
+            // SAFETY: Only used in test code.
+            #[allow(clippy::unwrap_used)]
+            let timestamp = s.trim().parse::<i64>().unwrap();
+            let time = git2::Time::new(timestamp, 0);
+            git2::Signature::new("radicle", remote.to_string().as_str(), &time)?
+        } else {
+            author
+        };
+
         let commit = repo.raw().commit(
             Some(&sigref),
             &author,
