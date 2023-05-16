@@ -59,6 +59,7 @@ pub mod setup {
             let oid = commit(&self.working, &refname, blobs, &[&parent]);
 
             git::push(&self.working, &REMOTE_NAME, [(&refname, &refname)]).unwrap();
+
             BranchWith {
                 base: base.into(),
                 oid,

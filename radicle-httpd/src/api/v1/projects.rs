@@ -1745,6 +1745,7 @@ mod routes {
                 "state": { "status": "open" },
                 "target": "delegates",
                 "tags": [],
+                "merges": [],
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
@@ -1754,7 +1755,6 @@ mod routes {
                     "refs": [
                       "refs/heads/master",
                     ],
-                    "merges": [],
                     "discussions": [],
                     "timestamp": TIMESTAMP,
                     "reviews": [],
@@ -1784,6 +1784,7 @@ mod routes {
                 "state": { "status": "open" },
                 "target": "delegates",
                 "tags": [],
+                "merges": [],
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
@@ -1793,7 +1794,6 @@ mod routes {
                     "refs": [
                       "refs/heads/master",
                     ],
-                    "merges": [],
                     "discussions": [],
                     "timestamp": TIMESTAMP,
                     "reviews": [],
@@ -1862,6 +1862,7 @@ mod routes {
                 "state": { "status": "open" },
                 "target": "delegates",
                 "tags": [],
+                "merges": [],
                 "revisions": [
                   {
                     "id": CREATED_PATCH_ID,
@@ -1871,7 +1872,6 @@ mod routes {
                     "refs": [
                       "refs/heads/master",
                     ],
-                    "merges": [],
                     "discussions": [],
                     "timestamp": TIMESTAMP,
                     "reviews": [],
@@ -1925,6 +1925,7 @@ mod routes {
                 "bug",
                 "design"
               ],
+              "merges": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -1934,7 +1935,6 @@ mod routes {
                   "refs": [
                     "refs/heads/master",
                   ],
-                  "merges": [],
                   "discussions": [],
                   "timestamp": TIMESTAMP,
                   "reviews": [],
@@ -1985,6 +1985,7 @@ mod routes {
               "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
+              "merges": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -1994,7 +1995,6 @@ mod routes {
                   "refs": [
                     "refs/heads/master",
                   ],
-                  "merges": [],
                   "discussions": [],
                   "timestamp": TIMESTAMP,
                   "reviews": [],
@@ -2007,7 +2007,6 @@ mod routes {
                   "refs": [
                     "refs/heads/master",
                   ],
-                  "merges": [],
                   "discussions": [],
                   "timestamp": TIMESTAMP,
                   "reviews": [],
@@ -2058,6 +2057,7 @@ mod routes {
               "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
+              "merges": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2067,7 +2067,6 @@ mod routes {
                   "refs": [
                     "refs/heads/master",
                   ],
-                  "merges": [],
                   "discussions": [],
                   "timestamp": TIMESTAMP,
                   "reviews": [],
@@ -2140,6 +2139,7 @@ mod routes {
               "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
+              "merges": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2149,7 +2149,6 @@ mod routes {
                   "refs": [
                     "refs/heads/master",
                   ],
-                  "merges": [],
                   "discussions": [
                     {
                       "id": CONTRIBUTOR_COMMENT_1,
@@ -2236,6 +2235,7 @@ mod routes {
               "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
+              "merges": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2245,7 +2245,6 @@ mod routes {
                   "refs": [
                     "refs/heads/master",
                   ],
-                  "merges": [],
                   "discussions": [],
                   "timestamp": TIMESTAMP,
                   "reviews": [
@@ -2316,9 +2315,19 @@ mod routes {
               },
               "title": "A new `hello world`",
               "description": "change `hello world` in README to something else",
-              "state": { "status": "merged" },
+              "state": {
+                  "status": "merged",
+                  "revision": CONTRIBUTOR_PATCH_ID,
+                  "commit": PARENT,
+              },
               "target": "delegates",
               "tags": [],
+              "merges": [{
+                  "author": CONTRIBUTOR_NID,
+                  "revision": CONTRIBUTOR_PATCH_ID,
+                  "commit": PARENT,
+                  "timestamp": TIMESTAMP,
+              }],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2327,13 +2336,6 @@ mod routes {
                   "oid": HEAD,
                   "refs": [
                     "refs/heads/master",
-                  ],
-                  "merges": [
-                    {
-                      "node": CONTRIBUTOR_NID,
-                      "commit": PARENT,
-                      "timestamp": TIMESTAMP,
-                    },
                   ],
                   "discussions": [],
                   "timestamp": TIMESTAMP,

@@ -101,6 +101,27 @@ pub enum OperationName {
     Edit,
 }
 
+pub struct Filter(fn(&patch::State) -> bool);
+
+impl Filter {
+    /// Match everything.
+    fn all() -> Self {
+        Self(|_| true)
+    }
+}
+
+impl Default for Filter {
+    fn default() -> Self {
+        Self(|state| matches!(state, patch::State::Open { .. }))
+    }
+}
+
+impl std::fmt::Debug for Filter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Filter(..)")
+    }
+}
+
 #[derive(Debug)]
 pub enum Operation {
     Open {
@@ -131,7 +152,7 @@ pub enum Operation {
         patch_id: Rev,
     },
     List {
-        filter: Option<patch::State>,
+        filter: Filter,
     },
     Edit {
         patch_id: Rev,
@@ -160,7 +181,7 @@ impl Args for Options {
         let mut patch_id = None;
         let mut message = Message::default();
         let mut push = true;
-        let mut filter = Some(patch::State::Open);
+        let mut filter = Filter::default();
         let mut diff = false;
         let mut draft = false;
         let mut undo = false;
@@ -220,19 +241,19 @@ impl Args for Options {
 
                 // List options.
                 Long("all") => {
-                    filter = None;
+                    filter = Filter::all();
                 }
                 Long("draft") => {
-                    filter = Some(patch::State::Draft);
+                    filter = Filter(|s| s == &patch::State::Draft);
                 }
                 Long("archived") => {
-                    filter = Some(patch::State::Archived);
+                    filter = Filter(|s| s == &patch::State::Archived);
                 }
                 Long("merged") => {
-                    filter = Some(patch::State::Merged);
+                    filter = Filter(|s| matches!(s, patch::State::Merged { .. }));
                 }
                 Long("open") => {
-                    filter = Some(patch::State::Open);
+                    filter = Filter(|s| matches!(s, patch::State::Open { .. }));
                 }
 
                 // Common.
@@ -352,8 +373,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 options,
             )?;
         }
-        Operation::List { filter } => {
-            list::run(&repository, &profile, filter)?;
+        Operation::List { filter: Filter(f) } => {
+            list::run(&repository, &profile, f)?;
         }
         Operation::Show { patch_id, diff } => {
             let patch_id = patch_id.resolve(&repository.backend)?;

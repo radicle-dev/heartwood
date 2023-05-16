@@ -105,10 +105,10 @@ pub fn run(
     attrs.push([
         term::format::tertiary("Status".to_owned()).into(),
         match state {
-            patch::State::Open => term::format::positive(state.to_string()),
+            patch::State::Open { .. } => term::format::positive(state.to_string()),
             patch::State::Draft => term::format::dim(state.to_string()),
             patch::State::Archived => term::format::yellow(state.to_string()),
-            patch::State::Merged => term::format::primary(state.to_string()),
+            patch::State::Merged { .. } => term::format::primary(state.to_string()),
         }
         .into(),
     ]);

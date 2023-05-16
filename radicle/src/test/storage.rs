@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use git_ext::ref_format as fmt;
 
@@ -222,11 +223,11 @@ impl ReadRepository for MockRepository {
     }
 
     fn identity_head(&self) -> Result<Oid, IdentityError> {
-        todo!()
+        self.canonical_identity_head()
     }
 
     fn canonical_identity_head(&self) -> Result<Oid, IdentityError> {
-        todo!()
+        Ok(Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap())
     }
 }
 

@@ -7,10 +7,15 @@ use serde::Serialize;
 
 use crate::cob::common::clock;
 use crate::cob::op::{Op, Ops};
+use crate::cob::patch;
+use crate::cob::patch::Patch;
 use crate::cob::store::encoding;
 use crate::cob::History;
 use crate::crypto::{PublicKey, Signer};
+use crate::git;
 use crate::git::Oid;
+use crate::prelude::Did;
+use crate::storage::ReadRepository;
 use crate::test::arbitrary;
 
 use super::store::FromHistory;
@@ -146,22 +151,62 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
     }
 
     /// Create a new operation.
-    pub fn op(&mut self, action: A) -> Op<A> {
+    pub fn op_with(&mut self, action: A, clock: clock::Lamport, identity: Oid) -> Op<A> {
         let id = arbitrary::oid().into();
         let author = *self.signer.public_key();
-        let clock = self.clock.tick();
         let timestamp = clock::Physical::now();
-        let identity = arbitrary::oid();
-        let op = Op {
+
+        Op {
             id,
             action,
             author,
             clock,
             timestamp,
             identity,
-        };
-        self.ops.insert((self.clock, author), op.clone());
+        }
+    }
+
+    /// Create a new operation.
+    pub fn op(&mut self, action: A) -> Op<A> {
+        let clock = self.clock.tick();
+        let identity = arbitrary::oid();
+        let op = self.op_with(action, clock, identity);
+
+        self.ops.insert((self.clock, op.author), op.clone());
 
         op
+    }
+
+    /// Get the actor's DID.
+    pub fn did(&self) -> Did {
+        self.signer.public_key().into()
+    }
+}
+
+impl<G: Signer> Actor<G, super::patch::Action> {
+    /// Create a patch.
+    pub fn patch<R: ReadRepository>(
+        &mut self,
+        title: impl ToString,
+        description: impl ToString,
+        base: git::Oid,
+        oid: git::Oid,
+        repo: &R,
+    ) -> Result<Patch, patch::ApplyError> {
+        Patch::from_ops(
+            [
+                self.op(patch::Action::Revision {
+                    description: description.to_string(),
+                    base,
+                    oid,
+                }),
+                self.op(patch::Action::Edit {
+                    title: title.to_string(),
+                    description: description.to_string(),
+                    target: patch::MergeTarget::default(),
+                }),
+            ],
+            repo,
+        )
     }
 }

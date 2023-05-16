@@ -1,4 +1,5 @@
 #![allow(clippy::too_many_arguments)]
+use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
 use std::ops::Range;
@@ -11,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use radicle_crdt::clock;
-use radicle_crdt::{GMap, GSet, LWWReg, LWWSet, Lamport, Max, Redactable, Semilattice};
+use radicle_crdt::{GMap, GSet, LWWMap, LWWReg, LWWSet, Lamport, Max, Redactable, Semilattice};
 
 use crate::cob;
 use crate::cob::common::{Author, Tag, Timestamp};
@@ -64,6 +65,9 @@ pub enum ApplyError {
     /// Error loading the identity document committed to by an operation.
     #[error("identity doc failed to load: {0}")]
     Doc(#[from] DocError),
+    /// The merge operation is invalid.
+    #[error("invalid merge operation in {0}")]
+    InvalidMerge(EntryId),
 }
 
 /// Error updating or creating patches.
@@ -157,6 +161,8 @@ pub struct Patch {
     target: LWWReg<Max<MergeTarget>>,
     /// Associated tags.
     tags: LWWSet<Tag>,
+    /// Patch merges.
+    merges: LWWMap<ActorId, Redactable<Merge>>,
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
     revisions: GMap<RevisionId, Redactable<Revision>>,
@@ -170,6 +176,7 @@ impl Semilattice for Patch {
         self.description.merge(other.description);
         self.state.merge(other.state);
         self.target.merge(other.target);
+        self.merges.merge(other.merges);
         self.tags.merge(other.tags);
         self.revisions.merge(other.revisions);
         self.timeline.merge(other.timeline);
@@ -184,6 +191,7 @@ impl Default for Patch {
             state: LWWReg::initial(Max::from(State::default())),
             target: LWWReg::initial(Max::from(MergeTarget::default())),
             tags: LWWSet::default(),
+            merges: LWWMap::default(),
             revisions: GMap::default(),
             timeline: GSet::default(),
         }
@@ -197,8 +205,8 @@ impl Patch {
     }
 
     /// Current state of the patch.
-    pub fn state(&self) -> State {
-        *self.state.get().get()
+    pub fn state(&self) -> &State {
+        self.state.get().get()
     }
 
     /// Target this patch is meant to be merged in.
@@ -253,6 +261,13 @@ impl Patch {
         })
     }
 
+    /// Get the merges.
+    pub fn merges(&self) -> impl Iterator<Item = (&ActorId, &Merge)> {
+        self.merges
+            .iter()
+            .filter_map(|(a, m)| m.get().map(|m| (a, m)))
+    }
+
     /// Reference to the Git object containing the code on the latest revision.
     pub fn head(&self) -> &git::Oid {
         &self
@@ -287,7 +302,7 @@ impl Patch {
 
     /// Check if the patch is open.
     pub fn is_open(&self) -> bool {
-        matches!(self.state(), State::Open)
+        matches!(self.state(), State::Open { .. })
     }
 
     /// Check if the patch is archived.
@@ -404,25 +419,56 @@ impl store::FromHistory for Patch {
                     }
                 }
                 Action::Merge { revision, commit } => {
-                    if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                        revision.merges.insert(
-                            Merge {
-                                node: op.author,
+                    if let Some(Redactable::Present(_)) = self.revisions.get_mut(&revision) {
+                        let doc = repo.identity_doc_at(op.identity)?;
+                        if !doc.is_delegate(&op.author) {
+                            return Err(ApplyError::InvalidMerge(op.id));
+                        }
+                        self.merges.insert(
+                            op.author,
+                            Redactable::Present(Merge {
+                                revision,
                                 commit,
                                 timestamp,
-                            }
-                            .into(),
+                            }),
                             op.clock,
                         );
-                        let doc = repo.identity_doc_at(op.identity)?;
 
-                        if revision
-                            .merges()
-                            .filter(|m| doc.is_delegate(&m.node))
-                            .count()
-                            >= doc.threshold
-                        {
-                            self.state.set(State::Merged, op.clock);
+                        let mut merges = self.merges.iter().fold(
+                            HashMap::<(RevisionId, git::Oid), usize>::new(),
+                            |mut acc, (_, merge)| {
+                                if let Some(merge) = merge.get() {
+                                    *acc.entry((merge.revision, merge.commit)).or_default() += 1;
+                                }
+                                acc
+                            },
+                        );
+                        // Discard revisions that weren't merged by a threshold of delegates.
+                        merges.retain(|_, count| *count >= doc.threshold);
+
+                        match merges.into_keys().collect::<Vec<_>>().as_slice() {
+                            [] => {
+                                // None of the revisions met the quorum.
+                            }
+                            [(revision, commit)] => {
+                                // Patch is merged.
+                                self.state.set(
+                                    State::Merged {
+                                        revision: *revision,
+                                        commit: *commit,
+                                    },
+                                    op.clock,
+                                );
+                            }
+                            revisions => {
+                                // More than one revision met the quorum.
+                                self.state.set(
+                                    State::Open {
+                                        conflicts: revisions.to_vec(),
+                                    },
+                                    op.clock,
+                                );
+                            }
                         }
                     } else {
                         return Err(ApplyError::Missing(revision));
@@ -466,8 +512,6 @@ pub struct Revision {
     oid: git::Oid,
     /// Discussion around this revision.
     discussion: Thread,
-    /// Merges of this revision into other repositories.
-    merges: LWWSet<Max<Merge>>,
     /// Reviews of this revision's changes (one per actor).
     reviews: GMap<ActorId, Review>,
     /// When this revision was created.
@@ -489,7 +533,6 @@ impl Revision {
             base,
             oid,
             discussion: Thread::default(),
-            merges: LWWSet::default(),
             reviews: GMap::default(),
             timestamp,
         }
@@ -524,11 +567,6 @@ impl Revision {
         &self.discussion
     }
 
-    /// Merges of this revision into other repositories.
-    pub fn merges(&self) -> impl Iterator<Item = &Merge> {
-        self.merges.iter().map(|m| m.get())
-    }
-
     /// Reviews of this revision's changes (one per actor).
     pub fn reviews(&self) -> impl DoubleEndedIterator<Item = (&PublicKey, &Review)> {
         self.reviews.iter()
@@ -536,14 +574,29 @@ impl Revision {
 }
 
 /// Patch state.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
 pub enum State {
-    #[default]
-    Open,
     Draft,
+    Open {
+        /// Revisions that were merged and are conflicting.
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        #[serde(default)]
+        conflicts: Vec<(RevisionId, git::Oid)>,
+    },
     Archived,
-    Merged,
+    Merged {
+        /// The revision that was merged.
+        revision: RevisionId,
+        /// The commit in the target branch that contains the changes.
+        commit: git::Oid,
+    },
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self::Open { conflicts: vec![] }
+    }
 }
 
 impl fmt::Display for State {
@@ -551,8 +604,8 @@ impl fmt::Display for State {
         match self {
             Self::Archived => write!(f, "archived"),
             Self::Draft => write!(f, "draft"),
-            Self::Open => write!(f, "open"),
-            Self::Merged => write!(f, "merged"),
+            Self::Open { .. } => write!(f, "open"),
+            Self::Merged { .. } => write!(f, "merged"),
         }
     }
 }
@@ -561,11 +614,11 @@ impl fmt::Display for State {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
 pub struct Merge {
-    /// Owner of repository that this patch was merged into.
-    pub node: NodeId,
+    /// Revision that was merged.
+    pub revision: RevisionId,
     /// Base branch commit that contains the revision.
     pub commit: git::Oid,
-    /// When this merged was performed.
+    /// When this merge was performed.
     pub timestamp: Timestamp,
 }
 
@@ -1002,14 +1055,14 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         if !self.is_draft() {
             return Ok(false);
         }
-        self.lifecycle(State::Open, signer)?;
+        self.lifecycle(State::Open { conflicts: vec![] }, signer)?;
 
         Ok(true)
     }
 
-    /// Mark an open patch as a draft. Returns `false` if the patch was not open.
+    /// Mark an open patch as a draft. Returns `false` if the patch was not open and free of merges.
     pub fn unready<G: Signer>(&mut self, signer: &G) -> Result<bool, Error> {
-        if !self.is_open() {
+        if !matches!(self.state(), State::Open { conflicts } if conflicts.is_empty()) {
             return Ok(false);
         }
         self.lifecycle(State::Draft, signer)?;
@@ -1120,9 +1173,9 @@ impl<'a> Patches<'a> {
                 .fold(PatchCounts::default(), |mut state, (_, p, _)| {
                     match p.state() {
                         State::Draft => state.draft += 1,
-                        State::Open => state.open += 1,
+                        State::Open { .. } => state.open += 1,
                         State::Archived => state.archived += 1,
-                        State::Merged => state.merged += 1,
+                        State::Merged { .. } => state.merged += 1,
                     }
                     state
                 });
@@ -1229,10 +1282,12 @@ mod test {
 
     use radicle_crdt::test::{assert_laws, WeightedGenerator};
 
+    use nonempty::nonempty;
     use pretty_assertions::assert_eq;
     use qcheck::{Arbitrary, TestResult};
 
     use super::*;
+    use crate::assert_matches;
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
     use crate::test;
@@ -1429,7 +1484,7 @@ mod test {
         assert_eq!(patch.title(), "My first patch");
         assert_eq!(patch.description(), "Blah blah blah.");
         assert_eq!(patch.author().id(), &author);
-        assert_eq!(patch.state(), State::Open);
+        assert_eq!(patch.state(), &State::Open { conflicts: vec![] });
         assert_eq!(patch.target(), target);
         assert_eq!(patch.version(), 0);
 
@@ -1504,13 +1559,63 @@ mod test {
 
         let patch = patches.get(&id).unwrap().unwrap();
 
-        let (_, r) = patch.revisions().next().unwrap();
-        let merges = r.merges.iter().collect::<Vec<_>>();
+        let merges = patch.merges.iter().collect::<Vec<_>>();
         assert_eq!(merges.len(), 1);
 
-        let merge = merges.first().unwrap();
-        assert_eq!(merge.node, *signer.public_key());
-        assert_eq!(merge.commit, pr.base);
+        let (merger, merge) = merges.first().unwrap();
+        assert_eq!(*merger, signer.public_key());
+        assert_eq!(merge.get().unwrap().commit, pr.base);
+    }
+
+    #[test]
+    fn test_patch_merge_and_archive() {
+        let rid = gen::<Id>(1);
+        let base = git::Oid::from_str("d8711a8d43dc919fe39ae4b7c2f7b24667f5d470").unwrap();
+        let commit = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+
+        let mut alice = Actor::<MockSigner, _>::default();
+        let mut bob = Actor::<MockSigner, _>::default();
+
+        let proj = gen::<Project>(1);
+        let doc = Doc::new(proj, nonempty![alice.did(), bob.did()], 1)
+            .verified()
+            .unwrap();
+        let repo = MockRepository::new(rid, doc);
+        let patch = alice
+            .patch("Some changes", "", base, commit, &repo)
+            .unwrap();
+        let (revision, _) = patch.revisions().next().unwrap();
+
+        // Create two concurrent operations.
+        let clock = Lamport::from(2);
+        let identity = repo.identity_head().unwrap();
+        let ops = [
+            alice.op_with(
+                Action::Merge {
+                    revision: *revision,
+                    commit,
+                },
+                clock,
+                identity,
+            ),
+            bob.op_with(
+                Action::Lifecycle {
+                    state: State::Archived,
+                },
+                clock,
+                identity,
+            ),
+        ];
+
+        let mut patch1 = patch.clone();
+        let mut patch2 = patch.clone();
+
+        // Apply the ops in different orders and expect the patch state to remain the same.
+        patch1.apply(ops.iter().cloned(), &repo).unwrap();
+        patch2.apply(ops.iter().cloned().rev(), &repo).unwrap();
+
+        assert_matches!(patch1.state(), &State::Merged { .. });
+        assert_matches!(patch2.state(), &State::Merged { .. });
     }
 
     #[test]
@@ -1615,8 +1720,12 @@ mod test {
     fn test_revision_merge_reinsert() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let repo = gen::<MockRepository>(1);
+        let id = gen::<Id>(1);
         let mut alice = Actor::<_, Action>::new(MockSigner::default());
+        let mut doc = gen::<Doc<Verified>>(1);
+        doc.delegates.push(alice.signer.public_key().into());
+        let repo = MockRepository::new(id, doc);
+
         let mut p1 = Patch::default();
         let mut p2 = Patch::default();
 

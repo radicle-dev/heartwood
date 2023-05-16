@@ -123,6 +123,14 @@ pub(crate) fn patch(
         "state": patch.state(),
         "target": patch.target(),
         "tags": patch.tags().collect::<Vec<_>>(),
+        "merges": patch.merges().map(|(a, m)| {
+            json!({
+                "author": a,
+                "revision": m.revision,
+                "commit": m.commit,
+                "timestamp": m.timestamp
+            })
+        }).collect::<Vec<_>>(),
         "revisions": patch.revisions().map(|(id, rev)| {
             json!({
                 "id": id,
@@ -130,7 +138,6 @@ pub(crate) fn patch(
                 "base": rev.base(),
                 "oid": rev.head(),
                 "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or(vec![]),
-                "merges": rev.merges().collect::<Vec<_>>(),
                 "discussions": rev.discussion().comments()
                   .map(|(id, comment)| Comment::new(id, comment, rev.discussion(), aliases))
                   .collect::<Vec<_>>(),

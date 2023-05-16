@@ -16,7 +16,7 @@ use super::common;
 pub fn run(
     repository: &Repository,
     profile: &Profile,
-    filter: Option<patch::State>,
+    filter: fn(&patch::State) -> bool,
 ) -> anyhow::Result<()> {
     let patches = Patches::open(repository)?;
 
@@ -24,10 +24,8 @@ pub fn run(
     for patch in patches.all()? {
         let (id, patch, _) = patch?;
 
-        if let Some(filter) = filter {
-            if patch.state() != filter {
-                continue;
-            }
+        if !filter(patch.state()) {
+            continue;
         }
         all.push((id, patch));
     }
@@ -105,7 +103,7 @@ pub fn row(
 
     Ok([
         match state {
-            patch::State::Open => term::format::positive("●").into(),
+            patch::State::Open { .. } => term::format::positive("●").into(),
             patch::State::Archived { .. } => term::format::yellow("●").into(),
             patch::State::Draft => term::format::dim("●").into(),
             patch::State::Merged { .. } => term::format::primary("✔").into(),
@@ -172,8 +170,8 @@ pub fn timeline(
             ));
         }
 
-        for merge in revision.merges() {
-            let peer = repository.remote(&merge.node)?;
+        for (nid, merge) in patch.merges().filter(|(_, m)| m.revision == *revision_id) {
+            let peer = repository.remote(nid)?;
             let mut badges = Vec::new();
 
             if peer.id == *whoami {

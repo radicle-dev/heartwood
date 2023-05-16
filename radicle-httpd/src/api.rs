@@ -153,10 +153,10 @@ pub enum PatchState {
 impl PatchState {
     pub fn matches(&self, patch: &patch::State) -> bool {
         match self {
-            Self::Open => matches!(patch, patch::State::Open),
+            Self::Open => matches!(patch, patch::State::Open { .. }),
             Self::Draft => matches!(patch, patch::State::Draft),
             Self::Archived => matches!(patch, patch::State::Archived),
-            Self::Merged => matches!(patch, patch::State::Merged),
+            Self::Merged => matches!(patch, patch::State::Merged { .. }),
         }
     }
 }
