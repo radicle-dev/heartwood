@@ -18,10 +18,11 @@ use super::{HomeMessage, Message, PatchMessage};
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
 /// each component used.
+///
+/// TODO: should handle `Event::WindowResize`, which is not emitted by `termion`.
 impl tuirealm::Component<Message, NoUserEvent> for Widget<GlobalListener> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
-            Event::WindowResize(_, _) => Some(Message::Tick),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('q'),
                 ..
