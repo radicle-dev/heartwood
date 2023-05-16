@@ -383,7 +383,12 @@ impl SignedRefsAt {
     where
         S: ReadRepository,
     {
-        let at = repo.reference_oid(&remote, &SIGREFS_BRANCH)?;
+        let at = match repo.reference_oid(&remote, &SIGREFS_BRANCH) {
+            Ok(at) => at,
+            Err(git::ext::Error::NotFound(_)) => return Ok(None),
+            Err(git::ext::Error::Git(e)) if git::is_not_found_err(&e) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
         Self::load_at(at, remote, repo).map(Some)
     }
 
@@ -395,6 +400,10 @@ impl SignedRefsAt {
             sigrefs: SignedRefs::load_at(at, remote, repo)?,
             at,
         })
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&git::RefString, &Oid)> {
+        self.sigrefs.refs.iter()
     }
 }
 

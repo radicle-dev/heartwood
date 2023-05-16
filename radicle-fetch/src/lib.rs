@@ -1,0 +1,106 @@
+pub mod git;
+pub mod handle;
+pub mod tracking;
+pub mod transport;
+
+pub(crate) mod sigrefs;
+
+mod refs;
+mod stage;
+mod state;
+
+pub use handle::Handle;
+pub use state::{FetchLimit, FetchResult};
+pub use tracking::{BlockList, Scope, Tracked};
+pub use transport::Transport;
+
+use std::io;
+
+use radicle::crypto::PublicKey;
+use state::FetchState;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("failed to perform fetch handshake")]
+    Handshake {
+        #[source]
+        err: io::Error,
+    },
+    #[error("failed to load `rad/id`")]
+    Identity {
+        #[source]
+        err: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+    #[error(transparent)]
+    Protocol(#[from] state::error::Protocol),
+    #[error("missing `rad/id`")]
+    MissingRadId,
+    #[error("attempted to replicate from self")]
+    ReplicateSelf,
+}
+
+/// Pull changes from the `remote`.
+///
+/// It is expected that the local peer has a copy of the repository
+/// and is pulling new changes. If the repository does not exist, then
+/// [`clone`] should be used.
+pub fn pull<S>(
+    handle: &mut Handle<S>,
+    limit: FetchLimit,
+    remote: PublicKey,
+) -> Result<FetchResult, Error>
+where
+    S: transport::ConnectionStream,
+{
+    let local = *handle.local();
+    if local == remote {
+        return Err(Error::ReplicateSelf);
+    }
+    let state = FetchState::default();
+    let handshake = handle
+        .transport
+        .handshake()
+        .map_err(|err| Error::Handshake { err })?;
+    // N.b. ensure that we ignore the local peer's key.
+    handle.blocked.extend([local]);
+    state
+        .run(handle, &handshake, limit, remote)
+        .map_err(Error::Protocol)
+}
+
+/// Clone changes from the `remote`.
+///
+/// It is expected that the local peer has an empty repository which
+/// they want to populate with the `remote`'s view of the project.
+pub fn clone<S>(
+    handle: &mut Handle<S>,
+    limit: FetchLimit,
+    remote: PublicKey,
+) -> Result<FetchResult, Error>
+where
+    S: transport::ConnectionStream,
+{
+    if *handle.local() == remote {
+        return Err(Error::ReplicateSelf);
+    }
+    let handshake = handle
+        .transport
+        .handshake()
+        .map_err(|err| Error::Handshake { err })?;
+    let mut state = FetchState::default();
+    state
+        .run_stage(
+            handle,
+            &handshake,
+            &stage::CanonicalId {
+                remote,
+                limit: limit.special,
+            },
+        )
+        .map_err(|e| Error::from(state::error::Protocol::from(e)))?;
+
+    state
+        .run(handle, &handshake, limit, remote)
+        .map_err(Error::Protocol)
+}
