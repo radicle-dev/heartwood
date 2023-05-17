@@ -3,62 +3,19 @@ pub mod context;
 pub mod label;
 pub mod list;
 
-use std::marker::PhantomData;
-
-use radicle::Profile;
-
-use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::{AttrValue, Attribute, PropPayload, PropValue, TextSpan};
-use tuirealm::tui::layout::Rect;
-use tuirealm::{Frame, MockComponent, Props, State};
+use tuirealm::props::{AttrValue, Attribute};
+use tuirealm::MockComponent;
 
 use container::{GlobalListener, Header, LabeledContainer, Tabs};
 use context::{Shortcut, Shortcuts};
 use label::Label;
-use list::{List, Property, PropertyList, Table};
+use list::{Property, PropertyList};
 
-use super::{Widget, WidgetComponent};
+use self::list::{ColumnWidth, TableModel};
 
-use crate::ui::layout;
+use super::Widget;
+
 use crate::ui::theme::Theme;
-
-pub struct Browser<T> {
-    list: Widget<Table>,
-    shortcuts: Widget<Shortcuts>,
-    phantom: PhantomData<T>,
-}
-
-impl<T: List> Browser<T> {
-    pub fn new(list: Widget<Table>, shortcuts: Widget<Shortcuts>) -> Self {
-        Self {
-            list,
-            shortcuts,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<T: List> WidgetComponent for Browser<T> {
-    fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
-        let shortcuts_h = self
-            .shortcuts
-            .query(Attribute::Height)
-            .unwrap_or(AttrValue::Size(0))
-            .unwrap_size();
-        let layout = layout::root_component(area, shortcuts_h);
-
-        self.list.view(frame, layout[0]);
-        self.shortcuts.view(frame, layout[1]);
-    }
-
-    fn state(&self) -> State {
-        State::None
-    }
-
-    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
-        self.list.perform(cmd)
-    }
-}
 
 pub fn global_listener() -> Widget<GlobalListener> {
     Widget::new(GlobalListener::default())
@@ -76,34 +33,14 @@ pub fn label(content: &str) -> Widget<Label> {
 
 pub fn reversable_label(content: &str) -> Widget<Label> {
     let content = &format!(" {content} ");
+
     label(content)
 }
 
-pub fn container_header(theme: &Theme, label: &str) -> Widget<Header> {
-    let content = AttrValue::Payload(PropPayload::Vec(vec![PropValue::TextSpan(
-        TextSpan::from(&format!(" {label} ")).fg(theme.colors.default_fg),
-    )]));
-    let widths = AttrValue::Payload(PropPayload::Vec(vec![PropValue::U16(100)]));
+pub fn container_header(theme: &Theme, label: Widget<Label>) -> Widget<Header<(), 1>> {
+    let model = TableModel::new([label], [ColumnWidth::Fixed(100)]);
 
-    Widget::new(Header::default())
-        .content(content)
-        .custom("widths", widths)
-}
-
-pub fn table_header(theme: &Theme, labels: &[&str], widths: &[u16]) -> Widget<Header> {
-    let content = labels
-        .iter()
-        .map(|label| {
-            PropValue::TextSpan(TextSpan::from(label.to_string()).fg(theme.colors.default_fg))
-        })
-        .collect::<Vec<_>>();
-    let widths = AttrValue::Payload(PropPayload::Vec(
-        widths.iter().map(|w| PropValue::U16(*w)).collect(),
-    ));
-
-    Widget::new(Header::default())
-        .content(AttrValue::Payload(PropPayload::Vec(content)))
-        .custom("widths", widths)
+    Widget::new(Header::new(model, theme.clone()))
 }
 
 pub fn labeled_container(
@@ -111,7 +48,10 @@ pub fn labeled_container(
     title: &str,
     component: Box<dyn MockComponent>,
 ) -> Widget<LabeledContainer> {
-    let header = container_header(theme, title);
+    let header = container_header(
+        theme,
+        label(&format!(" {title} ")).foreground(theme.colors.default_fg),
+    );
     let container = LabeledContainer::new(header, component);
 
     Widget::new(container)
@@ -169,27 +109,4 @@ pub fn tabs(theme: &Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
     let tabs = Tabs::new(tabs, line);
 
     Widget::new(tabs).height(2)
-}
-
-pub fn table(
-    theme: &Theme,
-    labels: &[&str],
-    widths: &[u16],
-    items: &[impl List],
-    profile: &Profile,
-) -> Widget<Table> {
-    let items = items.iter().map(|item| item.row(theme, profile)).collect();
-
-    let header = table_header(theme, labels, widths);
-    let table = Table::new(header);
-
-    let widths = AttrValue::Payload(PropPayload::Vec(
-        widths.iter().map(|w| PropValue::U16(*w)).collect(),
-    ));
-
-    Widget::new(table)
-        .content(AttrValue::Table(items))
-        .custom("widths", widths)
-        .background(theme.colors.labeled_container_bg)
-        .highlight(theme.colors.item_list_highlighted_bg)
 }

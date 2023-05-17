@@ -1,21 +1,16 @@
-use radicle::cob::patch::{Patch, PatchId};
-
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
 use radicle_tui::ui::widget::common::container::{GlobalListener, LabeledContainer, Tabs};
 use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
-
 use radicle_tui::ui::widget::common::list::PropertyList;
-
-use radicle_tui::ui::widget::common::Browser;
-use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser};
+use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser, PatchBrowser};
 use radicle_tui::ui::widget::patch;
 
 use radicle_tui::ui::widget::Widget;
 
-use super::{HomeMessage, Message, PatchMessage};
+use super::{Message, PatchMessage};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -50,28 +45,24 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<Tabs> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<Browser<(PatchId, Patch)>> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchBrowser> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
-                match self.perform(Cmd::Move(MoveDirection::Up)) {
-                    CmdResult::Changed(State::One(StateValue::Usize(index))) => {
-                        Some(Message::Home(HomeMessage::PatchChanged(index)))
-                    }
-                    _ => Some(Message::Tick),
-                }
+                self.perform(Cmd::Move(MoveDirection::Up));
+                Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Down, ..
-            }) => match self.perform(Cmd::Move(MoveDirection::Down)) {
-                CmdResult::Changed(State::One(StateValue::Usize(index))) => {
-                    Some(Message::Home(HomeMessage::PatchChanged(index)))
-                }
-                _ => Some(Message::Tick),
-            },
+            }) => {
+                self.perform(Cmd::Move(MoveDirection::Down));
+                Some(Message::Tick)
+            }
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
-            }) => Some(Message::Patch(PatchMessage::Show)),
+            }) => self
+                .selected_item()
+                .map(|item| Message::Patch(PatchMessage::Show(item.id()))),
             _ => None,
         }
     }

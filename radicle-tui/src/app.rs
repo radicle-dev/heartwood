@@ -4,13 +4,13 @@ pub mod subscription;
 
 use anyhow::Result;
 
+use radicle::cob::patch::{PatchId, Patches};
 use radicle::identity::{Id, Project};
 use radicle::profile::Profile;
+use radicle::storage::ReadStorage;
 
 use tuirealm::application::PollStrategy;
 use tuirealm::{Application, Frame, NoUserEvent};
-
-use radicle_tui::cob::patch::{self};
 
 use radicle_tui::ui;
 use radicle_tui::ui::theme::{self, Theme};
@@ -45,13 +45,11 @@ pub enum Cid {
 
 /// Messages handled by this application.
 #[derive(Debug, Eq, PartialEq)]
-pub enum HomeMessage {
-    PatchChanged(usize),
-}
+pub enum HomeMessage {}
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum PatchMessage {
-    Show,
+    Show(PatchId),
     Leave,
 }
 
@@ -99,8 +97,7 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let patches = patch::load_all(&self.context.profile, self.context.id);
-        let home = Box::new(HomeView::new(patches));
+        let home = Box::<HomeView>::default();
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())
@@ -109,29 +106,26 @@ impl App {
     fn view_patch(
         &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
+        id: PatchId,
         theme: &Theme,
     ) -> Result<()> {
-        let page = self.pages.peek_mut()?;
-        let state = page.state().unwrap_map();
-        let patches = state
-            .and_then(|mut values| values.remove("patches"))
-            .and_then(|value| value.unwrap_patches());
+        let repo = self
+            .context
+            .profile
+            .storage
+            .repository(self.context.id)
+            .unwrap();
+        let patches = Patches::open(&repo).unwrap();
 
-        match patches {
-            Some((patches, selection)) => match patches.get(selection) {
-                Some((id, patch)) => {
-                    let view = Box::new(PatchView::new((*id, patch.clone())));
-                    self.pages.push(view, app, &self.context, theme)?;
+        if let Some(patch) = patches.get(&id)? {
+            let view = Box::new(PatchView::new((id, patch)));
+            self.pages.push(view, app, &self.context, theme)?;
 
-                    Ok(())
-                }
-                None => Err(anyhow::anyhow!(
-                    "Could not mount 'page::PatchView'. Patch not found."
-                )),
-            },
-            None => Err(anyhow::anyhow!(
-                "Could not mount 'page::PatchView'. No state value for 'patches' found."
-            )),
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Could not mount 'page::PatchView'. Patch not found."
+            ))
         }
     }
 }
@@ -159,8 +153,8 @@ impl Tui<Cid, Message> for App {
                 let theme = theme::default_dark();
                 for message in messages {
                     match message {
-                        Message::Patch(PatchMessage::Show) => {
-                            self.view_patch(app, &theme)?;
+                        Message::Patch(PatchMessage::Show(id)) => {
+                            self.view_patch(app, id, &theme)?;
                         }
                         Message::Patch(PatchMessage::Leave) => {
                             self.pages.pop(app)?;

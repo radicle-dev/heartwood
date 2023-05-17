@@ -179,8 +179,8 @@ pub fn context(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Wi
 
     let id = format::cob(&id);
     let title = patch.title();
-    let author = cob::format_author(patch, profile);
-    let comments = rev.discussion().comments().count();
+    let author = cob::format_author(patch.author().id(), is_you);
+    let comments = rev.discussion().len();
 
     let context = common::label(" patch ").background(theme.colors.context_badge_bg);
     let id = common::label(&format!(" {id} "))
