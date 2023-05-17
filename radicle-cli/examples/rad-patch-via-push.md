@@ -225,8 +225,8 @@ $ rad patch show 8678aaf
 │ b94a835 Add more things                                                                 │
 │ 42d894a Add things                                                                      │
 ├─────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) 4 months ago │
-│ ↑ updated to 4b6618a6ccb0b406659364a70a00bb60e4cd7cf0 (662843e) 4 months ago            │
-│ ↑ updated to 983f2d21c9fbe91c21ddfbcd3e3d6cd13db0a944 (3507cd5) 4 months ago            │
+│ ● opened by did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (you) [    ...   ] │
+│ ↑ updated to 4b6618a6ccb0b406659364a70a00bb60e4cd7cf0 (662843e) [    ...   ]            │
+│ ↑ updated to 983f2d21c9fbe91c21ddfbcd3e3d6cd13db0a944 (3507cd5) [    ...   ]            │
 ╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
