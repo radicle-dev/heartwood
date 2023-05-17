@@ -1,6 +1,8 @@
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::Profile;
 
+use radicle_cli::terminal::format;
+
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::Color;
 use tuirealm::tui::layout::Rect;
@@ -13,9 +15,8 @@ use super::common::container::Tabs;
 use super::common::context::{ContextBar, Shortcuts};
 use super::common::label::Label;
 
-use crate::ui::cob::patch;
-use crate::ui::layout;
 use crate::ui::theme::Theme;
+use crate::ui::{cob, layout};
 
 pub struct Activity {
     label: Widget<Label>,
@@ -173,10 +174,13 @@ pub fn files(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widg
 
 pub fn context(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widget<ContextBar> {
     let (id, patch) = patch;
-    let id = patch::format_id(id);
+    let (_, rev) = patch.latest();
+    let is_you = *patch.author().id() == profile.did();
+
+    let id = format::cob(&id);
     let title = patch.title();
-    let author = patch::format_author(patch, profile);
-    let comments = patch::format_comments(patch);
+    let author = cob::format_author(patch, profile);
+    let comments = rev.discussion().comments().count();
 
     let context = common::label(" patch ").background(theme.colors.context_badge_bg);
     let id = common::label(&format!(" {id} "))
