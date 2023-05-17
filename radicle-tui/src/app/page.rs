@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use anyhow::Result;
 
 use radicle::cob::patch::{Patch, PatchId};
@@ -9,7 +7,7 @@ use radicle_tui::ui::layout;
 use radicle_tui::ui::theme::Theme;
 use radicle_tui::ui::widget;
 
-use super::{subscription, Application, Cid, Context, HomeCid, HomeMessage, Message, PatchCid};
+use super::{subscription, Application, Cid, Context, HomeCid, Message, PatchCid};
 
 /// `tuirealm`'s event and prop system is designed to work with flat component hierarchies.
 /// Building deep nested component hierarchies would need a lot more additional effort to
@@ -40,9 +38,6 @@ pub trait ViewPage {
 
     /// Will be called whenever a view page is on top of the page stack and needs to be rendered.
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame);
-
-    /// Can be used to retrieve a view page's internal state in a unified form.
-    fn state(&self) -> PageState;
 }
 
 ///
@@ -50,14 +45,12 @@ pub trait ViewPage {
 ///
 pub struct HomeView {
     active_component: Cid,
-    patches: (Vec<(PatchId, Patch)>, usize),
 }
 
-impl HomeView {
-    pub fn new(patches: Vec<(PatchId, Patch)>) -> Self {
+impl Default for HomeView {
+    fn default() -> Self {
         HomeView {
             active_component: Cid::Home(HomeCid::Dashboard),
-            patches: (patches, 0),
         }
     }
 }
@@ -69,12 +62,11 @@ impl ViewPage for HomeView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let (patches, _) = &self.patches;
         let navigation = widget::home::navigation(theme).to_boxed();
 
         let dashboard = widget::home::dashboard(theme, &context.id, &context.project).to_boxed();
         let issue_browser = widget::home::issues(theme).to_boxed();
-        let patch_browser = widget::home::patches(theme, patches, &context.profile).to_boxed();
+        let patch_browser = widget::home::patches(theme, &context.id, &context.profile).to_boxed();
 
         app.remount(
             Cid::Home(HomeCid::Navigation),
@@ -104,14 +96,8 @@ impl ViewPage for HomeView {
         app: &mut Application<Cid, Message, NoUserEvent>,
         message: Message,
     ) -> Result<()> {
-        match message {
-            Message::NavigationChanged(index) => {
-                self.active_component = Cid::Home(HomeCid::from(index as usize));
-            }
-            Message::Home(HomeMessage::PatchChanged(index)) => {
-                self.patches.1 = index;
-            }
-            _ => {}
+        if let Message::NavigationChanged(index) = message {
+            self.active_component = Cid::Home(HomeCid::from(index as usize));
         }
         app.active(&self.active_component)?;
 
@@ -124,19 +110,6 @@ impl ViewPage for HomeView {
 
         app.view(&Cid::Home(HomeCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
-    }
-
-    fn state(&self) -> PageState {
-        let (patches, selected) = &self.patches;
-        PageState::Map(
-            [(
-                "patches".to_string(),
-                PageStateValue::Patches(patches.clone(), *selected),
-            )]
-            .iter()
-            .cloned()
-            .collect(),
-        )
     }
 }
 
@@ -208,42 +181,6 @@ impl ViewPage for PatchView {
 
         app.view(&Cid::Patch(PatchCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
-    }
-
-    fn state(&self) -> PageState {
-        PageState::None
-    }
-}
-
-/// Represents a state value that can be retrieved from a view page.
-#[derive(Clone)]
-pub enum PageStateValue {
-    /// List of patches and its selected patch
-    Patches(Vec<(PatchId, Patch)>, usize),
-}
-
-impl PageStateValue {
-    pub fn unwrap_patches(self) -> Option<(Vec<(PatchId, Patch)>, usize)> {
-        match self {
-            PageStateValue::Patches(patches, selection) => Some((patches, selection)),
-        }
-    }
-}
-
-/// View pages provide a way to retrieve their state in a unified manner
-/// in case that state needs to be passed to other pages.
-#[derive(Clone)]
-pub enum PageState {
-    None,
-    Map(HashMap<String, PageStateValue>),
-}
-
-impl PageState {
-    pub fn unwrap_map(self) -> Option<HashMap<String, PageStateValue>> {
-        match self {
-            PageState::Map(map) => Some(map),
-            _ => None,
-        }
     }
 }
 
