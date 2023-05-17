@@ -41,6 +41,11 @@ pub struct Icons {
     pub whitespace: char,
 }
 
+#[derive(Debug, Clone)]
+pub struct Tables {
+    pub spacing: u16,
+}
+
 /// The Radicle TUI theme. Will be defined in a JSON config file in the
 /// future. e.g.:
 /// {
@@ -60,6 +65,7 @@ pub struct Theme {
     pub name: String,
     pub colors: Colors,
     pub icons: Icons,
+    pub tables: Tables,
 }
 
 pub fn default_dark() -> Theme {
@@ -95,5 +101,6 @@ pub fn default_dark() -> Theme {
             tab_overline: '▔',
             whitespace: ' ',
         },
+        tables: Tables { spacing: 2 },
     }
 }
