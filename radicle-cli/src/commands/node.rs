@@ -3,6 +3,7 @@ use std::ffi::OsString;
 use anyhow::anyhow;
 
 use radicle::node::{Address, Node, NodeId, ROUTING_DB_FILE, TRACKING_DB_FILE};
+use radicle::prelude::Id;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -28,7 +29,7 @@ Usage
     rad node start [--daemon|-d] [<option>...] [-- <node-option>...]
     rad node stop [<option>...]
     rad node connect <nid> <addr> [<option>...]
-    rad node routing [<option>...]
+    rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
     rad node tracking [--repos|--nodes] [<option>...]
 
     For `<node-option>` see `radicle-node --help`.
@@ -38,6 +39,9 @@ Options
     --help          Print help
     --repos         Show the tracked repositories table
     --nodes         Show the tracked nodes table
+    --rid           Show the routing table entries for the given RID
+    --nid           Show the routing table entries for the given NID
+    --json          Output the routing table as json
 "#,
 };
 
@@ -51,7 +55,11 @@ pub enum Operation {
         addr: Address,
     },
     Events,
-    Routing,
+    Routing {
+        json: bool,
+        rid: Option<Id>,
+        nid: Option<NodeId>,
+    },
     Start {
         daemon: bool,
         options: Vec<OsString>,
@@ -92,6 +100,8 @@ impl Args for Options {
         let mut op: Option<OperationName> = None;
         let mut tracking_mode = TrackingMode::default();
         let mut nid: Option<NodeId> = None;
+        let mut rid: Option<Id> = None;
+        let mut json: bool = false;
         let mut addr: Option<Address> = None;
 
         while let Some(arg) = parser.next()? {
@@ -123,6 +133,15 @@ impl Args for Options {
                         },
                     }
                 }
+                Long("rid") if matches!(op, Some(OperationName::Routing)) => {
+                    let val = parser.value()?;
+                    rid = term::args::rid(&val).ok();
+                }
+                Long("nid") if matches!(op, Some(OperationName::Routing)) => {
+                    let val = parser.value()?;
+                    nid = term::args::nid(&val).ok();
+                }
+                Long("json") if matches!(op, Some(OperationName::Routing)) => json = true,
                 Long("repos") if matches!(op, Some(OperationName::Tracking)) => {
                     tracking_mode = TrackingMode::Repos
                 }
@@ -145,7 +164,7 @@ impl Args for Options {
                 addr: addr.ok_or_else(|| anyhow!("an address must be provided"))?,
             },
             OperationName::Events => Operation::Events,
-            OperationName::Routing => Operation::Routing,
+            OperationName::Routing => Operation::Routing { rid, nid, json },
             OperationName::Start => Operation::Start { daemon, options },
             OperationName::Status => Operation::Status,
             OperationName::Stop => Operation::Stop,
@@ -169,10 +188,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let node = Node::new(profile.socket());
             events::run(node)?;
         }
-        Operation::Routing => {
+        Operation::Routing { rid, nid, json } => {
             let store =
                 radicle::node::routing::Table::reader(profile.home.node().join(ROUTING_DB_FILE))?;
-            routing::run(&store)?;
+            routing::run(&store, rid, nid, json)?;
         }
         Operation::Start { daemon, options } => control::start(daemon, options)?,
         Operation::Status => {
