@@ -639,36 +639,15 @@ where
         err: reactor::Error<NetAccept<WireSession<G>>, NetTransport<WireSession<G>>>,
     ) {
         match err {
-            reactor::Error::ListenerUnknown(id) => {
-                // TODO: What are we supposed to do here? Remove this error.
-                log::error!(target: "wire", "Received error: unknown listener {}", id);
-            }
-            reactor::Error::TransportUnknown(id) => {
-                // TODO: What are we supposed to do here? Remove this error.
-                log::error!(target: "wire", "Received error: unknown peer {}", id);
-            }
             reactor::Error::Poll(err) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
                 log::error!(target: "wire", "Can't poll connections: {}", err);
             }
-            reactor::Error::ListenerPollError(id, _) => {
-                // TODO: This should be a fatal error, there's nothing we can do here.
-                log::error!(target: "wire", "Received error: listener {} disconnected", id);
-                self.actions.push_back(Action::UnregisterListener(id));
-            }
-            reactor::Error::ListenerDisconnect(id, _, _) => {
+            reactor::Error::ListenerDisconnect(id, _) => {
                 // TODO: This should be a fatal error, there's nothing we can do here.
                 log::error!(target: "wire", "Received error: listener {} disconnected", id);
             }
-            reactor::Error::TransportPollError(fd, _) => {
-                log::error!(target: "wire", "Received error: peer (fd={fd}) poll error");
-
-                self.disconnect(
-                    fd,
-                    DisconnectReason::Connection(Arc::new(io::Error::from(io::ErrorKind::Other))),
-                )
-            }
-            reactor::Error::TransportDisconnect(fd, session, _) => {
+            reactor::Error::TransportDisconnect(fd, session) => {
                 log::error!(target: "wire", "Received error: peer (fd={fd}) disconnected");
 
                 // We're dropping the TCP connection here.
@@ -697,14 +676,6 @@ where
                         log::warn!(target: "wire", "Peer with fd {fd} is unknown");
                     }
                 }
-            }
-            reactor::Error::WriteFailure(id, err) => {
-                // TODO: Disconnect peer?
-                log::error!(target: "wire", "Error during writing to peer {id}: {err}")
-            }
-            reactor::Error::WriteLogicError(id, _) => {
-                // TODO: We shouldn't be receiving this error. There's nothing we can do.
-                log::error!(target: "wire", "Write logic error for peer {id}: {err}")
             }
         }
     }

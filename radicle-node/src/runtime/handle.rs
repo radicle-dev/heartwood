@@ -5,6 +5,7 @@ use std::{fmt, io, time};
 
 use crossbeam_channel as chan;
 use radicle::node::Seeds;
+use reactor::poller::popol::PopolWaker;
 use thiserror::Error;
 
 use crate::identity::Id;
@@ -60,7 +61,7 @@ impl<T> From<chan::SendError<T>> for Error {
 
 pub struct Handle {
     pub(crate) home: Home,
-    pub(crate) controller: reactor::Controller<wire::Control>,
+    pub(crate) controller: reactor::Controller<wire::Control, PopolWaker>,
 
     /// Whether a shutdown was initiated or not. Prevents attempting to shutdown twice.
     shutdown: Arc<AtomicBool>,
@@ -95,7 +96,7 @@ impl Clone for Handle {
 impl Handle {
     pub fn new(
         home: Home,
-        controller: reactor::Controller<wire::Control>,
+        controller: reactor::Controller<wire::Control, PopolWaker>,
         emitter: Emitter<Event>,
     ) -> Self {
         Self {

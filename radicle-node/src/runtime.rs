@@ -102,7 +102,7 @@ pub struct Runtime {
     pub control: UnixListener,
     pub handle: Handle,
     pub storage: Storage,
-    pub reactor: Reactor<wire::Control>,
+    pub reactor: Reactor<wire::Control, popol::Poller>,
     pub daemon: net::SocketAddr,
     pub pool: worker::Pool,
     pub local_addrs: Vec<net::SocketAddr>,

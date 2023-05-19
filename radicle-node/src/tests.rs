@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time;
 
 use crossbeam_channel as chan;
-use netservices::LinkDirection as Link;
+use netservices::Direction as Link;
 use radicle::storage::ReadRepository;
 
 use crate::collections::{HashMap, HashSet};

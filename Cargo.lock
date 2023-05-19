@@ -652,6 +652,17 @@ dependencies = [
  "cypheraddr",
  "cyphergraphy",
  "eidolon-auth",
+ "socks5-client",
+]
+
+[[package]]
+name = "cyphernet"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c78f33bc1f1423741a6939ce6da2b6af2e7be4ff43e8878cf4bac1284028e93"
+dependencies = [
+ "cypheraddr",
+ "cyphergraphy",
  "noise-framework",
  "socks5-client",
 ]
@@ -1247,9 +1258,9 @@ dependencies = [
 
 [[package]]
 name = "io-reactor"
-version = "0.1.2"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15da7fc08622494b89ea0eb29a1bf37c8707410c5c09144d573cc45e4504fc8a"
+checksum = "850495a01d6f0b6d29adf5849a75b5a82449d9181bdd642cd681ce3d6f14b58c"
 dependencies = [
  "amplify",
  "crossbeam-channel",
@@ -1493,12 +1504,12 @@ dependencies = [
 
 [[package]]
 name = "netservices"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "888832afc021aa978d7cfcf5cbe9a694c066e21ea503791e4b8fcc82c5b7bc6f"
+checksum = "1f8216a05f756d0c7c02743812f6db7f5dccb7cfe9f2b2612f4aaf85c7eb641a"
 dependencies = [
  "amplify",
- "cyphernet",
+ "cyphernet 0.3.0",
  "io-reactor",
  "libc",
  "rand 0.8.5",
@@ -1516,9 +1527,9 @@ dependencies = [
 
 [[package]]
 name = "noise-framework"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daedd5a3c07ef713cb9c4b6f263837822d70412517576dcacd050fa0d1ba99bd"
+checksum = "a1bff54756fd54be6b45e160390d5ec3462331c2bf2aae26df78b4833e1206bb"
 dependencies = [
  "amplify",
  "chacha20poly1305",
@@ -1784,9 +1795,9 @@ dependencies = [
 
 [[package]]
 name = "popol"
-version = "2.2.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a953dd115cbe3b9d10340d47e6825a9700059a2fee12cee722975776caf3c531"
+checksum = "93406933502e4446250941cf95d5e62851feb62a25b742acf7ffce96755c53e3"
 dependencies = [
  "libc",
 ]
@@ -1877,7 +1888,7 @@ version = "0.2.0"
 dependencies = [
  "amplify",
  "crossbeam-channel",
- "cyphernet",
+ "cyphernet 0.2.0",
  "fastrand",
  "git2",
  "localtime",
@@ -1981,7 +1992,7 @@ name = "radicle-crypto"
 version = "0.1.0"
 dependencies = [
  "amplify",
- "cyphernet",
+ "cyphernet 0.2.0",
  "ec25519",
  "fastrand",
  "multibase",
@@ -2062,7 +2073,7 @@ dependencies = [
  "chrono",
  "colored",
  "crossbeam-channel",
- "cyphernet",
+ "cyphernet 0.3.0",
  "fastrand",
  "io-reactor",
  "lexopt",
