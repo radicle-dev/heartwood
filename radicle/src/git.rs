@@ -151,6 +151,14 @@ pub mod refs {
         Ok((qualified, target.into()))
     }
 
+    /// Create a qualified branch reference.
+    ///
+    /// `refs/heads/<branch>`
+    ///
+    pub fn branch<'a>(branch: &RefStr) -> Qualified<'a> {
+        Qualified::from(lit::refs_heads(branch))
+    }
+
     pub mod storage {
         use format::{
             lit,
@@ -180,7 +188,7 @@ pub mod refs {
         ///
         /// `refs/namespaces/<remote>/refs/heads/<branch>`
         ///
-        pub fn branch<'a>(remote: &RemoteId, branch: &RefStr) -> Namespaced<'a> {
+        pub fn branch_of<'a>(remote: &RemoteId, branch: &RefStr) -> Namespaced<'a> {
             Qualified::from(lit::refs_heads(branch)).with_namespace(remote.into())
         }
 

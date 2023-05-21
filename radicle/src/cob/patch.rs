@@ -25,6 +25,7 @@ use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
 use crate::identity::doc::DocError;
+use crate::identity::PayloadError;
 use crate::prelude::*;
 use crate::storage::git as storage;
 
@@ -65,9 +66,15 @@ pub enum ApplyError {
     /// Error loading the identity document committed to by an operation.
     #[error("identity doc failed to load: {0}")]
     Doc(#[from] DocError),
+    /// Error loading the document payload.
+    #[error("payload failed to load: {0}")]
+    Payload(#[from] PayloadError),
     /// The merge operation is invalid.
     #[error("invalid merge operation in {0}")]
     InvalidMerge(EntryId),
+    /// Git error.
+    #[error("git: {0}")]
+    Git(#[from] git::ext::Error),
 }
 
 /// Error updating or creating patches.
@@ -420,9 +427,22 @@ impl store::FromHistory for Patch {
                 }
                 Action::Merge { revision, commit } => {
                     if let Some(Redactable::Present(_)) = self.revisions.get_mut(&revision) {
-                        let doc = repo.identity_doc_at(op.identity)?;
-                        if !doc.is_delegate(&op.author) {
-                            return Err(ApplyError::InvalidMerge(op.id));
+                        let doc = repo.identity_doc_at(op.identity)?.verified()?;
+
+                        match self.target() {
+                            MergeTarget::Delegates => {
+                                if !doc.is_delegate(&op.author) {
+                                    return Err(ApplyError::InvalidMerge(op.id));
+                                }
+                                let proj = doc.project()?;
+                                let branch = git::refs::branch(proj.default_branch());
+                                let Ok(head) = repo.reference_oid(&op.author, &branch) else {
+                                    return Err(ApplyError::InvalidMerge(op.id));
+                                };
+                                if commit != head && !repo.is_ancestor_of(commit, head)? {
+                                    return Err(ApplyError::InvalidMerge(op.id));
+                                }
+                            }
                         }
                         self.merges.insert(
                             op.author,

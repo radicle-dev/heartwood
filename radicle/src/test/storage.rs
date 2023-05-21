@@ -174,6 +174,10 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
+    fn is_ancestor_of(&self, _ancestor: Oid, _head: Oid) -> Result<bool, git_ext::Error> {
+        Ok(true)
+    }
+
     fn blob_at<'a>(
         &'a self,
         _oid: git_ext::Oid,
@@ -195,7 +199,7 @@ impl ReadRepository for MockRepository {
         _remote: &RemoteId,
         _reference: &git::Qualified,
     ) -> Result<git_ext::Oid, git_ext::Error> {
-        todo!()
+        Ok(Oid::from_str("ffffffffffffffffffffffffffffffffffffffff").unwrap())
     }
 
     fn references_of(&self, _remote: &RemoteId) -> Result<crate::storage::refs::Refs, Error> {
@@ -227,7 +231,7 @@ impl ReadRepository for MockRepository {
     }
 
     fn canonical_identity_head(&self) -> Result<Oid, IdentityError> {
-        Ok(Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap())
+        Ok(Oid::from_str("cccccccccccccccccccccccccccccccccccccccc").unwrap())
     }
 }
 

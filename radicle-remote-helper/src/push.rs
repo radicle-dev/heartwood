@@ -198,7 +198,7 @@ pub fn run(
             let rid = stored.id.to_string();
             let stderr = io::stderr().as_raw_fd();
             // Nb. allow this to fail. The push to local storage was still successful.
-            execute("rad", ["sync", &rid, "--verbose"], unsafe {
+            execute("rad", ["sync", &rid, "--announce", "--verbose"], unsafe {
                 process::Stdio::from_raw_fd(stderr)
             })
             .ok();

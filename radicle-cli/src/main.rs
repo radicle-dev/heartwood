@@ -219,14 +219,6 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
-        "merge" => {
-            term::run_command_args::<rad_merge::Options, _>(
-                rad_merge::HELP,
-                "Merge",
-                rad_merge::run,
-                args.to_vec(),
-            );
-        }
         "node" => {
             term::run_command_args::<rad_node::Options, _>(
                 rad_node::HELP,

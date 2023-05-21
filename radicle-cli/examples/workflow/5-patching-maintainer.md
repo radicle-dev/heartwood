@@ -75,9 +75,7 @@ Great, all fixed up, lets merge the code.
 ```
 $ git checkout master
 Your branch is up to date with 'rad/master'.
-$ rad merge 4486280d0dec743d6a1a0c05754f8e40426c681d
-Merging 5f0a547 R2 (f6484e0) by z6Mkt67…v4N1tRk into master (f2de534) via fast-forward...
-Running `git merge --ff-only f6484e0f43e48a8983b9b39bf9bd4cd889f1d520`...
+$ git merge flux-capacitor-power
 Updating f2de534..f6484e0
 Fast-forward
  README.md       | 0
@@ -85,8 +83,7 @@ Fast-forward
  2 files changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
  create mode 100644 REQUIREMENTS.md
-✓ Updated master f2de534 -> f6484e0 via fast-forward
-✓ Patch state updated, use `git push rad` to publish
+$ git push rad master
 ```
 
 The patch is now merged and closed :).
@@ -99,7 +96,7 @@ $ rad patch show 5f0a547
 │ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk           │
 │ Head      f6484e0f43e48a8983b9b39bf9bd4cd889f1d520                           │
 │ Branches  flux-capacitor-power, master                                       │
-│ Commits   ahead 3, behind 0                                                  │
+│ Commits   up to date                                                         │
 │ Status    merged                                                             │
 │                                                                              │
 │ See details.                                                                 │

@@ -434,6 +434,12 @@ impl ReadRepository for Repository {
         Ok(revwalk)
     }
 
+    fn is_ancestor_of(&self, ancestor: Oid, head: Oid) -> Result<bool, git::Error> {
+        self.backend
+            .graph_descendant_of(head.into(), ancestor.into())
+            .map_err(git::Error::from)
+    }
+
     fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
         let refs = SignedRefs::load(*remote, self)?;
         Ok(Remote::<Verified>::new(refs))

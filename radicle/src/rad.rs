@@ -152,12 +152,12 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     let repository = storage.repository_mut(proj)?;
 
     let raw = repository.raw();
-    let remote_head = raw.refname_to_id(&git::refs::storage::branch(
+    let remote_head = raw.refname_to_id(&git::refs::storage::branch_of(
         remote,
         project.default_branch(),
     ))?;
     raw.reference(
-        &git::refs::storage::branch(me, project.default_branch()),
+        &git::refs::storage::branch_of(me, project.default_branch()),
         remote_head,
         false,
         &format!("creating default branch for {me}"),

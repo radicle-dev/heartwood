@@ -390,6 +390,9 @@ pub trait ReadRepository {
     /// Perform a revision walk of a commit history starting from the given head.
     fn revwalk(&self, head: Oid) -> Result<git2::Revwalk, git2::Error>;
 
+    /// Check whether the given commit is an ancestor of another commit.
+    fn is_ancestor_of(&self, ancestor: Oid, head: Oid) -> Result<bool, git::ext::Error>;
+
     /// Get the object id of a reference under the given remote.
     fn reference_oid(
         &self,
