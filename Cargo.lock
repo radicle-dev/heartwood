@@ -1920,6 +1920,7 @@ dependencies = [
  "serde_json",
  "siphasher",
  "sqlite",
+ "sqlite3-src",
  "tempfile",
  "thiserror",
  "unicode-normalization",
@@ -2106,7 +2107,6 @@ dependencies = [
  "serde_json",
  "snapbox",
  "sqlite",
- "sqlite3-src",
  "tempfile",
  "thiserror",
 ]
