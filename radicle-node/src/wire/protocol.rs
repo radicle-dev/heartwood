@@ -560,6 +560,8 @@ where
                                 ..
                             })) => {
                                 if let Some(channels) = streams.get(&stream) {
+                                    log::debug!(target: "wire", "Received end-of-file on id={stream} from {nid}");
+
                                     if channels.send(ChannelEvent::Eof).is_err() {
                                         log::error!(target: "wire", "Worker is disconnected; cannot send `EOF`");
                                     }

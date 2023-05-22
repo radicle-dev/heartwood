@@ -400,7 +400,7 @@ impl Worker {
         stream: StreamId,
         channels: &mut Channels,
     ) -> Result<BTreeSet<git::Namespaced<'static>>, FetchError> {
-        let mut tunnel = Tunnel::with(channels, stream, self.nid, remote, self.handle.clone())?;
+        let tunnel = Tunnel::with(channels, stream, self.nid, remote, self.handle.clone())?;
         let tunnel_addr = tunnel.local_addr();
         let mut cmd = process::Command::new("git");
         cmd.current_dir(repo.path())
@@ -421,45 +421,57 @@ impl Worker {
 
         log::debug!(target: "worker", "Running command: {:?}", cmd);
 
+        let mut refs = BTreeSet::new();
         let mut child = cmd.spawn()?;
         let stderr = child.stderr.take().unwrap();
         let stdout = child.stdout.take().unwrap();
 
-        thread::Builder::new().name(self.name.clone()).spawn(|| {
-            for line in BufReader::new(stderr).lines().flatten() {
-                log::debug!(target: "worker", "Git: {}", line);
-            }
-        })?;
-
-        tunnel.run(self.timeout)?;
-
-        let result = child.wait()?;
-        if result.success() {
-            let mut refs = BTreeSet::new();
-
-            for line in BufReader::new(stdout).lines().flatten() {
-                log::debug!(target: "worker", "Git: {line}");
-                let r = match line.split_whitespace().next_back() {
-                    Some(r) => r,
-                    None => {
-                        log::trace!(target: "worker", "Git: ls-remote returned unexpected format {line}");
-                        continue;
+        // Since `ls-remote` may return a lot of data, we read the child's stdout concurrently, to
+        // prevent deadlocks that could arise if we fill the pipe buffer before the process exits.
+        thread::scope(|s| {
+            thread::Builder::new()
+                .name(self.name.clone())
+                .spawn_scoped(s, || {
+                    for line in BufReader::new(stderr).lines().flatten() {
+                        log::debug!(target: "worker", "Git: {}", line);
                     }
-                };
-                match git::RefString::try_from(r) {
-                    Ok(r) => {
-                        if let Some(ns) = r.to_namespaced() {
-                            refs.insert(ns.to_owned());
-                        } else {
-                            log::debug!(target: "worker", "Git: non-namespaced ref '{r}'")
+                })?;
+            thread::Builder::new()
+                .name(self.name.clone())
+                .spawn_scoped(s, || {
+                    for line in BufReader::new(stdout).lines().flatten() {
+                        log::debug!(target: "worker", "Git: {}", line);
+
+                        let r = match line.split_whitespace().next_back() {
+                            Some(r) => r,
+                            None => {
+                                log::trace!(target: "worker", "Git: ls-remote returned unexpected format {line}");
+                                continue;
+                            }
+                        };
+                        match git::RefString::try_from(r) {
+                            Ok(r) => {
+                                if let Some(ns) = r.to_namespaced() {
+                                    refs.insert(ns.to_owned());
+                                } else {
+                                    log::debug!(target: "worker", "Git: non-namespaced ref '{r}'")
+                                }
+                            }
+                            Err(err) => {
+                                log::warn!(target: "worker", "Git: invalid refname '{r}' {err}")
+                            }
                         }
                     }
-                    Err(err) => {
-                        log::warn!(target: "worker", "Git: invalid refname '{r}' {err}")
-                    }
-                }
-            }
+                })?;
 
+            tunnel.run(self.timeout)?;
+
+            Ok::<_, FetchError>(())
+        })?;
+
+        let result = child.wait()?;
+
+        if result.success() {
             Ok(refs)
         } else {
             Err(FetchError::CommandFailed {
@@ -480,7 +492,7 @@ impl Worker {
     where
         S: IntoIterator<Item = fetch::Refspec>,
     {
-        let mut tunnel = Tunnel::with(channels, stream, self.nid, remote, self.handle.clone())?;
+        let tunnel = Tunnel::with(channels, stream, self.nid, remote, self.handle.clone())?;
         let tunnel_addr = tunnel.local_addr();
         let mut cmd = process::Command::new("git");
         cmd.current_dir(repo.path())

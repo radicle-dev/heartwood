@@ -44,7 +44,7 @@ impl<'a> Tunnel<'a> {
     }
 
     /// Run the tunnel until the connection is closed.
-    pub fn run(&mut self, timeout: time::Duration) -> io::Result<()> {
+    pub fn run(mut self, timeout: time::Duration) -> io::Result<()> {
         let (remote_w, remote_r) = self.channels.split();
         let (local, _) = self.listener.accept()?;
         let (mut local_r, local_w) = (local.try_clone()?, local);
