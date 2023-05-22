@@ -243,6 +243,22 @@ impl Seeds {
     }
 }
 
+/// Announcement result returned by [`announce`].
+pub struct AnnounceResult {
+    /// Nodes that timed out.
+    pub timeout: Vec<NodeId>,
+    /// Nodes that synced.
+    pub synced: Vec<NodeId>,
+}
+
+/// A sync event, emitted by [`announce`].
+pub enum AnnounceEvent {
+    /// Refs were synced with the given node.
+    RefsSynced { remote: NodeId },
+    /// Refs were announced to all given nodes.
+    Announced,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "kebab-case")]
 pub enum FetchResult {
@@ -464,6 +480,49 @@ impl Node {
 
             Ok(v)
         }))
+    }
+
+    /// Announce refs of the given `rid` to the given seeds.
+    /// Waits for the seeds to acknowledge the refs or times out if no acknowledgments are received
+    /// within the given time.
+    pub fn announce(
+        &mut self,
+        rid: Id,
+        seeds: impl IntoIterator<Item = NodeId>,
+        timeout: time::Duration,
+        mut callback: impl FnMut(AnnounceEvent),
+    ) -> Result<AnnounceResult, Error> {
+        let events = self.subscribe(timeout)?;
+        let mut seeds = seeds.into_iter().collect::<BTreeSet<_>>();
+
+        self.announce_refs(rid)?;
+
+        callback(AnnounceEvent::Announced);
+
+        let mut synced = Vec::new();
+        let mut timeout: Vec<NodeId> = Vec::new();
+
+        for e in events {
+            match e {
+                Ok(Event::RefsSynced { remote, rid: rid_ }) if rid == rid_ => {
+                    seeds.remove(&remote);
+                    synced.push(remote);
+
+                    callback(AnnounceEvent::RefsSynced { remote });
+                }
+                Ok(_) => {}
+
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    timeout.extend(seeds.iter());
+                    break;
+                }
+                Err(e) => return Err(e.into()),
+            }
+            if seeds.is_empty() {
+                break;
+            }
+        }
+        Ok(AnnounceResult { timeout, synced })
     }
 }
 

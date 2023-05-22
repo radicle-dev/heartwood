@@ -1,12 +1,11 @@
-use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::path::Path;
-use std::{io, time};
+use std::time;
 
 use anyhow::{anyhow, Context as _};
 
 use radicle::node;
-use radicle::node::{Event, FetchResult, FetchResults, Handle as _, Node};
+use radicle::node::{FetchResult, FetchResults, Handle as _, Node};
 use radicle::prelude::{Id, NodeId, Profile};
 
 use crate::terminal as term;
@@ -149,51 +148,31 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 fn announce(rid: Id, mut node: Node, timeout: time::Duration) -> anyhow::Result<()> {
-    let events = node.subscribe(timeout)?;
     let seeds = node.seeds(rid)?;
-    let mut seeds = seeds.connected().collect::<BTreeSet<_>>();
-
-    if seeds.is_empty() {
+    if !seeds.has_connections() {
         term::info!("Not connected to any seeds.");
         return Ok(());
     }
-    node.announce_refs(rid)?;
 
-    let mut spinner = term::spinner(format!("Syncing with {} node(s)..", seeds.len()));
-    let mut synced = Vec::new();
-    let mut timeout: Vec<NodeId> = Vec::new();
-
-    for e in events {
-        match e {
-            Ok(Event::RefsSynced { remote, rid: rid_ }) if rid == rid_ => {
-                seeds.remove(&remote);
-                synced.push(remote);
-                spinner.message(format!("Synced with {remote}.."));
-            }
-            Ok(_) => {}
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                timeout.extend(seeds.into_iter());
-                break;
-            }
-            Err(e) => return Err(e.into()),
+    let connected = seeds.connected().cloned().collect::<Vec<_>>();
+    let mut spinner = term::spinner(format!("Syncing with {} node(s)..", connected.len()));
+    let result = node.announce(rid, connected, timeout, |event| match event {
+        node::AnnounceEvent::Announced => {}
+        node::AnnounceEvent::RefsSynced { remote } => {
+            spinner.message(format!("Synced with {remote}.."));
         }
-        if seeds.is_empty() {
-            break;
-        }
-    }
+    })?;
 
-    if synced.is_empty() {
+    if result.synced.is_empty() {
         spinner.failed();
     } else {
-        spinner.message(format!("Synced with {} node(s)", synced.len()));
+        spinner.message(format!("Synced with {} node(s)", result.synced.len()));
         spinner.finish();
     }
-
-    for seed in timeout {
+    for seed in result.timeout {
         term::notice!("Seed {seed} timed out..");
     }
-
-    if synced.is_empty() {
+    if result.synced.is_empty() {
         anyhow::bail!("all seeds timed out");
     }
     Ok(())
