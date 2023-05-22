@@ -1,15 +1,16 @@
 use std::collections::HashSet;
-use std::ffi::OsStr;
-use std::os::fd::{AsRawFd, FromRawFd};
 use std::path::Path;
 use std::str::FromStr;
-use std::{assert_eq, io, process};
+use std::time;
+use std::{assert_eq, io};
 
 use thiserror::Error;
 
 use radicle::cob::patch;
 use radicle::crypto::{PublicKey, Signer};
+use radicle::node;
 use radicle::node::{Handle, NodeId};
+use radicle::prelude::Id;
 use radicle::storage::git::cob::object::ParseObjectId;
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::WriteRepository;
@@ -19,6 +20,9 @@ use radicle::{git, rad};
 use radicle_cli::terminal as cli;
 
 use crate::read_line;
+
+/// Default timeout for syncing to the network after a push.
+const DEFAULT_SYNC_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -194,14 +198,10 @@ pub fn run(
         // Connect to local node and announce refs to the network.
         // If our node is not running, we simply skip this step, as the
         // refs will be announced eventually, when the node restarts.
-        if radicle::Node::new(profile.socket()).is_running() {
-            let rid = stored.id.to_string();
-            let stderr = io::stderr().as_raw_fd();
+        let node = radicle::Node::new(profile.socket());
+        if node.is_running() {
             // Nb. allow this to fail. The push to local storage was still successful.
-            execute("rad", ["sync", &rid, "--announce", "--verbose"], unsafe {
-                process::Stdio::from_raw_fd(stderr)
-            })
-            .ok();
+            sync(stored.id, node).ok();
         }
     }
 
@@ -446,31 +446,32 @@ fn push_ref(
     Ok(())
 }
 
-/// Execute a command as a child process, redirecting its stdout to the given `Stdio`.
-fn execute<S: AsRef<std::ffi::OsStr>>(
-    name: &str,
-    args: impl IntoIterator<Item = S>,
-    stdout: process::Stdio,
-) -> Result<String, Error> {
-    let mut cmd = process::Command::new(name);
-    cmd.args(args)
-        .stdout(stdout)
-        .stderr(process::Stdio::inherit());
+/// Sync with the network.
+fn sync(rid: Id, mut node: radicle::Node) -> Result<(), radicle::node::Error> {
+    let seeds = node.seeds(rid)?;
+    let connected = seeds.connected().cloned().collect::<Vec<_>>();
 
-    let child = cmd.spawn()?;
-    let output = child.wait_with_output()?;
-    let status = output.status;
-
-    if !status.success() {
-        let cmd = format!(
-            "{} {}",
-            cmd.get_program().to_string_lossy(),
-            cmd.get_args()
-                .collect::<Vec<_>>()
-                .join(OsStr::new(" "))
-                .to_string_lossy()
-        );
-        return Err(Error::CommandFailed(cmd, status.code().unwrap_or(-1)));
+    if connected.is_empty() {
+        eprintln!("Not connected to any seeds.");
+        return Ok(());
     }
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    let mut spinner = cli::spinner_to(
+        format!("Syncing with {} node(s)..", connected.len()),
+        io::stderr(),
+        io::stderr(),
+    );
+    let result = node.announce(rid, connected, DEFAULT_SYNC_TIMEOUT, |event| match event {
+        node::AnnounceEvent::Announced => {}
+        node::AnnounceEvent::RefsSynced { remote } => {
+            spinner.message(format!("Synced with {remote}.."));
+        }
+    })?;
+
+    if result.synced.is_empty() {
+        spinner.failed();
+    } else {
+        spinner.message(format!("Synced with {} node(s)", result.synced.len()));
+        spinner.finish();
+    }
+    Ok(())
 }
