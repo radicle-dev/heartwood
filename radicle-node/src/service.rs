@@ -555,8 +555,12 @@ where
             error!(target: "service", "Session {from} does not exist; cannot initiate fetch");
             return;
         };
-        debug_assert!(session.is_connected());
-
+        if !session.is_connected() {
+            // This can happen if a session disconnects in the time between asking for seeds to
+            // fetch from, and initiating the fetch from one of those seeds.
+            error!(target: "service", "Session {from} is not connected; cannot initiate fetch");
+            return;
+        }
         let seed = session.id;
 
         match session.fetch(rid) {
