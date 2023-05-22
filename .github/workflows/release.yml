@@ -37,9 +37,10 @@ jobs:
           image: ${{ matrix.docker_image }}
           options: ${{ matrix.docker_options }}
           run: |
+            rustup target add ${{ matrix.target }}
             staging="radicle-${{ matrix.target }}"
             mkdir -p "$staging"
-            rustup target add ${{ matrix.target }}
+
             cargo build --target=${{ matrix.target }} --package=radicle-httpd --release
             cp target/${{ matrix.target }}/release/radicle-httpd "$staging"/
 
@@ -61,6 +62,7 @@ jobs:
           image: ${{ matrix.docker_image }}
           options: ${{ matrix.docker_options }}
           run: |
+            rustup target add ${{ matrix.target }}
             staging="radicle-${{ matrix.target }}"
             mkdir -p "$staging/debug"
 
@@ -104,9 +106,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.67
       - name: Build the release binaries
         run: |
+          rustup target add ${{ matrix.target }}
           staging="radicle-${{ matrix.target }}"
           mkdir -p "$staging"
-          rustup target add ${{ matrix.target }}
 
           cargo build --target ${{ matrix.target }} --package=radicle-httpd --release
           cp target/${{ matrix.target }}/release/radicle-httpd "$staging"/
@@ -124,6 +126,7 @@ jobs:
           cp "$staging.tar.gz" "$staging"/
       - name: Build the debug binaries
         run: |
+          rustup target add ${{ matrix.target }}
           staging="radicle-${{ matrix.target }}"
           mkdir -p "$staging/debug"
 
