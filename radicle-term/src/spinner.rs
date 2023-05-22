@@ -102,16 +102,26 @@ impl Spinner {
     }
 }
 
-/// Create a new spinner with the given message.
+/// Create a new spinner with the given message. Sends animation output to `stderr` and success or
+/// failure messages to `stdout`.
 pub fn spinner(message: impl ToString) -> Spinner {
+    spinner_to(message, io::stdout(), io::stderr())
+}
+
+/// Create a new spinner with the given message, and send output to the given writers.
+pub fn spinner_to(
+    message: impl ToString,
+    completion: impl io::Write + Send + 'static,
+    animation: impl io::Write + Send + 'static,
+) -> Spinner {
     let message = message.to_string();
     let progress = Arc::new(Mutex::new(Progress::new(Paint::new(message))));
     let handle = thread::spawn({
         let progress = progress.clone();
 
         move || {
-            let mut stdout = io::stdout();
-            let mut stderr = termion::cursor::HideCursor::from(io::stderr());
+            let mut stdout = completion;
+            let mut stderr = termion::cursor::HideCursor::from(animation);
 
             loop {
                 let Ok(mut progress) = progress.lock() else {
