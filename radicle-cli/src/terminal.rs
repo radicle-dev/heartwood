@@ -130,7 +130,7 @@ pub fn fail(header: &str, error: &anyhow::Error) {
     let separator = if err.contains('\n') { ":\n" } else { ": " };
 
     println!(
-        "{ERROR_PREFIX} {}{}{error:#}",
+        "{ERROR_PREFIX} {}{}{error}",
         Paint::red(header).bold(),
         Paint::red(separator),
     );
