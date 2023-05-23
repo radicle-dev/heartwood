@@ -1,10 +1,9 @@
 use anyhow::Result;
 
-use radicle::cob::{
-    issue::{Issue, IssueId},
-    patch::{Patch, PatchId},
-};
-use tuirealm::{Frame, NoUserEvent};
+use radicle::cob::issue::{Issue, IssueId};
+use radicle::cob::patch::{Patch, PatchId};
+
+use tuirealm::{Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui::ui::layout;
 use radicle_tui::ui::theme::Theme;
@@ -41,6 +40,14 @@ pub trait ViewPage {
 
     /// Will be called whenever a view page is on top of the page stack and needs to be rendered.
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame);
+
+    /// Will be called whenever this view page is pushed to the stack, or it is on top of the stack again
+    /// after another view page was popped from the stack.
+    fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()>;
+
+    /// Will be called whenever this view page is on top of the stack and another view page is pushed
+    /// to the stack, or if this is popped from the stack.
+    fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()>;
 }
 
 ///
@@ -71,11 +78,7 @@ impl ViewPage for HomeView {
         let issue_browser = widget::home::issues(theme, &context.id, &context.profile).to_boxed();
         let patch_browser = widget::home::patches(theme, &context.id, &context.profile).to_boxed();
 
-        app.remount(
-            Cid::Home(HomeCid::Navigation),
-            navigation,
-            subscription::navigation(),
-        )?;
+        app.remount(Cid::Home(HomeCid::Navigation), navigation, vec![])?;
 
         app.remount(Cid::Home(HomeCid::Dashboard), dashboard, vec![])?;
         app.remount(Cid::Home(HomeCid::IssueBrowser), issue_browser, vec![])?;
@@ -113,6 +116,27 @@ impl ViewPage for HomeView {
 
         app.view(&Cid::Home(HomeCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
+    }
+
+    fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.subscribe(
+            &Cid::Home(HomeCid::Navigation),
+            Sub::new(
+                subscription::navigation_clause::<Cid, _>(),
+                SubClause::Always,
+            ),
+        )?;
+
+        Ok(())
+    }
+
+    fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.unsubscribe(
+            &Cid::Home(HomeCid::Navigation),
+            subscription::navigation_clause::<Cid, _>(),
+        )?;
+
+        Ok(())
     }
 }
 
@@ -171,6 +195,27 @@ impl ViewPage for IssuePage {
         app.view(&Cid::Patch(PatchCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
     }
+
+    fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.subscribe(
+            &Cid::Home(HomeCid::Navigation),
+            Sub::new(
+                subscription::navigation_clause::<Cid, _>(),
+                SubClause::Always,
+            ),
+        )?;
+
+        Ok(())
+    }
+
+    fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.unsubscribe(
+            &Cid::Home(HomeCid::Navigation),
+            subscription::navigation_clause::<Cid, _>(),
+        )?;
+
+        Ok(())
+    }
 }
 
 ///
@@ -202,11 +247,7 @@ impl ViewPage for PatchView {
         let activity = widget::patch::activity(theme, (*id, patch), &context.profile).to_boxed();
         let files = widget::patch::files(theme, (*id, patch), &context.profile).to_boxed();
 
-        app.remount(
-            Cid::Patch(PatchCid::Navigation),
-            navigation,
-            subscription::navigation(),
-        )?;
+        app.remount(Cid::Patch(PatchCid::Navigation), navigation, vec![])?;
         app.remount(Cid::Patch(PatchCid::Activity), activity, vec![])?;
         app.remount(Cid::Patch(PatchCid::Files), files, vec![])?;
 
@@ -242,6 +283,27 @@ impl ViewPage for PatchView {
         app.view(&Cid::Patch(PatchCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
     }
+
+    fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.subscribe(
+            &Cid::Patch(PatchCid::Navigation),
+            Sub::new(
+                subscription::navigation_clause::<Cid, _>(),
+                SubClause::Always,
+            ),
+        )?;
+
+        Ok(())
+    }
+
+    fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.unsubscribe(
+            &Cid::Patch(PatchCid::Navigation),
+            subscription::navigation_clause::<Cid, _>(),
+        )?;
+
+        Ok(())
+    }
 }
 
 /// View pages need to preserve their state (e.g. selected navigation tab, contents
@@ -265,15 +327,24 @@ impl PageStack {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
+        if let Some(page) = self.pages.last() {
+            page.unsubscribe(app)?;
+        }
+
         page.mount(app, context, theme)?;
+        page.subscribe(app)?;
+
         self.pages.push(page);
 
         Ok(())
     }
 
     pub fn pop(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        self.peek_mut()?.unsubscribe(app)?;
         self.peek_mut()?.unmount(app)?;
         self.pages.pop();
+
+        self.peek_mut()?.subscribe(app)?;
 
         Ok(())
     }
