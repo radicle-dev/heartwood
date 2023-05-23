@@ -66,7 +66,7 @@ pub enum UploadError {
     #[error("worker failed to connect to git daemon: {0}")]
     DaemonConnectionFailed(io::Error),
     #[error("error parsing git command packet-line: {0}")]
-    InvalidPacketLine(io::Error),
+    PacketLine(io::Error),
     #[error(transparent)]
     Io(#[from] io::Error),
 }
@@ -308,7 +308,7 @@ impl Worker {
                 return Ok(ControlFlow::Break(()));
             }
             Err(err) => {
-                return Err(UploadError::InvalidPacketLine(err));
+                return Err(UploadError::PacketLine(err));
             }
         };
         log::debug!(target: "worker", "Received Git request pktline for {rid}..");
