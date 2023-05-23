@@ -123,6 +123,21 @@ impl radicle::node::Handle for Handle {
     type Sessions = Sessions;
     type Error = Error;
 
+    fn nid(&self) -> Result<NodeId, Self::Error> {
+        let (sender, receiver) = chan::bounded(1);
+        let query: Arc<QueryState> = Arc::new(move |state| {
+            sender.send(*state.nid()).ok();
+            Ok(())
+        });
+        let (err_sender, err_receiver) = chan::bounded(1);
+        self.command(service::Command::QueryState(query, err_sender))?;
+        err_receiver.recv()??;
+
+        let nid = receiver.recv()?;
+
+        Ok(nid)
+    }
+
     fn is_running(&self) -> bool {
         true
     }

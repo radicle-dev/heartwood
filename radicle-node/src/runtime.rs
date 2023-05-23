@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::{fs, io, net, thread, time};
+use std::{io, net, thread, time};
 
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
@@ -227,7 +227,7 @@ impl Runtime {
         log::info!(target: "node", "Running node {} in {}..", self.id, home.path().display());
         log::info!(target: "node", "Binding control socket {}..", home.socket().display());
 
-        let control = thread::Builder::new().name(self.id.to_human()).spawn({
+        thread::Builder::new().name(self.id.to_human()).spawn({
             let handle = self.handle.clone();
             move || control::listen(self.control, handle)
         })?;
@@ -262,11 +262,9 @@ impl Runtime {
         daemon::kill(&daemon).ok(); // Ignore error if daemon has already exited, for whatever reason.
         daemon.wait()?;
 
-        // If the socket file was deleted by some other process, for whatever reason,
-        // the control thread will not be able to join.
-        if fs::remove_file(home.socket()).is_ok() {
-            control.join().unwrap()?;
-        }
+        // Nb. We don't join the control thread here, as we have no way of notifying it that the
+        // node is shutting down.
+
         log::debug!(target: "node", "Node shutdown completed for {}", self.id);
 
         Ok(())

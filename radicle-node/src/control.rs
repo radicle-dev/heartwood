@@ -25,6 +25,8 @@ pub enum Error {
     Bind(io::Error),
     #[error("invalid socket path specified: {0}")]
     InvalidPath(PathBuf),
+    #[error("node: {0}")]
+    Node(#[from] runtime::HandleError),
 }
 
 /// Listen for commands on the control socket, and process them.
@@ -33,25 +35,28 @@ pub fn listen<H: Handle<Error = runtime::HandleError> + 'static>(
     handle: H,
 ) -> Result<(), Error> {
     log::debug!(target: "control", "Control thread listening on socket..");
+    let nid = handle.nid()?.to_human();
 
     for incoming in listener.incoming() {
         match incoming {
             Ok(mut stream) => {
-                if let Err(e) = command(&stream, handle.clone()) {
-                    if let CommandError::Shutdown = e {
-                        log::debug!(target: "control", "Shutdown requested..");
-                        // Channel might already be disconnected if shutdown
-                        // came from somewhere else. Ignore errors.
-                        handle.shutdown().ok();
-                        break;
-                    }
-                    log::error!(target: "control", "Command returned error: {e}");
+                let handle = handle.clone();
 
-                    CommandResult::error(e).to_writer(&mut stream).ok();
+                thread::Builder::new()
+                    .name(nid.clone())
+                    .spawn(move || {
+                        if let Err(e) = command(&stream, handle) {
+                            log::error!(target: "control", "Command returned error: {e}");
 
-                    stream.flush().ok();
-                    stream.shutdown(net::Shutdown::Both).ok();
-                }
+                            CommandResult::error(e).to_writer(&mut stream).ok();
+
+                            stream.flush().ok();
+                            stream.shutdown(net::Shutdown::Both).ok();
+                        }
+                    })
+                    // SAFETY: Only panics if the thread name contained NULL bytes, which we can
+                    // guarantee is not the case here.
+                    .unwrap();
             }
             Err(e) => log::error!(target: "control", "Failed to accept incoming connection: {}", e),
         }
@@ -73,8 +78,6 @@ enum CommandError {
     Runtime(#[from] runtime::HandleError),
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
-    #[error("shutdown requested")]
-    Shutdown,
 }
 
 fn command<H: Handle<Error = runtime::HandleError> + 'static>(
@@ -82,7 +85,7 @@ fn command<H: Handle<Error = runtime::HandleError> + 'static>(
     mut handle: H,
 ) -> Result<(), CommandError> {
     let mut reader = BufReader::new(stream);
-    let writer = LineWriter::new(stream);
+    let mut writer = LineWriter::new(stream);
     let mut line = String::new();
 
     reader.read_line(&mut line)?;
@@ -187,29 +190,31 @@ fn command<H: Handle<Error = runtime::HandleError> + 'static>(
                 return Err(CommandError::Runtime(e));
             }
         },
-        CommandName::Subscribe => {
-            let mut stream = stream.try_clone()?;
+        CommandName::Subscribe => match handle.subscribe(MAX_TIMEOUT) {
+            Ok(events) => {
+                for e in events {
+                    let event = e?;
+                    let event = serde_json::to_string(&event)?;
 
-            thread::spawn(move || {
-                match handle.subscribe(MAX_TIMEOUT) {
-                    Ok(events) => {
-                        for e in events {
-                            let event = e?;
-                            let event = serde_json::to_string(&event)?;
-
-                            writeln!(stream, "{event}")?;
-                        }
-                    }
-                    Err(e) => log::error!(target: "control", "Error subscribing to events: {e}"),
+                    writeln!(&mut writer, "{event}")?;
                 }
-                Ok::<_, io::Error>(())
-            });
-        }
+            }
+            Err(e) => log::error!(target: "control", "Error subscribing to events: {e}"),
+        },
         CommandName::Status => {
             CommandResult::ok().to_writer(writer).ok();
         }
+        CommandName::NodeId => match handle.nid() {
+            Ok(nid) => {
+                writeln!(writer, "{nid}")?;
+            }
+            Err(e) => return Err(CommandError::Runtime(e)),
+        },
         CommandName::Shutdown => {
-            return Err(CommandError::Shutdown);
+            log::debug!(target: "control", "Shutdown requested..");
+            // Channel might already be disconnected if shutdown
+            // came from somewhere else. Ignore errors.
+            handle.shutdown().ok();
         }
     }
     Ok(())

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::{io, time};
 
@@ -18,6 +19,10 @@ pub struct Handle {
 impl radicle::node::Handle for Handle {
     type Error = HandleError;
     type Sessions = service::Sessions;
+
+    fn nid(&self) -> Result<NodeId, Self::Error> {
+        Ok(NodeId::from_str("z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK").unwrap())
+    }
 
     fn is_running(&self) -> bool {
         true

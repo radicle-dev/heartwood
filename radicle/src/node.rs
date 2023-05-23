@@ -145,6 +145,8 @@ pub enum CommandName {
     UntrackNode,
     /// Get the node's status.
     Status,
+    /// Get the node's NID.
+    NodeId,
     /// Shutdown the node.
     Shutdown,
     /// Subscribe to events.
@@ -407,6 +409,8 @@ pub trait Handle: Clone + Sync + Send {
     /// The error returned by all methods.
     type Error: std::error::Error + Send + Sync + 'static;
 
+    /// Get the local Node ID.
+    fn nid(&self) -> Result<NodeId, Self::Error>;
     /// Check if the node is running. to a peer.
     fn is_running(&self) -> bool;
     /// Connect to a peer.
@@ -532,6 +536,15 @@ impl Handle for Node {
     type Sessions = ();
     type Error = Error;
 
+    fn nid(&self) -> Result<NodeId, Error> {
+        self.call::<&str, NodeId>(CommandName::NodeId, [], DEFAULT_TIMEOUT)?
+            .next()
+            .ok_or(Error::EmptyResponse {
+                cmd: CommandName::NodeId,
+            })?
+            .map_err(Error::from)
+    }
+
     fn is_running(&self) -> bool {
         let Ok(mut lines) = self.call::<&str, CommandResult>(CommandName::Status, [], DEFAULT_TIMEOUT) else {
             return false;
@@ -552,6 +565,7 @@ impl Handle for Node {
         .ok_or(Error::EmptyResponse {
             cmd: CommandName::Connect,
         })??;
+
         Ok(())
     }
 

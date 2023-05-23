@@ -1517,6 +1517,8 @@ where
 
 /// Gives read access to the service state.
 pub trait ServiceState {
+    /// Get the Node ID.
+    fn nid(&self) -> &NodeId;
     /// Get the connected peers.
     fn sessions(&self) -> &Sessions;
     /// Get a repository from storage, using the local node's key.
@@ -1537,6 +1539,10 @@ where
     G: Signer,
     S: ReadStorage,
 {
+    fn nid(&self) -> &NodeId {
+        self.signer.public_key()
+    }
+
     fn sessions(&self) -> &Sessions {
         &self.sessions
     }
