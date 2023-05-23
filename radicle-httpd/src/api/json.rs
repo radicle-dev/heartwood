@@ -7,12 +7,15 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use radicle::cob::issue::{Issue, IssueId};
+use radicle::cob::patch::Merge;
+use radicle::cob::patch::Review;
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::cob::thread;
 use radicle::cob::thread::{CommentId, Thread};
 use radicle::cob::{ActorId, Author, Reaction, Timestamp};
 use radicle::git::RefString;
 use radicle::node::tracking::store as TrackingStore;
+use radicle::prelude::NodeId;
 use radicle::storage::{git, refs, ReadRepository};
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
@@ -122,14 +125,7 @@ pub(crate) fn patch(
         "state": patch.state(),
         "target": patch.target(),
         "tags": patch.tags().collect::<Vec<_>>(),
-        "merges": patch.merges().map(|(a, m)| {
-            json!({
-                "author": a,
-                "revision": m.revision,
-                "commit": m.commit,
-                "timestamp": m.timestamp
-            })
-        }).collect::<Vec<_>>(),
+        "merges": patch.merges().map(|(nid, m)| merge(m, nid, aliases.alias(nid))).collect::<Vec<_>>(),
         "reviewers": patch.reviewers().collect::<Vec<_>>(),
         "revisions": patch.revisions().map(|(id, rev)| {
             json!({
@@ -143,7 +139,7 @@ pub(crate) fn patch(
                   .map(|(id, comment)| Comment::new(id, comment, rev.discussion(), aliases))
                   .collect::<Vec<_>>(),
                 "timestamp": rev.timestamp(),
-                "reviews": rev.reviews().collect::<Vec<_>>(),
+                "reviews": rev.reviews().map(|(nid, _review)| review(nid, aliases.alias(nid), _review)).collect::<Vec<_>>(),
             })
         }).collect::<Vec<_>>(),
     })
@@ -157,6 +153,54 @@ fn author(author: &Author, alias: Option<String>) -> Value {
             "alias": alias,
         }),
         None => json!(author),
+    }
+}
+
+/// Returns JSON for a patch `Merge` and fills in `alias` when present.
+fn merge(merge: &Merge, nid: &NodeId, alias: Option<String>) -> Value {
+    match alias {
+        Some(alias) => json!({
+            "author": {
+                "id": nid,
+                "alias": alias,
+            },
+            "commit": merge.commit,
+            "timestamp": merge.timestamp,
+            "revision": merge.revision,
+        }),
+        None => json!({
+            "author": {
+                "id": nid,
+            },
+            "commit": merge.commit,
+            "timestamp": merge.timestamp,
+            "revision": merge.revision,
+        }),
+    }
+}
+
+/// Returns JSON for a patch `Review` and fills in `alias` when present.
+fn review(nid: &NodeId, alias: Option<String>, review: &Review) -> Value {
+    match alias {
+        Some(alias) => json!({
+            "author": {
+                "id": nid,
+                "alias": alias,
+            },
+            "verdict": review.verdict(),
+            "comment": review.comment(),
+            "inline": review.inline().collect::<Vec<_>>(),
+            "timestamp": review.timestamp(),
+        }),
+        None => json!({
+            "author": {
+                "id": nid,
+            },
+            "verdict": review.verdict(),
+            "comment": review.comment(),
+            "inline": review.inline().collect::<Vec<_>>(),
+            "timestamp": review.timestamp(),
+        }),
     }
 }
 

@@ -2271,29 +2271,29 @@ mod routes {
                   "discussions": [],
                   "timestamp": TIMESTAMP,
                   "reviews": [
-                    [
-                      CONTRIBUTOR_NID,
-                      {
-                        "verdict": "accept",
-                        "comment": "A small review",
-                        "inline": [
-                          {
-                            "location": {
-                              "blob": "82eb77880c693655bce074e3dbbd9fa711dc018b",
-                              "path": "./README.md",
-                              "commit": HEAD,
-                              "lines": {
-                                "start": 1,
-                                "end": 3,
-                              },
-                            },
-                            "comment": "This is a comment on line 1",
-                            "timestamp": TIMESTAMP,
-                          }
-                        ],
-                        "timestamp": TIMESTAMP,
+                    {
+                      "author": {
+                          "id": CONTRIBUTOR_NID,
                       },
-                    ],
+                      "verdict": "accept",
+                      "comment": "A small review",
+                      "inline": [
+                        {
+                          "location": {
+                            "blob": "82eb77880c693655bce074e3dbbd9fa711dc018b",
+                            "path": "./README.md",
+                            "commit": HEAD,
+                            "lines": {
+                              "start": 1,
+                              "end": 3,
+                            },
+                          },
+                          "comment": "This is a comment on line 1",
+                          "timestamp": TIMESTAMP,
+                        }
+                      ],
+                      "timestamp": TIMESTAMP,
+                    },
                   ],
                 },
               ],
@@ -2345,7 +2345,9 @@ mod routes {
               "target": "delegates",
               "tags": [],
               "merges": [{
-                  "author": CONTRIBUTOR_NID,
+                  "author": {
+                    "id": CONTRIBUTOR_NID,
+                  },
                   "revision": CONTRIBUTOR_PATCH_ID,
                   "commit": PARENT,
                   "timestamp": TIMESTAMP,
