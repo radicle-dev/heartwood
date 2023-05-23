@@ -8,8 +8,9 @@ use radicle::storage::git::Repository;
 use radicle::storage::{Oid, ReadRepository};
 use radicle::Profile;
 
-use radicle::cob::patch::{Patch, PatchId, State};
-use radicle::cob::Timestamp;
+use radicle::cob::issue::{Issue, IssueId, State as IssueState};
+use radicle::cob::patch::{Patch, PatchId, State as PatchState};
+use radicle::cob::{Tag, Timestamp};
 
 use tuirealm::props::{Color, Style};
 use tuirealm::tui::widgets::Cell;
@@ -38,7 +39,7 @@ pub struct PatchItem {
     /// Patch OID.
     id: PatchId,
     /// Patch state.
-    state: State,
+    state: PatchState,
     /// Patch title.
     title: String,
     /// Author of the latest revision.
@@ -88,17 +89,17 @@ impl TryFrom<(&Profile, &Repository, PatchId, Patch)> for PatchItem {
 
 impl TableItem<8> for PatchItem {
     fn row(&self, theme: &Theme) -> [Cell; 8] {
-        let (icon, color) = format_state(&self.state);
+        let (icon, color) = format_patch_state(&self.state);
         let state = Cell::from(icon).style(Style::default().fg(color));
 
         let id = Cell::from(format::cob(&self.id))
-            .style(Style::default().fg(theme.colors.browser_patch_list_id));
+            .style(Style::default().fg(theme.colors.browser_list_id));
 
         let title = Cell::from(self.title.clone())
-            .style(Style::default().fg(theme.colors.browser_patch_list_title));
+            .style(Style::default().fg(theme.colors.browser_list_title));
 
         let author = Cell::from(format_author(&self.author.did, self.author.is_you))
-            .style(Style::default().fg(theme.colors.browser_patch_list_author));
+            .style(Style::default().fg(theme.colors.browser_list_author));
 
         let head = Cell::from(format::oid(self.head))
             .style(Style::default().fg(theme.colors.browser_patch_list_head));
@@ -110,9 +111,90 @@ impl TableItem<8> for PatchItem {
             .style(Style::default().fg(theme.colors.browser_patch_list_removed));
 
         let updated = Cell::from(format::timestamp(&self.timestamp).to_string())
-            .style(Style::default().fg(theme.colors.browser_patch_list_timestamp));
+            .style(Style::default().fg(theme.colors.browser_list_timestamp));
 
         [state, id, title, author, head, added, removed, updated]
+    }
+}
+
+/// An issue item that can be used in tables, list or trees.
+///
+/// Breaks up dependencies to [`Profile`] and [`Repository`] that
+/// would be needed if [`Issue`] would be used directly.
+#[derive(Clone)]
+pub struct IssueItem {
+    /// Issue OID.
+    id: IssueId,
+    /// Issue state.
+    state: IssueState,
+    /// Issue title.
+    title: String,
+    /// Issue author.
+    author: AuthorItem,
+    /// Issue tags.
+    tags: Vec<Tag>,
+    /// Issue assignees.
+    assignees: Vec<AuthorItem>,
+    /// Time when issue was opened.
+    timestamp: Timestamp,
+}
+
+impl TryFrom<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
+    type Error = anyhow::Error;
+
+    fn try_from(value: (&Profile, &Repository, IssueId, Issue)) -> Result<Self, Self::Error> {
+        let (profile, _, id, issue) = value;
+
+        Ok(IssueItem {
+            id,
+            state: *issue.state(),
+            title: issue.title().into(),
+            author: AuthorItem {
+                did: issue.author().id,
+                is_you: *issue.author().id == *profile.did(),
+            },
+            tags: issue.tags().cloned().collect(),
+            assignees: issue
+                .assigned()
+                .map(|did| AuthorItem {
+                    did,
+                    is_you: did == profile.did(),
+                })
+                .collect::<Vec<_>>(),
+            timestamp: issue.timestamp(),
+        })
+    }
+}
+
+impl TableItem<7> for IssueItem {
+    fn row(&self, theme: &Theme) -> [Cell; 7] {
+        let (icon, color) = format_issue_state(&self.state);
+        let state = Cell::from(icon).style(Style::default().fg(color));
+
+        let id = Cell::from(format::cob(&self.id))
+            .style(Style::default().fg(theme.colors.browser_list_id));
+
+        let title = Cell::from(self.title.clone())
+            .style(Style::default().fg(theme.colors.browser_list_title));
+
+        let author = Cell::from(format_author(&self.author.did, self.author.is_you))
+            .style(Style::default().fg(theme.colors.browser_list_author));
+
+        let tags = Cell::from(format_tags(&self.tags))
+            .style(Style::default().fg(theme.colors.browser_list_tags));
+
+        let assignees = self
+            .assignees
+            .iter()
+            .map(|author| (author.did, author.is_you))
+            .collect::<Vec<_>>();
+        let assignees = Cell::from(format_assignees(&assignees))
+            .style(Style::default().fg(theme.colors.browser_list_author));
+
+        let opened = Cell::from(format::timestamp(&self.timestamp).to_string())
+            .style(Style::default().fg(theme.colors.browser_list_timestamp));
+
+        [state, id, title, author, tags, assignees, opened]
     }
 }
 
@@ -122,12 +204,12 @@ impl TableItem<1> for () {
     }
 }
 
-pub fn format_state(state: &State) -> (String, Color) {
+pub fn format_patch_state(state: &PatchState) -> (String, Color) {
     match state {
-        State::Open { conflicts: _ } => (" ● ".into(), Color::Green),
-        State::Archived => (" ● ".into(), Color::Yellow),
-        State::Draft => (" ● ".into(), Color::Gray),
-        State::Merged {
+        PatchState::Open { conflicts: _ } => (" ● ".into(), Color::Green),
+        PatchState::Archived => (" ● ".into(), Color::Yellow),
+        PatchState::Draft => (" ● ".into(), Color::Gray),
+        PatchState::Merged {
             revision: _,
             commit: _,
         } => (" ✔ ".into(), Color::Blue),
@@ -140,4 +222,39 @@ pub fn format_author(did: &Did, is_you: bool) -> String {
     } else {
         format!("{}", format::did(did))
     }
+}
+
+pub fn format_issue_state(state: &IssueState) -> (String, Color) {
+    match state {
+        IssueState::Open => (" ● ".into(), Color::Green),
+        IssueState::Closed { reason: _ } => (" ● ".into(), Color::Red),
+    }
+}
+
+pub fn format_tags(tags: &[Tag]) -> String {
+    let mut output = String::new();
+    let mut tags = tags.iter().peekable();
+
+    while let Some(tag) = tags.next() {
+        output.push_str(&tag.to_string());
+
+        if tags.peek().is_some() {
+            output.push(',');
+        }
+    }
+    output
+}
+
+pub fn format_assignees(assignees: &[(Did, bool)]) -> String {
+    let mut output = String::new();
+    let mut assignees = assignees.iter().peekable();
+
+    while let Some((assignee, is_you)) = assignees.next() {
+        output.push_str(&format_author(assignee, *is_you));
+
+        if assignees.peek().is_some() {
+            output.push(',');
+        }
+    }
+    output
 }

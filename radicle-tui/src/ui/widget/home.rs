@@ -1,3 +1,4 @@
+use radicle::cob::issue::Issues;
 use radicle::prelude::{Id, Project};
 use radicle::storage::ReadStorage;
 use radicle::Profile;
@@ -11,12 +12,11 @@ use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
 use super::common;
 use super::common::container::{LabeledContainer, Tabs};
 use super::common::context::Shortcuts;
-use super::common::label::Label;
 use super::common::list::{ColumnWidth, Table};
 
 use super::{Widget, WidgetComponent};
 
-use crate::ui::cob::PatchItem;
+use crate::ui::cob::{IssueItem, PatchItem};
 use crate::ui::layout;
 use crate::ui::theme::Theme;
 
@@ -54,23 +54,61 @@ impl WidgetComponent for Dashboard {
 }
 
 pub struct IssueBrowser {
-    label: Widget<Label>,
+    table: Widget<Table<IssueItem, 7>>,
     shortcuts: Widget<Shortcuts>,
 }
 
 impl IssueBrowser {
-    pub fn new(label: Widget<Label>, shortcuts: Widget<Shortcuts>) -> Self {
-        Self { label, shortcuts }
+    pub fn new(theme: &Theme, profile: &Profile, id: &Id, shortcuts: Widget<Shortcuts>) -> Self {
+        let repo = profile.storage.repository(*id).unwrap();
+        let issues = Issues::open(&repo)
+            .and_then(|issues| issues.all().map(|iter| iter.flatten().collect::<Vec<_>>()));
+
+        let header = [
+            common::label(" ● "),
+            common::label("ID"),
+            common::label("Title"),
+            common::label("Author"),
+            common::label("Tags"),
+            common::label("Assignees"),
+            common::label("Opened"),
+        ];
+
+        let widths = [
+            ColumnWidth::Fixed(3),
+            ColumnWidth::Fixed(7),
+            ColumnWidth::Grow,
+            ColumnWidth::Fixed(21),
+            ColumnWidth::Fixed(25),
+            ColumnWidth::Fixed(21),
+            ColumnWidth::Fixed(18),
+        ];
+
+        let mut items = vec![];
+        if let Ok(mut issues) = issues {
+            issues.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
+            issues.sort_by(|(_, a, _), (_, b, _)| a.state().cmp(b.state()));
+
+            for (id, patch, _) in issues {
+                if let Ok(item) = IssueItem::try_from((profile, &repo, id, patch)) {
+                    items.push(item);
+                }
+            }
+        }
+
+        let table = Widget::new(Table::new(&items, header, widths, theme.clone()))
+            .highlight(theme.colors.item_list_highlighted_bg);
+
+        Self { table, shortcuts }
+    }
+
+    pub fn selected_item(&self) -> Option<&IssueItem> {
+        self.table.selection()
     }
 }
 
 impl WidgetComponent for IssueBrowser {
     fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
-        let label_w = self
-            .label
-            .query(Attribute::Width)
-            .unwrap_or(AttrValue::Size(1))
-            .unwrap_size();
         let shortcuts_h = self
             .shortcuts
             .query(Attribute::Height)
@@ -78,17 +116,16 @@ impl WidgetComponent for IssueBrowser {
             .unwrap_size();
         let layout = layout::root_component(area, shortcuts_h);
 
-        self.label
-            .view(frame, layout::centered_label(label_w, layout[0]));
+        self.table.view(frame, layout[0]);
         self.shortcuts.view(frame, layout[1])
     }
 
     fn state(&self) -> State {
-        State::None
+        self.table.state()
     }
 
-    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
-        CmdResult::None
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.table.perform(cmd)
     }
 }
 
@@ -221,17 +258,16 @@ pub fn patches(theme: &Theme, id: &Id, profile: &Profile) -> Widget<PatchBrowser
     Widget::new(PatchBrowser::new(profile, id, shortcuts, theme.clone()))
 }
 
-pub fn issues(theme: &Theme) -> Widget<IssueBrowser> {
+pub fn issues(theme: &Theme, id: &Id, profile: &Profile) -> Widget<IssueBrowser> {
     let shortcuts = common::shortcuts(
         theme,
         vec![
             common::shortcut(theme, "tab", "section"),
+            common::shortcut(theme, "↑/↓", "navigate"),
+            common::shortcut(theme, "enter", "show"),
             common::shortcut(theme, "q", "quit"),
         ],
     );
 
-    let not_implemented = common::label("not implemented").foreground(theme.colors.default_fg);
-    let browser = IssueBrowser::new(not_implemented, shortcuts);
-
-    Widget::new(browser)
+    Widget::new(IssueBrowser::new(theme, profile, id, shortcuts))
 }

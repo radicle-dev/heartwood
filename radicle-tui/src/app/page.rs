@@ -65,7 +65,7 @@ impl ViewPage for HomeView {
         let navigation = widget::home::navigation(theme).to_boxed();
 
         let dashboard = widget::home::dashboard(theme, &context.id, &context.project).to_boxed();
-        let issue_browser = widget::home::issues(theme).to_boxed();
+        let issue_browser = widget::home::issues(theme, &context.id, &context.profile).to_boxed();
         let patch_browser = widget::home::patches(theme, &context.id, &context.profile).to_boxed();
 
         app.remount(
