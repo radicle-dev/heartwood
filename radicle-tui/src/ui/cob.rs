@@ -139,6 +139,12 @@ pub struct IssueItem {
     timestamp: Timestamp,
 }
 
+impl IssueItem {
+    pub fn id(&self) -> IssueId {
+        self.id
+    }
+}
+
 impl TryFrom<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
     type Error = anyhow::Error;
 

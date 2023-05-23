@@ -1,13 +1,16 @@
 use anyhow::Result;
 
-use radicle::cob::patch::{Patch, PatchId};
+use radicle::cob::{
+    issue::{Issue, IssueId},
+    patch::{Patch, PatchId},
+};
 use tuirealm::{Frame, NoUserEvent};
 
 use radicle_tui::ui::layout;
 use radicle_tui::ui::theme::Theme;
 use radicle_tui::ui::widget;
 
-use super::{subscription, Application, Cid, Context, HomeCid, Message, PatchCid};
+use super::{subscription, Application, Cid, Context, HomeCid, IssueCid, Message, PatchCid};
 
 /// `tuirealm`'s event and prop system is designed to work with flat component hierarchies.
 /// Building deep nested component hierarchies would need a lot more additional effort to
@@ -109,6 +112,63 @@ impl ViewPage for HomeView {
         let layout = layout::default_page(area);
 
         app.view(&Cid::Home(HomeCid::Navigation), frame, layout[0]);
+        app.view(&self.active_component, frame, layout[1]);
+    }
+}
+
+///
+/// Issue detail page
+///
+pub struct IssuePage {
+    active_component: Cid,
+    issue: (IssueId, Issue),
+}
+
+impl IssuePage {
+    pub fn new(issue: (IssueId, Issue)) -> Self {
+        IssuePage {
+            active_component: Cid::Issue(IssueCid::List),
+            issue,
+        }
+    }
+}
+
+impl ViewPage for IssuePage {
+    fn mount(
+        &self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        context: &Context,
+        theme: &Theme,
+    ) -> Result<()> {
+        let (id, issue) = &self.issue;
+        let list = widget::issue::list(theme, (*id, issue), &context.profile).to_boxed();
+
+        app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
+        app.active(&self.active_component)?;
+
+        Ok(())
+    }
+
+    fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.umount(&Cid::Issue(IssueCid::List))?;
+        Ok(())
+    }
+
+    fn update(
+        &mut self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        _message: Message,
+    ) -> Result<()> {
+        app.active(&self.active_component)?;
+
+        Ok(())
+    }
+
+    fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
+        let area = frame.size();
+        let layout = layout::default_page(area);
+
+        app.view(&Cid::Patch(PatchCid::Navigation), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
     }
 }
