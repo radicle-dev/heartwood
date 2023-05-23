@@ -156,7 +156,7 @@ where
             items: items.to_vec(),
             header,
             widths,
-            state: ItemState::new(items.len()),
+            state: ItemState::new(Some(0), items.len()),
             theme,
         }
     }
@@ -230,7 +230,7 @@ where
 /// A list component that can display [`ListItem`]'s.
 pub struct List<V>
 where
-    V: ListItem + Clone,
+    V: ListItem + Clone + PartialEq,
 {
     /// Items held by this list.
     items: Vec<V>,
@@ -242,12 +242,17 @@ where
 
 impl<V> List<V>
 where
-    V: ListItem + Clone,
+    V: ListItem + Clone + PartialEq,
 {
-    pub fn new(items: &[V], theme: Theme) -> Self {
+    pub fn new(items: &[V], selected: Option<V>, theme: Theme) -> Self {
+        let selected = match selected {
+            Some(item) => items.iter().position(|i| i == &item),
+            None => Some(0),
+        };
+
         Self {
             items: items.to_vec(),
-            state: ItemState::new(items.len()),
+            state: ItemState::new(selected, items.len()),
             theme,
         }
     }
@@ -255,7 +260,7 @@ where
 
 impl<V> WidgetComponent for List<V>
 where
-    V: ListItem + Clone,
+    V: ListItem + Clone + PartialEq,
 {
     fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
         use tuirealm::tui::widgets::{List, ListItem};

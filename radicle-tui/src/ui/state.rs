@@ -25,11 +25,8 @@ pub struct ItemState {
 }
 
 impl ItemState {
-    pub fn new(len: usize) -> Self {
-        Self {
-            selected: Some(0),
-            len,
-        }
+    pub fn new(selected: Option<usize>, len: usize) -> Self {
+        Self { selected, len }
     }
 
     pub fn selected(&self) -> Option<usize> {

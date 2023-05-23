@@ -288,6 +288,12 @@ impl ListItem for IssueItem {
     }
 }
 
+impl PartialEq for IssueItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
 pub fn format_patch_state(state: &PatchState) -> (String, Color) {
     match state {
         PatchState::Open { conflicts: _ } => (" ● ".into(), Color::Green),

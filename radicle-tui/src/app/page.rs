@@ -162,8 +162,8 @@ impl ViewPage for IssuePage {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let (id, issue) = &self.issue;
-        let list = widget::issue::list(context, theme, (*id, issue)).to_boxed();
+        let (id, issue) = self.issue.clone();
+        let list = widget::issue::list(context, theme, (id, issue)).to_boxed();
         let shortcuts = widget::common::shortcuts(
             theme,
             vec![
