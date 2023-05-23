@@ -20,8 +20,8 @@ pub fn node(node: &NodeId) -> String {
 }
 
 /// Format a git Oid.
-pub fn oid(oid: impl Into<radicle::git::Oid>) -> String {
-    format!("{:.7}", oid.into())
+pub fn oid(oid: impl Into<radicle::git::Oid>) -> Paint<String> {
+    Paint::new(format!("{:.7}", oid.into()))
 }
 
 /// Wrap parenthesis around styled input, eg. `"input"` -> `"(input)"`.

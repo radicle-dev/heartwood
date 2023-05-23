@@ -81,7 +81,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 continue;
             }
         };
-        let head = term::format::oid(head);
+        let head = term::format::oid(head).into();
         table.push([
             term::format::bold(proj.name().to_owned()),
             term::format::tertiary(id.urn()),

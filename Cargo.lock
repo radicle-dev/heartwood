@@ -1944,6 +1944,7 @@ dependencies = [
  "radicle-crypto",
  "radicle-git-ext",
  "radicle-node",
+ "radicle-surf",
  "radicle-term",
  "serde",
  "serde_json",
@@ -2031,9 +2032,9 @@ dependencies = [
 
 [[package]]
 name = "radicle-git-ext"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d6531d5c9b029df83b8887c27d56e05de59f2821f70fc5e8fce0646437ecda5"
+checksum = "85d13d7488924b07c0d541760520b1e4224c6ffa2d9765e05d1de9591e248970"
 dependencies = [
  "git-ref-format",
  "git2",

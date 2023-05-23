@@ -55,6 +55,12 @@ impl From<Paint<&str>> for Paint<String> {
     }
 }
 
+impl From<Paint<String>> for String {
+    fn from(value: Paint<String>) -> Self {
+        value.item
+    }
+}
+
 impl<T> Paint<T> {
     /// Constructs a new `Paint` structure encapsulating `item` with no set
     /// styling.

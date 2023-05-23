@@ -241,6 +241,14 @@ pub mod refs {
             .with_namespace(remote.into())
         }
 
+        /// Review draft reference.
+        ///
+        /// When building a patch review, we store the intermediate state in this ref.
+        pub fn review<'a>(remote: &RemoteId, patch: &cob::ObjectId) -> Namespaced<'a> {
+            Qualified::from_components(component!("reviews"), Component::from(patch), None)
+                .with_namespace(remote.into())
+        }
+
         /// Staging/temporary references.
         pub mod staging {
             use super::*;

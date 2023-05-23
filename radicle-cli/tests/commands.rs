@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::str::FromStr;
-use std::{env, fs};
-use std::{thread, time};
+use std::{env, fs, thread, time};
 
 use radicle::git;
 use radicle::node::Handle as _;
@@ -353,6 +352,28 @@ fn rad_patch_via_push() {
     test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
     test(
         "examples/rad-patch-via-push.md",
+        working.path(),
+        Some(home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_review_by_hunk() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let working = tempfile::tempdir().unwrap();
+    let home = &profile.home;
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
+    test(
+        "examples/rad-review-by-hunk.md",
         working.path(),
         Some(home),
         [],

@@ -127,6 +127,11 @@ pub fn addr(val: &OsString) -> anyhow::Result<Address> {
     Address::from_str(&val).map_err(|_| anyhow!("invalid address '{}'", val))
 }
 
+pub fn number(val: &OsString) -> anyhow::Result<usize> {
+    let val = val.to_string_lossy();
+    usize::from_str(&val).map_err(|_| anyhow!("invalid number '{}'", val))
+}
+
 pub fn string(val: &OsString) -> String {
     val.to_string_lossy().to_string()
 }

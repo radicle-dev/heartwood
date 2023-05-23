@@ -41,7 +41,9 @@ fn patch_commits(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<Ve
         let commit = stored.raw().find_commit(commit)?;
 
         lines.push(term::Line::spaced([
-            term::label(term::format::secondary(term::format::oid(commit.id()))),
+            term::label(term::format::secondary::<String>(
+                term::format::oid(commit.id()).into(),
+            )),
             term::label(term::format::default(
                 commit.summary().unwrap_or_default().to_owned(),
             )),

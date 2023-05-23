@@ -45,16 +45,16 @@ impl Editor {
     ///
     /// If the text hasn't changed from the initial contents of the editor,
     /// return `None`.
-    pub fn edit(&mut self, initial: impl ToString) -> io::Result<Option<String>> {
-        let initial = initial.to_string();
+    pub fn edit(&mut self, initial: impl AsRef<[u8]>) -> io::Result<Option<String>> {
+        let initial = initial.as_ref();
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create(true)
             .open(&self.path)?;
 
         if file.metadata()?.len() == 0 {
-            file.write_all(initial.as_bytes())?;
-            if !initial.ends_with('\n') {
+            file.write_all(initial)?;
+            if !initial.ends_with(&[b'\n']) {
                 file.write_all(b"\n")?;
             }
             file.flush()?;

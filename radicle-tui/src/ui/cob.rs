@@ -142,7 +142,7 @@ impl TableItem<8> for PatchItem {
         let author = Cell::from(format_author(&self.author.did, self.author.is_you))
             .style(Style::default().fg(theme.colors.browser_list_author));
 
-        let head = Cell::from(format::oid(self.head))
+        let head = Cell::from(format::oid(self.head).item)
             .style(Style::default().fg(theme.colors.browser_patch_list_head));
 
         let added = Cell::from(format!("{}", self.added))
