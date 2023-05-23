@@ -25,7 +25,6 @@ impl LargeList {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(IssueId, Issue)>) -> Self {
         let repo = context.repository();
         let issues = cob::issue::all(repo).unwrap_or_default();
-
         let mut items = issues
             .iter()
             .map(|(id, issue)| IssueItem::from((context.profile(), repo, *id, issue.clone())))
@@ -62,6 +61,7 @@ impl WidgetComponent for LargeList {
 
 pub fn list(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Widget<LargeList> {
     let list = LargeList::new(context, theme, Some(issue));
+
     Widget::new(list)
 }
 
