@@ -163,9 +163,19 @@ impl ViewPage for IssuePage {
         theme: &Theme,
     ) -> Result<()> {
         let (id, issue) = &self.issue;
-        let list = widget::issue::list(theme, (*id, issue), context.profile()).to_boxed();
+        let list = widget::issue::list(context, theme, (*id, issue)).to_boxed();
+        let shortcuts = widget::common::shortcuts(
+            theme,
+            vec![
+                widget::common::shortcut(theme, "esc", "back"),
+                widget::common::shortcut(theme, "q", "quit"),
+            ],
+        )
+        .to_boxed();
 
         app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
+        app.remount(Cid::Issue(IssueCid::Shortcuts), shortcuts, vec![])?;
+
         app.active(&self.active_component)?;
 
         Ok(())
@@ -173,6 +183,7 @@ impl ViewPage for IssuePage {
 
     fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.umount(&Cid::Issue(IssueCid::List))?;
+        app.umount(&Cid::Issue(IssueCid::Shortcuts))?;
         Ok(())
     }
 
@@ -188,27 +199,18 @@ impl ViewPage for IssuePage {
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
-        let layout = layout::default_page(area);
+        let shortcuts_h = 1u16;
+        let layout = layout::issue_preview(area, shortcuts_h);
 
-        app.view(&Cid::Patch(PatchCid::Navigation), frame, layout[0]);
-        app.view(&self.active_component, frame, layout[1]);
+        app.view(&Cid::Issue(IssueCid::List), frame, layout.left);
+        app.view(&Cid::Issue(IssueCid::Shortcuts), frame, layout.shortcuts);
     }
 
-    fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        app.subscribe(
-            &Cid::Home(HomeCid::Navigation),
-            Sub::new(subscription::navigation_clause(), SubClause::Always),
-        )?;
-
+    fn subscribe(&self, _app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         Ok(())
     }
 
-    fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        app.unsubscribe(
-            &Cid::Home(HomeCid::Navigation),
-            subscription::navigation_clause(),
-        )?;
-
+    fn unsubscribe(&self, _app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         Ok(())
     }
 }

@@ -5,32 +5,66 @@ use radicle::cob::issue::IssueId;
 use radicle::Profile;
 use tuirealm::props::Color;
 
-use super::common;
+use super::common::container::LabeledContainer;
+use super::common::list::List;
 use super::Widget;
 
-use crate::ui::cob;
+use crate::cob;
+use crate::ui::cob::IssueItem;
+use crate::ui::context::Context;
 use crate::ui::theme::Theme;
 use crate::ui::widget::common::context::ContextBar;
-use crate::ui::widget::patch::Activity;
 
-pub fn list(theme: &Theme, issue: (IssueId, &Issue), profile: &Profile) -> Widget<Activity> {
-    let (id, issue) = issue;
-    let shortcuts = common::shortcuts(
-        theme,
-        vec![
-            common::shortcut(theme, "esc", "back"),
-            common::shortcut(theme, "q", "quit"),
-        ],
-    );
-    let context = context(theme, (id, issue), profile);
+use super::*;
 
-    let not_implemented = common::label("not implemented").foreground(theme.colors.default_fg);
-    let activity = Activity::new(not_implemented, context, shortcuts);
+pub struct LargeList {
+    container: Widget<LabeledContainer>,
+}
 
-    Widget::new(activity)
+impl LargeList {
+    pub fn new(context: &Context, theme: &Theme) -> Self {
+        let repo = context.repository();
+        let issues = cob::issue::all(repo).unwrap_or(vec![]);
+
+        let mut items = issues
+            .iter()
+            .map(|(id, issue)| IssueItem::from((context.profile(), repo, *id, issue.clone())))
+            .collect::<Vec<_>>();
+
+        items.sort_by(|a, b| b.timestamp().cmp(a.timestamp()));
+        items.sort_by(|a, b| a.state().cmp(b.state()));
+
+        let list = Widget::new(List::new(&items, theme.clone()))
+            .highlight(theme.colors.item_list_highlighted_bg);
+
+        let container = common::labeled_container(theme, "Issues", list.to_boxed());
+
+        Self { container }
+    }
+}
+
+impl WidgetComponent for LargeList {
+    fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
+        self.container.view(frame, area);
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.container.perform(cmd)
+    }
+}
+
+pub fn list(context: &Context, theme: &Theme, _issue: (IssueId, &Issue)) -> Widget<LargeList> {
+    let list = LargeList::new(context, theme);
+    Widget::new(list)
 }
 
 pub fn context(theme: &Theme, issue: (IssueId, &Issue), profile: &Profile) -> Widget<ContextBar> {
+    use crate::ui::cob;
+
     let (id, issue) = issue;
     let is_you = *issue.author().id() == profile.did();
 

@@ -13,10 +13,13 @@ use radicle::cob::patch::{Patch, PatchId, State as PatchState};
 use radicle::cob::{Tag, Timestamp};
 
 use tuirealm::props::{Color, Style};
+use tuirealm::tui::text::{Span, Spans};
 use tuirealm::tui::widgets::Cell;
 
 use crate::ui::theme::Theme;
 use crate::ui::widget::common::list::TableItem;
+
+use super::widget::common::list::ListItem;
 
 /// An author item that can be used in tables, list or trees.
 ///
@@ -197,13 +200,11 @@ impl IssueItem {
     }
 }
 
-impl TryFrom<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
-    type Error = anyhow::Error;
-
-    fn try_from(value: (&Profile, &Repository, IssueId, Issue)) -> Result<Self, Self::Error> {
+impl From<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
+    fn from(value: (&Profile, &Repository, IssueId, Issue)) -> Self {
         let (profile, _, id, issue) = value;
 
-        Ok(IssueItem {
+        IssueItem {
             id,
             state: *issue.state(),
             title: issue.title().into(),
@@ -220,7 +221,7 @@ impl TryFrom<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
                 })
                 .collect::<Vec<_>>(),
             timestamp: issue.timestamp(),
-        })
+        }
     }
 }
 
@@ -253,6 +254,37 @@ impl TableItem<7> for IssueItem {
             .style(Style::default().fg(theme.colors.browser_list_timestamp));
 
         [state, id, title, author, tags, assignees, opened]
+    }
+}
+
+impl ListItem for IssueItem {
+    fn row(&self, theme: &Theme) -> tuirealm::tui::widgets::ListItem {
+        let (state, state_color) = format_issue_state(&self.state);
+        let lines = vec![
+            Spans::from(vec![
+                Span::styled(state, Style::default().fg(state_color)),
+                Span::styled(
+                    self.title.clone(),
+                    Style::default().fg(theme.colors.browser_list_title),
+                ),
+            ]),
+            Spans::from(vec![
+                Span::raw(String::from("   ")),
+                Span::styled(
+                    format_author(&self.author.did, self.author.is_you),
+                    Style::default().fg(theme.colors.browser_list_author),
+                ),
+                Span::styled(
+                    format!(" {} ", theme.icons.property_divider),
+                    Style::default().fg(theme.colors.property_divider_fg),
+                ),
+                Span::styled(
+                    format::timestamp(&self.timestamp).to_string(),
+                    Style::default().fg(theme.colors.browser_list_timestamp),
+                ),
+            ]),
+        ];
+        tuirealm::tui::widgets::ListItem::new(lines)
     }
 }
 

@@ -2,6 +2,12 @@ use tuirealm::props::{AttrValue, Attribute};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::MockComponent;
 
+pub struct IssuePreview {
+    pub left: Rect,
+    pub right: Rect,
+    pub shortcuts: Rect,
+}
+
 pub fn v_stack(
     widgets: Vec<Box<dyn MockComponent>>,
     area: Rect,
@@ -55,6 +61,17 @@ pub fn default_page(area: Rect) -> Vec<Rect> {
         .direction(Direction::Vertical)
         .horizontal_margin(margin_h)
         .constraints([Constraint::Length(nav_h), Constraint::Length(content_h)].as_ref())
+        .split(area)
+}
+
+pub fn headerless_page(area: Rect) -> Vec<Rect> {
+    let margin_h = 1u16;
+    let content_h = area.height.saturating_sub(margin_h);
+
+    Layout::default()
+        .direction(Direction::Vertical)
+        .horizontal_margin(margin_h)
+        .constraints([Constraint::Length(content_h)].as_ref())
         .split(area)
 }
 
@@ -119,4 +136,31 @@ pub fn centered_label(label_w: u16, area: Rect) -> Rect {
             .as_ref(),
         )
         .split(layout[1])[1]
+}
+
+pub fn issue_preview(area: Rect, shortcuts_h: u16) -> IssuePreview {
+    let content_h = area.height.saturating_sub(shortcuts_h);
+
+    let root = Layout::default()
+        .direction(Direction::Vertical)
+        .horizontal_margin(1)
+        .constraints(
+            [
+                Constraint::Length(content_h),
+                Constraint::Length(shortcuts_h),
+            ]
+            .as_ref(),
+        )
+        .split(area);
+
+    let split = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .split(root[0]);
+
+    IssuePreview {
+        left: split[0],
+        right: split[1],
+        shortcuts: root[1],
+    }
 }

@@ -39,6 +39,7 @@ pub enum PatchCid {
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum IssueCid {
     List,
+    Shortcuts,
 }
 
 /// All component ids known to this application.
@@ -173,6 +174,9 @@ impl Tui<Cid, Message> for App {
                     match message {
                         Message::Issue(IssueMessage::Show(id)) => {
                             self.view_issue(app, id, &theme)?;
+                        }
+                        Message::Issue(IssueMessage::Leave) => {
+                            self.pages.pop(app)?;
                         }
                         Message::Patch(PatchMessage::Show(id)) => {
                             self.view_patch(app, id, &theme)?;

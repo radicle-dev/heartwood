@@ -1,10 +1,11 @@
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{AttrValue, Attribute, BorderSides, BorderType, Color, Props, Style};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
-use tuirealm::tui::widgets::{Block, Cell, Row, TableState};
+use tuirealm::tui::widgets::{Block, Cell, ListState, Row, TableState};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::layout;
+use crate::ui::state::ItemState;
 use crate::ui::theme::Theme;
 use crate::ui::widget::{utils, Widget, WidgetComponent};
 
@@ -17,12 +18,18 @@ pub trait TableItem<const W: usize> {
     fn row(&self, theme: &Theme) -> [Cell; W];
 }
 
+/// A generic item that can be displayed in a list.
+pub trait ListItem {
+    /// Should return fields as list item.
+    fn row(&self, theme: &Theme) -> tuirealm::tui::widgets::ListItem;
+}
+
 /// Grow behavior of a table column.
 ///
 /// [`tui::widgets::Table`] does only support percental column widths.
 /// A [`ColumnWidth`] is used to specify the grow behaviour of a table column
 /// and a percental column width is calculated based on that.
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ColumnWidth {
     /// A fixed-size column.
     Fixed(u16),
@@ -129,7 +136,9 @@ where
     header: [Widget<Label>; W],
     /// Grow behavior of table columns.
     widths: [ColumnWidth; W],
-    state: TableState,
+    /// State that keeps track of the selection.
+    state: ItemState,
+    /// The current theme.
     theme: Theme,
 }
 
@@ -143,47 +152,12 @@ where
         widths: [ColumnWidth; W],
         theme: Theme,
     ) -> Self {
-        let mut state = TableState::default();
-        state.select(Some(0));
-
         Self {
             items: items.to_vec(),
             header,
             widths,
-            state,
+            state: ItemState::new(items.len()),
             theme,
-        }
-    }
-
-    fn select_previous(&mut self) -> Option<usize> {
-        let old_index = self.state.selected();
-        let new_index = match old_index {
-            Some(selected) if selected == 0 => Some(0),
-            Some(selected) => Some(selected.saturating_sub(1)),
-            None => Some(0),
-        };
-
-        if old_index != new_index {
-            self.state.select(new_index);
-            self.state.selected()
-        } else {
-            None
-        }
-    }
-
-    fn select_next(&mut self, len: usize) -> Option<usize> {
-        let old_index = self.state.selected();
-        let new_index = match old_index {
-            Some(selected) if selected >= len.saturating_sub(1) => Some(len.saturating_sub(1)),
-            Some(selected) => Some(selected.saturating_add(1)),
-            None => Some(0),
-        };
-
-        if old_index != new_index {
-            self.state.select(new_index);
-            self.state.selected()
-        } else {
-            None
         }
     }
 }
@@ -226,7 +200,7 @@ where
             self.theme.clone(),
         ));
         header.view(frame, layout[0]);
-        frame.render_stateful_widget(table, layout[1], &mut self.state);
+        frame.render_stateful_widget(table, layout[1], &mut TableState::from(&self.state));
     }
 
     fn state(&self) -> State {
@@ -236,11 +210,87 @@ where
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
         use tuirealm::command::Direction;
         match cmd {
-            Cmd::Move(Direction::Up) => match self.select_previous() {
+            Cmd::Move(Direction::Up) => match self.state.select_previous() {
                 Some(selected) => CmdResult::Changed(State::One(StateValue::Usize(selected))),
                 None => CmdResult::None,
             },
-            Cmd::Move(Direction::Down) => match self.select_next(self.items.len()) {
+            Cmd::Move(Direction::Down) => match self.state.select_next() {
+                Some(selected) => CmdResult::Changed(State::One(StateValue::Usize(selected))),
+                None => CmdResult::None,
+            },
+            Cmd::Submit => match self.state.selected() {
+                Some(selected) => CmdResult::Submit(State::One(StateValue::Usize(selected))),
+                None => CmdResult::None,
+            },
+            _ => CmdResult::None,
+        }
+    }
+}
+
+/// A list component that can display [`ListItem`]'s.
+pub struct List<V>
+where
+    V: ListItem + Clone,
+{
+    /// Items held by this list.
+    items: Vec<V>,
+    /// State keeps track of the current selection.
+    state: ItemState,
+    /// The current theme.
+    theme: Theme,
+}
+
+impl<V> List<V>
+where
+    V: ListItem + Clone,
+{
+    pub fn new(items: &[V], theme: Theme) -> Self {
+        Self {
+            items: items.to_vec(),
+            state: ItemState::new(items.len()),
+            theme,
+        }
+    }
+}
+
+impl<V> WidgetComponent for List<V>
+where
+    V: ListItem + Clone,
+{
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        use tuirealm::tui::widgets::{List, ListItem};
+
+        let highlight = properties
+            .get_or(Attribute::HighlightedColor, AttrValue::Color(Color::Reset))
+            .unwrap_color();
+
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Min(1), Constraint::Length(1)])
+            .split(area);
+
+        let rows: Vec<ListItem> = self
+            .items
+            .iter()
+            .map(|item| item.row(&self.theme))
+            .collect();
+        let list = List::new(rows).highlight_style(Style::default().bg(highlight));
+
+        frame.render_stateful_widget(list, layout[0], &mut ListState::from(&self.state));
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        use tuirealm::command::Direction;
+        match cmd {
+            Cmd::Move(Direction::Up) => match self.state.select_previous() {
+                Some(selected) => CmdResult::Changed(State::One(StateValue::Usize(selected))),
+                None => CmdResult::None,
+            },
+            Cmd::Move(Direction::Down) => match self.state.select_next() {
                 Some(selected) => CmdResult::Changed(State::One(StateValue::Usize(selected))),
                 None => CmdResult::None,
             },

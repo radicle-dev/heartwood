@@ -38,7 +38,7 @@ pub fn reversable_label(content: &str) -> Widget<Label> {
 }
 
 pub fn container_header(theme: &Theme, label: Widget<Label>) -> Widget<Header<1>> {
-    let header = Header::new([label], [ColumnWidth::Fixed(100)], theme.clone());
+    let header = Header::new([label], [ColumnWidth::Grow], theme.clone());
 
     Widget::new(header)
 }
