@@ -28,11 +28,13 @@ hint: See the 'Note about fast-forwards' in 'git push --help' for details.
 
 And that we can with `+`:
 
-``` (stderr) RAD_SOCKET=/dev/null
-$ git push rad +HEAD:alice/1
+``` (stderr)
+$ git push -o no-sync rad +HEAD:alice/1
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + 87fa120...145e1e6 HEAD -> alice/1 (forced update)
 ```
+
+Notice that we used the `-o no-sync` push option to disable syncing after the push.
 
 ```
 $ git branch -r -vv

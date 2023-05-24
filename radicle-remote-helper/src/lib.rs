@@ -53,6 +53,12 @@ pub enum Error {
     List(#[from] list::Error),
 }
 
+#[derive(Debug, Default)]
+pub struct Options {
+    /// Don't sync after push.
+    no_sync: bool,
+}
+
 /// Run the radicle remote helper using the given profile.
 pub fn run(profile: radicle::Profile) -> Result<(), Error> {
     let url: Url = {
@@ -80,6 +86,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
 
     let stdin = io::stdin();
     let mut line = String::new();
+    let mut opts = Options::default();
 
     loop {
         let tokens = read_line(&stdin, &mut line)?;
@@ -94,8 +101,16 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
             ["option", "verbosity"] => {
                 println!("ok");
             }
-            ["option", "push-option", _opt] => {
-                println!("unsupported");
+            ["option", "push-option", opt] => {
+                match *opt {
+                    "sync" => opts.no_sync = false,
+                    "no-sync" => opts.no_sync = true,
+                    _ => {
+                        println!("unsupported");
+                        continue;
+                    }
+                }
+                println!("ok");
             }
             ["option", "progress", ..] => {
                 println!("unsupported");
@@ -115,6 +130,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                     &stored,
                     &profile,
                     &stdin,
+                    &opts,
                 )
                 .map_err(Error::from);
             }

@@ -19,7 +19,7 @@ use radicle::Profile;
 use radicle::{git, rad};
 use radicle_cli::terminal as cli;
 
-use crate::read_line;
+use crate::{read_line, Options};
 
 /// Default timeout for syncing to the network after a push.
 const DEFAULT_SYNC_TIMEOUT: time::Duration = time::Duration::from_secs(9);
@@ -117,6 +117,7 @@ pub fn run(
     stored: &storage::git::Repository,
     profile: &Profile,
     stdin: &io::Stdin,
+    opts: &Options,
 ) -> Result<(), Error> {
     // Don't allow push if either of these conditions is true:
     //
@@ -195,13 +196,15 @@ pub fn run(
         stored.sign_refs(&signer)?;
         stored.set_head()?;
 
-        // Connect to local node and announce refs to the network.
-        // If our node is not running, we simply skip this step, as the
-        // refs will be announced eventually, when the node restarts.
-        let node = radicle::Node::new(profile.socket());
-        if node.is_running() {
-            // Nb. allow this to fail. The push to local storage was still successful.
-            sync(stored.id, node).ok();
+        if !opts.no_sync {
+            // Connect to local node and announce refs to the network.
+            // If our node is not running, we simply skip this step, as the
+            // refs will be announced eventually, when the node restarts.
+            let node = radicle::Node::new(profile.socket());
+            if node.is_running() {
+                // Nb. allow this to fail. The push to local storage was still successful.
+                sync(stored.id, node).ok();
+            }
         }
     }
 
