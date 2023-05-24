@@ -134,6 +134,7 @@ pub(crate) fn patch(
         "revisions": patch.revisions().map(|(id, rev)| {
             json!({
                 "id": id,
+                "author": author(rev.author(), aliases.alias(rev.author().id())),
                 "description": rev.description(),
                 "base": rev.base(),
                 "oid": rev.head(),

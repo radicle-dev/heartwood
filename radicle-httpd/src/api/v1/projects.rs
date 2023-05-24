@@ -1746,6 +1746,9 @@ mod routes {
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
                     "description": "change `hello world` in README to something else",
+                    "author": {
+                      "id": CONTRIBUTOR_DID,
+                    },
                     "base": PARENT,
                     "oid": HEAD,
                     "refs": [
@@ -1785,6 +1788,9 @@ mod routes {
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
                     "description": "change `hello world` in README to something else",
+                    "author": {
+                      "id": CONTRIBUTOR_DID,
+                    },
                     "base": PARENT,
                     "oid": HEAD,
                     "refs": [
@@ -1863,6 +1869,9 @@ mod routes {
                   {
                     "id": CREATED_PATCH_ID,
                     "description": "Do some changes to README",
+                    "author": {
+                      "id": CONTRIBUTOR_DID,
+                    },
                     "base": INITIAL_COMMIT,
                     "oid": HEAD,
                     "refs": [
@@ -1926,6 +1935,9 @@ mod routes {
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "description": "change `hello world` in README to something else",
+                  "author": {
+                    "id": CONTRIBUTOR_DID,
+                  },
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -1986,6 +1998,9 @@ mod routes {
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "description": "change `hello world` in README to something else",
+                  "author": {
+                    "id": CONTRIBUTOR_DID,
+                  },
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -1997,6 +2012,9 @@ mod routes {
                 },
                 {
                   "id": "181e4219bc132e7716126a84200d4dbd628dd6be",
+                  "author": {
+                    "id": CONTRIBUTOR_DID,
+                  },
                   "description": "This is a new revision",
                   "base": PARENT,
                   "oid": HEAD,
@@ -2058,6 +2076,9 @@ mod routes {
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "description": "change `hello world` in README to something else",
+                  "author": {
+                    "id": CONTRIBUTOR_DID,
+                  },
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2140,6 +2161,9 @@ mod routes {
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "description": "change `hello world` in README to something else",
+                  "author": {
+                    "id": CONTRIBUTOR_DID,
+                  },
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2236,6 +2260,9 @@ mod routes {
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "description": "change `hello world` in README to something else",
+                  "author": {
+                    "id": CONTRIBUTOR_DID,
+                  },
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2328,6 +2355,9 @@ mod routes {
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
                   "description": "change `hello world` in README to something else",
+                  "author": {
+                    "id": CONTRIBUTOR_DID,
+                  },
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
