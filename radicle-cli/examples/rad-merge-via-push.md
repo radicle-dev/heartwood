@@ -17,6 +17,36 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
  * [new reference]   HEAD -> refs/patches
 ```
 
+This creates some remote tracking branches for us:
+
+```
+$ git branch -r
+  rad/master
+  rad/patches/dce2ff0b2baf6da67fae5143b828ebfab65d41e4
+  rad/patches/f4e9dcffb21bee746e0eee965933c7e237aa207a
+```
+
+And some remote refs:
+
+```
+$ rad inspect --refs
+.
+`-- z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+    `-- refs
+        |-- cobs
+        |   `-- xyz.radicle.patch
+        |       |-- dce2ff0b2baf6da67fae5143b828ebfab65d41e4
+        |       `-- f4e9dcffb21bee746e0eee965933c7e237aa207a
+        |-- heads
+        |   |-- master
+        |   `-- patches
+        |       |-- dce2ff0b2baf6da67fae5143b828ebfab65d41e4
+        |       `-- f4e9dcffb21bee746e0eee965933c7e237aa207a
+        `-- rad
+            |-- id
+            `-- sigrefs
+```
+
 Then let's merge the changes into `master`.
 
 ``` (stderr) RAD_SOCKET=/dev/null
@@ -43,4 +73,29 @@ $ rad patch --merged
 │ ✔  dce2ff0  Second change  z6MknSL…StBU8Vi  (you)  e9fff34  +0  -0  [   ...    ] │
 │ ✔  f4e9dcf  First change   z6MknSL…StBU8Vi  (you)  20aa5dd  +0  -0  [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────────╯
+```
+
+We can verify that the remote tracking branches were also deleted:
+
+```
+$ git branch -r
+  rad/master
+```
+
+And so were the remote branches:
+
+```
+$ rad inspect --refs
+.
+`-- z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+    `-- refs
+        |-- cobs
+        |   `-- xyz.radicle.patch
+        |       |-- dce2ff0b2baf6da67fae5143b828ebfab65d41e4
+        |       `-- f4e9dcffb21bee746e0eee965933c7e237aa207a
+        |-- heads
+        |   `-- master
+        `-- rad
+            |-- id
+            `-- sigrefs
 ```

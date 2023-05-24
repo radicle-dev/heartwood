@@ -44,6 +44,9 @@ pub enum Error {
     /// Invalid reference name.
     #[error("invalid ref: {0}")]
     InvalidRef(#[from] radicle::git::fmt::Error),
+    /// Invalid reference name.
+    #[error("invalid qualified ref: {0}")]
+    InvalidQualifiedRef(git::RefString),
     /// Git error.
     #[error("git: {0}")]
     Git(#[from] git::raw::Error),
@@ -168,14 +171,19 @@ pub fn run(
             Command::Push(git::Refspec { src, dst, force }) => {
                 let working = git::raw::Repository::open(working)?;
 
-                if let Some(oid) = dst.strip_prefix(git::refname!("refs/heads/patches")) {
-                    let oid = git::Oid::from_str(oid)?;
-
-                    patch_update(src, dst, *force, &oid, &nid, &working, stored, &signer)
-                } else if dst == &*rad::PATCHES_REFNAME {
+                if dst == &*rad::PATCHES_REFNAME {
                     patch_open(src, &nid, &working, stored, &signer)
                 } else {
-                    push(src, dst, *force, &nid, &working, stored, &signer)
+                    let dst = git::Qualified::from_refstr(dst)
+                        .ok_or_else(|| Error::InvalidQualifiedRef(dst.clone()))?;
+
+                    if let Some(oid) = dst.strip_prefix(git::refname!("refs/heads/patches")) {
+                        let oid = git::Oid::from_str(oid)?;
+
+                        patch_update(src, &dst, *force, &oid, &nid, &working, stored, &signer)
+                    } else {
+                        push(src, &dst, *force, &nid, &working, stored, &signer)
+                    }
                 }
             }
         };
@@ -224,7 +232,7 @@ fn patch_open<G: Signer>(
 ) -> Result<(), Error> {
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
-    let dst = &*git::refs::storage::staging::patch(nid, commit.id());
+    let dst = git::refs::storage::staging::patch(nid, commit.id());
 
     // Before creating the patch, we must push the associated git objects to storage.
     // Unfortunately, we don't have an easy way to transfer the missing objects without
@@ -233,7 +241,7 @@ fn patch_open<G: Signer>(
     //
     // In case the reference is not properly deleted, the next attempt to open a patch should
     // not fail, since the reference will already exist with the correct OID.
-    push_ref(src, dst, false, nid, working, stored.raw())?;
+    push_ref(src, &dst, false, working, stored.raw())?;
 
     let mut patches = patch::Patches::open(stored)?;
     let message = commit.message().unwrap_or_default();
@@ -306,7 +314,7 @@ fn patch_open<G: Signer>(
     // Delete short-lived patch head reference.
     stored
         .raw()
-        .find_reference(dst)
+        .find_reference(&dst)
         .map(|mut r| r.delete())
         .ok();
 
@@ -317,7 +325,7 @@ fn patch_open<G: Signer>(
 #[allow(clippy::too_many_arguments)]
 fn patch_update<G: Signer>(
     src: &git::RefStr,
-    dst: &git::RefStr,
+    dst: &git::Qualified,
     force: bool,
     oid: &git::Oid,
     nid: &NodeId,
@@ -328,8 +336,9 @@ fn patch_update<G: Signer>(
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
     let patch_id = radicle::cob::ObjectId::from(oid);
+    let dst = dst.with_namespace(nid.into());
 
-    push_ref(src, dst, force, nid, working, stored.raw())?;
+    push_ref(src, &dst, force, working, stored.raw())?;
 
     let mut patches = patch::Patches::open(stored)?;
     let Ok(mut patch) = patches.get_mut(&patch_id) else {
@@ -357,7 +366,7 @@ fn patch_update<G: Signer>(
 
 fn push<G: Signer>(
     src: &git::RefStr,
-    dst: &git::RefStr,
+    dst: &git::Qualified,
     force: bool,
     nid: &NodeId,
     working: &git::raw::Repository,
@@ -366,13 +375,11 @@ fn push<G: Signer>(
 ) -> Result<(), Error> {
     let head = working.find_reference(src.as_str())?;
     let head = head.peel_to_commit()?.id();
+    let dst = dst.with_namespace(nid.into());
     // It's ok for the destination reference to be unknown, eg. when pushing a new branch.
-    let old = stored
-        .backend
-        .find_reference(nid.to_namespace().join(dst).as_str())
-        .ok();
+    let old = stored.backend.find_reference(dst.as_str()).ok();
 
-    push_ref(src, dst, force, nid, working, stored.raw())?;
+    push_ref(src, &dst, force, working, stored.raw())?;
 
     if let Some(old) = old {
         let proj = stored.project()?;
@@ -380,7 +387,7 @@ fn push<G: Signer>(
 
         // If we're pushing to the project's default branch, we want to see if any patches got
         // merged, and if so, update the patch COB.
-        if dst == master {
+        if &*dst.strip_namespace() == master {
             let old = old.peel_to_commit()?.id();
             // Only delegates should publish the merge result to the COB.
             if stored.delegates()?.contains(&nid.into()) {
@@ -424,6 +431,23 @@ fn patch_merge<G: Signer>(
                 cli::format::positive("✓"),
                 cli::format::tertiary(id)
             );
+
+            // Delete patch references that were created when the patch was opened.
+            // Note that we don't return an error if we can't delete the refs, since it's
+            // not critical.
+            let nid = signer.public_key();
+            let stored_ref = git::refs::storage::patch(nid, &patch.id);
+            let working_ref = git::refs::workdir::patch_upstream(&patch.id);
+
+            stored
+                .raw()
+                .find_reference(&stored_ref)
+                .and_then(|mut r| r.delete())
+                .ok();
+            working
+                .find_reference(&working_ref)
+                .and_then(|mut r| r.delete())
+                .ok();
         }
     }
     Ok(())
@@ -432,14 +456,12 @@ fn patch_merge<G: Signer>(
 /// Push a single reference to storage.
 fn push_ref(
     src: &git::RefStr,
-    dst: &git::RefStr,
+    dst: &git::Namespaced,
     force: bool,
-    nid: &NodeId,
     working: &git::raw::Repository,
     stored: &git::raw::Repository,
 ) -> Result<(), Error> {
     let mut remote = working.remote_anonymous(&git::url::File::new(stored.path()).to_string())?;
-    let dst = nid.to_namespace().join(dst);
     let refspec = git::Refspec { src, dst, force };
 
     // Nb. The *force* indicator (`+`) is processed by Git tooling before we even reach this code.
