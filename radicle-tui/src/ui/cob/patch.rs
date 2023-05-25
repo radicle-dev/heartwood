@@ -49,10 +49,8 @@ pub fn format_timestamp(patch: &Patch) -> String {
 }
 
 pub fn format_comments(patch: &Patch) -> String {
-    let count = match patch.latest() {
-        Some((_, rev)) => rev.discussion().len(),
-        None => 0,
-    };
+    let count: usize = patch.revisions().map(|(_, r)| r.discussion().len()).sum();
+
     format!("{count}")
 }
 

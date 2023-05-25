@@ -1,5 +1,3 @@
-use anyhow::anyhow;
-
 use radicle::cob::patch;
 use radicle::cob::patch::{Patch, PatchId, Patches, Verdict};
 use radicle::prelude::*;
@@ -58,10 +56,7 @@ pub fn run(
     all.sort_by(|(id1, p1), (id2, p2)| {
         let is_me = (p2.author().id().as_key() == &me).cmp(&(p1.author().id().as_key() == &me));
         let by_id = id1.cmp(id2);
-        let by_rev_time = p2
-            .latest()
-            .map(|(_, r)| r.timestamp())
-            .cmp(&p1.latest().map(|(_, r)| r.timestamp()));
+        let by_rev_time = p1.updated_at().cmp(&p2.updated_at());
 
         is_me.then(by_rev_time).then(by_id)
     });
@@ -100,9 +95,7 @@ pub fn row(
     repository: &Repository,
 ) -> anyhow::Result<[term::Line; 9]> {
     let state = patch.state();
-    let (_, revision) = patch
-        .latest()
-        .ok_or_else(|| anyhow!("patch is malformed: no revisions found"))?;
+    let (_, revision) = patch.latest();
     let stats = common::diff_stats(repository.raw(), revision.base(), &revision.head())?;
     let author = patch.author().id;
 
@@ -126,15 +119,10 @@ pub fn row(
         term::format::secondary(term::format::oid(revision.head())).into(),
         term::format::positive(format!("+{}", stats.insertions())).into(),
         term::format::negative(format!("-{}", stats.deletions())).into(),
-        term::format::timestamp(
-            &patch
-                .latest()
-                .map(|(_, r)| r.timestamp())
-                .unwrap_or_default(),
-        )
-        .dim()
-        .italic()
-        .into(),
+        term::format::timestamp(&patch.updated_at())
+            .dim()
+            .italic()
+            .into(),
     ])
 }
 

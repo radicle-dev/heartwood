@@ -26,7 +26,7 @@ pub fn load_proposed(repository: &Repository) -> Result<Vec<(PatchId, Patch)>> {
 }
 
 pub fn sync_status(repository: &Repository, patch: &Patch) -> Result<(usize, usize)> {
-    let (_, revision) = patch.latest().unwrap();
+    let (_, revision) = patch.latest();
     let target_oid = merge_target_oid(patch.target(), repository)?;
     let (ahead, behind) = repository
         .raw()

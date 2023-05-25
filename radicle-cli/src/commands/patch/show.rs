@@ -64,9 +64,7 @@ pub fn run(
     let Some(patch) = patches.get(patch_id)? else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
-    let (_, revision) = patch
-        .latest()
-        .ok_or_else(|| anyhow!("patch is malformed: no revisions found"))?;
+    let (_, revision) = patch.latest();
     let state = patch.state();
     let branches = common::branches(&revision.head(), workdir)?;
     let target_head = common::patch_merge_target_oid(patch.target(), stored)?;

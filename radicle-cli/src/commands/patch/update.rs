@@ -78,8 +78,7 @@ pub fn run(
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
-    // TODO(cloudhead): Handle error.
-    let (_, current_revision) = patch.latest().unwrap();
+    let (_, current_revision) = patch.latest();
     if current_revision.head() == branch_oid(&head_branch)? {
         if !quiet {
             term::info!("Nothing to do, patch is already up to date.");

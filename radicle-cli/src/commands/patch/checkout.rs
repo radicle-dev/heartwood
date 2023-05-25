@@ -53,9 +53,7 @@ fn find_patch_commit<'a>(
         Ok(commit) => Ok(commit),
         Err(e) if git::ext::is_not_found_err(&e) => {
             // TODO: Handle case of concurrent revisions.
-            let (_, rev) = patch
-                .latest()
-                .ok_or(anyhow!("patch does not have any revisions"))?;
+            let (_, rev) = patch.latest();
             let author = *rev.author().id();
             let remote = stored.remote(&author)?;
 

@@ -416,9 +416,7 @@ fn patch_merge<G: Signer>(
     let mut patches = patch::Patches::open(stored)?;
     for patch in patches.all()? {
         let (id, patch, clock) = patch?;
-        let Some((revision_id, revision)) = patch.latest() else {
-            continue;
-        };
+        let (revision_id, revision) = patch.latest();
 
         if patch.is_open() && commits.contains(&revision.head()) {
             let revision_id = *revision_id;
