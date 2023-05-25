@@ -245,7 +245,7 @@ impl Seeds {
     }
 }
 
-/// Announcement result returned by [`announce`].
+/// Announcement result returned by [`Node::announce`].
 pub struct AnnounceResult {
     /// Nodes that timed out.
     pub timeout: Vec<NodeId>,
@@ -253,7 +253,7 @@ pub struct AnnounceResult {
     pub synced: Vec<NodeId>,
 }
 
-/// A sync event, emitted by [`announce`].
+/// A sync event, emitted by [`Node::announce`].
 pub enum AnnounceEvent {
     /// Refs were synced with the given node.
     RefsSynced { remote: NodeId },
