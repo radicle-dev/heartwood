@@ -8,12 +8,12 @@ use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::tui::widgets::{Block, Cell, Row, TableState};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
-use crate::ui::components::common::label::Label;
 use crate::ui::layout;
 use crate::ui::theme::Theme;
 use crate::ui::widget::{Widget, WidgetComponent};
 
 use super::container::Header;
+use super::label::Label;
 
 pub trait List {
     fn row(&self, theme: &Theme, profile: &Profile) -> Vec<TextSpan>;

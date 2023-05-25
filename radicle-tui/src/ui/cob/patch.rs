@@ -7,8 +7,8 @@ use radicle::cob::patch::{Patch, PatchId};
 
 use tuirealm::props::{Color, TextSpan};
 
-use crate::ui::components::common::list::List;
 use crate::ui::theme::Theme;
+use crate::ui::widget::common::list::List;
 
 pub fn format_status(_patch: &Patch) -> String {
     String::from(" ⏺ ")

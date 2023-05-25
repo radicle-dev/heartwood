@@ -7,11 +7,12 @@ use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::tui::widgets::{Block, Cell, Row};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
-use crate::ui::components::common::label::Label;
 use crate::ui::ext::HeaderBlock;
 use crate::ui::layout;
 use crate::ui::state::TabState;
 use crate::ui::widget::{Widget, WidgetComponent};
+
+use super::label::Label;
 
 /// Some user events need to be handled globally (e.g. user presses key `q` to quit
 /// the application). This component can be used in conjunction with SubEventClause

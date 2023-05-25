@@ -4,12 +4,14 @@ use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
-use radicle_tui::ui::components::common::container::{GlobalListener, LabeledContainer, Tabs};
-use radicle_tui::ui::components::common::context::{ContextBar, Shortcuts};
-use radicle_tui::ui::components::common::list::PropertyList;
-use radicle_tui::ui::components::common::Browser;
-use radicle_tui::ui::components::home::{Dashboard, IssueBrowser};
-use radicle_tui::ui::components::patch;
+use radicle_tui::ui::widget::common::container::{GlobalListener, LabeledContainer, Tabs};
+use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
+
+use radicle_tui::ui::widget::common::list::PropertyList;
+
+use radicle_tui::ui::widget::common::Browser;
+use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser};
+use radicle_tui::ui::widget::patch;
 
 use radicle_tui::ui::widget::Widget;
 

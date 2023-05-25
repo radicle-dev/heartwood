@@ -3,7 +3,8 @@ use tuirealm::props::{AttrValue, Attribute, Props};
 use tuirealm::tui::layout::Rect;
 use tuirealm::{Frame, MockComponent, State};
 
-use crate::ui::components::common::label::Label;
+use super::label::Label;
+
 use crate::ui::layout;
 use crate::ui::widget::{Widget, WidgetComponent};
 
