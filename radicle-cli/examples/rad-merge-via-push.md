@@ -4,7 +4,7 @@ Let's start by creating two patches.
 $ git checkout -b feature/1 -q
 $ git commit --allow-empty -q -m "First change"
 $ git push rad HEAD:refs/patches
-✓ Patch f4e9dcffb21bee746e0eee965933c7e237aa207a opened
+✓ Patch 0ec956c94256fa101db4c32956ce195a1aa0edf2 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -12,7 +12,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 $ git checkout -b feature/2 -q
 $ git commit --allow-empty -q -m "Second change"
 $ git push rad HEAD:refs/patches
-✓ Patch dce2ff0b2baf6da67fae5143b828ebfab65d41e4 opened
+✓ Patch bf923942537708f7aec4680a321be68cf933e747 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -22,8 +22,8 @@ This creates some remote tracking branches for us:
 ```
 $ git branch -r
   rad/master
-  rad/patches/dce2ff0b2baf6da67fae5143b828ebfab65d41e4
-  rad/patches/f4e9dcffb21bee746e0eee965933c7e237aa207a
+  rad/patches/0ec956c94256fa101db4c32956ce195a1aa0edf2
+  rad/patches/bf923942537708f7aec4680a321be68cf933e747
 ```
 
 And some remote refs:
@@ -35,13 +35,13 @@ $ rad inspect --refs
     `-- refs
         |-- cobs
         |   `-- xyz.radicle.patch
-        |       |-- dce2ff0b2baf6da67fae5143b828ebfab65d41e4
-        |       `-- f4e9dcffb21bee746e0eee965933c7e237aa207a
+        |       |-- 0ec956c94256fa101db4c32956ce195a1aa0edf2
+        |       `-- bf923942537708f7aec4680a321be68cf933e747
         |-- heads
         |   |-- master
         |   `-- patches
-        |       |-- dce2ff0b2baf6da67fae5143b828ebfab65d41e4
-        |       `-- f4e9dcffb21bee746e0eee965933c7e237aa207a
+        |       |-- 0ec956c94256fa101db4c32956ce195a1aa0edf2
+        |       `-- bf923942537708f7aec4680a321be68cf933e747
         `-- rad
             |-- id
             `-- sigrefs
@@ -60,8 +60,8 @@ When we push to `rad/master`, we automatically merge the patches:
 
 ``` (stderr) RAD_SOCKET=/dev/null
 $ git push rad master
-✓ Patch dce2ff0b2baf6da67fae5143b828ebfab65d41e4 merged
-✓ Patch f4e9dcffb21bee746e0eee965933c7e237aa207a merged
+✓ Patch 0ec956c94256fa101db4c32956ce195a1aa0edf2 merged
+✓ Patch bf923942537708f7aec4680a321be68cf933e747 merged
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..e9fff34  master -> master
 ```
@@ -70,8 +70,8 @@ $ rad patch --merged
 ╭──────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title          Author                  Head     +   -   Updated      │
 ├──────────────────────────────────────────────────────────────────────────────────┤
-│ ✔  dce2ff0  Second change  z6MknSL…StBU8Vi  (you)  e9fff34  +0  -0  [   ...    ] │
-│ ✔  f4e9dcf  First change   z6MknSL…StBU8Vi  (you)  20aa5dd  +0  -0  [   ...    ] │
+│ ✔  0ec956c  First change   z6MknSL…StBU8Vi  (you)  20aa5dd  +0  -0  [   ...    ] │
+│ ✔  bf92394  Second change  z6MknSL…StBU8Vi  (you)  e9fff34  +0  -0  [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -91,8 +91,8 @@ $ rad inspect --refs
     `-- refs
         |-- cobs
         |   `-- xyz.radicle.patch
-        |       |-- dce2ff0b2baf6da67fae5143b828ebfab65d41e4
-        |       `-- f4e9dcffb21bee746e0eee965933c7e237aa207a
+        |       |-- 0ec956c94256fa101db4c32956ce195a1aa0edf2
+        |       `-- bf923942537708f7aec4680a321be68cf933e747
         |-- heads
         |   `-- master
         `-- rad

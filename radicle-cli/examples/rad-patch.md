@@ -31,7 +31,7 @@ master <- z6MknSL…StBU8Vi/flux-capacitor-power (3e674d1)
 
 3e674d1 Define power requirements
 
-✓ Patch de3096d5cc422136016ac210b870bfa9d0f11481 created
+✓ Patch 077e4bbe9a6e5546f400ef5951768c37a76f13a4 created
 
 To publish your patch to the network, run:
     git push rad
@@ -44,14 +44,14 @@ $ rad patch
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author                  Head     +   -   Updated      │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  de3096d  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  [   ...    ] │
+│ ●  077e4bb  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 ```
-$ rad patch show de3096d5cc422136016ac210b870bfa9d0f11481 -p
+$ rad patch show 077e4bbe9a6e5546f400ef5951768c37a76f13a4 -p
 ╭────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                │
-│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                 │
+│ Patch     077e4bbe9a6e5546f400ef5951768c37a76f13a4                 │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33                 │
 │ Branches  flux-capacitor-power                                     │
@@ -93,45 +93,45 @@ $ git commit --message "Add README, just for the fun"
 [flux-capacitor-power 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
-$ rad patch update --message "Add README, just for the fun" de3096d5cc422136016ac210b870bfa9d0f11481
+$ rad patch update --message "Add README, just for the fun" 077e4bbe9a6e5546f400ef5951768c37a76f13a4
 Updating 3e674d1 -> 27857ec
 1 commit(s) ahead, 0 commit(s) behind
-✓ Patch updated to revision d00f978a43a255c7f2f9f23d39b555d103900c6d
+✓ Patch updated to revision 5cdcd2e14411e2bfec7b11bcf4667e2e0fc4d417
 ```
 
 And let's leave a quick comment for our team:
 
 ```
-$ rad comment de3096d5cc422136016ac210b870bfa9d0f11481 --message 'I cannot wait to get back to the 90s!'
-225353d1b9195f6cf4cfe098ce7935d4c933c36e
-$ rad comment de3096d5cc422136016ac210b870bfa9d0f11481 --message 'I cannot wait to get back to the 90s!' --reply-to 225353d1b9195f6cf4cfe098ce7935d4c933c36e
-089c2d74d18036c75b1b4d3a32770c720a6967e2
+$ rad comment 077e4bbe9a6e5546f400ef5951768c37a76f13a4 --message 'I cannot wait to get back to the 90s!'
+31a07b8e7758af2027e74e521a74bea4574280e7
+$ rad comment 077e4bbe9a6e5546f400ef5951768c37a76f13a4 --message 'I cannot wait to get back to the 90s!' --reply-to 31a07b8e7758af2027e74e521a74bea4574280e7
+d66bcb6bfe2e06e57636e8b1ba3ef8098a8bb250
 ```
 
 Now, let's checkout the patch that we just created:
 
 ```
-$ rad patch checkout de3096d
-✓ Switched to branch patch/de3096d
+$ rad patch checkout 077e4bb
+✓ Switched to branch patch/077e4bb
 ```
 
 We can also add a review verdict as such:
 
 ```
-$ rad review de3096d5cc422136016ac210b870bfa9d0f11481 --accept --no-message --no-sync
-✓ Patch de3096d accepted
+$ rad review 077e4bbe9a6e5546f400ef5951768c37a76f13a4 --accept --no-message --no-sync
+✓ Patch 077e4bb accepted
 ```
 
 Showing the patch list now will reveal the favorable verdict:
 
 ```
-$ rad patch show de3096d
+$ rad patch show 077e4bb
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                          │
-│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                           │
+│ Patch     077e4bbe9a6e5546f400ef5951768c37a76f13a4                           │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                           │
-│ Branches  flux-capacitor-power, patch/de3096d                                │
+│ Branches  flux-capacitor-power, patch/077e4bb                                │
 │ Commits   ahead 2, behind 0                                                  │
 │ Status    open                                                               │
 │                                                                              │
@@ -141,7 +141,7 @@ $ rad patch show de3096d
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
-│ ↑ updated to d00f978a43a255c7f2f9f23d39b555d103900c6d (27857ec) [   ...    ] │
+│ ↑ updated to 5cdcd2e14411e2bfec7b11bcf4667e2e0fc4d417 (27857ec) [   ...    ] │
 │ ✓ accepted by (you) (z6MknSL…StBU8Vi) [   ...    ]                           │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -149,14 +149,14 @@ $ rad patch show de3096d
 If you make a mistake on the patch description, you can always change it!
 
 ```
-$ rad patch edit de3096d --message "Define power requirements" --message "Add requirements file"
-$ rad patch show de3096d
+$ rad patch edit 077e4bb --message "Define power requirements" --message "Add requirements file"
+$ rad patch show 077e4bb
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                          │
-│ Patch     de3096d5cc422136016ac210b870bfa9d0f11481                           │
+│ Patch     077e4bbe9a6e5546f400ef5951768c37a76f13a4                           │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                           │
-│ Branches  flux-capacitor-power, patch/de3096d                                │
+│ Branches  flux-capacitor-power, patch/077e4bb                                │
 │ Commits   ahead 2, behind 0                                                  │
 │ Status    open                                                               │
 │                                                                              │
@@ -166,7 +166,7 @@ $ rad patch show de3096d
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
-│ ↑ updated to d00f978a43a255c7f2f9f23d39b555d103900c6d (27857ec) [   ...    ] │
+│ ↑ updated to 5cdcd2e14411e2bfec7b11bcf4667e2e0fc4d417 (27857ec) [   ...    ] │
 │ ✓ accepted by (you) (z6MknSL…StBU8Vi) [   ...    ]                           │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```

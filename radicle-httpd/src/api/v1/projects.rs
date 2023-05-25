@@ -648,12 +648,8 @@ async fn patch_update_handler(
     let mut patches = patch::Patches::open(&repo)?;
     let mut patch = patches.get_mut(&patch_id.into())?;
     match action {
-        patch::Action::Edit {
-            title,
-            description,
-            target,
-        } => {
-            patch.edit(title, description, target, &signer)?;
+        patch::Action::Edit { title, target } => {
+            patch.edit(title, target, &signer)?;
         }
         patch::Action::EditRevision {
             revision,
@@ -1741,7 +1737,6 @@ mod routes {
                   "id": CONTRIBUTOR_DID
                 },
                 "title": "A new `hello world`",
-                "description": "change `hello world` in README to something else",
                 "state": { "status": "open" },
                 "target": "delegates",
                 "tags": [],
@@ -1749,7 +1744,7 @@ mod routes {
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
-                    "description": "",
+                    "description": "change `hello world` in README to something else",
                     "base": PARENT,
                     "oid": HEAD,
                     "refs": [
@@ -1780,7 +1775,6 @@ mod routes {
                   "id": CONTRIBUTOR_DID
                 },
                 "title": "A new `hello world`",
-                "description": "change `hello world` in README to something else",
                 "state": { "status": "open" },
                 "target": "delegates",
                 "tags": [],
@@ -1788,7 +1782,7 @@ mod routes {
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
-                    "description": "",
+                    "description": "change `hello world` in README to something else",
                     "base": PARENT,
                     "oid": HEAD,
                     "refs": [
@@ -1806,7 +1800,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
-        const CREATED_PATCH_ID: &str = "198b7bc8d19ef2f09e9fbd30645a46e4cd520713";
+        const CREATED_PATCH_ID: &str = "768e76ae6611d9392f04122a5aa7a587b47b9e19";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -1858,7 +1852,6 @@ mod routes {
                   "id": CONTRIBUTOR_DID
                 },
                 "title": "Update README",
-                "description": "Do some changes to README",
                 "state": { "status": "open" },
                 "target": "delegates",
                 "tags": [],
@@ -1866,7 +1859,7 @@ mod routes {
                 "revisions": [
                   {
                     "id": CREATED_PATCH_ID,
-                    "description": "",
+                    "description": "Do some changes to README",
                     "base": INITIAL_COMMIT,
                     "oid": HEAD,
                     "refs": [
@@ -1918,7 +1911,6 @@ mod routes {
                 "id": CONTRIBUTOR_DID,
               },
               "title": "A new `hello world`",
-              "description": "change `hello world` in README to something else",
               "state": { "status": "open" },
               "target": "delegates",
               "tags": [
@@ -1929,7 +1921,7 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "",
+                  "description": "change `hello world` in README to something else",
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -1981,7 +1973,6 @@ mod routes {
                 "id": CONTRIBUTOR_DID,
               },
               "title": "A new `hello world`",
-              "description": "change `hello world` in README to something else",
               "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
@@ -1989,7 +1980,7 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "",
+                  "description": "change `hello world` in README to something else",
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2000,7 +1991,7 @@ mod routes {
                   "reviews": [],
                 },
                 {
-                  "id": "660ce23a54788d85d44a133357b53fc99f5d7a92",
+                  "id": "181e4219bc132e7716126a84200d4dbd628dd6be",
                   "description": "This is a new revision",
                   "base": PARENT,
                   "oid": HEAD,
@@ -2053,7 +2044,6 @@ mod routes {
                 "id": CONTRIBUTOR_DID,
               },
               "title": "This is a updated title",
-              "description": "Let's write some description",
               "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
@@ -2061,7 +2051,7 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "",
+                  "description": "change `hello world` in README to something else",
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2135,7 +2125,6 @@ mod routes {
                 "id": CONTRIBUTOR_DID,
               },
               "title": "A new `hello world`",
-              "description": "change `hello world` in README to something else",
               "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
@@ -2143,7 +2132,7 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "",
+                  "description": "change `hello world` in README to something else",
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2231,7 +2220,6 @@ mod routes {
                 "id": CONTRIBUTOR_DID,
               },
               "title": "A new `hello world`",
-              "description": "change `hello world` in README to something else",
               "state": { "status": "open" },
               "target": "delegates",
               "tags": [],
@@ -2239,7 +2227,7 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "",
+                  "description": "change `hello world` in README to something else",
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2314,7 +2302,6 @@ mod routes {
                 "id": CONTRIBUTOR_DID,
               },
               "title": "A new `hello world`",
-              "description": "change `hello world` in README to something else",
               "state": {
                   "status": "merged",
                   "revision": CONTRIBUTOR_PATCH_ID,
@@ -2331,7 +2318,7 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "",
+                  "description": "change `hello world` in README to something else",
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [

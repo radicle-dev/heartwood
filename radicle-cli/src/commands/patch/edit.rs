@@ -21,11 +21,34 @@ pub fn run(
     let default_msg = term::patch::message(patch.title(), patch.description());
     let (title, description) = term::patch::get_message(message, &default_msg)?;
 
-    if title == patch.title() && description == patch.description() {
-        // Nothing to do
+    let title = if title != patch.title() {
+        Some(title)
+    } else {
+        None
+    };
+    let description = if description != patch.description() {
+        Some(description)
+    } else {
+        None
+    };
+
+    if title.is_none() && description.is_none() {
+        // Nothing to do.
         return Ok(());
     }
-    patch.edit(title, description, patch.target(), &signer)?;
+
+    let root = patch.id.into();
+    let target = patch.target();
+
+    patch.transaction("Edit", &signer, |tx| {
+        if let Some(t) = title {
+            tx.edit(t, target)?;
+        }
+        if let Some(d) = description {
+            tx.edit_revision(root, d)?;
+        }
+        Ok(())
+    })?;
 
     Ok(())
 }

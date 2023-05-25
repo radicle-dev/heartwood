@@ -9,8 +9,8 @@ use nonempty::NonEmpty;
 use radicle_crypto::PublicKey;
 use serde::{Deserialize, Serialize};
 
-use crate::object;
 use crate::pruning_fold;
+use crate::{object, ObjectId};
 
 /// Entry contents.
 /// This is the change payload.
@@ -63,6 +63,12 @@ impl From<EntryId> for Oid {
 impl From<&EntryId> for object::ObjectId {
     fn from(EntryId(id): &EntryId) -> Self {
         id.into()
+    }
+}
+
+impl From<ObjectId> for EntryId {
+    fn from(id: ObjectId) -> Self {
+        Self(*id)
     }
 }
 

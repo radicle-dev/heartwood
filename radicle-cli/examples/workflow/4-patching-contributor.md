@@ -31,7 +31,7 @@ master <- z6Mkt67…v4N1tRk/flux-capacitor-power (3e674d1)
 
 3e674d1 Define power requirements
 
-✓ Patch 5f0a547f7a91bf002bb0542035a647fd5af134a5 created
+✓ Patch 50e29a111972f3b7d2123c5057de5bdf09bc7b1c created
 
 To publish your patch to the network, run:
     git push rad
@@ -44,12 +44,12 @@ $ rad patch
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author                  Head     +   -   Updated      │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  5f0a547  Define power requirements  z6Mkt67…v4N1tRk  (you)  3e674d1  +0  -0  [    ...   ] │
+│ ●  50e29a1  Define power requirements  z6Mkt67…v4N1tRk  (you)  3e674d1  +0  -0  [    ...   ] │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
-$ rad patch show 5f0a547f7a91bf002bb0542035a647fd5af134a5
+$ rad patch show 50e29a111972f3b7d2123c5057de5bdf09bc7b1c
 ╭────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                │
-│ Patch     5f0a547f7a91bf002bb0542035a647fd5af134a5                 │
+│ Patch     50e29a111972f3b7d2123c5057de5bdf09bc7b1c                 │
 │ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk │
 │ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33                 │
 │ Branches  flux-capacitor-power                                     │
@@ -80,15 +80,15 @@ $ git commit --message "Add README, just for the fun"
 [flux-capacitor-power 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
-$ rad patch update --message "Add README, just for the fun" 5f0a547f7a91bf002bb0542035a647fd5af134a5
+$ rad patch update --message "Add README, just for the fun" 50e29a111972f3b7d2123c5057de5bdf09bc7b1c
 Updating 3e674d1 -> 27857ec
 1 commit(s) ahead, 0 commit(s) behind
-✓ Patch updated to revision b7e2356fb7e3981980b42603eea969851d17a40d
+✓ Patch updated to revision 3530243d46a2e7a8e4eac7afcbb17cc7c56b3d29
 ```
 
 And let's leave a quick comment for our team:
 
 ```
-$ rad comment 5f0a547f7a91bf002bb0542035a647fd5af134a5 --message 'I cannot wait to get back to the 90s!'
-a15e976e4273971d6695eff2e07a57a82133567f
+$ rad comment 50e29a111972f3b7d2123c5057de5bdf09bc7b1c --message 'I cannot wait to get back to the 90s!'
+4a9d780cf088769722d226d83a1b4663ab176f8e
 ```

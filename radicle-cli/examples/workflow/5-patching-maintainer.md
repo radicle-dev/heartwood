@@ -32,10 +32,10 @@ $ git branch -r
   bob/flux-capacitor-power
   bob/master
   rad/master
-$ rad patch show 5f0a547
+$ rad patch show 50e29a1
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title    Define power requirements                                           │
-│ Patch    5f0a547f7a91bf002bb0542035a647fd5af134a5                            │
+│ Patch    50e29a111972f3b7d2123c5057de5bdf09bc7b1c                            │
 │ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk            │
 │ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                            │
 │ Commits  ahead 2, behind 0                                                   │
@@ -47,7 +47,7 @@ $ rad patch show 5f0a547
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by bob (z6Mkt67…v4N1tRk) [   ...    ]                               │
-│ ↑ updated to b7e2356fb7e3981980b42603eea969851d17a40d (27857ec) [   ...    ] │
+│ ↑ updated to 3530243d46a2e7a8e4eac7afcbb17cc7c56b3d29 (27857ec) [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -64,10 +64,10 @@ $ git commit --fixup HEAD~
 [flux-capacitor-power f6484e0] fixup! Define power requirements
  1 file changed, 0 insertions(+), 0 deletions(-)
  rename REQUIREMENTS => REQUIREMENTS.md (100%)
-$ rad patch update --message "Define power requirements" --message "See details." 5f0a547f7a91bf002bb0542035a647fd5af134a5
+$ rad patch update --message "Define power requirements" --message "See details." 50e29a111972f3b7d2123c5057de5bdf09bc7b1c
 Updating 27857ec -> f6484e0
 1 commit(s) ahead, 0 commit(s) behind
-✓ Patch updated to revision 4486280d0dec743d6a1a0c05754f8e40426c681d
+✓ Patch updated to revision a3405e8e174d9660fead6eea1dea5cdd2b728488
 ```
 
 Great, all fixed up, lets merge the code.
@@ -89,10 +89,10 @@ $ git push rad master
 The patch is now merged and closed :).
 
 ```
-$ rad patch show 5f0a547
+$ rad patch show 50e29a1
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                          │
-│ Patch     5f0a547f7a91bf002bb0542035a647fd5af134a5                           │
+│ Patch     50e29a111972f3b7d2123c5057de5bdf09bc7b1c                           │
 │ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk           │
 │ Head      f6484e0f43e48a8983b9b39bf9bd4cd889f1d520                           │
 │ Branches  flux-capacitor-power, master                                       │
@@ -106,8 +106,8 @@ $ rad patch show 5f0a547
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by bob (z6Mkt67…v4N1tRk) [   ...    ]                               │
-│ ↑ updated to b7e2356fb7e3981980b42603eea969851d17a40d (27857ec) [   ...    ] │
-│ ↑ updated to 4486280d0dec743d6a1a0c05754f8e40426c681d (f6484e0) [   ...    ] │
+│ ↑ updated to 3530243d46a2e7a8e4eac7afcbb17cc7c56b3d29 (27857ec) [   ...    ] │
+│ ↑ updated to a3405e8e174d9660fead6eea1dea5cdd2b728488 (f6484e0) [   ...    ] │
 │ ✓ merged by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```

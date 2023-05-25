@@ -202,7 +202,6 @@ impl<G: Signer> Actor<G, super::patch::Action> {
                 }),
                 self.op(patch::Action::Edit {
                     title: title.to_string(),
-                    description: description.to_string(),
                     target: patch::MergeTarget::default(),
                 }),
             ],

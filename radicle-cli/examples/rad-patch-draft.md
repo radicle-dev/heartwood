@@ -9,16 +9,16 @@ To open a patch in draft mode, we use the `--draft` option:
 
 ```
 $ rad patch open --draft -m "Nothing yet" --quiet
-6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
+c639a0f9895a0fdf2ba2d04533290937cb6fd2f7
 ```
 
 We can confirm it's a draft by running `show`:
 
 ```
-$ rad patch show 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
+$ rad patch show c639a0f9895a0fdf2ba2d04533290937cb6fd2f7
 ╭────────────────────────────────────────────────────────────────────╮
 │ Title     Nothing yet                                              │
-│ Patch     6d7793b859860db775fd8ff1d18ffb6de2b9ca0e                 │
+│ Patch     c639a0f9895a0fdf2ba2d04533290937cb6fd2f7                 │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7                 │
 │ Branches  cloudhead/draft                                          │
@@ -34,14 +34,14 @@ $ rad patch show 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
 Once the patch is ready for review, we can use the `ready` command:
 
 ```
-$ rad patch ready 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
+$ rad patch ready c639a0f9895a0fdf2ba2d04533290937cb6fd2f7
 ```
 
 ```
-$ rad patch show 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
+$ rad patch show c639a0f9895a0fdf2ba2d04533290937cb6fd2f7
 ╭────────────────────────────────────────────────────────────────────╮
 │ Title     Nothing yet                                              │
-│ Patch     6d7793b859860db775fd8ff1d18ffb6de2b9ca0e                 │
+│ Patch     c639a0f9895a0fdf2ba2d04533290937cb6fd2f7                 │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7                 │
 │ Branches  cloudhead/draft                                          │
@@ -58,11 +58,11 @@ If for whatever reason, it needed to go back into draft mode, we could use
 the `--undo` flag:
 
 ```
-$ rad patch ready --undo 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
-$ rad patch show 6d7793b859860db775fd8ff1d18ffb6de2b9ca0e
+$ rad patch ready --undo c639a0f9895a0fdf2ba2d04533290937cb6fd2f7
+$ rad patch show c639a0f9895a0fdf2ba2d04533290937cb6fd2f7
 ╭─────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Nothing yet                                                                   │
-│ Patch     6d7793b859860db775fd8ff1d18ffb6de2b9ca0e                                      │
+│ Patch     c639a0f9895a0fdf2ba2d04533290937cb6fd2f7                                      │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi                      │
 │ Head      2a465832b5a76abe25be44a3a5d224bbd7741ba7                                      │
 │ Branches  cloudhead/draft                                                               │

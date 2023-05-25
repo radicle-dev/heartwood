@@ -92,7 +92,6 @@ pub enum Error {
 pub enum Action {
     Edit {
         title: String,
-        description: String,
         target: MergeTarget,
     },
     EditRevision {
@@ -160,8 +159,6 @@ pub enum MergeTarget {
 pub struct Patch {
     /// Title of the patch.
     title: LWWReg<Max<String>>,
-    /// Patch description.
-    description: LWWReg<Max<String>>,
     /// Current state of the patch.
     state: LWWReg<Max<State>>,
     /// Target this patch is meant to be merged in.
@@ -180,7 +177,6 @@ pub struct Patch {
 impl Semilattice for Patch {
     fn merge(&mut self, other: Self) {
         self.title.merge(other.title);
-        self.description.merge(other.description);
         self.state.merge(other.state);
         self.target.merge(other.target);
         self.merges.merge(other.merges);
@@ -194,7 +190,6 @@ impl Default for Patch {
     fn default() -> Self {
         Self {
             title: LWWReg::initial(Max::from(String::default())),
-            description: LWWReg::initial(Max::from(String::default())),
             state: LWWReg::initial(Max::from(State::default())),
             target: LWWReg::initial(Max::from(MergeTarget::default())),
             tags: LWWSet::default(),
@@ -237,7 +232,7 @@ impl Patch {
 
     /// Patch description.
     pub fn description(&self) -> &str {
-        self.description.get().get()
+        self.root().description()
     }
 
     /// Author of the first revision of the patch.
@@ -302,6 +297,16 @@ impl Patch {
             .expect("Patch::version: at least one revision is present")
     }
 
+    /// Root revision.
+    ///
+    /// This is the revision that was created with the patch.
+    pub fn root(&self) -> &Revision {
+        self.revisions()
+            .next()
+            .map(|(_, r)| r)
+            .expect("Patch::root: there is always a root revision")
+    }
+
     /// Latest revision.
     pub fn latest(&self) -> Option<(&RevisionId, &Revision)> {
         self.revisions().next_back()
@@ -344,13 +349,8 @@ impl store::FromHistory for Patch {
             self.timeline.insert((op.clock, id));
 
             match op.action {
-                Action::Edit {
-                    title,
-                    description,
-                    target,
-                } => {
+                Action::Edit { title, target } => {
                     self.title.set(title, op.clock);
-                    self.description.set(description, op.clock);
                     self.target.set(target, op.clock);
                 }
                 Action::Lifecycle { state } => {
@@ -829,15 +829,9 @@ impl Review {
 }
 
 impl store::Transaction<Patch> {
-    pub fn edit(
-        &mut self,
-        title: impl ToString,
-        description: impl ToString,
-        target: MergeTarget,
-    ) -> Result<(), store::Error> {
+    pub fn edit(&mut self, title: impl ToString, target: MergeTarget) -> Result<(), store::Error> {
         self.push(Action::Edit {
             title: title.to_string(),
-            description: description.to_string(),
             target,
         })
     }
@@ -989,11 +983,10 @@ impl<'a, 'g> PatchMut<'a, 'g> {
     pub fn edit<G: Signer>(
         &mut self,
         title: String,
-        description: String,
         target: MergeTarget,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit", signer, |tx| tx.edit(title, description, target))
+        self.transaction("Edit", signer, |tx| tx.edit(title, target))
     }
 
     /// Edit revision metadata.
@@ -1285,8 +1278,8 @@ impl<'a> Patches<'a> {
     ) -> Result<PatchMut<'a, 'g>, Error> {
         let (id, patch, clock) =
             Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
-                tx.revision(String::default(), base, oid)?;
-                tx.edit(title, description, target)?;
+                tx.revision(description, base, oid)?;
+                tx.edit(title, target)?;
                 tx.tag(tags.to_owned(), [])?;
 
                 if state != State::default() {
@@ -1367,7 +1360,6 @@ mod test {
                         clock.tick(),
                         actor.op(Action::Edit {
                             title: iter::repeat_with(|| rng.alphabetic()).take(8).collect(),
-                            description: iter::repeat_with(|| rng.alphabetic()).take(16).collect(),
                             target: MergeTarget::Delegates,
                         }),
                     ))
@@ -1518,7 +1510,7 @@ mod test {
         let (rev_id, revision) = patch.latest().unwrap();
 
         assert_eq!(revision.author.id(), &author);
-        assert_eq!(revision.description(), "");
+        assert_eq!(revision.description(), "Blah blah blah.");
         assert_eq!(revision.discussion.len(), 0);
         assert_eq!(revision.oid, pr.oid);
         assert_eq!(revision.base, pr.base);
@@ -1978,7 +1970,10 @@ mod test {
         assert_eq!(patch.version(), 1);
         assert_eq!(patch.revisions.len(), 2);
         assert_eq!(patch.revisions().count(), 2);
-        assert_eq!(patch.revisions().nth(0).unwrap().1.description(), "");
+        assert_eq!(
+            patch.revisions().nth(0).unwrap().1.description(),
+            "Blah blah blah."
+        );
         assert_eq!(
             patch.revisions().nth(1).unwrap().1.description(),
             "I've made changes."

@@ -119,7 +119,6 @@ pub(crate) fn patch(
         "id": id.to_string(),
         "author": author(patch.author(), aliases.alias(patch.author().id())),
         "title": patch.title(),
-        "description": patch.description(),
         "state": patch.state(),
         "target": patch.target(),
         "tags": patch.tags().collect::<Vec<_>>(),

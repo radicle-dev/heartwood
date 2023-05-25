@@ -38,9 +38,9 @@ pub const CONTRIBUTOR_RID: &str = "rad:z4XaCmN3jLSeiMvW15YTDpNbDHFhG";
 pub const CONTRIBUTOR_DID: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
 pub const CONTRIBUTOR_NID: &str = "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
 pub const CONTRIBUTOR_ISSUE_ID: &str = "f1dff128a22e8183a23516dd9812e72e80914c92";
-pub const CONTRIBUTOR_PATCH_ID: &str = "dcac7b6a320ce94e9a801ff9d766a04d24f63062";
-pub const CONTRIBUTOR_COMMENT_1: &str = "ec1c721cb3f726c3c0455519034c3a8b1a6ebaef";
-pub const CONTRIBUTOR_COMMENT_2: &str = "4458381a73ff68063311d440538aff4b48122b9c";
+pub const CONTRIBUTOR_PATCH_ID: &str = "044b577cc7551cd09d4b2f03566a553762180de4";
+pub const CONTRIBUTOR_COMMENT_1: &str = "92aab76516ae7f60a9b2952043ba578383de7d46";
+pub const CONTRIBUTOR_COMMENT_2: &str = "cb360eee0ec70563d5c4c3613fdc076648523248";
 
 const PASSWORD: &str = "radicle";
 
