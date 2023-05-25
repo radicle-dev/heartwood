@@ -436,11 +436,18 @@ impl store::FromHistory for Patch {
                                 }
                                 let proj = doc.project()?;
                                 let branch = git::refs::branch(proj.default_branch());
+
+                                // Nb. We don't return an error in case the merge commit is not an
+                                // ancestor of the default branch. The default branch can change
+                                // *after* the merge action is created, which is out of the control
+                                // of the merge author. We simply skip it, which allows archiving in
+                                // case of a rebase off the master branch, or a redaction of the
+                                // merge.
                                 let Ok(head) = repo.reference_oid(&op.author, &branch) else {
-                                    return Err(ApplyError::InvalidMerge(op.id));
+                                    continue;
                                 };
                                 if commit != head && !repo.is_ancestor_of(commit, head)? {
-                                    return Err(ApplyError::InvalidMerge(op.id));
+                                    continue;
                                 }
                             }
                         }
