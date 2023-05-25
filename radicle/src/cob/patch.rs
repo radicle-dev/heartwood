@@ -170,6 +170,8 @@ pub struct Patch {
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
     revisions: GMap<RevisionId, Redactable<Revision>>,
+    /// Users assigned to review this patch.
+    reviewers: LWWSet<ActorId>,
     /// Timeline of operations.
     timeline: GSet<(Lamport, EntryId)>,
 }
@@ -182,6 +184,7 @@ impl Semilattice for Patch {
         self.merges.merge(other.merges);
         self.tags.merge(other.tags);
         self.revisions.merge(other.revisions);
+        self.reviewers.merge(other.reviewers);
         self.timeline.merge(other.timeline);
     }
 }
@@ -195,6 +198,7 @@ impl Default for Patch {
             tags: LWWSet::default(),
             merges: LWWMap::default(),
             revisions: GMap::default(),
+            reviewers: LWWSet::default(),
             timeline: GSet::default(),
         }
     }
@@ -261,6 +265,11 @@ impl Patch {
                 .and_then(Redactable::get)
                 .map(|rev| (id, rev))
         })
+    }
+
+    /// List of patch reviewers.
+    pub fn reviewers(&self) -> impl Iterator<Item = Did> + '_ {
+        self.reviewers.iter().map(Did::from)
     }
 
     /// Get the merges.

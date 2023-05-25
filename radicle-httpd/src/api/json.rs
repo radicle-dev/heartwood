@@ -130,6 +130,7 @@ pub(crate) fn patch(
                 "timestamp": m.timestamp
             })
         }).collect::<Vec<_>>(),
+        "reviewers": patch.reviewers().collect::<Vec<_>>(),
         "revisions": patch.revisions().map(|(id, rev)| {
             json!({
                 "id": id,

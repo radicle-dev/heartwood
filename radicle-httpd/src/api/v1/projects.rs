@@ -1741,6 +1741,7 @@ mod routes {
                 "target": "delegates",
                 "tags": [],
                 "merges": [],
+                "reviewers": [],
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
@@ -1779,6 +1780,7 @@ mod routes {
                 "target": "delegates",
                 "tags": [],
                 "merges": [],
+                "reviewers": [],
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
@@ -1856,6 +1858,7 @@ mod routes {
                 "target": "delegates",
                 "tags": [],
                 "merges": [],
+                "reviewers": [],
                 "revisions": [
                   {
                     "id": CREATED_PATCH_ID,
@@ -1918,6 +1921,7 @@ mod routes {
                 "design"
               ],
               "merges": [],
+              "reviewers": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -1977,6 +1981,7 @@ mod routes {
               "target": "delegates",
               "tags": [],
               "merges": [],
+              "reviewers": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2048,6 +2053,7 @@ mod routes {
               "target": "delegates",
               "tags": [],
               "merges": [],
+              "reviewers": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2129,6 +2135,7 @@ mod routes {
               "target": "delegates",
               "tags": [],
               "merges": [],
+              "reviewers": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2224,6 +2231,7 @@ mod routes {
               "target": "delegates",
               "tags": [],
               "merges": [],
+              "reviewers": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2315,6 +2323,7 @@ mod routes {
                   "commit": PARENT,
                   "timestamp": TIMESTAMP,
               }],
+              "reviewers": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
