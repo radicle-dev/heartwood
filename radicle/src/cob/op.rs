@@ -1,7 +1,7 @@
 use nonempty::NonEmpty;
 use thiserror::Error;
 
-use radicle_cob::history::{EntryId, EntryWithClock};
+use radicle_cob::history::{Entry, EntryId};
 use radicle_crdt::clock;
 use radicle_crdt::clock::Lamport;
 use radicle_crypto::PublicKey;
@@ -78,19 +78,20 @@ impl<A> Op<A> {
 
 pub struct Ops<A>(pub NonEmpty<Op<A>>);
 
-impl<'a, A> TryFrom<&'a EntryWithClock> for Ops<A>
+impl<'a, A> TryFrom<&'a Entry> for Ops<A>
 where
     for<'de> A: serde::Deserialize<'de>,
 {
     type Error = OpEncodingError;
 
-    fn try_from(entry: &'a EntryWithClock) -> Result<Self, Self::Error> {
+    fn try_from(entry: &'a Entry) -> Result<Self, Self::Error> {
         let id = *entry.id();
         let identity = entry.resource();
         let ops = entry
-            .changes()
+            .contents()
+            .iter()
             .map(|blob| {
-                let action = serde_json::from_slice(blob)?;
+                let action = serde_json::from_slice(blob.as_slice())?;
                 let op = Op {
                     id,
                     action,
@@ -101,10 +102,19 @@ where
                 };
                 Ok::<_, Self::Error>(op)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<_, _>>()?;
 
         // SAFETY: Entry is guaranteed to have at least one operation.
         #[allow(clippy::unwrap_used)]
         Ok(Self(NonEmpty::from_vec(ops).unwrap()))
+    }
+}
+
+impl<A: 'static> IntoIterator for Ops<A> {
+    type Item = Op<A>;
+    type IntoIter = <NonEmpty<Op<A>> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }

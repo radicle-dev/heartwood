@@ -9,7 +9,6 @@ use nonempty::NonEmpty;
 use radicle_crypto::PublicKey;
 use serde::{Deserialize, Serialize};
 
-use crate::pruning_fold;
 use crate::{object, ObjectId};
 
 /// Entry contents.
@@ -90,41 +89,34 @@ pub struct Entry {
     /// The content-address for the resource this entry lives under.
     /// If the resource was updated, this should point to its latest version.
     pub(super) resource: Oid,
-    /// The child entries for this entry.
-    pub(super) children: Vec<EntryId>,
     /// The contents of this entry.
     pub(super) contents: Contents,
     /// The entry timestamp, as seconds since epoch.
     pub(super) timestamp: Timestamp,
+    /// Logical clock.
+    pub(super) clock: Clock,
 }
 
 impl Entry {
-    pub fn new<Id1, Id2, ChildIds>(
-        id: Id1,
+    pub fn new<Id>(
+        id: Id,
         actor: PublicKey,
         resource: Oid,
-        children: ChildIds,
         contents: Contents,
         timestamp: Timestamp,
+        clock: Clock,
     ) -> Self
     where
-        Id1: Into<EntryId>,
-        Id2: Into<EntryId>,
-        ChildIds: IntoIterator<Item = Id2>,
+        Id: Into<EntryId>,
     {
         Self {
             id: id.into(),
             actor,
             resource,
-            children: children.into_iter().map(|id| id.into()).collect(),
             contents,
             timestamp,
+            clock,
         }
-    }
-
-    /// The ids of the changes this change depends on
-    pub fn children(&self) -> impl Iterator<Item = &EntryId> {
-        self.children.iter()
     }
 
     /// The current `Oid` of the resource this change lives under.
@@ -147,67 +139,13 @@ impl Entry {
         &self.contents
     }
 
+    /// Entry ID.
     pub fn id(&self) -> &EntryId {
         &self.id
     }
-}
 
-impl pruning_fold::GraphNode for Entry {
-    type Id = EntryId;
-
-    fn id(&self) -> &Self::Id {
-        &self.id
-    }
-
-    fn child_ids(&self) -> &[Self::Id] {
-        &self.children
-    }
-}
-
-/// Wraps an [`Entry`], adding a logical clock to it.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct EntryWithClock {
-    pub entry: Entry,
-    pub clock: Clock,
-}
-
-impl EntryWithClock {
-    pub fn root(entry: Entry) -> Self {
-        Self {
-            entry,
-            clock: 1 as Clock, // The root entry has a clock value of `1`.
-        }
-    }
-}
-
-impl EntryWithClock {
-    /// Get the clock value.
+    /// Logical clock.
     pub fn clock(&self) -> Clock {
         self.clock
-    }
-
-    /// Iterator over the changes, including the clock.
-    pub fn changes(&self) -> impl Iterator<Item = &[u8]> {
-        self.contents.iter().map(|blob| blob.as_slice())
-    }
-}
-
-impl pruning_fold::GraphNode for EntryWithClock {
-    type Id = EntryId;
-
-    fn id(&self) -> &Self::Id {
-        &self.entry.id
-    }
-
-    fn child_ids(&self) -> &[Self::Id] {
-        &self.entry.children
-    }
-}
-
-impl std::ops::Deref for EntryWithClock {
-    type Target = Entry;
-
-    fn deref(&self) -> &Self::Target {
-        &self.entry
     }
 }

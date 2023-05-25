@@ -85,8 +85,6 @@ pub use change::Change;
 pub mod history;
 pub use history::{Contents, Entry, History};
 
-mod pruning_fold;
-
 pub mod signatures;
 use signatures::ExtendedSignature;
 

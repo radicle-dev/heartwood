@@ -1,23 +1,19 @@
 // Copyright © 2021 The Radicle Link Contributors
 
-use std::{
-    collections::{BTreeSet, HashMap},
-    ops::ControlFlow,
-};
+use std::{cmp::Ordering, collections::BTreeSet, ops::ControlFlow};
 
 use git_ext::Oid;
 use radicle_crypto::PublicKey;
 use radicle_dag::Dag;
 
-use crate::pruning_fold;
-
 pub mod entry;
-pub use entry::{Clock, Contents, Entry, EntryId, EntryWithClock, Timestamp};
+pub use entry::{Clock, Contents, Entry, EntryId, Timestamp};
 
 /// The DAG of changes making up the history of a collaborative object.
 #[derive(Clone, Debug)]
 pub struct History {
-    graph: Dag<EntryId, EntryWithClock>,
+    graph: Dag<EntryId, Entry>,
+    root: EntryId,
 }
 
 impl PartialEq for History {
@@ -28,13 +24,16 @@ impl PartialEq for History {
 
 impl Eq for History {}
 
-#[derive(Debug, thiserror::Error)]
-pub enum CreateError {
-    #[error("no entry for the root ID in the entries")]
-    MissingRoot,
-}
-
 impl History {
+    /// Create a new history from a DAG. Panics if the root is not part of the graph.
+    pub fn new(root: EntryId, graph: Dag<EntryId, Entry>) -> Self {
+        assert!(
+            graph.contains(&root),
+            "History::new: root must be present in graph"
+        );
+        Self { root, graph }
+    }
+
     pub fn new_from_root<Id>(
         id: Id,
         actor: PublicKey,
@@ -46,29 +45,18 @@ impl History {
         Id: Into<EntryId>,
     {
         let id = id.into();
-        let root_entry = Entry {
+        let root = Entry {
             id,
             actor,
             resource,
-            children: vec![],
             contents,
             timestamp,
+            clock: 1,
         };
-        let mut entries = HashMap::new();
-        entries.insert(id, EntryWithClock::root(root_entry));
 
-        create_dag(&id, &entries)
-    }
-
-    pub fn new<Id>(root: Id, entries: HashMap<EntryId, EntryWithClock>) -> Result<Self, CreateError>
-    where
-        Id: Into<EntryId>,
-    {
-        let root = root.into();
-        if !entries.contains_key(&root) {
-            Err(CreateError::MissingRoot)
-        } else {
-            Ok(create_dag(&root, &entries))
+        Self {
+            root: id,
+            graph: Dag::root(id, root),
         }
     }
 
@@ -92,30 +80,37 @@ impl History {
             .unwrap_or_default()
     }
 
+    /// Get all the tips of the graph.
+    pub fn tips(&self) -> BTreeSet<Oid> {
+        self.graph
+            .tips()
+            .map(|(_, entry)| (*entry.id()).into())
+            .collect()
+    }
+
     /// A topological (parents before children) traversal of the dependency
     /// graph of this history. This is analagous to
     /// [`std::iter::Iterator::fold`] in that it folds every change into an
     /// accumulator value of type `A`. However, unlike `fold` the function `f`
     /// may prune branches from the dependency graph by returning
     /// `ControlFlow::Break`.
-    pub fn traverse<F, A>(&self, init: A, f: F) -> A
+    pub fn traverse<F, A>(&self, init: A, mut f: F) -> A
     where
-        F: for<'r> FnMut(A, &'r EntryWithClock) -> ControlFlow<A, A>,
+        F: for<'r> FnMut(A, &'r EntryId, &'r Entry) -> ControlFlow<A, A>,
     {
-        let items = self
-            .graph
-            .sorted(fastrand::Rng::new())
-            .into_iter()
-            .map(|idx| &self.graph[&idx]);
-
-        pruning_fold::pruning_fold(init, items, f)
+        self.graph
+            .fold(&self.root, init, |acc, k, v, _| f(acc, k, v))
     }
 
-    pub fn tips(&self) -> BTreeSet<Oid> {
+    pub fn sorted<F>(&self, compare: F) -> impl Iterator<Item = &Entry>
+    where
+        F: FnMut(&EntryId, &EntryId) -> Ordering,
+    {
         self.graph
-            .tips()
-            .map(|(_, entry)| (*entry.id()).into())
-            .collect()
+            .sorted(compare)
+            .into_iter()
+            .filter_map(|k| self.graph.get(&k))
+            .map(|node| &node.value)
     }
 
     pub fn extend<Id>(
@@ -134,17 +129,12 @@ impl History {
             new_id,
             new_actor,
             new_resource,
-            std::iter::empty::<git2::Oid>(),
             new_contents,
             new_timestamp,
+            self.clock() + 1,
         );
-        self.graph.node(
-            new_id,
-            EntryWithClock {
-                entry: new_entry,
-                clock: self.clock() + 1,
-            },
-        );
+        self.graph.node(new_id, new_entry);
+
         for tip in tips {
             self.graph.dependency(new_id, (*tip).into());
         }
@@ -153,20 +143,4 @@ impl History {
     pub fn merge(&mut self, other: Self) {
         self.graph.merge(other.graph);
     }
-}
-
-fn create_dag<'a>(root: &'a EntryId, entries: &'a HashMap<EntryId, EntryWithClock>) -> History {
-    let root_entry = entries.get(root).unwrap().clone();
-    let mut graph: Dag<EntryId, EntryWithClock> = Dag::root(*root, root_entry.clone());
-    let mut to_process = vec![root_entry];
-
-    while let Some(entry) = to_process.pop() {
-        for child_id in entry.children() {
-            let child = entries[child_id].clone();
-            graph.node(*child_id, child.clone());
-            graph.dependency(*child_id, entry.id);
-            to_process.push(child.clone());
-        }
-    }
-    History { graph }
 }

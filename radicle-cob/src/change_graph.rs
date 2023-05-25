@@ -1,16 +1,15 @@
 // Copyright © 2021 The Radicle Link Contributors
 
+use std::ops::ControlFlow;
 use std::{collections::BTreeSet, convert::TryInto};
 
 use git_ext::Oid;
-use radicle_dag::{Dag, Node};
+use radicle_dag::Dag;
 
 use crate::{
-    change, object, signatures::ExtendedSignature, Change, CollaborativeObject, ObjectId, TypeName,
+    change, history::EntryId, object, signatures::ExtendedSignature, Change, CollaborativeObject,
+    Entry, History, ObjectId, TypeName,
 };
-
-mod evaluation;
-use evaluation::evaluate;
 
 /// The graph of changes for a particular collaborative object
 pub(super) struct ChangeGraph {
@@ -82,19 +81,46 @@ impl ChangeGraph {
 
     /// Given a graph evaluate it to produce a collaborative object. This will
     /// filter out branches of the graph which do not have valid signatures.
-    pub(crate) fn evaluate(&self) -> CollaborativeObject {
-        let mut roots: Vec<(&Oid, &Node<_, _>)> = self.graph.roots().collect();
-        roots.sort_by_key(|(k, _)| *k);
-        // This is okay because we check that the graph has a root node in
-        // GraphBuilder::build
-        let (root, root_node) = roots.first().unwrap();
+    pub(crate) fn evaluate(self) -> CollaborativeObject {
+        let root = *self.object_id;
+        let root_node = self
+            .graph
+            .get(&root)
+            .expect("ChangeGraph::evaluate: root must be part of change graph");
+
         let manifest = root_node.manifest.clone();
-        let rng = fastrand::Rng::new();
-        let history = evaluate(*self.graph[*root].id(), &self.graph, rng);
+        let graph = self
+            .graph
+            .fold(&root, Dag::new(), |mut graph, _, change, depth| {
+                // Check the change signatures are valid.
+                if !change.valid_signatures() {
+                    return ControlFlow::Break(graph);
+                }
+                let clock = depth as u64 + 1;
+                let entry = Entry::new(
+                    *change.id(),
+                    change.signature.key,
+                    change.resource,
+                    change.contents().clone(),
+                    change.timestamp,
+                    clock,
+                );
+                let id = *entry.id();
+
+                graph.node(id, entry);
+
+                for k in &change.dependents {
+                    graph.dependency(EntryId::from(*k), id);
+                }
+                for k in &change.dependencies {
+                    graph.dependency(id, EntryId::from(*k));
+                }
+                ControlFlow::Continue(graph)
+            });
 
         CollaborativeObject {
             manifest,
-            history,
+            history: History::new((*root).into(), graph),
             id: self.object_id,
         }
     }

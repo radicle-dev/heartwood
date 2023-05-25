@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
-use std::ops::{ControlFlow, Deref};
+use std::ops::Deref;
 
 use nonempty::NonEmpty;
 use serde::Serialize;
@@ -30,7 +30,7 @@ pub struct HistoryBuilder<T> {
 
 impl<T: FromHistory> HistoryBuilder<T>
 where
-    T::Action: Serialize + Eq,
+    T::Action: Serialize + Eq + 'static,
 {
     pub fn new(op: &Op<T::Action>) -> HistoryBuilder<T> {
         let entry = arbitrary::oid();
@@ -68,22 +68,23 @@ where
     }
 
     /// Return a sorted list of operations by traversing the history in topological order.
-    pub fn sorted(&self) -> Vec<Op<T::Action>> {
-        self.history.traverse(Vec::new(), |mut acc, entry| {
-            let Ops(ops) =
-                Ops::try_from(entry).expect("HistoryBuilder::sorted: operations must be valid");
-            acc.extend(ops);
-
-            ControlFlow::Continue(acc)
-        })
+    pub fn sorted(&self, rng: &mut fastrand::Rng) -> Vec<Op<T::Action>> {
+        self.history
+            .sorted(|a, b| if rng.bool() { a.cmp(b) } else { b.cmp(a) })
+            .flat_map(|entry| {
+                Ops::try_from(entry).expect("HistoryBuilder::sorted: operations must be valid")
+            })
+            .collect()
     }
 
     /// Return `n` permutations of the topological ordering of operations.
     /// *This function will never return if less than `n` permutations exist.*
     pub fn permutations(&self, n: usize) -> impl IntoIterator<Item = Vec<Op<T::Action>>> {
         let mut permutations = BTreeSet::new();
+        let mut rng = fastrand::Rng::new();
+
         while permutations.len() < n {
-            permutations.insert(self.sorted());
+            permutations.insert(self.sorted(&mut rng));
         }
         permutations.into_iter()
     }
@@ -100,7 +101,7 @@ impl<A> Deref for HistoryBuilder<A> {
 /// Create a new test history.
 pub fn history<T: FromHistory>(op: &Op<T::Action>) -> HistoryBuilder<T>
 where
-    T::Action: Serialize + Eq,
+    T::Action: Serialize + Eq + 'static,
 {
     HistoryBuilder::new(op)
 }
