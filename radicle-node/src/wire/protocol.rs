@@ -22,11 +22,12 @@ use netservices::{NetConnection, NetProtocol, NetReader, NetWriter};
 use reactor::Timestamp;
 
 use radicle::collections::HashMap;
-use radicle::node::{routing, NodeId};
+use radicle::node::{address, routing, NodeId};
 use radicle::storage::WriteStorage;
 
 use crate::crypto::Signer;
 use crate::prelude::Deserializer;
+use crate::service;
 use crate::service::io::Io;
 use crate::service::{session, DisconnectReason, Service};
 use crate::wire::frame;
@@ -35,7 +36,6 @@ use crate::wire::Encode;
 use crate::worker;
 use crate::worker::{ChannelEvent, FetchRequest, FetchResult, Task, TaskResult};
 use crate::Link;
-use crate::{address, service};
 
 /// NoiseXK handshake pattern.
 pub const NOISE_XK: HandshakePattern = HandshakePattern {

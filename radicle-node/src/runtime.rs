@@ -14,12 +14,12 @@ use reactor::Reactor;
 use thiserror::Error;
 
 use radicle::git;
+use radicle::node::address;
 use radicle::node::Handle as _;
 use radicle::node::{ADDRESS_DB_FILE, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle::profile::Home;
 use radicle::Storage;
 
-use crate::address;
 use crate::control;
 use crate::crypto::Signer;
 use crate::node::{routing, NodeId};

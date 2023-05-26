@@ -4,12 +4,13 @@ use std::net;
 use std::ops::{Deref, DerefMut};
 
 use log::*;
+
+use radicle::node::address;
+use radicle::node::address::Store;
 use radicle::rad;
 use radicle::storage::ReadRepository;
 use radicle::Storage;
 
-use crate::address;
-use crate::address::Store;
 use crate::crypto::test::signer::MockSigner;
 use crate::crypto::Signer;
 use crate::identity::Id;

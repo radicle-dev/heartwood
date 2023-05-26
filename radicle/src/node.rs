@@ -1,5 +1,6 @@
 mod features;
 
+pub mod address;
 pub mod events;
 pub mod routing;
 pub mod tracking;

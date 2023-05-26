@@ -1,18 +1,19 @@
 use std::path::Path;
 use std::{fmt, io};
 
-use radicle::node;
-use radicle::node::Address;
-use radicle::prelude::Timestamp;
-use radicle::sql::transaction;
+use localtime::LocalTime;
 use sqlite as sql;
 use thiserror::Error;
 
-use crate::address::types;
-use crate::address::{KnownAddress, Source};
-use crate::service::NodeId;
-use crate::wire::AddressType;
-use crate::LocalTime;
+use crate::node;
+use crate::node::address::{KnownAddress, Source};
+use crate::node::Address;
+use crate::node::NodeId;
+use crate::prelude::Timestamp;
+use crate::sql::transaction;
+
+use super::types;
+use super::AddressType;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -42,6 +43,15 @@ impl Book {
     /// doesn't exist.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let db = sql::Connection::open(path)?;
+        db.execute(Self::SCHEMA)?;
+
+        Ok(Self { db })
+    }
+
+    /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
+    /// open databases, as no locking is required.
+    pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        let db = sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().set_read_only())?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })
@@ -341,7 +351,7 @@ mod test {
 
     use super::*;
     use crate::test::arbitrary;
-    use crate::LocalTime;
+    use localtime::LocalTime;
 
     #[test]
     fn test_empty() {

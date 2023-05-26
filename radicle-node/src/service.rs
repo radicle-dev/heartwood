@@ -19,8 +19,9 @@ use fastrand::Rng;
 use localtime::{LocalDuration, LocalTime};
 use log::*;
 
-use crate::address;
-use crate::address::{AddressBook, KnownAddress};
+use radicle::node::address;
+use radicle::node::address::{AddressBook, KnownAddress};
+
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::identity::IdentityError;
