@@ -1349,12 +1349,7 @@ mod test {
 
     impl<const N: usize> Arbitrary for Changes<N> {
         fn arbitrary(g: &mut qcheck::Gen) -> Self {
-            type State = (
-                Actor<MockSigner, Action>,
-                clock::Lamport,
-                Vec<EntryId>,
-                Vec<Tag>,
-            );
+            type State = (Actor<MockSigner>, clock::Lamport, Vec<EntryId>, Vec<Tag>);
 
             let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
             let oids = iter::repeat_with(|| {
@@ -1607,8 +1602,8 @@ mod test {
         let base = git::Oid::from_str("d8711a8d43dc919fe39ae4b7c2f7b24667f5d470").unwrap();
         let commit = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
 
-        let mut alice = Actor::<MockSigner, _>::default();
-        let mut bob = Actor::<MockSigner, _>::default();
+        let mut alice = Actor::<MockSigner>::default();
+        let mut bob = Actor::<MockSigner>::default();
 
         let proj = gen::<Project>(1);
         let doc = Doc::new(proj, nonempty![alice.did(), bob.did()], 1)
@@ -1696,7 +1691,7 @@ mod test {
     fn test_revision_redacted() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let mut alice = Actor::<_, Action>::new(MockSigner::default());
+        let mut alice = Actor::new(MockSigner::default());
         let mut patch = Patch::default();
         let repo = gen::<MockRepository>(1);
 
@@ -1732,7 +1727,7 @@ mod test {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let repo = gen::<MockRepository>(1);
-        let mut alice = Actor::<_, Action>::new(MockSigner::default());
+        let mut alice = Actor::new(MockSigner::default());
         let mut p1 = Patch::default();
         let mut p2 = Patch::default();
 
@@ -1755,7 +1750,7 @@ mod test {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let id = gen::<Id>(1);
-        let mut alice = Actor::<_, Action>::new(MockSigner::default());
+        let mut alice = Actor::new(MockSigner::default());
         let mut doc = gen::<Doc<Verified>>(1);
         doc.delegates.push(alice.signer.public_key().into());
         let repo = MockRepository::new(id, doc);

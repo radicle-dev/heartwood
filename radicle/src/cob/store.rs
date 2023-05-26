@@ -53,6 +53,7 @@ pub trait FromHistory: Sized + Default + PartialEq {
         history: &History,
         repo: &R,
     ) -> Result<(Self, Lamport), Self::Error> {
+        let obj = history.traverse(Self::default(), |mut acc, _, entry| {
             match Ops::try_from(entry) {
                 Ok(Ops(ops)) => {
                     if let Err(err) = acc.apply(ops, repo) {

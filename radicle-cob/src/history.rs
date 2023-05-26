@@ -102,6 +102,7 @@ impl History {
             .fold(&self.root, init, |acc, k, v, _| f(acc, k, v))
     }
 
+    /// Return a topologically-sorted list of history entries.
     pub fn sorted<F>(&self, compare: F) -> impl Iterator<Item = &Entry>
     where
         F: FnMut(&EntryId, &EntryId) -> Ordering,
@@ -113,6 +114,7 @@ impl History {
             .map(|node| &node.value)
     }
 
+    /// Extend this history with a new entry.
     pub fn extend<Id>(
         &mut self,
         new_id: Id,
@@ -140,7 +142,23 @@ impl History {
         }
     }
 
+    /// Merge two histories.
     pub fn merge(&mut self, other: Self) {
         self.graph.merge(other.graph);
+    }
+
+    /// Get the number of history entries.
+    pub fn len(&self) -> usize {
+        self.graph.len()
+    }
+
+    /// Check if the graph is empty.
+    pub fn is_empty(&self) -> bool {
+        self.graph.is_empty()
+    }
+
+    /// Get the root entry.
+    pub fn root(&self) -> EntryId {
+        self.root
     }
 }

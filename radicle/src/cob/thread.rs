@@ -353,7 +353,7 @@ mod tests {
 
     /// An object that can be used to create and sign changes.
     pub struct Actor<G> {
-        inner: cob::test::Actor<G, Action>,
+        inner: cob::test::Actor<G>,
     }
 
     impl<G: Default + Signer> Default for Actor<G> {
@@ -403,7 +403,7 @@ mod tests {
     }
 
     impl<G> Deref for Actor<G> {
-        type Target = cob::test::Actor<G, Action>;
+        type Target = cob::test::Actor<G>;
 
         fn deref(&self) -> &Self::Target {
             &self.inner
@@ -559,171 +559,105 @@ mod tests {
     }
 
     #[test]
-    fn test_timelines_basic() {
-        let mut alice = Actor::<MockSigner>::default();
-        let mut bob = Actor::<MockSigner>::default();
-
-        let a0 = alice.comment("Thread root", None);
-        let a1 = alice.comment("First comment", Some(a0.id()));
-        let a2 = alice.comment("Second comment", Some(a0.id()));
-
-        bob.receive([a0.clone(), a1.clone(), a2.clone()]);
-        assert_eq!(
-            bob.timeline().collect::<Vec<_>>(),
-            alice.timeline().collect::<Vec<_>>()
-        );
-        assert_eq!(alice.timeline().collect::<Vec<_>>(), vec![&a0, &a1, &a2]);
-
-        bob.reset();
-        bob.receive([a0, a2, a1]);
-        assert_eq!(
-            bob.timeline().collect::<Vec<_>>(),
-            alice.timeline().collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn test_timelines_concurrent() {
-        let mut alice = Actor::<MockSigner>::default();
-        let mut bob = Actor::<MockSigner>::default();
-        let mut eve = Actor::<MockSigner>::default();
-
-        let a0 = alice.comment("Thread root", None);
-        let a1 = alice.comment("First comment", Some(a0.id()));
-
-        bob.receive([a0.clone(), a1.clone()]);
-
-        let b0 = bob.comment("Bob's first reply to Alice", Some(a0.id()));
-        let b1 = bob.comment("Bob's second reply to Alice", Some(a0.id()));
-
-        eve.receive([a0.clone(), b1.clone(), b0.clone()]);
-        let e0 = eve.comment("Eve's first reply to Alice", Some(a0.id()));
-
-        bob.receive([e0.clone()]);
-        let b2 = bob.comment("Bob's third reply to Alice", Some(a0.id()));
-
-        eve.receive([b2.clone(), a1.clone()]);
-        let e1 = eve.comment("Eve's second reply to Alice", Some(a0.id()));
-
-        alice.receive([b0.clone(), b1.clone(), b2.clone(), e0.clone(), e1.clone()]);
-        bob.receive([e1.clone()]);
-
-        let a2 = alice.comment("Second comment", Some(a0.id()));
-        eve.receive([a2.clone()]);
-        bob.receive([a2.clone()]);
-
-        assert_eq!(alice.ops.len(), 8);
-        assert_eq!(bob.ops.len(), 8);
-        assert_eq!(eve.ops.len(), 8);
-
-        assert_eq!(
-            bob.timeline().collect::<Vec<_>>(),
-            alice.timeline().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            eve.timeline().collect::<Vec<_>>(),
-            alice.timeline().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            vec![&a0, &a1, &b0, &b1, &e0, &b2, &e1, &a2],
-            alice.timeline().collect::<Vec<_>>(),
-        );
-    }
-
-    #[test]
-    fn test_histories() {
+    fn test_timeline() {
+        let alice = MockSigner::default();
+        let bob = MockSigner::default();
+        let eve = MockSigner::default();
         let repo = gen::<MockRepository>(1);
 
-        let mut alice = Actor::<MockSigner>::default();
-        let mut bob = Actor::<MockSigner>::default();
-        let mut eve = Actor::<MockSigner>::default();
+        let mut a = test::history::<Thread, _>(
+            &Action::Comment {
+                body: "Thread root".to_owned(),
+                reply_to: None,
+            },
+            &alice,
+        );
+        a.comment("Alice comment", Some(a.root()), &alice);
 
-        let a0 = alice.comment("Alice's comment", None);
-        let b0 = bob.comment("Bob's reply", Some(a0.id())); // Bob and Eve's replies are concurrent.
-        let e0 = eve.comment("Eve's reply", Some(a0.id()));
-
-        let mut a = test::history::<Thread>(&a0);
         let mut b = a.clone();
+        let b1 = b.comment("Bob comment", Some(a.root()), &bob);
+
         let mut e = a.clone();
+        let e1 = e.comment("Eve comment", Some(a.root()), &eve);
 
-        b.append(&b0);
-        e.append(&e0);
+        assert_eq!(a.as_ref().len(), 2);
+        assert_eq!(b.as_ref().len(), 3);
+        assert_eq!(e.as_ref().len(), 3);
 
-        a.merge(b);
-        a.merge(e);
+        a.merge(b.clone());
+        a.merge(e.clone());
 
-        let (expected, _) = Thread::from_history(&a, &repo).unwrap();
-        for permutation in a.permutations(2) {
-            let actual = Thread::from_ops(permutation, &repo).unwrap();
-            assert_eq!(actual, expected);
+        assert_eq!(a.as_ref().len(), 4);
+
+        b.merge(a.clone());
+        b.merge(e.clone());
+
+        e.merge(a.clone());
+        e.merge(b.clone());
+
+        assert_eq!(a, b);
+        assert_eq!(b, e);
+
+        let (t1, _) = Thread::from_history(&a, &repo).unwrap();
+        let (t2, _) = Thread::from_history(&b, &repo).unwrap();
+        let (t3, _) = Thread::from_history(&e, &repo).unwrap();
+
+        assert_eq!(t1, t2);
+        assert_eq!(t2, t3);
+
+        let timeline1 = t1.comments().collect::<Vec<_>>();
+        let timeline2 = t2.comments().collect::<Vec<_>>();
+        let timeline3 = t3.comments().collect::<Vec<_>>();
+
+        assert_eq!(timeline1, timeline2);
+        assert_eq!(timeline2, timeline3);
+        assert_eq!(timeline1.len(), 4);
+        assert_eq!(
+            timeline1.iter().map(|(_, c)| c.body()).collect::<Vec<_>>(),
+            // Since the operations are concurrent, the ordering depends on the ordering between
+            // the operation ids.
+            if e1 > b1 {
+                vec!["Thread root", "Alice comment", "Bob comment", "Eve comment"]
+            } else {
+                vec!["Thread root", "Alice comment", "Eve comment", "Bob comment"]
+            }
+        );
+
+        for ops in a.permutations(2) {
+            let t = Thread::from_ops(ops, &repo).unwrap();
+            assert_eq!(t, t1);
         }
     }
 
     #[test]
     fn test_duplicate_comments() {
         let repo = gen::<MockRepository>(1);
+        let alice = MockSigner::default();
+        let bob = MockSigner::default();
 
-        let mut alice = Actor::<MockSigner>::default();
-        let mut bob = Actor::<MockSigner>::default();
-
-        let a0 = alice.comment("Hello World!", None);
-        let b0 = bob.comment("Hello World!", None);
-
-        let mut a = test::history::<Thread>(&a0);
+        let mut a = test::history::<Thread, _>(
+            &Action::Comment {
+                body: "Thread root".to_owned(),
+                reply_to: None,
+            },
+            &alice,
+        );
         let mut b = a.clone();
 
-        b.append(&b0);
+        a.comment("Hello World!", None, &alice);
+        b.comment("Hello World!", None, &bob);
+
         a.merge(b);
 
         let (thread, _) = Thread::from_history(&a, &repo).unwrap();
 
-        assert_eq!(thread.comments().count(), 2);
+        assert_eq!(thread.comments().count(), 3);
 
-        let (first_id, first) = thread.comments().nth(0).unwrap();
-        let (second_id, second) = thread.comments().nth(1).unwrap();
+        let (first_id, first) = thread.comments().nth(1).unwrap();
+        let (second_id, second) = thread.comments().nth(2).unwrap();
 
         assert!(first_id != second_id); // The ids are not the same,
         assert_eq!(first.edits, second.edits); // despite the content being the same.
-    }
-
-    #[test]
-    fn test_duplicate_comments_same_author() {
-        let repo = gen::<MockRepository>(1);
-
-        let mut alice = Actor::<MockSigner>::default();
-
-        let a0 = alice.comment("Hello World!", None);
-        let a1 = alice.comment("Hello World!", None);
-        let a2 = alice.comment("Hello World!", None);
-
-        // These simulate two devices sharing the same key.
-        let mut h1 = test::history::<Thread>(&a0);
-        let mut h2 = h1.clone();
-        let mut h3 = h1.clone();
-
-        // Alice writes the same comment on both devices, not realizing what she has done.
-        h1.append(&a1);
-        h2.append(&a2);
-
-        // Eventually the histories are merged by a third party.
-        h3.merge(h1);
-        h3.merge(h2);
-
-        let (thread, _) = Thread::from_history(&h3, &repo).unwrap();
-
-        // The three comments, distinct yet identical in terms of content, are preserved.
-        assert_eq!(thread.comments().count(), 3);
-
-        let (first_id, first) = thread.comments().nth(0).unwrap();
-        let (second_id, second) = thread.comments().nth(1).unwrap();
-        let (third_id, third) = thread.comments().nth(2).unwrap();
-
-        // Their IDs are not the same.
-        assert!(first_id != second_id);
-        assert!(second_id != third_id);
-        // Their content are the same.
-        assert_eq!(first, second);
-        assert_eq!(second, third);
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -10,64 +10,96 @@ use crate::cob::op::{Op, Ops};
 use crate::cob::patch;
 use crate::cob::patch::Patch;
 use crate::cob::store::encoding;
-use crate::cob::History;
-use crate::crypto::{PublicKey, Signer};
+use crate::cob::{EntryId, History};
+use crate::crypto::Signer;
 use crate::git;
+use crate::git::ext::author::Author;
+use crate::git::ext::commit::headers::Headers;
+use crate::git::ext::commit::{trailers::OwnedTrailer, Commit};
 use crate::git::Oid;
 use crate::prelude::Did;
 use crate::storage::ReadRepository;
 use crate::test::arbitrary;
 
 use super::store::FromHistory;
+use super::thread;
 
 /// Convenience type for building histories.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistoryBuilder<T> {
     history: History,
     resource: Oid,
     witness: PhantomData<T>,
 }
 
+impl<T> AsRef<History> for HistoryBuilder<T> {
+    fn as_ref(&self) -> &History {
+        &self.history
+    }
+}
+
+impl HistoryBuilder<thread::Thread> {
+    pub fn comment<G: Signer>(
+        &mut self,
+        body: impl ToString,
+        reply_to: Option<thread::CommentId>,
+        signer: &G,
+    ) -> Oid {
+        let action = thread::Action::Comment {
+            body: body.to_string(),
+            reply_to,
+        };
+        self.commit(&action, signer)
+    }
+}
+
 impl<T: FromHistory> HistoryBuilder<T>
 where
     T::Action: Serialize + Eq + 'static,
 {
-    pub fn new(op: &Op<T::Action>) -> HistoryBuilder<T> {
-        let entry = arbitrary::oid();
+    pub fn new<G: Signer>(action: &T::Action, signer: &G) -> HistoryBuilder<T> {
         let resource = arbitrary::oid();
-        let data = encoding::encode(&op.action).unwrap();
+        let timestamp = clock::Physical::now().as_secs();
+        let (data, root) = encoded::<T, _>(action, timestamp as i64, [], signer);
 
         Self {
             history: History::new_from_root(
-                entry,
-                op.author,
+                root,
+                *signer.public_key(),
                 resource,
                 NonEmpty::new(data),
-                op.timestamp.as_secs(),
+                timestamp,
             ),
             resource,
             witness: PhantomData,
         }
     }
 
-    pub fn append(&mut self, op: &Op<T::Action>) -> &mut Self {
-        let data = encoding::encode(&op.action).unwrap();
-
-        self.history.extend(
-            arbitrary::oid(),
-            op.author,
-            self.resource,
-            NonEmpty::new(data),
-            op.timestamp.as_secs(),
-        );
-        self
+    pub fn root(&self) -> EntryId {
+        self.history.root()
     }
 
     pub fn merge(&mut self, other: Self) {
         self.history.merge(other.history);
     }
 
+    pub fn commit<G: Signer>(&mut self, action: &T::Action, signer: &G) -> git::ext::Oid {
+        let timestamp = clock::Physical::now().as_secs();
+        let tips = self.tips();
+        let (data, oid) = encoded::<T, _>(action, timestamp as i64, tips, signer);
+
+        self.history.extend(
+            oid,
+            *signer.public_key(),
+            self.resource,
+            NonEmpty::new(data),
+            timestamp,
+        );
+        oid
+    }
+
     /// Return a sorted list of operations by traversing the history in topological order.
+    /// In the case of partial orderings, a random order will be returned, using the provided RNG.
     pub fn sorted(&self, rng: &mut fastrand::Rng) -> Vec<Op<T::Action>> {
         self.history
             .sorted(|a, b| if rng.bool() { a.cmp(b) } else { b.cmp(a) })
@@ -99,61 +131,45 @@ impl<A> Deref for HistoryBuilder<A> {
 }
 
 /// Create a new test history.
-pub fn history<T: FromHistory>(op: &Op<T::Action>) -> HistoryBuilder<T>
+pub fn history<T: FromHistory, G: Signer>(action: &T::Action, signer: &G) -> HistoryBuilder<T>
 where
     T::Action: Serialize + Eq + 'static,
 {
-    HistoryBuilder::new(op)
+    HistoryBuilder::new(action, signer)
 }
 
 /// An object that can be used to create and sign operations.
-pub struct Actor<G, A> {
+pub struct Actor<G> {
     pub signer: G,
     pub clock: clock::Lamport,
-    pub ops: BTreeMap<(clock::Lamport, PublicKey), Op<A>>,
 }
 
-impl<G: Default, A> Default for Actor<G, A> {
+impl<G: Default> Default for Actor<G> {
     fn default() -> Self {
         Self::new(G::default())
     }
 }
 
-impl<G, A> Actor<G, A> {
+impl<G> Actor<G> {
     pub fn new(signer: G) -> Self {
         Self {
             signer,
             clock: clock::Lamport::default(),
-            ops: BTreeMap::default(),
         }
     }
 }
 
-impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
-    pub fn receive(&mut self, ops: impl IntoIterator<Item = Op<A>>) -> clock::Lamport {
-        for op in ops {
-            let clock = op.clock;
-
-            self.ops.insert((clock, op.author), op);
-            self.clock.merge(clock);
-        }
-        self.clock
-    }
-
-    /// Reset actor state to initial state.
-    pub fn reset(&mut self) {
-        self.ops.clear();
-        self.clock = clock::Lamport::default();
-    }
-
-    /// Returned an ordered list of events.
-    pub fn timeline(&self) -> impl Iterator<Item = &Op<A>> {
-        self.ops.values()
-    }
-
+impl<G: Signer> Actor<G> {
     /// Create a new operation.
-    pub fn op_with(&mut self, action: A, clock: clock::Lamport, identity: Oid) -> Op<A> {
-        let id = arbitrary::oid().into();
+    pub fn op_with<A: Clone + Serialize>(
+        &mut self,
+        action: A,
+        clock: clock::Lamport,
+        identity: Oid,
+    ) -> Op<A> {
+        let data = encoding::encode(&action).unwrap();
+        let oid = git::raw::Oid::hash_object(git::raw::ObjectType::Blob, &data).unwrap();
+        let id = oid.into();
         let author = *self.signer.public_key();
         let timestamp = clock::Physical::now();
 
@@ -168,14 +184,11 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
     }
 
     /// Create a new operation.
-    pub fn op(&mut self, action: A) -> Op<A> {
+    pub fn op<A: Clone + Serialize>(&mut self, action: A) -> Op<A> {
         let clock = self.clock.tick();
         let identity = arbitrary::oid();
-        let op = self.op_with(action, clock, identity);
 
-        self.ops.insert((self.clock, op.author), op.clone());
-
-        op
+        self.op_with(action, clock, identity)
     }
 
     /// Get the actor's DID.
@@ -184,7 +197,7 @@ impl<G: Signer, A: Clone + Serialize> Actor<G, A> {
     }
 }
 
-impl<G: Signer> Actor<G, super::patch::Action> {
+impl<G: Signer> Actor<G> {
     /// Create a patch.
     pub fn patch<R: ReadRepository>(
         &mut self,
@@ -209,4 +222,38 @@ impl<G: Signer> Actor<G, super::patch::Action> {
             repo,
         )
     }
+}
+
+/// Encode an action and return its hash.
+///
+/// Doesn't encode in the same way as we do in production, but attempts to include the same data
+/// that feeds into the hash entropy, so that changing any input will change the resulting oid.
+pub fn encoded<T: FromHistory, G: Signer>(
+    action: &T::Action,
+    timestamp: i64,
+    parents: impl IntoIterator<Item = Oid>,
+    signer: &G,
+) -> (Vec<u8>, git::ext::Oid) {
+    let data = encoding::encode(action).unwrap();
+    let oid = git::raw::Oid::hash_object(git::raw::ObjectType::Blob, &data).unwrap();
+    let parents = parents.into_iter().map(|o| *o);
+    let author = Author {
+        name: "radicle".to_owned(),
+        email: signer.public_key().to_human(),
+        time: git_ext::author::Time::new(timestamp, 0),
+    };
+    let commit = Commit::new::<_, _, OwnedTrailer>(
+        oid,
+        parents,
+        author.clone(),
+        author,
+        Headers::new(),
+        String::default(),
+        [],
+    )
+    .to_string();
+
+    let hash = git::raw::Oid::hash_object(git::raw::ObjectType::Commit, commit.as_bytes()).unwrap();
+
+    (data, hash.into())
 }

@@ -126,6 +126,7 @@ impl change::Storage for git2::Repository {
             signature.clone(),
             tree,
         )?;
+
         Ok(Change {
             id,
             revision: revision.into(),
