@@ -32,7 +32,7 @@ Usage
     rad issue [<option>...]
     rad issue delete <issue-id> [<option>...]
     rad issue edit <issue-id> [<option>...]
-    rad issue list [--assigned <did>] [<option>...]
+    rad issue list [--assigned <did>] [--closed | --open | --solved] [<option>...]
     rad issue open [--title <title>] [--description <text>] [--tag <tag>] [<option>...]
     rad issue react <issue-id> [--emoji <char>] [<option>...]
     rad issue show <issue-id> [<option>...]
@@ -101,6 +101,7 @@ pub enum Operation {
     },
     List {
         assigned: Option<Assigned>,
+        state: Option<State>,
     },
 }
 
@@ -131,6 +132,19 @@ impl Args for Options {
             match arg {
                 Long("help") => {
                     return Err(Error::Help.into());
+                }
+                Long("closed") if op.is_none() || op == Some(OperationName::List) => {
+                    state = Some(State::Closed {
+                        reason: CloseReason::Other,
+                    });
+                }
+                Long("open") if op.is_none() || op == Some(OperationName::List) => {
+                    state = Some(State::Open);
+                }
+                Long("solved") if op.is_none() || op == Some(OperationName::List) => {
+                    state = Some(State::Closed {
+                        reason: CloseReason::Solved,
+                    });
                 }
                 Long("title") if op == Some(OperationName::Open) => {
                     title = Some(parser.value()?.to_string_lossy().into());
@@ -223,7 +237,7 @@ impl Args for Options {
             OperationName::Delete => Operation::Delete {
                 id: id.ok_or_else(|| anyhow!("an issue to remove must be provided"))?,
             },
-            OperationName::List => Operation::List { assigned },
+            OperationName::List => Operation::List { assigned, state },
         };
 
         Ok((
@@ -305,8 +319,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 &signer,
             )?;
         }
-        Operation::List { assigned } => {
-            list(&issues, &assigned, &profile)?;
+        Operation::List { assigned, state } => {
+            list(&issues, &assigned, &state, &profile)?;
         }
         Operation::Delete { id } => {
             let id = id.resolve(&repo.backend)?;
@@ -330,6 +344,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 fn list(
     issues: &Issues,
     assigned: &Option<Assigned>,
+    state: &Option<State>,
     profile: &profile::Profile,
 ) -> anyhow::Result<()> {
     let me = *profile.id();
@@ -351,8 +366,16 @@ fn list(
             // Skip issues that failed to load.
             continue;
         };
-        if Some(true) == assignee.map(|a| !issue.assigned().any(|v| v == Did::from(a))) {
-            continue;
+
+        if let Some(a) = assignee {
+            if !issue.assigned().any(|v| v == Did::from(a)) {
+                continue;
+            }
+        }
+        if let Some(s) = state {
+            if s != issue.state() {
+                continue;
+            }
         }
         all.push((id, issue))
     }
