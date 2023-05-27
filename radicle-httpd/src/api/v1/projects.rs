@@ -324,7 +324,7 @@ async fn remotes_handler(State(ctx): State<Context>, Path(project): Path<Id>) ->
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
     let delegates = repo.delegates()?;
-    let tracking_store = &ctx.profile.tracking()?;
+    let aliases = &ctx.profile.aliases()?;
     let remotes = repo
         .remotes()?
         .filter_map(|r| r.map(|r| r.1).ok())
@@ -339,7 +339,7 @@ async fn remotes_handler(State(ctx): State<Context>, Path(project): Path<Id>) ->
                 })
                 .collect::<BTreeMap<String, &Oid>>();
 
-            match tracking_store.alias(&remote.id) {
+            match aliases.alias(&remote.id) {
                 Some(alias) => json!({
                     "id": remote.id,
                     "alias": alias,
@@ -454,10 +454,10 @@ async fn issues_handler(
         .collect::<Vec<_>>();
 
     issues.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
-    let tracking_store = &ctx.profile.tracking()?;
+    let aliases = &ctx.profile.aliases()?;
     let issues = issues
         .into_iter()
-        .map(|(id, issue, _)| api::json::issue(id, issue, &tracking_store))
+        .map(|(id, issue, _)| api::json::issue(id, issue, &aliases))
         .skip(page * per_page)
         .take(per_page)
         .collect::<Vec<_>>();
@@ -574,13 +574,9 @@ async fn issue_handler(
     let issue = issue::Issues::open(&repo)?
         .get(&issue_id.into())?
         .ok_or(Error::NotFound)?;
-    let tracking_store = &ctx.profile.tracking()?;
+    let aliases = &ctx.profile.aliases()?;
 
-    Ok::<_, Error>(Json(api::json::issue(
-        issue_id.into(),
-        issue,
-        &tracking_store,
-    )))
+    Ok::<_, Error>(Json(api::json::issue(issue_id.into(), issue, &aliases)))
 }
 
 #[derive(Deserialize, Serialize)]
@@ -738,10 +734,10 @@ async fn patches_handler(
         })
         .collect::<Vec<_>>();
     patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
-    let tracking_store = &ctx.profile.tracking()?;
+    let aliases = &ctx.profile.aliases()?;
     let patches = patches
         .into_iter()
-        .map(|(id, patch, _)| api::json::patch(id, patch, &repo, &tracking_store))
+        .map(|(id, patch, _)| api::json::patch(id, patch, &repo, &aliases))
         .skip(page * per_page)
         .take(per_page)
         .collect::<Vec<_>>();
@@ -760,13 +756,13 @@ async fn patch_handler(
     let patch = patch::Patches::open(&repo)?
         .get(&patch_id.into())?
         .ok_or(Error::NotFound)?;
-    let tracking_store = &ctx.profile.tracking()?;
+    let aliases = &ctx.profile.aliases()?;
 
     Ok::<_, Error>(Json(api::json::patch(
         patch_id.into(),
         patch,
         &repo,
-        &tracking_store,
+        &aliases,
     )))
 }
 

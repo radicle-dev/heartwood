@@ -251,7 +251,7 @@ impl Store for Book {
     }
 }
 
-impl AliasStore for &Book {
+impl AliasStore for Book {
     /// Retrieve `alias` of given node.
     /// Calls `Self::get` under the hood.
     fn alias(&self, nid: &NodeId) -> Option<String> {

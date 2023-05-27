@@ -4,9 +4,11 @@ mod types;
 pub use store::*;
 pub use types::*;
 
-use crate::node::Address;
-use cyphernet::addr::HostName;
 use std::net;
+
+use cyphernet::addr::HostName;
+
+use crate::node::Address;
 
 /// Address type.
 #[repr(u8)]

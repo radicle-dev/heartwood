@@ -19,8 +19,9 @@ use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
 use crate::node;
-use crate::node::{address, routing, tracking};
+use crate::node::{address, routing, tracking, AliasStore};
 use crate::prelude::Did;
+use crate::prelude::NodeId;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
 
@@ -57,6 +58,10 @@ pub enum Error {
     Agent(#[from] crate::crypto::ssh::agent::Error),
     #[error("profile key `{0}` is not registered with ssh-agent")]
     KeyNotRegistered(PublicKey),
+    #[error(transparent)]
+    TrackingStore(#[from] node::tracking::store::Error),
+    #[error(transparent)]
+    AddressStore(#[from] node::address::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -152,6 +157,17 @@ impl Profile {
         Ok(addresses)
     }
 
+    /// Return a multi-source store for aliases.
+    pub fn aliases(&self) -> Result<Aliases, Error> {
+        let tracking = self.tracking()?;
+        let addresses = self.addresses()?;
+
+        Ok(Aliases {
+            tracking,
+            addresses,
+        })
+    }
+
     /// Return the path to the keys folder.
     pub fn keys(&self) -> PathBuf {
         self.home.keys()
@@ -165,6 +181,23 @@ impl Profile {
     /// Get the path to the radicle node socket.
     pub fn socket(&self) -> PathBuf {
         self.home.socket()
+    }
+}
+
+/// Holds multiple alias stores, and will try
+/// them one by one when asking for an alias.
+pub struct Aliases {
+    tracking: tracking::store::Config,
+    addresses: address::Book,
+}
+
+impl AliasStore for &Aliases {
+    /// Retrieve `alias` of given node.
+    /// First looks in `tracking.db` and then `address.db`,
+    fn alias(&self, nid: &NodeId) -> Option<String> {
+        (&&self.tracking as &dyn AliasStore)
+            .alias(nid)
+            .or_else(|| (&self.addresses as &dyn AliasStore).alias(nid))
     }
 }
 

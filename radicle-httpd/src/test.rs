@@ -16,6 +16,7 @@ use radicle::crypto::ssh::keystore::MemorySigner;
 use radicle::crypto::ssh::Keystore;
 use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git::{raw as git2, RefString};
+use radicle::node::address as AddressStore;
 use radicle::node::routing as RoutingStore;
 use radicle::node::tracking::store as TrackingStore;
 use radicle::profile::Home;
@@ -87,8 +88,11 @@ pub fn contributor(dir: &Path) -> Context {
 fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G) -> Context {
     let tracking_db = dir.join("radicle").join("node").join("tracking.db");
     let routing_db = dir.join("radicle").join("node").join("routing.db");
+    let addresses_db = dir.join("radicle").join("node").join("addresses.db");
+
     TrackingStore::Config::open(tracking_db).unwrap();
     RoutingStore::Table::open(routing_db).unwrap();
+    AddressStore::Book::open(addresses_db).unwrap();
 
     let workdir = dir.join("hello-world");
 
