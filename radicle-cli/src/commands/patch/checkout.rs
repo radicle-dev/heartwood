@@ -10,9 +10,9 @@ use radicle::storage::ReadRepository;
 use crate::terminal as term;
 
 pub fn run(
+    patch_id: &PatchId,
     stored: &Repository,
     working: &git::raw::Repository,
-    patch_id: &PatchId,
 ) -> anyhow::Result<()> {
     let patches = patch::Patches::open(stored)?;
     let patch = patches

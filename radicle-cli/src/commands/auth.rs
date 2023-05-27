@@ -61,7 +61,7 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     match ctx.profile() {
-        Ok(profile) => authenticate(&profile, options),
+        Ok(profile) => authenticate(options, &profile),
         Err(_) => init(options),
     }
 }
@@ -121,7 +121,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 
 /// Try loading the identity's key into SSH Agent, falling back to verifying `RAD_PASSPHRASE` for
 /// use.
-pub fn authenticate(profile: &Profile, options: Options) -> anyhow::Result<()> {
+pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
     // Authenticate with SSH Agent only if it is running.
     match ssh::agent::Agent::connect() {
         Ok(mut agent) => {

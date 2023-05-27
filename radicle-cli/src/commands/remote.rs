@@ -114,8 +114,8 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
     match options.op {
-        Operation::Add { ref id, name } => self::add::run(&working, &profile, id, name, rid)?,
-        Operation::Rm { ref name } => self::rm::run(&working, name)?,
+        Operation::Add { ref id, name } => self::add::run(rid, id, name, &profile, &working)?,
+        Operation::Rm { ref name } => self::rm::run(name, &working)?,
         Operation::List => self::list::run(&working)?,
     };
     Ok(())

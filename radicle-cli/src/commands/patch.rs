@@ -364,21 +364,21 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             quiet,
         } => {
             create::run(
-                &repository,
-                &profile,
-                &workdir,
                 message.clone(),
                 draft,
                 quiet,
                 options,
+                &profile,
+                &repository,
+                &workdir,
             )?;
         }
         Operation::List { filter: Filter(f) } => {
-            list::run(&repository, &profile, f)?;
+            list::run(f, &repository, &profile)?;
         }
         Operation::Show { patch_id, diff } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            show::run(&profile, &repository, &workdir, &patch_id, diff)?;
+            show::run(&patch_id, diff, &profile, &repository, &workdir)?;
         }
         Operation::Update {
             ref patch_id,
@@ -390,34 +390,34 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .map(|id| id.resolve(&repository.backend))
                 .transpose()?;
             update::run(
-                &repository,
-                &profile,
-                &workdir,
                 patch_id,
                 message.clone(),
                 quiet,
                 &options,
+                &profile,
+                &repository,
+                &workdir,
             )?;
         }
         Operation::Archive { ref patch_id } => {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
-            archive::run(&repository, &profile, &patch_id)?;
+            archive::run(&patch_id, &profile, &repository)?;
         }
         Operation::Ready { ref patch_id, undo } => {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
-            ready::run(&repository, &profile, &patch_id, undo)?;
+            ready::run(&patch_id, undo, &profile, &repository)?;
         }
         Operation::Delete { patch_id } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            delete::run(&repository, &profile, &patch_id)?;
+            delete::run(&patch_id, &profile, &repository)?;
         }
         Operation::Checkout { patch_id } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            checkout::run(&repository, &workdir, &patch_id)?;
+            checkout::run(&patch_id, &repository, &workdir)?;
         }
         Operation::Edit { patch_id, message } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            edit::run(&repository, &profile, &patch_id, message)?;
+            edit::run(&patch_id, message, &profile, &repository)?;
         }
     }
     Ok(())

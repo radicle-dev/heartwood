@@ -53,12 +53,12 @@ fn patch_commits(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<Ve
 }
 
 pub fn run(
+    patch_id: &PatchId,
+    diff: bool,
     profile: &Profile,
     stored: &Repository,
     // TODO: Should be optional.
     workdir: &git::raw::Repository,
-    patch_id: &PatchId,
-    diff: bool,
 ) -> anyhow::Result<()> {
     let patches = patch::Patches::open(stored)?;
     let Some(patch) = patches.get(patch_id)? else {

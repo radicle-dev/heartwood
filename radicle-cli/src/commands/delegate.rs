@@ -115,9 +115,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
 
     match options.op {
-        Operation::Add { id, did } => add::run(&profile, storage, get_id(id)?, *did)?,
-        Operation::Remove { id, did } => remove::run(&profile, storage, get_id(id)?, &did)?,
-        Operation::List { id } => list::run(&profile, storage, get_id(id)?)?,
+        Operation::Add { id, did } => add::run(get_id(id)?, *did, &profile, storage)?,
+        Operation::Remove { id, did } => remove::run(get_id(id)?, &did, &profile, storage)?,
+        Operation::List { id } => list::run(get_id(id)?, &profile, storage)?,
     }
 
     Ok(())

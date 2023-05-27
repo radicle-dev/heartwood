@@ -297,16 +297,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             ref tags,
         } => {
             open(
-                &mut issues,
-                &signer,
-                &options,
                 title.clone(),
                 description.clone(),
                 tags.to_vec(),
+                &options,
+                &mut issues,
+                &signer,
             )?;
         }
         Operation::List { assigned } => {
-            list(&issues, &profile, &assigned)?;
+            list(&issues, &assigned, &profile)?;
         }
         Operation::Delete { id } => {
             let id = id.resolve(&repo.backend)?;
@@ -329,8 +329,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn list(
     issues: &Issues,
-    profile: &profile::Profile,
     assigned: &Option<Assigned>,
+    profile: &profile::Profile,
 ) -> anyhow::Result<()> {
     let me = *profile.id();
 
@@ -484,12 +484,12 @@ fn prompt_issue(
 }
 
 fn open<G: Signer>(
-    issues: &mut Issues,
-    signer: &G,
-    options: &Options,
     title: Option<String>,
     description: Option<String>,
     tags: Vec<Tag>,
+    options: &Options,
+    issues: &mut Issues,
+    signer: &G,
 ) -> anyhow::Result<()> {
     let Some((meta, description)) = prompt_issue(
         &title.unwrap_or_default(),

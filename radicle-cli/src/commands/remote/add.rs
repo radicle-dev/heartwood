@@ -5,11 +5,11 @@ use crate::git::add_remote;
 use crate::{git, terminal as term};
 
 pub fn run(
-    repository: &git::Repository,
-    profile: &Profile,
+    id: Id,
     pubkey: &PublicKey,
     name: Option<String>,
-    id: Id,
+    profile: &Profile,
+    repository: &git::Repository,
 ) -> anyhow::Result<()> {
     let name = match name {
         Some(name) => name,

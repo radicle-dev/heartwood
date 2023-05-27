@@ -103,10 +103,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = radicle::Node::new(profile.socket());
     let (working, doc, proj) = clone(
         options.id,
+        options.announce,
+        &mut node,
         &signer,
         &profile.storage,
-        &mut node,
-        options.announce,
     )?;
     let delegates = doc
         .delegates
@@ -161,10 +161,10 @@ pub enum CloneError {
 
 pub fn clone<G: Signer>(
     id: Id,
+    announce: bool,
+    node: &mut Node,
     signer: &G,
     storage: &Storage,
-    node: &mut Node,
-    announce: bool,
 ) -> Result<(raw::Repository, Doc<Verified>, Project), CloneError> {
     let me = *signer.public_key();
 

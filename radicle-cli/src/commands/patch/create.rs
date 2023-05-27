@@ -46,13 +46,13 @@ fn show_patch_commit_info(
 
 /// Run patch creation.
 pub fn run(
-    storage: &Repository,
-    profile: &Profile,
-    workdir: &git::raw::Repository,
     message: term::patch::Message,
     draft: bool,
     quiet: bool,
     options: Options,
+    profile: &Profile,
+    storage: &Repository,
+    workdir: &git::raw::Repository,
 ) -> anyhow::Result<()> {
     let mut patches = patch::Patches::open(storage)?;
     let head_branch = try_branch(workdir.head()?)?;

@@ -4,7 +4,7 @@ use radicle::{prelude::Id, storage::ReadStorage, Profile};
 
 use crate::terminal as term;
 
-pub fn run<S>(profile: &Profile, storage: &S, id: Id) -> anyhow::Result<()>
+pub fn run<S>(id: Id, profile: &Profile, storage: &S) -> anyhow::Result<()>
 where
     S: ReadStorage,
 {

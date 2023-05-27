@@ -9,7 +9,7 @@ use radicle_crypto::PublicKey;
 
 use crate::terminal as term;
 
-pub fn run<S>(profile: &Profile, storage: &S, id: Id, key: PublicKey) -> anyhow::Result<()>
+pub fn run<S>(id: Id, key: PublicKey, profile: &Profile, storage: &S) -> anyhow::Result<()>
 where
     S: WriteStorage,
 {

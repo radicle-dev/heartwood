@@ -136,18 +136,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = radicle::Node::new(profile.socket());
 
     match options.mode {
-        SyncMode::Announce => announce(rid, node, options.timeout),
-        SyncMode::Fetch => fetch(rid, profile, &mut node, options.seed),
+        SyncMode::Announce => announce(rid, options.timeout, node),
+        SyncMode::Fetch => fetch(rid, options.seed, &mut node, profile),
         SyncMode::Both => {
-            fetch(rid, profile, &mut node, options.seed)?;
-            announce(rid, node, options.timeout)?;
+            fetch(rid, options.seed, &mut node, profile)?;
+            announce(rid, options.timeout, node)?;
 
             Ok(())
         }
     }
 }
 
-fn announce(rid: Id, mut node: Node, timeout: time::Duration) -> anyhow::Result<()> {
+fn announce(rid: Id, timeout: time::Duration, mut node: Node) -> anyhow::Result<()> {
     let seeds = node.seeds(rid)?;
     if !seeds.has_connections() {
         term::info!("Not connected to any seeds.");
@@ -180,9 +180,9 @@ fn announce(rid: Id, mut node: Node, timeout: time::Duration) -> anyhow::Result<
 
 pub fn fetch(
     rid: Id,
-    profile: Profile,
-    node: &mut Node,
     seed: Option<NodeId>,
+    node: &mut Node,
+    profile: Profile,
 ) -> anyhow::Result<()> {
     if !profile.tracking()?.is_repo_tracked(&rid)? {
         anyhow::bail!("repository {rid} is not tracked");

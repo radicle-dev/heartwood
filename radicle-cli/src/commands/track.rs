@@ -130,7 +130,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             track_repo(rid, scope, &mut node)?;
 
             if options.fetch {
-                sync::fetch(rid, profile, &mut node, None)?;
+                sync::fetch(rid, None, &mut node, profile)?;
             }
         }
     }

@@ -54,13 +54,13 @@ fn show_update_commit_info(
 
 /// Run patch update.
 pub fn run(
-    storage: &Repository,
-    profile: &Profile,
-    workdir: &git::raw::Repository,
     patch_id: Option<patch::PatchId>,
     message: term::patch::Message,
     quiet: bool,
     options: &Options,
+    profile: &Profile,
+    storage: &Repository,
+    workdir: &git::raw::Repository,
 ) -> anyhow::Result<()> {
     // `HEAD`; This is what we are proposing as a patch.
     let head_branch = try_branch(workdir.head()?)?;

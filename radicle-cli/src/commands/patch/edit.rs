@@ -7,10 +7,10 @@ use radicle::storage::git::Repository;
 use crate::terminal as term;
 
 pub fn run(
-    repository: &Repository,
-    profile: &Profile,
     patch_id: &PatchId,
     message: term::patch::Message,
+    profile: &Profile,
+    repository: &Repository,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
     let mut patches = patch::Patches::open(repository)?;

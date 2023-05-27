@@ -12,9 +12,9 @@ use super::common;
 
 /// List patches.
 pub fn run(
+    filter: fn(&patch::State) -> bool,
     repository: &Repository,
     profile: &Profile,
-    filter: fn(&patch::State) -> bool,
 ) -> anyhow::Result<()> {
     let patches = Patches::open(repository)?;
 
