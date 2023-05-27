@@ -8,6 +8,7 @@ use thiserror::Error;
 use crate::node;
 use crate::node::address::{KnownAddress, Source};
 use crate::node::Address;
+use crate::node::AliasStore;
 use crate::node::NodeId;
 use crate::prelude::Timestamp;
 use crate::sql::transaction;
@@ -247,6 +248,16 @@ impl Store for Book {
         stmt.next()?;
 
         Ok(())
+    }
+}
+
+impl AliasStore for &Book {
+    /// Retrieve `alias` of given node.
+    /// Calls `Self::get` under the hood.
+    fn alias(&self, nid: &NodeId) -> Option<String> {
+        self.get(nid)
+            .map(|node| node.map(|n| n.alias))
+            .unwrap_or(None)
     }
 }
 
