@@ -14,7 +14,7 @@ use radicle::cob::thread;
 use radicle::cob::thread::{CommentId, Thread};
 use radicle::cob::{ActorId, Author, Reaction, Timestamp};
 use radicle::git::RefString;
-use radicle::node::tracking::store as TrackingStore;
+use radicle::node::AliasStore;
 use radicle::prelude::NodeId;
 use radicle::storage::{git, refs, ReadRepository};
 use radicle_surf::blob::Blob;
@@ -96,7 +96,7 @@ pub(crate) fn tree(tree: &Tree, path: &str, stats: &Stats) -> Value {
 }
 
 /// Returns JSON for an `issue`.
-pub(crate) fn issue(id: IssueId, issue: Issue, aliases: &TrackingStore::Config) -> Value {
+pub(crate) fn issue(id: IssueId, issue: Issue, aliases: &impl AliasStore) -> Value {
     json!({
         "id": id.to_string(),
         "author": author(&issue.author(), aliases.alias(issue.author().id())),
@@ -116,7 +116,7 @@ pub(crate) fn patch(
     id: PatchId,
     patch: Patch,
     repo: &git::Repository,
-    aliases: &TrackingStore::Config,
+    aliases: &impl AliasStore,
 ) -> Value {
     json!({
         "id": id.to_string(),
@@ -249,7 +249,7 @@ impl<'a> Comment<'a> {
         id: &'a CommentId,
         comment: &'a thread::Comment,
         thread: &'a Thread,
-        aliases: &TrackingStore::Config,
+        aliases: &impl AliasStore,
     ) -> Self {
         let comment_author = Author::new(comment.author());
         Self {

@@ -5,6 +5,7 @@ use std::{fmt, io, ops::Not as _, time};
 use sqlite as sql;
 use thiserror::Error;
 
+use crate::node::AliasStore;
 use crate::prelude::{Id, NodeId};
 
 use super::{Node, Policy, Repo, Scope};
@@ -254,10 +255,12 @@ impl Config {
         }
         Ok(Box::new(entries.into_iter()))
     }
+}
 
+impl AliasStore for &Config {
     /// Retrieve `alias` of given node.
     /// Calls `Self::node_policy` under the hood.
-    pub fn alias(&self, nid: &NodeId) -> Option<String> {
+    fn alias(&self, nid: &NodeId) -> Option<String> {
         self.node_policy(nid)
             .map(|node| node.and_then(|n| n.alias))
             .unwrap_or(None)

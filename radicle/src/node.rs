@@ -694,6 +694,12 @@ impl Handle for Node {
     }
 }
 
+/// A trait for different sources which can potentially return an alias.
+pub trait AliasStore {
+    /// Returns alias of a `NodeId`.
+    fn alias(&self, nid: &NodeId) -> Option<String>;
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

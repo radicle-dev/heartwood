@@ -15,6 +15,7 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use radicle::cob::{issue, patch, thread, ActorId, Tag};
 use radicle::identity::Id;
 use radicle::node::routing::Store;
+use radicle::node::AliasStore;
 use radicle::node::NodeId;
 use radicle::storage::git::paths;
 use radicle::storage::{ReadRepository, ReadStorage, WriteRepository};
@@ -456,7 +457,7 @@ async fn issues_handler(
     let tracking_store = &ctx.profile.tracking()?;
     let issues = issues
         .into_iter()
-        .map(|(id, issue, _)| api::json::issue(id, issue, tracking_store))
+        .map(|(id, issue, _)| api::json::issue(id, issue, &tracking_store))
         .skip(page * per_page)
         .take(per_page)
         .collect::<Vec<_>>();
@@ -578,7 +579,7 @@ async fn issue_handler(
     Ok::<_, Error>(Json(api::json::issue(
         issue_id.into(),
         issue,
-        tracking_store,
+        &tracking_store,
     )))
 }
 
@@ -740,7 +741,7 @@ async fn patches_handler(
     let tracking_store = &ctx.profile.tracking()?;
     let patches = patches
         .into_iter()
-        .map(|(id, patch, _)| api::json::patch(id, patch, &repo, tracking_store))
+        .map(|(id, patch, _)| api::json::patch(id, patch, &repo, &tracking_store))
         .skip(page * per_page)
         .take(per_page)
         .collect::<Vec<_>>();
@@ -765,7 +766,7 @@ async fn patch_handler(
         patch_id.into(),
         patch,
         &repo,
-        tracking_store,
+        &tracking_store,
     )))
 }
 
