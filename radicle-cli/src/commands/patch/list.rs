@@ -58,7 +58,7 @@ pub fn run(
     all.sort_by(|(id1, p1), (id2, p2)| {
         let is_me = (p2.author().id().as_key() == &me).cmp(&(p1.author().id().as_key() == &me));
         let by_id = id1.cmp(id2);
-        let by_rev_time = p1.updated_at().cmp(&p2.updated_at());
+        let by_rev_time = p2.updated_at().cmp(&p1.updated_at());
 
         is_me.then(by_rev_time).then(by_id)
     });
