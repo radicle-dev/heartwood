@@ -192,7 +192,7 @@ impl<G: Signer> Actor<G, super::patch::Action> {
         base: git::Oid,
         oid: git::Oid,
         repo: &R,
-    ) -> Result<Patch, patch::ApplyError> {
+    ) -> Result<Patch, patch::Error> {
         Patch::from_ops(
             [
                 self.op(patch::Action::Revision {

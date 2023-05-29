@@ -39,7 +39,7 @@ pub enum Error {
     #[error("description missing")]
     DescriptionMissing,
     #[error("thread apply failed: {0}")]
-    Thread(#[from] thread::OpError),
+    Thread(#[from] thread::Error),
     #[error("store: {0}")]
     Store(#[from] store::Error),
 }

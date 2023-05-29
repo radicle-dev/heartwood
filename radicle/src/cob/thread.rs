@@ -21,7 +21,7 @@ pub static TYPENAME: Lazy<cob::TypeName> =
 
 /// Error applying an operation onto a state.
 #[derive(Error, Debug)]
-pub enum OpError {
+pub enum Error {
     /// Causal dependency missing.
     ///
     /// This error indicates that the operations are not being applied
@@ -261,7 +261,7 @@ impl Thread {
 
 impl cob::store::FromHistory for Thread {
     type Action = Action;
-    type Error = OpError;
+    type Error = Error;
 
     fn type_name() -> &'static radicle_cob::TypeName {
         &*TYPENAME
@@ -269,7 +269,7 @@ impl cob::store::FromHistory for Thread {
 
     fn validate(&self) -> Result<(), Self::Error> {
         if self.comments.is_empty() {
-            return Err(OpError::Validate("no comments found"));
+            return Err(Error::Validate("no comments found"));
         }
         Ok(())
     }
@@ -278,7 +278,7 @@ impl cob::store::FromHistory for Thread {
         &mut self,
         ops: impl IntoIterator<Item = Op<Action>>,
         _repo: &R,
-    ) -> Result<(), OpError> {
+    ) -> Result<(), Error> {
         for op in ops.into_iter() {
             let id = op.id;
             let author = op.author;
@@ -304,7 +304,7 @@ impl cob::store::FromHistory for Thread {
                     if let Some(Redactable::Present(comment)) = self.comments.get_mut(&id) {
                         comment.edit(op.clock, body, timestamp);
                     } else {
-                        return Err(OpError::Missing(id));
+                        return Err(Error::Missing(id));
                     }
                 }
                 Action::Redact { id } => {

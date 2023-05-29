@@ -50,7 +50,7 @@ pub type RevisionIx = usize;
 
 /// Error applying an operation onto a state.
 #[derive(Debug, Error)]
-pub enum ApplyError {
+pub enum Error {
     /// Causal dependency missing.
     ///
     /// This error indicates that the operations are not being applied
@@ -62,7 +62,7 @@ pub enum ApplyError {
     Missing(EntryId),
     /// Error applying an op to the patch thread.
     #[error("thread apply failed: {0}")]
-    Thread(#[from] thread::OpError),
+    Thread(#[from] thread::Error),
     /// Error loading the identity document committed to by an operation.
     #[error("identity doc failed to load: {0}")]
     Doc(#[from] DocError),
@@ -78,13 +78,7 @@ pub enum ApplyError {
     /// Validation error.
     #[error("validation failed: {0}")]
     Validate(&'static str),
-}
-
-/// Error updating or creating patches.
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("apply failed: {0}")]
-    Apply(#[from] ApplyError),
+    /// Store error.
     #[error("store: {0}")]
     Store(#[from] store::Error),
 }
@@ -341,7 +335,7 @@ impl Patch {
 
 impl store::FromHistory for Patch {
     type Action = Action;
-    type Error = ApplyError;
+    type Error = Error;
 
     fn type_name() -> &'static TypeName {
         &*TYPENAME
@@ -349,10 +343,10 @@ impl store::FromHistory for Patch {
 
     fn validate(&self) -> Result<(), Self::Error> {
         if self.revisions.is_empty() {
-            return Err(ApplyError::Validate("no revisions found"));
+            return Err(Error::Validate("no revisions found"));
         }
         if self.title().is_empty() {
-            return Err(ApplyError::Validate("empty title"));
+            return Err(Error::Validate("empty title"));
         }
         Ok(())
     }
@@ -361,7 +355,7 @@ impl store::FromHistory for Patch {
         &mut self,
         ops: impl IntoIterator<Item = Op>,
         repo: &R,
-    ) -> Result<(), ApplyError> {
+    ) -> Result<(), Error> {
         for op in ops {
             let id = op.id;
             let author = Author::new(op.author);
@@ -392,7 +386,7 @@ impl store::FromHistory for Patch {
                     if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
                         revision.description.set(description, op.clock);
                     } else {
-                        return Err(ApplyError::Missing(revision));
+                        return Err(Error::Missing(revision));
                     }
                 }
                 Action::Revision {
@@ -422,7 +416,7 @@ impl store::FromHistory for Patch {
                     if let Some(revision) = self.revisions.get_mut(&revision) {
                         revision.merge(Redactable::Redacted);
                     } else {
-                        return Err(ApplyError::Missing(revision));
+                        return Err(Error::Missing(revision));
                     }
                 }
                 Action::Review {
@@ -443,7 +437,7 @@ impl store::FromHistory for Patch {
                             ),
                         );
                     } else {
-                        return Err(ApplyError::Missing(revision));
+                        return Err(Error::Missing(revision));
                     }
                 }
                 Action::Merge { revision, commit } => {
@@ -453,7 +447,7 @@ impl store::FromHistory for Patch {
                         match self.target() {
                             MergeTarget::Delegates => {
                                 if !doc.is_delegate(&op.author) {
-                                    return Err(ApplyError::InvalidMerge(op.id));
+                                    return Err(Error::InvalidMerge(op.id));
                                 }
                                 let proj = doc.project()?;
                                 let branch = git::refs::branch(proj.default_branch());
@@ -519,7 +513,7 @@ impl store::FromHistory for Patch {
                             }
                         }
                     } else {
-                        return Err(ApplyError::Missing(revision));
+                        return Err(Error::Missing(revision));
                     }
                 }
                 Action::Thread { revision, action } => {
@@ -538,7 +532,7 @@ impl store::FromHistory for Patch {
                             repo,
                         )?;
                     } else {
-                        return Err(ApplyError::Missing(revision));
+                        return Err(Error::Missing(revision));
                     }
                 }
             }

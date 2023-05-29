@@ -92,7 +92,7 @@ pub enum ApplyError {
     Redacted(EntryId),
     /// Error applying an op to the proposal thread.
     #[error("thread apply failed: {0}")]
-    Thread(#[from] thread::OpError),
+    Thread(#[from] thread::Error),
     /// Error validating the state.
     #[error("validation failed: {0}")]
     Validate(&'static str),
