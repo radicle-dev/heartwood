@@ -31,6 +31,7 @@ impl Message {
             Message::Text(c) => Some(c),
         };
         let comment = comment.unwrap_or_default();
+        let comment = term::format::strip_comments(&comment);
         let comment = comment.trim();
 
         Ok(comment.to_owned())
@@ -87,7 +88,6 @@ pub fn get_message(
     let display_msg = default_msg.trim_end();
 
     let message = message.get(&format!("{display_msg}\n{PATCH_MSG}"))?;
-    let message = message.replace(PATCH_MSG.trim(), ""); // Delete help message.
 
     let (title, description) = message.split_once('\n').unwrap_or((&message, ""));
     let (title, description) = (title.trim().to_string(), description.trim().to_string());
@@ -105,7 +105,6 @@ pub fn get_message(
 /// Get a patch update message.
 pub fn get_update_message(message: term::patch::Message) -> io::Result<String> {
     let message = message.get(REVISION_MSG)?;
-    let message = message.replace(REVISION_MSG.trim(), "");
     let message = message.trim();
 
     Ok(message.to_owned())

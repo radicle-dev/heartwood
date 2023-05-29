@@ -45,6 +45,35 @@ pub fn did(did: &Did) -> Paint<String> {
     Paint::new(format!("{}…{}", &nid[..7], &nid[nid.len() - 7..]))
 }
 
+/// Remove html style comments from a string.
+///
+/// The html comments must start at the beginning of a line and stop at the end.
+pub fn strip_comments(s: &str) -> String {
+    let ends_with_newline = s.ends_with('\n');
+    let mut is_comment = false;
+    let mut w = String::new();
+
+    for line in s.lines() {
+        if is_comment {
+            if line.ends_with("-->") {
+                is_comment = false;
+            }
+            continue;
+        } else if line.starts_with("<!--") {
+            is_comment = true;
+            continue;
+        }
+
+        w.push_str(line);
+        w.push('\n');
+    }
+    if !ends_with_newline {
+        w.pop();
+    }
+
+    w.to_string()
+}
+
 /// Format a timestamp.
 pub fn timestamp(time: &Timestamp) -> Paint<String> {
     let fmt = timeago::Formatter::new();
@@ -103,5 +132,63 @@ impl<'a> fmt::Display for Identity<'a> {
         } else {
             write!(f, "{node_id} {username}")
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_strip_comments() {
+        let test = "\
+        commit 2\n\
+        \n\
+        <!--\n\
+        Please enter a comment for your patch update. Leaving this\n\
+        blank is also okay.\n\
+        -->";
+        let exp = "\
+        commit 2\n\
+        ";
+
+        let res = strip_comments(test);
+        assert_eq!(exp, res);
+
+        let test = "\
+        commit 2\n\
+        -->";
+        let exp = "\
+        commit 2\n\
+        -->";
+
+        let res = strip_comments(test);
+        assert_eq!(exp, res);
+
+        let test = "\
+        <!--\n\
+        commit 2\n\
+        ";
+        let exp = "";
+
+        let res = strip_comments(test);
+        assert_eq!(exp, res);
+
+        let test = "\
+        commit 2\n\
+        \n\
+        <!--\n\
+        <!--\n\
+        Please enter a comment for your patch update. Leaving this\n\
+        blank is also okay.\n\
+        -->\n\
+        -->";
+        let exp = "\
+        commit 2\n\
+        \n\
+        -->";
+
+        let res = strip_comments(test);
+        assert_eq!(exp, res);
     }
 }
