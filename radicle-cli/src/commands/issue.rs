@@ -327,12 +327,13 @@ fn list(
 
     let mut all = Vec::new();
     for result in issues.all()? {
-        let (id, issue, _) = result?;
-
+        let Ok((id, issue, _)) = result else {
+            // Skip issues that failed to load.
+            continue;
+        };
         if Some(true) == assignee.map(|a| !issue.assigned().any(|v| v == Did::from(a))) {
             continue;
         }
-
         all.push((id, issue))
     }
 

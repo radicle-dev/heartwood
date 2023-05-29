@@ -75,6 +75,9 @@ pub enum ApplyError {
     /// Git error.
     #[error("git: {0}")]
     Git(#[from] git::ext::Error),
+    /// Validation error.
+    #[error("validation failed: {0}")]
+    Validate(&'static str),
 }
 
 /// Error updating or creating patches.
@@ -342,6 +345,16 @@ impl store::FromHistory for Patch {
 
     fn type_name() -> &'static TypeName {
         &*TYPENAME
+    }
+
+    fn validate(&self) -> Result<(), Self::Error> {
+        if self.revisions.is_empty() {
+            return Err(ApplyError::Validate("no revisions found"));
+        }
+        if self.title().is_empty() {
+            return Err(ApplyError::Validate("empty title"));
+        }
+        Ok(())
     }
 
     fn apply<R: ReadRepository>(

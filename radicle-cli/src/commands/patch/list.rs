@@ -20,8 +20,10 @@ pub fn run(
 
     let mut all = Vec::new();
     for patch in patches.all()? {
-        let (id, patch, _) = patch?;
-
+        let Ok((id, patch, _)) = patch else {
+            // Skip patches that failed to load.
+            continue;
+        };
         if !filter(patch.state()) {
             continue;
         }

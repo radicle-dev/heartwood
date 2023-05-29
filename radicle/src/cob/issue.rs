@@ -34,6 +34,8 @@ pub type IssueId = ObjectId;
 pub enum Error {
     #[error("apply failed")]
     Apply,
+    #[error("validation failed: {0}")]
+    Validate(&'static str),
     #[error("description missing")]
     DescriptionMissing,
     #[error("thread apply failed: {0}")]
@@ -132,6 +134,16 @@ impl store::FromHistory for Issue {
 
     fn type_name() -> &'static TypeName {
         &*TYPENAME
+    }
+
+    fn validate(&self) -> Result<(), Self::Error> {
+        if self.title.get().is_empty() {
+            return Err(Error::Validate("title is empty"));
+        }
+        if self.thread.validate().is_err() {
+            return Err(Error::Validate("invalid thread"));
+        }
+        Ok(())
     }
 
     fn apply<R: ReadRepository>(

@@ -93,6 +93,9 @@ pub enum ApplyError {
     /// Error applying an op to the proposal thread.
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::OpError),
+    /// Error validating the state.
+    #[error("validation failed: {0}")]
+    Validate(&'static str),
 }
 
 /// Error committing the proposal.
@@ -309,6 +312,13 @@ impl store::FromHistory for Proposal {
 
     fn type_name() -> &'static TypeName {
         &*TYPENAME
+    }
+
+    fn validate(&self) -> Result<(), Self::Error> {
+        if self.revisions.is_empty() {
+            return Err(ApplyError::Validate("no revisions found"));
+        }
+        Ok(())
     }
 
     fn apply<R: ReadRepository>(

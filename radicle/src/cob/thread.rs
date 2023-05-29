@@ -31,6 +31,9 @@ pub enum OpError {
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
     Missing(EntryId),
+    /// Validation error.
+    #[error("validation failed: {0}")]
+    Validate(&'static str),
 }
 
 /// Identifies a comment.
@@ -262,6 +265,13 @@ impl cob::store::FromHistory for Thread {
 
     fn type_name() -> &'static radicle_cob::TypeName {
         &*TYPENAME
+    }
+
+    fn validate(&self) -> Result<(), Self::Error> {
+        if self.comments.is_empty() {
+            return Err(OpError::Validate("no comments found"));
+        }
+        Ok(())
     }
 
     fn apply<R: ReadRepository>(

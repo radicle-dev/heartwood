@@ -3,6 +3,7 @@
 #![allow(clippy::type_complexity)]
 use std::marker::PhantomData;
 use std::ops::ControlFlow;
+use std::sync::Arc;
 
 use nonempty::NonEmpty;
 use radicle_crdt::Lamport;
@@ -28,11 +29,11 @@ pub trait HistoryAction {
 
 /// A type that can be materialized from an event history.
 /// All collaborative objects implement this trait.
-pub trait FromHistory: Sized + Default {
+pub trait FromHistory: Sized + Default + PartialEq {
     /// The underlying action composing each operation.
     type Action: HistoryAction + for<'de> Deserialize<'de> + Serialize;
     /// Error returned by `apply` function.
-    type Error: std::error::Error;
+    type Error: std::error::Error + Send + Sync + 'static;
 
     /// The object type name.
     fn type_name() -> &'static TypeName;
@@ -44,11 +45,14 @@ pub trait FromHistory: Sized + Default {
         repo: &R,
     ) -> Result<(), Self::Error>;
 
+    /// Validate the object. Returns an error if the object is invalid.
+    fn validate(&self) -> Result<(), Self::Error>;
+
     /// Create an object from a history.
     fn from_history<R: ReadRepository>(
         history: &History,
         repo: &R,
-    ) -> Result<(Self, Lamport), Error> {
+    ) -> Result<(Self, Lamport), Self::Error> {
         let obj = history.traverse(Self::default(), |mut acc, entry| {
             match Ops::try_from(entry) {
                 Ok(Ops(ops)) => {
@@ -67,6 +71,8 @@ pub trait FromHistory: Sized + Default {
             }
             ControlFlow::Continue(acc)
         });
+
+        obj.validate()?;
 
         Ok((obj, history.clock().into()))
     }
@@ -103,6 +109,8 @@ pub enum Error {
     HistoryType(String),
     #[error("object `{1}` of type `{0}` was not found")]
     NotFound(TypeName, ObjectId),
+    #[error("apply: {0}")]
+    Apply(Arc<dyn std::error::Error + Sync + Send + 'static>),
     #[error("signed refs: {0}")]
     SignRefs(#[from] storage::Error),
     #[error("failed to find reference '{name}': {err}")]
@@ -111,6 +119,12 @@ pub enum Error {
         #[source]
         err: git::Error,
     },
+}
+
+impl Error {
+    fn apply(e: impl std::error::Error + Sync + Send + 'static) -> Self {
+        Self::Apply(Arc::new(e))
+    }
 }
 
 /// Storage for collaborative objects of a specific type `T` in a single repository.
@@ -197,7 +211,7 @@ where
                 contents,
             },
         )?;
-        let (object, clock) = T::from_history(cob.history(), self.repo)?;
+        let (object, clock) = T::from_history(cob.history(), self.repo).map_err(Error::apply)?;
 
         self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
 
@@ -212,7 +226,7 @@ where
             if cob.manifest().history_type != HISTORY_TYPE {
                 return Err(Error::HistoryType(cob.manifest().history_type.clone()));
             }
-            let (obj, clock) = T::from_history(cob.history(), self.repo)?;
+            let (obj, clock) = T::from_history(cob.history(), self.repo).map_err(Error::apply)?;
 
             Ok(Some((obj, clock)))
         } else {
@@ -227,7 +241,7 @@ where
         let raw = cob::list(self.repo, T::type_name())?;
 
         Ok(raw.into_iter().map(|o| {
-            let (obj, clock) = T::from_history(o.history(), self.repo)?;
+            let (obj, clock) = T::from_history(o.history(), self.repo).map_err(Error::apply)?;
             Ok((*o.id(), obj, clock))
         }))
     }
