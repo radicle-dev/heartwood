@@ -5,13 +5,12 @@ use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt,
-    hash::Hash,
     ops::{ControlFlow, Deref, Index},
 };
 
 /// A node in the graph.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Node<K: Eq, V> {
+pub struct Node<K, V> {
     /// The node value, stored by the user.
     pub value: V,
     /// Nodes depended on.
@@ -20,7 +19,7 @@ pub struct Node<K: Eq, V> {
     pub dependents: BTreeSet<K>,
 }
 
-impl<K: Eq + Hash, V> Node<K, V> {
+impl<K, V> Node<K, V> {
     fn new(value: V) -> Self {
         Self {
             value,
@@ -30,13 +29,13 @@ impl<K: Eq + Hash, V> Node<K, V> {
     }
 }
 
-impl<K: Eq + Hash, V> Borrow<V> for &Node<K, V> {
+impl<K, V> Borrow<V> for &Node<K, V> {
     fn borrow(&self) -> &V {
         &self.value
     }
 }
 
-impl<K: Eq + Hash, V> Deref for Node<K, V> {
+impl<K, V> Deref for Node<K, V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
@@ -46,13 +45,13 @@ impl<K: Eq + Hash, V> Deref for Node<K, V> {
 
 /// A directed acyclic graph.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Dag<K: Eq + Hash, V> {
+pub struct Dag<K, V> {
     graph: BTreeMap<K, Node<K, V>>,
     tips: BTreeSet<K>,
     roots: BTreeSet<K>,
 }
 
-impl<K: PartialOrd + Ord + Eq + Copy + Hash, V> Dag<K, V> {
+impl<K: Ord + Copy, V> Dag<K, V> {
     /// Create a new empty DAG.
     pub fn new() -> Self {
         Self {
@@ -256,7 +255,7 @@ impl<K: PartialOrd + Ord + Eq + Copy + Hash, V> Dag<K, V> {
     }
 }
 
-impl<K: PartialOrd + Ord + Eq + Copy + Hash + fmt::Debug, V> Index<&K> for Dag<K, V> {
+impl<K: Ord + Copy + fmt::Debug, V> Index<&K> for Dag<K, V> {
     type Output = Node<K, V>;
 
     fn index(&self, key: &K) -> &Self::Output {
