@@ -64,7 +64,7 @@ pub fn router(ctx: Context) -> Router {
         )
         .route(
             "/projects/:project/patches/:id",
-            get(patch_handler).patch(patch_update_handler),
+            patch(patch_update_handler).get(patch_handler),
         )
         .with_state(ctx)
 }
@@ -481,8 +481,7 @@ async fn issue_create_handler(
     Path(project): Path<Id>,
     Json(issue): Json<IssueCreate>,
 ) -> impl IntoResponse {
-    let sessions = ctx.sessions.read().await;
-    sessions.get(&token).ok_or(Error::Auth("Unauthorized"))?;
+    api::auth::validate(&ctx, &token).await?;
     let storage = &ctx.profile.storage;
     let signer = ctx
         .profile
@@ -514,12 +513,7 @@ async fn issue_update_handler(
     Path((project, issue_id)): Path<(Id, Oid)>,
     Json(action): Json<issue::Action>,
 ) -> impl IntoResponse {
-    ctx.sessions
-        .write()
-        .await
-        .get(&token)
-        .ok_or(Error::Auth("Unauthorized"))?;
-
+    api::auth::validate(&ctx, &token).await?;
     let storage = &ctx.profile.storage;
     let signer = ctx.profile.signer().unwrap();
     let repo = storage.repository(project)?;
@@ -596,11 +590,7 @@ async fn patch_create_handler(
     Path(project): Path<Id>,
     Json(patch): Json<PatchCreate>,
 ) -> impl IntoResponse {
-    ctx.sessions
-        .read()
-        .await
-        .get(&token)
-        .ok_or(Error::Auth("Unauthorized"))?;
+    api::auth::validate(&ctx, &token).await?;
     let storage = &ctx.profile.storage;
     let signer = ctx
         .profile
@@ -635,11 +625,7 @@ async fn patch_update_handler(
     Path((project, patch_id)): Path<(Id, Oid)>,
     Json(action): Json<patch::Action>,
 ) -> impl IntoResponse {
-    ctx.sessions
-        .write()
-        .await
-        .get(&token)
-        .ok_or(Error::Auth("Unauthorized"))?;
+    api::auth::validate(&ctx, &token).await?;
     let storage = &ctx.profile.storage;
     let signer = ctx
         .profile
