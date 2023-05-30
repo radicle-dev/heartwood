@@ -22,6 +22,7 @@ Options
     --backend, -b          httpd to bind to
     --frontend, -f         Web interface to bind to
     --verbose, -v          Verbose output
+    --json                 Output as json
     --help                 Print help
 "#,
 };
@@ -37,6 +38,7 @@ pub struct SessionInfo {
 pub struct Options {
     pub backend: String,
     pub frontend: String,
+    pub json: bool,
     pub verbose: bool,
 }
 
@@ -47,6 +49,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut backend = None;
         let mut frontend = None;
+        let mut json = false;
         let mut verbose = false;
 
         while let Some(arg) = parser.next()? {
@@ -58,6 +61,7 @@ impl Args for Options {
                 Long("frontend") | Short('f') => {
                     frontend = Some(parser.value()?.to_string_lossy().to_string())
                 }
+                Long("json") => json = true,
                 Long("help") => {
                     return Err(Error::Help.into());
                 }
@@ -69,6 +73,7 @@ impl Args for Options {
 
         Ok((
             Options {
+                json,
                 verbose,
                 backend: backend.unwrap_or(String::from("http://0.0.0.0:8080")),
                 frontend: frontend.unwrap_or(String::from("https://app.radicle.xyz")),
@@ -91,16 +96,28 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let signer = profile.signer()?;
     let signature = sign(signer, &session)?;
-    term::blank();
-    term::info!("Open the following link to authenticate:");
-    term::info!(
-        "  👉 {}/session/{}?pk={}&sig={}",
-        options.frontend,
-        session.session_id,
-        session.public_key,
-        signature,
-    );
-    term::blank();
+
+    if options.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "sessionId": session.session_id,
+                "publicKey": session.public_key,
+                "signature": signature,
+            })
+        )
+    } else {
+        term::blank();
+        term::info!("Open the following link to authenticate:");
+        term::info!(
+            "  👉 {}/session/{}?pk={}&sig={}",
+            options.frontend,
+            session.session_id,
+            session.public_key,
+            signature,
+        );
+        term::blank();
+    }
 
     Ok(())
 }
