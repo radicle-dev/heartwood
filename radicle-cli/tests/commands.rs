@@ -53,6 +53,10 @@ fn test<'a>(
         .envs(git::env::GIT_DEFAULT_CONFIG)
         .envs(envs)
         .cwd(cwd)
+        .build(&[
+            ("radicle-remote-helper", "git-remote-rad"),
+            ("radicle-cli", "rad"),
+        ])
         .file(base.join(test))?
         .run()?;
 

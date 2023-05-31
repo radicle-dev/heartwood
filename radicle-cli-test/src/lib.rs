@@ -2,11 +2,15 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::{env, fs, io, mem};
+use std::sync;
+use std::{env, ffi, fs, io, mem};
 
 use snapbox::cmd::{Command, OutputAssert};
 use snapbox::{Assert, Substitutions};
 use thiserror::Error;
+
+/// Used to ensure the build task is only run once.
+static BUILD: sync::Once = sync::Once::new();
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -66,6 +70,8 @@ pub struct TestFormula {
     tests: Vec<Test>,
     /// Output substitutions.
     subs: Substitutions,
+    /// Binaries path.
+    bins: Vec<PathBuf>,
 }
 
 impl TestFormula {
@@ -75,7 +81,60 @@ impl TestFormula {
             env: HashMap::new(),
             tests: Vec::new(),
             subs: Substitutions::new(),
+            bins: env::var("PATH")
+                .map(|p| p.split(':').map(PathBuf::from).collect())
+                .unwrap_or_default(),
         }
+    }
+
+    pub fn build(&mut self, binaries: &[(&str, &str)]) -> &mut Self {
+        let manifest = env::var("CARGO_MANIFEST_DIR").expect(
+            "TestFormula::build: cannot build binaries: variable `CARGO_MANIFEST_DIR` is not set",
+        );
+        let profile = if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        };
+        let target_dir = env::var("CARGO_TARGET_DIR").unwrap_or("target".to_string());
+        let manifest = Path::new(manifest.as_str());
+        let bins = manifest.join(&target_dir).join(profile);
+
+        // Add the target dir to the beginning of the list we will use as `PATH`.
+        self.bins.insert(0, bins);
+
+        // We don't need to re-build everytime the `build` function is called. Once is enough.
+        BUILD.call_once(|| {
+            use escargot::format::Message;
+
+            for (package, binary) in binaries {
+                log::debug!(target: "test", "Building binaries for package `{package}`..");
+
+                let results = escargot::CargoBuild::new()
+                    .package(package)
+                    .bin(binary)
+                    .manifest_path(&manifest.join("Cargo.toml"))
+                    .target_dir(&target_dir)
+                    .exec()
+                    .unwrap();
+
+                for result in results {
+                    match result {
+                        Ok(msg) => {
+                            if let Ok(Message::CompilerArtifact(a)) = msg.decode() {
+                                if let Some(e) = a.executable {
+                                    log::debug!(target: "test", "Built {}", e.display());
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!(target: "test", "Error building package `{package}`: {e}");
+                        }
+                    }
+                }
+            }
+        });
+        self
     }
 
     pub fn cwd(&mut self, path: impl AsRef<Path>) -> &mut Self {
@@ -208,21 +267,7 @@ impl TestFormula {
         let assert = Assert::new().substitutions(self.subs.clone());
 
         fs::create_dir_all(&self.cwd)?;
-
-        let mut bins = env::var("PATH").unwrap_or_default();
-        if let Ok(manifest) = env::var("CARGO_MANIFEST_DIR") {
-            let profile = if cfg!(debug_assertions) {
-                "debug"
-            } else {
-                "release"
-            };
-            let cargo_target_dir = env::var("CARGO_TARGET_DIR").unwrap_or("target".to_string());
-            let path = Path::new(manifest.as_str());
-            let path = path.parent().unwrap().join(cargo_target_dir).join(profile);
-
-            bins = format!("{}:{bins}", path.display());
-        }
-        log::debug!(target: "test", "Using PATH={bins}");
+        log::debug!(target: "test", "Using PATH {:?}", self.bins);
 
         for test in &self.tests {
             for assertion in &test.assertions {
@@ -258,6 +303,12 @@ impl TestFormula {
                     log::error!(target: "test", "{path}: Directory {} does not exist..", self.cwd.display());
                 }
 
+                let bins = self
+                    .bins
+                    .iter()
+                    .map(|p| p.as_os_str())
+                    .collect::<Vec<_>>()
+                    .join(ffi::OsStr::new(":"));
                 let result = Command::new(cmd.clone())
                     .env_clear()
                     .env("PATH", &bins)
@@ -342,6 +393,11 @@ $ rad sync
             cwd: PathBuf::new(),
             env: HashMap::new(),
             subs: Substitutions::new(),
+            bins: env::var("PATH")
+                .unwrap()
+                .split(':')
+                .map(PathBuf::from)
+                .collect(),
             tests: vec![
                 Test {
                     context: vec![String::from("Let's try to track @dave and @sean:")],
