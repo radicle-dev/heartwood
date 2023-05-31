@@ -195,6 +195,7 @@ impl Args for Options {
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "c" | "show" => op = Some(OperationName::Show),
                     "d" | "delete" => op = Some(OperationName::Delete),
+                    "e" | "edit" => op = Some(OperationName::Edit),
                     "l" | "list" => op = Some(OperationName::List),
                     "o" | "open" => op = Some(OperationName::Open),
                     "r" | "react" => op = Some(OperationName::React),
