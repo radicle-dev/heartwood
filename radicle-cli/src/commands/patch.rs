@@ -14,6 +14,8 @@ mod edit;
 mod list;
 #[path = "patch/ready.rs"]
 mod ready;
+#[path = "patch/redact.rs"]
+mod redact;
 #[path = "patch/show.rs"]
 mod show;
 #[path = "patch/update.rs"]
@@ -49,6 +51,7 @@ Usage
     rad patch update <patch-id> [<option>...]
     rad patch checkout <patch-id> [<option>...]
     rad patch delete <patch-id> [<option>...]
+    rad patch redact <revision-id> [<option>...]
     rad patch ready <patch-id> [--undo] [<option>...]
     rad patch edit <patch-id> [<option>...]
 
@@ -99,6 +102,7 @@ pub enum OperationName {
     #[default]
     List,
     Edit,
+    Redact,
 }
 
 pub struct Filter(fn(&patch::State) -> bool);
@@ -158,6 +162,9 @@ pub enum Operation {
         patch_id: Rev,
         message: Message,
     },
+    Redact {
+        revision_id: Rev,
+    },
 }
 
 #[derive(Debug)]
@@ -179,6 +186,7 @@ impl Args for Options {
         let mut fetch = false;
         let mut announce = false;
         let mut patch_id = None;
+        let mut revision_id = None;
         let mut message = Message::default();
         let mut push = true;
         let mut filter = Filter::default();
@@ -274,8 +282,13 @@ impl Args for Options {
                     "a" | "archive" => op = Some(OperationName::Archive),
                     "y" | "ready" => op = Some(OperationName::Ready),
                     "e" | "edit" => op = Some(OperationName::Edit),
+                    "r" | "redact" => op = Some(OperationName::Redact),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
+                Value(val) if op == Some(OperationName::Redact) => {
+                    let val = string(&val);
+                    revision_id = Some(Rev::from(val));
+                }
                 Value(val)
                     if patch_id.is_none()
                         && [
@@ -328,6 +341,9 @@ impl Args for Options {
             OperationName::Edit => Operation::Edit {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
                 message,
+            },
+            OperationName::Redact => Operation::Redact {
+                revision_id: revision_id.ok_or_else(|| anyhow!("a revision must be provided"))?,
             },
         };
 
@@ -408,7 +424,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             ready::run(&patch_id, undo, &profile, &repository)?;
         }
         Operation::Delete { patch_id } => {
-            let patch_id = patch_id.resolve(&repository.backend)?;
+            let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
             delete::run(&patch_id, &profile, &repository)?;
         }
         Operation::Checkout { patch_id } => {
@@ -418,6 +434,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Edit { patch_id, message } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
             edit::run(&patch_id, message, &profile, &repository)?;
+        }
+        Operation::Redact { revision_id } => {
+            redact::run(&revision_id, &profile, &repository)?;
         }
     }
     Ok(())

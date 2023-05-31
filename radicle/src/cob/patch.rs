@@ -51,6 +51,9 @@ pub type RevisionIx = usize;
 /// Error applying an operation onto a state.
 #[derive(Debug, Error)]
 pub enum Error {
+    /// Error trying to delete the protected root revision.
+    #[error("refusing to delete root revision: {0}")]
+    RootRevision(RevisionId),
     /// Causal dependency missing.
     ///
     /// This error indicates that the operations are not being applied
@@ -862,6 +865,11 @@ impl store::Transaction<Patch> {
         })
     }
 
+    /// Redact the revision.
+    pub fn redact(&mut self, revision: RevisionId) -> Result<(), store::Error> {
+        self.push(Action::Redact { revision })
+    }
+
     /// Start a patch revision discussion.
     pub fn thread<S: ToString>(
         &mut self,
@@ -1011,9 +1019,21 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         description: String,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit Revision", signer, |tx| {
+        self.transaction("Edit revision", signer, |tx| {
             tx.edit_revision(revision, description)
         })
+    }
+
+    /// Redact a revision.
+    pub fn redact<G: Signer>(
+        &mut self,
+        revision: RevisionId,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        if revision == RevisionId::from(self.id) {
+            return Err(Error::RootRevision(revision));
+        }
+        self.transaction("Redact revision", signer, |tx| tx.redact(revision))
     }
 
     /// Create a thread on a patch revision.
@@ -1993,5 +2013,39 @@ mod test {
         assert_eq!(patch.version(), 1);
         assert_eq!(revision.oid, update.oid);
         assert_eq!(revision.description(), "I've made changes.");
+    }
+
+    #[test]
+    fn test_patch_redact() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = test::setup::Context::new(&tmp);
+        let signer = &ctx.signer;
+        let pr = ctx.branch_with(test::setup::initial_blobs());
+        let mut patches = Patches::open(&ctx.project).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                pr.base,
+                pr.oid,
+                &[],
+                signer,
+            )
+            .unwrap();
+        let patch_id = patch.id;
+
+        let update = ctx.branch_with(test::setup::update_blobs());
+        let revision_id = patch
+            .update("I've made changes.", pr.base, update.oid, signer)
+            .unwrap();
+        assert_eq!(patch.revisions().count(), 2);
+
+        patch.redact(revision_id, signer).unwrap();
+        assert_eq!(patch.latest().0, &RevisionId::from(patch_id));
+        assert_eq!(patch.revisions().count(), 1);
+
+        // The patch's root must always exist.
+        assert!(patch.redact(*patch.latest().0, signer).is_err());
     }
 }
