@@ -337,67 +337,64 @@ mod test {
 
         let res = create_display_message(&repo, &commit_0, &commit_0).unwrap();
         assert_eq!(
-            r#"
-<!--
-Please enter a patch message for your changes. An empty
-message aborts the patch proposal.
-
-The first line is the patch title. The patch description
-follows, and must be separated with a blank line, just
-like a commit message. Markdown is supported in the title
-and description.
--->
-"#
-            .trim_start(),
+            "\
+            <!--\n\
+            Please enter a patch message for your changes. An empty\n\
+            message aborts the patch proposal.\n\
+            \n\
+            The first line is the patch title. The patch description\n\
+            follows, and must be separated with a blank line, just\n\
+            like a commit message. Markdown is supported in the title\n\
+            and description.\n\
+            -->\n\
+            ",
             res
         );
 
         let res = create_display_message(&repo, &commit_0, &commit_1).unwrap();
         assert_eq!(
-            r#"
-commit 1
-
-<!--
-Please enter a patch message for your changes. An empty
-message aborts the patch proposal.
-
-The first line is the patch title. The patch description
-follows, and must be separated with a blank line, just
-like a commit message. Markdown is supported in the title
-and description.
--->
-"#
-            .trim_start(),
+            "\
+            commit 1\n\
+            \n\
+            <!--\n\
+            Please enter a patch message for your changes. An empty\n\
+            message aborts the patch proposal.\n\
+            \n\
+            The first line is the patch title. The patch description\n\
+            follows, and must be separated with a blank line, just\n\
+            like a commit message. Markdown is supported in the title\n\
+            and description.\n\
+            -->\n\
+            ",
             res
         );
 
         let res = create_display_message(&repo, &commit_0, &commit_2).unwrap();
         assert_eq!(
-            r#"
-<!--
-This patch is the combination of 2 commits.
-This is the first commit message:
--->
-
-commit 1
-
-<!--
-This is commit message #2:
--->
-
-commit 2
-
-<!--
-Please enter a patch message for your changes. An empty
-message aborts the patch proposal.
-
-The first line is the patch title. The patch description
-follows, and must be separated with a blank line, just
-like a commit message. Markdown is supported in the title
-and description.
--->
-"#
-            .trim_start(),
+            "\
+            <!--\n\
+            This patch is the combination of 2 commits.\n\
+            This is the first commit message:\n\
+            -->\n\
+            \n\
+            commit 1\n\
+            \n\
+            <!--\n\
+            This is commit message #2:\n\
+            -->\n\
+            \n\
+            commit 2\n\
+            \n\
+            <!--\n\
+            Please enter a patch message for your changes. An empty\n\
+            message aborts the patch proposal.\n\
+            \n\
+            The first line is the patch title. The patch description\n\
+            follows, and must be separated with a blank line, just\n\
+            like a commit message. Markdown is supported in the title\n\
+            and description.\n\
+            -->\n\
+            ",
             res
         );
     }
@@ -406,22 +403,21 @@ and description.
     fn test_edit_display_message() {
         let res = edit_display_message("title", "The patch description.");
         assert_eq!(
-            r#"
-title
-
-The patch description.
-
-<!--
-Please enter a patch message for your changes. An empty
-message aborts the patch proposal.
-
-The first line is the patch title. The patch description
-follows, and must be separated with a blank line, just
-like a commit message. Markdown is supported in the title
-and description.
--->
-"#
-            .trim_start(),
+            "\
+            title\n\
+            \n\
+            The patch description.\n\
+            \n\
+            <!--\n\
+            Please enter a patch message for your changes. An empty\n\
+            message aborts the patch proposal.\n\
+            \n\
+            The first line is the patch title. The patch description\n\
+            follows, and must be separated with a blank line, just\n\
+            like a commit message. Markdown is supported in the title\n\
+            and description.\n\
+            -->\n\
+            ",
             res
         );
     }
@@ -443,39 +439,36 @@ and description.
 
         let res = update_display_message(&repo, &commit_1, &commit_1).unwrap();
         assert_eq!(
-            r#"
-<!--
-Please enter a comment for your patch update. Leaving this
-blank is also okay.
--->
-"#
-            .trim_start(),
+            "\
+            <!--\n\
+            Please enter a comment for your patch update. Leaving this\n\
+            blank is also okay.\n\
+            -->\n\
+            ",
             res
         );
 
         let res = update_display_message(&repo, &commit_1, &commit_2).unwrap();
         assert_eq!(
-            r#"
-commit 2
-
-<!--
-Please enter a comment for your patch update. Leaving this
-blank is also okay.
--->
-"#
-            .trim_start(),
+            "\
+            commit 2\n\
+            \n\
+            <!--\n\
+            Please enter a comment for your patch update. Leaving this\n\
+            blank is also okay.\n\
+            -->\n\
+            ",
             res
         );
 
         let res = update_display_message(&repo, &commit_1, &commit_squashed).unwrap();
         assert_eq!(
-            r#"
-<!--
-Please enter a comment for your patch update. Leaving this
-blank is also okay.
--->
-"#
-            .trim_start(),
+            "\
+            <!--\n\
+            Please enter a comment for your patch update. Leaving this\n\
+            blank is also okay.\n\
+            -->\n\
+            ",
             res
         );
     }
