@@ -14,6 +14,7 @@ use tower_http::set_header::SetResponseHeaderLayer;
 
 use radicle::cob::{issue, patch, thread, ActorId, Tag};
 use radicle::identity::Id;
+use radicle::node::routing::Store;
 use radicle::node::NodeId;
 use radicle::storage::git::paths;
 use radicle::storage::{ReadRepository, ReadStorage, WriteRepository};
@@ -77,6 +78,7 @@ async fn project_root_handler(
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
     let storage = &ctx.profile.storage;
+    let routing = &ctx.profile.routing()?;
     let projects = storage
         .repositories()?
         .into_iter()
@@ -91,6 +93,7 @@ async fn project_root_handler(
             let Ok(patches) = patch::Patches::open(&repo) else { return None };
             let Ok(patches) = patches.counts() else { return None };
             let delegates = doc.delegates;
+            let trackings = routing.count(&id).unwrap_or_default();
 
             Some(Info {
                 payload,
@@ -99,6 +102,7 @@ async fn project_root_handler(
                 issues,
                 patches,
                 id,
+                trackings,
             })
         })
         .skip(page * per_page)
@@ -800,7 +804,8 @@ mod routes {
                   "open": 1,
                   "closed": 0,
                 },
-                "id": RID
+                "id": RID,
+                "trackings": 0,
               }
             ])
         );
@@ -831,7 +836,8 @@ mod routes {
                  "open": 1,
                  "closed": 0,
                },
-               "id": RID
+               "id": RID,
+               "trackings": 0,
             })
         );
     }

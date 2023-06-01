@@ -73,6 +73,10 @@ pub enum Error {
     /// Tracking store error.
     #[error(transparent)]
     TrackingStore(#[from] radicle::node::tracking::store::Error),
+
+    /// Routing store error.
+    #[error(transparent)]
+    RoutingStore(#[from] radicle::node::routing::Error),
 }
 
 impl IntoResponse for Error {

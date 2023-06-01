@@ -104,6 +104,8 @@ pub trait Store {
     fn len(&self) -> Result<usize, Error>;
     /// Prune entries older than the given timestamp.
     fn prune(&mut self, oldest: Timestamp, limit: Option<usize>) -> Result<usize, Error>;
+    /// Count the number of routes for a specific repo RID.
+    fn count(&self, id: &Id) -> Result<usize, Error>;
 }
 
 impl Store for Table {
@@ -235,6 +237,24 @@ impl Store for Table {
         stmt.next()?;
 
         Ok(self.db.change_count())
+    }
+
+    fn count(&self, id: &Id) -> Result<usize, Error> {
+        let mut stmt = self
+            .db
+            .prepare("SELECT COUNT(*) FROM routing WHERE resource = ?")?;
+
+        stmt.bind((1, id))?;
+
+        let count: i64 = stmt
+            .into_iter()
+            .next()
+            .expect("COUNT will always return a single row")?
+            .read(0);
+
+        let count: usize = count.try_into().map_err(|_| Error::UnitOverflow)?;
+
+        Ok(count)
     }
 }
 
@@ -407,5 +427,18 @@ mod test {
                 assert!(t >= now.as_millis());
             }
         }
+    }
+
+    #[test]
+    fn test_count() {
+        let id = arbitrary::gen::<Id>(1);
+        let nodes = arbitrary::set::<NodeId>(5..10);
+        let mut db = Table::open(":memory:").unwrap();
+
+        for node in &nodes {
+            db.insert(id, *node, 0).unwrap();
+        }
+
+        assert_eq!(db.count(&id).unwrap(), nodes.len());
     }
 }

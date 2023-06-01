@@ -18,7 +18,7 @@ use thiserror::Error;
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
-use crate::node::{self, tracking};
+use crate::node::{self, routing, tracking};
 use crate::prelude::Did;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
@@ -133,6 +133,14 @@ impl Profile {
         let config = tracking::store::Config::reader(path)?;
 
         Ok(config)
+    }
+
+    /// Return a read-only handle to the routing database of the node.
+    pub fn routing(&self) -> Result<routing::Table, routing::Error> {
+        let path = self.home.node().join(node::ROUTING_DB_FILE);
+        let router = routing::Table::reader(path)?;
+
+        Ok(router)
     }
 
     /// Return the path to the keys folder.

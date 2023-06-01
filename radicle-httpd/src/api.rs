@@ -17,6 +17,7 @@ use tower_http::cors::{self, CorsLayer};
 use radicle::cob::issue;
 use radicle::cob::patch;
 use radicle::identity::Id;
+use radicle::node::routing::Store;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::Profile;
 
@@ -52,6 +53,8 @@ impl Context {
         let delegates = doc.delegates;
         let issues = issue::Issues::open(&repo)?.counts()?;
         let patches = patch::Patches::open(&repo)?.counts()?;
+        let routing = &self.profile.routing()?;
+        let trackings = routing.count(&id).unwrap_or_default();
 
         Ok(project::Info {
             payload,
@@ -60,6 +63,7 @@ impl Context {
             issues,
             patches,
             id,
+            trackings,
         })
     }
 
@@ -183,5 +187,6 @@ mod project {
         pub patches: cob::patch::PatchCounts,
         pub issues: cob::issue::IssueCounts,
         pub id: Id,
+        pub trackings: usize,
     }
 }
