@@ -12,7 +12,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::{fmt, net, str};
+use std::{fmt, net};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
@@ -26,7 +26,6 @@ use crate::crypto;
 use crate::crypto::{Signer, Verified};
 use crate::identity::IdentityError;
 use crate::identity::{Doc, Id};
-use crate::node;
 use crate::node::routing;
 use crate::node::routing::InsertResult;
 use crate::node::{Address, Features, FetchResult, Seed, Seeds};
@@ -197,6 +196,8 @@ pub struct Service<R, A, S, G> {
     clock: LocalTime,
     /// I/O outbox.
     outbox: Outbox,
+    /// Cached local node announcement.
+    node: NodeAnnouncement,
     /// Source of entropy.
     rng: Rng,
     /// Fetch requests initiated by user, which are waiting for results.
@@ -248,6 +249,7 @@ where
         tracking: tracking::Config,
         signer: G,
         rng: Rng,
+        node: NodeAnnouncement,
         emitter: Emitter<Event>,
     ) -> Self {
         let sessions = Sessions::new(rng.clone());
@@ -259,6 +261,7 @@ where
             tracking,
             signer,
             rng,
+            node,
             clock,
             routing,
             gossip: Gossip::default(),
@@ -397,6 +400,21 @@ where
                 }
             }
         }
+        // Ensure that our local node is in our address database.
+        self.addresses
+            .insert(
+                &self.node_id(),
+                self.node.features,
+                self.node.alias().unwrap_or_default(),
+                self.node.work(),
+                self.node.timestamp,
+                self.node
+                    .addresses
+                    .iter()
+                    .map(|a| KnownAddress::new(a.clone(), address::Source::Peer)),
+            )
+            .expect("Service::initialize: error adding local node to address database");
+
         // Setup subscription filter for tracked repos.
         self.filter = Filter::new(
             self.tracking
@@ -968,7 +986,6 @@ where
             AnnouncementMessage::Node(
                 ann @ NodeAnnouncement {
                     features,
-                    alias,
                     addresses,
                     ..
                 },
@@ -980,12 +997,7 @@ where
                     return Ok(false);
                 }
 
-                if !ann.validate() {
-                    warn!(target: "service", "Dropping node announcement from {announcer}: invalid proof-of-work");
-                    return Ok(false);
-                }
-
-                let alias = match str::from_utf8(alias) {
+                let alias = match ann.alias() {
                     Ok(s) => s,
                     Err(e) => {
                         warn!(target: "service", "Dropping node announcement from {announcer}: invalid alias: {e}");
@@ -1003,6 +1015,7 @@ where
                     announcer,
                     *features,
                     alias,
+                    ann.work(),
                     timestamp,
                     addresses
                         .iter()
@@ -1152,11 +1165,11 @@ where
         // much bandwidth.
 
         gossip::handshake(
+            self.node.clone(),
             self.clock.as_millis(),
             &self.storage,
             &self.signer,
             filter,
-            &self.config,
         )
     }
 
@@ -1285,6 +1298,10 @@ where
     fn connect(&mut self, nid: NodeId, addr: Address) -> bool {
         if self.sessions.contains_key(&nid) {
             warn!(target: "service", "Attempted connection to peer {nid} which already has a session");
+            return false;
+        }
+        if nid == self.node_id() {
+            error!(target: "service", "Attempted connection to self");
             return false;
         }
         let persistent = self.config.is_persistent(&nid);
@@ -1426,6 +1443,7 @@ where
                 // even if it's in a disconnected state. Those sessions are re-attempted automatically.
                 entries
                     .filter(|(nid, _)| !self.sessions.contains_key(nid))
+                    .filter(|(nid, _)| nid != &self.node_id())
                     .take(wanted)
                     .collect()
             }
@@ -1796,11 +1814,11 @@ mod gossip {
     }
 
     pub fn handshake<G: Signer, S: ReadStorage>(
+        node: NodeAnnouncement,
         now: Timestamp,
         storage: &S,
         signer: &G,
         filter: Filter,
-        config: &Config,
     ) -> Vec<Message> {
         let inventory = match storage.inventory() {
             Ok(i) => i,
@@ -1812,44 +1830,15 @@ mod gossip {
             }
         };
 
-        let mut msgs = vec![
+        vec![
+            Message::node(node, signer),
             Message::inventory(gossip::inventory(now, inventory), signer),
             Message::subscribe(
                 filter,
                 now - SUBSCRIBE_BACKLOG_DELTA.as_millis() as u64,
                 Timestamp::MAX,
             ),
-        ];
-        if let Some(m) = gossip::node(now, config) {
-            msgs.push(Message::node(m, signer));
-        };
-
-        msgs
-    }
-
-    pub fn node(timestamp: Timestamp, config: &Config) -> Option<NodeAnnouncement> {
-        let features = node::Features::SEED;
-        let alias = config.alias();
-        let addresses: BoundedVec<_, ADDRESS_LIMIT> = config
-            .external_addresses
-            .clone()
-            .try_into()
-            .expect("external addresses are within the limit");
-
-        if addresses.is_empty() {
-            return None;
-        }
-
-        Some(
-            NodeAnnouncement {
-                features,
-                timestamp,
-                alias,
-                addresses,
-                nonce: 0,
-            }
-            .solve(),
-        )
+        ]
     }
 
     pub fn inventory(timestamp: Timestamp, inventory: Vec<Id>) -> InventoryAnnouncement {

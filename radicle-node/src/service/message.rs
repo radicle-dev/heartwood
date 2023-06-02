@@ -1,4 +1,4 @@
-use std::{fmt, io, mem};
+use std::{fmt, io, mem, str};
 
 use crate::crypto;
 use crate::crypto::Unverified;
@@ -66,17 +66,22 @@ pub struct NodeAnnouncement {
 }
 
 impl NodeAnnouncement {
-    /// Validate a node announcement message.
+    /// Calculate the amount of work that went into creating this announcement.
     ///
-    /// Checks that the proof-of-work is valid, by generating a single byte that
-    /// must be zero.
+    /// Proof-of-work uses the [`scrypt`] algorithm with the parameters in
+    /// [`Announcement::POW_PARAMS`]. The "work" is calculated by counting the number of leading
+    /// zero bits after running `scrypt` on a serialized [`NodeAnnouncement`] using
+    /// [`wire::serialize`].
     ///
-    /// `scrypt(encode(announcement)) == 0`
+    /// In other words, `work = leading-zeros(scrypt(serialize(announcement)))`.
     ///
-    pub fn validate(&self) -> bool {
+    /// Higher numbers mean higher difficulty. For each increase in work, difficulty is doubled.
+    /// For instance, an output of `7` is *four* times more work than an output of `5`.
+    ///
+    pub fn work(&self) -> u32 {
         let (n, r, p) = Announcement::POW_PARAMS;
         let params = scrypt::Params::new(n, r, p).expect("proof-of-work parameters are valid");
-        let mut output = [0; 1];
+        let mut output = vec![0; 32];
 
         scrypt::scrypt(
             wire::serialize(self).as_ref(),
@@ -86,26 +91,37 @@ impl NodeAnnouncement {
         )
         .expect("proof-of-work output vector is a valid length");
 
-        output == [0]
+        // Calculate the number of leading zero bits in the output vector.
+        if let Some((zero_bytes, non_zero)) = output.iter().enumerate().find(|(_, &x)| x != 0) {
+            zero_bytes as u32 * 8 + non_zero.leading_zeros()
+        } else {
+            output.len() as u32 * 8
+        }
     }
 
-    /// Solve the proof-of-work of a node announcement by iterating through different nonces.
-    pub fn solve(mut self) -> Self {
+    /// Solve the proof-of-work of a node announcement for the given target, by iterating through
+    /// different nonces.
+    ///
+    /// If the given difficulty target is too high, there may not be a result. In that case, `None`
+    /// is returned.
+    pub fn solve(mut self, target: u32) -> Option<Self> {
         loop {
             if let Some(nonce) = self.nonce.checked_add(1) {
                 self.nonce = nonce;
 
-                if self.validate() {
+                if self.work() >= target {
                     break;
                 }
             } else {
-                // If a very high difficulty is chosen, it's possible to iterate through all
-                // possible values of the nonce without solving the puzzle. However, with "normal"
-                // values, this is virtually impossible.
-                panic!("could not solve proof-of-work!");
+                return None;
             }
         }
-        self
+        Some(self)
+    }
+
+    /// Get the alias as a UTF-8 string.
+    pub fn alias(&self) -> Result<&str, std::str::Utf8Error> {
+        str::from_utf8(&self.alias)
     }
 }
 
@@ -307,9 +323,9 @@ impl Announcement {
     ///
     /// `15, 8, 1` are usually the recommended parameters.
     ///
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     pub const POW_PARAMS: (u8, u32, u32) = (1, 1, 1);
-    #[cfg(not(test))]
+    #[cfg(not(debug_assertions))]
     pub const POW_PARAMS: (u8, u32, u32) = (15, 8, 1);
     /// Salt used for generating PoW.
     pub const POW_SALT: &[u8] = &[b'r', b'a', b'd'];
@@ -608,7 +624,9 @@ mod tests {
             nonce: 0,
         };
 
-        assert!(!ann.validate());
-        assert!(ann.solve().validate());
+        assert_eq!(ann.work(), 0);
+        assert_eq!(ann.clone().solve(1).unwrap().work(), 4);
+        assert_eq!(ann.clone().solve(8).unwrap().work(), 9);
+        assert_eq!(ann.solve(14).unwrap().work(), 16);
     }
 }

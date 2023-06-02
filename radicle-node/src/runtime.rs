@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::{io, net, thread, time};
+use std::{fs, io, net, thread, time};
 
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
@@ -16,16 +16,17 @@ use thiserror::Error;
 use radicle::git;
 use radicle::node::address;
 use radicle::node::Handle as _;
-use radicle::node::{ADDRESS_DB_FILE, ROUTING_DB_FILE, TRACKING_DB_FILE};
+use radicle::node::{ADDRESS_DB_FILE, NODE_ANNOUNCEMENT_FILE, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle::profile::Home;
 use radicle::Storage;
 
 use crate::control;
 use crate::crypto::Signer;
 use crate::node::{routing, NodeId};
+use crate::service::message::NodeAnnouncement;
 use crate::service::{tracking, Event};
-use crate::wire;
 use crate::wire::Wire;
+use crate::wire::{self, Decode};
 use crate::worker;
 use crate::{service, LocalTime};
 
@@ -147,6 +148,31 @@ impl Runtime {
 
         log::info!(target: "node", "Default tracking policy set to '{}'", &config.policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);
+
+        let announcement = if let Some(ann) = fs::read(&node_dir.join(NODE_ANNOUNCEMENT_FILE))
+            .ok()
+            .and_then(|ann| NodeAnnouncement::decode(&mut ann.as_slice()).ok())
+            .and_then(|ann| {
+                if config.matches(&ann) {
+                    Some(ann)
+                } else {
+                    None
+                }
+            }) {
+            log::info!(
+                target: "node",
+                "Loaded existing node announcement from file (timestamp={}, work={})",
+                ann.timestamp,
+                ann.work(),
+            );
+            ann
+        } else {
+            config
+                .node(clock.as_secs())
+                .solve(Default::default())
+                .expect("Runtime::init: unable to solve proof-of-work puzzle")
+        };
+
         let emitter: Emitter<Event> = Default::default();
         let service = service::Service::new(
             config,
@@ -157,6 +183,7 @@ impl Runtime {
             tracking,
             signer.clone(),
             rng,
+            announcement,
             emitter.clone(),
         );
 

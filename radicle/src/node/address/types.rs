@@ -83,6 +83,8 @@ pub struct Node {
     pub features: node::Features,
     /// Advertized addresses
     pub addrs: Vec<KnownAddress>,
+    /// Proof-of-work included in node announcement.
+    pub pow: u32,
     /// When this data was published.
     pub timestamp: Timestamp,
 }

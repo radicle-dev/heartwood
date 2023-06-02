@@ -71,7 +71,7 @@ impl Store for Book {
     fn get(&self, node: &NodeId) -> Result<Option<types::Node>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT features, alias, timestamp FROM nodes WHERE id = ?")?;
+            .prepare("SELECT features, alias, pow, timestamp FROM nodes WHERE id = ?")?;
 
         stmt.bind((1, node))?;
 
@@ -79,6 +79,7 @@ impl Store for Book {
             let features = row.read::<node::Features, _>("features");
             let alias = row.read::<&str, _>("alias").to_owned();
             let timestamp = row.read::<i64, _>("timestamp") as Timestamp;
+            let pow = row.read::<i64, _>("pow") as u32;
             let mut addrs = Vec::new();
 
             let mut stmt = self
@@ -103,6 +104,7 @@ impl Store for Book {
             Ok(Some(types::Node {
                 features,
                 alias,
+                pow,
                 timestamp,
                 addrs,
             }))
@@ -129,22 +131,24 @@ impl Store for Book {
         node: &NodeId,
         features: node::Features,
         alias: &str,
+        pow: u32,
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = KnownAddress>,
     ) -> Result<bool, Error> {
         transaction(&self.db, move |db| {
             let mut stmt = db.prepare(
-                "INSERT INTO nodes (id, features, alias, timestamp)
-                 VALUES (?1, ?2, ?3, ?4)
+                "INSERT INTO nodes (id, features, alias, pow, timestamp)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
                  ON CONFLICT DO UPDATE
-                 SET features = ?2, alias = ?3, timestamp = ?4
-                 WHERE timestamp < ?4",
+                 SET features = ?2, alias = ?3, pow = ?4, timestamp = ?5
+                 WHERE timestamp < ?5",
             )?;
 
             stmt.bind((1, node))?;
             stmt.bind((2, features))?;
             stmt.bind((3, alias))?;
-            stmt.bind((4, timestamp as i64))?;
+            stmt.bind((4, pow as i64))?;
+            stmt.bind((5, timestamp as i64))?;
             stmt.next()?;
 
             for addr in addrs {
@@ -275,6 +279,7 @@ pub trait Store {
         node: &NodeId,
         features: node::Features,
         alias: &str,
+        pow: u32,
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = KnownAddress>,
     ) -> Result<bool, Error>;
@@ -405,13 +410,14 @@ mod test {
             last_attempt: None,
         };
         let inserted = cache
-            .insert(&alice, features, "alice", timestamp, [ka.clone()])
+            .insert(&alice, features, "alice", 16, timestamp, [ka.clone()])
             .unwrap();
         assert!(inserted);
 
         let node = cache.get(&alice).unwrap().unwrap();
 
         assert_eq!(node.features, features);
+        assert_eq!(node.pow, 16);
         assert_eq!(node.timestamp, timestamp);
         assert_eq!(node.alias.as_str(), "alice");
         assert_eq!(node.addrs, vec![ka]);
@@ -431,12 +437,12 @@ mod test {
             last_attempt: None,
         };
         let inserted = cache
-            .insert(&alice, features, "alice", timestamp, [ka.clone()])
+            .insert(&alice, features, "alice", 0, timestamp, [ka.clone()])
             .unwrap();
         assert!(inserted);
 
         let inserted = cache
-            .insert(&alice, features, "alice", timestamp, [ka])
+            .insert(&alice, features, "alice", 0, timestamp, [ka])
             .unwrap();
         assert!(!inserted);
 
@@ -457,31 +463,39 @@ mod test {
         };
 
         let updated = cache
-            .insert(&alice, features, "alice", timestamp, [ka.clone()])
+            .insert(&alice, features, "alice", 0, timestamp, [ka.clone()])
             .unwrap();
         assert!(updated);
 
         let updated = cache
-            .insert(&alice, features, "~alice~", timestamp, [])
+            .insert(&alice, features, "~alice~", 0, timestamp, [])
             .unwrap();
         assert!(!updated, "Can't update using the same timestamp");
 
         let updated = cache
-            .insert(&alice, features, "~alice~", timestamp - 1, [])
+            .insert(&alice, features, "~alice~", 0, timestamp - 1, [])
             .unwrap();
-        assert!(!updated, "Can't update using  a smaller timestamp");
+        assert!(!updated, "Can't update using a smaller timestamp");
 
         let node = cache.get(&alice).unwrap().unwrap();
         assert_eq!(node.alias, "alice");
         assert_eq!(node.timestamp, timestamp);
+        assert_eq!(node.pow, 0);
 
         let updated = cache
-            .insert(&alice, features, "~alice~", timestamp + 1, [])
+            .insert(&alice, features, "~alice~", 0, timestamp + 1, [])
             .unwrap();
         assert!(updated, "Can update with a larger timestamp");
 
         let updated = cache
-            .insert(&alice, node::Features::NONE, "~alice~", timestamp + 2, [])
+            .insert(
+                &alice,
+                node::Features::NONE,
+                "~alice~",
+                1,
+                timestamp + 2,
+                [],
+            )
             .unwrap();
         assert!(updated);
 
@@ -489,6 +503,7 @@ mod test {
         assert_eq!(node.features, node::Features::NONE);
         assert_eq!(node.alias, "~alice~");
         assert_eq!(node.timestamp, timestamp + 2);
+        assert_eq!(node.pow, 1);
         assert_eq!(node.addrs, vec![ka]);
     }
 
@@ -512,10 +527,10 @@ mod test {
                 last_attempt: None,
             };
             cache
-                .insert(&alice, features, "alice", timestamp, [ka.clone()])
+                .insert(&alice, features, "alice", 0, timestamp, [ka.clone()])
                 .unwrap();
             cache
-                .insert(&bob, features, "bob", timestamp, [ka])
+                .insert(&bob, features, "bob", 0, timestamp, [ka])
                 .unwrap();
         }
         assert_eq!(cache.len().unwrap(), 6);
@@ -550,7 +565,7 @@ mod test {
             };
             expected.push((id, ka.clone()));
             cache
-                .insert(&id, features, "alias", timestamp, [ka])
+                .insert(&id, features, "alias", 0, timestamp, [ka])
                 .unwrap();
         }
 

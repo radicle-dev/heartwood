@@ -1,7 +1,10 @@
 use localtime::LocalDuration;
 
+use radicle::node;
 use radicle::node::Address;
 
+use crate::bounded::BoundedVec;
+use crate::service::message::{NodeAnnouncement, ADDRESS_LIMIT};
 use crate::service::tracking::{Policy, Scope};
 use crate::service::NodeId;
 
@@ -88,13 +91,43 @@ impl Config {
         self.connect.iter().any(|(i, _)| i == id)
     }
 
+    pub fn features(&self) -> node::Features {
+        node::Features::SEED
+    }
+
+    /// Check if a node announcement matches this configuration.
+    pub fn matches(&self, other: &NodeAnnouncement) -> bool {
+        let ann = self.node(other.timestamp);
+
+        ann.features == other.features
+            && ann.alias == other.alias
+            && ann.addresses == other.addresses
+    }
+
     pub fn alias(&self) -> [u8; 32] {
         let mut alias = [0u8; 32];
 
         if let Some(name) = &self.alias {
             alias[..name.len()].copy_from_slice(name.as_bytes());
         }
-
         alias
+    }
+
+    pub fn node(&self, timestamp: node::Timestamp) -> NodeAnnouncement {
+        let features = self.features();
+        let alias = self.alias();
+        let addresses: BoundedVec<_, ADDRESS_LIMIT> = self
+            .external_addresses
+            .clone()
+            .try_into()
+            .expect("external addresses are within the limit");
+
+        NodeAnnouncement {
+            features,
+            timestamp,
+            alias,
+            addresses,
+            nonce: 0,
+        }
     }
 }

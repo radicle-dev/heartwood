@@ -8,6 +8,8 @@ create table if not exists "nodes" (
   "features"           integer   not null,
   -- Node alias.
   "alias"              text      default null,
+  --- Node announcement proof-of-work.
+  "pow"                integer   default 0,
   -- Node announcement timestamp.
   "timestamp"          integer   not null
   --

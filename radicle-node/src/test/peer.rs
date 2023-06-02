@@ -162,6 +162,7 @@ where
         // Make sure the peer address is advertized.
         config.config.external_addresses.push(local_addr.into());
 
+        let announcement = config.config.node(config.local_time.as_secs());
         let emitter: Emitter<Event> = Default::default();
         let service = Service::new(
             config.config,
@@ -172,6 +173,7 @@ where
             tracking,
             config.signer,
             config.rng.clone(),
+            announcement,
             emitter,
         );
 
@@ -213,6 +215,7 @@ where
                     &peer.node_id(),
                     radicle::node::Features::default(),
                     peer.name,
+                    0,
                     timestamp,
                     Some(known_address),
                 )
@@ -266,7 +269,8 @@ where
                 addresses: Some(net::SocketAddr::from((self.ip, node::DEFAULT_PORT)).into()).into(),
                 nonce: 0,
             }
-            .solve(),
+            .solve(0)
+            .unwrap(),
             self.signer(),
         )
     }
