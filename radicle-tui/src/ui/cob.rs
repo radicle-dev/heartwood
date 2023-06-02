@@ -55,8 +55,36 @@ pub struct PatchItem {
 }
 
 impl PatchItem {
-    pub fn id(&self) -> PatchId {
-        self.id
+    pub fn id(&self) -> &PatchId {
+        &self.id
+    }
+
+    pub fn state(&self) -> &PatchState {
+        &self.state
+    }
+
+    pub fn title(&self) -> &String {
+        &self.title
+    }
+
+    pub fn author(&self) -> &AuthorItem {
+        &self.author
+    }
+
+    pub fn head(&self) -> &Oid {
+        &self.head
+    }
+
+    pub fn added(&self) -> u16 {
+        self.added
+    }
+
+    pub fn removed(&self) -> u16 {
+        self.removed
+    }
+
+    pub fn timestamp(&self) -> &Timestamp {
+        &self.timestamp
     }
 }
 
@@ -140,8 +168,32 @@ pub struct IssueItem {
 }
 
 impl IssueItem {
-    pub fn id(&self) -> IssueId {
-        self.id
+    pub fn id(&self) -> &IssueId {
+        &self.id
+    }
+
+    pub fn state(&self) -> &IssueState {
+        &self.state
+    }
+
+    pub fn title(&self) -> &String {
+        &self.title
+    }
+
+    pub fn author(&self) -> &AuthorItem {
+        &self.author
+    }
+
+    pub fn tags(&self) -> &Vec<Tag> {
+        &self.tags
+    }
+
+    pub fn assignees(&self) -> &Vec<AuthorItem> {
+        &self.assignees
+    }
+
+    pub fn timestamp(&self) -> &Timestamp {
+        &self.timestamp
     }
 }
 

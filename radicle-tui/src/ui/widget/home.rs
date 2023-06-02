@@ -84,16 +84,16 @@ impl IssueBrowser {
         ];
 
         let mut items = vec![];
-        if let Ok(mut issues) = issues {
-            issues.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
-            issues.sort_by(|(_, a, _), (_, b, _)| a.state().cmp(b.state()));
-
+        if let Ok(issues) = issues {
             for (id, patch, _) in issues {
                 if let Ok(item) = IssueItem::try_from((context.profile(), &repo, id, patch)) {
                     items.push(item);
                 }
             }
         }
+
+        items.sort_by(|a, b| b.timestamp().cmp(a.timestamp()));
+        items.sort_by(|a, b| a.state().cmp(b.state()));
 
         let table = Widget::new(Table::new(&items, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
@@ -162,16 +162,16 @@ impl PatchBrowser {
         ];
 
         let mut items = vec![];
-        if let Ok(mut patches) = patches {
-            patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
-            patches.sort_by(|(_, a, _), (_, b, _)| a.state().cmp(b.state()));
-
+        if let Ok(patches) = patches {
             for (id, patch, _) in patches {
                 if let Ok(item) = PatchItem::try_from((context.profile(), &repo, id, patch)) {
                     items.push(item);
                 }
             }
         }
+
+        items.sort_by(|a, b| b.timestamp().cmp(a.timestamp()));
+        items.sort_by(|a, b| a.state().cmp(b.state()));
 
         let table = Widget::new(Table::new(&items, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);

@@ -62,7 +62,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchBrowser> {
                 code: Key::Enter, ..
             }) => self
                 .selected_item()
-                .map(|item| Message::Patch(PatchMessage::Show(item.id()))),
+                .map(|item| Message::Patch(PatchMessage::Show(item.id().to_owned()))),
             _ => None,
         }
     }
@@ -85,7 +85,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
                 code: Key::Enter, ..
             }) => self
                 .selected_item()
-                .map(|item| Message::Issue(IssueMessage::Show(item.id()))),
+                .map(|item| Message::Issue(IssueMessage::Show(item.id().to_owned()))),
             _ => None,
         }
     }
