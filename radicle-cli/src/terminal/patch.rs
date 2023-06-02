@@ -1,4 +1,5 @@
 use std::io;
+use std::io::IsTerminal as _;
 
 use radicle::git;
 
@@ -21,7 +22,7 @@ impl Message {
     pub fn get(self, help: &str) -> std::io::Result<String> {
         let comment = match self {
             Message::Edit => {
-                if term::is_terminal(&io::stderr()) {
+                if io::stderr().is_terminal() {
                     term::Editor::new().extension("markdown").edit(help)?
                 } else {
                     Some(help.to_owned())

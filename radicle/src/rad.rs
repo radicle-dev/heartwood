@@ -474,14 +474,12 @@ mod tests {
             copy.find_remote(&REMOTE_NAME)
                 .unwrap()
                 .refspecs()
-                .into_iter()
                 .map(|r| r.bytes().to_vec())
                 .collect::<Vec<_>>(),
             original
                 .find_remote(&REMOTE_NAME)
                 .unwrap()
                 .refspecs()
-                .into_iter()
                 .map(|r| r.bytes().to_vec())
                 .collect::<Vec<_>>(),
         );

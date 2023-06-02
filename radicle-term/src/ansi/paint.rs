@@ -1,8 +1,8 @@
+use std::io::IsTerminal as _;
 use std::sync;
 use std::sync::atomic::AtomicBool;
 use std::{fmt, io};
 
-use is_terminal::IsTerminal;
 use unicode_width::UnicodeWidthStr;
 
 use super::color::Color;

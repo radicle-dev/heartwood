@@ -533,7 +533,7 @@ mod test {
                 .unwrap();
         }
 
-        let mut actual = cache.entries().unwrap().into_iter().collect::<Vec<_>>();
+        let mut actual = cache.entries().unwrap().collect::<Vec<_>>();
 
         actual.sort_by_key(|(i, _)| *i);
         expected.sort_by_key(|(i, _)| *i);

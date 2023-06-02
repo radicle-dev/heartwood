@@ -20,23 +20,17 @@ pub use element::{Element, Line, Max, Size};
 pub use hstack::HStack;
 pub use inquire::ui::Styled;
 pub use io::*;
-pub use is_terminal::is_terminal;
 pub use label::{label, Label};
 pub use spinner::{spinner, spinner_to, Spinner};
 pub use table::Table;
 pub use textarea::{textarea, TextArea};
 pub use vstack::{VStack, VStackOptions};
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
 pub enum Interactive {
     Yes,
+    #[default]
     No,
-}
-
-impl Default for Interactive {
-    fn default() -> Self {
-        Interactive::No
-    }
 }
 
 impl Interactive {

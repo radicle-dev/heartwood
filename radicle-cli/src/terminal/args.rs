@@ -33,7 +33,7 @@ pub struct Help {
 
 pub trait Args: Sized {
     fn from_env() -> anyhow::Result<Self> {
-        let args: Vec<_> = std::env::args_os().into_iter().skip(1).collect();
+        let args: Vec<_> = std::env::args_os().skip(1).collect();
 
         match Self::from_args(args) {
             Ok((opts, unparsed)) => {

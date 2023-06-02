@@ -48,7 +48,7 @@ impl Metadata {
         let yaml = serde_yaml::to_string(&self)?;
         match term::Editor::new().edit(yaml)? {
             Some(meta) => Ok(serde_yaml::from_str(&meta).context("failed to parse proposal meta")?),
-            None => return Err(anyhow!("Operation aborted!")),
+            None => Err(anyhow!("Operation aborted!")),
         }
     }
 }

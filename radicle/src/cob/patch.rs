@@ -1231,7 +1231,6 @@ impl<'a> Patches<'a> {
 
         let result = self
             .all()?
-            .into_iter()
             .filter_map(|result| result.ok())
             .find_map(|(p_id, p, _)| p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
         Ok(result)

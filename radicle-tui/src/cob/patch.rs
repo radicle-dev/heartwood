@@ -18,7 +18,6 @@ pub fn load_all(profile: &Profile, id: Id) -> Vec<(PatchId, Patch)> {
 pub fn load_proposed(repository: &Repository) -> Result<Vec<(PatchId, Patch)>> {
     let proposed = Patches::open(repository)?
         .proposed()?
-        .into_iter()
         .map(|(id, patch, _)| (id, patch))
         .collect();
 

@@ -55,7 +55,7 @@ where
     A: Args,
     C: Command<A, fn() -> anyhow::Result<Profile>>,
 {
-    let args = std::env::args_os().into_iter().skip(1).collect();
+    let args = std::env::args_os().skip(1).collect();
 
     run_command_args(help, action, cmd, args)
 }

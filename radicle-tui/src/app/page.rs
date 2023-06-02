@@ -121,10 +121,7 @@ impl ViewPage for HomeView {
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.subscribe(
             &Cid::Home(HomeCid::Navigation),
-            Sub::new(
-                subscription::navigation_clause::<Cid, _>(),
-                SubClause::Always,
-            ),
+            Sub::new(subscription::navigation_clause(), SubClause::Always),
         )?;
 
         Ok(())
@@ -133,7 +130,7 @@ impl ViewPage for HomeView {
     fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.unsubscribe(
             &Cid::Home(HomeCid::Navigation),
-            subscription::navigation_clause::<Cid, _>(),
+            subscription::navigation_clause(),
         )?;
 
         Ok(())
@@ -199,10 +196,7 @@ impl ViewPage for IssuePage {
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.subscribe(
             &Cid::Home(HomeCid::Navigation),
-            Sub::new(
-                subscription::navigation_clause::<Cid, _>(),
-                SubClause::Always,
-            ),
+            Sub::new(subscription::navigation_clause(), SubClause::Always),
         )?;
 
         Ok(())
@@ -211,7 +205,7 @@ impl ViewPage for IssuePage {
     fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.unsubscribe(
             &Cid::Home(HomeCid::Navigation),
-            subscription::navigation_clause::<Cid, _>(),
+            subscription::navigation_clause(),
         )?;
 
         Ok(())
@@ -287,10 +281,7 @@ impl ViewPage for PatchView {
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.subscribe(
             &Cid::Patch(PatchCid::Navigation),
-            Sub::new(
-                subscription::navigation_clause::<Cid, _>(),
-                SubClause::Always,
-            ),
+            Sub::new(subscription::navigation_clause(), SubClause::Always),
         )?;
 
         Ok(())
@@ -299,7 +290,7 @@ impl ViewPage for PatchView {
     fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.unsubscribe(
             &Cid::Patch(PatchCid::Navigation),
-            subscription::navigation_clause::<Cid, _>(),
+            subscription::navigation_clause(),
         )?;
 
         Ok(())

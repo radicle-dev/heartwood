@@ -3,9 +3,8 @@ use std::hash::Hash;
 use tuirealm::event::{Key, KeyEvent, KeyModifiers};
 use tuirealm::{Sub, SubClause, SubEventClause};
 
-pub fn navigation_clause<Id, UserEvent>() -> SubEventClause<UserEvent>
+pub fn navigation_clause<UserEvent>() -> SubEventClause<UserEvent>
 where
-    Id: Clone + Hash + Eq + PartialEq,
     UserEvent: Clone + Eq + PartialEq + PartialOrd,
 {
     SubEventClause::Keyboard(KeyEvent {
