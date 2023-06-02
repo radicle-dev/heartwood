@@ -1,7 +1,5 @@
 use radicle::cob::issue::Issues;
-use radicle::prelude::{Id, Project};
 use radicle::storage::ReadStorage;
-use radicle::Profile;
 
 use radicle::cob::patch::Patches;
 
@@ -17,6 +15,7 @@ use super::common::list::{ColumnWidth, Table};
 use super::{Widget, WidgetComponent};
 
 use crate::ui::cob::{IssueItem, PatchItem};
+use crate::ui::context::Context;
 use crate::ui::layout;
 use crate::ui::theme::Theme;
 
@@ -59,8 +58,8 @@ pub struct IssueBrowser {
 }
 
 impl IssueBrowser {
-    pub fn new(theme: &Theme, profile: &Profile, id: &Id, shortcuts: Widget<Shortcuts>) -> Self {
-        let repo = profile.storage.repository(*id).unwrap();
+    pub fn new(context: &Context, theme: &Theme, shortcuts: Widget<Shortcuts>) -> Self {
+        let repo = context.profile().storage.repository(*context.id()).unwrap();
         let issues = Issues::open(&repo)
             .and_then(|issues| issues.all().map(|iter| iter.flatten().collect::<Vec<_>>()));
 
@@ -90,7 +89,7 @@ impl IssueBrowser {
             issues.sort_by(|(_, a, _), (_, b, _)| a.state().cmp(b.state()));
 
             for (id, patch, _) in issues {
-                if let Ok(item) = IssueItem::try_from((profile, &repo, id, patch)) {
+                if let Ok(item) = IssueItem::try_from((context.profile(), &repo, id, patch)) {
                     items.push(item);
                 }
             }
@@ -135,8 +134,8 @@ pub struct PatchBrowser {
 }
 
 impl PatchBrowser {
-    pub fn new(profile: &Profile, id: &Id, shortcuts: Widget<Shortcuts>, theme: Theme) -> Self {
-        let repo = profile.storage.repository(*id).unwrap();
+    pub fn new(context: &Context, theme: &Theme, shortcuts: Widget<Shortcuts>) -> Self {
+        let repo = context.profile().storage.repository(*context.id()).unwrap();
         let patches = Patches::open(&repo)
             .and_then(|patches| patches.all().map(|iter| iter.flatten().collect::<Vec<_>>()));
 
@@ -168,7 +167,7 @@ impl PatchBrowser {
             patches.sort_by(|(_, a, _), (_, b, _)| a.state().cmp(b.state()));
 
             for (id, patch, _) in patches {
-                if let Ok(item) = PatchItem::try_from((profile, &repo, id, patch)) {
+                if let Ok(item) = PatchItem::try_from((context.profile(), &repo, id, patch)) {
                     items.push(item);
                 }
             }
@@ -218,16 +217,16 @@ pub fn navigation(theme: &Theme) -> Widget<Tabs> {
     )
 }
 
-pub fn dashboard(theme: &Theme, id: &Id, project: &Project) -> Widget<Dashboard> {
+pub fn dashboard(context: &Context, theme: &Theme) -> Widget<Dashboard> {
     let about = common::labeled_container(
         theme,
         "about",
         common::property_list(
             theme,
             vec![
-                common::property(theme, "id", &id.to_string()),
-                common::property(theme, "name", project.name()),
-                common::property(theme, "description", project.description()),
+                common::property(theme, "id", &context.id().to_string()),
+                common::property(theme, "name", context.project().name()),
+                common::property(theme, "description", context.project().description()),
             ],
         )
         .to_boxed(),
@@ -244,7 +243,7 @@ pub fn dashboard(theme: &Theme, id: &Id, project: &Project) -> Widget<Dashboard>
     Widget::new(dashboard)
 }
 
-pub fn patches(theme: &Theme, id: &Id, profile: &Profile) -> Widget<PatchBrowser> {
+pub fn patches(context: &Context, theme: &Theme) -> Widget<PatchBrowser> {
     let shortcuts = common::shortcuts(
         theme,
         vec![
@@ -255,10 +254,10 @@ pub fn patches(theme: &Theme, id: &Id, profile: &Profile) -> Widget<PatchBrowser
         ],
     );
 
-    Widget::new(PatchBrowser::new(profile, id, shortcuts, theme.clone()))
+    Widget::new(PatchBrowser::new(context, theme, shortcuts))
 }
 
-pub fn issues(theme: &Theme, id: &Id, profile: &Profile) -> Widget<IssueBrowser> {
+pub fn issues(context: &Context, theme: &Theme) -> Widget<IssueBrowser> {
     let shortcuts = common::shortcuts(
         theme,
         vec![
@@ -269,5 +268,5 @@ pub fn issues(theme: &Theme, id: &Id, profile: &Profile) -> Widget<IssueBrowser>
         ],
     );
 
-    Widget::new(IssueBrowser::new(theme, profile, id, shortcuts))
+    Widget::new(IssueBrowser::new(context, theme, shortcuts))
 }
