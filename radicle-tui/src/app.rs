@@ -14,6 +14,7 @@ use tuirealm::application::PollStrategy;
 use tuirealm::{Application, Frame, NoUserEvent};
 
 use radicle_tui::ui;
+use radicle_tui::ui::context::Context;
 use radicle_tui::ui::theme::{self, Theme};
 use radicle_tui::Tui;
 
@@ -76,12 +77,6 @@ pub enum Message {
     Quit,
 }
 
-pub struct Context {
-    profile: Profile,
-    id: Id,
-    project: Project,
-}
-
 #[allow(dead_code)]
 pub struct App {
     context: Context,
@@ -95,11 +90,7 @@ pub struct App {
 impl App {
     pub fn new(profile: Profile, id: Id, project: Project) -> Self {
         Self {
-            context: Context {
-                id,
-                profile,
-                project,
-            },
+            context: Context::new(profile, id, project),
             pages: PageStack::default(),
             theme: theme::default_dark(),
             quit: false,
@@ -125,9 +116,9 @@ impl App {
     ) -> Result<()> {
         let repo = self
             .context
-            .profile
+            .profile()
             .storage
-            .repository(self.context.id)
+            .repository(*self.context.id())
             .unwrap();
         let patches = Patches::open(&repo).unwrap();
 
@@ -151,9 +142,9 @@ impl App {
     ) -> Result<()> {
         let repo = self
             .context
-            .profile
+            .profile()
             .storage
-            .repository(self.context.id)
+            .repository(*self.context.id())
             .unwrap();
         let issues = Issues::open(&repo).unwrap();
 

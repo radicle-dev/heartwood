@@ -5,11 +5,12 @@ use radicle::cob::patch::{Patch, PatchId};
 
 use tuirealm::{Frame, NoUserEvent, Sub, SubClause};
 
+use radicle_tui::ui::context::Context;
 use radicle_tui::ui::layout;
 use radicle_tui::ui::theme::Theme;
 use radicle_tui::ui::widget;
 
-use super::{subscription, Application, Cid, Context, HomeCid, IssueCid, Message, PatchCid};
+use super::{subscription, Application, Cid, HomeCid, IssueCid, Message, PatchCid};
 
 /// `tuirealm`'s event and prop system is designed to work with flat component hierarchies.
 /// Building deep nested component hierarchies would need a lot more additional effort to
@@ -74,9 +75,10 @@ impl ViewPage for HomeView {
     ) -> Result<()> {
         let navigation = widget::home::navigation(theme).to_boxed();
 
-        let dashboard = widget::home::dashboard(theme, &context.id, &context.project).to_boxed();
-        let issue_browser = widget::home::issues(theme, &context.id, &context.profile).to_boxed();
-        let patch_browser = widget::home::patches(theme, &context.id, &context.profile).to_boxed();
+        let dashboard = widget::home::dashboard(theme, context.id(), context.project()).to_boxed();
+        let issue_browser = widget::home::issues(theme, context.id(), context.profile()).to_boxed();
+        let patch_browser =
+            widget::home::patches(theme, context.id(), context.profile()).to_boxed();
 
         app.remount(Cid::Home(HomeCid::Navigation), navigation, vec![])?;
 
@@ -162,7 +164,7 @@ impl ViewPage for IssuePage {
         theme: &Theme,
     ) -> Result<()> {
         let (id, issue) = &self.issue;
-        let list = widget::issue::list(theme, (*id, issue), &context.profile).to_boxed();
+        let list = widget::issue::list(theme, (*id, issue), context.profile()).to_boxed();
 
         app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
         app.active(&self.active_component)?;
@@ -238,8 +240,8 @@ impl ViewPage for PatchView {
     ) -> Result<()> {
         let (id, patch) = &self.patch;
         let navigation = widget::patch::navigation(theme).to_boxed();
-        let activity = widget::patch::activity(theme, (*id, patch), &context.profile).to_boxed();
-        let files = widget::patch::files(theme, (*id, patch), &context.profile).to_boxed();
+        let activity = widget::patch::activity(theme, (*id, patch), context.profile()).to_boxed();
+        let files = widget::patch::files(theme, (*id, patch), context.profile()).to_boxed();
 
         app.remount(Cid::Patch(PatchCid::Navigation), navigation, vec![])?;
         app.remount(Cid::Patch(PatchCid::Activity), activity, vec![])?;
