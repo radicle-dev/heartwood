@@ -4,19 +4,18 @@ pub mod subscription;
 
 use anyhow::Result;
 
-use radicle::cob::issue::{IssueId, Issues};
-use radicle::cob::patch::{PatchId, Patches};
+use radicle::cob::issue::IssueId;
+use radicle::cob::patch::PatchId;
 use radicle::identity::{Id, Project};
 use radicle::profile::Profile;
-use radicle::storage::ReadStorage;
 
 use tuirealm::application::PollStrategy;
 use tuirealm::{Application, Frame, NoUserEvent};
 
-use radicle_tui::ui;
 use radicle_tui::ui::context::Context;
 use radicle_tui::ui::theme::{self, Theme};
 use radicle_tui::Tui;
+use radicle_tui::{cob, ui};
 
 use page::{HomeView, PatchView};
 
@@ -114,15 +113,9 @@ impl App {
         id: PatchId,
         theme: &Theme,
     ) -> Result<()> {
-        let repo = self
-            .context
-            .profile()
-            .storage
-            .repository(*self.context.id())
-            .unwrap();
-        let patches = Patches::open(&repo).unwrap();
+        let repo = self.context.repository();
 
-        if let Some(patch) = patches.get(&id)? {
+        if let Some(patch) = cob::patch::find(repo, &id)? {
             let view = Box::new(PatchView::new((id, patch)));
             self.pages.push(view, app, &self.context, theme)?;
 
@@ -140,15 +133,9 @@ impl App {
         id: IssueId,
         theme: &Theme,
     ) -> Result<()> {
-        let repo = self
-            .context
-            .profile()
-            .storage
-            .repository(*self.context.id())
-            .unwrap();
-        let issues = Issues::open(&repo).unwrap();
+        let repo = self.context.repository();
 
-        if let Some(issue) = issues.get(&id)? {
+        if let Some(issue) = cob::issue::find(repo, &id)? {
             let view = Box::new(IssuePage::new((id, issue)));
             self.pages.push(view, app, &self.context, theme)?;
 

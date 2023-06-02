@@ -1,8 +1,3 @@
-use radicle::cob::issue::Issues;
-use radicle::storage::ReadStorage;
-
-use radicle::cob::patch::Patches;
-
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::tui::layout::Rect;
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
@@ -14,6 +9,7 @@ use super::common::list::{ColumnWidth, Table};
 
 use super::{Widget, WidgetComponent};
 
+use crate::cob;
 use crate::ui::cob::{IssueItem, PatchItem};
 use crate::ui::context::Context;
 use crate::ui::layout;
@@ -59,10 +55,6 @@ pub struct IssueBrowser {
 
 impl IssueBrowser {
     pub fn new(context: &Context, theme: &Theme, shortcuts: Widget<Shortcuts>) -> Self {
-        let repo = context.profile().storage.repository(*context.id()).unwrap();
-        let issues = Issues::open(&repo)
-            .and_then(|issues| issues.all().map(|iter| iter.flatten().collect::<Vec<_>>()));
-
         let header = [
             common::label(" ● "),
             common::label("ID"),
@@ -83,10 +75,12 @@ impl IssueBrowser {
             ColumnWidth::Fixed(18),
         ];
 
+        let repo = context.repository();
         let mut items = vec![];
-        if let Ok(issues) = issues {
-            for (id, patch, _) in issues {
-                if let Ok(item) = IssueItem::try_from((context.profile(), &repo, id, patch)) {
+
+        if let Ok(issues) = cob::issue::all(repo) {
+            for (id, issue) in issues {
+                if let Ok(item) = IssueItem::try_from((context.profile(), repo, id, issue)) {
                     items.push(item);
                 }
             }
@@ -135,10 +129,6 @@ pub struct PatchBrowser {
 
 impl PatchBrowser {
     pub fn new(context: &Context, theme: &Theme, shortcuts: Widget<Shortcuts>) -> Self {
-        let repo = context.profile().storage.repository(*context.id()).unwrap();
-        let patches = Patches::open(&repo)
-            .and_then(|patches| patches.all().map(|iter| iter.flatten().collect::<Vec<_>>()));
-
         let header = [
             common::label(" ● "),
             common::label("ID"),
@@ -161,10 +151,12 @@ impl PatchBrowser {
             ColumnWidth::Fixed(18),
         ];
 
+        let repo = context.repository();
         let mut items = vec![];
-        if let Ok(patches) = patches {
-            for (id, patch, _) in patches {
-                if let Ok(item) = PatchItem::try_from((context.profile(), &repo, id, patch)) {
+
+        if let Ok(patches) = cob::patch::all(repo) {
+            for (id, patch) in patches {
+                if let Ok(item) = PatchItem::try_from((context.profile(), repo, id, patch)) {
                     items.push(item);
                 }
             }
