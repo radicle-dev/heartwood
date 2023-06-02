@@ -292,6 +292,9 @@ impl Runtime {
         // Nb. We don't join the control thread here, as we have no way of notifying it that the
         // node is shutting down.
 
+        // Remove control socket file, but don't freak out if it's not there anymore.
+        fs::remove_file(home.socket()).ok();
+
         log::debug!(target: "node", "Node shutdown completed for {}", self.id);
 
         Ok(())
