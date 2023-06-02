@@ -11,7 +11,7 @@ use crate::terminal::args;
 use crate::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
-    name: "ls",
+    name: "fork",
     description: "Create a fork of a project",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
