@@ -39,6 +39,7 @@ pub enum PatchCid {
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum IssueCid {
     List,
+    Details,
     Shortcuts,
 }
 
@@ -58,6 +59,7 @@ pub enum HomeMessage {}
 #[derive(Debug, Eq, PartialEq)]
 pub enum IssueMessage {
     Show(IssueId),
+    Changed(IssueId),
     Leave,
 }
 
@@ -186,7 +188,9 @@ impl Tui<Cid, Message> for App {
                         }
                         Message::Quit => self.quit = true,
                         _ => {
-                            self.pages.peek_mut()?.update(app, message)?;
+                            self.pages
+                                .peek_mut()?
+                                .update(app, &self.context, &theme, message)?;
                         }
                     }
                 }

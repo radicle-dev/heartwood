@@ -193,6 +193,50 @@ impl<const W: usize> WidgetComponent for Header<W> {
     }
 }
 
+pub struct Container {
+    component: Box<dyn MockComponent>,
+}
+
+impl Container {
+    pub fn new(component: Box<dyn MockComponent>) -> Self {
+        Self { component }
+    }
+}
+
+impl WidgetComponent for Container {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+
+        if display {
+            // Make some space on the left
+            let layout = Layout::default()
+                .direction(Direction::Horizontal)
+                .horizontal_margin(1)
+                .vertical_margin(1)
+                .constraints(vec![Constraint::Length(1), Constraint::Min(0)].as_ref())
+                .split(area);
+            // reverse draw order: child needs to be drawn first?
+            self.component.view(frame, layout[1]);
+
+            let block = Block::default()
+                .borders(BorderSides::ALL)
+                .border_style(Style::default().fg(Color::Rgb(48, 48, 48)))
+                .border_type(BorderType::Rounded);
+            frame.render_widget(block, area);
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.component.perform(cmd)
+    }
+}
+
 pub struct LabeledContainer {
     header: Widget<Header<1>>,
     component: Box<dyn MockComponent>,

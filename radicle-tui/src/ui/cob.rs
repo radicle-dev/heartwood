@@ -33,6 +33,16 @@ pub struct AuthorItem {
     is_you: bool,
 }
 
+impl AuthorItem {
+    pub fn did(&self) -> Did {
+        self.did
+    }
+
+    pub fn is_you(&self) -> bool {
+        self.is_you
+    }
+}
+
 /// A patch item that can be used in tables, list or trees.
 ///
 /// Breaks up dependencies to [`Profile`] and [`Repository`] that

@@ -11,6 +11,7 @@ use crate::ui::widget::{utils, Widget, WidgetComponent};
 
 use super::container::Header;
 use super::label::Label;
+use super::*;
 
 /// A generic item that can be displayed in a table with [`W`] columns.
 pub trait TableItem<const W: usize> {
@@ -40,18 +41,32 @@ pub enum ColumnWidth {
 /// A component that displays a labeled property.
 #[derive(Clone)]
 pub struct Property {
-    label: Widget<Label>,
+    name: Widget<Label>,
     divider: Widget<Label>,
-    property: Widget<Label>,
+    value: Widget<Label>,
 }
 
 impl Property {
-    pub fn new(label: Widget<Label>, divider: Widget<Label>, property: Widget<Label>) -> Self {
+    pub fn new(name: Widget<Label>, value: Widget<Label>) -> Self {
+        let divider = label("");
         Self {
-            label,
+            name,
             divider,
-            property,
+            value,
         }
+    }
+
+    pub fn with_divider(mut self, divider: Widget<Label>) -> Self {
+        self.divider = divider;
+        self
+    }
+
+    pub fn name(&self) -> &Widget<Label> {
+        &self.name
+    }
+
+    pub fn value(&self) -> &Widget<Label> {
+        &self.value
     }
 }
 
@@ -63,9 +78,9 @@ impl WidgetComponent for Property {
 
         if display {
             let labels: Vec<Box<dyn MockComponent>> = vec![
-                self.label.clone().to_boxed(),
+                self.name.clone().to_boxed(),
                 self.divider.clone().to_boxed(),
-                self.property.clone().to_boxed(),
+                self.value.clone().to_boxed(),
             ];
 
             let layout = layout::h_stack(labels, area);
@@ -113,6 +128,45 @@ impl WidgetComponent for PropertyList {
             for (mut property, area) in layout {
                 property.view(frame, area);
             }
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
+        CmdResult::None
+    }
+}
+
+pub struct PropertyTable {
+    properties: Vec<Widget<Property>>,
+}
+
+impl PropertyTable {
+    pub fn new(properties: Vec<Widget<Property>>) -> Self {
+        Self { properties }
+    }
+}
+
+impl WidgetComponent for PropertyTable {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        use tuirealm::tui::widgets::Table;
+
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+
+        if display {
+            let rows = self
+                .properties
+                .iter()
+                .map(|p| Row::new([Cell::from(p.name()), Cell::from(p.value())]));
+
+            let table = Table::new(rows)
+                .widths([Constraint::Percentage(20), Constraint::Percentage(80)].as_ref());
+            frame.render_widget(table, area);
         }
     }
 

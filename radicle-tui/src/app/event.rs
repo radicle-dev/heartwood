@@ -52,17 +52,35 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
                 Some(Message::Issue(IssueMessage::Leave))
             }
             Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
-                self.perform(Cmd::Move(MoveDirection::Up));
-                Some(Message::Tick)
+                let result = self.perform(Cmd::Move(MoveDirection::Up));
+                match result {
+                    CmdResult::Changed(State::One(StateValue::Usize(selected))) => {
+                        let item = self.items().get(selected)?;
+                        Some(Message::Issue(IssueMessage::Changed(item.id().to_owned())))
+                    }
+                    _ => None,
+                }
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Down, ..
             }) => {
-                self.perform(Cmd::Move(MoveDirection::Down));
-                Some(Message::Tick)
+                let result = self.perform(Cmd::Move(MoveDirection::Down));
+                match result {
+                    CmdResult::Changed(State::One(StateValue::Usize(selected))) => {
+                        let item = self.items().get(selected)?;
+                        Some(Message::Issue(IssueMessage::Changed(item.id().to_owned())))
+                    }
+                    _ => None,
+                }
             }
             _ => None,
         }
+    }
+}
+
+impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::Details> {
+    fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
+        None
     }
 }
 

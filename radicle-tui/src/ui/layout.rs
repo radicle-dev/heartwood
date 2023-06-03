@@ -4,7 +4,8 @@ use tuirealm::MockComponent;
 
 pub struct IssuePreview {
     pub left: Rect,
-    pub right: Rect,
+    pub details: Rect,
+    pub discussion: Rect,
     pub shortcuts: Rect,
 }
 
@@ -158,9 +159,15 @@ pub fn issue_preview(area: Rect, shortcuts_h: u16) -> IssuePreview {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(root[0]);
 
+    let right = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(6), Constraint::Min(0)].as_ref())
+        .split(split[1]);
+
     IssuePreview {
         left: split[0],
-        right: split[1],
+        details: right[0],
+        discussion: right[1],
         shortcuts: root[1],
     }
 }

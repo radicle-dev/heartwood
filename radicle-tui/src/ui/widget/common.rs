@@ -11,7 +11,8 @@ use context::{Shortcut, Shortcuts};
 use label::Label;
 use list::{Property, PropertyList};
 
-use self::list::ColumnWidth;
+use self::container::Container;
+use self::list::{ColumnWidth, PropertyTable};
 
 use super::Widget;
 
@@ -41,6 +42,11 @@ pub fn container_header(theme: &Theme, label: Widget<Label>) -> Widget<Header<1>
     let header = Header::new([label], [ColumnWidth::Grow], theme.clone());
 
     Widget::new(header)
+}
+
+pub fn container(_theme: &Theme, component: Box<dyn MockComponent>) -> Widget<Container> {
+    let container = Container::new(component);
+    Widget::new(container)
 }
 
 pub fn labeled_container(
@@ -92,7 +98,7 @@ pub fn property(theme: &Theme, name: &str, value: &str) -> Widget<Property> {
     let value_w = value.query(Attribute::Width).unwrap().unwrap_size();
     let width = name_w.saturating_add(divider_w).saturating_add(value_w);
 
-    let property = Property::new(name, divider, value);
+    let property = Property::new(name, value).with_divider(divider);
 
     Widget::new(property).height(1).width(width)
 }
@@ -101,6 +107,12 @@ pub fn property_list(_theme: &Theme, properties: Vec<Widget<Property>>) -> Widge
     let property_list = PropertyList::new(properties);
 
     Widget::new(property_list)
+}
+
+pub fn property_table(_theme: &Theme, properties: Vec<Widget<Property>>) -> Widget<PropertyTable> {
+    let table = PropertyTable::new(properties);
+
+    Widget::new(table)
 }
 
 pub fn tabs(theme: &Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
