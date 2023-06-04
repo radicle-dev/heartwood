@@ -256,12 +256,6 @@ impl TableItem<7> for IssueItem {
     }
 }
 
-impl TableItem<1> for () {
-    fn row(&self, _theme: &Theme) -> [Cell; 1] {
-        [Cell::default()]
-    }
-}
-
 pub fn format_patch_state(state: &PatchState) -> (String, Color) {
     match state {
         PatchState::Open { conflicts: _ } => (" ● ".into(), Color::Green),

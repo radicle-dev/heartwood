@@ -60,9 +60,16 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchBrowser> {
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
-            }) => self
-                .selected_item()
-                .map(|item| Message::Patch(PatchMessage::Show(item.id().to_owned()))),
+            }) => {
+                let result = self.perform(Cmd::Submit);
+                match result {
+                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+                        let item = self.items().get(selected)?;
+                        Some(Message::Patch(PatchMessage::Show(item.id().to_owned())))
+                    }
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }
@@ -83,9 +90,16 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
-            }) => self
-                .selected_item()
-                .map(|item| Message::Issue(IssueMessage::Show(item.id().to_owned()))),
+            }) => {
+                let result = self.perform(Cmd::Submit);
+                match result {
+                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+                        let item = self.items().get(selected)?;
+                        Some(Message::Issue(IssueMessage::Show(item.id().to_owned())))
+                    }
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }

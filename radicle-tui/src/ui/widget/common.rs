@@ -11,7 +11,7 @@ use context::{Shortcut, Shortcuts};
 use label::Label;
 use list::{Property, PropertyList};
 
-use self::list::{ColumnWidth, TableModel};
+use self::list::ColumnWidth;
 
 use super::Widget;
 
@@ -37,10 +37,10 @@ pub fn reversable_label(content: &str) -> Widget<Label> {
     label(content)
 }
 
-pub fn container_header(theme: &Theme, label: Widget<Label>) -> Widget<Header<(), 1>> {
-    let model = TableModel::new([label], [ColumnWidth::Fixed(100)]);
+pub fn container_header(theme: &Theme, label: Widget<Label>) -> Widget<Header<1>> {
+    let header = Header::new([label], [ColumnWidth::Fixed(100)], theme.clone());
 
-    Widget::new(Header::new(model, theme.clone()))
+    Widget::new(header)
 }
 
 pub fn labeled_container(

@@ -49,6 +49,7 @@ impl WidgetComponent for Dashboard {
 }
 
 pub struct IssueBrowser {
+    items: Vec<IssueItem>,
     table: Widget<Table<IssueItem, 7>>,
     shortcuts: Widget<Shortcuts>,
 }
@@ -92,11 +93,15 @@ impl IssueBrowser {
         let table = Widget::new(Table::new(&items, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
 
-        Self { table, shortcuts }
+        Self {
+            items,
+            table,
+            shortcuts,
+        }
     }
 
-    pub fn selected_item(&self) -> Option<&IssueItem> {
-        self.table.selection()
+    pub fn items(&self) -> &Vec<IssueItem> {
+        &self.items
     }
 }
 
@@ -123,6 +128,7 @@ impl WidgetComponent for IssueBrowser {
 }
 
 pub struct PatchBrowser {
+    items: Vec<PatchItem>,
     table: Widget<Table<PatchItem, 8>>,
     shortcuts: Widget<Shortcuts>,
 }
@@ -168,11 +174,15 @@ impl PatchBrowser {
         let table = Widget::new(Table::new(&items, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
 
-        Self { table, shortcuts }
+        Self {
+            items,
+            table,
+            shortcuts,
+        }
     }
 
-    pub fn selected_item(&self) -> Option<&PatchItem> {
-        self.table.selection()
+    pub fn items(&self) -> &Vec<PatchItem> {
+        &self.items
     }
 }
 

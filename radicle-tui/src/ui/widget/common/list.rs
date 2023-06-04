@@ -2,11 +2,11 @@ use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{AttrValue, Attribute, BorderSides, BorderType, Color, Props, Style};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::tui::widgets::{Block, Cell, Row, TableState};
-use tuirealm::{Frame, MockComponent, State};
+use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::layout;
 use crate::ui::theme::Theme;
-use crate::ui::widget::{Widget, WidgetComponent};
+use crate::ui::widget::{utils, Widget, WidgetComponent};
 
 use super::container::Header;
 use super::label::Label;
@@ -28,69 +28,6 @@ pub enum ColumnWidth {
     Fixed(u16),
     /// A growable column.
     Grow,
-}
-
-/// A generic table model with [`W`] columns.
-///
-/// [`V`] needs to implement `TableItem` in order to be displayed by the
-/// table this model is used in.
-#[derive(Clone)]
-pub struct TableModel<V, const W: usize>
-where
-    V: TableItem<W>,
-{
-    /// The table header.
-    header: [Widget<Label>; W],
-    /// Grow behavior of table columns.
-    widths: [ColumnWidth; W],
-    /// Items hold by this model.
-    items: Vec<V>,
-}
-
-impl<V, const W: usize> TableModel<V, W>
-where
-    V: TableItem<W>,
-{
-    pub fn new(header: [Widget<Label>; W], widths: [ColumnWidth; W]) -> Self {
-        Self {
-            header,
-            widths,
-            items: vec![],
-        }
-    }
-
-    /// Pushes a new row to this model.
-    pub fn push_item(&mut self, item: V) {
-        self.items.push(item);
-    }
-
-    /// Get all column widhts defined by this model.
-    pub fn widths(&self) -> &[ColumnWidth; W] {
-        &self.widths
-    }
-
-    /// Get the item count.
-    pub fn count(&self) -> u16 {
-        self.items.len() as u16
-    }
-
-    /// Get this model's table header.
-    pub fn header(&self, theme: &Theme) -> [Cell; W] {
-        self.header
-            .iter()
-            .map(|label| {
-                let cell: Cell = label.into();
-                cell.style(Style::default().fg(theme.colors.default_fg))
-            })
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap()
-    }
-
-    /// Get this model's table rows.
-    pub fn rows(&self, theme: &Theme) -> Vec<[Cell; W]> {
-        self.items.iter().map(|item| item.row(theme)).collect()
-    }
 }
 
 /// A component that displays a labeled property.
@@ -186,7 +123,12 @@ pub struct Table<V, const W: usize>
 where
     V: TableItem<W> + Clone,
 {
-    model: TableModel<V, W>,
+    /// Items hold by this model.
+    items: Vec<V>,
+    /// The table header.
+    header: [Widget<Label>; W],
+    /// Grow behavior of table columns.
+    widths: [ColumnWidth; W],
     state: TableState,
     theme: Theme,
 }
@@ -201,83 +143,48 @@ where
         widths: [ColumnWidth; W],
         theme: Theme,
     ) -> Self {
-        let mut model = TableModel::new(header, widths);
-        for item in items {
-            model.push_item(item.clone());
-        }
-
         let mut state = TableState::default();
         state.select(Some(0));
 
         Self {
-            model,
+            items: items.to_vec(),
+            header,
+            widths,
             state,
             theme,
         }
     }
 
-    fn select_previous(&mut self) {
-        let index = match self.state.selected() {
-            Some(selected) if selected == 0 => 0,
-            Some(selected) => selected.saturating_sub(1),
-            None => 0,
+    fn select_previous(&mut self) -> Option<usize> {
+        let old_index = self.state.selected();
+        let new_index = match old_index {
+            Some(selected) if selected == 0 => Some(0),
+            Some(selected) => Some(selected.saturating_sub(1)),
+            None => Some(0),
         };
-        self.state.select(Some(index));
+
+        if old_index != new_index {
+            self.state.select(new_index);
+            self.state.selected()
+        } else {
+            None
+        }
     }
 
-    fn select_next(&mut self, len: usize) {
-        let index = match self.state.selected() {
-            Some(selected) if selected >= len.saturating_sub(1) => len.saturating_sub(1),
-            Some(selected) => selected.saturating_add(1),
-            None => 0,
+    fn select_next(&mut self, len: usize) -> Option<usize> {
+        let old_index = self.state.selected();
+        let new_index = match old_index {
+            Some(selected) if selected >= len.saturating_sub(1) => Some(len.saturating_sub(1)),
+            Some(selected) => Some(selected.saturating_add(1)),
+            None => Some(0),
         };
-        self.state.select(Some(index));
-    }
 
-    pub fn selection(&self) -> Option<&V> {
-        self.state
-            .selected()
-            .and_then(|selected| self.model.items.get(selected))
-    }
-
-    /// Calculates `Constraint::Percentage` for each fixed column width in `widths`,
-    /// taking into account the available width in `area` and the column spacing given by `spacing`.
-    pub fn widths(area: Rect, widths: &[ColumnWidth], spacing: u16) -> Vec<Constraint> {
-        let total_spacing = spacing.saturating_mul(widths.len() as u16);
-        let fixed_width = widths
-            .iter()
-            .fold(0u16, |total, &width| match width {
-                ColumnWidth::Fixed(w) => total + w,
-                ColumnWidth::Grow => total,
-            })
-            .saturating_add(total_spacing);
-
-        let grow_count = widths.iter().fold(0u16, |count, &w| {
-            if w == ColumnWidth::Grow {
-                count + 1
-            } else {
-                count
-            }
-        });
-        let grow_width = area
-            .width
-            .saturating_sub(fixed_width)
-            .checked_div(grow_count)
-            .unwrap_or(0);
-
-        widths
-            .iter()
-            .map(|width| match width {
-                ColumnWidth::Fixed(w) => {
-                    let p: f64 = *w as f64 / area.width as f64 * 100_f64;
-                    Constraint::Percentage(p.ceil() as u16)
-                }
-                ColumnWidth::Grow => {
-                    let p: f64 = grow_width as f64 / area.width as f64 * 100_f64;
-                    Constraint::Percentage(p.floor() as u16)
-                }
-            })
-            .collect()
+        if old_index != new_index {
+            self.state.select(new_index);
+            self.state.selected()
+        } else {
+            None
+        }
     }
 }
 
@@ -295,12 +202,11 @@ where
             .constraints(vec![Constraint::Length(3), Constraint::Min(1)])
             .split(area);
 
-        let widths = Self::widths(area, self.model.widths(), self.theme.tables.spacing);
+        let widths = utils::column_widths(area, &self.widths, self.theme.tables.spacing);
         let rows: Vec<Row<'_>> = self
-            .model
-            .rows(&self.theme)
+            .items
             .iter()
-            .map(|cells| Row::new(cells.clone()))
+            .map(|item| Row::new(item.row(&self.theme)))
             .collect();
 
         let table = tuirealm::tui::widgets::Table::new(rows)
@@ -314,7 +220,11 @@ where
             .column_spacing(self.theme.tables.spacing)
             .widths(&widths);
 
-        let mut header = Widget::new(Header::new(self.model.clone(), self.theme.clone()));
+        let mut header = Widget::new(Header::new(
+            self.header.clone(),
+            self.widths,
+            self.theme.clone(),
+        ));
         header.view(frame, layout[0]);
         frame.render_stateful_widget(table, layout[1], &mut self.state);
     }
@@ -325,17 +235,19 @@ where
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
         use tuirealm::command::Direction;
-
-        let len = self.model.count() as usize;
         match cmd {
-            Cmd::Move(Direction::Up) => {
-                self.select_previous();
-                CmdResult::None
-            }
-            Cmd::Move(Direction::Down) => {
-                self.select_next(len);
-                CmdResult::None
-            }
+            Cmd::Move(Direction::Up) => match self.select_previous() {
+                Some(selected) => CmdResult::Changed(State::One(StateValue::Usize(selected))),
+                None => CmdResult::None,
+            },
+            Cmd::Move(Direction::Down) => match self.select_next(self.items.len()) {
+                Some(selected) => CmdResult::Changed(State::One(StateValue::Usize(selected))),
+                None => CmdResult::None,
+            },
+            Cmd::Submit => match self.state.selected() {
+                Some(selected) => CmdResult::Submit(State::One(StateValue::Usize(selected))),
+                None => CmdResult::None,
+            },
             _ => CmdResult::None,
         }
     }

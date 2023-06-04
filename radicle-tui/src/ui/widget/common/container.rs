@@ -3,17 +3,17 @@ use tuirealm::props::{
     AttrValue, Attribute, BorderSides, BorderType, Color, Props, Style, TextModifiers,
 };
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
-use tuirealm::tui::widgets::{Block, Row};
+use tuirealm::tui::widgets::{Block, Cell, Row};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::ext::HeaderBlock;
 use crate::ui::layout;
 use crate::ui::state::TabState;
 use crate::ui::theme::Theme;
-use crate::ui::widget::{Widget, WidgetComponent};
+use crate::ui::widget::{utils, Widget, WidgetComponent};
 
 use super::label::Label;
-use super::list::{Table, TableItem, TableModel};
+use super::list::ColumnWidth;
 
 /// Some user events need to be handled globally (e.g. user presses key `q` to quit
 /// the application). This component can be used in conjunction with SubEventClause
@@ -128,27 +128,23 @@ impl WidgetComponent for Tabs {
 }
 
 /// A labeled container header.
-pub struct Header<V, const W: usize>
-where
-    V: TableItem<W>,
-{
-    model: TableModel<V, W>,
+pub struct Header<const W: usize> {
+    header: [Widget<Label>; W],
+    widths: [ColumnWidth; W],
     theme: Theme,
 }
 
-impl<V, const W: usize> Header<V, W>
-where
-    V: TableItem<W>,
-{
-    pub fn new(model: TableModel<V, W>, theme: Theme) -> Self {
-        Self { model, theme }
+impl<const W: usize> Header<W> {
+    pub fn new(header: [Widget<Label>; W], widths: [ColumnWidth; W], theme: Theme) -> Self {
+        Self {
+            header,
+            widths,
+            theme,
+        }
     }
 }
 
-impl<V, const W: usize> WidgetComponent for Header<V, W>
-where
-    V: TableItem<W> + Clone,
-{
+impl<const W: usize> WidgetComponent for Header<W> {
     fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
         let display = properties
             .get_or(Attribute::Display, AttrValue::Flag(true))
@@ -167,9 +163,18 @@ where
                 .horizontal_margin(1)
                 .split(area);
 
-            let widths =
-                Table::<V, W>::widths(area, self.model.widths(), self.theme.tables.spacing);
-            let header: Row<'_> = Row::new(self.model.header(&self.theme));
+            let widths = utils::column_widths(area, &self.widths, self.theme.tables.spacing);
+            let header: [Cell; W] = self
+                .header
+                .iter()
+                .map(|label| {
+                    let cell: Cell = label.into();
+                    cell.style(Style::default().fg(self.theme.colors.default_fg))
+                })
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+            let header: Row<'_> = Row::new(header);
 
             let table = tuirealm::tui::widgets::Table::new(vec![])
                 .column_spacing(self.theme.tables.spacing)
@@ -189,12 +194,12 @@ where
 }
 
 pub struct LabeledContainer {
-    header: Widget<Header<(), 1>>,
+    header: Widget<Header<1>>,
     component: Box<dyn MockComponent>,
 }
 
 impl LabeledContainer {
-    pub fn new(header: Widget<Header<(), 1>>, component: Box<dyn MockComponent>) -> Self {
+    pub fn new(header: Widget<Header<1>>, component: Box<dyn MockComponent>) -> Self {
         Self { header, component }
     }
 }
