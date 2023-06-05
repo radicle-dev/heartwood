@@ -507,10 +507,12 @@ fn prompt_issue(
         serde_yaml::from_str(&meta).context("failed to parse yaml front-matter")?;
 
     meta.title = meta.title.trim().to_string();
-    if meta.title.is_empty() {
+    if meta.title.is_empty() || meta.title == "~" || meta.title == "null" {
+        // '~' and 'null' are YAML's string values for null and unexpectedly replace empty fields
+        // for String.
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "an issue title must be provided",
+            "an issue title must be provided and may not be '~' or 'null'",
         )
         .into());
     }
