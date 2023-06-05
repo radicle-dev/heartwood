@@ -1,5 +1,6 @@
 #![allow(clippy::or_fun_call)]
 use std::ffi::OsString;
+use std::io;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
@@ -464,7 +465,9 @@ fn prompt_issue(
         title
     };
     let description = if description.is_empty() {
-        "Enter a description..."
+        "<!--\n\
+        Enter a description...\n\
+        -->"
     } else {
         description
     };
@@ -500,9 +503,27 @@ fn prompt_issue(
         }
     }
 
-    let description: String = lines.collect::<Vec<&str>>().join("\n");
-    let meta: Metadata =
+    let mut meta: Metadata =
         serde_yaml::from_str(&meta).context("failed to parse yaml front-matter")?;
+
+    meta.title = meta.title.trim().to_string();
+    if meta.title.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "an issue title must be provided",
+        )
+        .into());
+    }
+
+    let description: String = lines.collect::<Vec<&str>>().join("\n");
+    let description = term::format::strip_comments(&description);
+    if description.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "an issue description must be provided",
+        )
+        .into());
+    }
 
     Ok(Some((meta, description)))
 }
