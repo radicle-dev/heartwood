@@ -7,8 +7,8 @@ When we push to this ref, a patch is created from our commits.
 $ git checkout -b feature/1
 Switched to a new branch 'feature/1'
 $ git commit -a -m "Add things" -q --allow-empty
-$ git push rad HEAD:refs/patches
-✓ Patch 37f53b4104edaafcf6beb65e7292147711a06ad0 opened
+$ git push -o patch.message="Add things #1" -o patch.message="See commits for details." rad HEAD:refs/patches
+✓ Patch 2647168c23e7c2b2c1936d695443944e143bc3f7 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -16,15 +16,17 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 We can see a patch was created:
 
 ```
-$ rad patch show 37f53b4
+$ rad patch show 2647168
 ╭────────────────────────────────────────────────────────────────────╮
-│ Title     Add things                                               │
-│ Patch     37f53b4104edaafcf6beb65e7292147711a06ad0                 │
+│ Title     Add things #1                                            │
+│ Patch     2647168c23e7c2b2c1936d695443944e143bc3f7                 │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
 │ Head      42d894a83c9c356552a57af09ccdbd5587a99045                 │
 │ Branches  feature/1                                                │
 │ Commits   ahead 1, behind 0                                        │
 │ Status    open                                                     │
+│                                                                    │
+│ See commits for details.                                           │
 ├────────────────────────────────────────────────────────────────────┤
 │ 42d894a Add things                                                 │
 ├────────────────────────────────────────────────────────────────────┤
@@ -37,7 +39,7 @@ branch associated with this patch:
 
 ```
 $ git branch -vv
-* feature/1 42d894a [rad/patches/37f53b4104edaafcf6beb65e7292147711a06ad0] Add things
+* feature/1 42d894a [rad/patches/2647168c23e7c2b2c1936d695443944e143bc3f7] Add things
   master    f2de534 [rad/master] Second commit
 ```
 
@@ -45,7 +47,7 @@ Let's check that it's up to date with our local head:
 
 ```
 $ git status --short --branch
-## feature/1...rad/patches/37f53b4104edaafcf6beb65e7292147711a06ad0
+## feature/1...rad/patches/2647168c23e7c2b2c1936d695443944e143bc3f7
 $ git fetch
 $ git push
 ```
@@ -57,13 +59,13 @@ $ git show-ref
 42d894a83c9c356552a57af09ccdbd5587a99045 refs/heads/feature/1
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 refs/heads/master
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 refs/remotes/rad/master
-42d894a83c9c356552a57af09ccdbd5587a99045 refs/remotes/rad/patches/37f53b4104edaafcf6beb65e7292147711a06ad0
+42d894a83c9c356552a57af09ccdbd5587a99045 refs/remotes/rad/patches/2647168c23e7c2b2c1936d695443944e143bc3f7
 ```
 ```
 $ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 'refs/heads/patches/*'
-42d894a83c9c356552a57af09ccdbd5587a99045	refs/heads/patches/37f53b4104edaafcf6beb65e7292147711a06ad0
+42d894a83c9c356552a57af09ccdbd5587a99045	refs/heads/patches/2647168c23e7c2b2c1936d695443944e143bc3f7
 $ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 'refs/cobs/*'
-37f53b4104edaafcf6beb65e7292147711a06ad0	refs/cobs/xyz.radicle.patch/37f53b4104edaafcf6beb65e7292147711a06ad0
+2647168c23e7c2b2c1936d695443944e143bc3f7	refs/cobs/xyz.radicle.patch/2647168c23e7c2b2c1936d695443944e143bc3f7
 ```
 
 We can also create patches by pushing to the `rad/patches` remote. It's a bit
@@ -82,7 +84,7 @@ We see both branches with upstreams now:
 
 ```
 $ git branch -vv
-  feature/1 42d894a [rad/patches/37f53b4104edaafcf6beb65e7292147711a06ad0] Add things
+  feature/1 42d894a [rad/patches/2647168c23e7c2b2c1936d695443944e143bc3f7] Add things
 * feature/2 b94a835 [rad/patches/2af090f48003d86f735163794bfffdb2691f369e] Add more things
   master    f2de534 [rad/master] Second commit
 ```
@@ -94,8 +96,8 @@ $ rad patch
 ╭────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title            Author                  Head     +   -   Updated      │
 ├────────────────────────────────────────────────────────────────────────────────────┤
+│ ●  2647168  Add things #1    z6MknSL…StBU8Vi  (you)  42d894a  +0  -0  [    ...   ] │
 │ ●  2af090f  Add more things  z6MknSL…StBU8Vi  (you)  b94a835  +0  -0  [    ...   ] │
-│ ●  37f53b4  Add things       z6MknSL…StBU8Vi  (you)  42d894a  +0  -0  [    ...   ] │
 ╰────────────────────────────────────────────────────────────────────────────────────╯
 ```
 

@@ -120,7 +120,7 @@ pub fn run(
     stored: &storage::git::Repository,
     profile: &Profile,
     stdin: &io::Stdin,
-    opts: &Options,
+    opts: Options,
 ) -> Result<(), Error> {
     // Don't allow push if either of these conditions is true:
     //
@@ -172,7 +172,7 @@ pub fn run(
                 let working = git::raw::Repository::open(working)?;
 
                 if dst == &*rad::PATCHES_REFNAME {
-                    patch_open(src, &nid, &working, stored, &signer)
+                    patch_open(opts.message.clone(), src, &nid, &working, stored, &signer)
                 } else {
                     let dst = git::Qualified::from_refstr(dst)
                         .ok_or_else(|| Error::InvalidQualifiedRef(dst.clone()))?;
@@ -180,7 +180,17 @@ pub fn run(
                     if let Some(oid) = dst.strip_prefix(git::refname!("refs/heads/patches")) {
                         let oid = git::Oid::from_str(oid)?;
 
-                        patch_update(src, &dst, *force, &oid, &nid, &working, stored, &signer)
+                        patch_update(
+                            opts.message.clone(),
+                            src,
+                            &dst,
+                            *force,
+                            &oid,
+                            &nid,
+                            &working,
+                            stored,
+                            &signer,
+                        )
                     } else {
                         push(src, &dst, *force, &nid, &working, stored, &signer)
                     }
@@ -224,6 +234,7 @@ pub fn run(
 
 /// Open a new patch.
 fn patch_open<G: Signer>(
+    msg: cli::patch::Message,
     src: &git::RefStr,
     nid: &NodeId,
     working: &git::raw::Repository,
@@ -244,8 +255,8 @@ fn patch_open<G: Signer>(
     push_ref(src, &dst, false, working, stored.raw())?;
 
     let mut patches = patch::Patches::open(stored)?;
-    let message = commit.message().unwrap_or_default();
-    let (title, description) = cli::patch::get_message(cli::patch::Message::Edit, message)?;
+    let fallback = commit.message().unwrap_or_default();
+    let (title, description) = cli::patch::get_message(msg, fallback)?;
     let (_, target) = stored.canonical_head()?;
     let base = stored.backend.merge_base(*target, commit.id())?;
     let result = match patches.create(
@@ -324,6 +335,7 @@ fn patch_open<G: Signer>(
 /// Update an existing patch.
 #[allow(clippy::too_many_arguments)]
 fn patch_update<G: Signer>(
+    msg: cli::patch::Message,
     src: &git::RefStr,
     dst: &git::Qualified,
     force: bool,
@@ -349,7 +361,7 @@ fn patch_update<G: Signer>(
     if patch.revisions().any(|(_, r)| *r.head() == commit.id()) {
         return Ok(());
     }
-    let message = cli::patch::get_update_message(cli::patch::Message::Edit)?;
+    let message = cli::patch::get_update_message(msg)?;
     let (_, target) = stored.canonical_head()?;
     let base = stored.backend.merge_base(*target, commit.id())?;
     let revision = patch.update(message, base, commit.id(), signer)?;

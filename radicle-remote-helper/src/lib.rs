@@ -15,6 +15,7 @@ use thiserror::Error;
 use radicle::git;
 use radicle::storage::git::transport::local::{Url, UrlError};
 use radicle::storage::{ReadRepository, WriteStorage};
+use radicle_cli::terminal as cli;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -57,6 +58,8 @@ pub enum Error {
 pub struct Options {
     /// Don't sync after push.
     no_sync: bool,
+    /// Patch message.
+    message: cli::patch::Message,
 }
 
 /// Run the radicle remote helper using the given profile.
@@ -101,13 +104,21 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
             ["option", "verbosity"] => {
                 println!("ok");
             }
-            ["option", "push-option", opt] => {
-                match *opt {
-                    "sync" => opts.no_sync = false,
-                    "no-sync" => opts.no_sync = true,
+            ["option", "push-option", args @ ..] => {
+                match *args {
+                    ["sync"] => opts.no_sync = false,
+                    ["no-sync"] => opts.no_sync = true,
                     _ => {
-                        println!("unsupported");
-                        continue;
+                        let args = args.join(" ");
+
+                        if let Some((key, val)) = args.split_once('=') {
+                            if key == "patch.message" {
+                                opts.message.append(val);
+                            }
+                        } else {
+                            println!("unsupported");
+                            continue;
+                        }
                     }
                 }
                 println!("ok");
@@ -130,7 +141,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                     &stored,
                     &profile,
                     &stdin,
-                    &opts,
+                    opts,
                 )
                 .map_err(Error::from);
             }
