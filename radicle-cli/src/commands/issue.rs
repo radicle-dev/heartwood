@@ -284,7 +284,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let issue = issues.create(title, description, tags.as_slice(), &[], &signer)?;
             if !options.quiet {
-                show_issue(&issue)?;
+                show_issue(&issue, issue.id())?;
             }
         }
         Operation::Show { id } => {
@@ -292,7 +292,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let issue = issues
                 .get(&id)?
                 .context("No issue with the given ID exists")?;
-            show_issue(&issue)?;
+            show_issue(&issue, &id)?;
         }
         Operation::State { id, state } => {
             let id = id.resolve(&repo.backend)?;
@@ -536,7 +536,7 @@ fn open<G: Signer>(
         signer,
     )?;
     if !options.quiet {
-        show_issue(&issue)?;
+        show_issue(&issue, issue.id())?;
     }
 
     Ok(())
@@ -618,12 +618,12 @@ fn edit<G: radicle::crypto::Signer>(
         Ok(())
     })?;
 
-    show_issue(&issue)?;
+    show_issue(&issue, &id)?;
 
     Ok(())
 }
 
-fn show_issue(issue: &issue::Issue) -> anyhow::Result<()> {
+fn show_issue(issue: &issue::Issue, id: &cob::ObjectId) -> anyhow::Result<()> {
     let tags: Vec<String> = issue.tags().cloned().map(|t| t.into()).collect();
     let assignees: Vec<String> = issue
         .assigned()
@@ -638,6 +638,11 @@ fn show_issue(issue: &issue::Issue) -> anyhow::Result<()> {
     attrs.push([
         term::format::tertiary("Title".to_owned()),
         term::format::bold(issue.title().to_owned()),
+    ]);
+
+    attrs.push([
+        term::format::tertiary("Issue".to_owned()),
+        term::format::bold(id.to_string()),
     ]);
 
     if !tags.is_empty() {

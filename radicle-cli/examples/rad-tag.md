@@ -11,6 +11,7 @@ We can now show the issue to check whether those tags were added:
 $ rad issue show 2e8c1bf3fe0532a314778357c886608a966a34bd
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
+│ Issue   2e8c1bf3fe0532a314778357c886608a966a34bd        │
 │ Tags    bug, good-first-issue                           │
 │ Status  open                                            │
 │                                                         │
@@ -30,6 +31,7 @@ Notice that the `good-first-issue` tag has disappeared:
 $ rad issue show 2e8c1bf3fe0532a314778357c886608a966a34bd
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
+│ Issue   2e8c1bf3fe0532a314778357c886608a966a34bd        │
 │ Tags    bug                                             │
 │ Status  open                                            │
 │                                                         │

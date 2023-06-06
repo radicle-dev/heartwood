@@ -7,6 +7,7 @@ Let's say the new car you are designing with your peers has a problem with its f
 $ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
+│ Issue   2e8c1bf3fe0532a314778357c886608a966a34bd        │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
@@ -30,6 +31,7 @@ Show the issue information issue.
 $ rad issue show 2e8c1bf
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
+│ Issue   2e8c1bf3fe0532a314778357c886608a966a34bd        │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
