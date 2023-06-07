@@ -24,17 +24,11 @@ $ git commit -v -m "Define power requirements"
 
 Once the code is ready, we open (or create) a patch with our changes for the project.
 
-```
-$ rad patch open --message "Define power requirements" --message "See details."
-master <- z6MknSL…StBU8Vi/flux-capacitor-power (3e674d1)
-1 commit(s) ahead, 0 commit(s) behind
-
-3e674d1 Define power requirements
-
-✓ Patch 077e4bbe9a6e5546f400ef5951768c37a76f13a4 created
-
-To publish your patch to the network, run:
-    git push rad
+``` (stderr)
+$ git push rad -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
+✓ Patch 077e4bbe9a6e5546f400ef5951768c37a76f13a4 opened
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+ * [new reference]   HEAD -> refs/patches
 ```
 
 It will now be listed as one of the project's open patches.
@@ -80,7 +74,7 @@ index 0000000..e69de29
 We can also see that it set an upstream for our patch branch:
 ```
 $ git branch -vv
-* flux-capacitor-power 3e674d1 [rad/flux-capacitor-power] Define power requirements
+* flux-capacitor-power 3e674d1 [rad/patches/077e4bbe9a6e5546f400ef5951768c37a76f13a4] Define power requirements
   master               f2de534 [rad/master] Second commit
 ```
 

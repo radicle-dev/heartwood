@@ -117,7 +117,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let default_branch = proj.default_branch().clone();
     let path = working.workdir().unwrap(); // SAFETY: The working copy is not bare.
 
-    // Setup tracking for project delegates.
+    // Configure repository and setup tracking for project delegates.
+    radicle::git::configure_repository(&working)?;
     checkout::setup_remotes(
         project::SetupRemote {
             project: options.id,

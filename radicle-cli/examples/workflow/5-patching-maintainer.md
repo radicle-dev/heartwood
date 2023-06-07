@@ -21,16 +21,16 @@ $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
 ``` (stderr)
 $ git fetch bob
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
- * [new branch]      flux-capacitor-power -> bob/flux-capacitor-power
- * [new branch]      master               -> bob/master
+ * [new branch]      master     -> bob/master
+ * [new branch]      patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c -> bob/patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
 ```
 
 The contributor's changes are now visible to us.
 
 ```
 $ git branch -r
-  bob/flux-capacitor-power
   bob/master
+  bob/patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
   rad/master
 $ rad patch show 50e29a1
 ╭──────────────────────────────────────────────────────────────────────────────╮
@@ -57,11 +57,11 @@ way will tell others about the corrections we needed before merging the
 changes.
 
 ```
-$ git checkout flux-capacitor-power
-branch 'flux-capacitor-power' set up to track 'bob/flux-capacitor-power'.
+$ git checkout patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
+branch 'patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c' set up to track 'bob/patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c'.
 $ git mv REQUIREMENTS REQUIREMENTS.md
 $ git commit --fixup HEAD~
-[flux-capacitor-power f6484e0] fixup! Define power requirements
+[patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c f6484e0] fixup! Define power requirements
  1 file changed, 0 insertions(+), 0 deletions(-)
  rename REQUIREMENTS => REQUIREMENTS.md (100%)
 $ rad patch update --message "Define power requirements" --message "See details." 50e29a111972f3b7d2123c5057de5bdf09bc7b1c
@@ -75,7 +75,7 @@ Great, all fixed up, lets merge the code.
 ```
 $ git checkout master
 Your branch is up to date with 'rad/master'.
-$ git merge flux-capacitor-power
+$ git merge patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
 Updating f2de534..f6484e0
 Fast-forward
  README.md       | 0
@@ -95,7 +95,7 @@ $ rad patch show 50e29a1
 │ Patch     50e29a111972f3b7d2123c5057de5bdf09bc7b1c                           │
 │ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk           │
 │ Head      f6484e0f43e48a8983b9b39bf9bd4cd889f1d520                           │
-│ Branches  flux-capacitor-power, master                                       │
+│ Branches  master, patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c           │
 │ Commits   up to date                                                         │
 │ Status    merged                                                             │
 │                                                                              │

@@ -68,13 +68,12 @@ $ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JU
 2647168c23e7c2b2c1936d695443944e143bc3f7	refs/cobs/xyz.radicle.patch/2647168c23e7c2b2c1936d695443944e143bc3f7
 ```
 
-We can also create patches by pushing to the `rad/patches` remote. It's a bit
-simpler:
+We can create another patch:
 
 ``` (stderr)
 $ git checkout -b feature/2 -q master
 $ git commit -a -m "Add more things" -q --allow-empty
-$ git push rad/patches
+$ git push rad HEAD:refs/patches
 ✓ Patch b8ab1c99c1c8205680a3494f04fb3934ec738ddd opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
@@ -99,13 +98,6 @@ $ rad patch
 │ ●  2647168  Add things #1    z6MknSL…StBU8Vi  (you)  42d894a  +0  -0  [    ...   ] │
 │ ●  b8ab1c9  Add more things  z6MknSL…StBU8Vi  (you)  8b0ea80  +0  -0  [    ...   ] │
 ╰────────────────────────────────────────────────────────────────────────────────────╯
-```
-
-Note that we can't fetch from `rad/patches`:
-
-``` (stderr) (fail)
-$ git fetch rad/patches
-fatal: couldn't find remote ref refs/patches
 ```
 
 To update our patch, we simply push commits to the upstream branch:

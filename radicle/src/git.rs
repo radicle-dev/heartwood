@@ -466,33 +466,6 @@ pub fn configure_remote<'r>(
     Ok(remote)
 }
 
-/// Configure a repository's patches remote.
-///
-/// The entry for this remote will be:
-/// ```text
-/// [remote.<name>]
-///   url = <url>
-///   pushurl = <url>
-///   push HEAD:refs/patches
-/// ```
-pub fn configure_patches_remote<'r>(
-    repo: &'r git2::Repository,
-    name: &str,
-    refspec: &Refspec<RefString, RefString>,
-    push: &Url,
-) -> Result<git2::Remote<'r>, git2::Error> {
-    let push = push.to_string();
-    let remote = repo.remote(name, &push)?;
-
-    // This fetchspec basically prevents fetching from this remote,
-    // as it shouldn't be used for fetching.
-    repo.remote_add_fetch(name, "refs/patches:refs/patches")?;
-    repo.remote_set_pushurl(name, Some(&push))?;
-    repo.remote_add_push(name, refspec.to_string().as_str())?;
-
-    Ok(remote)
-}
-
 /// Fetch from the given `remote`.
 pub fn fetch(repo: &git2::Repository, remote: &str) -> Result<(), git2::Error> {
     repo.find_remote(remote)?.fetch::<&str>(

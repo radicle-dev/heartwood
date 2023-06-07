@@ -191,20 +191,3 @@ pub fn find_unmerged_with_base(
     }
     Ok(matches)
 }
-
-/// Return commits between the merge base and a head.
-pub fn patch_commits<'a>(
-    repo: &'a git::raw::Repository,
-    base: &Oid,
-    head: &Oid,
-) -> anyhow::Result<Vec<git::raw::Commit<'a>>> {
-    let mut commits = Vec::new();
-    let mut revwalk = repo.revwalk()?;
-    revwalk.push_range(&format!("{base}..{head}"))?;
-
-    for rev in revwalk {
-        let commit = repo.find_commit(rev?)?;
-        commits.push(commit);
-    }
-    Ok(commits)
-}

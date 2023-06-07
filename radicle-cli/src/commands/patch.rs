@@ -4,8 +4,6 @@ mod archive;
 mod checkout;
 #[path = "patch/common.rs"]
 mod common;
-#[path = "patch/create.rs"]
-mod create;
 #[path = "patch/delete.rs"]
 mod delete;
 #[path = "patch/edit.rs"]
@@ -46,7 +44,6 @@ Usage
     rad patch [<option>...]
     rad patch list [--all|--merged|--open|--archived|--draft] [<option>...]
     rad patch show <patch-id> [<option>...]
-    rad patch open [--draft] [<option>...]
     rad patch archive <patch-id> [<option>...]
     rad patch update <patch-id> [<option>...]
     rad patch checkout <patch-id> [<option>...]
@@ -63,9 +60,8 @@ Edit options
 
     -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
 
-Open/Update options
+Update options
 
-        --draft                Open patch in draft mode
     -q, --quiet                Supress most output, only print the revision id
         --[no-]announce        Announce patch to network (default: false)
         --[no-]push            Push patch head to storage (default: true)
@@ -92,7 +88,6 @@ Other options
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub enum OperationName {
-    Open,
     Show,
     Update,
     Archive,
@@ -128,11 +123,6 @@ impl std::fmt::Debug for Filter {
 
 #[derive(Debug)]
 pub enum Operation {
-    Open {
-        message: Message,
-        draft: bool,
-        quiet: bool,
-    },
     Show {
         patch_id: Rev,
         diff: bool,
@@ -191,7 +181,6 @@ impl Args for Options {
         let mut push = true;
         let mut filter = Filter::default();
         let mut diff = false;
-        let mut draft = false;
         let mut undo = false;
         let mut quiet = false;
 
@@ -227,13 +216,8 @@ impl Args for Options {
                     push = false;
                 }
 
-                // Open/update options.
-                Long("draft") if op == Some(OperationName::Open) => {
-                    draft = true;
-                }
-                Long("quiet") | Short('q')
-                    if op == Some(OperationName::Open) || op == Some(OperationName::Update) =>
-                {
+                // Update options.
+                Long("quiet") | Short('q') if op == Some(OperationName::Update) => {
                     quiet = true;
                 }
 
@@ -274,7 +258,6 @@ impl Args for Options {
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "l" | "list" => op = Some(OperationName::List),
-                    "o" | "open" => op = Some(OperationName::Open),
                     "s" | "show" => op = Some(OperationName::Show),
                     "u" | "update" => op = Some(OperationName::Update),
                     "d" | "delete" => op = Some(OperationName::Delete),
@@ -310,11 +293,6 @@ impl Args for Options {
         }
 
         let op = match op.unwrap_or_default() {
-            OperationName::Open => Operation::Open {
-                message,
-                draft,
-                quiet,
-            },
             OperationName::List => Operation::List { filter },
             OperationName::Show => Operation::Show {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -374,21 +352,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     match options.op {
-        Operation::Open {
-            ref message,
-            draft,
-            quiet,
-        } => {
-            create::run(
-                message.clone(),
-                draft,
-                quiet,
-                options,
-                &profile,
-                &repository,
-                &workdir,
-            )?;
-        }
         Operation::List { filter: Filter(f) } => {
             list::run(f, &repository, &profile)?;
         }

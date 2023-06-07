@@ -24,17 +24,11 @@ $ git commit -v -m "Define power requirements"
 
 Once the code is ready, we open a patch with our changes.
 
-```
-$ rad patch open --message "Define power requirements" --message "See details."
-master <- z6Mkt67…v4N1tRk/flux-capacitor-power (3e674d1)
-1 commit(s) ahead, 0 commit(s) behind
-
-3e674d1 Define power requirements
-
-✓ Patch 50e29a111972f3b7d2123c5057de5bdf09bc7b1c created
-
-To publish your patch to the network, run:
-    git push rad
+``` (stderr)
+$ git push rad -o no-sync -o patch.message="Define power requirements" -o patch.message="See details." HEAD:refs/patches
+✓ Patch 50e29a111972f3b7d2123c5057de5bdf09bc7b1c opened
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+ * [new reference]   HEAD -> refs/patches
 ```
 
 It will now be listed as one of the project's open patches.
@@ -67,8 +61,8 @@ $ rad patch show 50e29a111972f3b7d2123c5057de5bdf09bc7b1c
 We can also confirm that the patch branch is in storage:
 
 ```
-$ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk refs/heads/flux-capacitor-power
-3e674d1a1df90807e934f9ae5da2591dd6848a33	refs/heads/flux-capacitor-power
+$ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk refs/heads/patches/*
+3e674d1a1df90807e934f9ae5da2591dd6848a33	refs/heads/patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
 ```
 
 Wait, let's add a README too! Just for fun.
@@ -80,10 +74,12 @@ $ git commit --message "Add README, just for the fun"
 [flux-capacitor-power 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
-$ rad patch update --message "Add README, just for the fun" 50e29a111972f3b7d2123c5057de5bdf09bc7b1c
-Updating 3e674d1 -> 27857ec
-1 commit(s) ahead, 0 commit(s) behind
-✓ Patch updated to revision 3530243d46a2e7a8e4eac7afcbb17cc7c56b3d29
+```
+``` (stderr) RAD_SOCKET=/dev/null
+$ git push -o patch.message="Add README, just for the fun"
+✓ Patch 50e29a1 updated to 3530243d46a2e7a8e4eac7afcbb17cc7c56b3d29
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+   3e674d1..27857ec  flux-capacitor-power -> patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
 ```
 
 And let's leave a quick comment for our team:
