@@ -7,9 +7,11 @@ $ git commit -a -m "Nothing to see here.." -q --allow-empty
 
 To open a patch in draft mode, we use the `--draft` option:
 
-```
-$ rad patch open --draft -m "Nothing yet" --quiet
-c639a0f9895a0fdf2ba2d04533290937cb6fd2f7
+``` (stderr)
+$ git push -o patch.draft -o patch.message="Nothing yet" rad HEAD:refs/patches
+✓ Patch c639a0f9895a0fdf2ba2d04533290937cb6fd2f7 drafted
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+ * [new reference]   HEAD -> refs/patches
 ```
 
 We can confirm it's a draft by running `show`:

@@ -54,10 +54,12 @@ pub enum Error {
     List(#[from] list::Error),
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Options {
     /// Don't sync after push.
     no_sync: bool,
+    /// Open patch in draft mode.
+    draft: bool,
     /// Patch message.
     message: cli::patch::Message,
 }
@@ -108,6 +110,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 match *args {
                     ["sync"] => opts.no_sync = false,
                     ["no-sync"] => opts.no_sync = true,
+                    ["patch.draft"] => opts.draft = true,
                     _ => {
                         let args = args.join(" ");
 

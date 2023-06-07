@@ -175,7 +175,7 @@ pub fn run(
                 let working = git::raw::Repository::open(working)?;
 
                 if dst == &*rad::PATCHES_REFNAME {
-                    patch_open(opts.message.clone(), src, &nid, &working, stored, &signer)
+                    patch_open(src, &nid, &working, stored, &signer, opts.clone())
                 } else {
                     let dst = git::Qualified::from_refstr(dst)
                         .ok_or_else(|| Error::InvalidQualifiedRef(dst.clone()))?;
@@ -184,7 +184,6 @@ pub fn run(
                         let oid = git::Oid::from_str(oid)?;
 
                         patch_update(
-                            opts.message.clone(),
                             src,
                             &dst,
                             *force,
@@ -193,6 +192,7 @@ pub fn run(
                             &working,
                             stored,
                             &signer,
+                            opts.clone(),
                         )
                     } else {
                         push(src, &dst, *force, &nid, &working, stored, &signer)
@@ -237,12 +237,12 @@ pub fn run(
 
 /// Open a new patch.
 fn patch_open<G: Signer>(
-    msg: cli::patch::Message,
     src: &git::RefStr,
     nid: &NodeId,
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
     signer: &G,
+    opts: Options,
 ) -> Result<(), Error> {
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
@@ -259,26 +259,48 @@ fn patch_open<G: Signer>(
 
     let (_, target) = stored.canonical_head()?;
     let base = stored.backend.merge_base(*target, commit.id())?;
-    let (title, description) =
-        cli::patch::get_create_message(msg, &stored.backend, &base.into(), &commit.id().into())?;
+    let (title, description) = cli::patch::get_create_message(
+        opts.message,
+        &stored.backend,
+        &base.into(),
+        &commit.id().into(),
+    )?;
 
     let mut patches = patch::Patches::open(stored)?;
-    let result = match patches.create(
-        &title,
-        &description,
-        patch::MergeTarget::default(),
-        base,
-        commit.id(),
-        &[],
-        signer,
-    ) {
+    let patch = if opts.draft {
+        patches.draft(
+            &title,
+            &description,
+            patch::MergeTarget::default(),
+            base,
+            commit.id(),
+            &[],
+            signer,
+        )
+    } else {
+        patches.create(
+            &title,
+            &description,
+            patch::MergeTarget::default(),
+            base,
+            commit.id(),
+            &[],
+            signer,
+        )
+    };
+    let result = match patch {
         Ok(patch) => {
+            let action = if patch.is_draft() {
+                "drafted"
+            } else {
+                "opened"
+            };
             let patch = patch.id;
 
             eprintln!(
-                "{} Patch {} opened",
+                "{} Patch {} {action}",
                 cli::format::positive("✓"),
-                cli::format::tertiary(patch)
+                cli::format::tertiary(patch),
             );
 
             // Create long-lived patch head reference, now that we know the Patch ID.
@@ -339,7 +361,6 @@ fn patch_open<G: Signer>(
 /// Update an existing patch.
 #[allow(clippy::too_many_arguments)]
 fn patch_update<G: Signer>(
-    msg: cli::patch::Message,
     src: &git::RefStr,
     dst: &git::Qualified,
     force: bool,
@@ -348,6 +369,7 @@ fn patch_update<G: Signer>(
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
     signer: &G,
+    opts: Options,
 ) -> Result<(), Error> {
     let reference = working.find_reference(src.as_str())?;
     let commit = reference.peel_to_commit()?;
@@ -366,7 +388,7 @@ fn patch_update<G: Signer>(
         return Ok(());
     }
     let message = cli::patch::get_update_message(
-        msg,
+        opts.message,
         &stored.backend,
         patch.latest().1,
         &commit.id().into(),
