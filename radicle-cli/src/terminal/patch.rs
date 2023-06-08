@@ -119,11 +119,11 @@ fn message_from_commits(name: &str, commits: Vec<git::raw::Commit>) -> Result<St
     writeln!(&mut msg, "This is the first commit message:")?;
     writeln!(&mut msg, "-->")?;
     writeln!(&mut msg)?;
-    writeln!(&mut msg, "{commit_msg}")?;
+    writeln!(&mut msg, "{}", commit_msg.trim_end())?;
     writeln!(&mut msg)?;
 
     for (i, commit) in commits.enumerate() {
-        let commit_msg = commit.message().ok_or(Error::InvalidUtf8)?;
+        let commit_msg = commit.message().ok_or(Error::InvalidUtf8)?.trim_end();
         let commit_num = i + 2;
 
         writeln!(&mut msg, "<!--")?;
@@ -134,7 +134,7 @@ fn message_from_commits(name: &str, commits: Vec<git::raw::Commit>) -> Result<St
         writeln!(&mut msg)?;
     }
 
-    Ok(msg.trim().to_string())
+    Ok(msg)
 }
 
 /// Return commits between the merge base and a head.
@@ -166,6 +166,8 @@ fn create_display_message(
     }
 
     let summary = message_from_commits("patch", commits)?;
+    let summary = summary.trim();
+
     Ok(format!("{summary}\n{PATCH_MSG}"))
 }
 
@@ -243,6 +245,8 @@ fn update_display_message(
     }
 
     let summary = message_from_commits("patch", commits)?;
+    let summary = summary.trim();
+
     Ok(format!("{summary}\n{REVISION_MSG}"))
 }
 
@@ -332,8 +336,18 @@ mod test {
         let tmpdir = tempfile::tempdir().unwrap();
         let (repo, commit_0) = fixtures::repository(&tmpdir);
         let commit_0 = commit_0.into();
-        let commit_1 = commit(&repo, &refname!("feature"), &commit_0, "commit 1");
-        let commit_2 = commit(&repo, &refname!("feature"), &commit_1, "commit 2");
+        let commit_1 = commit(
+            &repo,
+            &refname!("feature"),
+            &commit_0,
+            "Commit 1\n\nDescription\n",
+        );
+        let commit_2 = commit(
+            &repo,
+            &refname!("feature"),
+            &commit_1,
+            "Commit 2\n\nDescription\n",
+        );
 
         let res = create_display_message(&repo, &commit_0, &commit_0).unwrap();
         assert_eq!(
@@ -354,7 +368,9 @@ mod test {
         let res = create_display_message(&repo, &commit_0, &commit_1).unwrap();
         assert_eq!(
             "\
-            commit 1\n\
+            Commit 1\n\
+            \n\
+            Description\n\
             \n\
             <!--\n\
             Please enter a patch message for your changes. An empty\n\
@@ -377,13 +393,17 @@ mod test {
             This is the first commit message:\n\
             -->\n\
             \n\
-            commit 1\n\
+            Commit 1\n\
+            \n\
+            Description\n\
             \n\
             <!--\n\
             This is commit message #2:\n\
             -->\n\
             \n\
-            commit 2\n\
+            Commit 2\n\
+            \n\
+            Description\n\
             \n\
             <!--\n\
             Please enter a patch message for your changes. An empty\n\
@@ -428,8 +448,8 @@ mod test {
         let (repo, commit_0) = fixtures::repository(&tmpdir);
         let commit_0 = commit_0.into();
 
-        let commit_1 = commit(&repo, &refname!("feature"), &commit_0, "commit 1");
-        let commit_2 = commit(&repo, &refname!("feature"), &commit_1, "commit 2");
+        let commit_1 = commit(&repo, &refname!("feature"), &commit_0, "commit 1\n");
+        let commit_2 = commit(&repo, &refname!("feature"), &commit_1, "commit 2\n");
         let commit_squashed = commit(
             &repo,
             &refname!("squashed-feature"),
