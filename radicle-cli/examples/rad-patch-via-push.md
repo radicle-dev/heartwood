@@ -222,3 +222,15 @@ $ rad patch show b8ab1c9
 │ ↑ updated to f24334f8cea7b7a5bcaf3bc6deb1408c9bf507ad (9304dbc) [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
+
+## Empty patch
+
+If we try to open a patch without making any changes to our base branch (`master`),
+we should get an error:
+
+``` (stderr) (fail)
+$ git push rad master:refs/patches
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+ ! [remote rejected] master -> refs/patches (patch commits are already included in the base branch)
+error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
+```

@@ -71,6 +71,9 @@ pub enum Error {
     /// Patch not found in store.
     #[error("patch `{0}` not found")]
     NotFound(patch::PatchId),
+    /// Patch is empty.
+    #[error("patch commits are already included in the base branch")]
+    EmptyPatch,
     /// COB store error.
     #[error(transparent)]
     Cob(#[from] radicle::cob::store::Error),
@@ -259,6 +262,9 @@ fn patch_open<G: Signer>(
 
     let (_, target) = stored.canonical_head()?;
     let base = stored.backend.merge_base(*target, commit.id())?;
+    if base == commit.id() {
+        return Err(Error::EmptyPatch);
+    }
     let (title, description) = cli::patch::get_create_message(
         opts.message,
         &stored.backend,
