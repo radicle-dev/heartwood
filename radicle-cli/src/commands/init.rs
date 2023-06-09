@@ -29,15 +29,16 @@ Usage
 
 Options
 
-        --name               Name of the project
-        --description        Description of the project
-        --default-branch     The default branch of the project
-    -u, --set-upstream       Setup the upstream of the default branch
-        --setup-signing      Setup the radicle key as a signing key for this repository
-        --announce           Announce the new project to the network
-        --no-confirm         Don't ask for confirmation during setup
-    -v, --verbose            Verbose mode
-        --help               Print help
+        --name <string>            Name of the project
+        --description <string>     Description of the project
+        --default-branch <name>    The default branch of the project
+        --scope <scope>            Tracking scope (default: all)
+    -u, --set-upstream             Setup the upstream of the default branch
+        --setup-signing            Setup the radicle key as a signing key for this repository
+        --announce                 Announce the new project to the network
+        --no-confirm               Don't ask for confirmation during setup
+    -v, --verbose                  Verbose mode
+        --help                     Print help
 "#,
 };
 
@@ -49,6 +50,7 @@ pub struct Options {
     pub branch: Option<String>,
     pub interactive: Interactive,
     pub setup_signing: bool,
+    pub scope: Scope,
     pub set_upstream: bool,
     pub announce: bool,
     pub verbose: bool,
@@ -69,6 +71,7 @@ impl Args for Options {
         let mut set_upstream = false;
         let mut setup_signing = false;
         let mut announce = false;
+        let mut scope = Scope::All;
         let mut track = true;
         let mut verbose = false;
 
@@ -106,6 +109,11 @@ impl Args for Options {
 
                     branch = Some(value);
                 }
+                Long("scope") => {
+                    let value = parser.value()?;
+
+                    scope = term::args::parse_value("scope", value)?;
+                }
                 Long("set-upstream") | Short('u') => {
                     set_upstream = true;
                 }
@@ -140,6 +148,7 @@ impl Args for Options {
                 name,
                 description,
                 branch,
+                scope,
                 interactive,
                 set_upstream,
                 setup_signing,
@@ -222,7 +231,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             if options.track && node.is_running() {
                 // It's important to track our own repositories to make sure that our node signals
                 // interest for them. This ensures that messages relating to them are relayed to us.
-                node.track_repo(id, Scope::default())?;
+                node.track_repo(id, options.scope)?;
             }
 
             spinner.message(format!(
