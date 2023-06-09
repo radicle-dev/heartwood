@@ -106,14 +106,19 @@ impl IssueBrowser {
 }
 
 impl WidgetComponent for IssueBrowser {
-    fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
         let shortcuts_h = self
             .shortcuts
             .query(Attribute::Height)
             .unwrap_or(AttrValue::Size(0))
             .unwrap_size();
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
         let layout = layout::root_component(area, shortcuts_h);
 
+        self.table.attr(Attribute::Focus, AttrValue::Flag(focus));
         self.table.view(frame, layout[0]);
         self.shortcuts.view(frame, layout[1])
     }
@@ -187,14 +192,19 @@ impl PatchBrowser {
 }
 
 impl WidgetComponent for PatchBrowser {
-    fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
         let shortcuts_h = self
             .shortcuts
             .query(Attribute::Height)
             .unwrap_or(AttrValue::Size(0))
             .unwrap_size();
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
         let layout = layout::root_component(area, shortcuts_h);
 
+        self.table.attr(Attribute::Focus, AttrValue::Flag(focus));
         self.table.view(frame, layout[0]);
         self.shortcuts.view(frame, layout[1]);
     }

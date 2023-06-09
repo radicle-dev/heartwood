@@ -45,8 +45,8 @@ pub fn container_header(theme: &Theme, label: Widget<Label>) -> Widget<Header<1>
     Widget::new(header)
 }
 
-pub fn container(_theme: &Theme, component: Box<dyn MockComponent>) -> Widget<Container> {
-    let container = Container::new(component);
+pub fn container(theme: &Theme, component: Box<dyn MockComponent>) -> Widget<Container> {
+    let container = Container::new(component, theme.clone());
     Widget::new(container)
 }
 
@@ -59,7 +59,7 @@ pub fn labeled_container(
         theme,
         label(&format!(" {title} ")).foreground(theme.colors.default_fg),
     );
-    let container = LabeledContainer::new(header, component);
+    let container = LabeledContainer::new(header, component, theme.clone());
 
     Widget::new(container)
 }

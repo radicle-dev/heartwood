@@ -1,7 +1,5 @@
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::{
-    AttrValue, Attribute, BorderSides, BorderType, Color, Props, Style, TextModifiers,
-};
+use tuirealm::props::{AttrValue, Attribute, BorderSides, BorderType, Props, Style, TextModifiers};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::tui::widgets::{Block, Cell, Row};
 use tuirealm::{Frame, MockComponent, State, StateValue};
@@ -276,10 +274,20 @@ impl<const W: usize> WidgetComponent for Header<W> {
         let display = properties
             .get_or(Attribute::Display, AttrValue::Flag(true))
             .unwrap_flag();
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
+        let color = if focus {
+            self.theme.colors.container_border_focus_fg
+        } else {
+            self.theme.colors.container_border_fg
+        };
+
         if display {
             let block = HeaderBlock::default()
                 .borders(BorderSides::all())
-                .border_style(Style::default().fg(Color::Rgb(48, 48, 48)))
+                .border_style(Style::default().fg(color))
                 .border_type(BorderType::Rounded);
             frame.render_widget(block, area);
 
@@ -322,11 +330,12 @@ impl<const W: usize> WidgetComponent for Header<W> {
 
 pub struct Container {
     component: Box<dyn MockComponent>,
+    theme: Theme,
 }
 
 impl Container {
-    pub fn new(component: Box<dyn MockComponent>) -> Self {
-        Self { component }
+    pub fn new(component: Box<dyn MockComponent>, theme: Theme) -> Self {
+        Self { component, theme }
     }
 }
 
@@ -335,6 +344,15 @@ impl WidgetComponent for Container {
         let display = properties
             .get_or(Attribute::Display, AttrValue::Flag(true))
             .unwrap_flag();
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
+        let color = if focus {
+            self.theme.colors.container_border_focus_fg
+        } else {
+            self.theme.colors.container_border_fg
+        };
 
         if display {
             // Make some space on the left
@@ -349,7 +367,7 @@ impl WidgetComponent for Container {
 
             let block = Block::default()
                 .borders(BorderSides::ALL)
-                .border_style(Style::default().fg(Color::Rgb(48, 48, 48)))
+                .border_style(Style::default().fg(color))
                 .border_type(BorderType::Rounded);
             frame.render_widget(block, area);
         }
@@ -367,11 +385,16 @@ impl WidgetComponent for Container {
 pub struct LabeledContainer {
     header: Widget<Header<1>>,
     component: Box<dyn MockComponent>,
+    theme: Theme,
 }
 
 impl LabeledContainer {
-    pub fn new(header: Widget<Header<1>>, component: Box<dyn MockComponent>) -> Self {
-        Self { header, component }
+    pub fn new(header: Widget<Header<1>>, component: Box<dyn MockComponent>, theme: Theme) -> Self {
+        Self {
+            header,
+            component,
+            theme,
+        }
     }
 }
 
@@ -380,6 +403,16 @@ impl WidgetComponent for LabeledContainer {
         let display = properties
             .get_or(Attribute::Display, AttrValue::Flag(true))
             .unwrap_flag();
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
+        let color = if focus {
+            self.theme.colors.container_border_focus_fg
+        } else {
+            self.theme.colors.container_border_fg
+        };
+
         let header_height = self
             .header
             .query(Attribute::Height)
@@ -399,14 +432,17 @@ impl WidgetComponent for LabeledContainer {
                 .constraints(vec![Constraint::Length(1), Constraint::Min(0)].as_ref())
                 .split(layout[1]);
             // reverse draw order: child needs to be drawn first?
+
+            self.component.attr(Attribute::Focus, AttrValue::Flag(focus));
             self.component.view(frame, inner_layout[1]);
 
             let block = Block::default()
                 .borders(BorderSides::BOTTOM | BorderSides::LEFT | BorderSides::RIGHT)
-                .border_style(Style::default().fg(Color::Rgb(48, 48, 48)))
+                .border_style(Style::default().fg(color))
                 .border_type(BorderType::Rounded);
             frame.render_widget(block, layout[1]);
 
+            self.header.attr(Attribute::Focus, AttrValue::Flag(focus));
             self.header.view(frame, layout[0]);
         }
     }
