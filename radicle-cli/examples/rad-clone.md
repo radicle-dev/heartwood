@@ -3,7 +3,7 @@ To create a local copy of a repository on the radicle network, we use the
 
 ```
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Tracking relationship established for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+✓ Tracking relationship established for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Forking under z6Mkt67…v4N1tRk..
 ✓ Creating checkout in ./heartwood..

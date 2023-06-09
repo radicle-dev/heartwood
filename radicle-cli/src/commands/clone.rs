@@ -22,7 +22,6 @@ use crate::commands::rad_sync as sync;
 use crate::project;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::Interactive;
 
 pub const HELP: Help = Help {
     name: "clone",
@@ -31,13 +30,13 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad clone <rid> [<option>...]
+    rad clone <rid> [--scope <scope>] [<option>...]
 
 Options
 
-    --no-announce   Do not announce our new refs to the network
-    --no-confirm    Don't ask for confirmation during clone
-    --help          Print help
+    --scope <scope>   Tracking scope (default: all)
+    --no-announce     Do not announce our new refs to the network
+    --help            Print help
 
 "#,
 };
@@ -45,9 +44,8 @@ Options
 #[derive(Debug)]
 pub struct Options {
     id: Id,
-    #[allow(dead_code)]
-    interactive: Interactive,
     announce: bool,
+    scope: Scope,
 }
 
 impl Args for Options {
@@ -56,13 +54,19 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<Id> = None;
-        let mut interactive = Interactive::Yes;
         let mut announce = true;
+        let mut scope = Scope::All;
 
         while let Some(arg) = parser.next()? {
             match arg {
+                Long("scope") => {
+                    let value = parser.value()?;
+
+                    scope = term::args::parse_value("scope", value)?;
+                }
                 Long("no-confirm") => {
-                    interactive = Interactive::No;
+                    // We keep this flag here for consistency though it doesn't have any effect,
+                    // since the command is fully non-interactive.
                 }
                 Long("no-announce") => {
                     announce = false;
@@ -89,7 +93,7 @@ impl Args for Options {
         Ok((
             Options {
                 id,
-                interactive,
+                scope,
                 announce,
             },
             vec![],
@@ -104,6 +108,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let (working, doc, proj) = clone(
         options.id,
         options.announce,
+        options.scope,
         &mut node,
         &signer,
         &profile.storage,
@@ -163,6 +168,7 @@ pub enum CloneError {
 pub fn clone<G: Signer>(
     id: Id,
     announce: bool,
+    scope: Scope,
     node: &mut Node,
     signer: &G,
     storage: &Storage,
@@ -170,9 +176,9 @@ pub fn clone<G: Signer>(
     let me = *signer.public_key();
 
     // Track.
-    if node.track_repo(id, Scope::default())? {
+    if node.track_repo(id, scope)? {
         term::success!(
-            "Tracking relationship established for {}",
+            "Tracking relationship established for {} with scope '{scope}'",
             term::format::tertiary(id)
         );
     }

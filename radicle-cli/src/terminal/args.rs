@@ -54,7 +54,7 @@ where
 {
     value
         .into_string()
-        .map_err(|_| anyhow!("the value specified for '--{}' is not valid unicode", flag))?
+        .map_err(|_| anyhow!("the value specified for '--{}' is not valid UTF-8", flag))?
         .parse()
         .map_err(|e| anyhow!("invalid value specified for '--{}' ({})", flag, e))
 }

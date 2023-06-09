@@ -89,11 +89,7 @@ impl Args for Options {
                 (Long("scope"), Some(Operation::TrackRepo { scope, .. })) => {
                     let val = parser.value()?;
 
-                    *scope = val
-                        .to_str()
-                        .to_owned()
-                        .ok_or_else(|| anyhow!("scope specified is not UTF-8"))?
-                        .parse()?;
+                    *scope = term::args::parse_value("scope", val)?;
                 }
                 (Long("fetch"), Some(Operation::TrackRepo { .. })) => fetch = true,
                 (Long("no-fetch"), Some(Operation::TrackRepo { .. })) => fetch = false,
