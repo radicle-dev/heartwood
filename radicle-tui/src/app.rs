@@ -61,6 +61,7 @@ pub enum HomeMessage {}
 pub enum IssueMessage {
     Show(IssueId),
     Changed(IssueId),
+    Focus(IssueCid),
     Leave,
 }
 

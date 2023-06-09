@@ -202,17 +202,16 @@ impl ViewPage for IssuePage {
         theme: &Theme,
         message: Message,
     ) -> Result<()> {
-        if let Message::Issue(IssueMessage::Changed(id)) = message {
-            let repo = context.repository();
-            if let Some(issue) = cob::issue::find(repo, &id)? {
-                let details = widget::issue::details(context, theme, (id, issue)).to_boxed();
-                app.remount(Cid::Issue(IssueCid::Details), details, vec![])?;
+        match message {
+            Message::Issue(IssueMessage::Changed(id)) => {
+                let repo = context.repository();
+                if let Some(issue) = cob::issue::find(repo, &id)? {
+                    let details = widget::issue::details(context, theme, (id, issue)).to_boxed();
+                    app.remount(Cid::Issue(IssueCid::Details), details, vec![])?;
+                }
             }
-            Message::Issue(IssueMessage::FocusList) => {
-                app.active(&Cid::Issue(IssueCid::List))?;
-            }
-            Message::Issue(IssueMessage::FocusDiscussion) => {
-                app.active(&Cid::Issue(IssueCid::Discussion))?;
+            Message::Issue(IssueMessage::Focus(cid)) => {
+                app.active(&Cid::Issue(cid))?;
             }
             _ => {}
         }
