@@ -131,3 +131,17 @@ impl Config {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_node_announcement() {
+        let cfg = Config {
+            alias: Some(String::from("cloudhead")),
+            ..Config::default()
+        };
+        assert_eq!("cloudhead", cfg.node(0).alias().unwrap());
+    }
+}

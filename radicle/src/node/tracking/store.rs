@@ -257,7 +257,7 @@ impl Config {
     }
 }
 
-impl AliasStore for &Config {
+impl AliasStore for Config {
     /// Retrieve `alias` of given node.
     /// Calls `Self::node_policy` under the hood.
     fn alias(&self, nid: &NodeId) -> Option<String> {

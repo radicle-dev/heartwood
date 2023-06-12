@@ -191,13 +191,13 @@ pub struct Aliases {
     addresses: address::Book,
 }
 
-impl AliasStore for &Aliases {
+impl AliasStore for Aliases {
     /// Retrieve `alias` of given node.
-    /// First looks in `tracking.db` and then `address.db`,
+    /// First looks in `tracking.db` and then `address.db`.
     fn alias(&self, nid: &NodeId) -> Option<String> {
-        (&&self.tracking as &dyn AliasStore)
+        self.tracking
             .alias(nid)
-            .or_else(|| (&self.addresses as &dyn AliasStore).alias(nid))
+            .or_else(|| self.addresses.alias(nid))
     }
 }
 

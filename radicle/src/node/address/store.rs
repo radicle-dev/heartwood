@@ -77,7 +77,7 @@ impl Store for Book {
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
             let features = row.read::<node::Features, _>("features");
-            let alias = row.read::<&str, _>("alias").to_owned();
+            let alias = row.read::<Option<&str>, _>("alias").map(ToOwned::to_owned);
             let timestamp = row.read::<i64, _>("timestamp") as Timestamp;
             let pow = row.read::<i64, _>("pow") as u32;
             let mut addrs = Vec::new();
@@ -143,6 +143,11 @@ impl Store for Book {
                  SET features = ?2, alias = ?3, pow = ?4, timestamp = ?5
                  WHERE timestamp < ?5",
             )?;
+            let alias = if alias.is_empty() {
+                sql::Value::Null
+            } else {
+                sql::Value::String(alias.to_owned())
+            };
 
             stmt.bind((1, node))?;
             stmt.bind((2, features))?;
@@ -260,7 +265,7 @@ impl AliasStore for Book {
     /// Calls `Self::get` under the hood.
     fn alias(&self, nid: &NodeId) -> Option<String> {
         self.get(nid)
-            .map(|node| node.map(|n| n.alias))
+            .map(|node| node.and_then(|n| n.alias))
             .unwrap_or(None)
     }
 }
@@ -397,6 +402,26 @@ mod test {
     }
 
     #[test]
+    fn test_alias() {
+        let alice = arbitrary::gen::<NodeId>(1);
+        let mut cache = Book::memory().unwrap();
+        let features = node::Features::SEED;
+        let timestamp = LocalTime::now().as_millis();
+
+        cache
+            .insert(&alice, features, "alice", 16, timestamp, [])
+            .unwrap();
+        let node = cache.get(&alice).unwrap().unwrap();
+        assert_eq!(node.alias.as_deref(), Some("alice"));
+
+        cache
+            .insert(&alice, features, "", 16, timestamp + 1, [])
+            .unwrap();
+        let node = cache.get(&alice).unwrap().unwrap();
+        assert_eq!(node.alias.as_deref(), None);
+    }
+
+    #[test]
     fn test_insert_and_get() {
         let alice = arbitrary::gen::<NodeId>(1);
         let mut cache = Book::memory().unwrap();
@@ -419,7 +444,7 @@ mod test {
         assert_eq!(node.features, features);
         assert_eq!(node.pow, 16);
         assert_eq!(node.timestamp, timestamp);
-        assert_eq!(node.alias.as_str(), "alice");
+        assert_eq!(node.alias.as_deref(), Some("alice"));
         assert_eq!(node.addrs, vec![ka]);
     }
 
@@ -478,7 +503,7 @@ mod test {
         assert!(!updated, "Can't update using a smaller timestamp");
 
         let node = cache.get(&alice).unwrap().unwrap();
-        assert_eq!(node.alias, "alice");
+        assert_eq!(node.alias.as_deref(), Some("alice"));
         assert_eq!(node.timestamp, timestamp);
         assert_eq!(node.pow, 0);
 
@@ -501,7 +526,7 @@ mod test {
 
         let node = cache.get(&alice).unwrap().unwrap();
         assert_eq!(node.features, node::Features::NONE);
-        assert_eq!(node.alias, "~alice~");
+        assert_eq!(node.alias.as_deref(), Some("~alice~"));
         assert_eq!(node.timestamp, timestamp + 2);
         assert_eq!(node.pow, 1);
         assert_eq!(node.addrs, vec![ka]);

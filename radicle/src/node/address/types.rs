@@ -78,7 +78,7 @@ impl<K, V> DerefMut for AddressBook<K, V> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Node {
     /// Advertized alias.
-    pub alias: String,
+    pub alias: Option<String>,
     /// Advertized features.
     pub features: node::Features,
     /// Advertized addresses

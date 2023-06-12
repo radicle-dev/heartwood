@@ -121,7 +121,12 @@ impl NodeAnnouncement {
 
     /// Get the alias as a UTF-8 string.
     pub fn alias(&self) -> Result<&str, std::str::Utf8Error> {
-        str::from_utf8(&self.alias)
+        let length = self
+            .alias
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(self.alias.len());
+        str::from_utf8(&self.alias[..length])
     }
 }
 

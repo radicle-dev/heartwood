@@ -5,7 +5,7 @@ pub mod events;
 pub mod routing;
 pub mod tracking;
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 use std::ops::Deref;
 use std::os::unix::net::UnixStream;
@@ -705,6 +705,24 @@ impl Handle for Node {
 pub trait AliasStore {
     /// Returns alias of a `NodeId`.
     fn alias(&self, nid: &NodeId) -> Option<String>;
+}
+
+impl<T: AliasStore + ?Sized> AliasStore for &T {
+    fn alias(&self, nid: &NodeId) -> Option<String> {
+        dbg!((*self).alias(nid))
+    }
+}
+
+impl<T: AliasStore + ?Sized> AliasStore for Box<T> {
+    fn alias(&self, nid: &NodeId) -> Option<String> {
+        self.deref().alias(nid)
+    }
+}
+
+impl AliasStore for HashMap<NodeId, String> {
+    fn alias(&self, nid: &NodeId) -> Option<String> {
+        dbg!(self.get(nid).map(ToOwned::to_owned))
+    }
 }
 
 #[cfg(test)]

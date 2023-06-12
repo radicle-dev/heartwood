@@ -457,7 +457,7 @@ async fn issues_handler(
     let aliases = &ctx.profile.aliases()?;
     let issues = issues
         .into_iter()
-        .map(|(id, issue, _)| api::json::issue(id, issue, &aliases))
+        .map(|(id, issue, _)| api::json::issue(id, issue, aliases))
         .skip(page * per_page)
         .take(per_page)
         .collect::<Vec<_>>();
@@ -568,7 +568,7 @@ async fn issue_handler(
     let issue = issue::Issues::open(&repo)?
         .get(&issue_id.into())?
         .ok_or(Error::NotFound)?;
-    let aliases = &ctx.profile.aliases()?;
+    let aliases = ctx.profile.aliases()?;
 
     Ok::<_, Error>(Json(api::json::issue(issue_id.into(), issue, &aliases)))
 }
@@ -720,7 +720,7 @@ async fn patches_handler(
         })
         .collect::<Vec<_>>();
     patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
-    let aliases = &ctx.profile.aliases()?;
+    let aliases = ctx.profile.aliases()?;
     let patches = patches
         .into_iter()
         .map(|(id, patch, _)| api::json::patch(id, patch, &repo, &aliases))
@@ -742,7 +742,7 @@ async fn patch_handler(
     let patch = patch::Patches::open(&repo)?
         .get(&patch_id.into())?
         .ok_or(Error::NotFound)?;
-    let aliases = &ctx.profile.aliases()?;
+    let aliases = ctx.profile.aliases()?;
 
     Ok::<_, Error>(Json(api::json::patch(
         patch_id.into(),
