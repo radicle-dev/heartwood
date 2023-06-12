@@ -60,6 +60,7 @@ We can then setup a git remote for `bob`:
 ```
 $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
 ✓ Remote bob added
+✓ Remote-tracking branch bob/master created for z6Mkt67…v4N1tRk
 ```
 
 And fetch his refs:

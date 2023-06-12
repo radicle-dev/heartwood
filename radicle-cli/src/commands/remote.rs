@@ -12,6 +12,7 @@ use anyhow::anyhow;
 
 use radicle::git::RefString;
 use radicle::prelude::NodeId;
+use radicle::storage::ReadStorage;
 
 use crate::terminal::args;
 use crate::terminal::{Args, Context, Help};
@@ -119,8 +120,12 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
     match options.op {
-        // TODO: Support remote-tracking.
-        Operation::Add { ref id, name } => self::add::run(rid, id, name, None, &profile, &working)?,
+        Operation::Add { ref id, name } => {
+            let proj = profile.storage.repository(rid)?.project()?;
+            let branch = proj.default_branch();
+
+            self::add::run(rid, id, name, Some(branch.clone()), &profile, &working)?
+        }
         Operation::Rm { ref name } => self::rm::run(name, &working)?,
         Operation::List => self::list::run(&working)?,
     };

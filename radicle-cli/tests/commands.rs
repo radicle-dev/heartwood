@@ -832,6 +832,7 @@ fn rad_remote() {
     let bob = environment.node("bob");
     let working = environment.tmp().join("working");
     let home = alice.home.clone();
+    let rid = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
     // Setup a test repository.
     fixtures::repository(working.join("alice"));
 
@@ -844,10 +845,18 @@ fn rad_remote() {
     .unwrap();
 
     let mut alice = alice.spawn(Config::default());
+    let mut bob = bob.spawn(Config::default());
     alice
         .handle
         .track_node(bob.id, Some("bob".to_owned()))
         .unwrap();
+
+    bob.connect(&alice);
+    bob.routes_to(&[(rid, alice.id)]);
+    bob.rad("clone", &[rid.to_string().as_str()], &working)
+        .unwrap();
+
+    alice.has_inventory_of(&rid, &bob.id);
 
     test(
         "examples/rad-remote.md",
