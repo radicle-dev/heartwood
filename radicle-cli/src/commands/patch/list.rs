@@ -98,7 +98,8 @@ pub fn row(
 ) -> anyhow::Result<[term::Line; 9]> {
     let state = patch.state();
     let (_, revision) = patch.latest();
-    let stats = common::diff_stats(repository.raw(), revision.base(), &revision.head())?;
+    let (from, to) = patch.range(repository)?;
+    let stats = common::diff_stats(repository.raw(), &from, &to)?;
     let author = patch.author().id;
 
     Ok([

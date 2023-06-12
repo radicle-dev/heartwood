@@ -10,17 +10,15 @@ use radicle_term::{
 
 use crate::terminal as term;
 
-use super::common::*;
 use super::*;
 
-fn show_patch_diff(patch: &patch::Patch, storage: &Repository) -> anyhow::Result<()> {
-    let target_head = patch_merge_target_oid(patch.target(), storage)?;
-    let base_oid = storage.raw().merge_base(target_head, **patch.head())?;
-    let diff = format!("{}..{}", base_oid, patch.head());
+fn show_patch_diff(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<()> {
+    let (from, to) = patch.range(stored)?;
+    let range = format!("{}..{}", from, to);
 
     process::Command::new("git")
-        .current_dir(storage.path())
-        .args(["log", "--patch", &diff])
+        .current_dir(stored.path())
+        .args(["log", "--patch", &range])
         .stdout(process::Stdio::inherit())
         .stderr(process::Stdio::inherit())
         .spawn()?
@@ -30,7 +28,8 @@ fn show_patch_diff(patch: &patch::Patch, storage: &Repository) -> anyhow::Result
 }
 
 fn patch_commits(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<Vec<term::Line>> {
-    let range = format!("{}..{}", patch.base(), patch.head());
+    let (from, to) = patch.range(stored)?;
+    let range = format!("{}..{}", from, to);
 
     let mut revwalk = stored.revwalk(*patch.head())?;
     let mut lines = Vec::new();
@@ -67,8 +66,11 @@ pub fn run(
     let (_, revision) = patch.latest();
     let state = patch.state();
     let branches = common::branches(&revision.head(), workdir)?;
-    let target_head = common::patch_merge_target_oid(patch.target(), stored)?;
-    let ahead_behind = common::ahead_behind(stored.raw(), revision.head().into(), target_head)?;
+    let ahead_behind = common::ahead_behind(
+        stored.raw(),
+        *revision.head(),
+        *patch.target().head(stored)?,
+    )?;
 
     let mut attrs = Table::<2, term::Line>::new(TableOptions {
         spacing: 2,

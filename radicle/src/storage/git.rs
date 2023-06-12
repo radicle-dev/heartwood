@@ -595,6 +595,13 @@ impl ReadRepository for Repository {
         }
         Ok(longest.into())
     }
+
+    fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, ext::Error> {
+        self.backend
+            .merge_base(**left, **right)
+            .map(Oid::from)
+            .map_err(ext::Error::from)
+    }
 }
 
 impl WriteRepository for Repository {

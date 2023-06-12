@@ -24,6 +24,7 @@ use crate::cob::thread::Thread;
 use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
+use crate::identity;
 use crate::identity::doc::DocError;
 use crate::identity::PayloadError;
 use crate::prelude::*;
@@ -153,6 +154,18 @@ pub enum MergeTarget {
     /// If it were otherwise, patches could become un-mergeable.
     #[default]
     Delegates,
+}
+
+impl MergeTarget {
+    /// Get the head of the target branch.
+    pub fn head<R: ReadRepository>(&self, repo: &R) -> Result<git::Oid, identity::IdentityError> {
+        match self {
+            MergeTarget::Delegates => {
+                let (_, target) = repo.head()?;
+                Ok(target)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -290,6 +303,28 @@ impl Patch {
         &self.latest().1.base
     }
 
+    /// Get the merge base of this patch.
+    pub fn merge_base<R: ReadRepository>(&self, repo: &R) -> Result<git::Oid, git::ext::Error> {
+        let target = self.target().head(repo).map_err(|_| {
+            git::ext::Error::NotFound(git::ext::NotFound::NoSuchBranch(String::from("HEAD")))
+        })?;
+        let base = repo.merge_base(&target, self.head())?;
+
+        Ok(base)
+    }
+
+    /// Get the commit range of this patch.
+    pub fn range<R: ReadRepository>(
+        &self,
+        repo: &R,
+    ) -> Result<(git::Oid, git::Oid), git::ext::Error> {
+        if self.is_merged() {
+            Ok((*self.base(), *self.head()))
+        } else {
+            Ok((self.merge_base(repo)?, *self.head()))
+        }
+    }
+
     /// Index of latest revision in the revisions list.
     pub fn version(&self) -> RevisionIx {
         self.revisions
@@ -318,6 +353,11 @@ impl Patch {
     /// Time of last update.
     pub fn updated_at(&self) -> Timestamp {
         self.latest().1.timestamp()
+    }
+
+    /// Check if the patch is merged.
+    pub fn is_merged(&self) -> bool {
+        matches!(self.state(), State::Merged { .. })
     }
 
     /// Check if the patch is open.

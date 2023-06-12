@@ -1,6 +1,6 @@
-use std::env;
 use std::path::Path;
 use std::str::FromStr;
+use std::{env, fs};
 use std::{thread, time};
 
 use radicle::git;
@@ -274,6 +274,28 @@ fn rad_patch() {
     test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
     test("examples/rad-issue.md", working.path(), Some(home), []).unwrap();
     test("examples/rad-patch.md", working.path(), Some(home), []).unwrap();
+}
+
+#[test]
+fn rad_patch_ahead_behind() {
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let working = tempfile::tempdir().unwrap();
+    let home = &profile.home;
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    fs::write(working.path().join("CONTRIBUTORS"), "Alice Jones\n").unwrap();
+
+    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
+    test(
+        "examples/rad-patch-ahead-behind.md",
+        working.path(),
+        Some(home),
+        [],
+    )
+    .unwrap();
 }
 
 #[test]

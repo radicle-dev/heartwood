@@ -437,6 +437,9 @@ pub trait ReadRepository {
 
     /// Get the repository's identity document at a specific commit.
     fn identity_doc_at(&self, head: Oid) -> Result<identity::Doc<Unverified>, DocError>;
+
+    /// Get the merge base of two commits.
+    fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, git::ext::Error>;
 }
 
 /// Allows read-write access to a repository.

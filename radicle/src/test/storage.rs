@@ -233,6 +233,10 @@ impl ReadRepository for MockRepository {
     fn canonical_identity_head(&self) -> Result<Oid, IdentityError> {
         Ok(Oid::from_str("cccccccccccccccccccccccccccccccccccccccc").unwrap())
     }
+
+    fn merge_base(&self, _left: &Oid, _right: &Oid) -> Result<Oid, git::ext::Error> {
+        todo!()
+    }
 }
 
 impl WriteRepository for MockRepository {

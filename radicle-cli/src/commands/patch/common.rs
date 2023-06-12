@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context};
 
-use radicle::cob::patch::{Clock, MergeTarget, Patch, PatchId, Patches};
+use radicle::cob::patch::{Clock, Patch, PatchId, Patches};
 use radicle::git;
 use radicle::git::raw::Oid;
 use radicle::prelude::*;
@@ -50,22 +50,6 @@ pub fn get_merge_target(
     }
 
     Ok((get_branch(qualified_ref), (*target_oid).into()))
-}
-
-/// Return the [`Oid`] of the merge target.
-pub fn patch_merge_target_oid(target: MergeTarget, repository: &Repository) -> anyhow::Result<Oid> {
-    match target {
-        MergeTarget::Delegates => {
-            if let Ok((_, target)) = repository.head() {
-                Ok(*target)
-            } else {
-                anyhow::bail!(
-                    "failed to determine default branch head for project {}",
-                    repository.id,
-                );
-            }
-        }
-    }
 }
 
 /// Get the diff stats between two commits.
