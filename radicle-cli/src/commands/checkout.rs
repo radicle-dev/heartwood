@@ -1,9 +1,13 @@
+#![allow(clippy::box_default)]
+use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
 use anyhow::anyhow;
 use anyhow::Context as _;
 
+use radicle::git;
+use radicle::node::AliasStore;
 use radicle::prelude::*;
 use radicle::storage::git::transport;
 
@@ -118,31 +122,63 @@ fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     // Setup remote tracking branches for project delegates.
     setup_remotes(
         project::SetupRemote {
-            project: id,
-            default_branch: payload.default_branch().clone(),
+            rid: id,
+            tracking: Some(payload.default_branch().clone()),
             repo: &repo,
             fetch: true,
-            tracking: true,
         },
         &remotes,
+        profile,
     )?;
 
     Ok(path)
 }
 
 /// Setup a remote and tracking branch for each given remote.
-pub fn setup_remotes(setup: project::SetupRemote, remotes: &[NodeId]) -> anyhow::Result<()> {
+pub fn setup_remotes(
+    setup: project::SetupRemote,
+    remotes: &[NodeId],
+    profile: &Profile,
+) -> anyhow::Result<()> {
+    let aliases = if let Ok(aliases) = profile.aliases() {
+        Box::new(aliases) as Box<dyn AliasStore>
+    } else {
+        Box::new(HashMap::new()) as Box<dyn AliasStore>
+    };
     for remote_id in remotes {
-        if let Some((remote, branch)) = setup.run(*remote_id)? {
-            let remote = remote.name().unwrap(); // Only valid UTF-8 is used.
-
-            term::success!("Remote {} created", term::format::tertiary(remote));
-            term::success!(
-                "Remote-tracking branch {} created for {}",
-                term::format::tertiary(branch),
-                term::format::tertiary(term::format::node(remote_id))
-            );
+        if let Err(e) = setup_remote(&setup, remote_id, None, &aliases) {
+            term::warning(format!("Failed to setup remote for {remote_id}: {e}").as_str());
         }
+    }
+    Ok(())
+}
+
+/// Setup a remote and tracking branch for the given remote.
+pub fn setup_remote(
+    setup: &project::SetupRemote,
+    remote_id: &NodeId,
+    remote_name: Option<git::RefString>,
+    aliases: &impl AliasStore,
+) -> anyhow::Result<()> {
+    let remote_name = if let Some(alias) = remote_name {
+        alias
+    } else {
+        let alias = aliases
+            .alias(remote_id)
+            .unwrap_or_else(|| remote_id.to_string());
+        git::RefString::try_from(alias.clone())
+            .map_err(|_| anyhow!("invalid remote name: '{alias}'"))?
+    };
+    let (remote, branch) = setup.run(remote_name, *remote_id)?;
+
+    term::success!("Remote {} added", term::format::tertiary(remote.name));
+
+    if let Some(branch) = branch {
+        term::success!(
+            "Remote-tracking branch {} created for {}",
+            term::format::tertiary(branch),
+            term::format::tertiary(term::format::node(remote_id))
+        );
     }
     Ok(())
 }

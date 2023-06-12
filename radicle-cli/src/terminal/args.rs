@@ -5,6 +5,7 @@ use anyhow::anyhow;
 
 use radicle::cob::{self, issue, patch};
 use radicle::crypto;
+use radicle::git::RefString;
 use radicle::node::Address;
 use radicle::prelude::{Did, Id, NodeId};
 
@@ -75,6 +76,20 @@ pub fn finish(unparsed: Vec<OsString>) -> anyhow::Result<()> {
         ));
     }
     Ok(())
+}
+
+pub fn refstring(flag: &str, value: OsString) -> anyhow::Result<RefString> {
+    RefString::try_from(
+        value
+            .into_string()
+            .map_err(|_| anyhow!("the value specified for '--{}' is not valid UTF-8", flag))?,
+    )
+    .map_err(|_| {
+        anyhow!(
+            "the value specified for '--{}' is not a valid ref string",
+            flag
+        )
+    })
 }
 
 pub fn did(val: &OsString) -> anyhow::Result<Did> {

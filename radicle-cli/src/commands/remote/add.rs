@@ -1,31 +1,26 @@
-use radicle::{git::Url, prelude::Id, Profile};
+use radicle::git::RefString;
+use radicle::prelude::*;
+use radicle::Profile;
 use radicle_crypto::PublicKey;
 
-use crate::git::add_remote;
-use crate::{git, terminal as term};
+use crate::commands::rad_checkout as checkout;
+use crate::git;
+use crate::project::SetupRemote;
 
 pub fn run(
-    id: Id,
-    pubkey: &PublicKey,
-    name: Option<String>,
+    rid: Id,
+    nid: &PublicKey,
+    name: Option<RefString>,
+    tracking: Option<BranchName>,
     profile: &Profile,
-    repository: &git::Repository,
+    repo: &git::Repository,
 ) -> anyhow::Result<()> {
-    let name = match name {
-        Some(name) => name,
-        _ => profile
-            .tracking()?
-            .node_policy(pubkey)?
-            .and_then(|node| node.alias)
-            .ok_or(anyhow::anyhow!("a `name` needs to be specified"))?,
+    let aliases = profile.aliases()?;
+    let setup = SetupRemote {
+        rid,
+        tracking,
+        fetch: false,
+        repo,
     };
-    if git::is_remote(repository, &name)? {
-        anyhow::bail!("remote `{name}` already exists");
-    }
-
-    let url = Url::from(id).with_namespace(*pubkey);
-    let remote = add_remote(repository, &name, &url)?;
-    term::success!("Remote {} added with {url}", remote.name,);
-
-    Ok(())
+    checkout::setup_remote(&setup, nid, name, &aliases)
 }

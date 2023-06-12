@@ -24,7 +24,7 @@ use radicle::node::TRACKING_DB_FILE;
 use radicle::profile::Home;
 use radicle::profile::Profile;
 use radicle::rad;
-use radicle::storage::{ReadStorage as _, WriteRepository};
+use radicle::storage::{ReadRepository, ReadStorage as _, WriteRepository};
 use radicle::test::fixtures;
 use radicle::Storage;
 
@@ -214,6 +214,27 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             events
                 .wait(
                     |e| matches!(e, Event::SeedDiscovered { .. }),
+                    time::Duration::from_secs(6),
+                )
+                .unwrap();
+        }
+    }
+
+    /// Wait until this node has the inventory of another node.
+    #[track_caller]
+    pub fn has_inventory_of(&self, rid: &Id, nid: &NodeId) {
+        log::debug!(target: "test", "Waiting for {} to have {rid}/{nid}", self.id);
+        let events = self.handle.events();
+
+        loop {
+            if let Ok(repo) = self.storage.repository(*rid) {
+                if repo.identity_of(nid).is_ok() && repo.remote(nid).is_ok() {
+                    break;
+                }
+            }
+            events
+                .wait(
+                    |e| matches!(e, Event::RefsFetched { .. }),
                     time::Duration::from_secs(6),
                 )
                 .unwrap();

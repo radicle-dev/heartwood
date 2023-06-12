@@ -1,46 +1,50 @@
-use radicle::git::raw::Remote;
-use radicle::git::RefString;
 use radicle::prelude::*;
 
 use crate::git;
+use radicle::git::RefStr;
 
 /// Setup a project remote and tracking branch.
 pub struct SetupRemote<'a> {
     /// The project id.
-    pub project: Id,
-    /// The project default branch.
-    pub default_branch: BranchName,
-    /// The repository in which to setup the remote.
-    pub repo: &'a git::Repository,
+    pub rid: Id,
+    /// Whether or not to setup a remote tracking branch.
+    pub tracking: Option<BranchName>,
     /// Whether or not to fetch the remote immediately.
     pub fetch: bool,
-    /// Whether or not to setup a remote tracking branch.
-    pub tracking: bool,
+    /// The repository in which to setup the remote.
+    pub repo: &'a git::Repository,
 }
 
 impl<'a> SetupRemote<'a> {
     /// Run the setup for the given peer.
-    pub fn run(&self, node: NodeId) -> anyhow::Result<Option<(Remote, RefString)>> {
-        let url = radicle::git::Url::from(self.project).with_namespace(node);
-        let mut remote = radicle::git::configure_remote(self.repo, &node.to_string(), &url, &url)?;
+    pub fn run(
+        &self,
+        name: impl AsRef<RefStr>,
+        node: NodeId,
+    ) -> anyhow::Result<(git::Remote, Option<BranchName>)> {
+        let remote_url = radicle::git::Url::from(self.rid).with_namespace(node);
+        let remote_name = name.as_ref();
+
+        if git::is_remote(self.repo, remote_name)? {
+            anyhow::bail!("remote `{remote_name}` already exists");
+        }
+
+        let remote =
+            radicle::git::configure_remote(self.repo, remote_name, &remote_url, &remote_url)?;
+        let mut remote = git::Remote::try_from(remote)?;
 
         // Fetch the refs into the working copy.
         if self.fetch {
             remote.fetch::<&str>(&[], None, None)?;
         }
         // Setup remote-tracking branch.
-        if self.tracking {
-            // SAFETY: Node IDs are valid ref strings.
-            let node_ref = RefString::try_from(node.to_string()).unwrap();
-            let node_ref = node_ref.as_refstr();
-            let branch_name = node_ref.join(&self.default_branch);
-            let local_branch = radicle::git::refs::workdir::branch(
-                node_ref.join(&self.default_branch).as_refstr(),
-            );
-            radicle::git::set_upstream(self.repo, node.to_string(), &branch_name, local_branch)?;
+        if let Some(branch) = &self.tracking {
+            let tracking_branch = remote_name.join(branch);
+            let local_branch = radicle::git::refs::workdir::branch(tracking_branch.as_refstr());
+            radicle::git::set_upstream(self.repo, remote_name, &tracking_branch, local_branch)?;
 
-            return Ok(Some((remote, branch_name)));
+            return Ok((remote, Some(tracking_branch)));
         }
-        Ok(None)
+        Ok((remote, None))
     }
 }

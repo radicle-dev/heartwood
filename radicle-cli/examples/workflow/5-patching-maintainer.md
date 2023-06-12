@@ -15,7 +15,7 @@ peer.  Upcoming versions of radicle will not require this step.
 
 ```
 $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
-✓ Remote bob added with rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+✓ Remote bob added
 ```
 
 ``` (stderr)

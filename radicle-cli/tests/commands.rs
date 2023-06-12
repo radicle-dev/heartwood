@@ -371,6 +371,47 @@ fn rad_clone() {
 }
 
 #[test]
+fn rad_clone_all() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let mut alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let eve = environment.node("eve");
+    let working = environment.tmp().join("working");
+
+    // Setup a test project.
+    let acme = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
+
+    let mut alice = alice.spawn(Config::default());
+    let mut bob = bob.spawn(Config::default());
+    let mut eve = eve.spawn(Config::default());
+
+    alice.handle.track_repo(acme, Scope::All).unwrap();
+    bob.connect(&alice).converge([&alice]);
+    eve.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/rad-clone.md",
+        working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+    bob.has_inventory_of(&acme, &alice.id);
+    alice.has_inventory_of(&acme, &bob.id);
+
+    test(
+        "examples/rad-clone-all.md",
+        working.join("eve"),
+        Some(&eve.home),
+        [],
+    )
+    .unwrap();
+    eve.has_inventory_of(&acme, &bob.id);
+}
+
+#[test]
 fn rad_self() {
     let mut environment = Environment::new();
     let alice = environment.node("alice");

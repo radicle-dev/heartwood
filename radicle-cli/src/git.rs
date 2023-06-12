@@ -4,6 +4,7 @@ use std::fmt::Display;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::Write;
+use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
@@ -74,11 +75,10 @@ pub enum RemoteError {
 
 #[derive(Clone)]
 pub struct Remote<'a> {
-    pub(crate) name: String,
-    pub(crate) url: radicle::git::Url,
-    pub(crate) pushurl: Option<radicle::git::Url>,
+    pub name: String,
+    pub url: radicle::git::Url,
+    pub pushurl: Option<radicle::git::Url>,
 
-    #[allow(dead_code)]
     inner: git2::Remote<'a>,
 }
 
@@ -101,6 +101,20 @@ impl<'a> TryFrom<git2::Remote<'a>> for Remote<'a> {
             pushurl,
             inner: value,
         })
+    }
+}
+
+impl<'a> Deref for Remote<'a> {
+    type Target = git2::Remote<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<'a> DerefMut for Remote<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
 
@@ -271,15 +285,6 @@ pub fn remove_remote(repo: &Repository, rid: &Id) -> anyhow::Result<()> {
         Ok(()) => Ok(()),
         Err(err) => Err(err).context("could not read git remote configuration"),
     }
-}
-
-pub fn add_remote<'a>(
-    repo: &'a Repository,
-    name: &'a str,
-    url: &'a radicle::git::Url,
-) -> anyhow::Result<Remote<'a>> {
-    let remote = repo.remote(name, &url.to_string())?;
-    Ok(Remote::try_from(remote)?)
 }
 
 /// Setup an upstream tracking branch for the given remote and branch.

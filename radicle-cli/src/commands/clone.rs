@@ -126,13 +126,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     radicle::git::configure_repository(&working)?;
     checkout::setup_remotes(
         project::SetupRemote {
-            project: options.id,
-            default_branch,
+            rid: options.id,
+            tracking: Some(default_branch),
             repo: &working,
             fetch: true,
-            tracking: true,
         },
         &delegates,
+        &profile,
     )?;
 
     term::success!(

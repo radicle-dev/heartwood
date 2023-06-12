@@ -10,9 +10,10 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::git::RefString;
 use radicle::prelude::NodeId;
 
-use crate::terminal::args::{self, string, Error};
+use crate::terminal::args;
 use crate::terminal::{Args, Context, Help};
 
 pub const HELP: Help = Help {
@@ -44,8 +45,8 @@ pub enum OperationName {
 
 #[derive(Debug)]
 pub enum Operation {
-    Add { id: NodeId, name: Option<String> },
-    Rm { name: String },
+    Add { id: NodeId, name: Option<RefString> },
+    Rm { name: RefString },
     List,
 }
 
@@ -61,16 +62,17 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut id: Option<NodeId> = None;
-        let mut name: Option<String> = None;
+        let mut name: Option<RefString> = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") => {
-                    return Err(Error::Help.into());
+                    return Err(args::Error::Help.into());
                 }
                 Long("name") | Short('n') => {
                     let value = parser.value()?;
-                    let value = string(&value);
+                    let value = args::refstring("name", value)?;
+
                     name = Some(value);
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
@@ -84,7 +86,10 @@ impl Args for Options {
                     id = Some(nid);
                 }
                 Value(val) if op == Some(OperationName::Rm) && name.is_none() => {
-                    let val = string(&val);
+                    let val = args::string(&val);
+                    let val = RefString::try_from(val)
+                        .map_err(|e| anyhow!("invalid remote name specified: {e}"))?;
+
                     name = Some(val);
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
@@ -114,7 +119,8 @@ pub fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
     match options.op {
-        Operation::Add { ref id, name } => self::add::run(rid, id, name, &profile, &working)?,
+        // TODO: Support remote-tracking.
+        Operation::Add { ref id, name } => self::add::run(rid, id, name, None, &profile, &working)?,
         Operation::Rm { ref name } => self::rm::run(name, &working)?,
         Operation::List => self::list::run(&working)?,
     };
