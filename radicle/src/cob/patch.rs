@@ -305,12 +305,7 @@ impl Patch {
 
     /// Get the merge base of this patch.
     pub fn merge_base<R: ReadRepository>(&self, repo: &R) -> Result<git::Oid, git::ext::Error> {
-        let target = self.target().head(repo).map_err(|_| {
-            git::ext::Error::NotFound(git::ext::NotFound::NoSuchBranch(String::from("HEAD")))
-        })?;
-        let base = repo.merge_base(&target, self.head())?;
-
-        Ok(base)
+        repo.merge_base(self.base(), self.head())
     }
 
     /// Get the commit range of this patch.

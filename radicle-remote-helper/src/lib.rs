@@ -60,6 +60,8 @@ pub struct Options {
     no_sync: bool,
     /// Open patch in draft mode.
     draft: bool,
+    /// Patch base to use, when opening or updating a patch.
+    base: Option<git::Oid>,
     /// Patch message.
     message: cli::patch::Message,
 }
@@ -115,8 +117,18 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                         let args = args.join(" ");
 
                         if let Some((key, val)) = args.split_once('=') {
-                            if key == "patch.message" {
-                                opts.message.append(val);
+                            match key {
+                                "patch.message" => {
+                                    opts.message.append(val);
+                                }
+                                "patch.base" => {
+                                    let base = val.parse()?;
+                                    opts.base = Some(base);
+                                }
+                                _ => {
+                                    println!("unsupported");
+                                    continue;
+                                }
                             }
                         } else {
                             println!("unsupported");

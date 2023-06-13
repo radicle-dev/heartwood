@@ -50,6 +50,9 @@ pub enum Error {
     /// Git error.
     #[error("git: {0}")]
     Git(#[from] git::raw::Error),
+    /// Git extension error.
+    #[error("git: {0}")]
+    GitExt(#[from] git::ext::Error),
     /// Storage error.
     #[error(transparent)]
     Storage(#[from] radicle::storage::Error),
@@ -261,16 +264,17 @@ fn patch_open<G: Signer>(
     push_ref(src, &dst, false, working, stored.raw())?;
 
     let (_, target) = stored.canonical_head()?;
-    let base = stored.backend.merge_base(*target, commit.id())?;
-    if base == commit.id() {
+    let head = commit.id().into();
+    let base = if let Some(base) = opts.base {
+        base
+    } else {
+        stored.merge_base(&target, &head)?
+    };
+    if base == head {
         return Err(Error::EmptyPatch);
     }
-    let (title, description) = cli::patch::get_create_message(
-        opts.message,
-        &stored.backend,
-        &base.into(),
-        &commit.id().into(),
-    )?;
+    let (title, description) =
+        cli::patch::get_create_message(opts.message, &stored.backend, &base, &head)?;
 
     let mut patches = patch::Patches::open(stored)?;
     let patch = if opts.draft {
@@ -401,8 +405,16 @@ fn patch_update<G: Signer>(
     )?;
 
     let (_, target) = stored.canonical_head()?;
-    let base = stored.backend.merge_base(*target, commit.id())?;
-    let revision = patch.update(message, base, commit.id(), signer)?;
+    let head: git::Oid = commit.id().into();
+    let base = if let Some(base) = opts.base {
+        base
+    } else {
+        stored.merge_base(&target, &head)?
+    };
+    if base == head {
+        return Err(Error::EmptyPatch);
+    }
+    let revision = patch.update(message, base, head, signer)?;
 
     eprintln!(
         "{} Patch {} updated to {}",

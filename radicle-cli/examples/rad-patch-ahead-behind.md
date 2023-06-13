@@ -115,6 +115,40 @@ $ rad patch show -v 57cb9b2758518e547de324456ac967fda456c6c1
 │ 7f63fcb Add Mel                                                    │
 │ 5c88a79 Add Alan                                                   │
 ├────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) (z6MknSL…StBU8Vi) 5 months ago                   │
+│ ● opened by (you) (z6MknSL…StBU8Vi) [            ...             ] │
+╰────────────────────────────────────────────────────────────────────╯
+```
+
+If we want to instead create a "stacked" patch, we can do so with the
+`patch.base` push option:
+
+``` (stderr)
+$ git push -o patch.message="Add Mel #2" -o patch.base=5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7 rad HEAD:refs/patches
+✓ Patch 395221c5b75fa9bc2de7909d03e69dfd606611c6 opened
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+ * [new reference]   HEAD -> refs/patches
+```
+
+As you'll notice, using the previous patch as the base, we only see commit
+`7f63fcb` listed for this new patch.
+
+However, since the patch is still intended to be merged into `master`, we see
+that it is still two commits ahead and one behind from `master`.
+
+```
+$ rad patch show -v 395221c5b75fa9bc2de7909d03e69dfd606611c6
+╭────────────────────────────────────────────────────────────────────╮
+│ Title     Add Mel #2                                               │
+│ Patch     395221c5b75fa9bc2de7909d03e69dfd606611c6                 │
+│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
+│ Head      7f63fcbcf23fc39eea784c091ad3d20d7e4bd005                 │
+│ Base      5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7                 │
+│ Branches  feature/2                                                │
+│ Commits   ahead 2, behind 1                                        │
+│ Status    open                                                     │
+├────────────────────────────────────────────────────────────────────┤
+│ 7f63fcb Add Mel                                                    │
+├────────────────────────────────────────────────────────────────────┤
+│ ● opened by (you) (z6MknSL…StBU8Vi) [            ...             ] │
 ╰────────────────────────────────────────────────────────────────────╯
 ```
