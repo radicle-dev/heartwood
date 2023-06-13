@@ -55,6 +55,7 @@ Usage
 Show options
 
     -p, --patch                Show the actual patch diff
+    -v, --verbose              Show additional information about the patch
 
 Edit options
 
@@ -126,6 +127,7 @@ pub enum Operation {
     Show {
         patch_id: Rev,
         diff: bool,
+        verbose: bool,
     },
     Update {
         patch_id: Option<Rev>,
@@ -296,6 +298,7 @@ impl Args for Options {
             OperationName::List => Operation::List { filter },
             OperationName::Show => Operation::Show {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                verbose,
                 diff,
             },
             OperationName::Delete => Operation::Delete {
@@ -355,9 +358,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::List { filter: Filter(f) } => {
             list::run(f, &repository, &profile)?;
         }
-        Operation::Show { patch_id, diff } => {
+        Operation::Show {
+            patch_id,
+            diff,
+            verbose,
+        } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            show::run(&patch_id, diff, &profile, &repository, &workdir)?;
+            show::run(&patch_id, diff, verbose, &profile, &repository, &workdir)?;
         }
         Operation::Update {
             ref patch_id,

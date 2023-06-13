@@ -55,12 +55,13 @@ $ rad patch list
 When showing the patch, we see that it is `ahead 1, behind 1`, since master has
 diverged by one commit:
 ```
-$ rad patch show -p 866f59c
+$ rad patch show -v -p 866f59c
 ╭────────────────────────────────────────────────────────────────────╮
 │ Title     Add Alan                                                 │
 │ Patch     866f59c001cd4d78a151f444b34265566c83c264                 │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
 │ Head      5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7                 │
+│ Base      f64fb2c8fe28f7c458c72ec8d700373924794943                 │
 │ Branches  feature/1                                                │
 │ Commits   ahead 1, behind 1                                        │
 │ Status    open                                                     │
@@ -100,12 +101,13 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 When we look at the patch, we see that it has both commits, because this new
 patch uses the same base as the previous patch:
 ```
-$ rad patch show 57cb9b2758518e547de324456ac967fda456c6c1
+$ rad patch show -v 57cb9b2758518e547de324456ac967fda456c6c1
 ╭────────────────────────────────────────────────────────────────────╮
 │ Title     Add Mel                                                  │
 │ Patch     57cb9b2758518e547de324456ac967fda456c6c1                 │
 │ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
 │ Head      7f63fcbcf23fc39eea784c091ad3d20d7e4bd005                 │
+│ Base      f64fb2c8fe28f7c458c72ec8d700373924794943                 │
 │ Branches  feature/2                                                │
 │ Commits   ahead 2, behind 1                                        │
 │ Status    open                                                     │

@@ -54,6 +54,7 @@ fn patch_commits(patch: &patch::Patch, stored: &Repository) -> anyhow::Result<Ve
 pub fn run(
     patch_id: &PatchId,
     diff: bool,
+    verbose: bool,
     profile: &Profile,
     stored: &Repository,
     // TODO: Should be optional.
@@ -92,6 +93,12 @@ pub fn run(
         term::format::tertiary("Head".to_owned()).into(),
         term::format::secondary(revision.head().to_string()).into(),
     ]);
+    if verbose {
+        attrs.push([
+            term::format::tertiary("Base".to_owned()).into(),
+            term::format::secondary(revision.base().to_string()).into(),
+        ]);
+    }
     if !branches.is_empty() {
         attrs.push([
             term::format::tertiary("Branches".to_owned()).into(),
