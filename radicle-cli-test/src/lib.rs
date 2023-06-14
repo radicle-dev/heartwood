@@ -2,6 +2,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync;
 use std::{env, ffi, fs, io, mem};
 
@@ -16,6 +17,8 @@ static BUILD: sync::Once = sync::Once::new();
 pub enum Error {
     #[error("parsing failed")]
     Parse,
+    #[error("invalid file path: {0:?}")]
+    InvalidFilePath(String),
     #[error("test file not found: {0:?}")]
     TestNotFound(PathBuf),
     #[error("i/o: {0}")]
@@ -172,14 +175,27 @@ impl TestFormula {
     pub fn read(&mut self, path: &Path, r: impl io::BufRead) -> Result<&mut Self, Error> {
         let mut test = Test::default();
         let mut fenced = false; // Whether we're inside a fenced code block.
+        let mut file: Option<(PathBuf, String)> = None; // Path and content of file created by this test block.
 
         for line in r.lines() {
             let line = line?;
 
             if line.starts_with("```") {
                 if fenced {
-                    // End existing code block.
-                    self.tests.push(mem::take(&mut test));
+                    if let Some((ref path, ref mut content)) = file.take() {
+                        // Write file.
+                        let path = self.cwd.join(path);
+
+                        if let Some(dir) = path.parent() {
+                            log::debug!(target: "test", "Creating directory {}..", dir.display());
+                            fs::create_dir_all(dir)?;
+                        }
+                        log::debug!(target: "test", "Writing {} bytes to {}..", content.len(), path.display());
+                        fs::write(path, content)?;
+                    } else {
+                        // End existing code block.
+                        self.tests.push(mem::take(&mut test));
+                    }
                 } else {
                     for token in line.split_whitespace() {
                         if token.contains("stderr") {
@@ -187,6 +203,13 @@ impl TestFormula {
                         }
                         if token.contains("fail") {
                             test.fail = true;
+                        }
+                        if let Some(path) = token.strip_prefix("./") {
+                            file = Some((
+                                PathBuf::from_str(path)
+                                    .map_err(|_| Error::InvalidFilePath(token.to_owned()))?,
+                                String::new(),
+                            ));
                         }
                         if let Some((key, val)) = token.split_once('=') {
                             test.env.insert(key.to_owned(), val.to_owned());
@@ -199,7 +222,10 @@ impl TestFormula {
             }
 
             if fenced {
-                if let Some(line) = line.strip_prefix('$') {
+                if let Some((_, ref mut content)) = file {
+                    content.push_str(line.as_str());
+                    content.push('\n');
+                } else if let Some(line) = line.strip_prefix('$') {
                     let line = line.trim();
                     let parts = shlex::split(line).ok_or(Error::Parse)?;
                     let (cmd, args) = parts.split_first().ok_or(Error::Parse)?;
