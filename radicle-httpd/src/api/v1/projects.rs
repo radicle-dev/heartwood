@@ -871,6 +871,10 @@ mod routes {
                           ],
                           "eof": "noneMissing",
                         },
+                        "new": {
+                          "oid": "980a0d5f19a64b4b30a87d4206aade58726b60e3",
+                          "mode": "blob",
+                        },
                       },
                       {
                         "path": "dir1/README",
@@ -889,7 +893,11 @@ mod routes {
                             }
                           ],
                           "eof": "noneMissing",
-                        }
+                        },
+                        "new": {
+                          "oid": "1dd5654ca2d2cf9f33b14c92b5ca9e1d21a91ae1",
+                          "mode": "blob",
+                        },
                       }
                     ],
                     "deleted": [
@@ -910,6 +918,10 @@ mod routes {
                             },
                           ],
                           "eof": "noneMissing",
+                        },
+                        "old": {
+                          "oid": "82eb77880c693655bce074e3dbbd9fa711dc018b",
+                          "mode": "blob",
                         },
                       },
                     ],
@@ -961,6 +973,10 @@ mod routes {
                           ],
                           "eof": "noneMissing",
                         },
+                        "new": {
+                          "oid": "82eb77880c693655bce074e3dbbd9fa711dc018b",
+                          "mode": "blob",
+                        },
                       },
                     ],
                     "deleted": [
@@ -981,6 +997,10 @@ mod routes {
                             },
                           ],
                           "eof": "noneMissing",
+                        },
+                        "old": {
+                          "oid": "980a0d5f19a64b4b30a87d4206aade58726b60e3",
+                          "mode": "blob",
                         },
                       },
                     ],
@@ -1031,7 +1051,11 @@ mod routes {
                             }
                           ],
                           "eof": "noneMissing",
-                        }
+                        },
+                        "new": {
+                          "oid": "980a0d5f19a64b4b30a87d4206aade58726b60e3",
+                          "mode": "blob",
+                        },
                       }
                     ],
                     "deleted": [],
@@ -1087,20 +1111,24 @@ mod routes {
                   {
                     "path": "README",
                     "diff": {
-                        "type": "plain",
-                        "hunks": [
-                          {
-                            "header": "@@ -0,0 +1 @@\n",
-                            "lines": [
-                              {
-                                "line": "Hello World!\n",
-                                "lineNo": 1,
-                                "type": "addition",
-                              },
-                            ],
-                          },
-                        ],
-                        "eof": "noneMissing",
+                      "type": "plain",
+                      "hunks": [
+                        {
+                          "header": "@@ -0,0 +1 @@\n",
+                          "lines": [
+                            {
+                              "line": "Hello World!\n",
+                              "lineNo": 1,
+                              "type": "addition",
+                            },
+                          ],
+                        },
+                      ],
+                      "eof": "noneMissing",
+                    },
+                    "new": {
+                      "oid": "980a0d5f19a64b4b30a87d4206aade58726b60e3",
+                      "mode": "blob",
                     },
                   },
                   {
@@ -1120,27 +1148,35 @@ mod routes {
                         }
                       ],
                       "eof": "noneMissing",
-                    }
+                    },
+                    "new": {
+                      "oid": "1dd5654ca2d2cf9f33b14c92b5ca9e1d21a91ae1",
+                      "mode": "blob",
+                    },
                   }
                 ],
                 "deleted": [
                   {
                     "path": "CONTRIBUTING",
                     "diff": {
-                        "type": "plain",
-                        "hunks": [
-                          {
-                            "header": "@@ -1 +0,0 @@\n",
-                            "lines": [
-                              {
-                                "line": "Thank you very much!\n",
-                                "lineNo": 1,
-                                "type": "deletion",
-                              },
-                            ],
-                          },
-                        ],
-                        "eof": "noneMissing",
+                      "type": "plain",
+                      "hunks": [
+                        {
+                          "header": "@@ -1 +0,0 @@\n",
+                          "lines": [
+                            {
+                              "line": "Thank you very much!\n",
+                              "lineNo": 1,
+                              "type": "deletion",
+                            },
+                          ],
+                        },
+                      ],
+                      "eof": "noneMissing",
+                    },
+                    "old": {
+                      "oid": "82eb77880c693655bce074e3dbbd9fa711dc018b",
+                      "mode": "blob",
                     },
                   },
                 ],
@@ -1386,6 +1422,10 @@ mod routes {
                           },
                         ],
                         "eof": "noneMissing",
+                      },
+                      "new": {
+                        "oid": "1dd5654ca2d2cf9f33b14c92b5ca9e1d21a91ae1",
+                        "mode": "blob",
                       },
                     },
                   ],

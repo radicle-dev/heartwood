@@ -2140,9 +2140,9 @@ checksum = "db20136bbc9ae63f3fec8e5a6c369f4902fac2244501b5dfc6d668e43475aaa4"
 
 [[package]]
 name = "radicle-surf"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66d6e854e920d75b05463c8466d86c2c00868100947e60575f63bf93bf198f1f"
+checksum = "ccdd33d0fd00cc84309d33d736aa0e208faee7bac6a1a9374c68b5da7675c728"
 dependencies = [
  "anyhow",
  "base64",
