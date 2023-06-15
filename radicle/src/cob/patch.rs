@@ -729,18 +729,16 @@ impl fmt::Display for Verdict {
     }
 }
 
-/// Code location, used for attaching comments.
+/// Code location, used for attaching comments to diffs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CodeLocation {
-    /// File being commented on.
-    pub blob: git::Oid,
-    /// Path of file being commented on.
+    /// Path of file.
     pub path: PathBuf,
-    /// Commit commented on.
-    pub commit: git::Oid,
-    /// Line range commented on.
-    pub lines: Range<usize>,
+    /// Line range on old file. `None` for added files.
+    pub old: Option<Range<usize>>,
+    /// Line range on new file. `None` for deleted files.
+    pub new: Option<Range<usize>>,
 }
 
 impl PartialOrd for CodeLocation {
@@ -751,50 +749,19 @@ impl PartialOrd for CodeLocation {
 
 impl Ord for CodeLocation {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (
-            &self.blob,
-            &self.path,
-            &self.commit,
-            &self.lines.start,
-            &self.lines.end,
-        )
-            .cmp(&(
-                &other.blob,
-                &other.path,
-                &other.commit,
-                &other.lines.start,
-                &other.lines.end,
-            ))
+        (&self.path, &self.old.as_ref().map(|o| (o.start, o.end)))
+            .cmp(&(&other.path, &other.new.as_ref().map(|o| (o.start, o.end))))
     }
 }
 
-/// Comment on code.
+/// Comment on code diff.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CodeComment {
     /// Code location of the comment.
-    location: CodeLocation,
+    pub location: CodeLocation,
     /// Comment.
-    comment: String,
-    /// Timestamp.
-    timestamp: Timestamp,
-}
-
-impl CodeComment {
-    /// Code location of the comment.
-    pub fn location(&self) -> &CodeLocation {
-        &self.location
-    }
-
-    /// Comment.
-    pub fn comment(&self) -> &str {
-        &self.comment
-    }
-
-    /// Timestamp.
-    pub fn timestamp(&self) -> &Timestamp {
-        &self.timestamp
-    }
+    pub comment: String,
 }
 
 /// A patch review on a revision.
@@ -1835,7 +1802,6 @@ mod test {
         let ctx = test::setup::Context::new(&tmp);
         let signer = &ctx.signer;
         let pr = ctx.branch_with(test::setup::initial_blobs());
-        let blob = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d133999").unwrap();
         let mut patches = Patches::open(&ctx.project).unwrap();
         let mut patch = patches
             .create(
@@ -1854,13 +1820,11 @@ mod test {
 
         let inline = vec![CodeComment {
             location: CodeLocation {
-                blob,
                 path: Path::new("file.rs").to_path_buf(),
-                commit: pr.oid,
-                lines: 1..3,
+                old: Some(1..3),
+                new: Some(1..3),
             },
             comment: "Nice!".to_owned(),
-            timestamp: Timestamp::new(0),
         }];
         patch
             .review(

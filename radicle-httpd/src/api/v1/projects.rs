@@ -2309,16 +2309,11 @@ mod routes {
                       "inline": [
                         {
                           "location": {
-                            "blob": "82eb77880c693655bce074e3dbbd9fa711dc018b",
                             "path": "./README.md",
-                            "commit": HEAD,
-                            "lines": {
-                              "start": 1,
-                              "end": 3,
-                            },
+                            "old": null,
+                            "new": null,
                           },
                           "comment": "This is a comment on line 1",
-                          "timestamp": TIMESTAMP,
                         }
                       ],
                       "timestamp": TIMESTAMP,
