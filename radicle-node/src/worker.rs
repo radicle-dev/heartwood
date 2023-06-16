@@ -339,6 +339,9 @@ impl Worker {
             .map_err(UploadError::DaemonConnectionFailed)?;
         let (mut daemon_r, mut daemon_w) = (daemon.try_clone()?, daemon);
 
+        daemon_r.set_read_timeout(Some(self.timeout))?;
+        daemon_w.set_write_timeout(Some(self.timeout))?;
+
         // Write the raw request to the daemon, once we've parsed it.
         daemon_w.write_all(&request)?;
 
