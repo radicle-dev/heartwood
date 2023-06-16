@@ -1,10 +1,11 @@
-mod handle;
+pub mod handle;
+pub mod thread;
 
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::{fs, io, net, thread, time};
+use std::{fs, io, net, time};
 
 use crossbeam_channel as chan;
 use cyphernet::Ecdh;
@@ -200,7 +201,7 @@ impl Runtime {
 
             log::info!(target: "node", "Listening on {local_addr}..");
         }
-        let reactor = Reactor::named(wire, popol::Poller::new(), id.to_human())?;
+        let reactor = Reactor::named(wire, popol::Poller::new(), thread::name(&id, "service"))?;
         let handle = Handle::new(home.clone(), reactor.controller(), emitter);
         let atomic = git::version()? >= git::VERSION_REQUIRED;
 
@@ -217,7 +218,6 @@ impl Runtime {
             handle.clone(),
             worker::Config {
                 capacity: 8,
-                name: id.to_human(),
                 timeout: time::Duration::from_secs(9),
                 storage: storage.clone(),
                 daemon,
@@ -254,23 +254,21 @@ impl Runtime {
         log::info!(target: "node", "Running node {} in {}..", self.id, home.path().display());
         log::info!(target: "node", "Binding control socket {}..", home.socket().display());
 
-        thread::Builder::new().name(self.id.to_human()).spawn({
+        thread::spawn(&self.id, "control", {
             let handle = self.handle.clone();
-            move || control::listen(self.control, handle)
-        })?;
-        let _signals = thread::Builder::new()
-            .name(self.id.to_human())
-            .spawn(move || {
-                if let Ok(()) = self.signals.recv() {
-                    log::info!(target: "node", "Termination signal received; shutting down..");
-                    self.handle.shutdown().ok();
-                }
-            })?;
+            || control::listen(self.control, handle)
+        });
+        let _signals = thread::spawn(&self.id, "signals", move || {
+            if let Ok(()) = self.signals.recv() {
+                log::info!(target: "node", "Termination signal received; shutting down..");
+                self.handle.shutdown().ok();
+            }
+        });
 
         log::info!(target: "node", "Spawning git daemon at {}..", self.storage.path().display());
 
         let mut daemon = daemon::spawn(self.storage.path(), self.daemon)?;
-        thread::Builder::new().name(self.id.to_human()).spawn({
+        thread::spawn(&self.id, "daemon", {
             let stderr = daemon.stderr.take().unwrap();
             || {
                 for line in BufReader::new(stderr).lines().flatten() {
@@ -281,7 +279,7 @@ impl Runtime {
                     }
                 }
             }
-        })?;
+        });
 
         self.pool.run().unwrap();
         self.reactor.join().unwrap();

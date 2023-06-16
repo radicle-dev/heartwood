@@ -6,7 +6,7 @@ use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{io, net, thread, time};
+use std::{io, net, time};
 
 use radicle::node::Handle;
 use serde_json as json;
@@ -15,6 +15,7 @@ use crate::identity::Id;
 use crate::node::NodeId;
 use crate::node::{Command, CommandName, CommandResult};
 use crate::runtime;
+use crate::runtime::thread;
 
 /// Maximum timeout for waiting for node events.
 const MAX_TIMEOUT: time::Duration = time::Duration::MAX;
@@ -35,28 +36,23 @@ pub fn listen<H: Handle<Error = runtime::HandleError> + 'static>(
     handle: H,
 ) -> Result<(), Error> {
     log::debug!(target: "control", "Control thread listening on socket..");
-    let nid = handle.nid()?.to_human();
+    let nid = handle.nid()?;
 
     for incoming in listener.incoming() {
         match incoming {
             Ok(mut stream) => {
                 let handle = handle.clone();
 
-                thread::Builder::new()
-                    .name(nid.clone())
-                    .spawn(move || {
-                        if let Err(e) = command(&stream, handle) {
-                            log::error!(target: "control", "Command returned error: {e}");
+                thread::spawn(&nid, "control", move || {
+                    if let Err(e) = command(&stream, handle) {
+                        log::error!(target: "control", "Command returned error: {e}");
 
-                            CommandResult::error(e).to_writer(&mut stream).ok();
+                        CommandResult::error(e).to_writer(&mut stream).ok();
 
-                            stream.flush().ok();
-                            stream.shutdown(net::Shutdown::Both).ok();
-                        }
-                    })
-                    // SAFETY: Only panics if the thread name contained NULL bytes, which we can
-                    // guarantee is not the case here.
-                    .unwrap();
+                        stream.flush().ok();
+                        stream.shutdown(net::Shutdown::Both).ok();
+                    }
+                });
             }
             Err(e) => log::error!(target: "control", "Failed to accept incoming connection: {}", e),
         }

@@ -23,7 +23,7 @@ impl Log for Logger {
             target => {
                 if self.enabled(record.metadata()) {
                     let current = std::thread::current();
-                    let msg = format!("{:>12} {}", format!("{target}:"), record.args());
+                    let msg = format!("{:>10} {}", format!("{target}:"), record.args());
                     let time = LocalTime::now().as_secs();
                     let s = if let Some(name) = current.name() {
                         format!("{time} {name:<16} {msg}")

@@ -343,12 +343,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
         let addr = *rt.local_addrs.first().unwrap();
         let id = *self.signer.public_key();
         let handle = ManuallyDrop::new(rt.handle.clone());
-        let thread = ManuallyDrop::new(
-            thread::Builder::new()
-                .name(id.to_string())
-                .spawn(move || rt.run())
-                .unwrap(),
-        );
+        let thread = ManuallyDrop::new(runtime::thread::spawn(&id, "runtime", move || rt.run()));
 
         NodeHandle {
             id,

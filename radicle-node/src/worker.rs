@@ -5,8 +5,7 @@ mod tunnel;
 use std::collections::{BTreeSet, HashSet};
 use std::io::{prelude::*, BufReader};
 use std::ops::ControlFlow;
-use std::thread::JoinHandle;
-use std::{env, io, net, process, thread, time};
+use std::{env, io, net, process, time};
 
 use crossbeam_channel as chan;
 
@@ -15,7 +14,7 @@ use radicle::prelude::NodeId;
 use radicle::storage::{Namespaces, ReadRepository, RefUpdate};
 use radicle::{git, storage, Storage};
 
-use crate::runtime::Handle;
+use crate::runtime::{thread, Handle};
 use crate::wire::StreamId;
 use channels::{ChannelReader, ChannelWriter};
 use tunnel::Tunnel;
@@ -28,8 +27,6 @@ pub struct Config {
     pub capacity: usize,
     /// Whether to use atomic fetches.
     pub atomic: bool,
-    /// Thread name.
-    pub name: String,
     /// Timeout for all operations.
     pub timeout: time::Duration,
     /// Git daemon address.
@@ -147,7 +144,6 @@ struct Worker {
     timeout: time::Duration,
     handle: Handle,
     atomic: bool,
-    name: String,
 }
 
 impl Worker {
@@ -348,7 +344,7 @@ impl Worker {
         log::debug!(target: "worker", "Entering Git protocol loop for {rid}..");
 
         thread::scope(|s| {
-            let daemon_to_stream = thread::Builder::new().name(self.name.clone()).spawn_scoped(s, || {
+            let daemon_to_stream = thread::spawn_scoped(&self.nid, "upload-pack", s, || {
                 let mut buffer = [0; u16::MAX as usize + 1];
 
                 loop {
@@ -372,9 +368,9 @@ impl Worker {
                     }
                 }
                 Self::eof(remote, stream, stream_w, &mut self.handle)
-            })?;
+            });
 
-            let stream_to_daemon = s.spawn(move || {
+            let stream_to_daemon = thread::spawn_scoped(&self.nid, "upload-pack", s, move || {
                 match stream_r
                     .pipe(&mut daemon_w)
                     .and_then(|()| daemon_w.shutdown(net::Shutdown::Both))
@@ -432,40 +428,36 @@ impl Worker {
         // Since `ls-remote` may return a lot of data, we read the child's stdout concurrently, to
         // prevent deadlocks that could arise if we fill the pipe buffer before the process exits.
         thread::scope(|s| {
-            thread::Builder::new()
-                .name(self.name.clone())
-                .spawn_scoped(s, || {
-                    for line in BufReader::new(stderr).lines().flatten() {
-                        log::debug!(target: "worker", "Git: {}", line);
-                    }
-                })?;
-            thread::Builder::new()
-                .name(self.name.clone())
-                .spawn_scoped(s, || {
-                    for line in BufReader::new(stdout).lines().flatten() {
-                        log::debug!(target: "worker", "Git: {}", line);
+            thread::spawn_scoped(&self.nid, "ls-refs", s, || {
+                for line in BufReader::new(stderr).lines().flatten() {
+                    log::debug!(target: "worker", "Git: {}", line);
+                }
+            });
+            thread::spawn_scoped(&self.nid, "ls-refs", s, || {
+                for line in BufReader::new(stdout).lines().flatten() {
+                    log::debug!(target: "worker", "Git: {}", line);
 
-                        let r = match line.split_whitespace().next_back() {
-                            Some(r) => r,
-                            None => {
-                                log::trace!(target: "worker", "Git: ls-remote returned unexpected format {line}");
-                                continue;
-                            }
-                        };
-                        match git::RefString::try_from(r) {
-                            Ok(r) => {
-                                if let Some(ns) = r.to_namespaced() {
-                                    refs.insert(ns.to_owned());
-                                } else {
-                                    log::debug!(target: "worker", "Git: non-namespaced ref '{r}'")
-                                }
-                            }
-                            Err(err) => {
-                                log::warn!(target: "worker", "Git: invalid refname '{r}' {err}")
+                    let r = match line.split_whitespace().next_back() {
+                        Some(r) => r,
+                        None => {
+                            log::trace!(target: "worker", "Git: ls-remote returned unexpected format {line}");
+                            continue;
+                        }
+                    };
+                    match git::RefString::try_from(r) {
+                        Ok(r) => {
+                            if let Some(ns) = r.to_namespaced() {
+                                refs.insert(ns.to_owned());
+                            } else {
+                                log::debug!(target: "worker", "Git: non-namespaced ref '{r}'")
                             }
                         }
+                        Err(err) => {
+                            log::warn!(target: "worker", "Git: invalid refname '{r}' {err}")
+                        }
                     }
-                })?;
+                }
+            });
 
             tunnel.run(self.timeout)?;
 
@@ -535,11 +527,11 @@ impl Worker {
         let mut child = cmd.spawn()?;
         let stderr = child.stderr.take().unwrap();
 
-        thread::Builder::new().name(self.name.clone()).spawn(|| {
+        thread::spawn(&self.nid, "fetch", || {
             for line in BufReader::new(stderr).lines().flatten() {
                 log::debug!(target: "worker", "Git: {}", line);
             }
-        })?;
+        });
 
         tunnel.run(self.timeout)?;
 
@@ -574,14 +566,14 @@ impl Worker {
 
 /// A pool of workers. One thread is allocated for each worker.
 pub struct Pool {
-    pool: Vec<JoinHandle<Result<(), chan::RecvError>>>,
+    pool: Vec<thread::JoinHandle<Result<(), chan::RecvError>>>,
 }
 
 impl Pool {
     /// Create a new worker pool with the given parameters.
     pub fn with(nid: NodeId, tasks: chan::Receiver<Task>, handle: Handle, config: Config) -> Self {
         let mut pool = Vec::with_capacity(config.capacity);
-        for _ in 0..config.capacity {
+        for i in 0..config.capacity {
             let worker = Worker {
                 nid,
                 tasks: tasks.clone(),
@@ -589,13 +581,9 @@ impl Pool {
                 storage: config.storage.clone(),
                 daemon: config.daemon,
                 timeout: config.timeout,
-                name: config.name.clone(),
                 atomic: config.atomic,
             };
-            let thread = thread::Builder::new()
-                .name(config.name.clone())
-                .spawn(|| worker.run())
-                .unwrap();
+            let thread = thread::spawn(&nid, format!("worker#{i}"), || worker.run());
 
             pool.push(thread);
         }

@@ -1,10 +1,8 @@
-use std::{
-    io::{self, Read},
-    net, thread, time,
-};
+use std::{io, io::Read, net, time};
 
 use super::channels::Channels;
 use super::{Handle, NodeId, StreamId, Worker};
+use crate::runtime::thread;
 
 /// Tunnels fetches to a remote peer.
 pub struct Tunnel<'a> {
@@ -56,34 +54,31 @@ impl<'a> Tunnel<'a> {
         let stream_id = self.stream;
 
         thread::scope(|s| {
-            let remote_to_local = thread::Builder::new()
-                .name(self.local.to_string())
-                .spawn_scoped(s, || remote_r.pipe(local_w))?;
+            let remote_to_local =
+                thread::spawn_scoped(&self.local, "tunnel", s, || remote_r.pipe(local_w));
 
-            let local_to_remote = thread::Builder::new()
-                .name(self.local.to_string())
-                .spawn_scoped(s, || {
-                    let mut buffer = [0; u16::MAX as usize + 1];
+            let local_to_remote = thread::spawn_scoped(&self.local, "tunnel", s, || {
+                let mut buffer = [0; u16::MAX as usize + 1];
 
-                    loop {
-                        match local_r.read(&mut buffer) {
-                            Ok(0) => break,
-                            Ok(n) => {
-                                remote_w.send(buffer[..n].to_vec())?;
+                loop {
+                    match local_r.read(&mut buffer) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            remote_w.send(buffer[..n].to_vec())?;
 
-                                if let Err(e) = self.handle.flush(nid, stream_id) {
-                                    log::error!(
-                                        target: "worker", "Worker channel disconnected; aborting"
-                                    );
-                                    return Err(e);
-                                }
+                            if let Err(e) = self.handle.flush(nid, stream_id) {
+                                log::error!(
+                                    target: "worker", "Worker channel disconnected; aborting"
+                                );
+                                return Err(e);
                             }
-                            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
-                            Err(e) => return Err(e),
                         }
+                        Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
+                        Err(e) => return Err(e),
                     }
-                    Worker::eof(nid, stream_id, remote_w, &mut self.handle)
-                })?;
+                }
+                Worker::eof(nid, stream_id, remote_w, &mut self.handle)
+            });
 
             remote_to_local.join().unwrap()?;
             local_to_remote.join().unwrap()?;

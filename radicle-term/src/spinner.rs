@@ -116,78 +116,82 @@ pub fn spinner_to(
 ) -> Spinner {
     let message = message.to_string();
     let progress = Arc::new(Mutex::new(Progress::new(Paint::new(message))));
-    let handle = thread::spawn({
-        let progress = progress.clone();
+    let handle = thread::Builder::new()
+        .name(String::from("spinner"))
+        .spawn({
+            let progress = progress.clone();
 
-        move || {
-            let mut stdout = completion;
-            let mut stderr = termion::cursor::HideCursor::from(animation);
+            move || {
+                let mut stdout = completion;
+                let mut stderr = termion::cursor::HideCursor::from(animation);
 
-            loop {
-                let Ok(mut progress) = progress.lock() else {
+                loop {
+                    let Ok(mut progress) = progress.lock() else {
                     break;
                 };
-                match &mut *progress {
-                    Progress {
-                        state: State::Running { cursor },
-                        message,
-                    } => {
-                        let spinner = DEFAULT_STYLE[*cursor];
+                    match &mut *progress {
+                        Progress {
+                            state: State::Running { cursor },
+                            message,
+                        } => {
+                            let spinner = DEFAULT_STYLE[*cursor];
 
-                        write!(
-                            stderr,
-                            "{}{}{spinner} {message}",
-                            termion::cursor::Save,
-                            termion::clear::AfterCursor,
-                        )
-                        .ok();
+                            write!(
+                                stderr,
+                                "{}{}{spinner} {message}",
+                                termion::cursor::Save,
+                                termion::clear::AfterCursor,
+                            )
+                            .ok();
 
-                        write!(stderr, "{}", termion::cursor::Restore).ok();
+                            write!(stderr, "{}", termion::cursor::Restore).ok();
 
-                        *cursor += 1;
-                        *cursor %= DEFAULT_STYLE.len();
+                            *cursor += 1;
+                            *cursor %= DEFAULT_STYLE.len();
+                        }
+                        Progress {
+                            state: State::Done,
+                            message,
+                        } => {
+                            write!(stderr, "{}", termion::clear::AfterCursor).ok();
+                            writeln!(stdout, "{} {message}", Paint::green("✓")).ok();
+                            break;
+                        }
+                        Progress {
+                            state: State::Canceled,
+                            message,
+                        } => {
+                            write!(stderr, "{}", termion::clear::AfterCursor).ok();
+                            writeln!(
+                                stdout,
+                                "{ERROR_PREFIX} {message} {}",
+                                Paint::red("<canceled>")
+                            )
+                            .ok();
+                            break;
+                        }
+                        Progress {
+                            state: State::Warn,
+                            message,
+                        } => {
+                            writeln!(stdout, "{WARNING_PREFIX} {message}").ok();
+                            break;
+                        }
+                        Progress {
+                            state: State::Error,
+                            message,
+                        } => {
+                            writeln!(stdout, "{ERROR_PREFIX} {message}").ok();
+                            break;
+                        }
                     }
-                    Progress {
-                        state: State::Done,
-                        message,
-                    } => {
-                        write!(stderr, "{}", termion::clear::AfterCursor).ok();
-                        writeln!(stdout, "{} {message}", Paint::green("✓")).ok();
-                        break;
-                    }
-                    Progress {
-                        state: State::Canceled,
-                        message,
-                    } => {
-                        write!(stderr, "{}", termion::clear::AfterCursor).ok();
-                        writeln!(
-                            stdout,
-                            "{ERROR_PREFIX} {message} {}",
-                            Paint::red("<canceled>")
-                        )
-                        .ok();
-                        break;
-                    }
-                    Progress {
-                        state: State::Warn,
-                        message,
-                    } => {
-                        writeln!(stdout, "{WARNING_PREFIX} {message}").ok();
-                        break;
-                    }
-                    Progress {
-                        state: State::Error,
-                        message,
-                    } => {
-                        writeln!(stdout, "{ERROR_PREFIX} {message}").ok();
-                        break;
-                    }
+                    drop(progress);
+                    thread::sleep(DEFAULT_TICK);
                 }
-                drop(progress);
-                thread::sleep(DEFAULT_TICK);
             }
-        }
-    });
+        })
+        // SAFETY: Only panics if the thread name contains `null` bytes, which isn't the case here.
+        .unwrap();
 
     Spinner {
         progress,
