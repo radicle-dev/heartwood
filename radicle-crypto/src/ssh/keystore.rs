@@ -25,6 +25,13 @@ pub enum Error {
     AlreadyInitialized,
 }
 
+impl Error {
+    /// Check if it's a decryption error.
+    pub fn is_crypto_err(&self) -> bool {
+        matches!(self, Self::Ssh(ssh_key::Error::Crypto))
+    }
+}
+
 /// Stores keys on disk, in OpenSSH format.
 #[derive(Debug, Clone)]
 pub struct Keystore {

@@ -126,27 +126,23 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
     match ssh::agent::Agent::connect() {
         Ok(mut agent) => {
             if agent.request_identities()?.contains(&profile.public_key) {
-                term::success!("Signing key already in ssh-agent");
+                term::success!("Radicle key already in ssh-agent");
                 return Ok(());
             }
 
             term::headline(format!(
-                "Authenticating as {}",
+                "Authenticating as 👾 {}",
                 term::format::Identity::new(profile).styled()
             ));
 
-            // TODO: We should show the spinner on the passphrase prompt,
-            // otherwise it seems like the passphrase is valid even if it isn't.
-            term::warning("Adding your radicle key to ssh-agent...");
             let passphrase = if options.stdin {
                 term::passphrase_stdin()
             } else {
                 term::passphrase(RAD_PASSPHRASE)
             }?;
-            let spinner = term::spinner("Unlocking...");
             register(&mut agent, profile, passphrase)?;
-            spinner.finish();
-            term::success!("Radicle key added to ssh-agent");
+
+            term::success!("Radicle key added to {}", term::format::dim("ssh-agent"));
 
             return Ok(());
         }
@@ -173,7 +169,14 @@ pub fn register(
 ) -> anyhow::Result<()> {
     let secret = profile
         .keystore
-        .secret_key(passphrase)?
+        .secret_key(passphrase)
+        .map_err(|e| {
+            if e.is_crypto_err() {
+                anyhow!("could not decrypt secret key: invalid passphrase")
+            } else {
+                e.into()
+            }
+        })?
         .ok_or_else(|| anyhow!("Key not found in {:?}", profile.keystore.path()))?;
 
     agent.register(&secret)?;
