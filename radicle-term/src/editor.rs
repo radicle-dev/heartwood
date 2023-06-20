@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::io::IsTerminal;
 use std::io::Write;
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::path::PathBuf;
@@ -73,11 +74,19 @@ impl Editor {
         // child exits.
         let stderr = io::stderr().as_raw_fd();
         let stderr = unsafe { libc::dup(stderr) };
+        let stdin = if io::stdin().is_terminal() {
+            process::Stdio::inherit()
+        } else {
+            let tty = termion::get_tty()?;
+            // If standard input is not a terminal device, the editor won't work correctly.
+            // In that case, we use the terminal device, eg. `/dev/tty` as standard input.
+            process::Stdio::from(tty)
+        };
 
         process::Command::new(cmd)
             .stdout(unsafe { process::Stdio::from_raw_fd(stderr) })
             .stderr(process::Stdio::inherit())
-            .stdin(process::Stdio::inherit())
+            .stdin(stdin)
             .arg(&self.path)
             .spawn()?
             .wait()?;
