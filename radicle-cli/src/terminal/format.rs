@@ -4,7 +4,7 @@ pub use radicle_term::format::*;
 pub use radicle_term::{style, Paint};
 
 use radicle::cob::{ObjectId, Timestamp};
-use radicle::node::NodeId;
+use radicle::node::{AliasStore, NodeId};
 use radicle::prelude::Did;
 use radicle::profile::Profile;
 
@@ -116,22 +116,25 @@ impl<'a> Identity<'a> {
 
 impl<'a> fmt::Display for Identity<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let username = "(me)";
+        let nid = self.profile.id();
+        let alias = self.profile.aliases().ok().and_then(|a| a.alias(nid));
         let node_id = match self.short {
-            true => self::node(self.profile.id()),
-            false => self.profile.id().to_human(),
+            true => self::node(nid),
+            false => nid.to_human(),
         };
 
         if self.styled {
-            write!(
-                f,
-                "{} {}",
-                term::format::highlight(node_id),
-                term::format::dim(username)
-            )
+            write!(f, "{}", term::format::highlight(node_id))?;
+            if let Some(a) = alias {
+                write!(f, " {}", term::format::parens(term::format::dim(a)))?;
+            }
         } else {
-            write!(f, "{node_id} {username}")
+            write!(f, "{node_id}")?;
+            if let Some(a) = alias {
+                write!(f, " ({a})")?;
+            }
         }
+        Ok(())
     }
 }
 
