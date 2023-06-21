@@ -107,6 +107,7 @@ Now, let's checkout the patch that we just created:
 ```
 $ rad patch checkout 077e4bb
 ✓ Switched to branch patch/077e4bb
+✓ Branch patch/077e4bb setup to track rad/patches/077e4bbe9a6e5546f400ef5951768c37a76f13a4
 ```
 
 We can also add a review verdict as such:

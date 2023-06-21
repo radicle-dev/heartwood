@@ -6,6 +6,7 @@ use std::str::FromStr;
 use once_cell::sync::Lazy;
 use thiserror::Error;
 
+use crate::cob::ObjectId;
 use crate::crypto::{Signer, Verified};
 use crate::git;
 use crate::identity::doc::{DocError, Id};
@@ -315,6 +316,46 @@ pub fn repo(path: impl AsRef<Path>) -> Result<(git2::Repository, Id), RemoteErro
     let (_, id) = remote(&repo)?;
 
     Ok((repo, id))
+}
+
+/// Setup patch upstream branch such that `git push` updates the patch.
+pub fn setup_patch_upstream<'a>(
+    patch: &ObjectId,
+    patch_head: git::Oid,
+    working: &'a git::raw::Repository,
+) -> Result<Option<git::raw::Branch<'a>>, git::ext::Error> {
+    let head = working.head()?;
+
+    // Don't do anything in case we're not on the patch branch.
+    if head.peel_to_commit()?.id() != *patch_head {
+        return Ok(None);
+    }
+    let Ok(r) = head.resolve() else {
+        return Ok(None);
+    };
+
+    let branch = git::raw::Branch::wrap(r);
+    let name: Option<git::RefString> = branch.name()?.and_then(|b| b.try_into().ok());
+    let remote_branch = git::refs::workdir::patch_upstream(patch);
+    let remote_branch = working.reference(
+        &remote_branch,
+        *patch_head,
+        true,
+        "Create remote tracking branch for patch",
+    )?;
+    assert!(remote_branch.is_remote());
+
+    if let Some(name) = name {
+        if branch.upstream().is_err() {
+            git::set_upstream(
+                working,
+                &*REMOTE_NAME,
+                name.as_str(),
+                git::refs::workdir::patch(patch),
+            )?;
+        }
+    }
+    Ok(Some(git::raw::Branch::wrap(remote_branch)))
 }
 
 #[cfg(test)]

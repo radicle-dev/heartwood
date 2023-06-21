@@ -18,22 +18,19 @@ Now let's checkout `master` and pull the maintainer's changes:
 ```
 $ git checkout master
 Your branch is up to date with 'rad/master'.
+```
+``` (stderr)
 $ git pull --all --ff
-Fetching rad
-Fetching z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-Updating f2de534..f6484e0
-Fast-forward
- README.md       | 0
- REQUIREMENTS.md | 0
- 2 files changed, 0 insertions(+), 0 deletions(-)
- create mode 100644 README.md
- create mode 100644 REQUIREMENTS.md
+From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+   f2de534..f567f69  master     -> rad/master
+From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+   f2de534..f567f69  master     -> z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
 ```
 
 Now our master branch is up to date with the maintainer's master:
 
 ```
 $ git rev-parse master
-f6484e0f43e48a8983b9b39bf9bd4cd889f1d520
+f567f695d25b4e8fb63b5f5ad2a584529826e908
 $ git diff master..z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
 ```

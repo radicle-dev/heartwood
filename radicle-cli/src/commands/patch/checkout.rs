@@ -2,10 +2,10 @@ use anyhow::anyhow;
 
 use radicle::cob::patch;
 use radicle::cob::patch::{Patch, PatchId};
-use radicle::git;
 use radicle::git::RefString;
 use radicle::storage::git::Repository;
 use radicle::storage::ReadRepository;
+use radicle::{git, rad};
 
 use crate::terminal as term;
 
@@ -32,10 +32,20 @@ pub fn run(
 
     spinner.message(format!(
         "Switched to branch {}",
-        term::format::highlight(patch_branch.as_str())
+        term::format::highlight(&patch_branch)
     ));
     spinner.finish();
 
+    if let Some(branch) = rad::setup_patch_upstream(patch_id, *patch.head(), working)? {
+        let tracking = branch
+            .name()?
+            .ok_or_else(|| anyhow!("failed to create tracking branch: invalid name"))?;
+        term::success!(
+            "Branch {} setup to track {}",
+            term::format::highlight(patch_branch),
+            term::format::tertiary(tracking)
+        );
+    }
     Ok(())
 }
 
@@ -52,7 +62,6 @@ fn find_patch_commit<'a>(
     match working.find_commit(patch_head.into()) {
         Ok(commit) => Ok(commit),
         Err(e) if git::ext::is_not_found_err(&e) => {
-            // TODO: Handle case of concurrent revisions.
             let (_, rev) = patch.latest();
             let author = *rev.author().id();
             let remote = stored.remote(&author)?;

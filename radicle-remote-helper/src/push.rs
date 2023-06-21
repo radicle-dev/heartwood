@@ -325,34 +325,9 @@ fn patch_open<G: Signer>(
                 "Create reference for patch head",
             )?;
 
-            let head = working.head()?;
-            if head.peel_to_commit()?.id() == commit.id() {
-                if let Ok(r) = head.resolve() {
-                    let branch = git::raw::Branch::wrap(r);
-                    let name: Option<git::RefString> =
-                        branch.name()?.and_then(|b| b.try_into().ok());
+            // Setup current branch so that pushing updates the patch.
+            rad::setup_patch_upstream(&patch, commit.id().into(), working)?;
 
-                    working.reference(
-                        &git::refs::workdir::patch_upstream(&patch),
-                        commit.id(),
-                        // The patch shouldn't exist yet, and so neither should
-                        // this ref.
-                        false,
-                        "Create remote tracking branch for patch",
-                    )?;
-
-                    if let Some(name) = name {
-                        if branch.upstream().is_err() {
-                            git::set_upstream(
-                                working,
-                                &*radicle::rad::REMOTE_NAME,
-                                name.as_str(),
-                                git::refs::workdir::patch(&patch),
-                            )?;
-                        }
-                    }
-                }
-            }
             Ok(())
         }
         Err(e) => Err(e),
