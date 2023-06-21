@@ -19,6 +19,14 @@ and freedom.
 * Git 2.34 or later
 * OpenSSH 9.1 or later with `ssh-agent`
 
+### 📀 From binaries
+
+> Requires `curl` and `tar`.
+
+Run the following command to install the latest binary release:
+
+    sh <(curl -sSf https://radicle.xyz/install)
+
 ### 📦 From source
 
 > Requires the Rust toolchain.

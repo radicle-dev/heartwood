@@ -1,6 +1,6 @@
-# Example systemd unit file for `radicle-node`.
+# Example systemd unit file for `radicle-httpd`.
 #
-# When running radicle-node on a server, it should be run as a separate user.
+# When running radicle-httpd on a server, it should be run as a separate user.
 #
 # Copy this file into /etc/systemd/system and set the User/Group parameters
 # under [Service] appropriately.
@@ -13,20 +13,12 @@
 #   mkdir -p $HOME/.config/systemd/user/
 #   cp radicle-node.service $HOME/.config/systemd/user/radicle-node.service
 #
-# You will have to set the RAD_PASSPHRASE environment variable to the
-# passphrase supplied during `rad auth`, for the node to start, eg.
-#
-#   [Service]
-#   Environment=RAD_PASSPHRASE=<passphrase>
-#
-# Also ensure RAD_HOME is set appropriately.
-#
 [Unit]
 After=syslog.target network.target
-Description=Radicle Node
+Description=Radicle HTTPd
 
 [Service]
-ExecStart=%h/.radicle/bin/radicle-node --listen 0.0.0.0:8776
+ExecStart=%h/.radicle/bin/radicle-httpd
 Environment=RAD_HOME=%h/.radicle
 KillMode=process
 Restart=always
