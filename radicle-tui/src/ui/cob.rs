@@ -24,7 +24,7 @@ use super::widget::common::list::ListItem;
 /// An author item that can be used in tables, list or trees.
 ///
 /// Breaks up dependencies to [`Profile`] and [`Repository`] that
-/// would be needed if [`Author`] would be used directly.
+/// would be needed if [`AuthorItem`] would be used directly.
 #[derive(Clone)]
 pub struct AuthorItem {
     /// The author's DID.

@@ -13,7 +13,7 @@ use super::container::Header;
 use super::label::Label;
 use super::*;
 
-/// A generic item that can be displayed in a table with [`W`] columns.
+/// A generic item that can be displayed in a table with [`const W: usize`] columns.
 pub trait TableItem<const W: usize> {
     /// Should return fields as table cells.
     fn row(&self, theme: &Theme) -> [Cell; W];
@@ -27,7 +27,7 @@ pub trait ListItem {
 
 /// Grow behavior of a table column.
 ///
-/// [`tui::widgets::Table`] does only support percental column widths.
+/// [`tuirealm::tui::widgets::Table`] does only support percental column widths.
 /// A [`ColumnWidth`] is used to specify the grow behaviour of a table column
 /// and a percental column width is calculated based on that.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -179,7 +179,7 @@ impl WidgetComponent for PropertyTable {
     }
 }
 
-/// A table component that can display a list of [`TableItem`]s hold by a [`TableModel`].
+/// A table component that can display a list of [`TableItem`]s.
 pub struct Table<V, const W: usize>
 where
     V: TableItem<W> + Clone,
