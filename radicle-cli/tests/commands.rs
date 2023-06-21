@@ -277,6 +277,26 @@ fn rad_patch() {
 }
 
 #[test]
+fn rad_patch_update() {
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let working = tempfile::tempdir().unwrap();
+    let home = &profile.home;
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
+    test(
+        "examples/rad-patch-update.md",
+        working.path(),
+        Some(home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_patch_ahead_behind() {
     let mut environment = Environment::new();
     let profile = environment.profile("alice");

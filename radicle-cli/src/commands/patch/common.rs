@@ -1,23 +1,11 @@
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 
-use radicle::cob::patch::{Clock, Patch, PatchId, Patches};
 use radicle::git;
 use radicle::git::raw::Oid;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
 
 use crate::terminal as term;
-use crate::terminal::args::Error;
-
-use super::Options;
-
-/// Give the name of the branch or an appropriate error.
-#[inline]
-pub fn branch_name<'a>(branch: &'a git::raw::Branch) -> anyhow::Result<&'a str> {
-    branch
-        .name()?
-        .ok_or(anyhow!("head branch must be valid UTF-8"))
-}
 
 /// Give the oid of the branch or an appropriate error.
 #[inline]
@@ -113,65 +101,4 @@ pub fn try_branch(reference: git::raw::Reference<'_>) -> anyhow::Result<git::raw
         anyhow::bail!("cannot create patch from detached head; aborting")
     };
     Ok(branch)
-}
-
-/// Push branch to the local storage.
-///
-/// The branch must be in storage for others to merge the `Patch`.
-pub fn push_to_storage(
-    working: &git::raw::Repository,
-    storage: &Repository,
-    head_branch: &git::raw::Branch,
-    options: &Options,
-) -> anyhow::Result<git::RefString> {
-    let head_oid = branch_oid(head_branch)?;
-    let branch = branch_name(head_branch)?.try_into()?;
-    let branch = radicle::git::refs::workdir::branch(branch);
-
-    if storage.commit(head_oid).is_err() {
-        if !options.push {
-            term::blank();
-
-            return Err(Error::WithHint {
-                err: anyhow!("Current branch head was not found in storage"),
-                hint: "hint: run `git push rad` and try again",
-            }
-            .into());
-        }
-
-        let (mut remote, _) = radicle::rad::remote(working)?;
-
-        remote
-            .push::<&str>(&[&format!("+{branch}:{branch}")], None)
-            .context("failed to push to storage")?;
-    }
-    Ok(branch)
-}
-
-/// Find patches with a merge base equal to the one provided.
-pub fn find_unmerged_with_base(
-    patch_head: Oid,
-    target_head: Oid,
-    merge_base: Oid,
-    patches: &Patches,
-    storage: &Repository,
-    whoami: &Did,
-) -> anyhow::Result<Vec<(PatchId, Patch, Clock)>> {
-    // My patches.
-    let proposed: Vec<_> = patches.proposed_by(whoami)?.collect();
-    let mut matches = Vec::new();
-
-    for (id, patch, clock) in proposed {
-        if patch.merges().count() != 0 {
-            continue;
-        }
-        if **patch.head() == patch_head {
-            continue;
-        }
-        // Merge-base between the two patches.
-        if storage.backend.merge_base(**patch.head(), target_head)? == merge_base {
-            matches.push((id, patch, clock));
-        }
-    }
-    Ok(matches)
 }

@@ -4,60 +4,12 @@ use radicle::prelude::*;
 use radicle::storage::git::Repository;
 
 use super::common::*;
-use super::Options;
 use crate::terminal as term;
-
-fn select_patch(
-    patches: &patch::Patches,
-    storage: &Repository,
-    head_branch: &git::raw::Branch,
-    target_oid: git::Oid,
-    whoami: &Did,
-) -> anyhow::Result<patch::PatchId> {
-    let head_oid = branch_oid(head_branch)?;
-    let base_oid = storage.backend.merge_base(*target_oid, *head_oid)?;
-
-    let mut result =
-        find_unmerged_with_base(*head_oid, *target_oid, base_oid, patches, storage, whoami)?;
-
-    let Some((id, _, _)) = result.pop() else {
-        anyhow::bail!("No patches found to update, please specify a patch id");
-    };
-
-    if !result.is_empty() {
-        anyhow::bail!("More than one patch available to update, please specify a patch id");
-    }
-    term::blank();
-
-    Ok(id)
-}
-
-fn show_update_commit_info(
-    storage: &Repository,
-    current_revision: &patch::Revision,
-    head_branch: &git::raw::Branch,
-) -> anyhow::Result<()> {
-    let head_oid = branch_oid(head_branch)?;
-
-    term::info!(
-        "Updating {} -> {}",
-        term::format::secondary(term::format::oid(current_revision.head())),
-        term::format::secondary(term::format::oid(head_oid)),
-    );
-
-    // Difference between the two revisions.
-    let head_oid = branch_oid(head_branch)?;
-    term::patch::print_commits_ahead_behind(&storage.backend, *head_oid, *current_revision.head())?;
-
-    Ok(())
-}
 
 /// Run patch update.
 pub fn run(
-    patch_id: Option<patch::PatchId>,
+    patch_id: patch::PatchId,
     message: term::patch::Message,
-    quiet: bool,
-    options: &Options,
     profile: &Profile,
     storage: &Repository,
     workdir: &git::raw::Repository,
@@ -65,49 +17,24 @@ pub fn run(
     // `HEAD`; This is what we are proposing as a patch.
     let head_branch = try_branch(workdir.head()?)?;
 
-    push_to_storage(workdir, storage, &head_branch, options)?;
-
     let (_, target_oid) = get_merge_target(storage, &head_branch)?;
     let mut patches = patch::Patches::open(storage)?;
-
-    let patch_id = match patch_id {
-        Some(patch_id) => patch_id,
-        None => select_patch(&patches, storage, &head_branch, target_oid, &profile.did())?,
-    };
     let Ok(mut patch) = patches.get_mut(&patch_id) else {
         anyhow::bail!("Patch `{patch_id}` not found");
     };
 
-    let (_, current_revision) = patch.latest();
-    if current_revision.head() == branch_oid(&head_branch)? {
-        if !quiet {
-            term::info!("Nothing to do, patch is already up to date.");
-        }
+    let (_, revision) = patch.latest();
+    if revision.head() == branch_oid(&head_branch)? {
         return Ok(());
-    }
-
-    if !quiet {
-        show_update_commit_info(storage, current_revision, &head_branch)?;
     }
 
     let head_oid = branch_oid(&head_branch)?;
     let base_oid = storage.backend.merge_base(*target_oid, *head_oid)?;
-    let message = term::patch::get_update_message(message, workdir, current_revision, &head_oid)?;
+    let message = term::patch::get_update_message(message, workdir, revision, &head_oid)?;
     let signer = term::signer(profile)?;
     let revision = patch.update(message, base_oid, *head_oid, &signer)?;
 
-    if quiet {
-        term::print(revision);
-    } else {
-        term::success!(
-            "Patch updated to revision {}",
-            term::format::tertiary(revision),
-        );
-    }
-
-    if options.announce {
-        // TODO
-    }
+    term::print(revision);
 
     Ok(())
 }

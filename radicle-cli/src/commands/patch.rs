@@ -63,9 +63,6 @@ Edit options
 
 Update options
 
-    -q, --quiet                Supress most output, only print the revision id
-        --[no-]announce        Announce patch to network (default: false)
-        --[no-]push            Push patch head to storage (default: true)
     -m, --message [<string>]   Provide a comment message to the patch or revision (default: prompt)
         --no-message           Leave the patch or revision comment message blank
 
@@ -130,9 +127,8 @@ pub enum Operation {
         verbose: bool,
     },
     Update {
-        patch_id: Option<Rev>,
+        patch_id: Rev,
         message: Message,
-        quiet: bool,
     },
     Archive {
         patch_id: Rev,
@@ -184,7 +180,6 @@ impl Args for Options {
         let mut filter = Filter::default();
         let mut diff = false;
         let mut undo = false;
-        let mut quiet = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -218,11 +213,6 @@ impl Args for Options {
                     push = false;
                 }
 
-                // Update options.
-                Long("quiet") | Short('q') if op == Some(OperationName::Update) => {
-                    quiet = true;
-                }
-
                 // Show options.
                 Long("patch") | Short('p') if op == Some(OperationName::Show) => {
                     diff = true;
@@ -231,6 +221,13 @@ impl Args for Options {
                 // Ready options.
                 Long("undo") if op == Some(OperationName::Ready) => {
                     undo = true;
+                }
+
+                // Update options
+                Long("revision") if op == Some(OperationName::Update) => {
+                    let val = parser.value()?;
+                    let val = string(&val);
+                    revision_id = Some(Rev::from(val));
                 }
 
                 // List options.
@@ -305,9 +302,8 @@ impl Args for Options {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
             },
             OperationName::Update => Operation::Update {
-                patch_id,
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
                 message,
-                quiet,
             },
             OperationName::Archive => Operation::Archive {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
@@ -369,21 +365,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Update {
             ref patch_id,
             ref message,
-            quiet,
         } => {
-            let patch_id = patch_id
-                .as_ref()
-                .map(|id| id.resolve(&repository.backend))
-                .transpose()?;
-            update::run(
-                patch_id,
-                message.clone(),
-                quiet,
-                &options,
-                &profile,
-                &repository,
-                &workdir,
-            )?;
+            let patch_id = patch_id.resolve(&repository.backend)?;
+            update::run(patch_id, message.clone(), &profile, &repository, &workdir)?;
         }
         Operation::Archive { ref patch_id } => {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;

@@ -87,10 +87,12 @@ $ git commit --message "Add README, just for the fun"
 [flux-capacitor-power 27857ec] Add README, just for the fun
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
-$ rad patch update --message "Add README, just for the fun" 077e4bbe9a6e5546f400ef5951768c37a76f13a4
-Updating 3e674d1 -> 27857ec
-1 commit(s) ahead, 0 commit(s) behind
-✓ Patch updated to revision 5cdcd2e14411e2bfec7b11bcf4667e2e0fc4d417
+```
+``` (stderr)
+$ git push rad -o patch.message="Add README, just for the fun"
+✓ Patch 077e4bb updated to 5cdcd2e14411e2bfec7b11bcf4667e2e0fc4d417
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+   3e674d1..27857ec  flux-capacitor-power -> patches/077e4bbe9a6e5546f400ef5951768c37a76f13a4
 ```
 
 And let's leave a quick comment for our team:
