@@ -879,6 +879,14 @@ mod routes {
                                   "type": "addition",
                                 },
                               ],
+                              "old":  {
+                                "start": 0,
+                                "end": 0,
+                              },
+                              "new": {
+                                "start": 1,
+                                "end": 2,
+                              },
                             },
                           ],
                           "eof": "noneMissing",
@@ -901,7 +909,15 @@ mod routes {
                                   "lineNo": 1,
                                   "type": "addition"
                                 }
-                              ]
+                              ],
+                              "old":  {
+                                "start": 0,
+                                "end": 0,
+                              },
+                              "new": {
+                                "start": 1,
+                                "end": 2,
+                              },
                             }
                           ],
                           "eof": "noneMissing",
@@ -927,6 +943,14 @@ mod routes {
                                   "type": "deletion",
                                 },
                               ],
+                              "old":  {
+                                "start": 1,
+                                "end": 2,
+                              },
+                              "new": {
+                                "start": 0,
+                                "end": 0,
+                              },
                             },
                           ],
                           "eof": "noneMissing",
@@ -981,6 +1005,14 @@ mod routes {
                                   "type": "addition",
                                 },
                               ],
+                              "old":  {
+                                "start": 0,
+                                "end": 0,
+                              },
+                              "new": {
+                                "start": 1,
+                                "end": 2,
+                              },
                             },
                           ],
                           "eof": "noneMissing",
@@ -1006,6 +1038,14 @@ mod routes {
                                   "type": "deletion",
                                 },
                               ],
+                              "old":  {
+                                "start": 1,
+                                "end": 2,
+                              },
+                              "new": {
+                                "start": 0,
+                                "end": 0,
+                              },
                             },
                           ],
                           "eof": "noneMissing",
@@ -1059,7 +1099,15 @@ mod routes {
                                   "lineNo": 1,
                                   "type": "addition"
                                 }
-                              ]
+                              ],
+                              "old":  {
+                                "start": 0,
+                                "end": 0,
+                              },
+                              "new": {
+                                "start": 1,
+                                "end": 2,
+                              },
                             }
                           ],
                           "eof": "noneMissing",
@@ -1134,6 +1182,14 @@ mod routes {
                               "type": "addition",
                             },
                           ],
+                          "old":  {
+                            "start": 0,
+                            "end": 0,
+                          },
+                          "new": {
+                            "start": 1,
+                            "end": 2,
+                          },
                         },
                       ],
                       "eof": "noneMissing",
@@ -1156,7 +1212,15 @@ mod routes {
                               "lineNo": 1,
                               "type": "addition"
                             }
-                          ]
+                          ],
+                          "old":  {
+                            "start": 0,
+                            "end": 0,
+                          },
+                          "new": {
+                            "start": 1,
+                            "end": 2,
+                          },
                         }
                       ],
                       "eof": "noneMissing",
@@ -1182,6 +1246,14 @@ mod routes {
                               "type": "deletion",
                             },
                           ],
+                          "old":  {
+                            "start": 1,
+                            "end": 2,
+                          },
+                          "new": {
+                            "start": 0,
+                            "end": 0,
+                          },
                         },
                       ],
                       "eof": "noneMissing",
@@ -1431,6 +1503,14 @@ mod routes {
                                 "type": "addition",
                               },
                             ],
+                            "old":  {
+                              "start": 0,
+                              "end": 0,
+                            },
+                            "new": {
+                              "start": 1,
+                              "end": 2,
+                            },
                           },
                         ],
                         "eof": "noneMissing",

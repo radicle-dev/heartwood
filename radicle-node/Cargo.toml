@@ -29,7 +29,7 @@ nonempty = { version = "0.8.1", features = ["serialize"] }
 qcheck = { version = "1", default-features = false, optional = true }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
-radicle-git-ext = { version = "0.5.0", features = ["serde"] }
+radicle-git-ext = { version = "0.6.0", features = ["serde"] }
 sqlite = { version = "0.30.3" }
 scrypt = { version = "0.10.0", default-features = false }
 serde = { version = "1", features = ["derive"] }

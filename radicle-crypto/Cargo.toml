@@ -28,7 +28,7 @@ default-features = false
 optional = true
 
 [dependencies.radicle-git-ext]
-version = "0.5.0"
+version = "0.6.0"
 default-features = false
 optional = true
 

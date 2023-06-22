@@ -974,9 +974,9 @@ checksum = "b6c80984affa11d98d1b88b66ac8853f143217b399d3c74116778ff8fdb4ed2e"
 
 [[package]]
 name = "git-ref-format"
-version = "0.2.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dee7296543085890905b49ee720902b25133a8d878b7221488d0450bbd965741"
+checksum = "137adab7111fcb575db6f07dae3a7d37f3c2630878954c9931f7135dfa33eeef"
 dependencies = [
  "git-ref-format-core",
  "git-ref-format-macro",
@@ -984,9 +984,9 @@ dependencies = [
 
 [[package]]
 name = "git-ref-format-core"
-version = "0.2.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54d2d2c6b5f0b38d20c51883abe9ee5879fb50e56a8255bb35ac0b0c679504c5"
+checksum = "ebb6549ddc63ba5722acb98c823b0eccb7f8b979407bd2a8fd616f581ae50982"
 dependencies = [
  "serde",
  "thiserror",
@@ -994,9 +994,9 @@ dependencies = [
 
 [[package]]
 name = "git-ref-format-macro"
-version = "0.2.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6b7367435d968adc55ba8cd0bb3c12a3cb517270f110b5300df9c6f0726c762"
+checksum = "18ffd0101a3bd9a3aba39602b8b20751ddb7ee11596debb58be3074209dad2ae"
 dependencies = [
  "git-ref-format-core",
  "proc-macro-error",
@@ -2043,9 +2043,9 @@ dependencies = [
 
 [[package]]
 name = "radicle-git-ext"
-version = "0.5.1"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85d13d7488924b07c0d541760520b1e4224c6ffa2d9765e05d1de9591e248970"
+checksum = "90bc5efea239afa1fb374923be50c3a5f98cec92d53b5fa55bdf57ac76b16433"
 dependencies = [
  "git-ref-format",
  "git2",
@@ -2152,9 +2152,9 @@ checksum = "db20136bbc9ae63f3fec8e5a6c369f4902fac2244501b5dfc6d668e43475aaa4"
 
 [[package]]
 name = "radicle-surf"
-version = "0.12.1"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de8c146d519788c2edf77de4d876a168de47230b8c57b9e3f7fdc3dc72b2a0cb"
+checksum = "b801a32980495a643bd380cc88f2074cf978862efbc8c085d5bd9f3be4caafd6"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
