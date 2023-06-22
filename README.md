@@ -43,6 +43,16 @@ Or directly from our seed node:
     cargo install --force --locked --git https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git \
         radicle-cli radicle-node radicle-remote-helper
 
+## Running
+
+*Systemd* unit files are provided for the node and HTTP daemon under the
+`/systemd` folder. They can be used as a starting point for further
+customization.
+
+Additionally, a `Dockerfile` is included under both crates.
+
+For running in debug mode, see [HACKING.md](HACKING.md).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [HACKING.md](HACKING.md) for an
