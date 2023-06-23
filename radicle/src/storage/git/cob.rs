@@ -4,10 +4,18 @@ use std::collections::BTreeMap;
 use cob::object::Objects;
 use radicle_cob as cob;
 use radicle_cob::change;
+use storage::SignRepository;
 
-use crate::git;
+use crate::storage;
 use crate::storage::Error;
-use crate::storage::ReadRepository;
+use crate::storage::{
+    git::{Remote, Remotes, VerifyError},
+    ReadRepository, Verified,
+};
+use crate::{
+    git, identity,
+    identity::{doc::DocError, IdentityError},
+};
 
 pub use crate::git::*;
 pub use cob::*;
@@ -165,14 +173,24 @@ impl cob::object::Storage for Repository {
 }
 
 /// Stores draft collaborative objects.
-pub struct DraftStore {
+///
+// This storage backend for COBs stores changes in a `draft/cobs/*` namespace,
+// which allows for some of the features needed for code review. For
+// example, users can draft comments and later decide to publish them.
+pub struct DraftStore<'a> {
     remote: RemoteId,
-    repo: Repository,
+    repo: &'a Repository,
 }
 
-impl cob::Store for DraftStore {}
+impl<'a> DraftStore<'a> {
+    pub fn new(remote: RemoteId, repo: &'a Repository) -> Self {
+        Self { remote, repo }
+    }
+}
 
-impl change::Storage for DraftStore {
+impl<'a> cob::Store for DraftStore<'a> {}
+
+impl<'a> change::Storage for DraftStore<'a> {
     type StoreError = <git2::Repository as change::Storage>::StoreError;
     type LoadError = <git2::Repository as change::Storage>::LoadError;
 
@@ -202,7 +220,125 @@ impl change::Storage for DraftStore {
     }
 }
 
-impl cob::object::Storage for DraftStore {
+impl<'a> SignRepository for DraftStore<'a> {
+    fn sign_refs<G: crypto::Signer>(
+        &self,
+        signer: &G,
+    ) -> Result<storage::refs::SignedRefs<Verified>, Error> {
+        self.repo.sign_refs(signer)
+    }
+}
+
+impl<'a> ReadRepository for DraftStore<'a> {
+    fn id(&self) -> identity::Id {
+        self.repo.id()
+    }
+
+    fn is_empty(&self) -> Result<bool, git2::Error> {
+        self.repo.is_empty()
+    }
+
+    fn head(&self) -> Result<(fmt::Qualified, Oid), identity::IdentityError> {
+        self.repo.head()
+    }
+
+    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), identity::IdentityError> {
+        self.repo.canonical_head()
+    }
+
+    fn validate_remote(
+        &self,
+        remote: &Remote<Verified>,
+    ) -> Result<Vec<fmt::RefString>, VerifyError> {
+        self.repo.validate_remote(remote)
+    }
+
+    fn path(&self) -> &std::path::Path {
+        self.repo.path()
+    }
+
+    fn remote(&self, id: &RemoteId) -> Result<Remote<Verified>, storage::refs::Error> {
+        self.repo.remote(id)
+    }
+
+    fn remotes(&self) -> Result<Remotes<Verified>, storage::refs::Error> {
+        ReadRepository::remotes(self.repo)
+    }
+
+    fn commit(&self, oid: Oid) -> Result<git2::Commit, git_ext::Error> {
+        self.repo.commit(oid)
+    }
+
+    fn revwalk(&self, head: Oid) -> Result<git2::Revwalk, git2::Error> {
+        self.repo.revwalk(head)
+    }
+
+    fn is_ancestor_of(&self, ancestor: Oid, head: Oid) -> Result<bool, git_ext::Error> {
+        self.repo.is_ancestor_of(ancestor, head)
+    }
+
+    fn blob_at<'b>(
+        &'b self,
+        oid: git_ext::Oid,
+        path: &'b std::path::Path,
+    ) -> Result<git2::Blob<'b>, git_ext::Error> {
+        self.repo.blob_at(oid, path)
+    }
+
+    fn reference(
+        &self,
+        remote: &RemoteId,
+        reference: &git::Qualified,
+    ) -> Result<git2::Reference, git_ext::Error> {
+        self.repo.reference(remote, reference)
+    }
+
+    fn reference_oid(
+        &self,
+        remote: &RemoteId,
+        reference: &git::Qualified,
+    ) -> Result<git_ext::Oid, git_ext::Error> {
+        self.repo.reference_oid(remote, reference)
+    }
+
+    fn references_of(&self, remote: &RemoteId) -> Result<crate::storage::refs::Refs, Error> {
+        self.repo.references_of(remote)
+    }
+
+    fn references_glob(
+        &self,
+        pattern: &git::PatternStr,
+    ) -> Result<Vec<(fmt::Qualified, Oid)>, git::ext::Error> {
+        self.repo.references_glob(pattern)
+    }
+
+    fn identity_doc(
+        &self,
+    ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), IdentityError> {
+        self.repo.identity_doc()
+    }
+
+    fn identity_doc_at(
+        &self,
+        head: Oid,
+    ) -> Result<crate::identity::Doc<crate::crypto::Unverified>, DocError> {
+        self.repo.identity_doc_at(head)
+    }
+
+    fn identity_head(&self) -> Result<Oid, IdentityError> {
+        self.repo.identity_head()
+    }
+
+    fn canonical_identity_head(&self) -> Result<Oid, IdentityError> {
+        self.repo.canonical_identity_head()
+    }
+
+    fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, git::ext::Error> {
+        self.repo.merge_base(left, right)
+    }
+}
+
+impl<'a> cob::object::Storage for DraftStore<'a> {
     type ObjectsError = ObjectsError;
     type TypesError = git::ext::Error;
     type UpdateError = git2::Error;
@@ -276,6 +412,6 @@ impl cob::object::Storage for DraftStore {
             git::refs::storage::draft::cob(identifier, typename, object_id).as_str(),
         )?;
 
-        reference.delete().map_err(Self::RemoveError::from)
+        reference.delete()
     }
 }

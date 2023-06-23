@@ -33,7 +33,9 @@ pub mod prelude {
     pub use identity::{project::Project, Did, Doc, Id};
     pub use node::{Alias, NodeId, Timestamp};
     pub use profile::Profile;
-    pub use storage::{BranchName, ReadRepository, ReadStorage, WriteRepository, WriteStorage};
+    pub use storage::{
+        BranchName, ReadRepository, ReadStorage, SignRepository, WriteRepository, WriteStorage,
+    };
 }
 
 pub mod env {

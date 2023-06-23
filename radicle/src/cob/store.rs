@@ -14,6 +14,7 @@ use crate::cob::{ActorId, Create, EntryId, History, ObjectId, TypeName, Update, 
 use crate::git;
 use crate::prelude::*;
 use crate::storage::git as storage;
+use crate::storage::SignRepository;
 use crate::{cob, identity};
 
 /// History type for standard radicle COBs.
@@ -155,7 +156,7 @@ impl<'a, T, R: ReadRepository> Store<'a, T, R> {
 
 impl<'a, T, R> Store<'a, T, R>
 where
-    R: WriteRepository + cob::Store,
+    R: ReadRepository + SignRepository + cob::Store,
     T: FromHistory,
     T::Action: Serialize,
 {
@@ -220,6 +221,34 @@ where
         Ok((*cob.id(), object, clock))
     }
 
+    /// Remove an object.
+    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), Error> {
+        let name = git::refs::storage::cob(signer.public_key(), T::type_name(), id);
+        match self
+            .repo
+            .reference_oid(signer.public_key(), &name.strip_namespace())
+        {
+            Ok(_) => {
+                cob::remove(self.repo, signer.public_key(), T::type_name(), id)?;
+                self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
+                Ok(())
+            }
+            Err(git::Error::NotFound(_)) => Ok(()),
+            Err(git::Error::Git(err)) if err.code() == git::raw::ErrorCode::NotFound => Ok(()),
+            Err(err) => Err(Error::RefLookup {
+                name: name.to_ref_string(),
+                err,
+            }),
+        }
+    }
+}
+
+impl<'a, T, R> Store<'a, T, R>
+where
+    R: ReadRepository + cob::Store,
+    T: FromHistory,
+    T::Action: Serialize,
+{
     /// Get an object.
     pub fn get(&self, id: &ObjectId) -> Result<Option<(T, Lamport)>, Error> {
         let cob = cob::get(self.repo, T::type_name(), id)?;
@@ -259,27 +288,6 @@ where
 
         Ok(raw.len())
     }
-
-    /// Remove an object.
-    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), Error> {
-        let name = git::refs::storage::cob(signer.public_key(), T::type_name(), id);
-        match self
-            .repo
-            .reference_oid(signer.public_key(), &name.strip_namespace())
-        {
-            Ok(_) => {
-                cob::remove(self.repo, signer.public_key(), T::type_name(), id)?;
-                self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
-                Ok(())
-            }
-            Err(git::Error::NotFound(_)) => Ok(()),
-            Err(git::Error::Git(err)) if err.code() == git::raw::ErrorCode::NotFound => Ok(()),
-            Err(err) => Err(Error::RefLookup {
-                name: name.to_ref_string(),
-                err,
-            }),
-        }
-    }
 }
 
 /// Allows operations to be batched atomically.
@@ -310,7 +318,7 @@ impl<T: FromHistory> Transaction<T> {
     where
         G: Signer,
         F: FnOnce(&mut Self) -> Result<(), Error>,
-        R: WriteRepository + cob::Store,
+        R: ReadRepository + SignRepository + cob::Store,
         T::Action: Serialize + Clone,
     {
         let actor = *signer.public_key();
@@ -350,7 +358,7 @@ impl<T: FromHistory> Transaction<T> {
         signer: &G,
     ) -> Result<(Vec<cob::Op<T::Action>>, Lamport, EntryId), Error>
     where
-        R: WriteRepository + cob::Store,
+        R: ReadRepository + SignRepository + cob::Store,
         T::Action: Serialize + Clone,
     {
         let actions = NonEmpty::from_vec(self.actions)

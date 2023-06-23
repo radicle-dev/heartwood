@@ -450,16 +450,20 @@ pub trait ReadRepository: Sized {
 }
 
 /// Allows read-write access to a repository.
-pub trait WriteRepository: ReadRepository {
+pub trait WriteRepository: ReadRepository + SignRepository {
     /// Set the repository head to the canonical branch.
     /// This computes the head based on the delegate set.
     fn set_head(&self) -> Result<Oid, IdentityError>;
     /// Set the repository 'rad/id' to the canonical commit, agreed by quorum.
     fn set_identity_head(&self) -> Result<Oid, IdentityError>;
-    /// Sign the repository's refs under the `refs/rad/sigrefs` branch.
-    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error>;
     /// Get the underlying git repository.
     fn raw(&self) -> &git2::Repository;
+}
+
+/// Allows signing refs.
+pub trait SignRepository {
+    /// Sign the repository's refs under the `refs/rad/sigrefs` branch.
+    fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error>;
 }
 
 impl<T, S> ReadStorage for T

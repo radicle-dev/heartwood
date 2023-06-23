@@ -248,14 +248,16 @@ impl WriteRepository for MockRepository {
         todo!()
     }
 
+    fn set_identity_head(&self) -> Result<Oid, IdentityError> {
+        todo!()
+    }
+}
+
+impl SignRepository for MockRepository {
     fn sign_refs<G: Signer>(
         &self,
         _signer: &G,
     ) -> Result<crate::storage::refs::SignedRefs<Verified>, Error> {
-        todo!()
-    }
-
-    fn set_identity_head(&self) -> Result<Oid, IdentityError> {
         todo!()
     }
 }

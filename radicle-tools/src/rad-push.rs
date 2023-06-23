@@ -1,6 +1,9 @@
 use std::path::Path;
 
-use radicle::{node::Handle, storage::ReadStorage, storage::WriteRepository};
+use radicle::{
+    node::Handle,
+    storage::{ReadStorage, SignRepository, WriteRepository},
+};
 
 fn main() -> anyhow::Result<()> {
     let cwd = Path::new(".").canonicalize()?;

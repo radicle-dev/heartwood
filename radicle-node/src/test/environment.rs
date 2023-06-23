@@ -27,7 +27,7 @@ use radicle::profile;
 use radicle::profile::Home;
 use radicle::profile::Profile;
 use radicle::rad;
-use radicle::storage::{ReadRepository, ReadStorage as _, WriteRepository};
+use radicle::storage::{ReadRepository, ReadStorage as _, SignRepository as _};
 use radicle::test::fixtures;
 use radicle::Storage;
 

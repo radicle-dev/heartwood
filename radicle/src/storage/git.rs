@@ -16,7 +16,8 @@ use crate::identity::{Identity, IdentityError, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
-    Inventory, ReadRepository, ReadStorage, Remote, Remotes, WriteRepository, WriteStorage,
+    Inventory, ReadRepository, ReadStorage, Remote, Remotes, SignRepository, WriteRepository,
+    WriteStorage,
 };
 
 pub use crate::git::*;
@@ -628,6 +629,12 @@ impl WriteRepository for Repository {
         Ok(head)
     }
 
+    fn raw(&self) -> &git2::Repository {
+        &self.backend
+    }
+}
+
+impl SignRepository for Repository {
     fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error> {
         let remote = signer.public_key();
         let refs = self.references_of(remote)?;
@@ -636,10 +643,6 @@ impl WriteRepository for Repository {
         signed.save(self)?;
 
         Ok(signed)
-    }
-
-    fn raw(&self) -> &git2::Repository {
-        &self.backend
     }
 }
 
@@ -703,7 +706,7 @@ mod tests {
     use super::*;
     use crate::git;
     use crate::storage::refs::SIGREFS_BRANCH;
-    use crate::storage::{ReadRepository, ReadStorage, WriteRepository};
+    use crate::storage::{ReadRepository, ReadStorage};
     use crate::test::arbitrary;
     use crate::test::fixtures;
 

@@ -15,7 +15,7 @@ use crate::identity::{doc, IdentityError};
 use crate::storage::git::transport;
 use crate::storage::git::Repository;
 use crate::storage::refs::SignedRefs;
-use crate::storage::{BranchName, ReadRepository as _, RemoteId};
+use crate::storage::{BranchName, ReadRepository as _, RemoteId, SignRepository as _};
 use crate::storage::{WriteRepository, WriteStorage};
 use crate::{identity, storage};
 

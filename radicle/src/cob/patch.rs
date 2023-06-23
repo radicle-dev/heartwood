@@ -1152,7 +1152,7 @@ pub struct PatchMut<'a, 'g, R> {
 
 impl<'a, 'g, R> PatchMut<'a, 'g, R>
 where
-    R: WriteRepository + cob::Store,
+    R: ReadRepository + SignRepository + cob::Store,
 {
     pub fn new(
         id: ObjectId,
@@ -1392,7 +1392,7 @@ impl<'a, R> Deref for Patches<'a, R> {
 
 impl<'a, R> Patches<'a, R>
 where
-    R: WriteRepository + cob::Store,
+    R: ReadRepository + cob::Store,
 {
     /// Open an patches store.
     pub fn open(repository: &'a R) -> Result<Self, store::Error> {
@@ -1401,6 +1401,74 @@ where
         Ok(Self { raw })
     }
 
+    /// Patches count by state.
+    pub fn counts(&self) -> Result<PatchCounts, store::Error> {
+        let all = self.all()?;
+        let state_groups =
+            all.filter_map(|s| s.ok())
+                .fold(PatchCounts::default(), |mut state, (_, p, _)| {
+                    match p.state() {
+                        State::Draft => state.draft += 1,
+                        State::Open { .. } => state.open += 1,
+                        State::Archived => state.archived += 1,
+                        State::Merged { .. } => state.merged += 1,
+                    }
+                    state
+                });
+
+        Ok(state_groups)
+    }
+
+    /// Find the `Patch` containing the given `Revision`.
+    pub fn find_by_revision(
+        &self,
+        id: &RevisionId,
+    ) -> Result<Option<(PatchId, Patch, Revision)>, Error> {
+        // Revision may be the patch's first, making it have the same ID.
+        let p_id = ObjectId::from(id);
+        if let Some(p) = self.get(&p_id)? {
+            return Ok(p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
+        }
+
+        let result = self
+            .all()?
+            .filter_map(|result| result.ok())
+            .find_map(|(p_id, p, _)| p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
+        Ok(result)
+    }
+
+    /// Get a patch.
+    pub fn get(&self, id: &ObjectId) -> Result<Option<Patch>, store::Error> {
+        self.raw.get(id).map(|r| r.map(|(p, _)| p))
+    }
+
+    /// Get proposed patches.
+    pub fn proposed(
+        &self,
+    ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)> + '_, Error> {
+        let all = self.all()?;
+
+        Ok(all
+            .into_iter()
+            .filter_map(|result| result.ok())
+            .filter(|(_, p, _)| p.is_open()))
+    }
+
+    /// Get patches proposed by the given key.
+    pub fn proposed_by<'b>(
+        &'b self,
+        who: &'b Did,
+    ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)> + '_, Error> {
+        Ok(self
+            .proposed()?
+            .filter(move |(_, p, _)| p.author().id() == who))
+    }
+}
+
+impl<'a, R> Patches<'a, R>
+where
+    R: ReadRepository + SignRepository + cob::Store,
+{
     /// Open a new patch.
     pub fn create<'g, G: Signer>(
         &'g mut self,
@@ -1447,47 +1515,6 @@ where
         )
     }
 
-    /// Patches count by state.
-    pub fn counts(&self) -> Result<PatchCounts, store::Error> {
-        let all = self.all()?;
-        let state_groups =
-            all.filter_map(|s| s.ok())
-                .fold(PatchCounts::default(), |mut state, (_, p, _)| {
-                    match p.state() {
-                        State::Draft => state.draft += 1,
-                        State::Open { .. } => state.open += 1,
-                        State::Archived => state.archived += 1,
-                        State::Merged { .. } => state.merged += 1,
-                    }
-                    state
-                });
-
-        Ok(state_groups)
-    }
-
-    /// Find the `Patch` containing the given `Revision`.
-    pub fn find_by_revision(
-        &self,
-        id: &RevisionId,
-    ) -> Result<Option<(PatchId, Patch, Revision)>, Error> {
-        // Revision may be the patch's first, making it have the same ID.
-        let p_id = ObjectId::from(id);
-        if let Some(p) = self.get(&p_id)? {
-            return Ok(p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
-        }
-
-        let result = self
-            .all()?
-            .filter_map(|result| result.ok())
-            .find_map(|(p_id, p, _)| p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
-        Ok(result)
-    }
-
-    /// Get a patch.
-    pub fn get(&self, id: &ObjectId) -> Result<Option<Patch>, store::Error> {
-        self.raw.get(id).map(|r| r.map(|(p, _)| p))
-    }
-
     /// Get a patch mutably.
     pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<PatchMut<'a, 'g, R>, store::Error> {
         let (patch, clock) = self
@@ -1501,28 +1528,6 @@ where
             patch,
             store: self,
         })
-    }
-
-    /// Get proposed patches.
-    pub fn proposed(
-        &self,
-    ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)> + 'a, Error> {
-        let all = self.all()?;
-
-        Ok(all
-            .into_iter()
-            .filter_map(|result| result.ok())
-            .filter(|(_, p, _)| p.is_open()))
-    }
-
-    /// Get patches proposed by the given key.
-    pub fn proposed_by<'b>(
-        &'b self,
-        who: &'b Did,
-    ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)> + '_, Error> {
-        Ok(self
-            .proposed()?
-            .filter(move |(_, p, _)| p.author().id() == who))
     }
 
     /// Create a patch. This is an internal function used by `create` and `draft`.
