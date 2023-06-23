@@ -6,7 +6,7 @@ use term::Element;
 
 use super::TrackingMode;
 
-pub fn run(store: &tracking::store::Config, mode: TrackingMode) -> anyhow::Result<()> {
+pub fn run(store: &tracking::store::ConfigReader, mode: TrackingMode) -> anyhow::Result<()> {
     match mode {
         TrackingMode::Repos => print_repos(store)?,
         TrackingMode::Nodes => print_nodes(store)?,
@@ -14,7 +14,7 @@ pub fn run(store: &tracking::store::Config, mode: TrackingMode) -> anyhow::Resul
     Ok(())
 }
 
-fn print_repos(store: &tracking::store::Config) -> anyhow::Result<()> {
+fn print_repos(store: &tracking::store::ConfigReader) -> anyhow::Result<()> {
     let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.push([
         term::format::default(String::from("RID")),
@@ -39,7 +39,7 @@ fn print_repos(store: &tracking::store::Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_nodes(store: &tracking::store::Config) -> anyhow::Result<()> {
+fn print_nodes(store: &tracking::store::ConfigReader) -> anyhow::Result<()> {
     let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.push([
         term::format::default(String::from("DID")),

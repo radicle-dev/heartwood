@@ -153,7 +153,7 @@ where
         mut config: Config<G>,
     ) -> Self {
         let routing = routing::Table::memory().unwrap();
-        let tracking = tracking::Store::memory().unwrap();
+        let tracking = tracking::Store::<tracking::store::Write>::memory().unwrap();
         let tracking = tracking::Config::new(config.policy, config.scope, tracking);
         let tempdir = tempfile::tempdir().unwrap();
         let id = *config.signer.public_key();

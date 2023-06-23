@@ -208,7 +208,7 @@ impl Profile {
     }
 
     /// Return a read-only handle to the tracking configuration of the node.
-    pub fn tracking(&self) -> Result<tracking::store::Config, tracking::store::Error> {
+    pub fn tracking(&self) -> Result<tracking::store::ConfigReader, tracking::store::Error> {
         let path = self.home.node().join(node::TRACKING_DB_FILE);
         let config = tracking::store::Config::reader(path)?;
 
@@ -261,7 +261,7 @@ impl Profile {
 /// Holds multiple alias stores, and will try
 /// them one by one when asking for an alias.
 pub struct Aliases {
-    tracking: Option<tracking::store::Config>,
+    tracking: Option<tracking::store::ConfigReader>,
     addresses: Option<address::Book>,
 }
 

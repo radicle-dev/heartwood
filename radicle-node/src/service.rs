@@ -32,7 +32,7 @@ use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
-use crate::service::tracking::Scope;
+use crate::service::tracking::{store::Write, Scope};
 use crate::storage;
 use crate::storage::{Namespaces, ReadStorage};
 use crate::storage::{ReadRepository, RefUpdate};
@@ -185,7 +185,7 @@ pub struct Service<R, A, S, G> {
     /// Node address manager.
     addresses: A,
     /// Tracking policy configuration.
-    tracking: tracking::Config,
+    tracking: tracking::Config<Write>,
     /// State relating to gossip.
     gossip: Gossip,
     /// Peer sessions, currently or recently connected.
@@ -244,7 +244,7 @@ where
         routing: R,
         storage: S,
         addresses: A,
-        tracking: tracking::Config,
+        tracking: tracking::Config<Write>,
         signer: G,
         rng: Rng,
         node: NodeAnnouncement,
@@ -349,7 +349,7 @@ where
     }
 
     /// Get the tracking policy.
-    pub fn tracking(&self) -> &tracking::Config {
+    pub fn tracking(&self) -> &tracking::Config<Write> {
         &self.tracking
     }
 

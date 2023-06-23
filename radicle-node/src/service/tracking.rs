@@ -1,3 +1,4 @@
+use core::fmt;
 use std::collections::HashSet;
 use std::ops;
 
@@ -11,6 +12,7 @@ use radicle::storage::{Namespaces, ReadRepository as _, ReadStorage};
 use crate::prelude::Id;
 use crate::service::NodeId;
 
+pub use crate::node::tracking::store;
 pub use crate::node::tracking::store::Config as Store;
 pub use crate::node::tracking::store::Error;
 pub use crate::node::tracking::{Alias, Node, Policy, Repo, Scope};
@@ -42,19 +44,30 @@ pub enum NamespacesError {
 }
 
 /// Tracking configuration.
-#[derive(Debug)]
-pub struct Config {
+pub struct Config<T> {
     /// Default policy, if a policy for a specific node or repository was not found.
     policy: Policy,
     /// Default scope, if a scope for a specific repository was not found.
     scope: Scope,
     /// Underlying configuration store.
-    store: Store,
+    store: Store<T>,
 }
 
-impl Config {
+// N.b. deriving `Debug` will require `T: Debug` so we manually
+// implement it here.
+impl<T> fmt::Debug for Config<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Config")
+            .field("policy", &self.policy)
+            .field("scope", &self.scope)
+            .field("store", &self.store)
+            .finish()
+    }
+}
+
+impl<T> Config<T> {
     /// Create a new tracking configuration.
-    pub fn new(policy: Policy, scope: Scope, store: Store) -> Self {
+    pub fn new(policy: Policy, scope: Scope, store: Store<T>) -> Self {
         Self {
             policy,
             scope,
@@ -139,15 +152,15 @@ impl Config {
     }
 }
 
-impl ops::Deref for Config {
-    type Target = Store;
+impl<T> ops::Deref for Config<T> {
+    type Target = Store<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.store
     }
 }
 
-impl ops::DerefMut for Config {
+impl<T> ops::DerefMut for Config<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.store
     }

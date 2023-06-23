@@ -1,4 +1,5 @@
 #![allow(clippy::type_complexity)]
+use std::marker::PhantomData;
 use std::path::Path;
 use std::{fmt, io, ops::Not as _, str::FromStr, time};
 
@@ -25,29 +26,30 @@ pub enum Error {
     Internal(#[from] sql::Error),
 }
 
+/// Read-only type witness.
+pub struct Read;
+/// Read-write type witness.
+pub struct Write;
+
+/// Read only config.
+pub type ConfigReader = Config<Read>;
+/// Read-write config.
+pub type ConfigWriter = Config<Write>;
+
 /// Tracking configuration.
-pub struct Config {
+pub struct Config<T> {
     db: sql::Connection,
+    _marker: PhantomData<T>,
 }
 
-impl fmt::Debug for Config {
+impl<T> fmt::Debug for Config<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Config(..)")
     }
 }
 
-impl Config {
+impl Config<Read> {
     const SCHEMA: &str = include_str!("schema.sql");
-
-    /// Open a policy store at the given path. Creates a new store if it
-    /// doesn't exist.
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let mut db = sql::Connection::open(path)?;
-        db.set_busy_timeout(DB_WRITE_TIMEOUT.as_millis() as usize)?;
-        db.execute(Self::SCHEMA)?;
-
-        Ok(Self { db })
-    }
 
     /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
     /// open databases, as no locking is required.
@@ -57,7 +59,39 @@ impl Config {
         db.set_busy_timeout(DB_READ_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::SCHEMA)?;
 
-        Ok(Self { db })
+        Ok(Self {
+            db,
+            _marker: PhantomData,
+        })
+    }
+
+    /// Create a new in-memory address book.
+    pub fn memory() -> Result<Self, Error> {
+        let db =
+            sql::Connection::open_with_flags(":memory:", sqlite::OpenFlags::new().set_read_only())?;
+        db.execute(Self::SCHEMA)?;
+
+        Ok(Self {
+            db,
+            _marker: PhantomData,
+        })
+    }
+}
+
+impl Config<Write> {
+    const SCHEMA: &str = include_str!("schema.sql");
+
+    /// Open a policy store at the given path. Creates a new store if it
+    /// doesn't exist.
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        let mut db = sql::Connection::open(path)?;
+        db.set_busy_timeout(DB_WRITE_TIMEOUT.as_millis() as usize)?;
+        db.execute(Self::SCHEMA)?;
+
+        Ok(Self {
+            db,
+            _marker: PhantomData,
+        })
     }
 
     /// Create a new in-memory address book.
@@ -65,7 +99,18 @@ impl Config {
         let db = sql::Connection::open(":memory:")?;
         db.execute(Self::SCHEMA)?;
 
-        Ok(Self { db })
+        Ok(Self {
+            db,
+            _marker: PhantomData,
+        })
+    }
+
+    /// Get a read-only version of this store.
+    pub fn read_only(self) -> ConfigReader {
+        Config {
+            db: self.db,
+            _marker: PhantomData,
+        }
     }
 
     /// Track a node.
@@ -155,7 +200,11 @@ impl Config {
 
         Ok(self.db.change_count() > 0)
     }
+}
 
+/// `Read` methods for `Config`. This implies that a
+/// `Config<Write>` can access these functions as well.
+impl<T> Config<T> {
     /// Check if a node is tracked.
     pub fn is_node_tracked(&self, id: &NodeId) -> Result<bool, Error> {
         Ok(matches!(
@@ -265,7 +314,7 @@ impl Config {
     }
 }
 
-impl AliasStore for Config {
+impl<T> AliasStore for Config<T> {
     /// Retrieve `alias` of given node.
     /// Calls `Self::node_policy` under the hood.
     fn alias(&self, nid: &NodeId) -> Option<Alias> {
