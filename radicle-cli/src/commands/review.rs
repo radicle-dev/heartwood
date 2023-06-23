@@ -276,7 +276,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Operation::Delete => {
-            let name = git::refs::storage::review(profile.id(), &patch_id);
+            let name = git::refs::storage::draft::review(profile.id(), &patch_id);
 
             match repository.backend.find_reference(&name) {
                 Ok(mut r) => r.delete()?,

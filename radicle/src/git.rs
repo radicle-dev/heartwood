@@ -241,12 +241,57 @@ pub mod refs {
             .with_namespace(remote.into())
         }
 
-        /// Review draft reference.
+        /// Draft references.
         ///
-        /// When building a patch review, we store the intermediate state in this ref.
-        pub fn review<'a>(remote: &RemoteId, patch: &cob::ObjectId) -> Namespaced<'a> {
-            Qualified::from_components(component!("reviews"), Component::from(patch), None)
+        /// These references are not replicated or signed.
+        pub mod draft {
+            use super::*;
+
+            /// Review draft reference. Points to the non-COB part of a patch review.
+            ///
+            /// `refs/namespaces/<remote>/refs/drafts/reviews/<patch-id>`
+            ///
+            /// When building a patch review, we store the intermediate state in this ref.
+            pub fn review<'a>(remote: &RemoteId, patch: &cob::ObjectId) -> Namespaced<'a> {
+                Qualified::from_components(
+                    component!("drafts"),
+                    component!("reviews"),
+                    Some(Component::from(patch)),
+                )
                 .with_namespace(remote.into())
+            }
+
+            /// A draft collaborative object. This can also be a draft operation on an existing
+            /// object.
+            ///
+            /// `refs/namespaces/<remote>/refs/drafts/cobs/<typename>/<object_id>`
+            ///
+            pub fn cob<'a>(
+                remote: &RemoteId,
+                typename: &cob::TypeName,
+                object_id: &cob::ObjectId,
+            ) -> Namespaced<'a> {
+                Qualified::from_components(
+                    component!("drafts"),
+                    component!("cobs"),
+                    [Component::from(typename), object_id.into()],
+                )
+                .with_namespace(remote.into())
+            }
+
+            /// Draft collaborative objects of a type.
+            ///
+            /// `refs/namespaces/<remote>/refs/drafts/cobs/<typename>/*`
+            ///
+            pub fn cobs(remote: &RemoteId, typename: &cob::TypeName) -> PatternString {
+                Qualified::from_components(
+                    component!("drafts"),
+                    component!("cobs"),
+                    Some(Component::from(typename)),
+                )
+                .with_namespace(remote.into())
+                .to_pattern(refspec::pattern!("*"))
+            }
         }
 
         /// Staging/temporary references.

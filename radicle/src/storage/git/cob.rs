@@ -1,11 +1,13 @@
 //! COB storage Git backend.
 use std::collections::BTreeMap;
 
+use cob::object::Objects;
 use radicle_cob as cob;
 use radicle_cob::change;
 
 use crate::git;
 use crate::storage::Error;
+use crate::storage::ReadRepository;
 
 pub use crate::git::*;
 pub use cob::*;
@@ -157,6 +159,122 @@ impl cob::object::Storage for Repository {
         let mut reference = self
             .backend
             .find_reference(git::refs::storage::cob(identifier, typename, object_id).as_str())?;
+
+        reference.delete().map_err(Self::RemoveError::from)
+    }
+}
+
+/// Stores draft collaborative objects.
+pub struct DraftStore {
+    remote: RemoteId,
+    repo: Repository,
+}
+
+impl cob::Store for DraftStore {}
+
+impl change::Storage for DraftStore {
+    type StoreError = <git2::Repository as change::Storage>::StoreError;
+    type LoadError = <git2::Repository as change::Storage>::LoadError;
+
+    type ObjectId = <git2::Repository as change::Storage>::ObjectId;
+    type Parent = <git2::Repository as change::Storage>::Parent;
+    type Signatures = <git2::Repository as change::Storage>::Signatures;
+
+    fn store<Signer>(
+        &self,
+        authority: Self::Parent,
+        parents: Vec<Self::Parent>,
+        signer: &Signer,
+        spec: change::Template<Self::ObjectId>,
+    ) -> Result<cob::Change, Self::StoreError>
+    where
+        Signer: crypto::Signer,
+    {
+        self.repo.backend.store(authority, parents, signer, spec)
+    }
+
+    fn load(&self, id: Self::ObjectId) -> Result<cob::Change, Self::LoadError> {
+        self.repo.backend.load(id)
+    }
+
+    fn parents_of(&self, id: &Oid) -> Result<Vec<Oid>, Self::LoadError> {
+        self.repo.backend.parents_of(id)
+    }
+}
+
+impl cob::object::Storage for DraftStore {
+    type ObjectsError = ObjectsError;
+    type TypesError = git::ext::Error;
+    type UpdateError = git2::Error;
+    type RemoveError = git2::Error;
+
+    type Identifier = RemoteId;
+
+    fn objects(
+        &self,
+        typename: &cob::TypeName,
+        object_id: &cob::ObjectId,
+    ) -> Result<cob::object::Objects, Self::ObjectsError> {
+        // Nb. There can only be one draft per COB, per remote.
+        let Ok(r) = self.repo.backend.find_reference(
+            git::refs::storage::draft::cob(&self.remote, typename, object_id).as_str(),
+        ) else {
+            return Ok(Objects::default());
+        };
+        let r = cob::object::Reference::try_from(r).map_err(Self::ObjectsError::from)?;
+
+        Ok(Objects::new(r))
+    }
+
+    fn types(
+        &self,
+        typename: &cob::TypeName,
+    ) -> Result<BTreeMap<cob::ObjectId, cob::object::Objects>, Self::TypesError> {
+        let glob = git::refs::storage::draft::cobs(&self.remote, typename);
+        let references = self.repo.references_glob(&glob)?;
+        let mut objs = BTreeMap::new();
+
+        for (name, id) in references {
+            let r = cob::object::Reference {
+                name: name.into_refstring(),
+                target: cob::object::Commit { id },
+            };
+            objs.insert(id.into(), Objects::new(r));
+        }
+        Ok(objs)
+    }
+
+    fn update(
+        &self,
+        identifier: &Self::Identifier,
+        typename: &cob::TypeName,
+        object_id: &cob::ObjectId,
+        change: &cob::Change,
+    ) -> Result<(), Self::UpdateError> {
+        self.repo.backend.reference(
+            git::refs::storage::draft::cob(identifier, typename, object_id).as_str(),
+            (*change.id()).into(),
+            true,
+            &format!(
+                "Updating draft collaborative object '{}/{}' with new change {}",
+                typename,
+                object_id,
+                change.id()
+            ),
+        )?;
+
+        Ok(())
+    }
+
+    fn remove(
+        &self,
+        identifier: &Self::Identifier,
+        typename: &cob::TypeName,
+        object_id: &cob::ObjectId,
+    ) -> Result<(), Self::RemoveError> {
+        let mut reference = self.repo.backend.find_reference(
+            git::refs::storage::draft::cob(identifier, typename, object_id).as_str(),
+        )?;
 
         reference.delete().map_err(Self::RemoveError::from)
     }

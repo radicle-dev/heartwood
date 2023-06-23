@@ -182,7 +182,7 @@ impl<'a> ReviewBuilder<'a> {
     pub fn new(patch_id: PatchId, nid: NodeId, repo: &'a Repository) -> Self {
         Self {
             patch_id,
-            refname: git::refs::storage::review(&nid, &patch_id),
+            refname: git::refs::storage::draft::review(&nid, &patch_id),
             repo,
             hunk: None,
             verdict: None,
