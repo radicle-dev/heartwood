@@ -128,21 +128,21 @@ impl Error {
 }
 
 /// Storage for collaborative objects of a specific type `T` in a single repository.
-pub struct Store<'a, T> {
+pub struct Store<'a, T, R> {
     identity: git::Oid,
-    repo: &'a storage::Repository,
+    repo: &'a R,
     witness: PhantomData<T>,
 }
 
-impl<'a, T> AsRef<storage::Repository> for Store<'a, T> {
-    fn as_ref(&self) -> &storage::Repository {
+impl<'a, T, R> AsRef<R> for Store<'a, T, R> {
+    fn as_ref(&self) -> &R {
         self.repo
     }
 }
 
-impl<'a, T> Store<'a, T> {
+impl<'a, T, R: ReadRepository> Store<'a, T, R> {
     /// Open a new generic store.
-    pub fn open(repo: &'a storage::Repository) -> Result<Self, Error> {
+    pub fn open(repo: &'a R) -> Result<Self, Error> {
         let identity = repo.identity()?;
 
         Ok(Self {
@@ -153,8 +153,10 @@ impl<'a, T> Store<'a, T> {
     }
 }
 
-impl<'a, T: FromHistory> Store<'a, T>
+impl<'a, T, R> Store<'a, T, R>
 where
+    R: WriteRepository + cob::Store,
+    T: FromHistory,
     T::Action: Serialize,
 {
     /// Update an object.
@@ -299,15 +301,16 @@ impl<T: FromHistory> Transaction<T> {
     }
 
     /// Create a new transaction to be used as the initial set of operations for a COB.
-    pub fn initial<G, F>(
+    pub fn initial<R, G, F>(
         message: &str,
-        store: &mut Store<T>,
+        store: &mut Store<T, R>,
         signer: &G,
         operations: F,
     ) -> Result<(ObjectId, T, Lamport), Error>
     where
         G: Signer,
         F: FnOnce(&mut Self) -> Result<(), Error>,
+        R: WriteRepository + cob::Store,
         T::Action: Serialize + Clone,
     {
         let actor = *signer.public_key();
@@ -339,14 +342,15 @@ impl<T: FromHistory> Transaction<T> {
     /// Commit transaction.
     ///
     /// Returns a list of operations that can be applied onto an in-memory CRDT.
-    pub fn commit<G: Signer>(
+    pub fn commit<R, G: Signer>(
         mut self,
         msg: &str,
         id: ObjectId,
-        store: &mut Store<T>,
+        store: &mut Store<T, R>,
         signer: &G,
     ) -> Result<(Vec<cob::Op<T::Action>>, Lamport, EntryId), Error>
     where
+        R: WriteRepository + cob::Store,
         T::Action: Serialize + Clone,
     {
         let actions = NonEmpty::from_vec(self.actions)

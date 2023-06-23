@@ -20,7 +20,7 @@ use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefString
 use crate::identity;
 use crate::identity::doc::DocError;
 use crate::identity::Did;
-use crate::identity::{Id, IdentityError};
+use crate::identity::{Id, Identity, IdentityError};
 use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
 
@@ -319,7 +319,7 @@ pub trait WriteStorage: ReadStorage {
 }
 
 /// Allows read-only access to a repository.
-pub trait ReadRepository {
+pub trait ReadRepository: Sized {
     /// Return the repository id.
     fn id(&self) -> Id;
 
@@ -367,6 +367,13 @@ pub trait ReadRepository {
     /// Returns the reference pointed to by `rad/id` if it is set. Otherwise, computes the canonical
     /// `rad/id` using [`ReadRepository::canonical_identity_head`].
     fn identity_head(&self) -> Result<Oid, IdentityError>;
+
+    /// Load the canonical identity.
+    fn identity(&self) -> Result<Identity<Oid>, IdentityError> {
+        let head = self.identity_head()?;
+
+        Identity::load_at(head, self)
+    }
 
     /// Compute the canonical `rad/id` of this repository.
     ///

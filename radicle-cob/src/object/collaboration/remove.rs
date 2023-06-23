@@ -13,14 +13,14 @@ use super::error;
 /// The `typename` is the type of object to be found, while the
 /// `object_id` is the identifier for the particular object under that
 /// type.
-pub fn remove<S>(
+pub fn remove<S, I>(
     storage: &S,
     identifier: &S::Identifier,
     typename: &TypeName,
     oid: &ObjectId,
 ) -> Result<(), error::Remove>
 where
-    S: Store,
+    S: Store<I>,
 {
     storage
         .remove(identifier, typename, oid)

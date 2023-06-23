@@ -11,12 +11,12 @@ use super::error;
 /// [`Store`] for further information.
 ///
 /// The `typename` is the type of objects to be listed.
-pub fn list<S>(
+pub fn list<S, I>(
     storage: &S,
     typename: &TypeName,
 ) -> Result<Vec<CollaborativeObject>, error::Retrieve>
 where
-    S: Store,
+    S: Store<I>,
 {
     let references = storage
         .types(typename)

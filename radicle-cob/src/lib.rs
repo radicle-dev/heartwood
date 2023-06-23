@@ -116,9 +116,9 @@ mod tests;
 /// [`git2::Repository`]. It is expected that the underlying storage
 /// for `object::Storage` will also be `git2::Repository`, but if not
 /// please open an issue to change the definition of `Store` :)
-pub trait Store
+pub trait Store<I = crypto::PublicKey>
 where
-    Self: object::Storage
+    Self: object::Storage<Identifier = I>
         + change::Storage<
             StoreError = git::change::error::Create,
             LoadError = git::change::error::Load,

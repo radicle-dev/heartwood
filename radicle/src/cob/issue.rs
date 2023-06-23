@@ -17,7 +17,7 @@ use crate::cob::thread::{CommentId, Thread};
 use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
 use crate::prelude::{Did, ReadRepository};
-use crate::storage::git as storage;
+use crate::storage::WriteRepository;
 
 /// Issue operation.
 pub type Op = cob::Op<Action>;
@@ -331,14 +331,17 @@ impl store::Transaction<Issue> {
     }
 }
 
-pub struct IssueMut<'a, 'g> {
+pub struct IssueMut<'a, 'g, R> {
     id: ObjectId,
     clock: clock::Lamport,
     issue: Issue,
-    store: &'g mut Issues<'a>,
+    store: &'g mut Issues<'a, R>,
 }
 
-impl<'a, 'g> IssueMut<'a, 'g> {
+impl<'a, 'g, R> IssueMut<'a, 'g, R>
+where
+    R: WriteRepository + cob::Store,
+{
     /// Get the issue id.
     pub fn id(&self) -> &ObjectId {
         &self.id
@@ -457,7 +460,7 @@ impl<'a, 'g> IssueMut<'a, 'g> {
     }
 }
 
-impl<'a, 'g> Deref for IssueMut<'a, 'g> {
+impl<'a, 'g, R> Deref for IssueMut<'a, 'g, R> {
     type Target = Issue;
 
     fn deref(&self) -> &Self::Target {
@@ -465,12 +468,12 @@ impl<'a, 'g> Deref for IssueMut<'a, 'g> {
     }
 }
 
-pub struct Issues<'a> {
-    raw: store::Store<'a, Issue>,
+pub struct Issues<'a, R> {
+    raw: store::Store<'a, Issue, R>,
 }
 
-impl<'a> Deref for Issues<'a> {
-    type Target = store::Store<'a, Issue>;
+impl<'a, R> Deref for Issues<'a, R> {
+    type Target = store::Store<'a, Issue, R>;
 
     fn deref(&self) -> &Self::Target {
         &self.raw
@@ -485,9 +488,12 @@ pub struct IssueCounts {
     pub closed: usize,
 }
 
-impl<'a> Issues<'a> {
+impl<'a, R: WriteRepository> Issues<'a, R>
+where
+    R: ReadRepository + cob::Store,
+{
     /// Open an issues store.
-    pub fn open(repository: &'a storage::Repository) -> Result<Self, store::Error> {
+    pub fn open(repository: &'a R) -> Result<Self, store::Error> {
         let raw = store::Store::open(repository)?;
 
         Ok(Self { raw })
@@ -499,7 +505,7 @@ impl<'a> Issues<'a> {
     }
 
     /// Get an issue mutably.
-    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<IssueMut<'a, 'g>, store::Error> {
+    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<IssueMut<'a, 'g, R>, store::Error> {
         let (issue, clock) = self
             .raw
             .get(id)?
@@ -521,7 +527,7 @@ impl<'a> Issues<'a> {
         tags: &[Tag],
         assignees: &[ActorId],
         signer: &G,
-    ) -> Result<IssueMut<'a, 'g>, Error> {
+    ) -> Result<IssueMut<'a, 'g, R>, Error> {
         let (id, issue, clock) =
             Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
                 tx.thread(description)?;

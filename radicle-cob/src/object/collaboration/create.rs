@@ -48,7 +48,7 @@ impl Create {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]. See
 /// [`Create`] for further information.
-pub fn create<S, G>(
+pub fn create<S, I, G>(
     storage: &S,
     signer: &G,
     resource: Oid,
@@ -57,7 +57,7 @@ pub fn create<S, G>(
     args: Create,
 ) -> Result<CollaborativeObject, error::Create>
 where
-    S: Store,
+    S: Store<I>,
     G: crypto::Signer,
 {
     let Create { ref typename, .. } = &args;

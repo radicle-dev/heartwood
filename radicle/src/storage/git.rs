@@ -291,12 +291,6 @@ impl Repository {
         Identity::load(remote, self)
     }
 
-    pub fn identity(&self) -> Result<Identity<Oid>, IdentityError> {
-        let head = self.identity_head()?;
-
-        Identity::load_at(head, self)
-    }
-
     /// Get the canonical project information.
     pub fn project(&self) -> Result<Project, IdentityError> {
         let head = self.identity_head()?;

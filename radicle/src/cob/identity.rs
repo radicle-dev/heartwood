@@ -17,7 +17,7 @@ use crate::{
     },
     identity::{doc::DocError, Did, Identity, IdentityError},
     prelude::{Doc, ReadRepository},
-    storage::{git as storage, RemoteId, WriteRepository},
+    storage::{RemoteId, WriteRepository},
 };
 
 use super::{
@@ -561,20 +561,23 @@ impl store::Transaction<Proposal> {
     }
 }
 
-pub struct ProposalMut<'a, 'g> {
+pub struct ProposalMut<'a, 'g, R> {
     pub id: ObjectId,
 
     proposal: Proposal,
     clock: clock::Lamport,
-    store: &'g mut Proposals<'a>,
+    store: &'g mut Proposals<'a, R>,
 }
 
-impl<'a, 'g> ProposalMut<'a, 'g> {
+impl<'a, 'g, R> ProposalMut<'a, 'g, R>
+where
+    R: WriteRepository + cob::Store,
+{
     pub fn new(
         id: ObjectId,
         proposal: Proposal,
         clock: clock::Lamport,
-        store: &'g mut Proposals<'a>,
+        store: &'g mut Proposals<'a, R>,
     ) -> Self {
         Self {
             id,
@@ -672,7 +675,7 @@ impl<'a, 'g> ProposalMut<'a, 'g> {
     }
 }
 
-impl<'a, 'g> Deref for ProposalMut<'a, 'g> {
+impl<'a, 'g, R> Deref for ProposalMut<'a, 'g, R> {
     type Target = Proposal;
 
     fn deref(&self) -> &Self::Target {
@@ -680,21 +683,24 @@ impl<'a, 'g> Deref for ProposalMut<'a, 'g> {
     }
 }
 
-pub struct Proposals<'a> {
-    raw: store::Store<'a, Proposal>,
+pub struct Proposals<'a, R> {
+    raw: store::Store<'a, Proposal, R>,
 }
 
-impl<'a> Deref for Proposals<'a> {
-    type Target = store::Store<'a, Proposal>;
+impl<'a, R> Deref for Proposals<'a, R> {
+    type Target = store::Store<'a, Proposal, R>;
 
     fn deref(&self) -> &Self::Target {
         &self.raw
     }
 }
 
-impl<'a> Proposals<'a> {
+impl<'a, R: WriteRepository> Proposals<'a, R>
+where
+    R: WriteRepository + cob::Store,
+{
     /// Open a proposals store.
-    pub fn open(repository: &'a storage::Repository) -> Result<Self, store::Error> {
+    pub fn open(repository: &'a R) -> Result<Self, store::Error> {
         let raw = store::Store::open(repository)?;
 
         Ok(Self { raw })
@@ -708,7 +714,7 @@ impl<'a> Proposals<'a> {
         current: impl Into<Oid>,
         proposed: Doc<Verified>,
         signer: &G,
-    ) -> Result<ProposalMut<'a, 'g>, Error> {
+    ) -> Result<ProposalMut<'a, 'g, R>, Error> {
         let (id, proposal, clock) =
             Transaction::initial("Create proposal", &mut self.raw, signer, |tx| {
                 tx.revision(current.into(), proposed)?;
@@ -728,7 +734,10 @@ impl<'a> Proposals<'a> {
     }
 
     /// Get a proposal mutably.
-    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<ProposalMut<'a, 'g>, store::Error> {
+    pub fn get_mut<'g>(
+        &'g mut self,
+        id: &ObjectId,
+    ) -> Result<ProposalMut<'a, 'g, R>, store::Error> {
         let (proposal, clock) = self
             .raw
             .get(id)?

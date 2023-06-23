@@ -56,7 +56,7 @@ impl Storage {
     }
 }
 
-impl Store for Storage {}
+impl Store<Urn> for Storage {}
 
 impl change::Storage for Storage {
     type StoreError = <git2::Repository as change::Storage>::StoreError;

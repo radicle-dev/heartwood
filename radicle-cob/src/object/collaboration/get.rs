@@ -13,13 +13,13 @@ use super::error;
 /// The `typename` is the type of object to be found, while the
 /// `object_id` is the identifier for the particular object under that
 /// type.
-pub fn get<S>(
+pub fn get<S, I>(
     storage: &S,
     typename: &TypeName,
     oid: &ObjectId,
 ) -> Result<Option<CollaborativeObject>, error::Retrieve>
 where
-    S: Store,
+    S: Store<I>,
 {
     let tip_refs = storage
         .objects(typename, oid)

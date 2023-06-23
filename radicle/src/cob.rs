@@ -9,11 +9,11 @@ pub mod thread;
 #[cfg(test)]
 pub mod test;
 
-pub use cob::{create, get, list, remove, update};
 pub use cob::{
-    history::EntryId, object::collaboration::error, CollaborativeObject, Contents, Create, Entry,
-    History, ObjectId, TypeName, Update, Updated,
+    change, history::EntryId, object, object::collaboration::error, CollaborativeObject, Contents,
+    Create, Entry, History, ObjectId, Store, TypeName, Update, Updated,
 };
+pub use cob::{create, get, list, remove, update};
 pub use common::*;
 pub use op::{ActorId, Op};
 

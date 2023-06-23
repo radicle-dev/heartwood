@@ -49,7 +49,7 @@ pub struct Update {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]
 /// udpate. See [`Update`] for further information.
-pub fn update<S, G>(
+pub fn update<S, I, G>(
     storage: &S,
     signer: &G,
     resource: Oid,
@@ -58,7 +58,7 @@ pub fn update<S, G>(
     args: Update,
 ) -> Result<Updated, error::Update>
 where
-    S: Store,
+    S: Store<I>,
     G: crypto::Signer,
 {
     let Update {

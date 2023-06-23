@@ -10,7 +10,7 @@ use crate::{ObjectId, TypeName};
 
 /// The [`Reference`]s that refer to the commits that make up a
 /// [`crate::CollaborativeObject`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Objects(Vec<Reference>);
 
 impl Objects {

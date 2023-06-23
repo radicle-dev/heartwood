@@ -14,7 +14,7 @@ use radicle::node::{AliasStore, Handle};
 use radicle::prelude::Did;
 use radicle::profile;
 use radicle::storage;
-use radicle::storage::WriteStorage;
+use radicle::storage::{WriteRepository, WriteStorage};
 use radicle::{cob, Node};
 use radicle_term::table::TableOptions;
 use radicle_term::{Paint, Table, VStack};
@@ -359,8 +359,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn list(
-    issues: &Issues,
+fn list<R: WriteRepository + cob::Store>(
+    issues: &Issues<R>,
     assigned: &Option<Assigned>,
     state: &Option<State>,
     profile: &profile::Profile,
@@ -544,12 +544,12 @@ fn prompt_issue(
     Ok(Some((meta, description)))
 }
 
-fn open<G: Signer>(
+fn open<R: WriteRepository + cob::Store, G: Signer>(
     title: Option<String>,
     description: Option<String>,
     tags: Vec<Tag>,
     options: &Options,
-    issues: &mut Issues,
+    issues: &mut Issues<R>,
     signer: &G,
 ) -> anyhow::Result<()> {
     let Some((meta, description)) = prompt_issue(
@@ -579,8 +579,8 @@ fn open<G: Signer>(
     Ok(())
 }
 
-fn edit<G: radicle::crypto::Signer>(
-    issues: &mut issue::Issues,
+fn edit<R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
+    issues: &mut issue::Issues<R>,
     signer: &G,
     repo: &storage::git::Repository,
     id: Rev,

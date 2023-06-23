@@ -30,7 +30,6 @@ use crate::identity;
 use crate::identity::doc::DocError;
 use crate::identity::PayloadError;
 use crate::prelude::*;
-use crate::storage::git as storage;
 
 /// The logical clock we use to order operations to patches.
 pub use clock::Lamport as Clock;
@@ -1143,20 +1142,23 @@ impl store::Transaction<Patch> {
     }
 }
 
-pub struct PatchMut<'a, 'g> {
+pub struct PatchMut<'a, 'g, R> {
     pub id: ObjectId,
 
     patch: Patch,
     clock: clock::Lamport,
-    store: &'g mut Patches<'a>,
+    store: &'g mut Patches<'a, R>,
 }
 
-impl<'a, 'g> PatchMut<'a, 'g> {
+impl<'a, 'g, R> PatchMut<'a, 'g, R>
+where
+    R: WriteRepository + cob::Store,
+{
     pub fn new(
         id: ObjectId,
         patch: Patch,
         clock: clock::Lamport,
-        store: &'g mut Patches<'a>,
+        store: &'g mut Patches<'a, R>,
     ) -> Self {
         Self {
             id,
@@ -1358,7 +1360,7 @@ impl<'a, 'g> PatchMut<'a, 'g> {
     }
 }
 
-impl<'a, 'g> Deref for PatchMut<'a, 'g> {
+impl<'a, 'g, R> Deref for PatchMut<'a, 'g, R> {
     type Target = Patch;
 
     fn deref(&self) -> &Self::Target {
@@ -1376,21 +1378,24 @@ pub struct PatchCounts {
     pub merged: usize,
 }
 
-pub struct Patches<'a> {
-    raw: store::Store<'a, Patch>,
+pub struct Patches<'a, R> {
+    raw: store::Store<'a, Patch, R>,
 }
 
-impl<'a> Deref for Patches<'a> {
-    type Target = store::Store<'a, Patch>;
+impl<'a, R> Deref for Patches<'a, R> {
+    type Target = store::Store<'a, Patch, R>;
 
     fn deref(&self) -> &Self::Target {
         &self.raw
     }
 }
 
-impl<'a> Patches<'a> {
+impl<'a, R> Patches<'a, R>
+where
+    R: WriteRepository + cob::Store,
+{
     /// Open an patches store.
-    pub fn open(repository: &'a storage::Repository) -> Result<Self, store::Error> {
+    pub fn open(repository: &'a R) -> Result<Self, store::Error> {
         let raw = store::Store::open(repository)?;
 
         Ok(Self { raw })
@@ -1406,7 +1411,7 @@ impl<'a> Patches<'a> {
         oid: impl Into<git::Oid>,
         tags: &[Tag],
         signer: &G,
-    ) -> Result<PatchMut<'a, 'g>, Error> {
+    ) -> Result<PatchMut<'a, 'g, R>, Error> {
         self._create(
             title,
             description,
@@ -1429,7 +1434,7 @@ impl<'a> Patches<'a> {
         oid: impl Into<git::Oid>,
         tags: &[Tag],
         signer: &G,
-    ) -> Result<PatchMut<'a, 'g>, Error> {
+    ) -> Result<PatchMut<'a, 'g, R>, Error> {
         self._create(
             title,
             description,
@@ -1484,7 +1489,7 @@ impl<'a> Patches<'a> {
     }
 
     /// Get a patch mutably.
-    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<PatchMut<'a, 'g>, store::Error> {
+    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<PatchMut<'a, 'g, R>, store::Error> {
         let (patch, clock) = self
             .raw
             .get(id)?
@@ -1531,7 +1536,7 @@ impl<'a> Patches<'a> {
         tags: &[Tag],
         state: State,
         signer: &G,
-    ) -> Result<PatchMut<'a, 'g>, Error> {
+    ) -> Result<PatchMut<'a, 'g, R>, Error> {
         let (id, patch, clock) =
             Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
                 tx.revision(description, base, oid)?;
