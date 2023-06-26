@@ -167,7 +167,11 @@ impl<G: Signer> Actor<G> {
         clock: clock::Lamport,
         identity: Oid,
     ) -> Op<A> {
-        let data = encoding::encode(&action).unwrap();
+        let data = encoding::encode(serde_json::json!({
+            "action": action,
+            "nonce": fastrand::u64(..),
+        }))
+        .unwrap();
         let oid = git::raw::Oid::hash_object(git::raw::ObjectType::Blob, &data).unwrap();
         let id = oid.into();
         let author = *self.signer.public_key();

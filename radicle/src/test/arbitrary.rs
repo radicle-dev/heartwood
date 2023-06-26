@@ -9,7 +9,6 @@ use nonempty::NonEmpty;
 use qcheck::Arbitrary;
 
 use crate::collections::HashMap;
-use crate::git;
 use crate::identity::{
     doc::{Doc, Id},
     project::Project,
@@ -19,10 +18,15 @@ use crate::node::Address;
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::storage::{MockRepository, MockStorage};
+use crate::{cob, git};
 
 pub fn oid() -> storage::Oid {
     let oid_bytes: [u8; 20] = gen(1);
     storage::Oid::try_from(oid_bytes.as_slice()).unwrap()
+}
+
+pub fn entry_id() -> cob::EntryId {
+    self::oid().into()
 }
 
 pub fn refstring(len: usize) -> git::RefString {

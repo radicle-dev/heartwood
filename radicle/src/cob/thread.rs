@@ -34,6 +34,12 @@ pub enum Error {
     /// Validation error.
     #[error("validation failed: {0}")]
     Validate(&'static str),
+    /// Error with comment operation.
+    #[error("comment {0} is invalid")]
+    Comment(EntryId),
+    /// Error with edit operation.
+    #[error("edit {0} is invalid")]
+    Edit(EntryId),
 }
 
 /// Identifies a comment.
@@ -288,27 +294,40 @@ impl cob::store::FromHistory for Thread {
 
             match op.action {
                 Action::Comment { body, reply_to } => {
-                    // Since comments are keyed by content hash, we shouldn't re-insert a comment
-                    // if it already exists, otherwise this will be resolved via the `merge`
-                    // operation of `Redactable`.
-                    if self.comments.contains_key(&id) {
-                        continue;
+                    if body.is_empty() {
+                        return Err(Error::Comment(op.id));
                     }
-
+                    // Nb. If a comment is already present, it must be redacted, because the
+                    // underlying store guarantees exactly-once delivery of ops.
                     self.comments.insert(
                         id,
                         Redactable::Present(Comment::new(author, body, reply_to, timestamp)),
                     );
                 }
                 Action::Edit { id, body } => {
-                    if let Some(Redactable::Present(comment)) = self.comments.get_mut(&id) {
-                        comment.edit(op.clock, body, timestamp);
+                    if body.is_empty() {
+                        return Err(Error::Edit(op.id));
+                    }
+                    // It's possible for a comment to be redacted before we're able to edit it, in
+                    // case of a concurrent update.
+                    //
+                    // However, it's *not* possible for the comment to be absent. Therefore we treat
+                    // that as an error.
+                    if let Some(redactable) = self.comments.get_mut(&id) {
+                        if let Redactable::Present(comment) = redactable {
+                            comment.edit(op.clock, body, timestamp);
+                        }
                     } else {
                         return Err(Error::Missing(id));
                     }
                 }
                 Action::Redact { id } => {
-                    self.comments.insert(id, Redactable::Redacted);
+                    // Redactions must have observed a comment to be valid.
+                    if let Some(comment) = self.comments.get_mut(&id) {
+                        comment.merge(Redactable::Redacted);
+                    } else {
+                        return Err(Error::Missing(id));
+                    }
                 }
                 Action::React {
                     to,
@@ -348,6 +367,7 @@ mod tests {
     use crate::cob::test;
     use crate::crypto::test::signer::MockSigner;
     use crate::crypto::Signer;
+    use crate::test::arbitrary;
     use crate::test::arbitrary::gen;
     use crate::test::storage::MockRepository;
 
@@ -451,7 +471,7 @@ mod tests {
                 );
                 comments.insert(comment.id);
 
-                Some((*clock, comment))
+                Some((clock.tick(), comment))
             })
             .variant(2, |(actor, clock, comments), rng| {
                 if comments.is_empty() {
@@ -465,8 +485,7 @@ mod tests {
                         .collect::<String>()
                         .as_str(),
                 );
-
-                Some((*clock, edit))
+                Some((clock.tick(), edit))
             })
             .variant(2, |(actor, clock, comments), rng| {
                 if comments.is_empty() {
@@ -488,7 +507,7 @@ mod tests {
                 Some((clock.tick(), redact))
             });
 
-            let mut ops = vec![Actor::<MockSigner>::default().comment("", None)];
+            let mut ops = vec![Actor::<MockSigner>::default().comment("Root", None)];
             let mut permutations: [Vec<Op<Action>>; N] = array::from_fn(|_| Vec::new());
 
             for (_, op) in gen.take(g.size()) {
@@ -661,21 +680,37 @@ mod tests {
     }
 
     #[test]
-    fn test_comment_edit_reinsert() {
+    fn test_comment_redact_missing() {
         let repo = gen::<MockRepository>(1);
-
         let mut alice = Actor::<MockSigner>::default();
-        let mut t1 = Thread::default();
-        let mut t2 = Thread::default();
+        let mut t = Thread::default();
+        let id = arbitrary::entry_id();
 
-        let a1 = alice.comment("Hello.", None);
-        let a2 = alice.edit(a1.id(), "Hello World.");
+        t.apply([alice.redact(id)], &repo).unwrap_err();
+    }
 
-        t1.apply([a1.clone(), a2.clone(), a1.clone()], &repo)
-            .unwrap();
-        t2.apply([a1.clone(), a1, a2], &repo).unwrap();
+    #[test]
+    fn test_comment_edit_missing() {
+        let repo = gen::<MockRepository>(1);
+        let mut alice = Actor::<MockSigner>::default();
+        let mut t = Thread::default();
+        let id = arbitrary::entry_id();
 
-        assert_eq!(t1, t2);
+        t.apply([alice.edit(id, "Edited")], &repo).unwrap_err();
+    }
+
+    #[test]
+    fn test_comment_edit_redacted() {
+        let repo = gen::<MockRepository>(1);
+        let mut alice = Actor::<MockSigner>::default();
+        let mut t = Thread::default();
+
+        let a1 = alice.comment("Hi", None);
+        let a2 = alice.redact(a1.id);
+        let a3 = alice.edit(a1.id, "Edited");
+
+        t.apply([a1, a2, a3], &repo).unwrap();
+        assert_eq!(t.comments().count(), 0);
     }
 
     #[test]

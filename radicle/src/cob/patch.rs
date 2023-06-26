@@ -421,8 +421,11 @@ impl store::FromHistory for Patch {
                     revision,
                     description,
                 } => {
-                    if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                        revision.description.set(description, op.clock);
+                    if let Some(redactable) = self.revisions.get_mut(&revision) {
+                        // If the revision was redacted concurrently, there's nothing to do.
+                        if let Redactable::Present(revision) = redactable {
+                            revision.description.set(description, op.clock);
+                        }
                     } else {
                         return Err(Error::Missing(revision));
                     }
@@ -432,12 +435,6 @@ impl store::FromHistory for Patch {
                     base,
                     oid,
                 } => {
-                    // Since revisions are keyed by content hash, we shouldn't re-insert a revision
-                    // if it already exists, otherwise this will be resolved via the `merge`
-                    // operation of `Redactable`.
-                    if self.revisions.contains_key(&id) {
-                        continue;
-                    }
                     self.revisions.insert(
                         id,
                         Redactable::Present(Revision::new(
@@ -451,6 +448,7 @@ impl store::FromHistory for Patch {
                     );
                 }
                 Action::Redact { revision } => {
+                    // Redactions must have observed a revision to be valid.
                     if let Some(revision) = self.revisions.get_mut(&revision) {
                         revision.merge(Redactable::Redacted);
                     } else {
@@ -1347,6 +1345,7 @@ mod test {
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
     use crate::test;
+    use crate::test::arbitrary;
     use crate::test::arbitrary::gen;
     use crate::test::storage::MockRepository;
 
@@ -1744,9 +1743,9 @@ mod test {
     }
 
     #[test]
-    fn test_revision_redact_reinsert() {
-        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+    fn test_revision_edit_redact() {
+        let base = arbitrary::oid();
+        let oid = arbitrary::oid();
         let repo = gen::<MockRepository>(1);
         let mut alice = Actor::new(MockSigner::default());
         let mut p1 = Patch::default();
@@ -1757,41 +1756,15 @@ mod test {
             base,
             oid,
         });
-        let a2 = alice.op(Action::Redact { revision: a1.id() });
-
-        p1.apply([a1.clone(), a2.clone(), a1.clone()], &repo)
-            .unwrap();
-        p2.apply([a1.clone(), a1, a2], &repo).unwrap();
-
-        assert_eq!(p1, p2);
-    }
-
-    #[test]
-    fn test_revision_merge_reinsert() {
-        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
-        let id = gen::<Id>(1);
-        let mut alice = Actor::new(MockSigner::default());
-        let mut doc = gen::<Doc<Verified>>(1);
-        doc.delegates.push(alice.signer.public_key().into());
-        let repo = MockRepository::new(id, doc);
-
-        let mut p1 = Patch::default();
-        let mut p2 = Patch::default();
-
-        let a1 = alice.op(Action::Revision {
-            description: String::new(),
-            base,
-            oid,
-        });
-        let a2 = alice.op(Action::Merge {
-            revision: a1.id(),
-            commit: oid,
+        let a2 = alice.op(Action::Redact { revision: a1.id });
+        let a3 = alice.op(Action::EditRevision {
+            revision: a1.id,
+            description: String::from("Edited"),
         });
 
-        p1.apply([a1.clone(), a2.clone(), a1.clone()], &repo)
+        p1.apply([a1.clone(), a2.clone(), a3.clone()], &repo)
             .unwrap();
-        p2.apply([a1.clone(), a1, a2], &repo).unwrap();
+        p2.apply([a1, a3, a2], &repo).unwrap();
 
         assert_eq!(p1, p2);
     }
