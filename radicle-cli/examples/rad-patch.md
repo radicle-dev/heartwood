@@ -56,7 +56,7 @@ $ rad patch show 077e4bbe9a6e5546f400ef5951768c37a76f13a4 -p
 ├────────────────────────────────────────────────────────────────────┤
 │ 3e674d1 Define power requirements                                  │
 ├────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) (z6MknSL…StBU8Vi) [    ...    ]                  │
+│ ● opened by (you) [    ...    ]                                    │
 ╰────────────────────────────────────────────────────────────────────╯
 
 commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
@@ -137,9 +137,9 @@ $ rad patch show 077e4bb
 │ 27857ec Add README, just for the fun                                         │
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
+│ ● opened by (you) [   ...    ]                                               │
 │ ↑ updated to 5cdcd2e14411e2bfec7b11bcf4667e2e0fc4d417 (27857ec) [   ...    ] │
-│ ✓ accepted by (you) (z6MknSL…StBU8Vi) [   ...    ]                           │
+│ ✓ accepted by (you) [   ...    ]                                             │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -162,8 +162,8 @@ $ rad patch show 077e4bb
 │ 27857ec Add README, just for the fun                                         │
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
+│ ● opened by (you) [   ...    ]                                               │
 │ ↑ updated to 5cdcd2e14411e2bfec7b11bcf4667e2e0fc4d417 (27857ec) [   ...    ] │
-│ ✓ accepted by (you) (z6MknSL…StBU8Vi) [   ...    ]                           │
+│ ✓ accepted by (you) [   ...    ]                                             │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```

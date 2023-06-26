@@ -7,6 +7,7 @@ use radicle::cob::{ObjectId, Timestamp};
 use radicle::node::{AliasStore, NodeId};
 use radicle::prelude::Did;
 use radicle::profile::Profile;
+use radicle_term::element::Line;
 
 use crate::terminal as term;
 
@@ -135,6 +136,92 @@ impl<'a> fmt::Display for Identity<'a> {
             }
         }
         Ok(())
+    }
+}
+
+/// This enum renders (nid, alias) in terminal depending on user variant.
+pub enum Author<'a> {
+    Author {
+        nid: &'a NodeId,
+        alias: Option<String>,
+    },
+    Me {
+        alias: Option<String>,
+    },
+}
+
+impl<'a> Author<'a> {
+    pub fn new(nid: &'a NodeId, alias: Option<String>, me: &Profile) -> Author<'a> {
+        if nid == me.id() {
+            Self::Me { alias }
+        } else {
+            Self::Author { nid, alias }
+        }
+    }
+
+    /// Author: `<alias>` || ``
+    /// Me    : `<alias> (you)` || `(you)`
+    pub fn alias(&self) -> Line {
+        match self {
+            Self::Me { alias } => {
+                if let Some(alias) = alias {
+                    term::Line::spaced([
+                        term::format::primary(alias).into(),
+                        term::format::primary("(you)").dim().into(),
+                    ])
+                } else {
+                    term::format::primary("(you)").into()
+                }
+            }
+
+            Self::Author { alias, .. } => {
+                if let Some(alias) = alias {
+                    term::format::primary(alias).into()
+                } else {
+                    term::format::default(String::new()).into()
+                }
+            }
+        }
+    }
+}
+
+impl<'a> IntoIterator for Author<'a> {
+    type Item = term::Label;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    /// Author : `<alias> (<compact-nid>)` || `<nid>`
+    /// Me     : `<alias> (you)` || `(you)`
+    fn into_iter(self) -> Self::IntoIter {
+        let mut line = Vec::new();
+
+        match self {
+            Self::Me { alias } => {
+                if let Some(alias) = alias {
+                    line.push(term::format::primary(alias).into());
+                    line.push(term::Label::space());
+                    line.push(term::format::primary("(you)").dim().into());
+                } else {
+                    line.push(term::format::primary("(you)").into());
+                }
+            }
+
+            Self::Author { nid, alias } => {
+                if let Some(alias) = alias {
+                    line.push(term::format::primary(alias).into());
+                    line.push(term::Label::space());
+                    line.push(
+                        term::format::tertiary(term::format::parens(
+                            term::format::node(nid).into(),
+                        ))
+                        .into(),
+                    );
+                } else {
+                    line.push(term::format::tertiary(nid).into());
+                }
+            }
+        }
+
+        line.into_iter()
     }
 }
 

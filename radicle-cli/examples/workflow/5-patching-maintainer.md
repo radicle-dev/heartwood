@@ -112,7 +112,7 @@ $ rad patch show 50e29a1
 │ ● opened by bob (z6Mkt67…v4N1tRk) [   ...    ]                               │
 │ ↑ updated to 3530243d46a2e7a8e4eac7afcbb17cc7c56b3d29 (27857ec) [   ...    ] │
 │ ↑ updated to 744c1f0a75b1c42833c9aa32f79cd40443925d66 (f567f69) [   ...    ] │
-│ ✓ merged by (you) (z6MknSL…StBU8Vi) [   ...    ]                             │
+│ ✓ merged by (you) [   ...    ]                                               │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 

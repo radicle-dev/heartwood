@@ -17,10 +17,11 @@ use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git;
 use radicle::git::refname;
 use radicle::identity::Id;
+use radicle::node::address::Book;
 use radicle::node::routing::Store;
 use radicle::node::tracking::store as TrackingStore;
 use radicle::node::Handle as _;
-use radicle::node::TRACKING_DB_FILE;
+use radicle::node::{ADDRESS_DB_FILE, TRACKING_DB_FILE};
 use radicle::profile::Home;
 use radicle::profile::Profile;
 use radicle::rad;
@@ -78,6 +79,8 @@ impl Environment {
         let signer = MemorySigner::load(&profile.keystore, "radicle".to_owned().into()).unwrap();
         let tracking_db = profile.home.node().join(TRACKING_DB_FILE);
         TrackingStore::Config::open(tracking_db).unwrap();
+        let addresses_db = profile.home.node().join(ADDRESS_DB_FILE);
+        Book::open(addresses_db).unwrap();
 
         Node {
             id: *profile.id(),
@@ -96,6 +99,8 @@ impl Environment {
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
         let tracking_db = home.node().join(TRACKING_DB_FILE);
         TrackingStore::Config::open(tracking_db).unwrap();
+        let addresses_db = home.node().join(ADDRESS_DB_FILE);
+        Book::open(addresses_db).unwrap();
 
         transport::local::register(storage.clone());
         keystore

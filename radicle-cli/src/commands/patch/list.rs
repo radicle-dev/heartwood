@@ -1,10 +1,12 @@
 use radicle::cob::patch;
 use radicle::cob::patch::{Patch, PatchId, Patches, Verdict};
+use radicle::node::AliasStore;
 use radicle::prelude::*;
 use radicle::profile::Profile;
 use radicle::storage::git::Repository;
 
 use crate::terminal as term;
+use term::format::Author;
 use term::table::{Table, TableOptions};
 use term::Element as _;
 
@@ -63,13 +65,13 @@ pub fn run(
         is_me.then(by_rev_time).then(by_id)
     });
 
-    let store = profile.tracking()?;
+    let aliases = profile.aliases()?;
 
     let mut errors = Vec::new();
     for (id, patch) in &mut all {
         let author_id = patch.author().id();
-        let alias = store.node_policy(author_id)?.and_then(|node| node.alias);
-        match row(&me, alias, id, patch, repository) {
+        let alias = aliases.alias(author_id);
+        match row(profile, alias, id, patch, repository) {
             Ok(r) => table.push(r),
             Err(e) => errors.push((patch.title(), id, e.to_string())),
         }
@@ -90,7 +92,7 @@ pub fn run(
 
 /// Patch row.
 pub fn row(
-    whoami: &PublicKey,
+    profile: &Profile,
     alias: Option<String>,
     id: &PatchId,
     patch: &Patch,
@@ -101,6 +103,7 @@ pub fn row(
     let (from, to) = patch.range(repository)?;
     let stats = common::diff_stats(repository.raw(), &from, &to)?;
     let author = patch.author().id;
+    let display = Author::new(&author, alias, profile);
 
     Ok([
         match state {
@@ -112,13 +115,7 @@ pub fn row(
         term::format::tertiary(term::format::cob(id)).into(),
         term::format::default(patch.title().to_owned()).into(),
         term::format::did(&author).dim().into(),
-        if author.as_key() == whoami {
-            term::format::primary("(you)".to_owned()).into()
-        } else if let Some(alias) = alias {
-            term::format::primary(alias).into()
-        } else {
-            term::format::default(String::new()).into()
-        },
+        display.alias(),
         term::format::secondary(term::format::oid(revision.head())).into(),
         term::format::positive(format!("+{}", stats.insertions())).into(),
         term::format::negative(format!("-{}", stats.deletions())).into(),
@@ -135,33 +132,14 @@ pub fn timeline(
     patch: &Patch,
     repository: &Repository,
 ) -> anyhow::Result<Vec<term::Line>> {
-    let whoami = profile.id();
-    let store = profile.tracking()?;
-    let alias = if patch.author().id().as_key() == whoami {
-        Some("(you)".to_string())
-    } else {
-        store
-            .node_policy(patch.author().id())?
-            .and_then(|node| node.alias)
-    };
-
-    let mut open = term::Line::spaced([
+    let aliases = profile.aliases()?;
+    let alias = aliases.alias(patch.author().id());
+    let open = term::Line::spaced([
         term::format::positive("●").into(),
         term::format::default("opened by").into(),
-    ]);
-
-    open.push(term::Label::space());
-
-    if let Some(ref alias) = alias {
-        open.push(term::format::primary(alias));
-        open.push(term::Label::space());
-        open.push(term::format::tertiary(format!(
-            "({})",
-            term::format::node(patch.author().id())
-        )));
-    } else {
-        open.push(term::format::tertiary(patch.author().id()));
-    }
+    ])
+    .space()
+    .extend(Author::new(patch.author().id(), alias, profile));
 
     let mut timeline = vec![(patch.timestamp(), open)];
 
@@ -187,37 +165,16 @@ pub fn timeline(
 
         for (nid, merge) in patch.merges().filter(|(_, m)| m.revision == *revision_id) {
             let peer = repository.remote(nid)?;
-            let alias = if peer.id == *whoami {
-                Some("(you)".to_string())
-            } else {
-                store.node_policy(&peer.id)?.and_then(|node| node.alias)
-            };
+            let alias = aliases.alias(&peer.id);
+            let line = term::Line::spaced([
+                term::format::primary("✓").bold().into(),
+                term::format::default("merged").into(),
+                term::format::default("by").into(),
+            ])
+            .space()
+            .extend(Author::new(&peer.id, alias, profile));
 
-            timeline.push((
-                merge.timestamp,
-                term::Line::spaced(
-                    [
-                        term::format::primary("✓").bold().into(),
-                        term::format::default("merged").into(),
-                        term::format::default("by").into(),
-                        if let Some(ref alias) = alias {
-                            term::format::primary(alias).into()
-                        } else {
-                            term::format::default(String::new()).into()
-                        },
-                        if alias.is_some() {
-                            term::format::tertiary(format!(
-                                "({})",
-                                term::format::node(&Did::from(peer.id))
-                            ))
-                            .into()
-                        } else {
-                            term::format::tertiary(Did::from(peer.id)).into()
-                        },
-                    ]
-                    .into_iter(),
-                ),
-            ));
+            timeline.push((merge.timestamp, line));
         }
         for (reviewer, review) in revision.reviews() {
             let verdict = review.verdict();
@@ -232,37 +189,16 @@ pub fn timeline(
                 None => term::format::default("reviewed"),
             };
             let peer = repository.remote(reviewer)?;
-            let alias = if peer.id == *whoami {
-                Some("(you)".to_string())
-            } else {
-                store.node_policy(&peer.id)?.and_then(|node| node.alias)
-            };
+            let alias = aliases.alias(&peer.id);
+            let line = term::Line::spaced([
+                verdict_symbol.into(),
+                verdict_verb.into(),
+                term::format::default("by").into(),
+            ])
+            .space()
+            .extend(Author::new(&peer.id, alias, profile));
 
-            timeline.push((
-                review.timestamp(),
-                term::Line::spaced(
-                    [
-                        verdict_symbol.into(),
-                        verdict_verb.into(),
-                        term::format::default("by").into(),
-                        if let Some(ref alias) = alias {
-                            term::format::primary(alias).into()
-                        } else {
-                            term::format::default(String::new()).into()
-                        },
-                        if alias.is_some() {
-                            term::format::tertiary(format!(
-                                "({})",
-                                term::format::node(&Did::from(reviewer))
-                            ))
-                            .into()
-                        } else {
-                            term::format::tertiary(Did::from(reviewer)).into()
-                        },
-                    ]
-                    .into_iter(),
-                ),
-            ));
+            timeline.push((review.timestamp(), line));
         }
     }
     timeline.sort_by_key(|(t, _)| *t);
