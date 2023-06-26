@@ -149,7 +149,7 @@ impl Profile {
         Ok(router)
     }
 
-    /// Return a handle to the address database of the node.
+    /// Return a handle to the addresses database of the node.
     pub fn addresses(&self) -> Result<address::Book, address::Error> {
         let path = self.home.node().join(node::ADDRESS_DB_FILE);
         let addresses = address::Book::reader(path)?;
@@ -193,7 +193,7 @@ pub struct Aliases {
 
 impl AliasStore for Aliases {
     /// Retrieve `alias` of given node.
-    /// First looks in `tracking.db` and then `address.db`.
+    /// First looks in `tracking.db` and then `addresses.db`.
     fn alias(&self, nid: &NodeId) -> Option<String> {
         self.tracking
             .alias(nid)
