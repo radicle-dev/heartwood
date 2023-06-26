@@ -836,7 +836,7 @@ mod test {
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let (_, r) = issue.reactions(&comment).next().unwrap();
+        let (_, r) = issue.comment(&comment).unwrap().reactions().next().unwrap();
 
         assert_eq!(r, &reaction);
 

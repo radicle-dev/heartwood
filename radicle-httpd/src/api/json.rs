@@ -11,7 +11,7 @@ use radicle::cob::patch::Merge;
 use radicle::cob::patch::Review;
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::cob::thread;
-use radicle::cob::thread::{CommentId, Thread};
+use radicle::cob::thread::CommentId;
 use radicle::cob::{ActorId, Author, Reaction, Timestamp};
 use radicle::git::RefString;
 use radicle::node::AliasStore;
@@ -105,7 +105,7 @@ pub(crate) fn issue(id: IssueId, issue: Issue, aliases: &impl AliasStore) -> Val
         "assignees": issue.assigned().collect::<Vec<_>>(),
         "discussion": issue
           .comments()
-          .map(|(id, comment)| Comment::new(id, comment, issue.thread(), aliases))
+          .map(|(id, comment)| Comment::new(id, comment, aliases))
           .collect::<Vec<_>>(),
         "tags": issue.tags().collect::<Vec<_>>(),
     })
@@ -136,7 +136,7 @@ pub(crate) fn patch(
                 "oid": rev.head(),
                 "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or(vec![]),
                 "discussions": rev.discussion().comments()
-                  .map(|(id, comment)| Comment::new(id, comment, rev.discussion(), aliases))
+                  .map(|(id, comment)| Comment::new(id, comment,  aliases))
                   .collect::<Vec<_>>(),
                 "timestamp": rev.timestamp(),
                 "reviews": rev.reviews().map(|(nid, _review)| review(nid, aliases.alias(nid), _review)).collect::<Vec<_>>(),
@@ -245,18 +245,13 @@ struct Comment<'a> {
 }
 
 impl<'a> Comment<'a> {
-    fn new(
-        id: &'a CommentId,
-        comment: &'a thread::Comment,
-        thread: &'a Thread,
-        aliases: &impl AliasStore,
-    ) -> Self {
+    fn new(id: &'a CommentId, comment: &'a thread::Comment, aliases: &impl AliasStore) -> Self {
         let comment_author = Author::new(comment.author());
         Self {
             id: *id,
             author: author(&comment_author, aliases.alias(comment_author.id())),
             body: comment.body(),
-            reactions: thread.reactions(id).collect::<Vec<_>>(),
+            reactions: comment.reactions().collect::<Vec<_>>(),
             timestamp: comment.timestamp(),
             reply_to: comment.reply_to(),
         }

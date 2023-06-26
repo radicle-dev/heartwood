@@ -61,6 +61,8 @@ pub struct Comment {
     author: ActorId,
     /// The comment body.
     edits: GMap<Lamport, Max<Edit>>,
+    /// Reactions to this comment.
+    reactions: LWWSet<(ActorId, Reaction)>,
     /// Comment this is a reply to.
     /// Should always be set, except for the root comment.
     reply_to: Option<CommentId>,
@@ -78,6 +80,7 @@ impl Comment {
 
         Self {
             author,
+            reactions: LWWSet::default(),
             edits: GMap::singleton(Lamport::initial(), Max::from(edit)),
             reply_to,
         }
@@ -123,6 +126,11 @@ impl Comment {
     /// Add an edit.
     pub fn edit(&mut self, clock: Lamport, body: String, timestamp: Timestamp) {
         self.edits.insert(clock, Edit { body, timestamp }.into())
+    }
+
+    /// Comment reactions.
+    pub fn reactions(&self) -> impl Iterator<Item = (&ActorId, &Reaction)> {
+        self.reactions.iter().map(|(a, r)| (a, r))
     }
 }
 
@@ -175,16 +183,13 @@ impl From<Action> for nonempty::NonEmpty<Action> {
 pub struct Thread {
     /// The comments under the thread.
     comments: GMap<CommentId, Redactable<Comment>>,
-    /// Reactions to changes.
-    reactions: GMap<CommentId, LWWSet<(ActorId, Reaction), Lamport>>,
     /// Comment timeline.
-    timeline: GSet<(Lamport, EntryId)>,
+    timeline: GSet<(Lamport, CommentId)>,
 }
 
 impl Semilattice for Thread {
     fn merge(&mut self, other: Self) {
         self.comments.merge(other.comments);
-        self.reactions.merge(other.reactions);
         self.timeline.merge(other.timeline);
     }
 }
@@ -193,7 +198,6 @@ impl Thread {
     pub fn new(id: CommentId, comment: Comment) -> Self {
         Self {
             comments: GMap::singleton(id, Redactable::Present(comment)),
-            reactions: GMap::default(),
             timeline: GSet::default(),
         }
     }
@@ -242,17 +246,6 @@ impl Thread {
             }
             None
         })
-    }
-
-    pub fn reactions<'a>(
-        &'a self,
-        to: &'a CommentId,
-    ) -> impl Iterator<Item = (&ActorId, &Reaction)> {
-        self.reactions
-            .get(to)
-            .into_iter()
-            .flat_map(move |rs| rs.iter())
-            .map(|(a, r)| (a, r))
     }
 
     pub fn comments(&self) -> impl DoubleEndedIterator<Item = (&CommentId, &Comment)> + '_ {
@@ -335,14 +328,17 @@ impl cob::store::FromHistory for Thread {
                     active,
                 } => {
                     let key = (op.author, reaction);
-                    let reactions = if active {
-                        LWWSet::singleton(key, op.clock)
+                    if let Some(redactable) = self.comments.get_mut(&to) {
+                        if let Redactable::Present(comment) = redactable {
+                            if active {
+                                comment.reactions.insert(key, op.clock);
+                            } else {
+                                comment.reactions.remove(key, op.clock);
+                            }
+                        }
                     } else {
-                        let mut set = LWWSet::default();
-                        set.remove(key, op.clock);
-                        set
-                    };
-                    self.reactions.insert(to, reactions);
+                        return Err(Error::Missing(id));
+                    }
                 }
             }
         }
