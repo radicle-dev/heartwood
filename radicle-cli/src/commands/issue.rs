@@ -9,7 +9,7 @@ use radicle::cob::common::{Reaction, Tag};
 use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, Issues, State};
 use radicle::crypto::Signer;
-use radicle::node::Handle;
+use radicle::node::{AliasStore, Handle};
 use radicle::prelude::Did;
 use radicle::profile;
 use radicle::storage;
@@ -21,6 +21,7 @@ use radicle_term::{Paint, Table, VStack};
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
+use crate::terminal::format::Author;
 use crate::terminal::Element;
 
 pub const HELP: Help = Help {
@@ -349,8 +350,6 @@ fn list(
     state: &Option<State>,
     profile: &profile::Profile,
 ) -> anyhow::Result<()> {
-    let me = *profile.id();
-
     if issues.is_empty()? {
         term::print(term::format::italic("Nothing to show."));
         return Ok(());
@@ -389,27 +388,26 @@ fn list(
         by_timestamp.then(by_id)
     });
 
-    let mut t = term::Table::new(term::table::TableOptions::bordered());
-    t.push([
-        term::format::dim(String::from("●")),
-        term::format::bold(String::from("ID")),
-        term::format::bold(String::from("Title")),
-        term::format::bold(String::from("Author")),
-        term::format::bold(String::new()),
-        term::format::bold(String::from("Tags")),
-        term::format::bold(String::from("Assignees")),
-        term::format::bold(String::from("Opened")),
+    let mut table = term::Table::new(term::table::TableOptions::bordered());
+    table.push([
+        term::format::dim(String::from("●")).into(),
+        term::format::bold(String::from("ID")).into(),
+        term::format::bold(String::from("Title")).into(),
+        term::format::bold(String::from("Author")).into(),
+        term::format::bold(String::new()).into(),
+        term::format::bold(String::from("Tags")).into(),
+        term::format::bold(String::from("Assignees")).into(),
+        term::format::bold(String::from("Opened")).into(),
     ]);
-    t.divider();
+    table.divider();
 
-    let store = profile.tracking()?;
+    let aliases = profile.aliases()?;
 
     for (id, issue) in all {
         let assigned: String = issue
             .assigned()
             .map(|ref p| {
-                if let Ok(Some(alias)) = store.node_policy(p).map(|node| node.and_then(|n| n.alias))
-                {
+                if let Some(alias) = aliases.alias(p) {
                     format!("{alias} ({})", term::format::did(p))
                 } else {
                     term::format::did(p).to_string()
@@ -422,33 +420,33 @@ fn list(
         tags.sort();
 
         let author = issue.author().id;
-        let alias = store.node_policy(&author)?.and_then(|node| node.alias);
+        let alias = aliases.alias(&author);
+        let display = Author::new(&author, alias, profile);
 
-        t.push([
+        table.push([
             match issue.state() {
                 State::Open => term::format::positive("●").into(),
                 State::Closed { .. } => term::format::negative("●").into(),
             },
-            term::format::tertiary(term::format::cob(&id)).to_owned(),
-            term::format::default(issue.title().to_owned()),
-            term::format::did(&issue.author().id).dim(),
-            if author.as_key() == &me {
-                term::format::primary("(you)".to_owned())
-            } else if let Some(alias) = alias {
-                term::format::primary(alias)
-            } else {
-                term::format::default(String::new())
-            },
-            term::format::secondary(tags.join(", ")),
+            term::format::tertiary(term::format::cob(&id))
+                .to_owned()
+                .into(),
+            term::format::default(issue.title().to_owned()).into(),
+            term::format::did(&issue.author().id).dim().into(),
+            display.alias(),
+            term::format::secondary(tags.join(", ")).into(),
             if assigned.is_empty() {
-                term::format::dim(String::default())
+                term::format::dim(String::default()).into()
             } else {
-                term::format::default(assigned.to_string())
+                term::format::default(assigned.to_string()).into()
             },
-            term::format::timestamp(&issue.timestamp()).dim().italic(),
+            term::format::timestamp(&issue.timestamp())
+                .dim()
+                .italic()
+                .into(),
         ]);
     }
-    t.print();
+    table.print();
     Ok(())
 }
 
