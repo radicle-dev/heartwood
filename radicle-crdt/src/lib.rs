@@ -5,6 +5,7 @@
 pub mod clock;
 pub mod gmap;
 pub mod gset;
+pub mod immutable;
 pub mod lwwmap;
 pub mod lwwreg;
 pub mod lwwset;
@@ -19,6 +20,7 @@ pub mod test;
 pub use clock::Lamport;
 pub use gmap::GMap;
 pub use gset::GSet;
+pub use immutable::Immutable;
 pub use lwwmap::LWWMap;
 pub use lwwreg::LWWReg;
 pub use lwwset::LWWSet;

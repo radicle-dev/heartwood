@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use radicle_crdt::clock;
-use radicle_crdt::{GMap, GSet, LWWMap, LWWReg, LWWSet, Lamport, Max, Redactable, Semilattice};
+use radicle_crdt::{
+    GMap, GSet, Immutable, LWWMap, LWWReg, LWWSet, Lamport, Max, Redactable, Semilattice,
+};
 
 use crate::cob;
 use crate::cob::common::{Author, Tag, Timestamp};
@@ -181,6 +183,7 @@ impl MergeTarget {
     }
 }
 
+/// Patch CRDT.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Patch {
     /// Title of the patch.
@@ -190,11 +193,20 @@ pub struct Patch {
     /// Target this patch is meant to be merged in.
     target: LWWReg<Max<MergeTarget>>,
     /// Associated tags.
+    /// Tags can be added and removed at will.
     tags: LWWSet<Tag>,
     /// Patch merges.
-    merges: LWWMap<ActorId, Redactable<Merge>>,
+    ///
+    /// Only one merge is allowed per user.
+    ///
+    /// Merges can be removed and replaced, but not modified. Generally, once a revision is merged,
+    /// it stays that way. Being able to remove merges may be useful in case of force updates
+    /// on the target branch.
+    merges: LWWMap<ActorId, Immutable<Merge>>,
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
+    ///
+    /// Revisions can be redacted, but are otherwise immutable.
     revisions: GMap<RevisionId, Redactable<Revision>>,
     /// Users assigned to review this patch.
     reviewers: LWWSet<ActorId>,
@@ -304,9 +316,7 @@ impl Patch {
 
     /// Get the merges.
     pub fn merges(&self) -> impl Iterator<Item = (&ActorId, &Merge)> {
-        self.merges
-            .iter()
-            .filter_map(|(a, m)| m.get().map(|m| (a, m)))
+        self.merges.iter().map(|(a, m)| (a, m.deref()))
     }
 
     /// Reference to the Git object containing the code on the latest revision.
@@ -603,7 +613,7 @@ impl store::FromHistory for Patch {
                         }
                         self.merges.insert(
                             op.author,
-                            Redactable::Present(Merge {
+                            Immutable::new(Merge {
                                 revision,
                                 commit,
                                 timestamp,
@@ -614,9 +624,7 @@ impl store::FromHistory for Patch {
                         let mut merges = self.merges.iter().fold(
                             HashMap::<(RevisionId, git::Oid), usize>::new(),
                             |mut acc, (_, merge)| {
-                                if let Some(merge) = merge.get() {
-                                    *acc.entry((merge.revision, merge.commit)).or_default() += 1;
-                                }
+                                *acc.entry((merge.revision, merge.commit)).or_default() += 1;
                                 acc
                             },
                         );
@@ -1799,7 +1807,7 @@ mod test {
 
         let (merger, merge) = merges.first().unwrap();
         assert_eq!(*merger, signer.public_key());
-        assert_eq!(merge.get().unwrap().commit, pr.base);
+        assert_eq!(merge.commit, pr.base);
     }
 
     #[test]
