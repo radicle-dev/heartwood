@@ -1031,7 +1031,10 @@ fn rad_workflow() {
     .unwrap();
 
     let alice = alice.spawn(Config::default());
-    let mut bob = bob.spawn(Config::default());
+    let mut bob = bob.spawn(Config {
+        alias: Some("bob".to_string()),
+        ..Default::default()
+    });
 
     bob.connect(&alice).converge([&alice]);
 
