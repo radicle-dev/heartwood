@@ -644,12 +644,11 @@ async fn patch_update_handler(
         } => {
             patch.edit_revision(revision, description, &signer)?;
         }
-        patch::Action::EditReview {
-            revision,
-            author,
-            summary,
-        } => {
-            patch.edit_review(revision, author, summary, &signer)?;
+        patch::Action::EditReview { review, summary } => {
+            patch.edit_review(review, summary, &signer)?;
+        }
+        patch::Action::EditCodeComment { .. } => {
+            todo!()
         }
         patch::Action::Tag { add, remove } => {
             patch.tag(add, remove, &signer)?;

@@ -64,9 +64,6 @@ pub enum Error {
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
     Missing(EntryId),
-    /// Missing actor.
-    #[error("missing actor {0:?}")]
-    MissingActor(ActorId),
     /// Error applying an op to the patch thread.
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::Error),
@@ -103,9 +100,13 @@ pub enum Action {
         description: String,
     },
     EditReview {
-        revision: RevisionId,
-        author: ActorId,
+        review: EntryId,
         summary: Option<String>,
+    },
+    EditCodeComment {
+        review: EntryId,
+        comment: EntryId,
+        body: String,
     },
     Tag {
         add: Vec<Tag>,
@@ -128,9 +129,8 @@ pub enum Action {
         verdict: Option<Verdict>,
     },
     CodeComment {
-        revision: RevisionId,
-        author: ActorId,
-        comment: String,
+        review: EntryId,
+        body: String,
         location: CodeLocation,
     },
     Merge {
@@ -200,6 +200,8 @@ pub struct Patch {
     reviewers: LWWSet<ActorId>,
     /// Timeline of operations.
     timeline: GSet<(Lamport, EntryId)>,
+    /// Reviews index. Keeps track of reviews for better performance.
+    reviews: GMap<EntryId, Redactable<(EntryId, ActorId)>>,
 }
 
 impl Semilattice for Patch {
@@ -212,6 +214,7 @@ impl Semilattice for Patch {
         self.revisions.merge(other.revisions);
         self.reviewers.merge(other.reviewers);
         self.timeline.merge(other.timeline);
+        self.reviews.merge(other.reviews);
     }
 }
 
@@ -226,6 +229,7 @@ impl Default for Patch {
             revisions: GMap::default(),
             reviewers: LWWSet::default(),
             timeline: GSet::default(),
+            reviews: GMap::default(),
         }
     }
 }
@@ -443,19 +447,19 @@ impl store::FromHistory for Patch {
                         return Err(Error::Missing(revision));
                     }
                 }
-                Action::EditReview {
-                    revision,
-                    author,
-                    summary,
-                } => {
-                    let Some(revision) = self.revisions.get_mut(&revision) else {
-                        return Err(Error::Missing(revision));
+                Action::EditReview { review, summary } => {
+                    let Some(Redactable::Present((revision, author))) =
+                        self.reviews.get(&review) else {
+                            return Err(Error::Missing(review));
+                    };
+                    let Some(rev) = self.revisions.get_mut(revision) else {
+                        return Err(Error::Missing(*revision));
                     };
                     // If the revision was redacted concurrently, there's nothing to do.
                     // Likewise, if the review was redacted concurrently, there's nothing to do.
-                    if let Some(revision) = revision.get_mut() {
-                        let Some(review) = revision.reviews.get_mut(&author) else {
-                            return Err(Error::MissingActor(author));
+                    if let Some(rev) = rev.get_mut() {
+                        let Some(review) = rev.reviews.get_mut(author) else {
+                            return Err(Error::Missing(review));
                         };
                         if let Redactable::Present(review) = review {
                             review.summary.set(summary.map(Max::from), op.clock);
@@ -492,13 +496,13 @@ impl store::FromHistory for Patch {
                     ref summary,
                     verdict,
                 } => {
-                    let Some(revision) = self.revisions.get_mut(&revision) else {
+                    let Some(rev) = self.revisions.get_mut(&revision) else {
                         return Err(Error::Missing(revision));
                     };
-                    if let Some(revision) = revision.get_mut() {
+                    if let Some(rev) = rev.get_mut() {
                         // Nb. Applying two reviews by the same author is not allowed and
                         // results in the review being redacted.
-                        revision.reviews.insert(
+                        rev.reviews.insert(
                             op.author,
                             Redactable::Present(Review::new(
                                 verdict,
@@ -507,10 +511,66 @@ impl store::FromHistory for Patch {
                                 op.clock,
                             )),
                         );
+                        // Update reviews index.
+                        self.reviews
+                            .insert(op.id, Redactable::Present((revision, op.author)));
                     }
                 }
-                Action::CodeComment { .. } => {
-                    // TODO: Not yet implemented.
+                Action::EditCodeComment {
+                    review,
+                    comment,
+                    body,
+                } => {
+                    let Some(Redactable::Present((revision, author))) =
+                        self.reviews.get(&review) else {
+                            return Err(Error::Missing(review));
+                    };
+                    let Some(rev) = self.revisions.get_mut(revision) else {
+                        return Err(Error::Missing(*revision));
+                    };
+                    // If the revision was redacted concurrently, there's nothing to do.
+                    // Likewise, if the review was redacted concurrently, there's nothing to do.
+                    if let Some(rev) = rev.get_mut() {
+                        let Some(review) = rev.reviews.get_mut(author) else {
+                            return Err(Error::Missing(review));
+                        };
+                        if let Some(review) = review.get_mut() {
+                            let Some(comment) = review.comments.get_mut(&comment) else {
+                                return Err(Error::Missing(comment));
+                            };
+                            if let Some(comment) = comment.get_mut() {
+                                comment.edit(op.clock, body, timestamp);
+                            }
+                        }
+                    }
+                }
+                Action::CodeComment {
+                    review,
+                    body,
+                    location,
+                } => {
+                    let Some(Redactable::Present((revision, author))) =
+                        self.reviews.get(&review) else {
+                            return Err(Error::Missing(review));
+                    };
+                    let Some(rev) = self.revisions.get_mut(revision) else {
+                        return Err(Error::Missing(*revision));
+                    };
+                    // If the revision was redacted concurrently, there's nothing to do.
+                    // Likewise, if the review was redacted concurrently, there's nothing to do.
+                    if let Some(rev) = rev.get_mut() {
+                        let Some(review) = rev.reviews.get_mut(author) else {
+                            return Err(Error::Missing(review));
+                        };
+                        if let Redactable::Present(review) = review {
+                            review.comments.insert(
+                                id,
+                                Redactable::Present(CodeComment::new(
+                                    op.author, body, location, timestamp,
+                                )),
+                            );
+                        }
+                    }
                 }
                 Action::Merge { revision, commit } => {
                     let Some(rev) = self.revisions.get_mut(&revision) else {
@@ -836,6 +896,12 @@ impl CodeComment {
         }
     }
 
+    /// Add an edit.
+    pub fn edit(&mut self, clock: Lamport, body: String, timestamp: Timestamp) {
+        self.edits
+            .insert(clock, thread::Edit { body, timestamp }.into())
+    }
+
     /// Comment author.
     pub fn author(&self) -> ActorId {
         self.author
@@ -948,15 +1014,10 @@ impl store::Transaction<Patch> {
 
     pub fn edit_review(
         &mut self,
-        revision: RevisionId,
-        author: ActorId,
+        review: EntryId,
         summary: Option<String>,
     ) -> Result<(), store::Error> {
-        self.push(Action::EditReview {
-            revision,
-            author,
-            summary,
-        })
+        self.push(Action::EditReview { review, summary })
     }
 
     /// Redact the revision.
@@ -992,6 +1053,20 @@ impl store::Transaction<Patch> {
                 body: body.to_string(),
                 reply_to,
             },
+        })
+    }
+
+    /// Comment on code.
+    pub fn code_comment<S: ToString>(
+        &mut self,
+        review: EntryId,
+        body: S,
+        location: CodeLocation,
+    ) -> Result<(), store::Error> {
+        self.push(Action::CodeComment {
+            review,
+            body: body.to_string(),
+            location,
         })
     }
 
@@ -1119,14 +1194,11 @@ impl<'a, 'g> PatchMut<'a, 'g> {
     /// Edit review.
     pub fn edit_review<G: Signer>(
         &mut self,
-        revision: RevisionId,
-        author: ActorId,
+        review: EntryId,
         summary: Option<String>,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit review", signer, |tx| {
-            tx.edit_review(revision, author, summary)
-        })
+        self.transaction("Edit review", signer, |tx| tx.edit_review(review, summary))
     }
 
     /// Redact a revision.
@@ -1160,6 +1232,19 @@ impl<'a, 'g> PatchMut<'a, 'g> {
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Comment", signer, |tx| tx.comment(revision, body, reply_to))
+    }
+
+    /// Comment on a line of code as part of a review.
+    pub fn code_comment<G: Signer, S: ToString>(
+        &mut self,
+        review: EntryId,
+        body: S,
+        location: CodeLocation,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Code comment", signer, |tx| {
+            tx.code_comment(review, body, location)
+        })
     }
 
     /// Review a patch revision.
@@ -1885,22 +1970,61 @@ mod test {
         let (rid, _) = patch.latest();
         let rid = *rid;
 
-        patch
+        let review = patch
             .review(rid, Some(Verdict::Accept), Some("LGTM".to_owned()), signer)
             .unwrap();
         patch
-            .edit_review(
-                rid,
-                *signer.public_key(),
-                Some("Whoops!".to_owned()),
-                signer,
-            )
+            .edit_review(review, Some("Whoops!".to_owned()), signer)
             .unwrap(); // Overwrite the comment.
                        //
         let (_, revision) = patch.latest();
         let review = revision.review(signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Accept));
         assert_eq!(review.summary(), Some("Whoops!"));
+    }
+
+    #[test]
+    fn test_patch_review_comment() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = test::setup::Context::new(&tmp);
+        let signer = &ctx.signer;
+        let pr = ctx.branch_with(test::setup::initial_blobs());
+        let mut patches = Patches::open(&ctx.project).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                pr.base,
+                pr.oid,
+                &[],
+                signer,
+            )
+            .unwrap();
+
+        let (rid, _) = patch.latest();
+        let rid = *rid;
+        let location = CodeLocation {
+            path: PathBuf::from_str("README.md").unwrap(),
+            old: None,
+            new: Some(5..8),
+        };
+        let review = patch.review(rid, None, None, signer).unwrap();
+        patch
+            .code_comment(
+                review,
+                "I like these lines of code",
+                location.clone(),
+                signer,
+            )
+            .unwrap();
+
+        let (_, revision) = patch.latest();
+        let review = revision.review(signer.public_key()).unwrap();
+        let (_, comment) = review.comments().next().unwrap();
+
+        assert_eq!(comment.body(), "I like these lines of code");
+        assert_eq!(comment.location(), &location);
     }
 
     #[test]
@@ -1924,13 +2048,10 @@ mod test {
 
         let (rid, _) = patch.latest();
         let rid = *rid;
-
-        patch
+        let review = patch
             .review(rid, None, Some("Nah".to_owned()), signer)
             .unwrap();
-        patch
-            .edit_review(rid, *signer.public_key(), None, signer)
-            .unwrap();
+        patch.edit_review(review, None, signer).unwrap();
 
         let id = patch.id;
         let patch = patches.get_mut(&id).unwrap();
