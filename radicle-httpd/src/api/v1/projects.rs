@@ -644,6 +644,13 @@ async fn patch_update_handler(
         } => {
             patch.edit_revision(revision, description, &signer)?;
         }
+        patch::Action::EditReview {
+            revision,
+            author,
+            summary,
+        } => {
+            patch.edit_review(revision, author, summary, &signer)?;
+        }
         patch::Action::Tag { add, remove } => {
             patch.tag(add, remove, &signer)?;
         }
@@ -662,11 +669,13 @@ async fn patch_update_handler(
         }
         patch::Action::Review {
             revision,
-            comment,
+            summary,
             verdict,
-            inline,
         } => {
-            patch.review(revision, verdict, comment, inline, &signer)?;
+            patch.review(revision, verdict, summary, &signer)?;
+        }
+        patch::Action::CodeComment { .. } => {
+            todo!()
         }
         patch::Action::Merge { revision, commit } => {
             patch.merge(revision, commit, &signer)?;
@@ -2237,23 +2246,8 @@ mod routes {
         let thread_body = serde_json::to_vec(&json!({
           "type": "review",
           "revision": CONTRIBUTOR_PATCH_ID,
-          "comment": "A small review",
+          "summary": "A small review",
           "verdict": "accept",
-          "inline": [
-            {
-              "location": {
-                "blob": "82eb77880c693655bce074e3dbbd9fa711dc018b",
-                "path": "./README.md",
-                "commit": HEAD,
-                "lines": {
-                    "start": 1,
-                    "end": 3,
-                },
-              },
-              "comment": "This is a comment on line 1",
-              "timestamp": TIMESTAMP,
-            }
-          ]
         }))
         .unwrap();
         let response = patch(
@@ -2305,17 +2299,8 @@ mod routes {
                           "id": CONTRIBUTOR_NID,
                       },
                       "verdict": "accept",
-                      "comment": "A small review",
-                      "inline": [
-                        {
-                          "location": {
-                            "path": "./README.md",
-                            "old": null,
-                            "new": null,
-                          },
-                          "comment": "This is a comment on line 1",
-                        }
-                      ],
+                      "summary": "A small review",
+                      "comments": [],
                       "timestamp": TIMESTAMP,
                     },
                   ],

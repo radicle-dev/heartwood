@@ -252,7 +252,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 } else {
                     Some(message)
                 };
-                patch.review(*revision_id, verdict, message, vec![], &signer)?;
+                patch.review(*revision_id, verdict, message, &signer)?;
 
                 match verdict {
                     Some(Verdict::Accept) => {

@@ -188,8 +188,8 @@ fn review(nid: &NodeId, alias: Option<String>, review: &Review) -> Value {
                 "alias": alias,
             },
             "verdict": review.verdict(),
-            "comment": review.comment(),
-            "inline": review.inline().collect::<Vec<_>>(),
+            "summary": review.summary(),
+            "comments": review.comments().collect::<Vec<_>>(),
             "timestamp": review.timestamp(),
         }),
         None => json!({
@@ -197,8 +197,8 @@ fn review(nid: &NodeId, alias: Option<String>, review: &Review) -> Value {
                 "id": nid,
             },
             "verdict": review.verdict(),
-            "comment": review.comment(),
-            "inline": review.inline().collect::<Vec<_>>(),
+            "summary": review.summary(),
+            "comments": review.comments().collect::<Vec<_>>(),
             "timestamp": review.timestamp(),
         }),
     }

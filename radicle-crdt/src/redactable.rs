@@ -25,6 +25,13 @@ impl<T> Redactable<T> {
             Self::Redacted => None,
         }
     }
+
+    pub fn get_mut(&mut self) -> Option<&mut T> {
+        match self {
+            Self::Present(ref mut val) => Some(val),
+            Self::Redacted => None,
+        }
+    }
 }
 
 impl<T> From<Option<T>> for Redactable<T> {
