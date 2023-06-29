@@ -1,29 +1,28 @@
 use std::ffi::OsString;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
-use std::time::Duration;
-use std::{process, thread};
+use std::{process, thread, time};
 
 use anyhow::Context as _;
 
 use radicle::node::{Address, Handle as _, NodeId};
-use radicle::profile;
 use radicle::Node;
+use radicle::{profile, Profile};
 
 use crate::terminal as term;
 
-pub fn start(daemon: bool, options: Vec<OsString>) -> anyhow::Result<()> {
+pub fn start(daemon: bool, options: Vec<OsString>, profile: &Profile) -> anyhow::Result<()> {
     // Ask passphrase here, otherwise it'll be a fatal error when running the daemon
     // without `RAD_PASSPHRASE`. To keep things consistent, we also use this in foreground mode.
     let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
         .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
 
     if daemon {
-        let home = radicle::profile::home()?;
         let log = OpenOptions::new()
             .append(true)
             .create(true)
-            .open(home.node().join("node.log"))?;
+            .open(profile.home.node().join("node.log"))?;
+
         process::Command::new("radicle-node")
             .args(options)
             .env(profile::env::RAD_PASSPHRASE, passphrase)
@@ -31,6 +30,8 @@ pub fn start(daemon: bool, options: Vec<OsString>) -> anyhow::Result<()> {
             .stdout(process::Stdio::from(log))
             .stderr(process::Stdio::null())
             .spawn()?;
+
+        logs(0, Some(time::Duration::from_secs(1)), profile)?;
     } else {
         let mut child = process::Command::new("radicle-node")
             .args(options)
@@ -53,9 +54,8 @@ pub fn stop(node: Node) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn logs(lines: usize, follow: bool) -> anyhow::Result<()> {
-    let home = radicle::profile::home()?;
-    let logs = home.node().join("node.log");
+pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> anyhow::Result<()> {
+    let logs = profile.home.node().join("node.log");
 
     let mut file = BufReader::new(File::open(logs)?);
     file.seek(SeekFrom::End(-1))?;
@@ -78,17 +78,21 @@ pub fn logs(lines: usize, follow: bool) -> anyhow::Result<()> {
     }
     tail.reverse();
 
-    print!("{}", String::from_utf8_lossy(&tail));
+    print!("{}", term::format::dim(String::from_utf8_lossy(&tail)));
 
-    if follow {
+    if let Some(timeout) = follow {
         file.seek(SeekFrom::End(0))?;
-        loop {
+
+        let start = time::Instant::now();
+
+        while start.elapsed() < timeout {
             let mut line = String::new();
             let len = file.read_line(&mut line)?;
+
             if len == 0 {
-                thread::sleep(Duration::from_millis(250));
+                thread::sleep(time::Duration::from_millis(250));
             } else {
-                print!("{line}");
+                print!("{}", term::format::dim(line));
             }
         }
     }
@@ -113,13 +117,17 @@ pub fn connect(node: &mut Node, nid: NodeId, addr: Address) -> anyhow::Result<()
     Ok(())
 }
 
-pub fn status(node: &Node) -> anyhow::Result<()> {
+pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
     if node.is_running() {
         term::success!("The node is {}", term::format::positive("running"));
     } else {
         term::info!("The node is {}", term::format::negative("stopped"));
     }
-    term::blank();
-
-    logs(10, false)
+    if profile.home.node().join("node.log").exists() {
+        term::blank();
+        // If we're running the node via `systemd` for example, there won't be a log file
+        // and this will fail.
+        logs(10, None, profile)?;
+    }
+    Ok(())
 }

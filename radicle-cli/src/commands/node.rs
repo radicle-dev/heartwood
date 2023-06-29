@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::time;
 
 use anyhow::anyhow;
 
@@ -210,11 +211,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 radicle::node::routing::Table::reader(profile.home.node().join(ROUTING_DB_FILE))?;
             routing::run(&store, rid, nid, json)?;
         }
-        Operation::Logs { lines } => control::logs(lines, true)?,
-        Operation::Start { daemon, options } => control::start(daemon, options)?,
+        Operation::Logs { lines } => control::logs(lines, Some(time::Duration::MAX), &profile)?,
+        Operation::Start { daemon, options } => control::start(daemon, options, &profile)?,
         Operation::Status => {
             let node = Node::new(profile.socket());
-            control::status(&node)?;
+            control::status(&node, &profile)?;
         }
         Operation::Stop => {
             let node = Node::new(profile.socket());
