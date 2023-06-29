@@ -210,11 +210,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 radicle::node::routing::Table::reader(profile.home.node().join(ROUTING_DB_FILE))?;
             routing::run(&store, rid, nid, json)?;
         }
-        Operation::Logs { lines } => control::logs(lines)?,
+        Operation::Logs { lines } => control::logs(lines, true)?,
         Operation::Start { daemon, options } => control::start(daemon, options)?,
         Operation::Status => {
             let node = Node::new(profile.socket());
-            control::status(&node);
+            control::status(&node)?;
         }
         Operation::Stop => {
             let node = Node::new(profile.socket());

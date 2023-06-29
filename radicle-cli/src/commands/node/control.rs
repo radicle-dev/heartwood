@@ -53,7 +53,7 @@ pub fn stop(node: Node) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn logs(lines: usize) -> anyhow::Result<()> {
+pub fn logs(lines: usize, follow: bool) -> anyhow::Result<()> {
     let home = radicle::profile::home()?;
     let logs = home.node().join("node.log");
 
@@ -80,16 +80,19 @@ pub fn logs(lines: usize) -> anyhow::Result<()> {
 
     print!("{}", String::from_utf8_lossy(&tail));
 
-    file.seek(SeekFrom::End(0))?;
-    loop {
-        let mut line = String::new();
-        let len = file.read_line(&mut line)?;
-        if len == 0 {
-            thread::sleep(Duration::from_millis(250));
-        } else {
-            print!("{line}");
+    if follow {
+        file.seek(SeekFrom::End(0))?;
+        loop {
+            let mut line = String::new();
+            let len = file.read_line(&mut line)?;
+            if len == 0 {
+                thread::sleep(Duration::from_millis(250));
+            } else {
+                print!("{line}");
+            }
         }
     }
+    Ok(())
 }
 
 pub fn connect(node: &mut Node, nid: NodeId, addr: Address) -> anyhow::Result<()> {
@@ -110,10 +113,13 @@ pub fn connect(node: &mut Node, nid: NodeId, addr: Address) -> anyhow::Result<()
     Ok(())
 }
 
-pub fn status(node: &Node) {
+pub fn status(node: &Node) -> anyhow::Result<()> {
     if node.is_running() {
         term::success!("The node is {}", term::format::positive("running"));
     } else {
         term::info!("The node is {}", term::format::negative("stopped"));
     }
+    term::blank();
+
+    logs(10, false)
 }
