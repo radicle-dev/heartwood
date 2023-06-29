@@ -1078,6 +1078,20 @@ impl store::Transaction<Patch> {
         })
     }
 
+    /// Edit comment on code.
+    pub fn edit_code_comment<S: ToString>(
+        &mut self,
+        review: EntryId,
+        comment: EntryId,
+        body: S,
+    ) -> Result<(), store::Error> {
+        self.push(Action::EditCodeComment {
+            review,
+            comment,
+            body: body.to_string(),
+        })
+    }
+
     /// Review a patch revision.
     pub fn review(
         &mut self,
@@ -1252,6 +1266,19 @@ impl<'a, 'g> PatchMut<'a, 'g> {
     ) -> Result<EntryId, Error> {
         self.transaction("Code comment", signer, |tx| {
             tx.code_comment(review, body, location)
+        })
+    }
+
+    /// Edit comment on code.
+    pub fn edit_code_comment<G: Signer, S: ToString>(
+        &mut self,
+        review: EntryId,
+        comment: EntryId,
+        body: S,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Edit code comment", signer, |tx| {
+            tx.edit_code_comment(review, comment, body)
         })
     }
 

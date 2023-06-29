@@ -647,8 +647,12 @@ async fn patch_update_handler(
         patch::Action::EditReview { review, summary } => {
             patch.edit_review(review, summary, &signer)?;
         }
-        patch::Action::EditCodeComment { .. } => {
-            todo!()
+        patch::Action::EditCodeComment {
+            review,
+            comment,
+            body,
+        } => {
+            patch.edit_code_comment(review, comment, body, &signer)?;
         }
         patch::Action::Tag { add, remove } => {
             patch.tag(add, remove, &signer)?;
