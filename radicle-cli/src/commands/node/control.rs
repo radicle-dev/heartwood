@@ -44,9 +44,9 @@ pub fn start(daemon: bool, options: Vec<OsString>) -> anyhow::Result<()> {
 }
 
 pub fn stop(node: Node) -> anyhow::Result<()> {
-    let spinner = term::spinner("Stopping the node...");
-    if let Err(err) = node.shutdown() {
-        spinner.error(format!("Error occurred while shutting down node: {err}"));
+    let spinner = term::spinner("Stopping node...");
+    if node.shutdown().is_err() {
+        spinner.error("node is not running");
     } else {
         spinner.finish();
     }

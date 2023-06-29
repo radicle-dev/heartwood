@@ -211,6 +211,7 @@ fn command<H: Handle<Error = runtime::HandleError> + 'static>(
             // Channel might already be disconnected if shutdown
             // came from somewhere else. Ignore errors.
             handle.shutdown().ok();
+            CommandResult::ok().to_writer(writer).ok();
         }
     }
     Ok(())

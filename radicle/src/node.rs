@@ -10,7 +10,7 @@ use std::io::{BufRead, BufReader};
 use std::ops::Deref;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::{fmt, io, net, time};
+use std::{fmt, io, net, thread, time};
 
 use amplify::WrapperMut;
 use cyphernet::addr::{HostName, NetAddr};
@@ -697,7 +697,14 @@ impl Handle for Node {
     }
 
     fn shutdown(self) -> Result<(), Error> {
-        todo!();
+        for line in self.call::<&str, CommandResult>(CommandName::Shutdown, [], DEFAULT_TIMEOUT)? {
+            line?;
+        }
+        // Wait until the shutdown has completed.
+        while self.is_running() {
+            thread::sleep(time::Duration::from_secs(1));
+        }
+        Ok(())
     }
 }
 
@@ -709,7 +716,7 @@ pub trait AliasStore {
 
 impl<T: AliasStore + ?Sized> AliasStore for &T {
     fn alias(&self, nid: &NodeId) -> Option<String> {
-        dbg!((*self).alias(nid))
+        (*self).alias(nid)
     }
 }
 
@@ -721,7 +728,7 @@ impl<T: AliasStore + ?Sized> AliasStore for Box<T> {
 
 impl AliasStore for HashMap<NodeId, String> {
     fn alias(&self, nid: &NodeId) -> Option<String> {
-        dbg!(self.get(nid).map(ToOwned::to_owned))
+        self.get(nid).map(ToOwned::to_owned)
     }
 }
 
