@@ -24,24 +24,31 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad node events [<option>...]
     rad node status [<option>...]
-    rad node start [--daemon|-d] [<option>...] [-- <node-option>...]
+    rad node start [--daemon | -d] [<option>...] [-- <node-option>...]
     rad node stop [<option>...]
+    rad node logs [-n <lines>]
     rad node connect <nid> <addr> [<option>...]
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
-    rad node tracking [--repos|--nodes] [<option>...]
+    rad node tracking [--repos | --nodes] [<option>...]
+    rad node events [<option>...]
 
     For `<node-option>` see `radicle-node --help`.
 
-Options
+Routing options
 
-    --help          Print help
+    --rid <rid>     Show the routing table entries for the given RID
+    --nid <nid>     Show the routing table entries for the given NID
+    --json          Output the routing table as json
+
+Tracking options
+
     --repos         Show the tracked repositories table
     --nodes         Show the tracked nodes table
-    --rid           Show the routing table entries for the given RID
-    --nid           Show the routing table entries for the given NID
-    --json          Output the routing table as json
+
+General options
+
+    --help          Print help
 "#,
 };
 
@@ -64,6 +71,9 @@ pub enum Operation {
         daemon: bool,
         options: Vec<OsString>,
     },
+    Logs {
+        lines: usize,
+    },
     Status,
     Stop,
     Tracking {
@@ -83,6 +93,7 @@ pub enum OperationName {
     Connect,
     Events,
     Routing,
+    Logs,
     Start,
     #[default]
     Status,
@@ -103,6 +114,7 @@ impl Args for Options {
         let mut rid: Option<Id> = None;
         let mut json: bool = false;
         let mut addr: Option<Address> = None;
+        let mut lines: usize = 10;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -112,6 +124,7 @@ impl Args for Options {
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "connect" => op = Some(OperationName::Connect),
                     "events" => op = Some(OperationName::Events),
+                    "logs" => op = Some(OperationName::Logs),
                     "routing" => op = Some(OperationName::Routing),
                     "start" => op = Some(OperationName::Start),
                     "status" => op = Some(OperationName::Status),
@@ -151,6 +164,9 @@ impl Args for Options {
                 Long("daemon") | Short('d') if matches!(op, Some(OperationName::Start)) => {
                     daemon = true;
                 }
+                Short('n') if matches!(op, Some(OperationName::Logs)) => {
+                    lines = parser.value()?.parse()?;
+                }
                 Value(val) if matches!(op, Some(OperationName::Start)) => {
                     options.push(val);
                 }
@@ -165,6 +181,7 @@ impl Args for Options {
             },
             OperationName::Events => Operation::Events,
             OperationName::Routing => Operation::Routing { rid, nid, json },
+            OperationName::Logs => Operation::Logs { lines },
             OperationName::Start => Operation::Start { daemon, options },
             OperationName::Status => Operation::Status,
             OperationName::Stop => Operation::Stop,
@@ -193,6 +210,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 radicle::node::routing::Table::reader(profile.home.node().join(ROUTING_DB_FILE))?;
             routing::run(&store, rid, nid, json)?;
         }
+        Operation::Logs { lines } => control::logs(lines)?,
         Operation::Start { daemon, options } => control::start(daemon, options)?,
         Operation::Status => {
             let node = Node::new(profile.socket());

@@ -1,6 +1,8 @@
 use std::ffi::OsString;
-use std::fs::OpenOptions;
-use std::process;
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::time::Duration;
+use std::{process, thread};
 
 use radicle::node::{Address, Handle as _, NodeId};
 use radicle::Node;
@@ -39,6 +41,45 @@ pub fn stop(node: Node) -> anyhow::Result<()> {
         spinner.finish();
     }
     Ok(())
+}
+
+pub fn logs(lines: usize) -> anyhow::Result<()> {
+    let home = radicle::profile::home()?;
+    let logs = home.node().join("node.log");
+
+    let mut file = BufReader::new(File::open(logs)?);
+    file.seek(SeekFrom::End(-1))?;
+
+    let mut tail = Vec::new();
+    let mut nlines = 0;
+
+    for i in (0..=file.stream_position()?).rev() {
+        let mut buf = [0; 1];
+        file.seek(SeekFrom::Start(i))?;
+        file.read_exact(&mut buf)?;
+
+        if buf[0] == b'\n' {
+            nlines += 1;
+        }
+        if nlines > lines {
+            break;
+        }
+        tail.push(buf[0]);
+    }
+    tail.reverse();
+
+    print!("{}", String::from_utf8_lossy(&tail));
+
+    file.seek(SeekFrom::End(0))?;
+    loop {
+        let mut line = String::new();
+        let len = file.read_line(&mut line)?;
+        if len == 0 {
+            thread::sleep(Duration::from_millis(250));
+        } else {
+            print!("{line}");
+        }
+    }
 }
 
 pub fn connect(node: &mut Node, nid: NodeId, addr: Address) -> anyhow::Result<()> {
