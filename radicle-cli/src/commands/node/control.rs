@@ -4,12 +4,20 @@ use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::time::Duration;
 use std::{process, thread};
 
+use anyhow::Context as _;
+
 use radicle::node::{Address, Handle as _, NodeId};
+use radicle::profile;
 use radicle::Node;
 
 use crate::terminal as term;
 
 pub fn start(daemon: bool, options: Vec<OsString>) -> anyhow::Result<()> {
+    // Ask passphrase here, otherwise it'll be a fatal error when running the daemon
+    // without `RAD_PASSPHRASE`. To keep things consistent, we also use this in foreground mode.
+    let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
+        .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
+
     if daemon {
         let home = radicle::profile::home()?;
         let log = OpenOptions::new()
@@ -18,6 +26,7 @@ pub fn start(daemon: bool, options: Vec<OsString>) -> anyhow::Result<()> {
             .open(home.node().join("node.log"))?;
         process::Command::new("radicle-node")
             .args(options)
+            .env(profile::env::RAD_PASSPHRASE, passphrase)
             .stdin(process::Stdio::null())
             .stdout(process::Stdio::from(log))
             .stderr(process::Stdio::null())
@@ -25,6 +34,7 @@ pub fn start(daemon: bool, options: Vec<OsString>) -> anyhow::Result<()> {
     } else {
         let mut child = process::Command::new("radicle-node")
             .args(options)
+            .env(profile::env::RAD_PASSPHRASE, passphrase)
             .spawn()?;
 
         child.wait()?;
