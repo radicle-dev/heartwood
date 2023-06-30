@@ -106,7 +106,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     }
 
     term::success!(
-        "Your Radicle ID is {}. This identifies your device.",
+        "Your Radicle DID is {}. This identifies your device.",
         term::format::highlight(profile.did())
     );
 

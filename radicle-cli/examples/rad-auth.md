@@ -7,7 +7,7 @@ $ rad auth
 Initializing your radicle 👾 identity
 
 ✓ Creating your Ed25519 keypair...
-✓ Your Radicle ID is did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi. This identifies your device.
+✓ Your Radicle DID is did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi. This identifies your device.
 
 To create a radicle project, run `rad init` from a git repository.
 ```
@@ -15,12 +15,6 @@ To create a radicle project, run `rad init` from a git repository.
 You can get the above information at all times using the `self` command:
 
 ```
-$ rad self
-DID            did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-Node ID (NID)  z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-Key (hash)     SHA256:UIedaL6Cxm6OUErh9GQUzzglSk7VpQlVTI1TAFB/HWA
-Key (full)     ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHahWSBEpuT1ESZbynOmBNkLBSnR32Ar4woZqSV2YNH1
-Storage (git)  [..]/storage
-Storage (keys) [..]/keys
-Node (socket)  [..]/node/control.sock
+$ rad self --did
+did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```

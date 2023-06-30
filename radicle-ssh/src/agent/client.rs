@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use std::ops::DerefMut;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use std::str::FromStr;
 
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use log::*;
@@ -51,11 +52,17 @@ pub struct AgentClient<S> {
     stream: S,
 }
 
-// https://tools.ietf.org/html/draft-miller-ssh-agent-00#section-4.1
 impl<S> AgentClient<S> {
     /// Connect to an SSH agent via the provided stream (on Unix, usually a Unix-domain socket).
     pub fn connect(stream: S) -> Self {
         AgentClient { stream }
+    }
+
+    /// Get the agent PID.
+    pub fn pid(&self) -> Option<u32> {
+        std::env::var("SSH_AGENT_PID")
+            .ok()
+            .and_then(|v| u32::from_str(&v).ok())
     }
 }
 
@@ -76,7 +83,7 @@ pub trait ClientStream: Sized + Send + Sync {
             Err(Error::Io(io_err)) if io_err.kind() == std::io::ErrorKind::NotFound => {
                 Err(Error::BadAuthSock)
             }
-            err => err,
+            other => other,
         }
     }
 }
