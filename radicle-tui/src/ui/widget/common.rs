@@ -11,11 +11,12 @@ use context::{Shortcut, Shortcuts};
 use label::Label;
 use list::{Property, PropertyList};
 
-use self::container::Container;
+use self::container::{AppHeader, AppInfo, Container, VerticalLine};
 use self::list::{ColumnWidth, PropertyTable};
 
 use super::Widget;
 
+use crate::ui::context::Context;
 use crate::ui::theme::Theme;
 
 pub fn global_listener() -> Widget<GlobalListener> {
@@ -115,10 +116,39 @@ pub fn property_table(_theme: &Theme, properties: Vec<Widget<Property>>) -> Widg
     Widget::new(table)
 }
 
-pub fn tabs(theme: &Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
-    let line =
-        label(&theme.icons.tab_overline.to_string()).foreground(theme.colors.tabs_highlighted_fg);
-    let tabs = Tabs::new(tabs, line);
+pub fn tabs(_theme: &Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
+    let tabs = Tabs::new(tabs);
 
     Widget::new(tabs).height(2)
+}
+
+pub fn app_info(context: &Context, theme: &Theme) -> Widget<AppInfo> {
+    let project = label(context.project().name()).foreground(theme.colors.app_header_project_fg);
+    let rid = label(&format!(" ({})", context.id())).foreground(theme.colors.app_header_rid_fg);
+
+    let project_w = project
+        .query(Attribute::Width)
+        .unwrap_or(AttrValue::Size(0))
+        .unwrap_size();
+    let rid_w = rid
+        .query(Attribute::Width)
+        .unwrap_or(AttrValue::Size(0))
+        .unwrap_size();
+
+    let info = AppInfo::new(project, rid);
+    Widget::new(info).width(project_w.saturating_add(rid_w))
+}
+
+pub fn app_header(
+    context: &Context,
+    theme: &Theme,
+    nav: Option<Widget<Tabs>>,
+) -> Widget<AppHeader> {
+    let line =
+        label(&theme.icons.tab_overline.to_string()).foreground(theme.colors.tabs_highlighted_fg);
+    let line = Widget::new(VerticalLine::new(line));
+    let info = app_info(context, theme);
+    let header = AppHeader::new(nav, info, line);
+
+    Widget::new(header)
 }

@@ -11,7 +11,8 @@ const COLOR_DEFAULT_FAINT: Color = Color::Rgb(20, 20, 20);
 pub struct Colors {
     pub default_fg: Color,
     pub tabs_highlighted_fg: Color,
-    pub workspaces_info_fg: Color,
+    pub app_header_project_fg: Color,
+    pub app_header_rid_fg: Color,
     pub labeled_container_bg: Color,
     pub item_list_highlighted_bg: Color,
     pub property_name_fg: Color,
@@ -79,7 +80,8 @@ pub fn default_dark() -> Theme {
         colors: Colors {
             default_fg: COLOR_DEFAULT_FG,
             tabs_highlighted_fg: Color::Magenta,
-            workspaces_info_fg: Color::Yellow,
+            app_header_project_fg: Color::Cyan,
+            app_header_rid_fg: Color::Yellow,
             labeled_container_bg: COLOR_DEFAULT_FAINT,
             item_list_highlighted_bg: COLOR_DEFAULT_DARKER,
             property_name_fg: Color::Cyan,

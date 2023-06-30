@@ -9,6 +9,12 @@ pub struct IssuePreview {
     pub shortcuts: Rect,
 }
 
+pub struct AppHeader {
+    pub nav: Rect,
+    pub info: Rect,
+    pub line: Rect,
+}
+
 pub fn v_stack(
     widgets: Vec<Box<dyn MockComponent>>,
     area: Rect,
@@ -51,6 +57,30 @@ pub fn h_stack(
         .split(area);
 
     widgets.into_iter().zip(layout.into_iter()).collect()
+}
+
+pub fn app_header(area: Rect, info_w: u16) -> AppHeader {
+    let nav_w = area.width.saturating_sub(info_w);
+
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .split(area);
+
+    let top = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(nav_w), Constraint::Length(info_w)].as_ref())
+        .split(layout[1]);
+
+    AppHeader {
+        nav: top[0],
+        info: top[1],
+        line: layout[2],
+    }
 }
 
 pub fn default_page(area: Rect) -> Vec<Rect> {

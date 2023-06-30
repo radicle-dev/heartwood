@@ -23,7 +23,7 @@ use self::page::{IssuePage, PageStack};
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum HomeCid {
-    Navigation,
+    Header,
     Dashboard,
     IssueBrowser,
     PatchBrowser,
@@ -31,7 +31,7 @@ pub enum HomeCid {
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum PatchCid {
-    Navigation,
+    Header,
     Activity,
     Files,
 }

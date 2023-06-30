@@ -33,21 +33,62 @@ impl WidgetComponent for GlobalListener {
     }
 }
 
+/// A vertical separator.
+#[derive(Clone)]
+pub struct VerticalLine {
+    line: Widget<Label>,
+}
+
+impl VerticalLine {
+    pub fn new(line: Widget<Label>) -> Self {
+        Self { line }
+    }
+}
+
+impl WidgetComponent for VerticalLine {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+
+        if display {
+            // Repeat and render line.
+            let overlines = vec![self.line.clone(); area.width as usize];
+            let overlines = overlines
+                .iter()
+                .map(|l| l.clone().to_boxed() as Box<dyn MockComponent>)
+                .collect();
+            let line_layout = layout::h_stack(overlines, area);
+            for (mut line, area) in line_layout {
+                line.view(frame, area);
+            }
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
+        CmdResult::None
+    }
+}
+
+////////////////////////////////////////////////
+
 /// A tab header that displays all labels horizontally aligned and separated
 /// by a divider. Highlights the label defined by the current tab index.
 #[derive(Clone)]
 pub struct Tabs {
     tabs: Vec<Widget<Label>>,
-    line: Widget<Label>,
     state: TabState,
 }
 
 impl Tabs {
-    pub fn new(tabs: Vec<Widget<Label>>, line: Widget<Label>) -> Self {
+    pub fn new(tabs: Vec<Widget<Label>>) -> Self {
         let count = &tabs.len();
         Self {
             tabs,
-            line,
             state: TabState {
                 selected: 0,
                 len: *count as u16,
@@ -64,16 +105,7 @@ impl WidgetComponent for Tabs {
             .unwrap_flag();
 
         if display {
-            let layout = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints(vec![
-                    Constraint::Length(1),
-                    Constraint::Length(1),
-                    Constraint::Length(1),
-                ])
-                .split(area);
-
-            // Render tabs on first row, highlighting the selected tab.
+            // Render tabs, highlighting the selected tab.
             let mut tabs = vec![];
             for (index, tab) in self.tabs.iter().enumerate() {
                 let mut tab = tab.clone().to_boxed();
@@ -87,20 +119,9 @@ impl WidgetComponent for Tabs {
             }
             tabs.push(Widget::new(Label::default()).to_boxed());
 
-            let tab_layout = layout::h_stack(tabs, layout[1]);
+            let tab_layout = layout::h_stack(tabs, area);
             for (mut tab, area) in tab_layout {
                 tab.view(frame, area);
-            }
-
-            // Repeat and render line on second row.
-            let overlines = vec![self.line.clone(); area.width as usize];
-            let overlines = overlines
-                .iter()
-                .map(|l| l.clone().to_boxed() as Box<dyn MockComponent>)
-                .collect();
-            let line_layout = layout::h_stack(overlines, layout[2]);
-            for (mut line, area) in line_layout {
-                line.view(frame, area);
             }
         }
     }
@@ -124,6 +145,112 @@ impl WidgetComponent for Tabs {
             }
             _ => CmdResult::None,
         }
+    }
+}
+
+/// An application info widget that renders project / branch information
+/// and a separator line. Used in conjunction with [`Tabs`].
+pub struct AppInfo {
+    project: Widget<Label>,
+    rid: Widget<Label>,
+}
+
+impl AppInfo {
+    pub fn new(project: Widget<Label>, rid: Widget<Label>) -> Self {
+        Self { project, rid }
+    }
+}
+
+impl WidgetComponent for AppInfo {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+
+        let project_w = self
+            .project
+            .query(Attribute::Width)
+            .unwrap_or(AttrValue::Size(10))
+            .unwrap_size();
+
+        let rid_w = self
+            .rid
+            .query(Attribute::Width)
+            .unwrap_or(AttrValue::Size(10))
+            .unwrap_size();
+
+        if display {
+            let layout = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(vec![
+                    Constraint::Length(project_w),
+                    Constraint::Length(rid_w),
+                ])
+                .split(area);
+
+            self.project.view(frame, layout[0]);
+            self.rid.view(frame, layout[1]);
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
+        CmdResult::None
+    }
+}
+
+/// A common application header that renders project / branch
+/// information and an optional navigation.
+pub struct AppHeader {
+    nav: Option<Widget<Tabs>>,
+    info: Widget<AppInfo>,
+    line: Widget<VerticalLine>,
+}
+
+impl AppHeader {
+    pub fn new(
+        nav: Option<Widget<Tabs>>,
+        info: Widget<AppInfo>,
+        line: Widget<VerticalLine>,
+    ) -> Self {
+        Self { nav, info, line }
+    }
+}
+
+impl WidgetComponent for AppHeader {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+        let info_w = self
+            .info
+            .query(Attribute::Width)
+            .unwrap_or(AttrValue::Size(10))
+            .unwrap_size();
+
+        if display {
+            let layout = layout::app_header(area, info_w);
+
+            if let Some(nav) = self.nav.as_mut() {
+                nav.view(frame, layout.nav);
+            }
+            self.info.view(frame, layout.info);
+            self.line.view(frame, layout.line);
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.nav
+            .as_mut()
+            .map(|nav| nav.perform(cmd))
+            .unwrap_or(CmdResult::None)
     }
 }
 

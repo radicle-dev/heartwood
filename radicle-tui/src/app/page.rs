@@ -76,13 +76,14 @@ impl ViewPage for HomeView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let navigation = widget::home::navigation(theme).to_boxed();
+        let navigation = widget::home::navigation(theme);
+        let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
 
         let dashboard = widget::home::dashboard(context, theme).to_boxed();
         let issue_browser = widget::home::issues(context, theme).to_boxed();
         let patch_browser = widget::home::patches(context, theme).to_boxed();
 
-        app.remount(Cid::Home(HomeCid::Navigation), navigation, vec![])?;
+        app.remount(Cid::Home(HomeCid::Header), header, vec![])?;
 
         app.remount(Cid::Home(HomeCid::Dashboard), dashboard, vec![])?;
         app.remount(Cid::Home(HomeCid::IssueBrowser), issue_browser, vec![])?;
@@ -94,7 +95,7 @@ impl ViewPage for HomeView {
     }
 
     fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        app.umount(&Cid::Home(HomeCid::Navigation))?;
+        app.umount(&Cid::Home(HomeCid::Header))?;
         app.umount(&Cid::Home(HomeCid::Dashboard))?;
         app.umount(&Cid::Home(HomeCid::IssueBrowser))?;
         app.umount(&Cid::Home(HomeCid::PatchBrowser))?;
@@ -120,13 +121,13 @@ impl ViewPage for HomeView {
         let area = frame.size();
         let layout = layout::default_page(area);
 
-        app.view(&Cid::Home(HomeCid::Navigation), frame, layout[0]);
+        app.view(&Cid::Home(HomeCid::Header), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
     }
 
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.subscribe(
-            &Cid::Home(HomeCid::Navigation),
+            &Cid::Home(HomeCid::Header),
             Sub::new(subscription::navigation_clause(), SubClause::Always),
         )?;
 
@@ -135,7 +136,7 @@ impl ViewPage for HomeView {
 
     fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.unsubscribe(
-            &Cid::Home(HomeCid::Navigation),
+            &Cid::Home(HomeCid::Header),
             subscription::navigation_clause(),
         )?;
 
@@ -258,11 +259,13 @@ impl ViewPage for PatchView {
         theme: &Theme,
     ) -> Result<()> {
         let (id, patch) = &self.patch;
-        let navigation = widget::patch::navigation(theme).to_boxed();
+        let navigation = widget::patch::navigation(theme);
+        let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
+
         let activity = widget::patch::activity(theme, (*id, patch), context.profile()).to_boxed();
         let files = widget::patch::files(theme, (*id, patch), context.profile()).to_boxed();
 
-        app.remount(Cid::Patch(PatchCid::Navigation), navigation, vec![])?;
+        app.remount(Cid::Patch(PatchCid::Header), header, vec![])?;
         app.remount(Cid::Patch(PatchCid::Activity), activity, vec![])?;
         app.remount(Cid::Patch(PatchCid::Files), files, vec![])?;
 
@@ -272,7 +275,7 @@ impl ViewPage for PatchView {
     }
 
     fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        app.umount(&Cid::Patch(PatchCid::Navigation))?;
+        app.umount(&Cid::Patch(PatchCid::Header))?;
         app.umount(&Cid::Patch(PatchCid::Activity))?;
         app.umount(&Cid::Patch(PatchCid::Files))?;
         Ok(())
@@ -297,13 +300,13 @@ impl ViewPage for PatchView {
         let area = frame.size();
         let layout = layout::default_page(area);
 
-        app.view(&Cid::Patch(PatchCid::Navigation), frame, layout[0]);
+        app.view(&Cid::Patch(PatchCid::Header), frame, layout[0]);
         app.view(&self.active_component, frame, layout[1]);
     }
 
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.subscribe(
-            &Cid::Patch(PatchCid::Navigation),
+            &Cid::Patch(PatchCid::Header),
             Sub::new(subscription::navigation_clause(), SubClause::Always),
         )?;
 
@@ -312,7 +315,7 @@ impl ViewPage for PatchView {
 
     fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.unsubscribe(
-            &Cid::Patch(PatchCid::Navigation),
+            &Cid::Patch(PatchCid::Header),
             subscription::navigation_clause(),
         )?;
 

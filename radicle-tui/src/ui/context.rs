@@ -3,7 +3,6 @@ use radicle::Profile;
 
 use radicle::storage::git::Repository;
 use radicle::storage::ReadStorage;
-
 pub struct Context {
     profile: Profile,
     id: Id,
@@ -14,6 +13,7 @@ pub struct Context {
 impl Context {
     pub fn new(profile: Profile, id: Id, project: Project) -> Self {
         let repository = profile.storage.repository(id).unwrap();
+
         Self {
             id,
             profile,
