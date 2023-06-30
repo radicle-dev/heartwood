@@ -22,6 +22,7 @@ use crate::crypto::PublicKey;
 use crate::identity::Id;
 use crate::storage::RefUpdate;
 
+pub use cyphernet::addr::PeerAddr;
 pub use events::{Event, Events};
 pub use features::Features;
 

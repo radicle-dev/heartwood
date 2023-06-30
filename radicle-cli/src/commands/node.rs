@@ -3,7 +3,7 @@ use std::time;
 
 use anyhow::anyhow;
 
-use radicle::node::{Address, Node, NodeId, ROUTING_DB_FILE, TRACKING_DB_FILE};
+use radicle::node::{Address, Node, NodeId, PeerAddr, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle::prelude::Id;
 
 use crate::terminal as term;
@@ -29,7 +29,7 @@ Usage
     rad node start [--daemon | -d] [<option>...] [-- <node-option>...]
     rad node stop [<option>...]
     rad node logs [-n <lines>]
-    rad node connect <nid> <addr> [<option>...]
+    rad node connect <nid>@<addr> [<option>...]
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
     rad node tracking [--repos | --nodes] [<option>...]
     rad node events [<option>...]
@@ -59,8 +59,7 @@ pub struct Options {
 
 pub enum Operation {
     Connect {
-        nid: NodeId,
-        addr: Address,
+        addr: PeerAddr<NodeId, Address>,
     },
     Events,
     Routing {
@@ -114,7 +113,7 @@ impl Args for Options {
         let mut nid: Option<NodeId> = None;
         let mut rid: Option<Id> = None;
         let mut json: bool = false;
-        let mut addr: Option<Address> = None;
+        let mut addr: Option<PeerAddr<NodeId, Address>> = None;
         let mut lines: usize = 10;
 
         while let Some(arg) = parser.next()? {
@@ -135,17 +134,7 @@ impl Args for Options {
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val) if matches!(op, Some(OperationName::Connect)) => {
-                    match term::args::nid(&val) {
-                        Ok(val) => {
-                            nid = Some(val);
-                        }
-                        Err(e1) => match term::args::addr(&val) {
-                            Ok(val) => {
-                                addr = Some(val);
-                            }
-                            Err(e2) => return Err(anyhow!("'{}' or '{}'", e1, e2)),
-                        },
-                    }
+                    addr = Some(val.parse()?);
                 }
                 Long("rid") if matches!(op, Some(OperationName::Routing)) => {
                     let val = parser.value()?;
@@ -177,8 +166,9 @@ impl Args for Options {
 
         let op = match op.unwrap_or_default() {
             OperationName::Connect => Operation::Connect {
-                nid: nid.ok_or_else(|| anyhow!("an NID must be provided"))?,
-                addr: addr.ok_or_else(|| anyhow!("an address must be provided"))?,
+                addr: addr.ok_or_else(|| {
+                    anyhow!("an address of the form `<nid>@<host>:<port>` must be provided")
+                })?,
             },
             OperationName::Events => Operation::Events,
             OperationName::Routing => Operation::Routing { rid, nid, json },
@@ -198,9 +188,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
     match options.op {
-        Operation::Connect { nid, addr } => {
+        Operation::Connect { addr } => {
             let mut node = Node::new(profile.socket());
-            control::connect(&mut node, nid, addr)?
+            control::connect(&mut node, addr.id, addr.addr)?
         }
         Operation::Events => {
             let node = Node::new(profile.socket());

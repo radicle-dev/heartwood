@@ -25,7 +25,7 @@ network. For example, let's connect to a known peer using their Node
 ID and their network address:
 
 ```
-$ rad node connect z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk 0.0.0.0:3679
+$ rad node connect z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk@0.0.0.0:3679
 ✓ Connecting to z6Mkt67…v4N1tRk@0.0.0.0:3679...
 ```
 
