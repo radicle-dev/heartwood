@@ -14,6 +14,7 @@ use std::{fmt, io, net, thread, time};
 
 use amplify::WrapperMut;
 use cyphernet::addr::{HostName, NetAddr};
+use localtime::LocalTime;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json as json;
@@ -47,6 +48,64 @@ pub const NODE_ANNOUNCEMENT_FILE: &str = "announcement.wire";
 
 /// Milliseconds since epoch.
 pub type Timestamp = u64;
+
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+pub enum PingState {
+    #[default]
+    /// The peer has not been sent a ping.
+    None,
+    /// A ping has been sent and is waiting on the peer's response.
+    AwaitingResponse(u16),
+    /// The peer was successfully pinged.
+    Ok,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
+pub enum State {
+    /// Initial state for outgoing connections.
+    Initial,
+    /// Connection attempted successfully.
+    Attempted { addr: Address },
+    /// Initial state after handshake protocol hand-off.
+    Connected {
+        /// Remote address.
+        addr: Address,
+        /// Connected since this time.
+        since: LocalTime,
+        /// Ping state.
+        #[serde(skip)]
+        ping: PingState,
+        /// Ongoing fetches.
+        fetching: HashSet<Id>,
+    },
+    /// When a peer is disconnected.
+    Disconnected {
+        /// Since when has this peer been disconnected.
+        since: LocalTime,
+        /// When to retry the connection.
+        retry_at: LocalTime,
+    },
+}
+
+impl fmt::Display for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Initial => {
+                write!(f, "initial")
+            }
+            Self::Attempted { .. } => {
+                write!(f, "attempted")
+            }
+            Self::Connected { .. } => {
+                write!(f, "connected")
+            }
+            Self::Disconnected { .. } => {
+                write!(f, "disconnected")
+            }
+        }
+    }
+}
 
 /// Result of a command, on the node control socket.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,10 +160,10 @@ impl From<CommandResult> for Result<bool, Error> {
 }
 
 /// Peer public protocol address.
-#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, From)]
+#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, From, Serialize, Deserialize)]
 #[wrapper(Deref, Display, FromStr)]
 #[wrapper_mut(DerefMut)]
-pub struct Address(NetAddr<HostName>);
+pub struct Address(#[serde(with = "crate::serde_ext::string")] NetAddr<HostName>);
 
 impl cyphernet::addr::Host for Address {
     fn requires_proxy(&self) -> bool {
@@ -141,6 +200,8 @@ pub enum CommandName {
     Connect,
     /// Lookup seeds for the given repository in the routing table.
     Seeds,
+    /// Get the current peer sessions.
+    Sessions,
     /// Fetch the given repository from the network.
     Fetch,
     /// Track the given repository.
@@ -205,6 +266,13 @@ impl Command {
         json::to_writer(&mut w, self).map_err(|_| io::ErrorKind::InvalidInput)?;
         w.write_all(b"\n")
     }
+}
+
+/// An established network connection with a peer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Session {
+    pub nid: NodeId,
+    pub state: State,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
@@ -541,7 +609,7 @@ impl Node {
 // TODO(finto): repo_policies, node_policies, and routing should all
 // attempt to return iterators instead of allocating vecs.
 impl Handle for Node {
-    type Sessions = ();
+    type Sessions = Vec<Session>;
     type Error = Error;
 
     fn nid(&self) -> Result<NodeId, Error> {
@@ -694,7 +762,14 @@ impl Handle for Node {
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Error> {
-        todo!();
+        let sessions = self
+            .call::<&str, Vec<Session>>(CommandName::Sessions, [], DEFAULT_TIMEOUT)?
+            .next()
+            .ok_or(Error::EmptyResponse {
+                cmd: CommandName::Sessions,
+            })??;
+
+        Ok(sessions)
     }
 
     fn shutdown(self) -> Result<(), Error> {

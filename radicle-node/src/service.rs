@@ -710,7 +710,7 @@ where
         }
     }
 
-    pub fn connected(&mut self, remote: NodeId, link: Link) {
+    pub fn connected(&mut self, remote: NodeId, addr: Address, link: Link) {
         info!(target: "service", "Connected to {} ({:?})", remote, link);
         self.emitter.emit(Event::PeerConnected { nid: remote });
 
@@ -736,6 +736,7 @@ where
                 Entry::Vacant(e) => {
                     let peer = e.insert(Session::inbound(
                         remote,
+                        addr,
                         self.config.is_persistent(&remote),
                         self.rng.clone(),
                         self.clock,
@@ -1538,7 +1539,7 @@ where
 pub trait ServiceState {
     /// Get the Node ID.
     fn nid(&self) -> &NodeId;
-    /// Get the connected peers.
+    /// Get the existing sessions.
     fn sessions(&self) -> &Sessions;
     /// Get a repository from storage, using the local node's key.
     fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError>;

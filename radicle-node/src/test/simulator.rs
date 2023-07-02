@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::{fmt, io};
+use std::{fmt, io, net};
 
 use localtime::{LocalDuration, LocalTime};
 use log::*;
@@ -56,6 +56,8 @@ pub enum Input {
     Connected {
         /// Remote peer id.
         id: NodeId,
+        /// Remote peer address.
+        addr: Address,
         /// Link direction.
         link: Link,
     },
@@ -381,13 +383,13 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             p.attempted(id, addr);
                         }
                     }
-                    Input::Connected { id, link } => {
+                    Input::Connected { id, addr, link } => {
                         let conn = (node, id);
 
                         let attempted = link.is_outbound() && self.attempts.remove(&conn);
                         if attempted || link.is_inbound() {
                             if self.connections.insert(conn) {
-                                p.connected(id, link);
+                                p.connected(id, addr, link);
                             }
                         }
                     }
@@ -498,7 +500,10 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     Scheduled {
                         node,
                         remote,
-                        input: Input::Connecting { id: remote, addr },
+                        input: Input::Connecting {
+                            id: remote,
+                            addr: addr.clone(),
+                        },
                     },
                 );
 
@@ -535,6 +540,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         remote: node,
                         input: Input::Connected {
                             id: node,
+                            addr: Address::from(net::SocketAddr::from(([0, 0, 0, 0], 0))),
                             link: Link::Inbound,
                         },
                     },
@@ -547,6 +553,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                         node,
                         input: Input::Connected {
                             id: remote,
+                            addr,
                             link: Link::Outbound,
                         },
                     },

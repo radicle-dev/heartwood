@@ -34,7 +34,10 @@ pub enum Error {
 pub fn listen<H: Handle<Error = runtime::HandleError> + 'static>(
     listener: UnixListener,
     handle: H,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    H::Sessions: serde::Serialize,
+{
     log::debug!(target: "control", "Control thread listening on socket..");
     let nid = handle.nid()?;
 
@@ -79,7 +82,10 @@ enum CommandError {
 fn command<H: Handle<Error = runtime::HandleError> + 'static>(
     stream: &UnixStream,
     mut handle: H,
-) -> Result<(), CommandError> {
+) -> Result<(), CommandError>
+where
+    H::Sessions: serde::Serialize,
+{
     let mut reader = BufReader::new(stream);
     let mut writer = LineWriter::new(stream);
     let mut line = String::new();
@@ -108,6 +114,11 @@ fn command<H: Handle<Error = runtime::HandleError> + 'static>(
             let seeds = handle.seeds(rid)?;
 
             json::to_writer(writer, &seeds)?;
+        }
+        CommandName::Sessions => {
+            let sessions = handle.sessions()?;
+
+            json::to_writer(writer, &sessions)?;
         }
         CommandName::TrackRepo => {
             let (rid, scope) = parse::args(cmd)?;

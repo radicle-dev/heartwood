@@ -1,5 +1,5 @@
 use std::collections::{HashSet, VecDeque};
-use std::{fmt, mem};
+use std::fmt;
 
 use crate::service::config::Limits;
 use crate::service::message;
@@ -7,60 +7,7 @@ use crate::service::message::Message;
 use crate::service::{Address, Id, LocalTime, NodeId, Outbox, Rng};
 use crate::Link;
 
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
-pub enum PingState {
-    #[default]
-    /// The peer has not been sent a ping.
-    None,
-    /// A ping has been sent and is waiting on the peer's response.
-    AwaitingResponse(u16),
-    /// The peer was successfully pinged.
-    Ok,
-}
-
-#[derive(Debug, Clone)]
-#[allow(clippy::large_enum_variant)]
-pub enum State {
-    /// Initial state for outgoing connections.
-    Initial,
-    /// Connection attempted successfully.
-    Attempted { addr: Address },
-    /// Initial state after handshake protocol hand-off.
-    Connected {
-        /// Connected since this time.
-        since: LocalTime,
-        /// Ping state.
-        ping: PingState,
-        /// Ongoing fetches.
-        fetching: HashSet<Id>,
-    },
-    /// When a peer is disconnected.
-    Disconnected {
-        /// Since when has this peer been disconnected.
-        since: LocalTime,
-        /// When to retry the connection.
-        retry_at: LocalTime,
-    },
-}
-
-impl fmt::Display for State {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Initial => {
-                write!(f, "initial")
-            }
-            Self::Attempted { .. } => {
-                write!(f, "attempted")
-            }
-            Self::Connected { .. } => {
-                write!(f, "connected")
-            }
-            Self::Disconnected { .. } => {
-                write!(f, "disconnected")
-            }
-        }
-    }
-}
+pub use crate::node::{PingState, State};
 
 /// Return value of [`Session::fetch`].
 #[derive(Debug)]
@@ -171,6 +118,7 @@ impl Session {
 
     pub fn inbound(
         id: NodeId,
+        addr: Address,
         persistent: bool,
         rng: Rng,
         time: LocalTime,
@@ -179,6 +127,7 @@ impl Session {
         Self {
             id,
             state: State::Connected {
+                addr,
                 since: time,
                 ping: PingState::default(),
                 fetching: HashSet::default(),
@@ -256,19 +205,18 @@ impl Session {
     pub fn to_connected(&mut self, since: LocalTime) -> Address {
         self.attempts = 0;
 
-        let previous = mem::replace(
-            &mut self.state,
-            State::Connected {
-                since,
-                ping: PingState::default(),
-                fetching: HashSet::default(),
-            },
-        );
-        if let State::Attempted { addr } = previous {
-            addr
+        let addr = if let State::Attempted { addr } = &self.state {
+            addr.clone()
         } else {
-            panic!("Session::to_connected: can only transition to 'connected' state from 'connecting' state");
-        }
+            panic!("Session::to_connected: can only transition to 'connected' state from 'attempted' state");
+        };
+        self.state = State::Connected {
+            addr: addr.clone(),
+            since,
+            ping: PingState::default(),
+            fetching: HashSet::default(),
+        };
+        addr
     }
 
     /// Move the session state to "disconnected". Returns any pending RID

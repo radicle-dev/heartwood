@@ -729,8 +729,18 @@ fn test_connection_crossing() {
 
     thread::sleep(time::Duration::from_secs(1));
 
-    let s1 = alice.handle.sessions().unwrap().contains_key(&bob.id);
-    let s2 = bob.handle.sessions().unwrap().contains_key(&alice.id);
+    let s1 = alice
+        .handle
+        .sessions()
+        .unwrap()
+        .iter()
+        .any(|s| s.nid == bob.id);
+    let s2 = bob
+        .handle
+        .sessions()
+        .unwrap()
+        .iter()
+        .any(|s| s.nid == alice.id);
 
     assert!(s1 ^ s2, "Exactly one session should be established");
 }

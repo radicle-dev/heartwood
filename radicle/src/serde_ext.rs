@@ -24,6 +24,31 @@ pub mod string {
     }
 }
 
+/// Unlike the default `serde` instance for `LocalTime`, this encodes and decodes using seconds
+/// instead of milliseconds.
+pub mod localtime {
+    use localtime::LocalTime;
+    use serde::{de, Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &LocalTime, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(&value.as_secs())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<LocalTime, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let seconds: u64 = String::deserialize(deserializer)?
+            .parse()
+            .map_err(de::Error::custom)?;
+
+        Ok(LocalTime::from_secs(seconds))
+    }
+}
+
 /// Return true if the given value is the default for that type.
 pub fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     t == &T::default()

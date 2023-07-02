@@ -304,7 +304,8 @@ where
         let remote_id = simulator::Peer::<S, G>::id(peer);
 
         self.initialize();
-        self.service.connected(remote_id, Link::Inbound);
+        self.service
+            .connected(remote_id, peer.address(), Link::Inbound);
 
         let mut msgs = self.messages(remote_id);
         msgs.find(|m| {
@@ -334,8 +335,9 @@ where
             .find(|o| matches!(o, Io::Connect { .. }))
             .unwrap();
 
-        self.service.attempted(remote_id, remote_addr);
-        self.service.connected(remote_id, Link::Outbound);
+        self.service.attempted(remote_id, remote_addr.clone());
+        self.service
+            .connected(remote_id, remote_addr, Link::Outbound);
 
         let mut msgs = self.messages(remote_id);
         msgs.find(|m| {

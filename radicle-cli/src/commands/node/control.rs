@@ -4,12 +4,15 @@ use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::{process, thread, time};
 
 use anyhow::Context as _;
+use localtime::LocalTime;
 
+use radicle::node;
 use radicle::node::{Address, Handle as _, NodeId};
 use radicle::Node;
 use radicle::{profile, Profile};
 
 use crate::terminal as term;
+use crate::terminal::Element as _;
 
 pub fn start(daemon: bool, options: Vec<OsString>, profile: &Profile) -> anyhow::Result<()> {
     // Ask passphrase here, otherwise it'll be a fatal error when running the daemon
@@ -119,10 +122,17 @@ pub fn connect(node: &mut Node, nid: NodeId, addr: Address) -> anyhow::Result<()
 
 pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
     if node.is_running() {
-        term::success!("The node is {}", term::format::positive("running"));
+        term::success!("Node is {}", term::format::positive("running"));
     } else {
-        term::info!("The node is {}", term::format::negative("stopped"));
+        term::info!("Node is {}", term::format::negative("stopped"));
     }
+
+    let sessions = sessions(node)?;
+    if let Some(table) = sessions {
+        term::blank();
+        table.print();
+    }
+
     if profile.home.node().join("node.log").exists() {
         term::blank();
         // If we're running the node via `systemd` for example, there won't be a log file
@@ -130,4 +140,49 @@ pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
         logs(10, None, profile)?;
     }
     Ok(())
+}
+
+pub fn sessions(node: &Node) -> Result<Option<term::Table<4, term::Label>>, node::Error> {
+    let sessions = node.sessions()?;
+    if sessions.is_empty() {
+        return Ok(None);
+    }
+    let mut table = term::Table::new(term::table::TableOptions::bordered());
+    let now = LocalTime::now();
+
+    table.push([
+        term::format::bold("Peer").into(),
+        term::format::bold("Address").into(),
+        term::format::bold("State").into(),
+        term::format::bold("Since").into(),
+    ]);
+    table.divider();
+
+    for sess in sessions {
+        let nid = term::format::tertiary(sess.nid).into();
+        let (addr, state, time) = match sess.state {
+            node::State::Initial => (
+                term::Label::blank(),
+                term::Label::from(term::format::dim("initial")),
+                term::Label::blank(),
+            ),
+            node::State::Attempted { addr } => (
+                addr.to_string().into(),
+                term::Label::from(term::format::tertiary("attempted")),
+                term::Label::blank(),
+            ),
+            node::State::Connected { addr, since, .. } => (
+                addr.to_string().into(),
+                term::Label::from(term::format::positive("connected")),
+                term::format::dim(now - since).into(),
+            ),
+            node::State::Disconnected { retry_at, .. } => (
+                term::Label::blank(),
+                term::Label::from(term::format::negative("disconnected")),
+                term::format::dim(retry_at - now).into(),
+            ),
+        };
+        table.push([nid, addr, state, time]);
+    }
+    Ok(Some(table))
 }

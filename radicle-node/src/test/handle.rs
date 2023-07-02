@@ -6,8 +6,8 @@ use std::{io, time};
 use crate::identity::Id;
 use crate::node::{Event, FetchResult, Seeds};
 use crate::runtime::HandleError;
+use crate::service::tracking;
 use crate::service::NodeId;
-use crate::service::{self, tracking};
 
 #[derive(Default, Clone)]
 pub struct Handle {
@@ -18,7 +18,7 @@ pub struct Handle {
 
 impl radicle::node::Handle for Handle {
     type Error = HandleError;
-    type Sessions = service::Sessions;
+    type Sessions = Vec<radicle::node::Session>;
 
     fn nid(&self) -> Result<NodeId, Self::Error> {
         Ok(NodeId::from_str("z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK").unwrap())

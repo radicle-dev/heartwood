@@ -141,12 +141,17 @@ impl Streams {
 /// Peer connection state machine.
 enum Peer {
     /// The initial state of an inbound peer before handshake is completed.
-    Inbound {},
+    Inbound { addr: NetAddr<HostName> },
     /// The initial state of an outbound peer before handshake is completed.
-    Outbound { id: NodeId },
+    Outbound {
+        addr: NetAddr<HostName>,
+        nid: NodeId,
+    },
     /// The state after handshake is completed.
     /// Peers in this state are handled by the underlying service.
     Connected {
+        #[allow(dead_code)]
+        addr: NetAddr<HostName>,
         link: Link,
         nid: NodeId,
         inbox: Deserializer<Frame>,
@@ -155,7 +160,7 @@ enum Peer {
     /// The peer was scheduled for disconnection. Once the transport is handed over
     /// by the reactor, we can consider it disconnected.
     Disconnecting {
-        id: Option<NodeId>,
+        nid: Option<NodeId>,
         reason: DisconnectReason,
     },
 }
@@ -163,8 +168,8 @@ enum Peer {
 impl std::fmt::Debug for Peer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Inbound {} => write!(f, "Inbound"),
-            Self::Outbound { id } => write!(f, "Outbound({id})"),
+            Self::Inbound { addr } => write!(f, "Inbound({addr})"),
+            Self::Outbound { nid, .. } => write!(f, "Outbound({nid})"),
             Self::Connected { link, nid, .. } => write!(f, "Connected({link:?}, {nid})"),
             Self::Disconnecting { .. } => write!(f, "Disconnecting"),
         }
@@ -175,49 +180,58 @@ impl Peer {
     /// Return the peer's id, if any.
     fn id(&self) -> Option<&NodeId> {
         match self {
-            Peer::Outbound { id }
-            | Peer::Connected { nid: id, .. }
-            | Peer::Disconnecting { id: Some(id), .. } => Some(id),
-            Peer::Inbound {} => None,
-            Peer::Disconnecting { id: None, .. } => None,
+            Peer::Outbound { nid, .. }
+            | Peer::Connected { nid, .. }
+            | Peer::Disconnecting { nid: Some(nid), .. } => Some(nid),
+            Peer::Inbound { .. } => None,
+            Peer::Disconnecting { nid: None, .. } => None,
         }
     }
 
     /// Return a new inbound connecting peer.
-    fn inbound() -> Self {
-        Self::Inbound {}
+    fn inbound(addr: NetAddr<HostName>) -> Self {
+        Self::Inbound { addr }
     }
 
-    /// Return a new inbound connecting peer.
-    fn outbound(id: NodeId) -> Self {
-        Self::Outbound { id }
+    /// Return a new outbound connecting peer.
+    fn outbound(addr: NetAddr<HostName>, nid: NodeId) -> Self {
+        Self::Outbound { addr, nid }
     }
 
     /// Switch to connected state.
-    fn connected(&mut self, id: NodeId) -> Link {
-        if let Self::Inbound {} = self {
+    fn connected(&mut self, nid: NodeId) -> (NetAddr<HostName>, Link) {
+        if let Self::Inbound { addr } = self {
             let link = Link::Inbound;
+            let addr = addr.clone();
 
             *self = Self::Connected {
                 link,
-                nid: id,
+                addr: addr.clone(),
+                nid,
                 inbox: Deserializer::default(),
                 streams: Streams::new(link),
             };
-            link
-        } else if let Self::Outbound { id: expected } = self {
-            assert_eq!(id, *expected);
+            (addr, link)
+        } else if let Self::Outbound {
+            addr,
+            nid: expected,
+        } = self
+        {
+            assert_eq!(nid, *expected);
+
             let link = Link::Outbound;
+            let addr = addr.clone();
 
             *self = Self::Connected {
                 link,
-                nid: id,
+                addr: addr.clone(),
+                nid,
                 inbox: Deserializer::default(),
                 streams: Streams::new(link),
             };
-            link
+            (addr, link)
         } else {
-            panic!("Peer::connected: session for {id} is already established");
+            panic!("Peer::connected: session for {nid} is already established");
         }
     }
 
@@ -227,14 +241,14 @@ impl Peer {
             streams.shutdown();
 
             *self = Self::Disconnecting {
-                id: Some(*nid),
+                nid: Some(*nid),
                 reason,
             };
-        } else if let Self::Inbound {} = self {
-            *self = Self::Disconnecting { id: None, reason };
-        } else if let Self::Outbound { id } = self {
+        } else if let Self::Inbound { .. } = self {
+            *self = Self::Disconnecting { nid: None, reason };
+        } else if let Self::Outbound { nid, .. } = self {
             *self = Self::Disconnecting {
-                id: Some(*id),
+                nid: Some(*nid),
                 reason,
             };
         } else {
@@ -280,9 +294,9 @@ impl Peers {
 
     fn active(&self) -> impl Iterator<Item = (RawFd, &NodeId)> {
         self.0.iter().filter_map(|(fd, peer)| match peer {
-            Peer::Inbound {} => None,
-            Peer::Outbound { id } => Some((*fd, id)),
-            Peer::Connected { nid: id, .. } => Some((*fd, id)),
+            Peer::Inbound { .. } => None,
+            Peer::Outbound { nid, .. } => Some((*fd, nid)),
+            Peer::Connected { nid, .. } => Some((*fd, nid)),
             Peer::Disconnecting { .. } => None,
         })
     }
@@ -463,7 +477,10 @@ where
                     "Accepting inbound peer connection from {}..",
                     connection.remote_addr()
                 );
-                self.peers.insert(connection.as_raw_fd(), Peer::inbound());
+                self.peers.insert(
+                    connection.as_raw_fd(),
+                    Peer::inbound(connection.remote_addr().into()),
+                );
 
                 let session = accept::<G>(connection, self.signer.clone());
                 let transport = match NetTransport::with_session(session, Link::Inbound) {
@@ -519,9 +536,9 @@ where
                     log::error!(target: "wire", "Session not found for fd {fd}");
                     return;
                 };
-                let link = peer.connected(id);
+                let (addr, link) = peer.connected(id);
 
-                self.service.connected(id, link);
+                self.service.connected(id, addr.into(), link);
             }
             SessionEvent::Data(data) => {
                 if let Some(Peer::Connected {
@@ -691,7 +708,9 @@ where
         match self.peers.entry(fd) {
             Entry::Occupied(e) => {
                 match e.get() {
-                    Peer::Disconnecting { id, reason, .. } => {
+                    Peer::Disconnecting {
+                        nid: id, reason, ..
+                    } => {
                         // Disconnect TCP stream.
                         drop(transport);
 
@@ -771,11 +790,13 @@ where
                         NetTransport::<WireSession<G>>::with_session(session, Link::Outbound)
                     }) {
                         Ok(transport) => {
-                            self.service.attempted(node_id, addr);
+                            self.service.attempted(node_id, addr.clone());
                             // TODO: Keep track of peer address for when peer disconnects before
                             // handshake is complete.
-                            self.peers
-                                .insert(transport.as_raw_fd(), Peer::outbound(node_id));
+                            self.peers.insert(
+                                transport.as_raw_fd(),
+                                Peer::outbound(addr.to_inner(), node_id),
+                            );
 
                             self.actions
                                 .push_back(reactor::Action::RegisterTransport(transport));

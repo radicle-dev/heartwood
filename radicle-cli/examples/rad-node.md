@@ -17,7 +17,7 @@ node status` command (or just `rad node` for short):
 
 ```
 $ rad node status
-✓ The node is running
+✓ Node is running
 ```
 
 The node also allows us to connect with other nodes in the

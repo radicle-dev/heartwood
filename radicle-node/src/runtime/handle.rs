@@ -14,9 +14,9 @@ use crate::profile::Home;
 use crate::runtime::Emitter;
 use crate::service;
 use crate::service::tracking;
+use crate::service::NodeId;
 use crate::service::{CommandError, QueryState};
 use crate::service::{Event, Events};
-use crate::service::{NodeId, Sessions};
 use crate::wire;
 use crate::wire::StreamId;
 use crate::worker::TaskResult;
@@ -121,7 +121,7 @@ impl Handle {
 }
 
 impl radicle::node::Handle for Handle {
-    type Sessions = Sessions;
+    type Sessions = Vec<radicle::node::Session>;
     type Error = Error;
 
     fn nid(&self) -> Result<NodeId, Self::Error> {
@@ -211,7 +211,16 @@ impl radicle::node::Handle for Handle {
     fn sessions(&self) -> Result<Self::Sessions, Error> {
         let (sender, receiver) = chan::unbounded();
         let query: Arc<QueryState> = Arc::new(move |state| {
-            sender.send(state.sessions().clone()).ok();
+            let sessions = state
+                .sessions()
+                .iter()
+                .map(|(nid, s)| radicle::node::Session {
+                    nid: *nid,
+                    state: s.state.clone(),
+                })
+                .collect();
+            sender.send(sessions).ok();
+
             Ok(())
         });
         let (err_sender, err_receiver) = chan::bounded(1);

@@ -967,7 +967,7 @@ fn test_persistent_peer_reconnect_success() {
         .expect("Alice attempts a re-connection");
 
     alice.attempted(bob.id(), bob.addr());
-    alice.connected(bob.id(), Link::Outbound);
+    alice.connected(bob.id(), bob.addr(), Link::Outbound);
 }
 
 #[test]

@@ -16,6 +16,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 git-ref-format = { version = "0.2.3", features = ["macro"] }
 json-color = { version = "0.7" }
 lexopt = { version = "0.2" }
+localtime = { version = "1.2.0" }
 log = { version = "0.4", features = ["std"] }
 nonempty = { version = "0.8" }
 # N.b. this is required to use macros, even though it's re-exported
