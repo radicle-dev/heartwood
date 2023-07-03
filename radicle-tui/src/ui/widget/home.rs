@@ -88,7 +88,7 @@ impl IssueBrowser {
         }
 
         items.sort_by(|a, b| b.timestamp().cmp(a.timestamp()));
-        items.sort_by(|a, b| a.state().cmp(b.state()));
+        items.sort_by(|a, b| b.state().cmp(a.state()));
 
         let table = Widget::new(Table::new(&items, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
