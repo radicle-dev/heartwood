@@ -10,6 +10,7 @@ pub use protocol::{Control, Wire, WireReader, WireSession, WireWriter};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::ops::Deref;
+use std::str::FromStr;
 use std::string::FromUtf8Error;
 use std::{io, mem};
 
@@ -20,6 +21,7 @@ use crate::git;
 use crate::git::fmt;
 use crate::identity::Id;
 use crate::node;
+use crate::node::Alias;
 use crate::prelude::*;
 use crate::service::filter;
 use crate::storage::refs::Refs;
@@ -47,6 +49,8 @@ pub enum Error {
     InvalidStreamKind(u8),
     #[error(transparent)]
     InvalidRefName(#[from] fmt::Error),
+    #[error(transparent)]
+    InvalidAlias(#[from] node::AliasError),
     #[error("invalid control message with type `{0}`")]
     InvalidControlMessage(u8),
     #[error("invalid protocol version header `{0:x?}`")]
@@ -219,6 +223,12 @@ impl Encode for Refs {
     }
 }
 
+impl Encode for Alias {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        self.as_ref().encode(writer)
+    }
+}
+
 impl<A, B> Encode for (A, B)
 where
     A: Encode,
@@ -281,6 +291,12 @@ impl Decode for git::RefString {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
         let ref_str = String::decode(reader)?;
         git::RefString::try_from(ref_str).map_err(Error::from)
+    }
+}
+
+impl Decode for Alias {
+    fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        String::decode(reader).and_then(|s| Alias::from_str(&s).map_err(Error::from))
     }
 }
 
@@ -569,6 +585,14 @@ mod tests {
     fn test_string() {
         assert_eq!(
             serialize(&String::from("hello")),
+            vec![5, b'h', b'e', b'l', b'l', b'o']
+        );
+    }
+
+    #[test]
+    fn test_alias() {
+        assert_eq!(
+            serialize(&Alias::from_str("hello").unwrap()),
             vec![5, b'h', b'e', b'l', b'l', b'o']
         );
     }

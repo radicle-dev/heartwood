@@ -462,6 +462,7 @@ fn list(
         ]);
     }
     table.print();
+
     Ok(())
 }
 

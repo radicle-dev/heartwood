@@ -9,7 +9,7 @@ use reactor::poller::popol::PopolWaker;
 use thiserror::Error;
 
 use crate::identity::Id;
-use crate::node::{Command, FetchResult};
+use crate::node::{Alias, Command, FetchResult};
 use crate::profile::Home;
 use crate::runtime::Emitter;
 use crate::service;
@@ -161,7 +161,7 @@ impl radicle::node::Handle for Handle {
         receiver.recv().map_err(Error::from)
     }
 
-    fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {
+    fn track_node(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::TrackNode(id, alias, sender))?;
         receiver.recv().map_err(Error::from)

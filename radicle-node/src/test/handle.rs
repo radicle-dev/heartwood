@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::{io, time};
 
 use crate::identity::Id;
-use crate::node::{Event, FetchResult, Seeds};
+use crate::node::{Alias, Event, FetchResult, Seeds};
 use crate::runtime::HandleError;
 use crate::service::tracking;
 use crate::service::NodeId;
@@ -51,7 +51,7 @@ impl radicle::node::Handle for Handle {
         Ok(self.tracking_repos.lock().unwrap().remove(&id))
     }
 
-    fn track_node(&mut self, id: NodeId, _alias: Option<String>) -> Result<bool, Self::Error> {
+    fn track_node(&mut self, id: NodeId, _alias: Option<Alias>) -> Result<bool, Self::Error> {
         Ok(self.tracking_nodes.lock().unwrap().insert(id))
     }
 

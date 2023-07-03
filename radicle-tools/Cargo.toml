@@ -24,10 +24,6 @@ name = "rad-init"
 path = "src/rad-init.rs"
 
 [[bin]]
-name = "rad-auth"
-path = "src/rad-auth.rs"
-
-[[bin]]
 name = "rad-self"
 path = "src/rad-self.rs"
 

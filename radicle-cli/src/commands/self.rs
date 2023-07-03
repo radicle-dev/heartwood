@@ -18,6 +18,7 @@ Usage
 
 Options
 
+    --alias              Show your Node alias
     --nid                Show your Node ID (NID)
     --did                Show your DID
     --home               Show your Radicle home
@@ -29,6 +30,7 @@ Options
 
 #[derive(Debug)]
 enum Show {
+    Alias,
     NodeId,
     Did,
     Home,
@@ -51,6 +53,9 @@ impl Args for Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
+                Long("alias") if show.is_none() => {
+                    show = Some(Show::Alias);
+                }
                 Long("nid") if show.is_none() => {
                     show = Some(Show::NodeId);
                 }
@@ -86,6 +91,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
 
     match options.show {
+        Show::Alias => {
+            term::print(profile.config.alias());
+        }
         Show::NodeId => {
             term::print(profile.id());
         }
@@ -109,6 +117,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn all(profile: &Profile) -> anyhow::Result<()> {
     let mut table = term::Table::default();
+
+    table.push([
+        term::format::style("Alias").to_string(),
+        term::format::primary(profile.config.alias()).to_string(),
+    ]);
 
     let did = profile.did();
     table.push([
@@ -151,6 +164,12 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
     table.push([
         term::format::style("Home").to_string(),
         term::format::tertiary(home.display()).to_string(),
+    ]);
+
+    let config_path = profile.home.config();
+    table.push([
+        term::format::style("├╴Config").to_string(),
+        term::format::tertiary(config_path.display()).to_string(),
     ]);
 
     let storage_path = profile.home.storage();

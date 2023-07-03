@@ -1,10 +1,10 @@
-use std::{fmt, io, mem, str};
+use std::{fmt, io, mem};
 
 use crate::crypto;
 use crate::crypto::Unverified;
 use crate::identity::Id;
 use crate::node;
-use crate::node::Address;
+use crate::node::{Address, Alias};
 use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
 use crate::service::{Link, NodeId, Timestamp};
@@ -57,8 +57,8 @@ pub struct NodeAnnouncement {
     pub features: node::Features,
     /// Monotonic timestamp.
     pub timestamp: Timestamp,
-    /// Non-unique alias. Must be valid UTF-8.
-    pub alias: [u8; 32],
+    /// Non-unique alias.
+    pub alias: Alias,
     /// Announced addresses.
     pub addresses: BoundedVec<Address, ADDRESS_LIMIT>,
     /// Nonce used for announcement proof-of-work.
@@ -117,11 +117,6 @@ impl NodeAnnouncement {
             }
         }
         Some(self)
-    }
-
-    /// Get the alias as a UTF-8 string.
-    pub fn alias(&self) -> Result<&str, std::str::Utf8Error> {
-        Ok(str::from_utf8(&self.alias)?.trim_end_matches(0 as char))
     }
 }
 
@@ -619,7 +614,7 @@ mod tests {
         let ann = NodeAnnouncement {
             features: node::Features::SEED,
             timestamp: 42491841,
-            alias: [0; 32],
+            alias: Alias::new("alice"),
             addresses: BoundedVec::new(),
             nonce: 0,
         };
@@ -627,6 +622,6 @@ mod tests {
         assert_eq!(ann.work(), 0);
         assert_eq!(ann.clone().solve(1).unwrap().work(), 4);
         assert_eq!(ann.clone().solve(8).unwrap().work(), 9);
-        assert_eq!(ann.solve(14).unwrap().work(), 16);
+        assert_eq!(ann.solve(14).unwrap().work(), 14);
     }
 }

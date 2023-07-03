@@ -79,10 +79,7 @@ impl Args for Options {
                 }
                 (Long("alias"), Some(Operation::TrackNode { alias, .. })) => {
                     let name = parser.value()?;
-                    let name = name
-                        .to_str()
-                        .to_owned()
-                        .ok_or_else(|| anyhow!("alias specified is not UTF-8"))?;
+                    let name = term::args::alias(&name)?;
 
                     *alias = Some(name.to_owned());
                 }

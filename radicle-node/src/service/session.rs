@@ -1,7 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 use std::fmt;
 
-use crate::service::config::Limits;
+use crate::node::config::Limits;
 use crate::service::message;
 use crate::service::message::Message;
 use crate::service::{Address, Id, LocalTime, NodeId, Outbox, Rng};

@@ -1,11 +1,11 @@
 #![allow(clippy::type_complexity)]
 use std::path::Path;
-use std::{fmt, io, ops::Not as _, time};
+use std::{fmt, io, ops::Not as _, str::FromStr, time};
 
 use sqlite as sql;
 use thiserror::Error;
 
-use crate::node::AliasStore;
+use crate::node::{Alias, AliasStore};
 use crate::prelude::{Id, NodeId};
 
 use super::{Node, Policy, Repo, Scope};
@@ -188,7 +188,11 @@ impl Config {
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
             let alias = row.read::<&str, _>("alias");
-            let alias = alias.is_empty().not().then_some(alias.to_owned());
+            let alias = alias
+                .is_empty()
+                .not()
+                .then_some(alias.to_owned())
+                .and_then(|s| Alias::from_str(&s).ok());
             let policy = row.read::<Policy, _>("policy");
 
             return Ok(Some(Node {
@@ -229,7 +233,11 @@ impl Config {
         while let Some(Ok(row)) = stmt.next() {
             let id = row.read("id");
             let alias = row.read::<&str, _>("alias").to_owned();
-            let alias = alias.is_empty().not().then_some(alias.to_owned());
+            let alias = alias
+                .is_empty()
+                .not()
+                .then_some(alias.to_owned())
+                .and_then(|s| Alias::from_str(&s).ok());
             let policy = row.read::<Policy, _>("policy");
 
             entries.push(Node { id, alias, policy });
@@ -260,7 +268,7 @@ impl Config {
 impl AliasStore for Config {
     /// Retrieve `alias` of given node.
     /// Calls `Self::node_policy` under the hood.
-    fn alias(&self, nid: &NodeId) -> Option<String> {
+    fn alias(&self, nid: &NodeId) -> Option<Alias> {
         self.node_policy(nid)
             .map(|node| node.and_then(|n| n.alias))
             .unwrap_or(None)
@@ -334,7 +342,7 @@ mod test {
         assert!(db.track_node(&id, Some("eve")).unwrap());
         assert_eq!(
             db.node_policy(&id).unwrap().unwrap().alias,
-            Some(String::from("eve"))
+            Some(Alias::from_str("eve").unwrap())
         );
         assert!(db.track_node(&id, None).unwrap());
         assert_eq!(db.node_policy(&id).unwrap().unwrap().alias, None);
@@ -342,7 +350,7 @@ mod test {
         assert!(db.track_node(&id, Some("alice")).unwrap());
         assert_eq!(
             db.node_policy(&id).unwrap().unwrap().alias,
-            Some(String::from("alice"))
+            Some(Alias::new("alice"))
         );
     }
 

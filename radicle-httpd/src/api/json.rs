@@ -14,7 +14,7 @@ use radicle::cob::thread;
 use radicle::cob::thread::CommentId;
 use radicle::cob::{ActorId, Author, Reaction, Timestamp};
 use radicle::git::RefString;
-use radicle::node::AliasStore;
+use radicle::node::{Alias, AliasStore};
 use radicle::prelude::NodeId;
 use radicle::storage::{git, refs, ReadRepository};
 use radicle_surf::blob::Blob;
@@ -146,7 +146,7 @@ pub(crate) fn patch(
 }
 
 /// Returns JSON for an `author` and fills in `alias` when present.
-fn author(author: &Author, alias: Option<String>) -> Value {
+fn author(author: &Author, alias: Option<Alias>) -> Value {
     match alias {
         Some(alias) => json!({
             "id": author.id,
@@ -157,7 +157,7 @@ fn author(author: &Author, alias: Option<String>) -> Value {
 }
 
 /// Returns JSON for a patch `Merge` and fills in `alias` when present.
-fn merge(merge: &Merge, nid: &NodeId, alias: Option<String>) -> Value {
+fn merge(merge: &Merge, nid: &NodeId, alias: Option<Alias>) -> Value {
     match alias {
         Some(alias) => json!({
             "author": {
@@ -180,7 +180,7 @@ fn merge(merge: &Merge, nid: &NodeId, alias: Option<String>) -> Value {
 }
 
 /// Returns JSON for a patch `Review` and fills in `alias` when present.
-fn review(nid: &NodeId, alias: Option<String>, review: &Review) -> Value {
+fn review(nid: &NodeId, alias: Option<Alias>, review: &Review) -> Value {
     match alias {
         Some(alias) => json!({
             "author": {

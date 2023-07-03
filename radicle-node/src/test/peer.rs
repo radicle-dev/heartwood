@@ -2,11 +2,12 @@
 use std::iter;
 use std::net;
 use std::ops::{Deref, DerefMut};
+use std::str::FromStr;
 
 use log::*;
 
-use radicle::node::address;
 use radicle::node::address::Store;
+use radicle::node::{address, Alias};
 use radicle::rad;
 use radicle::storage::ReadRepository;
 use radicle::Storage;
@@ -110,7 +111,7 @@ impl Default for Config<MockSigner> {
         let signer = MockSigner::new(&mut rng);
 
         Config {
-            config: service::Config::default(),
+            config: service::Config::new(Alias::from_str("mocky").unwrap()),
             addrs: address::Book::memory().unwrap(),
             local_time: LocalTime::now(),
             policy: Policy::default(),
@@ -162,7 +163,7 @@ where
         // Make sure the peer address is advertized.
         config.config.external_addresses.push(local_addr.into());
 
-        let announcement = config.config.node(config.local_time.as_secs());
+        let announcement = service::gossip::node(&config.config, config.local_time.as_secs());
         let emitter: Emitter<Event> = Default::default();
         let service = Service::new(
             config.config,
@@ -214,7 +215,7 @@ where
                 .insert(
                     &peer.node_id(),
                     radicle::node::Features::default(),
-                    peer.name,
+                    Alias::from_str(peer.name).unwrap(),
                     0,
                     timestamp,
                     Some(known_address),
@@ -258,14 +259,11 @@ where
     }
 
     pub fn node_announcement(&self) -> Message {
-        let mut alias = [0u8; 32];
-        alias[..self.name.len()].copy_from_slice(self.name.as_bytes());
-
         Message::node(
             NodeAnnouncement {
                 features: node::Features::SEED,
                 timestamp: self.timestamp(),
-                alias,
+                alias: Alias::from_str(self.name).unwrap(),
                 addresses: Some(net::SocketAddr::from((self.ip, node::DEFAULT_PORT)).into()).into(),
                 nonce: 0,
             }

@@ -93,7 +93,7 @@ pub fn run(
 /// Patch row.
 pub fn row(
     profile: &Profile,
-    alias: Option<String>,
+    alias: Option<Alias>,
     id: &PatchId,
     patch: &Patch,
     repository: &Repository,

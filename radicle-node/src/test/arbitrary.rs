@@ -2,6 +2,7 @@ use bloomy::BloomFilter;
 use qcheck::Arbitrary;
 
 use crate::crypto;
+use crate::node::Alias;
 use crate::prelude::{BoundedVec, Id, NodeId, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
 use crate::service::message::{
@@ -65,7 +66,7 @@ impl Arbitrary for Message {
                 let message = NodeAnnouncement {
                     features: u64::arbitrary(g).into(),
                     timestamp: Timestamp::arbitrary(g),
-                    alias: <[u8; 32]>::arbitrary(g),
+                    alias: Alias::arbitrary(g),
                     addresses: Arbitrary::arbitrary(g),
                     nonce: u64::arbitrary(g),
                 }

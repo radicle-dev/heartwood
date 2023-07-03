@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use radicle::cob::{self, issue, patch};
 use radicle::crypto;
 use radicle::git::RefString;
-use radicle::node::Address;
+use radicle::node::{Address, Alias};
 use radicle::prelude::{Did, Id, NodeId};
 
 #[derive(thiserror::Error, Debug)]
@@ -134,6 +134,15 @@ pub fn number(val: &OsString) -> anyhow::Result<usize> {
 
 pub fn string(val: &OsString) -> String {
     val.to_string_lossy().to_string()
+}
+
+pub fn alias(val: &OsString) -> anyhow::Result<Alias> {
+    let val = val.as_os_str();
+    let val = val
+        .to_str()
+        .ok_or_else(|| anyhow!("alias must be valid UTF-8"))?;
+
+    Alias::from_str(val).map_err(|e| e.into())
 }
 
 pub fn issue(val: &OsString) -> anyhow::Result<issue::IssueId> {

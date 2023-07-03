@@ -5,7 +5,7 @@ use nonempty::NonEmpty;
 
 use crate::collections::HashMap;
 use crate::node;
-use crate::node::Address;
+use crate::node::{Address, Alias};
 use crate::prelude::Timestamp;
 
 /// A map with the ability to randomly select values.
@@ -78,7 +78,7 @@ impl<K, V> DerefMut for AddressBook<K, V> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Node {
     /// Advertized alias.
-    pub alias: Option<String>,
+    pub alias: Alias,
     /// Advertized features.
     pub features: node::Features,
     /// Advertized addresses

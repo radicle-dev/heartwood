@@ -5,11 +5,11 @@ use crossbeam_channel as chan;
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
 
+use radicle::node;
 use radicle::prelude::Signer;
 use radicle::profile;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::prelude::{Address, NodeId};
-use radicle_node::service::tracking::{Policy, Scope};
 use radicle_node::Runtime;
 use radicle_node::{logger, service, signals};
 use radicle_term as term;
@@ -21,7 +21,6 @@ Usage
 
 Options
 
-    --alias              <alias>        Identify yourself with an alias on the network
     --connect            <peer>         Connect to the given peer address on start
     --external-address   <address>      Publicly accessible address (default 0.0.0.0:8776)
     --git-daemon         <address>      Address to bind git-daemon to (default 0.0.0.0:9418)
@@ -34,48 +33,29 @@ Options
 
 #[derive(Debug)]
 struct Options {
-    alias: Option<String>,
-    connect: Vec<(NodeId, Address)>,
-    external_addresses: Vec<Address>,
     daemon: Option<net::SocketAddr>,
-    limits: service::config::Limits,
     listen: Vec<net::SocketAddr>,
     force: bool,
-    tracking_policy: Policy,
-    tracking_scope: Scope,
 }
 
 impl Options {
-    fn from_env() -> Result<Self, anyhow::Error> {
+    fn from_env(config: &mut node::Config) -> Result<Self, anyhow::Error> {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_env();
-        let mut alias = None;
-        let mut connect = Vec::new();
-        let mut external_addresses = Vec::new();
-        let mut limits = service::config::Limits::default();
         let mut listen = Vec::new();
         let mut daemon = None;
-        let mut tracking_policy = Policy::default();
-        let mut tracking_scope = Scope::default();
         let mut force = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("alias") => {
-                    let name: String = parser.value()?.parse()?;
-                    if name.len() > 32 {
-                        anyhow::bail!("alias '{}' is longer than 32 characters", name);
-                    }
-                    alias = Some(name);
-                }
                 Long("connect") => {
                     let peer: PeerAddr<NodeId, Address> = parser.value()?.parse()?;
-                    connect.push((peer.id, peer.addr.clone()));
+                    config.connect.push(peer.into());
                 }
                 Long("external-address") => {
                     let addr = parser.value()?.parse()?;
-                    external_addresses.push(addr);
+                    config.external_addresses.push(addr);
                 }
                 Long("force") => {
                     force = true;
@@ -89,24 +69,24 @@ impl Options {
                         .value()?
                         .parse()
                         .map_err(|s| anyhow!("unknown tracking policy {:?}", s))?;
-                    tracking_policy = policy;
+                    config.policy = policy;
                 }
                 Long("tracking-scope") => {
                     let scope = parser
                         .value()?
                         .parse()
                         .map_err(|s| anyhow!("unknown tracking scope {:?}", s))?;
-                    tracking_scope = scope;
+                    config.scope = scope;
                 }
                 Long("limit-routing-max-age") => {
                     let secs: u64 = parser.value()?.parse()?;
-                    limits.routing_max_age = LocalDuration::from_secs(secs);
+                    config.limits.routing_max_age = LocalDuration::from_secs(secs);
                 }
                 Long("limit-routing-max-size") => {
-                    limits.routing_max_size = parser.value()?.parse()?;
+                    config.limits.routing_max_size = parser.value()?.parse()?;
                 }
                 Long("limit-fetch-concurrency") => {
-                    limits.fetch_concurrency = parser.value()?.parse()?;
+                    config.limits.fetch_concurrency = parser.value()?.parse()?;
                 }
                 Long("listen") => {
                     let addr = parser.value()?.parse()?;
@@ -120,7 +100,7 @@ impl Options {
             }
         }
 
-        if external_addresses.len() > service::ADDRESS_LIMIT {
+        if config.external_addresses.len() > service::ADDRESS_LIMIT {
             anyhow::bail!(
                 "external address limit ({}) exceeded",
                 service::ADDRESS_LIMIT,
@@ -128,15 +108,9 @@ impl Options {
         }
 
         Ok(Self {
-            alias,
-            connect,
             daemon,
-            external_addresses,
             force,
-            limits,
             listen,
-            tracking_policy,
-            tracking_scope,
         })
     }
 }
@@ -144,13 +118,14 @@ impl Options {
 fn execute() -> anyhow::Result<()> {
     logger::init(log::Level::Debug)?;
 
-    let options = Options::from_env()?;
-
     log::info!(target: "node", "Starting node..");
     log::info!(target: "node", "Version {} ({})", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));
-    log::info!(target: "node", "Unlocking node keystore..");
 
     let home = profile::home()?;
+    let mut config = profile::Config::load(&home.config())?.node;
+
+    log::info!(target: "node", "Unlocking node keystore..");
+
     let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
         .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
     let keystore = Keystore::new(&home.keys());
@@ -158,15 +133,7 @@ fn execute() -> anyhow::Result<()> {
 
     log::info!(target: "node", "Node ID is {}", signer.public_key());
 
-    let config = service::Config {
-        alias: options.alias,
-        connect: options.connect.into_iter().collect(),
-        external_addresses: options.external_addresses,
-        limits: options.limits,
-        policy: options.tracking_policy,
-        scope: options.tracking_scope,
-        ..service::Config::default()
-    };
+    let options = Options::from_env(&mut config)?;
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
     let daemon = options.daemon.unwrap_or_else(|| {
         net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), radicle::git::PROTOCOL_PORT)

@@ -30,6 +30,7 @@ pub static CONFIG: Lazy<RenderConfig> = Lazy::new(|| RenderConfig {
     answer: StyleSheet::new(),
     highlighted_option_prefix: Styled::new("*").with_fg(Color::LightYellow),
     help_message: StyleSheet::new().with_fg(Color::DarkGrey),
+    default_value: StyleSheet::new().with_fg(Color::LightBlue),
     error_message: ErrorMessageRenderConfig::default_colored()
         .with_prefix(Styled::new("✗").with_fg(Color::LightRed)),
     ..RenderConfig::default_colored()
@@ -173,16 +174,18 @@ pub fn abort<D: fmt::Display>(prompt: D) -> bool {
     ask(prompt, false)
 }
 
-pub fn input<S, E>(message: &str, default: Option<S>) -> anyhow::Result<S>
+pub fn input<S, E>(message: &str, default: Option<S>, help: Option<&str>) -> anyhow::Result<S>
 where
     S: fmt::Display + std::str::FromStr<Err = E> + Clone,
     E: fmt::Debug + fmt::Display,
 {
-    let input = CustomType::<S>::new(message).with_render_config(*CONFIG);
-    let value = match default {
-        Some(default) => input.with_default(default).prompt()?,
-        None => input.prompt()?,
-    };
+    let mut input = CustomType::<S>::new(message).with_render_config(*CONFIG);
+
+    input.default = default;
+    input.help_message = help;
+
+    let value = input.prompt()?;
+
     Ok(value)
 }
 

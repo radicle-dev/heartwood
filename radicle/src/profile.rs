@@ -10,16 +10,18 @@
 //!     node/
 //!       control.sock                           # Node control socket
 //!
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::{fs, io};
+use std::{fs, io, str::FromStr};
 
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::crypto::ssh::agent::Agent;
 use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
 use crate::node;
-use crate::node::{address, routing, tracking, AliasStore};
+use crate::node::{address, routing, tracking, Alias, AliasStore};
 use crate::prelude::Did;
 use crate::prelude::NodeId;
 use crate::storage::git::transport;
@@ -49,10 +51,12 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
+    Config(#[from] ConfigError),
+    #[error(transparent)]
     Keystore(#[from] keystore::Error),
     #[error(transparent)]
     MemorySigner(#[from] keystore::MemorySignerError),
-    #[error("no profile found at the filepath '{0}'")]
+    #[error("no profile found at path '{0}'")]
     NotFound(PathBuf),
     #[error("error connecting to ssh-agent: {0}")]
     Agent(#[from] crate::crypto::ssh::agent::Error),
@@ -64,19 +68,86 @@ pub enum Error {
     AddressStore(#[from] node::address::Error),
 }
 
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("failed to load node configuration from {0}: {1}")]
+    Io(PathBuf, io::Error),
+    #[error("failed to decode node configuration from {0}: {1}")]
+    Json(PathBuf, serde_json::Error),
+}
+
+/// Local radicle configuration.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Config {
+    pub node: node::Config,
+}
+
+impl Config {
+    /// Initialize a new configuration. Fails if the path already exists.
+    pub fn init(alias: Alias, path: &Path) -> io::Result<Self> {
+        let cfg = Self {
+            node: node::Config::new(alias),
+        };
+        let mut file = fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(path)?;
+        let formatter = serde_json::ser::PrettyFormatter::with_indent(b"  ");
+        let mut serializer = serde_json::Serializer::with_formatter(&file, formatter);
+
+        cfg.serialize(&mut serializer)?;
+        file.write_all(b"\n")?;
+        file.sync_all()?;
+
+        Ok(cfg)
+    }
+
+    /// Load a configuration from the given path.
+    pub fn load(path: &Path) -> Result<Self, ConfigError> {
+        match fs::File::open(path) {
+            Ok(cfg) => {
+                serde_json::from_reader(cfg).map_err(|e| ConfigError::Json(path.to_path_buf(), e))
+            }
+            Err(e) => {
+                let Ok(user) = env::var("USER") else {
+                    return Err(ConfigError::Io(path.to_owned(), e));
+                };
+                let Ok(alias) = Alias::from_str(&user) else {
+                    return Err(ConfigError::Io(path.to_owned(), e));
+                };
+                Ok(Config {
+                    node: node::Config::new(alias),
+                })
+            }
+        }
+    }
+
+    /// Get the user alias.
+    pub fn alias(&self) -> &Alias {
+        &self.node.alias
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Profile {
     pub home: Home,
     pub storage: Storage,
     pub keystore: Keystore,
     pub public_key: PublicKey,
+    pub config: Config,
 }
 
 impl Profile {
-    pub fn init(home: Home, passphrase: impl Into<Passphrase>) -> Result<Self, Error> {
+    pub fn init(
+        home: Home,
+        alias: Alias,
+        passphrase: impl Into<Passphrase>,
+    ) -> Result<Self, Error> {
         let storage = Storage::open(home.storage())?;
         let keystore = Keystore::new(&home.keys());
         let public_key = keystore.init("radicle", passphrase)?;
+        let config = Config::init(alias, home.config().as_path())?;
 
         transport::local::register(storage.clone());
 
@@ -85,6 +156,7 @@ impl Profile {
             storage,
             keystore,
             public_key,
+            config,
         })
     }
 
@@ -95,6 +167,7 @@ impl Profile {
         let public_key = keystore
             .public_key()?
             .ok_or_else(|| Error::NotFound(home.path().to_path_buf()))?;
+        let config = Config::load(home.config().as_path())?;
 
         transport::local::register(storage.clone());
 
@@ -103,6 +176,7 @@ impl Profile {
             storage,
             keystore,
             public_key,
+            config,
         })
     }
 
@@ -194,7 +268,7 @@ pub struct Aliases {
 impl AliasStore for Aliases {
     /// Retrieve `alias` of given node.
     /// First looks in `tracking.db` and then `addresses.db`.
-    fn alias(&self, nid: &NodeId) -> Option<String> {
+    fn alias(&self, nid: &NodeId) -> Option<Alias> {
         self.tracking
             .alias(nid)
             .or_else(|| self.addresses.alias(nid))
@@ -265,6 +339,10 @@ impl Home {
 
     pub fn storage(&self) -> PathBuf {
         self.path.join("storage")
+    }
+
+    pub fn config(&self) -> PathBuf {
+        self.path.join("config.json")
     }
 
     pub fn keys(&self) -> PathBuf {

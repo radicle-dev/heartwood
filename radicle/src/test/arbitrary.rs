@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::hash::Hash;
 use std::ops::RangeBounds;
+use std::str::FromStr;
 use std::{iter, net};
 
 use crypto::test::signer::MockSigner;
@@ -14,7 +15,7 @@ use crate::identity::{
     project::Project,
     Did,
 };
-use crate::node::Address;
+use crate::node::{Address, Alias};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::test::storage::{MockRepository, MockStorage};
@@ -225,5 +226,15 @@ impl Arbitrary for Address {
             host: cyphernet::addr::HostName::Ip(ip),
             port: u16::arbitrary(g),
         })
+    }
+}
+
+impl Arbitrary for Alias {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let s = g
+            .choose(&["cloudhead", "alice", "bob", "john-lu", "f0_"])
+            .unwrap();
+
+        Alias::from_str(s).unwrap()
     }
 }

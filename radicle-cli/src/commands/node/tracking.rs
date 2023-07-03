@@ -53,7 +53,7 @@ fn print_nodes(store: &tracking::store::Config) -> anyhow::Result<()> {
             term::format::highlight(Did::from(id).to_string()),
             match alias {
                 None => term::format::secondary(String::from("n/a")),
-                Some(alias) => term::format::secondary(alias),
+                Some(alias) => term::format::secondary(alias.to_string()),
             },
             term::format::secondary(policy.to_string()),
         ]);

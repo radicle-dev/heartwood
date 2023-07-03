@@ -1,6 +1,7 @@
 use std::io::BufRead as _;
 use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs, io, iter, net, process, thread, time,
@@ -21,7 +22,8 @@ use radicle::node::address::Book;
 use radicle::node::routing::Store;
 use radicle::node::tracking::store as TrackingStore;
 use radicle::node::Handle as _;
-use radicle::node::{ADDRESS_DB_FILE, TRACKING_DB_FILE};
+use radicle::node::{Alias, ADDRESS_DB_FILE, TRACKING_DB_FILE};
+use radicle::profile;
 use radicle::profile::Home;
 use radicle::profile::Profile;
 use radicle::rad;
@@ -74,8 +76,8 @@ impl Environment {
 
     /// Create a new node in this environment. This should be used when a running node
     /// is required. Use [`Environment::profile`] otherwise.
-    pub fn node(&mut self, name: &str) -> Node<MemorySigner> {
-        let profile = self.profile(name);
+    pub fn node(&mut self, config: Config) -> Node<MemorySigner> {
+        let profile = self.profile(&config.alias);
         let signer = MemorySigner::load(&profile.keystore, "radicle".to_owned().into()).unwrap();
         let tracking_db = profile.home.node().join(TRACKING_DB_FILE);
         TrackingStore::Config::open(tracking_db).unwrap();
@@ -85,6 +87,7 @@ impl Environment {
         Node {
             id: *profile.id(),
             home: profile.home,
+            config,
             signer,
             storage: profile.storage,
         }
@@ -92,12 +95,15 @@ impl Environment {
 
     /// Create a new profile in this environment.
     /// This should be used when a running node is not required.
-    pub fn profile(&mut self, name: &str) -> Profile {
-        let home = Home::new(self.tmp().join("home").join(name).join(".radicle")).unwrap();
+    pub fn profile(&mut self, alias: &str) -> Profile {
+        let home = Home::new(self.tmp().join("home").join(alias).join(".radicle")).unwrap();
         let storage = Storage::open(home.storage()).unwrap();
         let keystore = Keystore::new(&home.keys());
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
         let tracking_db = home.node().join(TRACKING_DB_FILE);
+        let alias = Alias::from_str(alias).unwrap();
+        let config = profile::Config::init(alias, &home.config()).unwrap();
+
         TrackingStore::Config::open(tracking_db).unwrap();
         let addresses_db = home.node().join(ADDRESS_DB_FILE);
         Book::open(addresses_db).unwrap();
@@ -115,6 +121,7 @@ impl Environment {
             storage,
             keystore,
             public_key: keypair.pk.into(),
+            config,
         }
     }
 }
@@ -125,6 +132,7 @@ pub struct Node<G> {
     pub home: Home,
     pub signer: G,
     pub storage: Storage,
+    pub config: Config,
 }
 
 /// Handle to a running node.
@@ -303,7 +311,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
 
 impl Node<MockSigner> {
     /// Create a new node.
-    pub fn init(base: &Path) -> Self {
+    pub fn init(base: &Path, config: Config) -> Self {
         let home = base.join(
             iter::repeat_with(fastrand::alphanumeric)
                 .take(8)
@@ -318,13 +326,14 @@ impl Node<MockSigner> {
             home,
             signer,
             storage,
+            config,
         }
     }
 }
 
 impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
     /// Spawn a node in its own thread.
-    pub fn spawn(self, config: service::Config) -> NodeHandle<G> {
+    pub fn spawn(self) -> NodeHandle<G> {
         let listen = vec![([0, 0, 0, 0], 0).into()];
         let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
         let daemon: net::SocketAddr = {
@@ -337,7 +346,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
         let (_, signals) = chan::bounded(1);
         let rt = Runtime::init(
             self.home.clone(),
-            config,
+            self.config,
             listen,
             proxy,
             daemon,

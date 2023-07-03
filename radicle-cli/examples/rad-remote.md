@@ -48,6 +48,6 @@ able to fetch the node alias from our db!
 
 ```
 $ rad remote add did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-✓ Remote bob added
-✓ Remote-tracking branch bob/master created for z6Mkt67…v4N1tRk
+✓ Remote bob@z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk added
+✓ Remote-tracking branch bob@z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk/master created for z6Mkt67…v4N1tRk
 ```

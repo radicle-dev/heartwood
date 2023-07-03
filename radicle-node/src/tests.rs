@@ -14,9 +14,9 @@ use crate::collections::{HashMap, HashSet};
 use crate::crypto::test::signer::MockSigner;
 use crate::identity::Id;
 use crate::node;
+use crate::node::config::*;
 use crate::prelude::*;
 use crate::prelude::{LocalDuration, Timestamp};
-use crate::service::config::*;
 use crate::service::filter::Filter;
 use crate::service::io::Io;
 use crate::service::message::*;
@@ -208,8 +208,11 @@ fn test_persistent_peer_connect() {
         MockStorage::empty(),
         peer::Config {
             config: Config {
-                connect: vec![(bob.id(), bob.address()), (eve.id(), eve.address())],
-                ..Config::default()
+                connect: vec![
+                    (bob.id(), bob.address()).into(),
+                    (eve.id(), eve.address()).into(),
+                ],
+                ..Config::new(node::Alias::new("alice"))
             },
             ..peer::Config::default()
         },
@@ -320,7 +323,7 @@ fn test_inventory_pruning() {
             peer::Config {
                 config: Config {
                     limits: test.limits,
-                    ..Config::default()
+                    ..Config::new(node::Alias::new("alice"))
                 },
                 ..peer::Config::default()
             },
@@ -753,7 +756,11 @@ fn test_refs_announcement_trusted() {
 
     // Alice starts to track Bob.
     let (sender, receiver) = chan::bounded(1);
-    alice.command(Command::TrackNode(bob.id, Some("bob".to_string()), sender));
+    alice.command(Command::TrackNode(
+        bob.id,
+        Some(node::Alias::new("bob")),
+        sender,
+    ));
     let policy_change = receiver.recv().map_err(runtime::HandleError::from).unwrap();
     assert!(policy_change);
 
@@ -886,8 +893,11 @@ fn test_persistent_peer_reconnect_attempt() {
         MockStorage::empty(),
         peer::Config {
             config: Config {
-                connect: vec![(bob.id(), bob.address()), (eve.id(), eve.address())],
-                ..Config::default()
+                connect: vec![
+                    (bob.id(), bob.address()).into(),
+                    (eve.id(), eve.address()).into(),
+                ],
+                ..Config::new(node::Alias::new("alice"))
             },
             ..peer::Config::default()
         },
@@ -944,8 +954,8 @@ fn test_persistent_peer_reconnect_success() {
         MockStorage::empty(),
         peer::Config {
             config: Config {
-                connect: vec![(bob.id, bob.addr())],
-                ..Config::default()
+                connect: vec![(bob.id, bob.addr()).into()],
+                ..Config::new(node::Alias::new("alice"))
             },
             ..peer::Config::default()
         },

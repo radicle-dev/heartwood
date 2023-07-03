@@ -4,7 +4,7 @@ pub use radicle_term::format::*;
 pub use radicle_term::{style, Paint};
 
 use radicle::cob::{ObjectId, Timestamp};
-use radicle::node::{AliasStore, NodeId};
+use radicle::node::{Alias, AliasStore, NodeId};
 use radicle::prelude::Did;
 use radicle::profile::Profile;
 use radicle_term::element::Line;
@@ -143,15 +143,15 @@ impl<'a> fmt::Display for Identity<'a> {
 pub enum Author<'a> {
     Author {
         nid: &'a NodeId,
-        alias: Option<String>,
+        alias: Option<Alias>,
     },
     Me {
-        alias: Option<String>,
+        alias: Option<Alias>,
     },
 }
 
 impl<'a> Author<'a> {
-    pub fn new(nid: &'a NodeId, alias: Option<String>, me: &Profile) -> Author<'a> {
+    pub fn new(nid: &'a NodeId, alias: Option<Alias>, me: &Profile) -> Author<'a> {
         if nid == me.id() {
             Self::Me { alias }
         } else {

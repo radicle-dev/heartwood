@@ -2,13 +2,14 @@ use std::{collections::HashSet, thread, time};
 
 use radicle::crypto::{test::signer::MockSigner, Signer};
 use radicle::git;
-use radicle::node::{FetchResult, Handle as _};
+use radicle::node::{Alias, FetchResult, Handle as _};
 use radicle::storage::{ReadRepository, ReadStorage, WriteRepository, WriteStorage};
 use radicle::test::fixtures;
 use radicle::{assert_matches, rad};
 
+use crate::node::config::Limits;
+use crate::node::Config;
 use crate::service;
-use crate::service::config::Limits;
 use crate::service::tracking::Scope;
 use crate::storage::git::transport;
 use crate::test::environment::{converge, Environment, Node};
@@ -23,14 +24,14 @@ fn test_inventory_sync_basic() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
+    let mut alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
 
     alice.project("alice", "");
     bob.project("bob", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
 
     alice.connect(&bob);
 
@@ -47,17 +48,17 @@ fn test_inventory_sync_bridge() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
-    let mut eve = Node::init(tmp.path());
+    let mut alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
+    let mut eve = Node::init(tmp.path(), Config::new(Alias::new("eve")));
 
     alice.project("alice", "");
     bob.project("bob", "");
     eve.project("eve", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
-    let eve = eve.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let eve = eve.spawn();
 
     alice.connect(&bob);
     bob.connect(&eve);
@@ -77,20 +78,20 @@ fn test_inventory_sync_ring() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
-    let mut eve = Node::init(tmp.path());
-    let mut carol = Node::init(tmp.path());
+    let mut alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
+    let mut eve = Node::init(tmp.path(), Config::new(Alias::new("eve")));
+    let mut carol = Node::init(tmp.path(), Config::new(Alias::new("carol")));
 
     alice.project("alice", "");
     bob.project("bob", "");
     eve.project("eve", "");
     carol.project("carol", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
-    let mut eve = eve.spawn(service::Config::default());
-    let mut carol = carol.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
+    let mut carol = carol.spawn();
 
     alice.connect(&bob);
     bob.connect(&eve);
@@ -114,11 +115,11 @@ fn test_inventory_sync_star() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
-    let mut eve = Node::init(tmp.path());
-    let mut carol = Node::init(tmp.path());
-    let mut dave = Node::init(tmp.path());
+    let mut alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
+    let mut eve = Node::init(tmp.path(), Config::new(Alias::new("eve")));
+    let mut carol = Node::init(tmp.path(), Config::new(Alias::new("carol")));
+    let mut dave = Node::init(tmp.path(), Config::new(Alias::new("dave")));
 
     alice.project("alice", "");
     bob.project("bob", "");
@@ -126,11 +127,11 @@ fn test_inventory_sync_star() {
     carol.project("carol", "");
     dave.project("dave", "");
 
-    let alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
-    let mut eve = eve.spawn(service::Config::default());
-    let mut carol = carol.spawn(service::Config::default());
-    let mut dave = dave.spawn(service::Config::default());
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
+    let mut carol = carol.spawn();
+    let mut dave = dave.spawn();
 
     bob.connect(&alice);
     eve.connect(&alice);
@@ -146,12 +147,12 @@ fn test_replication() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
+    let alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
     let acme = bob.project("acme", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
 
     alice.connect(&bob);
     converge([&alice, &bob]);
@@ -203,8 +204,8 @@ fn test_replication_no_delegates() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
+    let alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
 
     let acme = bob.project("acme", "");
     // Delete one of the signed refs.
@@ -216,8 +217,8 @@ fn test_replication_no_delegates() {
         .delete()
         .unwrap();
 
-    let mut alice = alice.spawn(service::Config::default());
-    let bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
 
     alice.connect(&bob);
     converge([&alice, &bob]);
@@ -236,8 +237,8 @@ fn test_replication_no_delegates() {
 #[test]
 fn test_replication_invalid() {
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
+    let alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
     let carol = MockSigner::default();
     let acme = bob.project("acme", "");
     let repo = bob.storage.repository_mut(acme).unwrap();
@@ -262,8 +263,8 @@ fn test_replication_invalid() {
         )
         .unwrap();
 
-    let mut alice = alice.spawn(service::Config::default());
-    let bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
 
     alice.connect(&bob);
     converge([&alice, &bob]);
@@ -289,12 +290,12 @@ fn test_migrated_clone() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path());
-    let bob = Node::init(tmp.path());
+    let mut alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
     let acme = alice.project("acme", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
 
     alice.connect(&bob);
     converge([&alice, &bob]);
@@ -339,12 +340,12 @@ fn test_dont_fetch_owned_refs() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path());
-    let bob = Node::init(tmp.path());
+    let mut alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
     let acme = alice.project("acme", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
 
     alice.connect(&bob);
     converge([&alice, &bob]);
@@ -366,8 +367,8 @@ fn test_fetch_trusted_remotes() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path());
-    let bob = Node::init(tmp.path());
+    let mut alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
     let acme = alice.project("acme", "");
     let mut signers = Vec::with_capacity(5);
     {
@@ -378,8 +379,8 @@ fn test_fetch_trusted_remotes() {
         }
     }
 
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
 
     alice.connect(&bob);
     converge([&alice, &bob]);
@@ -421,12 +422,12 @@ fn test_missing_remote() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path());
-    let bob = Node::init(tmp.path());
+    let mut alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
     let acme = alice.project("acme", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
     let carol = MockSigner::default();
 
     alice.connect(&bob);
@@ -450,11 +451,11 @@ fn test_fetch_preserve_owned_refs() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let mut alice = Node::init(tmp.path());
-    let bob = Node::init(tmp.path());
+    let mut alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
     let acme = alice.project("acme", "");
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
 
     alice.connect(&bob);
     converge([&alice, &bob]);
@@ -496,12 +497,12 @@ fn test_clone() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
+    let alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
     let acme = bob.project("acme", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
 
     alice.connect(&bob);
     converge([&alice, &bob]);
@@ -554,12 +555,12 @@ fn test_fetch_up_to_date() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
+    let alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
     let acme = bob.project("acme", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
 
     alice.connect(&bob);
     converge([&alice, &bob]);
@@ -584,8 +585,8 @@ fn test_large_fetch() {
 
     let env = Environment::new();
     let scale = env.scale();
-    let mut alice = Node::init(&env.tmp());
-    let bob = Node::init(&env.tmp());
+    let mut alice = Node::init(&env.tmp(), Config::new(Alias::new("alice")));
+    let bob = Node::init(&env.tmp(), Config::new(Alias::new("bob")));
 
     let tmp = tempfile::tempdir().unwrap();
     let (repo, _) = fixtures::repository(tmp.path());
@@ -593,8 +594,8 @@ fn test_large_fetch() {
 
     let rid = alice.project_from("acme", "", &repo);
 
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
     let bob_events = bob.handle.events();
 
     bob.handle.track_repo(rid, Scope::All).unwrap();
@@ -619,11 +620,28 @@ fn test_concurrent_fetches() {
 
     let env = Environment::new();
     let scale = env.scale();
+    let repos = scale.max(4);
+    let limits = Limits {
+        // Have one fetch be queued.
+        fetch_concurrency: repos - 1,
+        ..Limits::default()
+    };
     let mut bob_repos = HashSet::new();
     let mut alice_repos = HashSet::new();
-    let mut alice = Node::init(&env.tmp());
-    let mut bob = Node::init(&env.tmp());
-    let repos = scale.max(4);
+    let mut alice = Node::init(
+        &env.tmp(),
+        service::Config {
+            limits: limits.clone(),
+            ..service::Config::new(Alias::new("alice"))
+        },
+    );
+    let mut bob = Node::init(
+        &env.tmp(),
+        service::Config {
+            limits,
+            ..service::Config::new(Alias::new("bob"))
+        },
+    );
 
     for i in 0..repos {
         // Create a repo for Alice.
@@ -643,16 +661,8 @@ fn test_concurrent_fetches() {
         bob_repos.insert(rid);
     }
 
-    let config = service::Config {
-        limits: Limits {
-            // Have one fetch be queued.
-            fetch_concurrency: repos - 1,
-            ..Limits::default()
-        },
-        ..service::Config::default()
-    };
-    let mut alice = alice.spawn(config.clone());
-    let mut bob = bob.spawn(config);
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
 
     let alice_events = alice.handle.events();
     let bob_events = bob.handle.events();
@@ -718,11 +728,11 @@ fn test_connection_crossing() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path());
-    let bob = Node::init(tmp.path());
+    let alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
 
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
 
     alice.handle.connect(bob.id, bob.addr.into()).unwrap();
     bob.handle.connect(alice.id, alice.addr.into()).unwrap();
@@ -753,15 +763,15 @@ fn test_non_fastforward_sigrefs() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let alice = Node::init(tmp.path());
-    let mut bob = Node::init(tmp.path());
-    let eve = Node::init(tmp.path());
+    let alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let mut bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
+    let eve = Node::init(tmp.path(), Config::new(Alias::new("eve")));
 
     let rid = bob.project("acme", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let bob = bob.spawn(service::Config::default());
-    let mut eve = eve.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
+    let mut eve = eve.spawn();
 
     alice.handle.track_repo(rid, Scope::All).unwrap();
     eve.handle.track_repo(rid, Scope::All).unwrap();
@@ -805,15 +815,15 @@ fn test_outdated_sigrefs() {
 
     let tmp = tempfile::tempdir().unwrap();
 
-    let mut alice = Node::init(tmp.path());
-    let bob = Node::init(tmp.path());
-    let eve = Node::init(tmp.path());
+    let mut alice = Node::init(tmp.path(), Config::new(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::new(Alias::new("bob")));
+    let eve = Node::init(tmp.path(), Config::new(Alias::new("eve")));
 
     let rid = alice.project("acme", "");
 
-    let mut alice = alice.spawn(service::Config::default());
-    let mut bob = bob.spawn(service::Config::default());
-    let mut eve = eve.spawn(service::Config::default());
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
 
     bob.handle.track_repo(rid, Scope::All).unwrap();
     eve.handle.track_repo(rid, Scope::All).unwrap();
@@ -832,7 +842,7 @@ fn test_outdated_sigrefs() {
 
     alice
         .handle
-        .track_node(eve.id, Some("eve".to_string()))
+        .track_node(eve.id, Some(Alias::new("eve")))
         .unwrap();
     alice.handle.fetch(rid, eve.id).unwrap();
     let repo = alice.storage.repository(rid).unwrap();
@@ -873,7 +883,7 @@ fn test_outdated_sigrefs() {
 
     alice
         .handle
-        .track_node(bob.id, Some("bob".to_string()))
+        .track_node(bob.id, Some(Alias::new("bob")))
         .unwrap();
     assert_matches!(
         alice.handle.fetch(rid, bob.id).unwrap(),

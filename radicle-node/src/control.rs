@@ -13,7 +13,7 @@ use serde_json as json;
 
 use crate::identity::Id;
 use crate::node::NodeId;
-use crate::node::{Command, CommandName, CommandResult};
+use crate::node::{Alias, Command, CommandName, CommandResult};
 use crate::runtime;
 use crate::runtime::thread;
 
@@ -150,6 +150,12 @@ where
                 [node, alias] => (node.as_str(), Some(alias.to_owned())),
                 _ => return Err(CommandError::InvalidCommandArgs(cmd.args)),
             };
+            let alias = alias
+                .map(|a| {
+                    Alias::from_str(&a)
+                        .map_err(|e| CommandError::InvalidCommandArg(node.to_owned(), Box::new(e)))
+                })
+                .transpose()?;
             let nid = node
                 .parse()
                 .map_err(|e| CommandError::InvalidCommandArg(node.to_owned(), Box::new(e)))?;
@@ -358,12 +364,8 @@ mod tests {
         assert!(handle.untrack_repo(proj).unwrap());
         assert!(!handle.untrack_repo(proj).unwrap());
 
-        assert!(handle
-            .track_node(peer, Some(String::from("alice")))
-            .unwrap());
-        assert!(!handle
-            .track_node(peer, Some(String::from("alice")))
-            .unwrap());
+        assert!(handle.track_node(peer, Some(Alias::new("alice"))).unwrap());
+        assert!(!handle.track_node(peer, Some(Alias::new("alice"))).unwrap());
         assert!(handle.untrack_node(peer).unwrap());
         assert!(!handle.untrack_node(peer).unwrap());
     }

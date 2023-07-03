@@ -1,7 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::collapsible_match)]
 #![allow(clippy::collapsible_if)]
-pub mod config;
 pub mod filter;
 pub mod io;
 pub mod message;
@@ -28,7 +27,7 @@ use crate::identity::IdentityError;
 use crate::identity::{Doc, Id};
 use crate::node::routing;
 use crate::node::routing::InsertResult;
-use crate::node::{Address, Features, FetchResult, Seed, Seeds};
+use crate::node::{Address, Alias, Features, FetchResult, Seed, Seeds};
 use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
@@ -41,8 +40,7 @@ use crate::worker::FetchError;
 use crate::Link;
 
 pub use crate::node::events::{Event, Events};
-pub use crate::node::NodeId;
-pub use crate::service::config::{Config, Network};
+pub use crate::node::{config::Network, Config, NodeId};
 pub use crate::service::message::{Message, ZeroBytes};
 pub use crate::service::session::Session;
 
@@ -137,7 +135,7 @@ pub enum Command {
     /// Untrack the given repository.
     UntrackRepo(Id, chan::Sender<bool>),
     /// Track the given node.
-    TrackNode(NodeId, Option<String>, chan::Sender<bool>),
+    TrackNode(NodeId, Option<Alias>, chan::Sender<bool>),
     /// Untrack the given node.
     UntrackNode(NodeId, chan::Sender<bool>),
     /// Query the internal service state.
@@ -382,7 +380,7 @@ where
 
         // Connect to configured peers.
         let addrs = self.config.connect.clone();
-        for (id, addr) in addrs {
+        for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
             self.connect(id, addr);
         }
         // Ensure that our inventory is recorded in our routing table, and we are tracking
@@ -405,7 +403,7 @@ where
             .insert(
                 &self.node_id(),
                 self.node.features,
-                self.node.alias().unwrap_or_default(),
+                self.node.alias.clone(),
                 self.node.work(),
                 self.node.timestamp,
                 self.node
@@ -998,14 +996,6 @@ where
                     return Ok(false);
                 }
 
-                let alias = match ann.alias() {
-                    Ok(s) => s,
-                    Err(e) => {
-                        warn!(target: "service", "Dropping node announcement from {announcer}: invalid alias: {e}");
-                        return Ok(false);
-                    }
-                };
-
                 // If this node isn't a seed, we're not interested in adding it
                 // to our address book, but other nodes may be, so we relay the message anyway.
                 if !features.has(Features::SEED) {
@@ -1015,7 +1005,7 @@ where
                 match self.addresses.insert(
                     announcer,
                     *features,
-                    alias,
+                    ann.alias.clone(),
                     ann.work(),
                     timestamp,
                     addresses
@@ -1781,7 +1771,7 @@ impl DerefMut for Sessions {
     }
 }
 
-mod gossip {
+pub mod gossip {
     use super::*;
     use crate::service::filter::Filter;
 
@@ -1840,6 +1830,24 @@ mod gossip {
                 Timestamp::MAX,
             ),
         ]
+    }
+
+    pub fn node(config: &Config, timestamp: Timestamp) -> NodeAnnouncement {
+        let features = config.features();
+        let alias = config.alias.clone();
+        let addresses: BoundedVec<_, ADDRESS_LIMIT> = config
+            .external_addresses
+            .clone()
+            .try_into()
+            .expect("external addresses are within the limit");
+
+        NodeAnnouncement {
+            features,
+            timestamp,
+            alias,
+            addresses,
+            nonce: 0,
+        }
     }
 
     pub fn inventory(timestamp: Timestamp, inventory: Vec<Id>) -> InventoryAnnouncement {

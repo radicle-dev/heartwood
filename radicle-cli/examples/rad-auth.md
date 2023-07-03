@@ -2,7 +2,7 @@ Initializing a new identity with `rad-auth`.
 The example below is run with `RAD_PASSPHRASE` set.
 
 ```
-$ rad auth
+$ rad auth --alias "alice"
 
 Initializing your radicle 👾 identity
 
@@ -17,4 +17,10 @@ You can get the above information at all times using the `self` command:
 ```
 $ rad self --did
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+```
+
+You can also show your alias:
+```
+$ rad self --alias
+alice
 ```

@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::prelude::Id;
 
-use super::NodeId;
+pub use super::{Alias, NodeId};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Repo {
@@ -24,11 +24,9 @@ pub struct Node {
     pub policy: Policy,
 }
 
-/// Node alias.
-pub type Alias = String;
-
 /// Tracking policy.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Policy {
     /// The resource is tracked.
     Track,
@@ -91,6 +89,7 @@ impl TryFrom<&sqlite::Value> for Policy {
 
 /// Tracking scope of a repository tracking policy.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Scope {
     /// Track remotes of nodes that are already tracked.
     #[default]

@@ -1,10 +1,13 @@
 #![allow(clippy::or_fun_call)]
+use std::env;
 use std::ffi::OsString;
+use std::str::FromStr;
 
 use anyhow::anyhow;
 
 use radicle::crypto::ssh;
 use radicle::crypto::ssh::Passphrase;
+use radicle::node::Alias;
 use radicle::profile::env::RAD_PASSPHRASE;
 use radicle::{profile, Profile};
 
@@ -26,6 +29,7 @@ Usage
 
 Options
 
+    --alias                 When initializing an identity, sets the node alias
     --stdin                 Read passphrase from stdin (default: false)
     --help                  Print help
 "#,
@@ -34,6 +38,7 @@ Options
 #[derive(Debug)]
 pub struct Options {
     pub stdin: bool,
+    pub alias: Option<Alias>,
 }
 
 impl Args for Options {
@@ -41,10 +46,17 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut stdin = false;
+        let mut alias = None;
         let mut parser = lexopt::Parser::from_args(args);
 
         while let Some(arg) = parser.next()? {
             match arg {
+                Long("alias") => {
+                    let val = parser.value()?;
+                    let val = term::args::alias(&val)?;
+
+                    alias = Some(val);
+                }
                 Long("stdin") => {
                     stdin = true;
                 }
@@ -55,7 +67,7 @@ impl Args for Options {
             }
         }
 
-        Ok((Options { stdin }, vec![]))
+        Ok((Options { alias, stdin }, vec![]))
     }
 }
 
@@ -81,6 +93,16 @@ pub fn init(options: Options) -> anyhow::Result<()> {
         anyhow::bail!("Error retrieving git version; please check your installation");
     }
 
+    let alias: Alias = if let Some(alias) = options.alias {
+        alias
+    } else {
+        let user = env::var("USER").ok().and_then(|u| Alias::from_str(&u).ok());
+        term::input(
+            "Enter your alias:",
+            user,
+            Some("This is your node alias. You can always change it later"),
+        )?
+    };
     let home = profile::home()?;
     let passphrase = if options.stdin {
         term::passphrase_stdin()
@@ -88,7 +110,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
         term::passphrase_confirm("Enter a passphrase:", RAD_PASSPHRASE)
     }?;
     let spinner = term::spinner("Creating your Ed25519 keypair...");
-    let profile = Profile::init(home, passphrase.clone())?;
+    let profile = Profile::init(home, alias, passphrase.clone())?;
     spinner.finish();
 
     match ssh::agent::Agent::connect() {

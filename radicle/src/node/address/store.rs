@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::str::FromStr;
 use std::{fmt, io};
 
 use localtime::LocalTime;
@@ -7,9 +8,7 @@ use thiserror::Error;
 
 use crate::node;
 use crate::node::address::{KnownAddress, Source};
-use crate::node::Address;
-use crate::node::AliasStore;
-use crate::node::NodeId;
+use crate::node::{Address, Alias, AliasError, AliasStore, NodeId};
 use crate::prelude::Timestamp;
 use crate::sql::transaction;
 
@@ -21,6 +20,8 @@ pub enum Error {
     /// I/O error.
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
+    #[error("alias error: {0}")]
+    InvalidAlias(#[from] AliasError),
     /// An Internal error.
     #[error("internal error: {0}")]
     Internal(#[from] sql::Error),
@@ -77,7 +78,7 @@ impl Store for Book {
 
         if let Some(Ok(row)) = stmt.into_iter().next() {
             let features = row.read::<node::Features, _>("features");
-            let alias = row.read::<Option<&str>, _>("alias").map(ToOwned::to_owned);
+            let alias = Alias::from_str(row.read::<&str, _>("alias"))?;
             let timestamp = row.read::<i64, _>("timestamp") as Timestamp;
             let pow = row.read::<i64, _>("pow") as u32;
             let mut addrs = Vec::new();
@@ -130,7 +131,7 @@ impl Store for Book {
         &mut self,
         node: &NodeId,
         features: node::Features,
-        alias: &str,
+        alias: Alias,
         pow: u32,
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = KnownAddress>,
@@ -143,15 +144,10 @@ impl Store for Book {
                  SET features = ?2, alias = ?3, pow = ?4, timestamp = ?5
                  WHERE timestamp < ?5",
             )?;
-            let alias = if alias.is_empty() {
-                sql::Value::Null
-            } else {
-                sql::Value::String(alias.to_owned())
-            };
 
             stmt.bind((1, node))?;
             stmt.bind((2, features))?;
-            stmt.bind((3, alias))?;
+            stmt.bind((3, sql::Value::String(alias.into())))?;
             stmt.bind((4, pow as i64))?;
             stmt.bind((5, timestamp as i64))?;
             stmt.next()?;
@@ -263,9 +259,9 @@ impl Store for Book {
 impl AliasStore for Book {
     /// Retrieve `alias` of given node.
     /// Calls `Self::get` under the hood.
-    fn alias(&self, nid: &NodeId) -> Option<String> {
+    fn alias(&self, nid: &NodeId) -> Option<Alias> {
         self.get(nid)
-            .map(|node| node.and_then(|n| n.alias))
+            .map(|node| node.map(|n| n.alias))
             .unwrap_or(None)
     }
 }
@@ -283,7 +279,7 @@ pub trait Store {
         &mut self,
         node: &NodeId,
         features: node::Features,
-        alias: &str,
+        alias: Alias,
         pow: u32,
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = KnownAddress>,
@@ -409,16 +405,16 @@ mod test {
         let timestamp = LocalTime::now().as_millis();
 
         cache
-            .insert(&alice, features, "alice", 16, timestamp, [])
+            .insert(&alice, features, Alias::new("alice"), 16, timestamp, [])
             .unwrap();
         let node = cache.get(&alice).unwrap().unwrap();
-        assert_eq!(node.alias.as_deref(), Some("alice"));
+        assert_eq!(node.alias.as_ref(), "alice");
 
         cache
-            .insert(&alice, features, "", 16, timestamp + 1, [])
+            .insert(&alice, features, Alias::new("bob"), 16, timestamp + 1, [])
             .unwrap();
         let node = cache.get(&alice).unwrap().unwrap();
-        assert_eq!(node.alias.as_deref(), None);
+        assert_eq!(node.alias.as_ref(), "bob");
     }
 
     #[test]
@@ -435,7 +431,14 @@ mod test {
             last_attempt: None,
         };
         let inserted = cache
-            .insert(&alice, features, "alice", 16, timestamp, [ka.clone()])
+            .insert(
+                &alice,
+                features,
+                Alias::new("alice"),
+                16,
+                timestamp,
+                [ka.clone()],
+            )
             .unwrap();
         assert!(inserted);
 
@@ -444,7 +447,7 @@ mod test {
         assert_eq!(node.features, features);
         assert_eq!(node.pow, 16);
         assert_eq!(node.timestamp, timestamp);
-        assert_eq!(node.alias.as_deref(), Some("alice"));
+        assert_eq!(node.alias.as_ref(), "alice");
         assert_eq!(node.addrs, vec![ka]);
     }
 
@@ -454,6 +457,7 @@ mod test {
         let mut cache = Book::memory().unwrap();
         let features = node::Features::SEED;
         let timestamp = LocalTime::now().as_millis();
+        let alias = Alias::new("alice");
 
         let ka = KnownAddress {
             addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
@@ -462,12 +466,12 @@ mod test {
             last_attempt: None,
         };
         let inserted = cache
-            .insert(&alice, features, "alice", 0, timestamp, [ka.clone()])
+            .insert(&alice, features, alias.clone(), 0, timestamp, [ka.clone()])
             .unwrap();
         assert!(inserted);
 
         let inserted = cache
-            .insert(&alice, features, "alice", 0, timestamp, [ka])
+            .insert(&alice, features, alias, 0, timestamp, [ka])
             .unwrap();
         assert!(!inserted);
 
@@ -480,6 +484,8 @@ mod test {
         let mut cache = Book::memory().unwrap();
         let timestamp = LocalTime::now().as_millis();
         let features = node::Features::SEED;
+        let alias1 = Alias::new("alice");
+        let alias2 = Alias::new("~alice~");
         let ka = KnownAddress {
             addr: net::SocketAddr::from(([4, 4, 4, 4], 8776)).into(),
             source: Source::Peer,
@@ -488,45 +494,38 @@ mod test {
         };
 
         let updated = cache
-            .insert(&alice, features, "alice", 0, timestamp, [ka.clone()])
+            .insert(&alice, features, alias1, 0, timestamp, [ka.clone()])
             .unwrap();
         assert!(updated);
 
         let updated = cache
-            .insert(&alice, features, "~alice~", 0, timestamp, [])
+            .insert(&alice, features, alias2.clone(), 0, timestamp, [])
             .unwrap();
         assert!(!updated, "Can't update using the same timestamp");
 
         let updated = cache
-            .insert(&alice, features, "~alice~", 0, timestamp - 1, [])
+            .insert(&alice, features, alias2.clone(), 0, timestamp - 1, [])
             .unwrap();
         assert!(!updated, "Can't update using a smaller timestamp");
 
         let node = cache.get(&alice).unwrap().unwrap();
-        assert_eq!(node.alias.as_deref(), Some("alice"));
+        assert_eq!(node.alias.as_ref(), "alice");
         assert_eq!(node.timestamp, timestamp);
         assert_eq!(node.pow, 0);
 
         let updated = cache
-            .insert(&alice, features, "~alice~", 0, timestamp + 1, [])
+            .insert(&alice, features, alias2.clone(), 0, timestamp + 1, [])
             .unwrap();
         assert!(updated, "Can update with a larger timestamp");
 
         let updated = cache
-            .insert(
-                &alice,
-                node::Features::NONE,
-                "~alice~",
-                1,
-                timestamp + 2,
-                [],
-            )
+            .insert(&alice, node::Features::NONE, alias2, 1, timestamp + 2, [])
             .unwrap();
         assert!(updated);
 
         let node = cache.get(&alice).unwrap().unwrap();
         assert_eq!(node.features, node::Features::NONE);
-        assert_eq!(node.alias.as_deref(), Some("~alice~"));
+        assert_eq!(node.alias.as_ref(), "~alice~");
         assert_eq!(node.timestamp, timestamp + 2);
         assert_eq!(node.pow, 1);
         assert_eq!(node.addrs, vec![ka]);
@@ -539,6 +538,8 @@ mod test {
         let mut cache = Book::memory().unwrap();
         let timestamp = LocalTime::now().as_millis();
         let features = node::Features::SEED;
+        let alice_alias = Alias::new("alice");
+        let bob_alias = Alias::new("bob");
 
         for addr in [
             ([4, 4, 4, 4], 8776),
@@ -552,10 +553,17 @@ mod test {
                 last_attempt: None,
             };
             cache
-                .insert(&alice, features, "alice", 0, timestamp, [ka.clone()])
+                .insert(
+                    &alice,
+                    features,
+                    alice_alias.clone(),
+                    0,
+                    timestamp,
+                    [ka.clone()],
+                )
                 .unwrap();
             cache
-                .insert(&bob, features, "bob", 0, timestamp, [ka])
+                .insert(&bob, features, bob_alias.clone(), 0, timestamp, [ka])
                 .unwrap();
         }
         assert_eq!(cache.len().unwrap(), 6);
@@ -577,6 +585,7 @@ mod test {
         let mut expected = Vec::new();
         let timestamp = LocalTime::now().as_millis();
         let features = node::Features::SEED;
+        let alias = Alias::new("alice");
 
         for id in ids {
             let ip = rng.u32(..);
@@ -590,7 +599,7 @@ mod test {
             };
             expected.push((id, ka.clone()));
             cache
-                .insert(&id, features, "alias", 0, timestamp, [ka])
+                .insert(&id, features, alias.clone(), 0, timestamp, [ka])
                 .unwrap();
         }
 

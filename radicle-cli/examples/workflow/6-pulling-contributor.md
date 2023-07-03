@@ -24,7 +24,7 @@ $ git pull --all --ff
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
    f2de534..f567f69  master     -> rad/master
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-   f2de534..f567f69  master     -> z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
+   f2de534..f567f69  master     -> alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
 ```
 
 Now our master branch is up to date with the maintainer's master:
@@ -32,5 +32,5 @@ Now our master branch is up to date with the maintainer's master:
 ```
 $ git rev-parse master
 f567f695d25b4e8fb63b5f5ad2a584529826e908
-$ git diff master..z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
+$ git diff master..alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
 ```

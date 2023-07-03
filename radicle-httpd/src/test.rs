@@ -16,9 +16,11 @@ use radicle::crypto::ssh::keystore::MemorySigner;
 use radicle::crypto::ssh::Keystore;
 use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git::{raw as git2, RefString};
+use radicle::node;
 use radicle::node::address as AddressStore;
 use radicle::node::routing as RoutingStore;
 use radicle::node::tracking::store as TrackingStore;
+use radicle::profile;
 use radicle::profile::Home;
 use radicle::storage::ReadStorage;
 use radicle::Storage;
@@ -63,6 +65,9 @@ pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
         storage,
         keystore,
         public_key: keypair.pk.into(),
+        config: profile::Config {
+            node: node::Config::new(node::Alias::new("seed")),
+        },
     }
 }
 

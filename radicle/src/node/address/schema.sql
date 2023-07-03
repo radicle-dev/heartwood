@@ -7,7 +7,7 @@ create table if not exists "nodes" (
   -- Node features.
   "features"           integer   not null,
   -- Node alias.
-  "alias"              text      default null,
+  "alias"              text      not null,
   --- Node announcement proof-of-work.
   "pow"                integer   default 0,
   -- Node announcement timestamp.

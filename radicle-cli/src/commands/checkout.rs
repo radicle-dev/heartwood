@@ -160,14 +160,16 @@ pub fn setup_remote(
     remote_name: Option<git::RefString>,
     aliases: &impl AliasStore,
 ) -> anyhow::Result<()> {
-    let remote_name = if let Some(alias) = remote_name {
-        alias
+    let remote_name = if let Some(name) = remote_name {
+        name
     } else {
-        let alias = aliases
-            .alias(remote_id)
-            .unwrap_or_else(|| remote_id.to_string());
-        git::RefString::try_from(alias.clone())
-            .map_err(|_| anyhow!("invalid remote name: '{alias}'"))?
+        let name = if let Some(alias) = aliases.alias(remote_id) {
+            format!("{alias}@{remote_id}")
+        } else {
+            remote_id.to_human()
+        };
+        git::RefString::try_from(name.as_str())
+            .map_err(|_| anyhow!("invalid remote name: '{name}'"))?
     };
     let (remote, branch) = setup.run(remote_name, *remote_id)?;
 

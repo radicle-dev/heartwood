@@ -1,6 +1,7 @@
 mod features;
 
 pub mod address;
+pub mod config;
 pub mod events;
 pub mod routing;
 pub mod tracking;
@@ -10,6 +11,7 @@ use std::io::{BufRead, BufReader};
 use std::ops::Deref;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::{fmt, io, net, thread, time};
 
 use amplify::WrapperMut;
@@ -23,6 +25,7 @@ use crate::crypto::PublicKey;
 use crate::identity::Id;
 use crate::storage::RefUpdate;
 
+pub use config::Config;
 pub use cyphernet::addr::PeerAddr;
 pub use events::{Event, Events};
 pub use features::Features;
@@ -33,6 +36,8 @@ pub const DEFAULT_SOCKET_NAME: &str = "control.sock";
 pub const DEFAULT_PORT: u16 = 8776;
 /// Default timeout when waiting for the node to respond with data.
 pub const DEFAULT_TIMEOUT: time::Duration = time::Duration::from_secs(9);
+/// Maximum length in bytes of a node alias.
+pub const MAX_ALIAS_LENGTH: usize = 32;
 /// Filename of routing table database under the node directory.
 pub const ROUTING_DB_FILE: &str = "routing.db";
 /// Filename of address database under the node directory.
@@ -104,6 +109,90 @@ impl fmt::Display for State {
                 write!(f, "disconnected")
             }
         }
+    }
+}
+
+/// Node alias.
+#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Alias(String);
+
+impl Alias {
+    /// Create a new alias from a string. Panics if the string is not a valid alias.
+    pub fn new(alias: impl ToString) -> Self {
+        let alias = alias.to_string();
+
+        match Self::from_str(&alias) {
+            Ok(a) => a,
+            Err(e) => panic!("Alias::new: {e}"),
+        }
+    }
+}
+
+impl From<Alias> for String {
+    fn from(value: Alias) -> Self {
+        value.0
+    }
+}
+
+impl From<&NodeId> for Alias {
+    fn from(nid: &NodeId) -> Self {
+        Alias(nid.to_string())
+    }
+}
+
+impl fmt::Display for Alias {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Deref for Alias {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<str> for Alias {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl From<&Alias> for [u8; 32] {
+    fn from(input: &Alias) -> [u8; 32] {
+        let mut alias = [0u8; 32];
+
+        alias[..input.len()].copy_from_slice(input.as_bytes());
+        alias
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum AliasError {
+    #[error("alias cannot be empty")]
+    Empty,
+    #[error("alias cannot be greater than {MAX_ALIAS_LENGTH} bytes")]
+    MaxBytesExceeded,
+    #[error("alias cannot contain whitespace or control characters")]
+    InvalidCharacter,
+}
+
+impl FromStr for Alias {
+    type Err = AliasError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            return Err(AliasError::Empty);
+        }
+        if s.chars().any(|c| c.is_control() || c.is_whitespace()) {
+            return Err(AliasError::InvalidCharacter);
+        }
+        if s.len() > MAX_ALIAS_LENGTH {
+            return Err(AliasError::MaxBytesExceeded);
+        }
+        Ok(Self(s.to_owned()))
     }
 }
 
@@ -499,7 +588,7 @@ pub trait Handle: Clone + Sync + Send {
     /// tracked.
     fn track_repo(&mut self, id: Id, scope: tracking::Scope) -> Result<bool, Self::Error>;
     /// Start tracking the given node.
-    fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Self::Error>;
+    fn track_node(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Self::Error>;
     /// Untrack the given project and delete it from storage.
     fn untrack_repo(&mut self, id: Id) -> Result<bool, Self::Error>;
     /// Untrack the given node.
@@ -671,7 +760,7 @@ impl Handle for Node {
         Ok(result)
     }
 
-    fn track_node(&mut self, id: NodeId, alias: Option<String>) -> Result<bool, Error> {
+    fn track_node(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
         let id = id.to_human();
         let args = if let Some(alias) = alias.as_deref() {
             vec![id.as_str(), alias]
@@ -787,23 +876,23 @@ impl Handle for Node {
 /// A trait for different sources which can potentially return an alias.
 pub trait AliasStore {
     /// Returns alias of a `NodeId`.
-    fn alias(&self, nid: &NodeId) -> Option<String>;
+    fn alias(&self, nid: &NodeId) -> Option<Alias>;
 }
 
 impl<T: AliasStore + ?Sized> AliasStore for &T {
-    fn alias(&self, nid: &NodeId) -> Option<String> {
+    fn alias(&self, nid: &NodeId) -> Option<Alias> {
         (*self).alias(nid)
     }
 }
 
 impl<T: AliasStore + ?Sized> AliasStore for Box<T> {
-    fn alias(&self, nid: &NodeId) -> Option<String> {
+    fn alias(&self, nid: &NodeId) -> Option<Alias> {
         self.deref().alias(nid)
     }
 }
 
-impl AliasStore for HashMap<NodeId, String> {
-    fn alias(&self, nid: &NodeId) -> Option<String> {
+impl AliasStore for HashMap<NodeId, Alias> {
+    fn alias(&self, nid: &NodeId) -> Option<Alias> {
         self.get(nid).map(ToOwned::to_owned)
     }
 }
@@ -815,5 +904,20 @@ mod test {
     #[test]
     fn test_command_name_display() {
         assert_eq!(CommandName::TrackNode.to_string(), "track-node");
+    }
+
+    #[test]
+    fn test_alias() {
+        assert!(Alias::from_str("cloudhead").is_ok());
+        assert!(Alias::from_str("cloud-head").is_ok());
+        assert!(Alias::from_str("cl0ud.h3ad$__").is_ok());
+        assert!(Alias::from_str("©loudhèâd").is_ok());
+
+        assert!(Alias::from_str("").is_err());
+        assert!(Alias::from_str(" ").is_err());
+        assert!(Alias::from_str("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").is_err());
+        assert!(Alias::from_str("cloud\0head").is_err());
+        assert!(Alias::from_str("cloud head").is_err());
+        assert!(Alias::from_str("cloudhead\n").is_err());
     }
 }

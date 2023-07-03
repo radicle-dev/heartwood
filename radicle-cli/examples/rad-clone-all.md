@@ -7,8 +7,8 @@ $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope all
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Forking under z6Mkux1…nVhib7Z..
 ✓ Creating checkout in ./heartwood..
-✓ Remote z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
-✓ Remote-tracking branch z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
+✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
+✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
 ✓ Repository successfully cloned under [..]/heartwood/
 ```
 
@@ -68,10 +68,10 @@ And fetch his refs:
 ```
 $ git fetch --all
 Fetching rad
-Fetching z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+Fetching alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 Fetching bob
 $ git branch --remotes
+  alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
   bob/master
   rad/master
-  z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
 ```

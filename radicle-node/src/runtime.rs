@@ -154,7 +154,10 @@ impl Runtime {
             .ok()
             .and_then(|ann| NodeAnnouncement::decode(&mut ann.as_slice()).ok())
             .and_then(|ann| {
-                if config.matches(&ann) {
+                if config.features() == ann.features
+                    && config.alias == ann.alias
+                    && config.external_addresses == ann.addresses.as_ref()
+                {
                     Some(ann)
                 } else {
                     None
@@ -168,8 +171,7 @@ impl Runtime {
             );
             ann
         } else {
-            config
-                .node(clock.as_secs())
+            service::gossip::node(&config, clock.as_secs())
                 .solve(Default::default())
                 .expect("Runtime::init: unable to solve proof-of-work puzzle")
         };
