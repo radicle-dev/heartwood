@@ -2,17 +2,18 @@ use tuirealm::props::{AttrValue, Attribute};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::MockComponent;
 
-pub struct IssuePreview {
-    pub left: Rect,
-    pub details: Rect,
-    pub discussion: Rect,
-    pub shortcuts: Rect,
-}
-
 pub struct AppHeader {
     pub nav: Rect,
     pub info: Rect,
     pub line: Rect,
+}
+
+pub struct IssuePreview {
+    pub header: Rect,
+    pub list: Rect,
+    pub details: Rect,
+    pub discussion: Rect,
+    pub shortcuts: Rect,
 }
 
 pub fn v_stack(
@@ -170,13 +171,18 @@ pub fn centered_label(label_w: u16, area: Rect) -> Rect {
 }
 
 pub fn issue_preview(area: Rect, shortcuts_h: u16) -> IssuePreview {
-    let content_h = area.height.saturating_sub(shortcuts_h);
+    let header_h = 3u16;
+    let content_h = area
+        .height
+        .saturating_sub(header_h)
+        .saturating_sub(shortcuts_h);
 
     let root = Layout::default()
         .direction(Direction::Vertical)
         .horizontal_margin(1)
         .constraints(
             [
+                Constraint::Length(header_h),
                 Constraint::Length(content_h),
                 Constraint::Length(shortcuts_h),
             ]
@@ -187,7 +193,7 @@ pub fn issue_preview(area: Rect, shortcuts_h: u16) -> IssuePreview {
     let split = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-        .split(root[0]);
+        .split(root[1]);
 
     let right = Layout::default()
         .direction(Direction::Vertical)
@@ -195,9 +201,10 @@ pub fn issue_preview(area: Rect, shortcuts_h: u16) -> IssuePreview {
         .split(split[1]);
 
     IssuePreview {
-        left: split[0],
+        header: root[0],
+        list: split[0],
         details: right[0],
         discussion: right[1],
-        shortcuts: root[1],
+        shortcuts: root[2],
     }
 }

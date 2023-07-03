@@ -169,6 +169,7 @@ impl ViewPage for IssuePage {
         theme: &Theme,
     ) -> Result<()> {
         let (id, issue) = &self.issue;
+        let header = widget::common::app_header(context, theme, None).to_boxed();
         let list = widget::issue::list(context, theme, (*id, issue.clone())).to_boxed();
         let details = widget::issue::details(context, theme, (*id, issue.clone())).to_boxed();
         let shortcuts = widget::common::shortcuts(
@@ -180,6 +181,7 @@ impl ViewPage for IssuePage {
         )
         .to_boxed();
 
+        app.remount(Cid::Issue(IssueCid::Header), header, vec![])?;
         app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
         app.remount(Cid::Issue(IssueCid::Details), details, vec![])?;
         app.remount(Cid::Issue(IssueCid::Shortcuts), shortcuts, vec![])?;
@@ -190,6 +192,7 @@ impl ViewPage for IssuePage {
     }
 
     fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.umount(&Cid::Issue(IssueCid::Header))?;
         app.umount(&Cid::Issue(IssueCid::List))?;
         app.umount(&Cid::Issue(IssueCid::Details))?;
         app.umount(&Cid::Issue(IssueCid::Shortcuts))?;
@@ -220,7 +223,8 @@ impl ViewPage for IssuePage {
         let shortcuts_h = 1u16;
         let layout = layout::issue_preview(area, shortcuts_h);
 
-        app.view(&Cid::Issue(IssueCid::List), frame, layout.left);
+        app.view(&Cid::Issue(IssueCid::Header), frame, layout.header);
+        app.view(&Cid::Issue(IssueCid::List), frame, layout.list);
         app.view(&Cid::Issue(IssueCid::Details), frame, layout.details);
         app.view(&Cid::Issue(IssueCid::Shortcuts), frame, layout.shortcuts);
     }
