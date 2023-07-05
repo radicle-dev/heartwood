@@ -4,7 +4,7 @@ use radicle::crypto::{test::signer::MockSigner, Signer};
 use radicle::git;
 use radicle::node::{Alias, FetchResult, Handle as _, DEFAULT_TIMEOUT};
 use radicle::storage::{
-    ReadRepository, ReadStorage, RemoteRepository, ValidateRepository, WriteRepository,
+    ReadRepository, ReadStorage, RefUpdate, RemoteRepository, ValidateRepository, WriteRepository,
     WriteStorage,
 };
 use radicle::test::fixtures;
@@ -205,10 +205,8 @@ fn test_replication() {
     );
 }
 
-// TODO: ignoring as this is being fixed in incoming fetch changes
 #[test]
-#[ignore]
-fn test_replication_no_delegates() {
+fn test_replication_ref_in_sigrefs() {
     logger::init(log::Level::Debug);
 
     let tmp = tempfile::tempdir().unwrap();
@@ -234,11 +232,19 @@ fn test_replication_no_delegates() {
     alice.handle.track_repo(acme, Scope::All).unwrap();
     let result = alice.handle.fetch(acme, bob.id, DEFAULT_TIMEOUT).unwrap();
 
-    assert_matches!(
-        result,
-        FetchResult::Failed {
-            reason
-        } if reason == "no delegates in transfer"
+    assert_matches!(result, FetchResult::Success { .. });
+
+    // alice still sees bob's master branch since it was in his
+    // sigrefs.
+    assert!(
+        alice
+            .storage
+            .repository(acme)
+            .unwrap()
+            .reference(&bob.id, &git::qualified!("refs/heads/master"))
+            .is_ok(),
+        "refs/namespaces/{}/refs/heads/master does not exist",
+        bob.id
     );
 }
 
@@ -584,9 +590,9 @@ fn test_fetch_up_to_date() {
 
     // Fetch again! This time, everything's up to date.
     let result = alice.handle.fetch(acme, bob.id, DEFAULT_TIMEOUT).unwrap();
-    assert_eq!(
+    assert_matches!(
         result.success(),
-        Some((vec![], HashSet::from_iter([bob.id])))
+        Some((updates, _fetched)) if updates.iter().all(|update| matches!(update, RefUpdate::Skipped { .. }))
     );
 }
 
@@ -774,6 +780,9 @@ fn test_connection_crossing() {
     assert!(s1 ^ s2, "Exactly one session should be established");
 }
 
+// TODO(finto): I witnessed a flaky error, but can't replicate.
+// We log some values until it's clearer where this flake is coming
+// from.
 #[test]
 /// Alice is going to try to fetch outdated refs of Bob, from Eve. This is a non-fastfoward fetch
 /// on the sigrefs branch.
@@ -806,6 +815,17 @@ fn test_non_fastforward_sigrefs() {
     // Alice fetches it too.
     alice.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap();
 
+    // Log the before Oid value of bob's 'rad/sigrefs', for debugging purposes.
+    {
+        let before = alice
+            .storage
+            .repository(rid)
+            .unwrap()
+            .reference_oid(&bob.id, &radicle::storage::refs::SIGREFS_BRANCH)
+            .unwrap();
+        log::debug!(target: "test", "bob's old 'rad/sigrefs': {}", before);
+    }
+
     // Now Eve disconnects from Bob so she doesn't fetch his update.
     eve.handle
         .command(service::Command::Disconnect(bob.id))
@@ -820,11 +840,22 @@ fn test_non_fastforward_sigrefs() {
     // Alice fetches from Bob.
     alice.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap();
 
+    // Log the after Oid value of bob's 'rad/sigrefs', for debugging purposes.
+    {
+        let after = alice
+            .storage
+            .repository(rid)
+            .unwrap()
+            .reference_oid(&bob.id, &radicle::storage::refs::SIGREFS_BRANCH)
+            .unwrap();
+        log::debug!(target: "test", "bob's old 'rad/sigrefs': {}", after);
+    }
+
     // Now Alice has the latest, and when she tries to fetch from Eve, it breaks because
     // Eve has old refs.
     assert_matches!(
         alice.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap(),
-        FetchResult::Success { .. }
+        FetchResult::Failed { .. }
     );
 }
 
@@ -867,6 +898,7 @@ fn test_outdated_sigrefs() {
     let repo = alice.storage.repository(rid).unwrap();
     assert!(repo.remote(&eve.id).is_ok());
 
+    log::debug!(target: "test", "Bob fetches from Eve..");
     assert_matches!(
         bob.handle.fetch(rid, eve.id, DEFAULT_TIMEOUT).unwrap(),
         FetchResult::Success { .. }

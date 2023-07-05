@@ -827,8 +827,8 @@ where
                 Io::Fetch {
                     rid,
                     remote,
-                    namespaces,
                     timeout,
+                    ..
                 } => {
                     log::trace!(target: "wire", "Processing fetch for {rid} from {remote}..");
 
@@ -849,7 +849,6 @@ where
                     let task = Task {
                         fetch: FetchRequest::Initiator {
                             rid,
-                            namespaces,
                             remote,
                             timeout,
                         },

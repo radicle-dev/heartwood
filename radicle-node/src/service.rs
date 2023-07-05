@@ -22,7 +22,6 @@ use nonempty::NonEmpty;
 use radicle::node::address;
 use radicle::node::address::{AddressBook, KnownAddress};
 use radicle::node::config::PeerConfig;
-pub use radicle::node::tracking::config as tracking;
 use radicle::node::ConnectOptions;
 use radicle::storage::RepositoryError;
 
@@ -39,7 +38,8 @@ use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::tracking::{store::Write, Scope};
 use crate::storage;
 use crate::storage::{Namespaces, ReadStorage};
-use crate::storage::{ReadRepository, RefUpdate, RemoteRepository as _};
+use crate::storage::{ReadRepository, RemoteRepository as _};
+use crate::worker::fetch;
 use crate::worker::FetchError;
 use crate::Link;
 
@@ -47,6 +47,8 @@ pub use crate::node::events::{Event, Events};
 pub use crate::node::{config::Network, Config, NodeId};
 pub use crate::service::message::{Message, ZeroBytes};
 pub use crate::service::session::Session;
+
+pub use radicle::node::tracking::config as tracking;
 
 use self::gossip::Gossip;
 use self::io::Outbox;
@@ -647,10 +649,13 @@ where
         &mut self,
         rid: Id,
         remote: NodeId,
-        result: Result<(Vec<RefUpdate>, HashSet<NodeId>), FetchError>,
+        result: Result<fetch::FetchResult, FetchError>,
     ) {
         let result = match result {
-            Ok((updated, namespaces)) => {
+            Ok(fetch::FetchResult {
+                updated,
+                namespaces,
+            }) => {
                 debug!(target: "service", "Fetched {rid} from {remote} successfully");
 
                 for update in &updated {

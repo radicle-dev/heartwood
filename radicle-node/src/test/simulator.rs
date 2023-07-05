@@ -18,10 +18,10 @@ use crate::crypto::Signer;
 use crate::prelude::{Address, Id};
 use crate::service::io::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
+use crate::storage::Namespaces;
 use crate::storage::WriteStorage;
-use crate::storage::{Namespaces, RefUpdate};
 use crate::test::peer::Service;
-use crate::worker::FetchError;
+use crate::worker::{fetch, FetchError};
 use crate::Link;
 
 /// Minimum latency between peers.
@@ -66,11 +66,7 @@ pub enum Input {
     /// Received a message from a remote peer.
     Received(NodeId, Vec<Message>),
     /// Fetch completed for a node.
-    Fetched(
-        Id,
-        NodeId,
-        Rc<Result<(Vec<RefUpdate>, HashSet<NodeId>), FetchError>>,
-    ),
+    Fetched(Id, NodeId, Rc<Result<fetch::FetchResult, FetchError>>),
     /// Used to advance the state machine after some wall time has passed.
     Wake,
 }
@@ -422,11 +418,11 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             Err(e) => panic!("Failed to open repository: {e}"),
                         };
                         match &result {
-                            Ok((_, remotes)) => {
+                            Ok(fetch::FetchResult { namespaces, .. }) => {
                                 radicle::test::fetch(
                                     &repo,
                                     &nid,
-                                    Namespaces::Trusted(remotes.clone()),
+                                    Namespaces::Trusted(namespaces.clone()),
                                 )
                                 .unwrap();
                             }
@@ -656,13 +652,13 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                             input: Input::Fetched(
                                 rid,
                                 remote,
-                                Rc::new(Ok((
-                                    vec![],
-                                    match namespaces {
+                                Rc::new(Ok(fetch::FetchResult {
+                                    updated: vec![],
+                                    namespaces: match namespaces {
                                         Namespaces::Trusted(hs) => hs,
                                         Namespaces::All => HashSet::new(),
                                     },
-                                ))),
+                                })),
                             ),
                         },
                     );

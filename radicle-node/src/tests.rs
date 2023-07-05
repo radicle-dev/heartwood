@@ -40,6 +40,7 @@ use crate::test::simulator::{Peer as _, Simulation};
 use crate::test::storage::MockStorage;
 use crate::wire::Decode;
 use crate::wire::Encode;
+use crate::worker::fetch;
 use crate::LocalTime;
 use crate::{git, identity, rad, runtime, service, test};
 
@@ -1186,14 +1187,14 @@ fn test_queued_fetch() {
     alice.elapse(KEEP_ALIVE_DELTA);
 
     // Finish the 1st fetch.
-    alice.fetched(rid1, bob.id, Ok((vec![], Default::default())));
+    alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::default()));
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid2);
     // ... but not the third.
     assert_matches!(alice.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    alice.fetched(rid2, bob.id, Ok((vec![], Default::default())));
+    alice.fetched(rid2, bob.id, Ok(fetch::FetchResult::default()));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid3);
 }

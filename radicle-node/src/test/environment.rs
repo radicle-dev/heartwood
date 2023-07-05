@@ -334,6 +334,7 @@ impl Node<MockSigner> {
         let tracking = home.tracking_mut().unwrap();
         let routing = home.routing_mut().unwrap();
 
+        log::debug!(target: "test", "Node::init {}: {}", config.alias, signer.public_key());
         Self {
             id: *signer.public_key(),
             home,

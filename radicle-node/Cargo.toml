@@ -26,6 +26,7 @@ log = { version = "0.4.17", features = ["std"] }
 localtime = { version = "1.2.0" }
 netservices = { version = "0.3.0", features = ["io-reactor", "socket2"] }
 nonempty = { version = "0.8.1", features = ["serialize"] }
+once_cell = { version = "1.13" }
 qcheck = { version = "1", default-features = false, optional = true }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
@@ -41,6 +42,10 @@ thiserror = { version = "1" }
 [dependencies.radicle]
 path = "../radicle"
 version = "0.2.0"
+
+[dependencies.radicle-fetch]
+path = "../radicle-fetch"
+version = "0.1.0"
 
 [dev-dependencies]
 radicle = { path = "../radicle", version = "*", features = ["test"] }

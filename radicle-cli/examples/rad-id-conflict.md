@@ -20,7 +20,7 @@ $ rad id update --title "Edit project name" --description "" --payload "xyz.radi
 ```
 ``` ~bob
 $ rad id update --title "Edit project name" --description "" --payload "xyz.radicle.project" "name" '"wood"' -q
-fae22d07f7d386b89f14ac353b079c9eef71f948
+2e7f195fde751b73aabe4730bd1047c87893a787
 ```
 
 When Alice syncs with Bob, she notices the problem: there are two active
@@ -34,8 +34,8 @@ $ rad id list
 ╭─────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title               Author                     Status     Created │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│ ●   fae22d0   Edit project name   bob      z6Mkt67…v4N1tRk   active     now     │
 │ ●   6c07e4e   Edit project name   alice    (you)             active     now     │
+│ ●   2e7f195   Edit project name   bob      z6Mkt67…v4N1tRk   active     now     │
 │ ●   bd41a1c   Add Bob             alice    (you)             accepted   now     │
 │ ●   2317f74   Initial revision    alice    (you)             accepted   now     │
 ╰─────────────────────────────────────────────────────────────────────────────────╯
@@ -45,13 +45,13 @@ This isn't a problem as long as we don't try to accept both. So let's accept
 Bob's:
 
 ``` ~alice
-$ rad id accept fae22d0 -q
+$ rad id accept 2e7f195 -q
 $ rad id list
 ╭─────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title               Author                     Status     Created │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│ ●   fae22d0   Edit project name   bob      z6Mkt67…v4N1tRk   accepted   now     │
 │ ●   6c07e4e   Edit project name   alice    (you)             stale      now     │
+│ ●   2e7f195   Edit project name   bob      z6Mkt67…v4N1tRk   accepted   now     │
 │ ●   bd41a1c   Add Bob             alice    (you)             accepted   now     │
 │ ●   2317f74   Initial revision    alice    (you)             accepted   now     │
 ╰─────────────────────────────────────────────────────────────────────────────────╯
