@@ -8,6 +8,7 @@ use anyhow::{anyhow, Context as _};
 use radicle::cob::common::{Reaction, Tag};
 use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, Issues, State};
+use radicle::cob::thread;
 use radicle::crypto::Signer;
 use radicle::node::{AliasStore, Handle};
 use radicle::prelude::Did;
@@ -36,7 +37,7 @@ Usage
     rad issue edit <issue-id> [<option>...]
     rad issue list [--assigned <did>] [--closed | --open | --solved] [<option>...]
     rad issue open [--title <title>] [--description <text>] [--tag <tag>] [<option>...]
-    rad issue react <issue-id> [--emoji <char>] [<option>...]
+    rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
     rad issue show <issue-id> [<option>...]
     rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
 
@@ -100,6 +101,7 @@ pub enum Operation {
     React {
         id: Rev,
         reaction: Reaction,
+        comment_id: Option<thread::CommentId>,
     },
     List {
         assigned: Option<Assigned>,
@@ -124,6 +126,7 @@ impl Args for Options {
         let mut assigned: Option<Assigned> = None;
         let mut title: Option<String> = None;
         let mut reaction: Option<Reaction> = None;
+        let mut comment_id: Option<thread::CommentId> = None;
         let mut description: Option<String> = None;
         let mut state: Option<State> = None;
         let mut tags = Vec::new();
@@ -176,6 +179,10 @@ impl Args for Options {
                         reaction =
                             Some(Reaction::from_str(emoji).map_err(|_| anyhow!("invalid emoji"))?);
                     }
+                }
+                Long("to") if op == Some(OperationName::React) => {
+                    let oid: String = parser.value()?.to_string_lossy().into();
+                    comment_id = Some(oid.parse()?);
                 }
                 Long("description") if op == Some(OperationName::Open) => {
                     description = Some(parser.value()?.to_string_lossy().into());
@@ -236,6 +243,7 @@ impl Args for Options {
             OperationName::React => Operation::React {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
                 reaction: reaction.ok_or_else(|| anyhow!("a reaction emoji must be provided"))?,
+                comment_id,
             },
             OperationName::Delete => Operation::Delete {
                 id: id.ok_or_else(|| anyhow!("an issue to remove must be provided"))?,
@@ -301,11 +309,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let mut issue = issues.get_mut(&id)?;
             issue.lifecycle(state, &signer)?;
         }
-        Operation::React { id, reaction } => {
+        Operation::React {
+            id,
+            reaction,
+            comment_id,
+        } => {
             let id = id.resolve(&repo.backend)?;
             if let Ok(mut issue) = issues.get_mut(&id) {
-                let (comment_id, _) = term::io::comment_select(&issue).unwrap();
-                issue.react(*comment_id, reaction, &signer)?;
+                let comment_id = comment_id.unwrap_or_else(|| {
+                    let (comment_id, _) = term::io::comment_select(&issue).unwrap();
+                    *comment_id
+                });
+                issue.react(comment_id, reaction, &signer)?;
             }
         }
         Operation::Open {
