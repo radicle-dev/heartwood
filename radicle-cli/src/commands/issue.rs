@@ -35,7 +35,7 @@ Usage
     rad issue [<option>...]
     rad issue delete <issue-id> [<option>...]
     rad issue edit <issue-id> [<option>...]
-    rad issue list [--assigned <did>] [--closed | --open | --solved] [<option>...]
+    rad issue list [--assigned <did>] [--all | --closed | --open | --solved] [<option>...]
     rad issue open [--title <title>] [--description <text>] [--tag <tag>] [<option>...]
     rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
     rad issue show <issue-id> [<option>...]
@@ -128,7 +128,7 @@ impl Args for Options {
         let mut reaction: Option<Reaction> = None;
         let mut comment_id: Option<thread::CommentId> = None;
         let mut description: Option<String> = None;
-        let mut state: Option<State> = None;
+        let mut state: Option<State> = Some(State::Open);
         let mut tags = Vec::new();
         let mut announce = true;
         let mut quiet = false;
@@ -137,6 +137,9 @@ impl Args for Options {
             match arg {
                 Long("help") => {
                     return Err(Error::Help.into());
+                }
+                Long("all") if op.is_none() || op == Some(OperationName::List) => {
+                    state = None;
                 }
                 Long("closed") if op.is_none() || op == Some(OperationName::List) => {
                     state = Some(State::Closed {
