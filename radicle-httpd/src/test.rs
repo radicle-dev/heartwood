@@ -203,7 +203,13 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
         )
         .unwrap();
 
-    Context::new(Arc::new(profile))
+    let options = crate::Options {
+        aliases: std::collections::HashMap::new(),
+        listen: std::net::SocketAddr::from(([0, 0, 0, 0], 8080)),
+        cache: Some(crate::DEFAULT_CACHE_SIZE),
+    };
+
+    Context::new(Arc::new(profile), &options)
 }
 
 /// Adds an authorized session to the Context::sessions HashMap.

@@ -25,6 +25,9 @@ mod error;
 mod json;
 mod v1;
 
+use crate::cache::Cache;
+use crate::Options;
+
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Identifier for sessions
@@ -34,13 +37,15 @@ type SessionId = String;
 pub struct Context {
     profile: Arc<Profile>,
     sessions: Arc<RwLock<HashMap<SessionId, auth::Session>>>,
+    cache: Option<Cache>,
 }
 
 impl Context {
-    pub fn new(profile: Arc<Profile>) -> Self {
+    pub fn new(profile: Arc<Profile>, options: &Options) -> Self {
         Self {
             profile,
             sessions: Default::default(),
+            cache: options.cache.map(Cache::new),
         }
     }
 

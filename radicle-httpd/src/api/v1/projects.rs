@@ -309,11 +309,23 @@ async fn tree_handler(
     State(ctx): State<Context>,
     Path((project, sha, path)): Path<(Id, Oid, String)>,
 ) -> impl IntoResponse {
+    if let Some(ref cache) = ctx.cache {
+        let cache = &mut cache.tree.lock().await;
+        if let Some(response) = cache.get(&(project, sha, path.clone())) {
+            return Ok::<_, Error>(Json(response.clone()));
+        }
+    }
+
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
     let tree = repo.tree(sha, &path)?;
     let stats = repo.stats_from(&sha)?;
     let response = api::json::tree(&tree, &path, &stats);
+
+    if let Some(cache) = ctx.cache {
+        let cache = &mut cache.tree.lock().await;
+        cache.put((project, sha, path.clone()), response.clone());
+    }
 
     Ok::<_, Error>(Json(response))
 }

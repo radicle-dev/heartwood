@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::{collections::HashMap, process};
 
 use radicle::prelude::Id;
@@ -51,6 +52,7 @@ fn parse_options() -> Result<httpd::Options, lexopt::Error> {
     let mut parser = lexopt::Parser::from_env();
     let mut listen = None;
     let mut aliases = HashMap::new();
+    let mut cache = Some(httpd::DEFAULT_CACHE_SIZE);
 
     while let Some(arg) = parser.next()? {
         match arg {
@@ -64,8 +66,12 @@ fn parse_options() -> Result<httpd::Options, lexopt::Error> {
 
                 aliases.insert(alias, id);
             }
+            Long("cache") => {
+                let size = parser.value()?.parse()?;
+                cache = NonZeroUsize::new(size);
+            }
             Long("help") | Short('h') => {
-                println!("usage: radicle-httpd [--listen <addr>] [--alias <name> <rid>]..");
+                println!("usage: radicle-httpd [--listen <addr>] [--alias <name> <rid>] [--cache <size>]..");
                 process::exit(0);
             }
             _ => return Err(arg.unexpected()),
@@ -74,5 +80,6 @@ fn parse_options() -> Result<httpd::Options, lexopt::Error> {
     Ok(httpd::Options {
         aliases,
         listen: listen.unwrap_or_else(|| ([0, 0, 0, 0], 8080).into()),
+        cache,
     })
 }

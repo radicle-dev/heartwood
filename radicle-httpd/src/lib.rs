@@ -4,6 +4,7 @@ pub mod error;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::num::NonZeroUsize;
 use std::process::Command;
 use std::str;
 use std::sync::Arc;
@@ -24,16 +25,21 @@ use tracing_extra::{tracing_middleware, ColoredStatus, Paint, RequestId, Tracing
 
 mod api;
 mod axum_extra;
+mod cache;
 mod git;
 mod raw;
 #[cfg(test)]
 mod test;
 mod tracing_extra;
 
+/// Default cache HTTP size.
+pub const DEFAULT_CACHE_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(100) };
+
 #[derive(Debug, Clone)]
 pub struct Options {
     pub aliases: HashMap<String, Id>,
     pub listen: SocketAddr,
+    pub cache: Option<NonZeroUsize>,
 }
 
 /// Run the Server.
@@ -101,7 +107,7 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
 /// Create a router consisting of other sub-routers.
 fn router(options: Options, profile: Profile) -> anyhow::Result<Router> {
     let profile = Arc::new(profile);
-    let ctx = api::Context::new(profile.clone());
+    let ctx = api::Context::new(profile.clone(), &options);
 
     let api_router = api::router(ctx);
     let git_router = git::router(profile.clone(), options.aliases);
@@ -132,6 +138,7 @@ mod routes {
             super::Options {
                 aliases: HashMap::new(),
                 listen: SocketAddr::from(([0, 0, 0, 0], 8080)),
+                cache: None,
             },
             test::profile(tmp.path(), [0xff; 32]),
         )
