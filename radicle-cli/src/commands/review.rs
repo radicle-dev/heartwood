@@ -4,11 +4,10 @@ mod builder;
 mod diff;
 
 use std::ffi::OsString;
-use std::str::FromStr;
 
 use anyhow::{anyhow, Context};
 
-use radicle::cob::patch::{Patches, RevisionIx, Verdict};
+use radicle::cob::patch::{PatchId, Patches, RevisionId, Verdict};
 use radicle::prelude::*;
 use radicle::{git, rad};
 
@@ -41,7 +40,7 @@ Options
         --reject              Reject a patch or set of hunks
     -U, --unified <n>         Generate diffs with <n> lines of context instead of the usual three
     -d, --delete              Delete a review draft
-    -r, --revision <number>   Revision number to review, defaults to the latest
+    -r, --revision            Review a patch revision
         --[no-]sync           Sync review to seed (default: sync)
     -m, --message [<string>]  Provide a comment with the review (default: prompt)
         --help                Print help
@@ -83,7 +82,7 @@ impl Default for Operation {
 #[derive(Debug)]
 pub struct Options {
     pub id: Rev,
-    pub revision: Option<RevisionIx>,
+    pub revision: bool,
     pub message: Message,
     pub sync: bool,
     pub verbose: bool,
@@ -96,7 +95,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut id: Option<Rev> = None;
-        let mut revision: Option<RevisionIx> = None;
+        let mut revision = false;
         let mut message = Message::default();
         let mut sync = true;
         let mut verbose = false;
@@ -108,12 +107,7 @@ impl Args for Options {
                     return Err(Error::Help.into());
                 }
                 Long("revision") | Short('r') => {
-                    let value = parser.value()?;
-                    let id =
-                        RevisionIx::from_str(value.to_str().unwrap_or_default()).map_err(|_| {
-                            anyhow!("invalid revision number `{}`", value.to_string_lossy())
-                        })?;
-                    revision = Some(id);
+                    revision = true;
                 }
                 Long("sync") => {
                     // Skipping due the `no-sync` flag precedence.
@@ -216,17 +210,29 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         .context(format!("couldn't load project {id} from local state"))?;
     let mut patches = Patches::open(&repository)?;
 
-    let patch_id = options.id.resolve(&repository.backend)?;
+    let (patch_id, revision) = if options.revision {
+        let id = options.id.resolve::<RevisionId>(&repository.backend)?;
+        let (patch_id, _, rev) = patches
+            .find_by_revision(&id)?
+            .ok_or_else(|| anyhow!("revision {} does not exist", id))?;
+        (patch_id, Some((id, rev)))
+    } else {
+        let id = options.id.resolve::<PatchId>(&repository.backend)?;
+        (id, None)
+    };
+
     let mut patch = patches
         .get_mut(&patch_id)
         .context(format!("couldn't find patch {patch_id} locally"))?;
-    let patch_id_pretty = term::format::tertiary(term::format::cob(&patch_id));
-    let revision_ix = options.revision.unwrap_or_else(|| patch.version());
-    let (revision_id, revision) = patch
-        .revisions()
-        .nth(revision_ix)
-        .ok_or_else(|| anyhow!("revision R{} does not exist", revision_ix))?;
 
+    let (revision_id, revision) = if let Some(v) = revision {
+        v
+    } else {
+        let (id, r) = patch.latest();
+        (*id, r.clone())
+    };
+
+    let patch_id_pretty = term::format::tertiary(term::format::cob(&patch_id));
     match options.op {
         Operation::Review {
             verdict,
@@ -242,7 +248,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             builder::ReviewBuilder::new(patch_id, *profile.id(), &repository)
                 .hunk(hunk)
                 .verdict(verdict)
-                .run(revision, &mut opts)?;
+                .run(&revision, &mut opts)?;
         }
         Operation::Review { verdict, .. } => {
             let message = options.message.get(REVIEW_HELP_MSG)?;
@@ -252,7 +258,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             } else {
                 Some(message)
             };
-            patch.review(*revision_id, verdict, message, &signer)?;
+            patch.review(revision_id, verdict, message, &signer)?;
 
             match verdict {
                 Some(Verdict::Accept) => {
