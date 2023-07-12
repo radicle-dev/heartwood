@@ -79,7 +79,7 @@ impl Args for Options {
                 Long("verbose") | Short('v') => {
                     verbose = true;
                 }
-                Long("seed") if matches!(mode, SyncMode::Fetch) => {
+                Long("seed") => {
                     let val = parser.value()?;
                     let val = term::args::nid(&val)?;
                     seed = Some(val);
@@ -106,6 +106,10 @@ impl Args for Options {
                     return Err(anyhow!(arg.unexpected()));
                 }
             }
+        }
+
+        if seed.is_some() && mode != SyncMode::Fetch {
+            anyhow::bail!("`--seed` must be used with `--fetch`");
         }
 
         Ok((
