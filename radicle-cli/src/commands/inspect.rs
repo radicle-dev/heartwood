@@ -1,7 +1,7 @@
 #![allow(clippy::or_fun_call)]
+use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
@@ -11,6 +11,7 @@ use json_color::{Color, Colorizer};
 use radicle::crypto::{Unverified, Verified};
 use radicle::identity::Untrusted;
 use radicle::identity::{Doc, Id};
+use radicle::storage::git::Storage;
 use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::terminal as term;
@@ -34,7 +35,7 @@ Options
 
     --id        Return the repository identifier (RID)
     --payload   Inspect the repository's identity payload
-    --refs      Inspect the repository's refs on the local device (requires `tree`)
+    --refs      Inspect the repository's refs on the local device
     --history   Show the history of the repository identity document
     --help      Print help
 "#,
@@ -127,15 +128,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.target {
         Target::Refs => {
-            let path = storage.path_of(&id).join("refs").join("namespaces");
-
-            Command::new("tree")
-                .current_dir(path)
-                .args(["--noreport", "--prune"])
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
-                .spawn()?
-                .wait()?;
+            refs(storage, id)?;
         }
         Target::Payload => {
             println!(
@@ -215,4 +208,117 @@ fn colorizer() -> Colorizer {
         .string(Color::Green)
         .key(Color::Blue)
         .build()
+}
+
+fn refs(storage: &Storage, id: Id) -> anyhow::Result<()> {
+    let repo = storage.repository(id)?;
+    let mut refs = Vec::new();
+    for r in repo.references()? {
+        let r = r?;
+        if let Some(namespace) = r.namespace {
+            refs.push(format!("{}/{}", namespace, r.name));
+        }
+    }
+
+    print!("{}", tree(refs));
+
+    Ok(())
+}
+
+/// Show the list of given git references as a newline terminated tree `String` similar to the tree command.
+fn tree(mut refs: Vec<String>) -> String {
+    refs.sort();
+
+    // List of references with additional unique entries for each 'directory'.
+    //
+    // i.e. "refs/heads/master" becomes ["refs"], ["refs", "heads"], and ["refs", "heads",
+    // "master"].
+    let mut refs_expanded: Vec<Vec<String>> = Vec::new();
+    // Number of entries per Git 'directory'.
+    let mut ref_entries: HashMap<Vec<String>, usize> = HashMap::new();
+    let mut last: Vec<String> = Vec::new();
+
+    for r in refs {
+        let r: Vec<String> = r.split('/').map(|s| s.to_string()).collect();
+
+        for (i, v) in r.iter().enumerate() {
+            let last_v = last.get(i);
+            if Some(v) != last_v {
+                last = r.clone().iter().take(i + 1).map(String::from).collect();
+
+                refs_expanded.push(last.clone());
+
+                let mut dir = last.clone();
+                dir.pop();
+                if dir.is_empty() {
+                    continue;
+                }
+
+                if let Some(num) = ref_entries.get_mut(&dir) {
+                    *num += 1;
+                } else {
+                    ref_entries.insert(dir, 1);
+                }
+            }
+        }
+    }
+    let mut tree = String::default();
+
+    for mut ref_components in refs_expanded {
+        // Better to explode when things do not go as expected.
+        let name = ref_components.pop().expect("non-empty vector");
+        if ref_components.is_empty() {
+            tree.push_str(&format!("{name}\n"));
+            continue;
+        }
+
+        for i in 1..ref_components.len() {
+            let parent: Vec<String> = ref_components.iter().take(i).cloned().collect();
+
+            let num = ref_entries.get(&parent).unwrap_or(&0);
+            if *num == 0 {
+                tree.push_str("    ");
+            } else {
+                tree.push_str("│   ");
+            }
+        }
+
+        if let Some(num) = ref_entries.get_mut(&ref_components) {
+            if *num == 1 {
+                tree.push_str(&format!("└── {name}\n"));
+            } else {
+                tree.push_str(&format!("├── {name}\n"));
+            }
+            *num -= 1;
+        }
+    }
+
+    tree
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_tree() {
+        let arg = vec![
+            String::from("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/refs/heads/master"),
+            String::from("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/refs/rad/id"),
+            String::from("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/refs/rad/sigrefs"),
+        ];
+        let exp = r#"
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
+"#
+        .trim_start();
+
+        assert_eq!(tree(arg), exp);
+        assert_eq!(tree(vec![String::new()]), "\n");
+    }
 }

@@ -30,21 +30,20 @@ And some remote refs:
 
 ```
 $ rad inspect --refs
-.
-`-- z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-    `-- refs
-        |-- cobs
-        |   `-- xyz.radicle.patch
-        |       |-- 0ec956c94256fa101db4c32956ce195a1aa0edf2
-        |       `-- 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0
-        |-- heads
-        |   |-- master
-        |   `-- patches
-        |       |-- 0ec956c94256fa101db4c32956ce195a1aa0edf2
-        |       `-- 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0
-        `-- rad
-            |-- id
-            `-- sigrefs
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+└── refs
+    ├── cobs
+    │   └── xyz.radicle.patch
+    │       ├── 0ec956c94256fa101db4c32956ce195a1aa0edf2
+    │       └── 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0
+    ├── heads
+    │   ├── master
+    │   └── patches
+    │       ├── 0ec956c94256fa101db4c32956ce195a1aa0edf2
+    │       └── 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0
+    └── rad
+        ├── id
+        └── sigrefs
 ```
 
 Then let's merge the changes into `master`.
@@ -86,16 +85,15 @@ And so were the remote branches:
 
 ```
 $ rad inspect --refs
-.
-`-- z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-    `-- refs
-        |-- cobs
-        |   `-- xyz.radicle.patch
-        |       |-- 0ec956c94256fa101db4c32956ce195a1aa0edf2
-        |       `-- 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0
-        |-- heads
-        |   `-- master
-        `-- rad
-            |-- id
-            `-- sigrefs
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+└── refs
+    ├── cobs
+    │   └── xyz.radicle.patch
+    │       ├── 0ec956c94256fa101db4c32956ce195a1aa0edf2
+    │       └── 928d76e22ef98a8406f2e4e4bcc8878533bbdfe0
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
 ```

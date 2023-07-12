@@ -31,28 +31,27 @@ Let's check that we have all the namespaces in storage:
 
 ```
 $ rad inspect --refs
-.
-|-- z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-|   `-- refs
-|       |-- heads
-|       |   `-- master
-|       `-- rad
-|           |-- id
-|           `-- sigrefs
-|-- z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-|   `-- refs
-|       |-- heads
-|       |   `-- master
-|       `-- rad
-|           |-- id
-|           `-- sigrefs
-`-- z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
-    `-- refs
-        |-- heads
-        |   `-- master
-        `-- rad
-            |-- id
-            `-- sigrefs
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
+z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
+z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
 ```
 
 We can then setup a git remote for `bob`:

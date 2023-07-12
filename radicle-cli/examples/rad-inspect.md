@@ -17,14 +17,13 @@ It's also possible to display all of the repository's git references:
 
 ```
 $ rad inspect --refs
-.
-`-- z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-    `-- refs
-        |-- heads
-        |   `-- master
-        `-- rad
-            |-- id
-            `-- sigrefs
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
 ```
 
 Or display the repository identity's payload:

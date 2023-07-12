@@ -5,14 +5,13 @@ NID. This is demonstrated below where our NID is
 
 ```
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --refs
-.
-`-- z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-    `-- refs
-        |-- heads
-        |   `-- master
-        `-- rad
-            |-- id
-            `-- sigrefs
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
 ```
 
 To remedy this, we can use the `rad fork` command for the project we
@@ -28,21 +27,20 @@ have a copy of the main set of refs:
 
 ```
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --refs
-.
-|-- z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-|   `-- refs
-|       |-- heads
-|       |   `-- master
-|       `-- rad
-|           |-- id
-|           `-- sigrefs
-`-- z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-    `-- refs
-        |-- heads
-        |   `-- master
-        `-- rad
-            |-- id
-            `-- sigrefs
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
+z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+└── refs
+    ├── heads
+    │   └── master
+    └── rad
+        ├── id
+        └── sigrefs
 ```
 
 We are now able to setup a remote in our own working copy of the
