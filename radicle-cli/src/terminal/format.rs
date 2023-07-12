@@ -118,7 +118,7 @@ impl<'a> Identity<'a> {
 impl<'a> fmt::Display for Identity<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let nid = self.profile.id();
-        let alias = self.profile.aliases().ok().and_then(|a| a.alias(nid));
+        let alias = self.profile.aliases().alias(nid);
         let node_id = match self.short {
             true => self::node(nid),
             false => nid.to_human(),

@@ -15,7 +15,7 @@ pub fn run(
     profile: &Profile,
     repo: &git::Repository,
 ) -> anyhow::Result<()> {
-    let aliases = profile.aliases()?;
+    let aliases = profile.aliases();
     let setup = SetupRemote {
         rid,
         tracking,

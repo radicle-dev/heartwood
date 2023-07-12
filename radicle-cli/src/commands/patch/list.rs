@@ -65,7 +65,7 @@ pub fn run(
         is_me.then(by_rev_time).then(by_id)
     });
 
-    let aliases = profile.aliases()?;
+    let aliases = profile.aliases();
 
     let mut errors = Vec::new();
     for (id, patch) in &mut all {
@@ -132,7 +132,7 @@ pub fn timeline(
     patch: &Patch,
     repository: &Repository,
 ) -> anyhow::Result<Vec<term::Line>> {
-    let aliases = profile.aliases()?;
+    let aliases = profile.aliases();
     let alias = aliases.alias(patch.author().id());
     let open = term::Line::spaced([
         term::format::positive("●").into(),

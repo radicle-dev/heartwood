@@ -1,5 +1,4 @@
 #![allow(clippy::box_default)]
-use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -140,11 +139,8 @@ pub fn setup_remotes(
     remotes: &[NodeId],
     profile: &Profile,
 ) -> anyhow::Result<()> {
-    let aliases = if let Ok(aliases) = profile.aliases() {
-        Box::new(aliases) as Box<dyn AliasStore>
-    } else {
-        Box::new(HashMap::new()) as Box<dyn AliasStore>
-    };
+    let aliases = profile.aliases();
+
     for remote_id in remotes {
         if let Err(e) = setup_remote(&setup, remote_id, None, &aliases) {
             term::warning(format!("Failed to setup remote for {remote_id}: {e}").as_str());

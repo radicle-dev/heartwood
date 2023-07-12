@@ -232,14 +232,14 @@ impl Profile {
     }
 
     /// Return a multi-source store for aliases.
-    pub fn aliases(&self) -> Result<Aliases, Error> {
-        let tracking = self.tracking()?;
-        let addresses = self.addresses()?;
+    pub fn aliases(&self) -> Aliases {
+        let tracking = self.tracking().ok();
+        let addresses = self.addresses().ok();
 
-        Ok(Aliases {
+        Aliases {
             tracking,
             addresses,
-        })
+        }
     }
 
     /// Return the path to the keys folder.
@@ -261,8 +261,8 @@ impl Profile {
 /// Holds multiple alias stores, and will try
 /// them one by one when asking for an alias.
 pub struct Aliases {
-    tracking: tracking::store::Config,
-    addresses: address::Book,
+    tracking: Option<tracking::store::Config>,
+    addresses: Option<address::Book>,
 }
 
 impl AliasStore for Aliases {
@@ -270,8 +270,9 @@ impl AliasStore for Aliases {
     /// First looks in `tracking.db` and then `addresses.db`.
     fn alias(&self, nid: &NodeId) -> Option<Alias> {
         self.tracking
-            .alias(nid)
-            .or_else(|| self.addresses.alias(nid))
+            .as_ref()
+            .and_then(|db| db.alias(nid))
+            .or_else(|| self.addresses.as_ref().and_then(|db| db.alias(nid)))
     }
 }
 

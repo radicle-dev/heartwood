@@ -416,7 +416,7 @@ fn list(
     ]);
     table.divider();
 
-    let aliases = profile.aliases()?;
+    let aliases = profile.aliases();
 
     for (id, issue) in all {
         let assigned: String = issue

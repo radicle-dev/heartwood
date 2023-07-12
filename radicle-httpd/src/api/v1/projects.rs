@@ -324,7 +324,7 @@ async fn remotes_handler(State(ctx): State<Context>, Path(project): Path<Id>) ->
     let storage = &ctx.profile.storage;
     let repo = storage.repository(project)?;
     let delegates = repo.delegates()?;
-    let aliases = &ctx.profile.aliases()?;
+    let aliases = &ctx.profile.aliases();
     let remotes = repo
         .remotes()?
         .filter_map(|r| r.map(|r| r.1).ok())
@@ -454,7 +454,7 @@ async fn issues_handler(
         .collect::<Vec<_>>();
 
     issues.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
-    let aliases = &ctx.profile.aliases()?;
+    let aliases = &ctx.profile.aliases();
     let issues = issues
         .into_iter()
         .map(|(id, issue, _)| api::json::issue(id, issue, aliases))
@@ -568,7 +568,7 @@ async fn issue_handler(
     let issue = issue::Issues::open(&repo)?
         .get(&issue_id.into())?
         .ok_or(Error::NotFound)?;
-    let aliases = ctx.profile.aliases()?;
+    let aliases = ctx.profile.aliases();
 
     Ok::<_, Error>(Json(api::json::issue(issue_id.into(), issue, &aliases)))
 }
@@ -732,7 +732,7 @@ async fn patches_handler(
         })
         .collect::<Vec<_>>();
     patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
-    let aliases = ctx.profile.aliases()?;
+    let aliases = ctx.profile.aliases();
     let patches = patches
         .into_iter()
         .map(|(id, patch, _)| api::json::patch(id, patch, &repo, &aliases))
@@ -754,7 +754,7 @@ async fn patch_handler(
     let patch = patch::Patches::open(&repo)?
         .get(&patch_id.into())?
         .ok_or(Error::NotFound)?;
-    let aliases = ctx.profile.aliases()?;
+    let aliases = ctx.profile.aliases();
 
     Ok::<_, Error>(Json(api::json::patch(
         patch_id.into(),
