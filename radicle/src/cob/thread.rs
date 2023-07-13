@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
-use radicle_crdt as crdt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -10,9 +10,6 @@ use crate::cob;
 use crate::cob::common::{Reaction, Timestamp};
 use crate::cob::{ActorId, EntryId, Op};
 use crate::prelude::ReadRepository;
-
-use crdt::clock::Lamport;
-use crdt::{GMap, GSet, LWWSet, Max, Redactable, Semilattice};
 
 /// Type name of a thread, as well as the domain for all thread operations.
 /// Note that threads are not usually used standalone. They are embeded into other COBs.
@@ -60,9 +57,9 @@ pub struct Comment {
     /// Comment author.
     author: ActorId,
     /// The comment body.
-    edits: GMap<Lamport, Max<Edit>>,
+    edits: Vec<Edit>,
     /// Reactions to this comment.
-    reactions: LWWSet<(ActorId, Reaction)>,
+    reactions: BTreeSet<(ActorId, Reaction)>,
     /// Comment this is a reply to.
     /// Should always be set, except for the root comment.
     reply_to: Option<CommentId>,
@@ -80,8 +77,8 @@ impl Comment {
 
         Self {
             author,
-            reactions: LWWSet::default(),
-            edits: GMap::singleton(Lamport::initial(), Max::from(edit)),
+            reactions: BTreeSet::default(),
+            edits: vec![edit],
             reply_to,
         }
     }
@@ -91,7 +88,7 @@ impl Comment {
         // SAFETY: There is always at least one edit. This is guaranteed by the [`Comment`]
         // constructor.
         #[allow(clippy::unwrap_used)]
-        self.edits.values().last().unwrap().get().body.as_str()
+        self.edits.last().unwrap().body.as_str()
     }
 
     /// Get the comment timestamp, which is the time of the *original* edit. To get the timestamp
@@ -100,12 +97,7 @@ impl Comment {
         // SAFETY: There is always at least one edit. This is guaranteed by the [`Comment`]
         // constructor.
         #[allow(clippy::unwrap_used)]
-        self.edits
-            .first_key_value()
-            .map(|(_, v)| v)
-            .unwrap()
-            .get()
-            .timestamp
+        self.edits.first().unwrap().timestamp
     }
 
     /// Return the comment author.
@@ -120,12 +112,12 @@ impl Comment {
 
     /// Return the ordered list of edits for this comment, including the original version.
     pub fn edits(&self) -> impl Iterator<Item = &Edit> {
-        self.edits.values().map(Max::get)
+        self.edits.iter()
     }
 
     /// Add an edit.
-    pub fn edit(&mut self, clock: Lamport, body: String, timestamp: Timestamp) {
-        self.edits.insert(clock, Edit { body, timestamp }.into())
+    pub fn edit(&mut self, body: String, timestamp: Timestamp) {
+        self.edits.push(Edit { body, timestamp });
     }
 
     /// Comment reactions.
@@ -182,23 +174,16 @@ impl From<Action> for nonempty::NonEmpty<Action> {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Thread {
     /// The comments under the thread.
-    comments: GMap<CommentId, Redactable<Comment>>,
+    comments: BTreeMap<CommentId, Option<Comment>>,
     /// Comment timeline.
-    timeline: GSet<(Lamport, CommentId)>,
-}
-
-impl Semilattice for Thread {
-    fn merge(&mut self, other: Self) {
-        self.comments.merge(other.comments);
-        self.timeline.merge(other.timeline);
-    }
+    timeline: Vec<CommentId>,
 }
 
 impl Thread {
     pub fn new(id: CommentId, comment: Comment) -> Self {
         Self {
-            comments: GMap::singleton(id, Redactable::Present(comment)),
-            timeline: GSet::default(),
+            comments: BTreeMap::from_iter([(id, Some(comment))]),
+            timeline: Vec::default(),
         }
     }
 
@@ -215,11 +200,7 @@ impl Thread {
     }
 
     pub fn comment(&self, id: &CommentId) -> Option<&Comment> {
-        if let Some(Redactable::Present(comment)) = self.comments.get(id) {
-            Some(comment)
-        } else {
-            None
-        }
+        self.comments.get(id).and_then(|o| o.as_ref())
     }
 
     pub fn root(&self) -> (&CommentId, &Comment) {
@@ -249,10 +230,10 @@ impl Thread {
     }
 
     pub fn comments(&self) -> impl DoubleEndedIterator<Item = (&CommentId, &Comment)> + '_ {
-        self.timeline.iter().filter_map(|(_, id)| {
+        self.timeline.iter().filter_map(|id| {
             self.comments
                 .get(id)
-                .and_then(Redactable::get)
+                .and_then(|o| o.as_ref())
                 .map(|comment| (id, comment))
         })
     }
@@ -273,51 +254,46 @@ impl cob::store::FromHistory for Thread {
         Ok(())
     }
 
-    fn apply<R: ReadRepository>(
-        &mut self,
-        ops: impl IntoIterator<Item = Op<Action>>,
-        _repo: &R,
-    ) -> Result<(), Error> {
-        for op in ops.into_iter() {
-            let id = op.id;
-            let author = op.author;
-            let timestamp = op.timestamp;
+    fn apply<R: ReadRepository>(&mut self, op: Op<Action>, _repo: &R) -> Result<(), Error> {
+        let id = op.id;
+        let author = op.author;
+        let timestamp = op.timestamp;
 
-            self.timeline.insert((op.clock, op.id));
+        debug_assert!(!self.timeline.contains(&op.id));
 
-            match op.action {
+        self.timeline.push(op.id);
+
+        for action in op.into_iter() {
+            match action {
                 Action::Comment { body, reply_to } => {
                     if body.is_empty() {
-                        return Err(Error::Comment(op.id));
+                        return Err(Error::Comment(id));
                     }
                     // Nb. If a comment is already present, it must be redacted, because the
                     // underlying store guarantees exactly-once delivery of ops.
-                    self.comments.insert(
-                        id,
-                        Redactable::Present(Comment::new(author, body, reply_to, timestamp)),
-                    );
+                    self.comments
+                        .insert(id, Some(Comment::new(author, body, reply_to, timestamp)));
                 }
                 Action::Edit { id, body } => {
                     if body.is_empty() {
-                        return Err(Error::Edit(op.id));
+                        return Err(Error::Edit(id));
                     }
                     // It's possible for a comment to be redacted before we're able to edit it, in
                     // case of a concurrent update.
                     //
                     // However, it's *not* possible for the comment to be absent. Therefore we treat
                     // that as an error.
-                    if let Some(redactable) = self.comments.get_mut(&id) {
-                        if let Redactable::Present(comment) = redactable {
-                            comment.edit(op.clock, body, timestamp);
+                    if let Some(comment) = self.comments.get_mut(&id) {
+                        if let Some(comment) = comment {
+                            comment.edit(body, timestamp);
                         }
                     } else {
                         return Err(Error::Missing(id));
                     }
                 }
                 Action::Redact { id } => {
-                    // Redactions must have observed a comment to be valid.
                     if let Some(comment) = self.comments.get_mut(&id) {
-                        comment.merge(Redactable::Redacted);
+                        *comment = None;
                     } else {
                         return Err(Error::Missing(id));
                     }
@@ -327,13 +303,13 @@ impl cob::store::FromHistory for Thread {
                     reaction,
                     active,
                 } => {
-                    let key = (op.author, reaction);
-                    if let Some(redactable) = self.comments.get_mut(&to) {
-                        if let Redactable::Present(comment) = redactable {
+                    let key = (author, reaction);
+                    if let Some(comment) = self.comments.get_mut(&to) {
+                        if let Some(comment) = comment {
                             if active {
-                                comment.reactions.insert(key, op.clock);
+                                comment.reactions.insert(key);
                             } else {
-                                comment.reactions.remove(key, op.clock);
+                                comment.reactions.remove(&key);
                             }
                         }
                     } else {
@@ -348,14 +324,10 @@ impl cob::store::FromHistory for Thread {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
     use std::ops::{Deref, DerefMut};
-    use std::{array, iter};
 
     use pretty_assertions::assert_eq;
-    use qcheck::{Arbitrary, TestResult};
-
-    use crdt::test::{assert_laws, WeightedGenerator};
+    use qcheck_macros::quickcheck;
 
     use super::*;
     use crate as radicle;
@@ -407,15 +379,6 @@ mod tests {
                 body: body.to_owned(),
             })
         }
-
-        /// React to a comment.
-        pub fn react(&mut self, to: CommentId, reaction: Reaction, active: bool) -> Op<Action> {
-            self.op(Action::React {
-                to,
-                reaction,
-                active,
-            })
-        }
     }
 
     impl<G> Deref for Actor<G> {
@@ -432,111 +395,22 @@ mod tests {
         }
     }
 
-    #[derive(Clone)]
-    struct Changes<const N: usize> {
-        permutations: [Vec<Op<Action>>; N],
-    }
-
-    impl<const N: usize> std::fmt::Debug for Changes<N> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            for (i, p) in self.permutations.iter().enumerate() {
-                writeln!(
-                    f,
-                    "{i}: {:#?}",
-                    p.iter().map(|c| &c.action).collect::<Vec<_>>()
-                )?;
-            }
-            Ok(())
-        }
-    }
-
-    impl<const N: usize> Arbitrary for Changes<N> {
-        fn arbitrary(g: &mut qcheck::Gen) -> Self {
-            let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
-            let gen = WeightedGenerator::<
-                (Lamport, Op<Action>),
-                (Actor<MockSigner>, Lamport, BTreeSet<EntryId>),
-            >::new(rng.clone())
-            .variant(3, |(actor, clock, comments), rng| {
-                let comment = actor.comment(
-                    iter::repeat_with(|| rng.alphabetic())
-                        .take(4)
-                        .collect::<String>()
-                        .as_str(),
-                    None,
-                );
-                comments.insert(comment.id);
-
-                Some((clock.tick(), comment))
-            })
-            .variant(2, |(actor, clock, comments), rng| {
-                if comments.is_empty() {
-                    return None;
-                }
-                let id = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
-                let edit = actor.edit(
-                    id,
-                    iter::repeat_with(|| rng.alphabetic())
-                        .take(4)
-                        .collect::<String>()
-                        .as_str(),
-                );
-                Some((clock.tick(), edit))
-            })
-            .variant(2, |(actor, clock, comments), rng| {
-                if comments.is_empty() {
-                    return None;
-                }
-                let to = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
-                let react = actor.react(to, Reaction::new('✨').unwrap(), rng.bool());
-
-                Some((clock.tick(), react))
-            })
-            .variant(2, |(actor, clock, comments), rng| {
-                if comments.is_empty() {
-                    return None;
-                }
-                let id = *comments.iter().nth(rng.usize(..comments.len())).unwrap();
-                comments.remove(&id);
-                let redact = actor.redact(id);
-
-                Some((clock.tick(), redact))
-            });
-
-            let mut ops = vec![Actor::<MockSigner>::default().comment("Root", None)];
-            let mut permutations: [Vec<Op<Action>>; N] = array::from_fn(|_| Vec::new());
-
-            for (_, op) in gen.take(g.size()) {
-                ops.push(op);
-            }
-
-            for p in &mut permutations {
-                *p = ops.clone();
-                rng.shuffle(&mut ops);
-            }
-
-            Changes { permutations }
-        }
-    }
-
     #[test]
     fn test_redact_comment() {
-        let tmp = tempfile::tempdir().unwrap();
-        let radicle::test::setup::Context { signer, .. } = radicle::test::setup::Context::new(&tmp);
+        let radicle::test::setup::Node { signer, .. } = radicle::test::setup::Node::default();
         let repo = gen::<MockRepository>(1);
         let mut alice = Actor::new(signer);
-        let mut thread = Thread::default();
 
         let a0 = alice.comment("First comment", None);
         let a1 = alice.comment("Second comment", Some(a0.id()));
         let a2 = alice.comment("Third comment", Some(a0.id()));
 
-        thread.apply([a0, a1.clone(), a2], &repo).unwrap();
+        let mut thread = Thread::from_ops([a0, a1.clone(), a2], &repo).unwrap();
         assert_eq!(thread.comments().count(), 3);
 
         // Redact the second comment.
         let a3 = alice.redact(a1.id());
-        thread.apply([a3], &repo).unwrap();
+        thread.apply(a3, &repo).unwrap();
 
         let (_, comment0) = thread.comments().nth(0).unwrap();
         let (_, comment1) = thread.comments().nth(1).unwrap();
@@ -555,9 +429,7 @@ mod tests {
         let c1 = alice.edit(c0.id(), "Goodbye world.");
         let c2 = alice.edit(c0.id(), "Goodbye world!");
 
-        let mut t1 = Thread::default();
-        t1.apply([c0.clone(), c1.clone(), c2.clone()], &repo)
-            .unwrap();
+        let t1 = Thread::from_ops([c0.clone(), c1, c2], &repo).unwrap();
 
         let comment = t1.comment(&c0.id());
         let edits = comment.unwrap().edits().collect::<Vec<_>>();
@@ -566,11 +438,6 @@ mod tests {
         assert_eq!(edits[1].body.as_str(), "Goodbye world.");
         assert_eq!(edits[2].body.as_str(), "Goodbye world!");
         assert_eq!(t1.comment(&c0.id()).unwrap().body(), "Goodbye world!");
-
-        let mut t2 = Thread::default();
-        t2.apply([c0, c2, c1], &repo).unwrap(); // Apply in different order.
-
-        assert_eq!(t1, t2);
     }
 
     #[test]
@@ -579,12 +446,14 @@ mod tests {
         let bob = MockSigner::default();
         let eve = MockSigner::default();
         let repo = gen::<MockRepository>(1);
+        let time = Timestamp::now();
 
         let mut a = test::history::<Thread, _>(
             &Action::Comment {
                 body: "Thread root".to_owned(),
                 reply_to: None,
             },
+            time,
             &alice,
         );
         a.comment("Alice comment", Some(a.root()), &alice);
@@ -613,9 +482,9 @@ mod tests {
         assert_eq!(a, b);
         assert_eq!(b, e);
 
-        let (t1, _) = Thread::from_history(&a, &repo).unwrap();
-        let (t2, _) = Thread::from_history(&b, &repo).unwrap();
-        let (t3, _) = Thread::from_history(&e, &repo).unwrap();
+        let t1 = Thread::from_history(&a, &repo).unwrap();
+        let t2 = Thread::from_history(&b, &repo).unwrap();
+        let t3 = Thread::from_history(&e, &repo).unwrap();
 
         assert_eq!(t1, t2);
         assert_eq!(t2, t3);
@@ -637,11 +506,6 @@ mod tests {
                 vec!["Thread root", "Alice comment", "Eve comment", "Bob comment"]
             }
         );
-
-        for ops in a.permutations(2) {
-            let t = Thread::from_ops(ops, &repo).unwrap();
-            assert_eq!(t, t1);
-        }
     }
 
     #[test]
@@ -649,12 +513,14 @@ mod tests {
         let repo = gen::<MockRepository>(1);
         let alice = MockSigner::default();
         let bob = MockSigner::default();
+        let time = Timestamp::now();
 
         let mut a = test::history::<Thread, _>(
             &Action::Comment {
                 body: "Thread root".to_owned(),
                 reply_to: None,
             },
+            time,
             &alice,
         );
         let mut b = a.clone();
@@ -664,7 +530,7 @@ mod tests {
 
         a.merge(b);
 
-        let (thread, _) = Thread::from_history(&a, &repo).unwrap();
+        let thread = Thread::from_history(&a, &repo).unwrap();
 
         assert_eq!(thread.comments().count(), 3);
 
@@ -675,6 +541,65 @@ mod tests {
         assert_eq!(first.edits, second.edits); // despite the content being the same.
     }
 
+    #[quickcheck]
+    fn prop_ordering(timestamp: u64) {
+        let repo = gen::<MockRepository>(1);
+        let alice = MockSigner::default();
+        let bob = MockSigner::default();
+        let timestamp = Timestamp::from_secs(timestamp);
+
+        let h0 = test::history::<Thread, _>(
+            &Action::Comment {
+                body: "Thread root".to_owned(),
+                reply_to: None,
+            },
+            timestamp,
+            &alice,
+        );
+        let mut h1 = h0.clone();
+        let mut h2 = h0.clone();
+
+        let e1 = h1.commit(
+            &Action::Edit {
+                id: h0.root(),
+                body: String::from("Bye World."),
+            },
+            &alice,
+        );
+        let e2 = h2.commit(
+            &Action::Edit {
+                id: h0.root(),
+                body: String::from("Hi World."),
+            },
+            &bob,
+        );
+
+        h1.merge(h2);
+
+        let thread = Thread::from_history(&h1, &repo).unwrap();
+        let (_, comment) = thread.comments().next().unwrap();
+
+        // E1 and E2 are concurrent, so the final edit will depend on which is the greater hash.
+        if e2 > e1 {
+            assert_eq!(comment.body(), "Hi World.");
+        } else {
+            assert_eq!(comment.body(), "Bye World.");
+        }
+
+        let _e3 = h1.commit(
+            &Action::Edit {
+                id: h0.root(),
+                body: String::from("Hoho World!"),
+            },
+            &alice,
+        );
+        let thread = Thread::from_history(&h1, &repo).unwrap();
+        let (_, comment) = thread.comments().next().unwrap();
+
+        // E3 is causally dependent on E1 and E2, so it always wins.
+        assert_eq!(comment.body(), "Hoho World!");
+    }
+
     #[test]
     fn test_comment_redact_missing() {
         let repo = gen::<MockRepository>(1);
@@ -682,7 +607,7 @@ mod tests {
         let mut t = Thread::default();
         let id = arbitrary::entry_id();
 
-        t.apply([alice.redact(id)], &repo).unwrap_err();
+        t.apply(alice.redact(id), &repo).unwrap_err();
     }
 
     #[test]
@@ -692,54 +617,19 @@ mod tests {
         let mut t = Thread::default();
         let id = arbitrary::entry_id();
 
-        t.apply([alice.edit(id, "Edited")], &repo).unwrap_err();
+        t.apply(alice.edit(id, "Edited"), &repo).unwrap_err();
     }
 
     #[test]
     fn test_comment_edit_redacted() {
         let repo = gen::<MockRepository>(1);
         let mut alice = Actor::<MockSigner>::default();
-        let mut t = Thread::default();
 
         let a1 = alice.comment("Hi", None);
         let a2 = alice.redact(a1.id);
         let a3 = alice.edit(a1.id, "Edited");
 
-        t.apply([a1, a2, a3], &repo).unwrap();
+        let t = Thread::from_ops([a1, a2, a3], &repo).unwrap();
         assert_eq!(t.comments().count(), 0);
-    }
-
-    #[test]
-    fn prop_invariants() {
-        fn property(repo: MockRepository, log: Changes<3>) -> TestResult {
-            let t = Thread::default();
-            let [p1, p2, p3] = log.permutations;
-
-            let mut t1 = t.clone();
-            if t1.apply(p1, &repo).is_err() {
-                return TestResult::discard();
-            }
-
-            let mut t2 = t.clone();
-            if t2.apply(p2, &repo).is_err() {
-                return TestResult::discard();
-            }
-
-            let mut t3 = t;
-            if t3.apply(p3, &repo).is_err() {
-                return TestResult::discard();
-            }
-
-            assert_eq!(t1, t2);
-            assert_eq!(t2, t3);
-            assert_laws(&t1, &t2, &t3);
-
-            TestResult::passed()
-        }
-        qcheck::QuickCheck::new()
-            .min_tests_passed(100)
-            .max_tests(10000)
-            .gen(qcheck::Gen::new(7))
-            .quickcheck(property as fn(MockRepository, Changes<3>) -> TestResult);
     }
 }

@@ -138,7 +138,7 @@ pub(crate) fn patch(
                 "discussions": rev.discussion().comments()
                   .map(|(id, comment)| Comment::new(id, comment,  aliases))
                   .collect::<Vec<_>>(),
-                "timestamp": rev.timestamp(),
+                "timestamp": rev.timestamp().as_secs().to_string(),
                 "reviews": rev.reviews().map(|(nid, _review)| review(nid, aliases.alias(nid), _review)).collect::<Vec<_>>(),
             })
         }).collect::<Vec<_>>(),
@@ -165,7 +165,7 @@ fn merge(merge: &Merge, nid: &NodeId, alias: Option<Alias>) -> Value {
                 "alias": alias,
             },
             "commit": merge.commit,
-            "timestamp": merge.timestamp,
+            "timestamp": merge.timestamp.as_secs().to_string(),
             "revision": merge.revision,
         }),
         None => json!({
@@ -173,7 +173,7 @@ fn merge(merge: &Merge, nid: &NodeId, alias: Option<Alias>) -> Value {
                 "id": nid,
             },
             "commit": merge.commit,
-            "timestamp": merge.timestamp,
+            "timestamp": merge.timestamp.as_secs().to_string(),
             "revision": merge.revision,
         }),
     }
@@ -190,7 +190,7 @@ fn review(nid: &NodeId, alias: Option<Alias>, review: &Review) -> Value {
             "verdict": review.verdict(),
             "summary": review.summary(),
             "comments": review.comments().collect::<Vec<_>>(),
-            "timestamp": review.timestamp(),
+            "timestamp": review.timestamp().as_secs().to_string(),
         }),
         None => json!({
             "author": {
@@ -199,7 +199,7 @@ fn review(nid: &NodeId, alias: Option<Alias>, review: &Review) -> Value {
             "verdict": review.verdict(),
             "summary": review.summary(),
             "comments": review.comments().collect::<Vec<_>>(),
-            "timestamp": review.timestamp(),
+            "timestamp": review.timestamp().as_secs().to_string(),
         }),
     }
 }
@@ -240,6 +240,7 @@ struct Comment<'a> {
     author: Value,
     body: &'a str,
     reactions: Vec<(&'a ActorId, &'a Reaction)>,
+    #[serde(with = "radicle::serde_ext::localtime::time")]
     timestamp: Timestamp,
     reply_to: Option<CommentId>,
 }

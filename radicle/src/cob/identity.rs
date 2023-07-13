@@ -1,9 +1,9 @@
+use std::collections::BTreeMap;
 use std::{ops::Deref, str::FromStr};
 
 use crypto::{PublicKey, Signature};
 use once_cell::sync::Lazy;
 use radicle_cob::{ObjectId, TypeName};
-use radicle_crdt::{clock, GMap, GSet, LWWMap, LWWReg, Max, Redactable, Semilattice};
 use radicle_crypto::{Signer, Verified};
 use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
@@ -12,8 +12,8 @@ use thiserror::Error;
 use crate::{
     cob::{
         self,
-        common::Timestamp,
         store::{self, FromHistory as _, HistoryAction, Transaction},
+        Timestamp,
     },
     identity::{doc::DocError, Did, Identity, IdentityError},
     prelude::{Doc, ReadRepository},
@@ -24,9 +24,6 @@ use super::{
     thread::{self, Thread},
     Author, EntryId,
 };
-
-/// The logical clock we use to order operations to proposals.
-pub use clock::Lamport as Clock;
 
 /// Type name of an identity proposal.
 pub static TYPENAME: Lazy<TypeName> =
@@ -141,18 +138,18 @@ pub enum Error {
 /// Once a proposal has reached the quourum threshold for the previous
 /// [`Identity`] then it may be committed to the person's local
 /// storage using [`Proposal::commit`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Proposal {
     /// Title of the proposal.
-    title: LWWReg<Max<String>>,
+    title: String,
     /// Description of the proposal.
-    description: LWWReg<Max<String>>,
+    description: String,
     /// Current state of the proposal.
-    state: LWWReg<Max<State>>,
+    state: State,
     /// List of revisions for this proposal.
-    revisions: GMap<RevisionId, Redactable<Revision>>,
+    revisions: BTreeMap<RevisionId, Option<Revision>>,
     /// Timeline of events.
-    timeline: GSet<(clock::Lamport, EntryId)>,
+    timeline: Vec<EntryId>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -162,25 +159,6 @@ pub enum State {
     Open,
     Closed,
     Committed,
-}
-
-impl Semilattice for Proposal {
-    fn merge(&mut self, other: Self) {
-        self.description.merge(other.description);
-        self.revisions.merge(other.revisions);
-    }
-}
-
-impl Default for Proposal {
-    fn default() -> Self {
-        Self {
-            title: LWWReg::initial(Max::from(String::default())),
-            description: LWWReg::initial(Max::from(String::default())),
-            state: LWWReg::initial(Max::from(State::default())),
-            revisions: GMap::default(),
-            timeline: GSet::default(),
-        }
-    }
 }
 
 impl Proposal {
@@ -213,7 +191,7 @@ impl Proposal {
         let revision = self
             .revision(rid)
             .ok_or_else(|| CommitError::Missing(*rid))?
-            .get()
+            .as_ref()
             .ok_or_else(|| CommitError::Redacted(*rid))?;
         let doc = &revision.proposed;
         let previous = Identity::load(signer.public_key(), repo)?;
@@ -264,29 +242,29 @@ impl Proposal {
 
     /// The most recent title for the proposal.
     pub fn title(&self) -> &str {
-        self.title.get().get()
+        &self.title
     }
 
     /// The most recent description for the proposal, if present.
     pub fn description(&self) -> Option<&str> {
-        Some(self.description.get().get())
+        Some(self.description.as_str())
     }
 
     pub fn state(&self) -> &State {
-        self.state.get().get()
+        &self.state
     }
 
     /// A specific [`Revision`], that may be redacted.
-    pub fn revision(&self, revision: &RevisionId) -> Option<&Redactable<Revision>> {
+    pub fn revision(&self, revision: &RevisionId) -> Option<&Option<Revision>> {
         self.revisions.get(revision)
     }
 
     /// All the [`Revision`]s that have not been redacted.
     pub fn revisions(&self) -> impl DoubleEndedIterator<Item = (&RevisionId, &Revision)> {
-        self.timeline.iter().filter_map(|(_, id)| {
+        self.timeline.iter().filter_map(|id| {
             self.revisions
                 .get(id)
-                .and_then(Redactable::get)
+                .and_then(|o| o.as_ref())
                 .map(|rev| (id, rev))
         })
     }
@@ -321,45 +299,41 @@ impl store::FromHistory for Proposal {
         Ok(())
     }
 
-    fn apply<R: ReadRepository>(
-        &mut self,
-        ops: impl IntoIterator<Item = Op>,
-        repo: &R,
-    ) -> Result<(), Self::Error> {
-        for op in ops {
-            let id = op.id;
-            let author = Author::new(op.author);
-            let timestamp = op.timestamp;
+    fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Self::Error> {
+        let id = op.id;
+        let author = Author::new(op.author);
+        let timestamp = op.timestamp;
 
-            self.timeline.insert((op.clock, id));
+        debug_assert!(!self.timeline.contains(&op.id));
 
-            match op.action {
+        self.timeline.push(id);
+
+        for action in op.actions {
+            match action {
                 Action::Accept {
                     revision,
                     signature,
                 } => match self.revisions.get_mut(&revision) {
-                    Some(Redactable::Present(revision)) => {
-                        revision.accept(op.author, signature, op.clock)
-                    }
-                    Some(Redactable::Redacted) => return Err(ApplyError::Redacted(revision)),
+                    Some(Some(revision)) => revision.accept(op.author, signature),
+                    Some(None) => return Err(ApplyError::Redacted(revision)),
                     None => return Err(ApplyError::Missing(revision)),
                 },
-                Action::Close => self.state.set(State::Closed, op.clock),
+                Action::Close => self.state = State::Closed,
                 Action::Edit { title, description } => {
-                    self.title.set(title, op.clock);
-                    self.description.set(description, op.clock);
+                    self.title = title;
+                    self.description = description;
                 }
-                Action::Commit => self.state.set(State::Committed, op.clock),
+                Action::Commit => self.state = State::Committed,
                 Action::Redact { revision } => {
                     if let Some(revision) = self.revisions.get_mut(&revision) {
-                        revision.merge(Redactable::Redacted);
+                        *revision = None;
                     } else {
                         return Err(ApplyError::Missing(revision));
                     }
                 }
                 Action::Reject { revision } => match self.revisions.get_mut(&revision) {
-                    Some(Redactable::Present(revision)) => revision.reject(op.author, op.clock),
-                    Some(Redactable::Redacted) => return Err(ApplyError::Redacted(revision)),
+                    Some(Some(revision)) => revision.reject(op.author),
+                    Some(None) => return Err(ApplyError::Redacted(revision)),
                     None => return Err(ApplyError::Missing(revision)),
                 },
                 Action::Revision { current, proposed } => {
@@ -371,23 +345,16 @@ impl store::FromHistory for Proposal {
                     }
                     self.revisions.insert(
                         id,
-                        Redactable::Present(Revision::new(author, current, proposed, timestamp)),
-                    )
+                        Some(Revision::new(author.clone(), current, proposed, timestamp)),
+                    );
                 }
 
                 Action::Thread { revision, action } => match self.revisions.get_mut(&revision) {
-                    Some(Redactable::Present(revision)) => revision.discussion.apply(
-                        [cob::Op::new(
-                            op.id,
-                            action,
-                            op.author,
-                            op.timestamp,
-                            op.clock,
-                            op.identity,
-                        )],
+                    Some(Some(revision)) => revision.discussion.apply(
+                        cob::Op::new(op.id, action, op.author, op.timestamp, op.identity),
                         repo,
                     )?,
-                    Some(Redactable::Redacted) => return Err(ApplyError::Redacted(revision)),
+                    Some(None) => return Err(ApplyError::Redacted(revision)),
                     None => return Err(ApplyError::Missing(revision)),
                 },
             }
@@ -418,7 +385,7 @@ pub struct Revision {
     /// Discussion thread for this revision.
     pub discussion: Thread,
     /// [`Verdict`]s given by the delegates.
-    pub verdicts: LWWMap<PublicKey, Redactable<Verdict>>,
+    pub verdicts: BTreeMap<PublicKey, Option<Verdict>>,
     /// Physical timestamp of this proposal revision.
     pub timestamp: Timestamp,
 }
@@ -435,7 +402,7 @@ impl Revision {
             current,
             proposed,
             discussion: Thread::default(),
-            verdicts: LWWMap::default(),
+            verdicts: BTreeMap::default(),
             timestamp,
         }
     }
@@ -450,7 +417,7 @@ impl Revision {
     pub fn verdicts(&self) -> impl Iterator<Item = (&PublicKey, &Verdict)> {
         self.verdicts
             .iter()
-            .filter_map(|(key, verdict)| verdict.get().map(|verdict| (key, verdict)))
+            .filter_map(|(key, verdict)| verdict.as_ref().map(|verdict| (key, verdict)))
     }
 
     pub fn accepted(&self) -> Vec<Did> {
@@ -475,7 +442,7 @@ impl Revision {
         let votes_for = self
             .verdicts
             .iter()
-            .fold(0, |count, (_, verdict)| match verdict.get() {
+            .fold(0, |count, (_, verdict)| match verdict {
                 Some(Verdict::Accept(_)) => count + 1,
                 Some(Verdict::Reject) => count,
                 None => count,
@@ -483,14 +450,12 @@ impl Revision {
         votes_for >= previous.doc.threshold
     }
 
-    fn accept(&mut self, key: PublicKey, signature: Signature, clock: Clock) {
-        self.verdicts
-            .insert(key, Redactable::Present(Verdict::Accept(signature)), clock);
+    fn accept(&mut self, key: PublicKey, signature: Signature) {
+        self.verdicts.insert(key, Some(Verdict::Accept(signature)));
     }
 
-    fn reject(&mut self, key: PublicKey, clock: Clock) {
-        self.verdicts
-            .insert(key, Redactable::Present(Verdict::Reject), clock)
+    fn reject(&mut self, key: PublicKey) {
+        self.verdicts.insert(key, Some(Verdict::Reject));
     }
 }
 
@@ -565,7 +530,6 @@ pub struct ProposalMut<'a, 'g, R> {
     pub id: ObjectId,
 
     proposal: Proposal,
-    clock: clock::Lamport,
     store: &'g mut Proposals<'a, R>,
 }
 
@@ -573,15 +537,9 @@ impl<'a, 'g, R> ProposalMut<'a, 'g, R>
 where
     R: WriteRepository + cob::Store,
 {
-    pub fn new(
-        id: ObjectId,
-        proposal: Proposal,
-        clock: clock::Lamport,
-        store: &'g mut Proposals<'a, R>,
-    ) -> Self {
+    pub fn new(id: ObjectId, proposal: Proposal, store: &'g mut Proposals<'a, R>) -> Self {
         Self {
             id,
-            clock,
             proposal,
             store,
         }
@@ -597,19 +555,13 @@ where
         G: Signer,
         F: FnOnce(&mut Transaction<Proposal>) -> Result<(), store::Error>,
     {
-        let mut tx = Transaction::new(*signer.public_key(), self.clock);
+        let mut tx = Transaction::new(*signer.public_key());
         operations(&mut tx)?;
-        let (ops, clock, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        let (ops, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
         self.proposal.apply(ops, self.store.as_ref())?;
-        self.clock = clock;
 
         Ok(commit)
-    }
-
-    /// Get the internal logical clock.
-    pub fn clock(&self) -> &clock::Lamport {
-        &self.clock
     }
 
     /// Accept a proposal revision.
@@ -715,22 +667,20 @@ where
         proposed: Doc<Verified>,
         signer: &G,
     ) -> Result<ProposalMut<'a, 'g, R>, Error> {
-        let (id, proposal, clock) =
+        let (id, proposal) =
             Transaction::initial("Create proposal", &mut self.raw, signer, |tx| {
                 tx.revision(current.into(), proposed)?;
                 tx.edit(title, description)?;
 
                 Ok(())
             })?;
-        // Just a sanity check that our clock is advancing as expected.
-        debug_assert_eq!(clock.get(), 1);
 
-        Ok(ProposalMut::new(id, proposal, clock, self))
+        Ok(ProposalMut::new(id, proposal, self))
     }
 
     /// Get a proposal.
     pub fn get(&self, id: &ObjectId) -> Result<Option<Proposal>, store::Error> {
-        self.raw.get(id).map(|r| r.map(|(p, _)| p))
+        self.raw.get(id)
     }
 
     /// Get a proposal mutably.
@@ -738,14 +688,13 @@ where
         &'g mut self,
         id: &ObjectId,
     ) -> Result<ProposalMut<'a, 'g, R>, store::Error> {
-        let (proposal, clock) = self
+        let proposal = self
             .raw
             .get(id)?
             .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *id))?;
 
         Ok(ProposalMut {
             id: *id,
-            clock,
             proposal,
             store: self,
         })

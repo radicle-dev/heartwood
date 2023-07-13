@@ -381,7 +381,7 @@ fn list<R: WriteRepository + cob::Store>(
 
     let mut all = Vec::new();
     for result in issues.all()? {
-        let Ok((id, issue, _)) = result else {
+        let Ok((id, issue)) = result else {
             // Skip issues that failed to load.
             continue;
         };

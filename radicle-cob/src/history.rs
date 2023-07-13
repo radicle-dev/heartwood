@@ -7,7 +7,7 @@ use radicle_crypto::PublicKey;
 use radicle_dag::Dag;
 
 pub mod entry;
-pub use entry::{Clock, Contents, Entry, EntryId, Timestamp};
+pub use entry::{Contents, Entry, EntryId, Timestamp};
 
 /// The DAG of changes making up the history of a collaborative object.
 #[derive(Clone, Debug)]
@@ -51,23 +51,12 @@ impl History {
             resource,
             contents,
             timestamp,
-            clock: 1,
         };
 
         Self {
             root: id,
             graph: Dag::root(id, root),
         }
-    }
-
-    /// Get the current value of the logical clock.
-    /// This is the maximum value of all tips.
-    pub fn clock(&self) -> Clock {
-        self.graph
-            .tips()
-            .map(|(_, node)| node.clock)
-            .max()
-            .unwrap_or_default()
     }
 
     /// Get the current history timestamp.
@@ -127,14 +116,8 @@ impl History {
     {
         let tips = self.tips();
         let new_id = new_id.into();
-        let new_entry = Entry::new(
-            new_id,
-            new_actor,
-            new_resource,
-            new_contents,
-            new_timestamp,
-            self.clock() + 1,
-        );
+        let new_entry = Entry::new(new_id, new_actor, new_resource, new_contents, new_timestamp);
+
         self.graph.node(new_id, new_entry);
 
         for tip in tips {

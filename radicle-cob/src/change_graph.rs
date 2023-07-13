@@ -91,19 +91,17 @@ impl ChangeGraph {
         let manifest = root_node.manifest.clone();
         let graph = self
             .graph
-            .fold(&root, Dag::new(), |mut graph, _, change, depth| {
+            .fold(&root, Dag::new(), |mut graph, _, change, _| {
                 // Check the change signatures are valid.
                 if !change.valid_signatures() {
                     return ControlFlow::Break(graph);
                 }
-                let clock = depth as u64 + 1;
                 let entry = Entry::new(
                     *change.id(),
                     change.signature.key,
                     change.resource,
                     change.contents().clone(),
                     change.timestamp,
-                    clock,
                 );
                 let id = *entry.id();
 

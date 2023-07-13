@@ -1,12 +1,10 @@
+use std::collections::BTreeSet;
 use std::ops::Deref;
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use radicle_crdt::clock;
-use radicle_crdt::{LWWReg, LWWSet, Max, Semilattice};
 
 use crate::cob;
 use crate::cob::common::{Author, Reaction, Tag, Timestamp};
@@ -92,40 +90,18 @@ impl State {
 }
 
 /// Issue state. Accumulates [`Action`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Issue {
     /// Actors assigned to this issue.
-    assignees: LWWSet<ActorId>,
+    assignees: BTreeSet<ActorId>,
     /// Title of the issue.
-    title: LWWReg<Max<String>>,
+    title: String,
     /// Current state of the issue.
-    state: LWWReg<Max<State>>,
+    state: State,
     /// Associated tags.
-    tags: LWWSet<Tag>,
+    tags: BTreeSet<Tag>,
     /// Discussion around this issue.
     thread: Thread,
-}
-
-impl Semilattice for Issue {
-    fn merge(&mut self, other: Self) {
-        self.assignees.merge(other.assignees);
-        self.title.merge(other.title);
-        self.state.merge(other.state);
-        self.tags.merge(other.tags);
-        self.thread.merge(other.thread);
-    }
-}
-
-impl Default for Issue {
-    fn default() -> Self {
-        Self {
-            assignees: LWWSet::default(),
-            title: LWWReg::initial(Max::from(String::default())),
-            state: LWWReg::initial(Max::from(State::default())),
-            tags: LWWSet::default(),
-            thread: Thread::default(),
-        }
-    }
 }
 
 impl store::FromHistory for Issue {
@@ -137,7 +113,7 @@ impl store::FromHistory for Issue {
     }
 
     fn validate(&self) -> Result<(), Self::Error> {
-        if self.title.get().is_empty() {
+        if self.title.is_empty() {
             return Err(Error::Validate("title is empty"));
         }
         if self.thread.validate().is_err() {
@@ -146,45 +122,34 @@ impl store::FromHistory for Issue {
         Ok(())
     }
 
-    fn apply<R: ReadRepository>(
-        &mut self,
-        ops: impl IntoIterator<Item = Op>,
-        repo: &R,
-    ) -> Result<(), Error> {
-        for op in ops {
-            match op.action {
+    fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
+        for action in op.actions {
+            match action {
                 Action::Assign { add, remove } => {
                     for assignee in add {
-                        self.assignees.insert(assignee, op.clock);
+                        self.assignees.insert(assignee);
                     }
                     for assignee in remove {
-                        self.assignees.remove(assignee, op.clock);
+                        self.assignees.remove(&assignee);
                     }
                 }
                 Action::Edit { title } => {
-                    self.title.set(title, op.clock);
+                    self.title = title;
                 }
                 Action::Lifecycle { state } => {
-                    self.state.set(state, op.clock);
+                    self.state = state;
                 }
                 Action::Tag { add, remove } => {
                     for tag in add {
-                        self.tags.insert(tag, op.clock);
+                        self.tags.insert(tag);
                     }
                     for tag in remove {
-                        self.tags.remove(tag, op.clock);
+                        self.tags.remove(&tag);
                     }
                 }
                 Action::Thread { action } => {
                     self.thread.apply(
-                        [cob::Op::new(
-                            op.id,
-                            action,
-                            op.author,
-                            op.timestamp,
-                            op.clock,
-                            op.identity,
-                        )],
+                        cob::Op::new(op.id, action, op.author, op.timestamp, op.identity),
                         repo,
                     )?;
                 }
@@ -200,11 +165,11 @@ impl Issue {
     }
 
     pub fn title(&self) -> &str {
-        self.title.get().as_str()
+        self.title.as_str()
     }
 
     pub fn state(&self) -> &State {
-        self.state.get()
+        &self.state
     }
 
     pub fn tags(&self) -> impl Iterator<Item = &Tag> {
@@ -333,7 +298,6 @@ impl store::Transaction<Issue> {
 
 pub struct IssueMut<'a, 'g, R> {
     id: ObjectId,
-    clock: clock::Lamport,
     issue: Issue,
     store: &'g mut Issues<'a, R>,
 }
@@ -342,14 +306,19 @@ impl<'a, 'g, R> IssueMut<'a, 'g, R>
 where
     R: WriteRepository + cob::Store,
 {
+    /// Reload the issue data from storage.
+    pub fn reload(&mut self) -> Result<(), store::Error> {
+        self.issue = self
+            .store
+            .get(&self.id)?
+            .ok_or_else(|| store::Error::NotFound(TYPENAME.clone(), self.id))?;
+
+        Ok(())
+    }
+
     /// Get the issue id.
     pub fn id(&self) -> &ObjectId {
         &self.id
-    }
-
-    /// Get the internal logical clock.
-    pub fn clock(&self) -> &clock::Lamport {
-        &self.clock
     }
 
     /// Assign one or more actors to an issue.
@@ -449,12 +418,11 @@ where
         G: Signer,
         F: FnOnce(&mut Transaction<Issue>) -> Result<(), store::Error>,
     {
-        let mut tx = Transaction::new(*signer.public_key(), self.clock);
+        let mut tx = Transaction::new(*signer.public_key());
         operations(&mut tx)?;
-        let (ops, clock, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        let (ops, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
         self.issue.apply(ops, self.store.as_ref())?;
-        self.clock = clock;
 
         Ok(commit)
     }
@@ -501,19 +469,18 @@ where
 
     /// Get an issue.
     pub fn get(&self, id: &ObjectId) -> Result<Option<Issue>, store::Error> {
-        self.raw.get(id).map(|r| r.map(|(i, _clock)| i))
+        self.raw.get(id)
     }
 
     /// Get an issue mutably.
     pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<IssueMut<'a, 'g, R>, store::Error> {
-        let (issue, clock) = self
+        let issue = self
             .raw
             .get(id)?
             .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *id))?;
 
         Ok(IssueMut {
             id: *id,
-            clock,
             issue,
             store: self,
         })
@@ -528,21 +495,17 @@ where
         assignees: &[ActorId],
         signer: &G,
     ) -> Result<IssueMut<'a, 'g, R>, Error> {
-        let (id, issue, clock) =
-            Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
-                tx.thread(description)?;
-                tx.assign(assignees.to_owned(), [])?;
-                tx.edit(title)?;
-                tx.tag(tags.to_owned(), [])?;
+        let (id, issue) = Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
+            tx.thread(description)?;
+            tx.assign(assignees.to_owned(), [])?;
+            tx.edit(title)?;
+            tx.tag(tags.to_owned(), [])?;
 
-                Ok(())
-            })?;
-        // Just a sanity check that our clock is advancing as expected.
-        debug_assert_eq!(clock.get(), 1);
+            Ok(())
+        })?;
 
         Ok(IssueMut {
             id,
-            clock,
             issue,
             store: self,
         })
@@ -553,7 +516,7 @@ where
         let all = self.all()?;
         let state_groups =
             all.filter_map(|s| s.ok())
-                .fold(IssueCounts::default(), |mut state, (_, p, _)| {
+                .fold(IssueCounts::default(), |mut state, (_, p)| {
                     match p.state() {
                         State::Open => state.open += 1,
                         State::Closed { .. } => state.closed += 1,
@@ -611,6 +574,77 @@ mod test {
     use crate::test::arbitrary;
 
     #[test]
+    fn test_concurrency() {
+        let t = test::setup::Network::default();
+        let mut issues_alice = Issues::open(&*t.alice.repo).unwrap();
+        let mut bob_issues = Issues::open(&*t.bob.repo).unwrap();
+        let mut eve_issues = Issues::open(&*t.eve.repo).unwrap();
+
+        let mut issue_alice = issues_alice
+            .create("Alice Issue", "Alice's comment", &[], &[], &t.alice.signer)
+            .unwrap();
+        let id = *issue_alice.id();
+
+        t.bob.repo.fetch(&t.alice);
+        t.eve.repo.fetch(&t.alice);
+
+        let mut issue_eve = eve_issues.get_mut(&id).unwrap();
+        let mut issue_bob = bob_issues.get_mut(&id).unwrap();
+
+        issue_bob
+            .comment("Bob's reply", id.into(), &t.bob.signer)
+            .unwrap();
+        issue_alice
+            .comment("Alice's reply", id.into(), &t.alice.signer)
+            .unwrap();
+
+        assert_eq!(issue_bob.comments().count(), 2);
+        assert_eq!(issue_alice.comments().count(), 2);
+
+        t.bob.repo.fetch(&t.alice);
+        issue_bob.reload().unwrap();
+        assert_eq!(issue_bob.comments().count(), 3);
+
+        t.alice.repo.fetch(&t.bob);
+        issue_alice.reload().unwrap();
+        assert_eq!(issue_alice.comments().count(), 3);
+
+        let bob_comments = issue_bob
+            .comments()
+            .map(|(_, c)| c.body())
+            .collect::<Vec<_>>();
+        let alice_comments = issue_alice
+            .comments()
+            .map(|(_, c)| c.body())
+            .collect::<Vec<_>>();
+
+        assert_eq!(bob_comments, alice_comments);
+
+        t.eve.repo.fetch(&t.alice);
+
+        let eve_reply = issue_eve
+            .comment("Eve's reply", id.into(), &t.eve.signer)
+            .unwrap();
+
+        t.bob.repo.fetch(&t.eve);
+        t.alice.repo.fetch(&t.eve);
+
+        issue_alice.reload().unwrap();
+        issue_bob.reload().unwrap();
+        issue_eve.reload().unwrap();
+
+        assert_eq!(issue_eve.comments().count(), 4);
+        assert_eq!(issue_bob.comments().count(), 4);
+        assert_eq!(issue_alice.comments().count(), 4);
+
+        let (first, _) = issue_bob.comments().next().unwrap();
+        let (last, _) = issue_bob.comments().last().unwrap();
+
+        assert_eq!(*first, issue_alice.id.into());
+        assert_eq!(*last, eve_reply);
+    }
+
+    #[test]
     fn test_ordering() {
         assert!(CloseReason::Solved > CloseReason::Other);
         assert!(
@@ -623,11 +657,8 @@ mod test {
 
     #[test]
     fn test_issue_create_and_assign() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
 
         let assignee: ActorId = arbitrary::gen(1);
         let assignee_two: ActorId = arbitrary::gen(1);
@@ -637,7 +668,7 @@ mod test {
                 "Blah blah blah.",
                 &[],
                 &[assignee],
-                &signer,
+                &node.signer,
             )
             .unwrap();
 
@@ -649,7 +680,7 @@ mod test {
         assert!(assignees.contains(&Did::from(assignee)));
 
         let mut issue = issues.get_mut(&id).unwrap();
-        issue.assign([assignee_two], &signer).unwrap();
+        issue.assign([assignee_two], &node.signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
@@ -662,11 +693,8 @@ mod test {
 
     #[test]
     fn test_issue_create_and_reassign() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
 
         let assignee: ActorId = arbitrary::gen(1);
         let assignee_two: ActorId = arbitrary::gen(1);
@@ -676,12 +704,12 @@ mod test {
                 "Blah blah blah.",
                 &[],
                 &[assignee],
-                &signer,
+                &node.signer,
             )
             .unwrap();
 
-        issue.assign([assignee_two], &signer).unwrap();
-        issue.assign([assignee_two], &signer).unwrap();
+        issue.assign([assignee_two], &node.signer).unwrap();
+        issue.assign([assignee_two], &node.signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
@@ -694,23 +722,18 @@ mod test {
 
     #[test]
     fn test_issue_create_and_get() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
         let created = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
             .unwrap();
-
-        assert_eq!(created.clock().get(), 1);
 
         let (id, created) = (created.id, created.issue);
         let issue = issues.get(&id).unwrap().unwrap();
 
         assert_eq!(created, issue);
         assert_eq!(issue.title(), "My first issue");
-        assert_eq!(issue.author().id, Did::from(signer.public_key()));
+        assert_eq!(issue.author().id, Did::from(node.signer.public_key()));
         assert_eq!(issue.description().1, "Blah blah blah.");
         assert_eq!(issue.comments().count(), 1);
         assert_eq!(issue.state(), &State::Open);
@@ -718,13 +741,10 @@ mod test {
 
     #[test]
     fn test_issue_create_and_change_state() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
             .unwrap();
 
         issue
@@ -732,7 +752,7 @@ mod test {
                 State::Closed {
                     reason: CloseReason::Other,
                 },
-                &signer,
+                &node.signer,
             )
             .unwrap();
 
@@ -746,7 +766,7 @@ mod test {
             }
         );
 
-        issue.lifecycle(State::Open, &signer).unwrap();
+        issue.lifecycle(State::Open, &node.signer).unwrap();
         let issue = issues.get(&id).unwrap().unwrap();
 
         assert_eq!(*issue.state(), State::Open);
@@ -754,11 +774,8 @@ mod test {
 
     #[test]
     fn test_issue_create_and_unassign() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
 
         let assignee: ActorId = arbitrary::gen(1);
         let assignee_two: ActorId = arbitrary::gen(1);
@@ -768,11 +785,11 @@ mod test {
                 "Blah blah blah.",
                 &[],
                 &[assignee, assignee_two],
-                &signer,
+                &node.signer,
             )
             .unwrap();
 
-        issue.unassign([assignee], &signer).unwrap();
+        issue.unassign([assignee], &node.signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
@@ -784,16 +801,13 @@ mod test {
 
     #[test]
     fn test_issue_edit() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
             .unwrap();
 
-        issue.edit("Sorry typo", &signer).unwrap();
+        issue.edit("Sorry typo", &node.signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
@@ -804,17 +818,14 @@ mod test {
 
     #[test]
     fn test_issue_edit_description() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
             .unwrap();
 
         issue
-            .edit_description("Bob Loblaw law blog", &signer)
+            .edit_description("Bob Loblaw law blog", &node.signer)
             .unwrap();
 
         let id = issue.id;
@@ -826,19 +837,16 @@ mod test {
 
     #[test]
     fn test_issue_react() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
             .unwrap();
 
         let (comment, _) = issue.root();
         let comment = *comment;
         let reaction = Reaction::new('🥳').unwrap();
-        issue.react(comment, reaction, &signer).unwrap();
+        issue.react(comment, reaction, &node.signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
@@ -851,19 +859,16 @@ mod test {
 
     #[test]
     fn test_issue_reply() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
             .unwrap();
         let (root, _) = issue.root();
         let root = *root;
 
-        let c1 = issue.comment("Hi hi hi.", root, &signer).unwrap();
-        let c2 = issue.comment("Ha ha ha.", root, &signer).unwrap();
+        let c1 = issue.comment("Hi hi hi.", root, &node.signer).unwrap();
+        let c2 = issue.comment("Ha ha ha.", root, &node.signer).unwrap();
 
         let id = issue.id;
         let mut issue = issues.get_mut(&id).unwrap();
@@ -873,10 +878,10 @@ mod test {
         assert_eq!(reply1.body(), "Hi hi hi.");
         assert_eq!(reply2.body(), "Ha ha ha.");
 
-        issue.comment("Re: Hi.", c1, &signer).unwrap();
-        issue.comment("Re: Ha.", c2, &signer).unwrap();
-        issue.comment("Re: Ha. Ha.", c2, &signer).unwrap();
-        issue.comment("Re: Ha. Ha. Ha.", c2, &signer).unwrap();
+        issue.comment("Re: Hi.", c1, &node.signer).unwrap();
+        issue.comment("Re: Ha.", c2, &node.signer).unwrap();
+        issue.comment("Re: Ha. Ha.", c2, &node.signer).unwrap();
+        issue.comment("Re: Ha. Ha. Ha.", c2, &node.signer).unwrap();
 
         let issue = issues.get(&id).unwrap().unwrap();
 
@@ -891,11 +896,8 @@ mod test {
 
     #[test]
     fn test_issue_tag() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
         let bug_tag = Tag::new("bug").unwrap();
         let ux_tag = Tag::new("ux").unwrap();
         let wontfix_tag = Tag::new("wontfix").unwrap();
@@ -905,12 +907,12 @@ mod test {
                 "Blah blah blah.",
                 &[ux_tag.clone()],
                 &[],
-                &signer,
+                &node.signer,
             )
             .unwrap();
 
-        issue.tag([bug_tag.clone()], [], &signer).unwrap();
-        issue.tag([wontfix_tag.clone()], [], &signer).unwrap();
+        issue.tag([bug_tag.clone()], [], &node.signer).unwrap();
+        issue.tag([wontfix_tag.clone()], [], &node.signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
@@ -923,26 +925,19 @@ mod test {
 
     #[test]
     fn test_issue_comment() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let author = *signer.public_key();
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let author = *node.signer.public_key();
+        let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &signer)
+            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
             .unwrap();
-
-        assert_eq!(issue.clock.get(), 1);
 
         // The root thread op id is always the same.
         let (c0, _) = issue.root();
         let c0 = *c0;
 
-        issue.comment("Ho ho ho.", c0, &signer).unwrap();
-        issue.comment("Ha ha ha.", c0, &signer).unwrap();
-
-        assert_eq!(issue.clock.get(), 3);
+        issue.comment("Ho ho ho.", c0, &node.signer).unwrap();
+        issue.comment("Ha ha ha.", c0, &node.signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
@@ -976,20 +971,23 @@ mod test {
 
     #[test]
     fn test_issue_all() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
 
-        issues.create("First", "Blah", &[], &[], &signer).unwrap();
-        issues.create("Second", "Blah", &[], &[], &signer).unwrap();
-        issues.create("Third", "Blah", &[], &[], &signer).unwrap();
+        issues
+            .create("First", "Blah", &[], &[], &node.signer)
+            .unwrap();
+        issues
+            .create("Second", "Blah", &[], &[], &node.signer)
+            .unwrap();
+        issues
+            .create("Third", "Blah", &[], &[], &node.signer)
+            .unwrap();
 
         let issues = issues
             .all()
             .unwrap()
-            .map(|r| r.map(|(_, i, _)| i))
+            .map(|r| r.map(|(_, i)| i))
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
 
@@ -1002,18 +1000,15 @@ mod test {
 
     #[test]
     fn test_issue_multilines() {
-        let tmp = tempfile::tempdir().unwrap();
-        let test::setup::Context {
-            signer, project, ..
-        } = test::setup::Context::new(&tmp);
-        let mut issues = Issues::open(&project).unwrap();
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
         let created = issues
             .create(
                 "My first issue",
                 "Blah blah blah.\nYah yah yah",
                 &[],
                 &[],
-                &signer,
+                &node.signer,
             )
             .unwrap();
 
@@ -1022,7 +1017,7 @@ mod test {
 
         assert_eq!(created, issue);
         assert_eq!(issue.title(), "My first issue");
-        assert_eq!(issue.author().id, Did::from(signer.public_key()));
+        assert_eq!(issue.author().id, Did::from(node.signer.public_key()));
         assert_eq!(issue.description().1, "Blah blah blah.\nYah yah yah");
         assert_eq!(issue.comments().count(), 1);
         assert_eq!(issue.state(), &State::Open);

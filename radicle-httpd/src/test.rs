@@ -37,7 +37,7 @@ pub const ISSUE_ID: &str = "5ad77fa3f476beed9a26f49b2b3b844e61bef792";
 pub const ISSUE_DISCUSSION_ID: &str = "f1dff128a22e8183a23516dd9812e72e80914c92";
 pub const ISSUE_COMMENT_ID: &str = "845218041bf9eb8155bfa4aaa8f0c91ce18e5c13";
 pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
-pub const TIMESTAMP: u64 = 1671125284;
+pub const TIMESTAMP: &str = "1671125284";
 pub const CONTRIBUTOR_RID: &str = "rad:z4XaCmN3jLSeiMvW15YTDpNbDHFhG";
 pub const CONTRIBUTOR_DID: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
 pub const CONTRIBUTOR_NID: &str = "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
@@ -97,7 +97,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
 
     let workdir = dir.join("hello-world");
 
-    env::set_var("RAD_COMMIT_TIME", TIMESTAMP.to_string());
+    env::set_var("RAD_COMMIT_TIME", TIMESTAMP);
 
     fs::create_dir_all(&workdir).unwrap();
 

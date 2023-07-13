@@ -22,7 +22,7 @@ pub fn run(
 
     let mut all = Vec::new();
     for patch in patches.all()? {
-        let Ok((id, patch, _)) = patch else {
+        let Ok((id, patch)) = patch else {
             // Skip patches that failed to load.
             continue;
         };

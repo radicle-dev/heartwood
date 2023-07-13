@@ -460,16 +460,16 @@ async fn issues_handler(
     let mut issues: Vec<_> = issues
         .all()?
         .filter_map(|r| {
-            let (id, issue, clock) = r.ok()?;
-            (state.matches(issue.state())).then_some((id, issue, clock))
+            let (id, issue) = r.ok()?;
+            (state.matches(issue.state())).then_some((id, issue))
         })
         .collect::<Vec<_>>();
 
-    issues.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
+    issues.sort_by(|(_, a), (_, b)| b.timestamp().cmp(&a.timestamp()));
     let aliases = &ctx.profile.aliases();
     let issues = issues
         .into_iter()
-        .map(|(id, issue, _)| api::json::issue(id, issue, aliases))
+        .map(|(id, issue)| api::json::issue(id, issue, aliases))
         .skip(page * per_page)
         .take(per_page)
         .collect::<Vec<_>>();
@@ -739,15 +739,15 @@ async fn patches_handler(
     let mut patches = patches
         .all()?
         .filter_map(|r| {
-            let (id, patch, clock) = r.ok()?;
-            (state.matches(patch.state())).then_some((id, patch, clock))
+            let (id, patch) = r.ok()?;
+            (state.matches(patch.state())).then_some((id, patch))
         })
         .collect::<Vec<_>>();
-    patches.sort_by(|(_, a, _), (_, b, _)| b.timestamp().cmp(&a.timestamp()));
+    patches.sort_by(|(_, a), (_, b)| b.timestamp().cmp(&a.timestamp()));
     let aliases = ctx.profile.aliases();
     let patches = patches
         .into_iter()
-        .map(|(id, patch, _)| api::json::patch(id, patch, &repo, &aliases))
+        .map(|(id, patch)| api::json::patch(id, patch, &repo, &aliases))
         .skip(page * per_page)
         .take(per_page)
         .collect::<Vec<_>>();

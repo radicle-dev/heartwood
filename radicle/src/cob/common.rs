@@ -1,12 +1,13 @@
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
+use localtime::LocalTime;
 use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;
 
-pub use radicle_crdt::clock;
-pub use radicle_crdt::clock::Physical as Timestamp;
+/// Timestamp used for COB operations.
+pub type Timestamp = LocalTime;
 
 /// Author.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

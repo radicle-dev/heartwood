@@ -2,10 +2,9 @@ use nonempty::NonEmpty;
 use thiserror::Error;
 
 use radicle_cob::history::{Entry, EntryId};
-use radicle_crdt::clock;
-use radicle_crdt::clock::Lamport;
 use radicle_crypto::PublicKey;
 
+use crate::cob::Timestamp;
 use crate::git;
 
 /// The author of an [`Op`].
@@ -29,13 +28,11 @@ pub struct Op<A> {
     /// Id of the entry under which this operation lives.
     pub id: EntryId,
     /// The action carried out by this operation.
-    pub action: A,
+    pub actions: NonEmpty<A>,
     /// The author of the operation.
     pub author: ActorId,
-    /// Lamport clock.
-    pub clock: Lamport,
     /// Timestamp of this operation.
-    pub timestamp: clock::Physical,
+    pub timestamp: Timestamp,
     /// Head of identity document committed to by this operation.
     pub identity: git::Oid,
 }
@@ -55,17 +52,15 @@ impl<A: Eq> Ord for Op<A> {
 impl<A> Op<A> {
     pub fn new(
         id: EntryId,
-        action: A,
+        actions: impl Into<NonEmpty<A>>,
         author: ActorId,
-        timestamp: impl Into<clock::Physical>,
-        clock: Lamport,
+        timestamp: impl Into<Timestamp>,
         identity: git::Oid,
     ) -> Self {
         Self {
             id,
-            action,
+            actions: actions.into(),
             author,
-            clock,
             timestamp: timestamp.into(),
             identity,
         }
@@ -76,9 +71,7 @@ impl<A> Op<A> {
     }
 }
 
-pub struct Ops<A>(pub NonEmpty<Op<A>>);
-
-impl<'a, A> TryFrom<&'a Entry> for Ops<A>
+impl<'a, A> TryFrom<&'a Entry> for Op<A>
 where
     for<'de> A: serde::Deserialize<'de>,
 {
@@ -87,34 +80,32 @@ where
     fn try_from(entry: &'a Entry) -> Result<Self, Self::Error> {
         let id = *entry.id();
         let identity = entry.resource();
-        let ops = entry
+        let actions: Vec<_> = entry
             .contents()
             .iter()
-            .map(|blob| {
-                let action = serde_json::from_slice(blob.as_slice())?;
-                let op = Op {
-                    id,
-                    action,
-                    author: *entry.actor(),
-                    clock: entry.clock().into(),
-                    timestamp: entry.timestamp().into(),
-                    identity,
-                };
-                Ok::<_, Self::Error>(op)
-            })
+            .map(|blob| serde_json::from_slice(blob.as_slice()))
             .collect::<Result<_, _>>()?;
 
         // SAFETY: Entry is guaranteed to have at least one operation.
         #[allow(clippy::unwrap_used)]
-        Ok(Self(NonEmpty::from_vec(ops).unwrap()))
+        let actions = NonEmpty::from_vec(actions).unwrap();
+        let op = Op {
+            id,
+            actions,
+            author: *entry.actor(),
+            timestamp: Timestamp::from_secs(entry.timestamp()),
+            identity,
+        };
+
+        Ok(op)
     }
 }
 
-impl<A: 'static> IntoIterator for Ops<A> {
-    type Item = Op<A>;
-    type IntoIter = <NonEmpty<Op<A>> as IntoIterator>::IntoIter;
+impl<A: 'static> IntoIterator for Op<A> {
+    type Item = A;
+    type IntoIter = <NonEmpty<A> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.actions.into_iter()
     }
 }

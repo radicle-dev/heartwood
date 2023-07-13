@@ -14,12 +14,11 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 
 use crate::crypto::Signer;
-use crate::git::raw as git;
 use crate::prelude::{Address, Id};
 use crate::service::io::Io;
 use crate::service::{DisconnectReason, Event, Message, NodeId};
+use crate::storage::WriteStorage;
 use crate::storage::{Namespaces, RefUpdate};
-use crate::storage::{WriteRepository, WriteStorage};
 use crate::test::peer::Service;
 use crate::worker::FetchError;
 use crate::Link;
@@ -413,15 +412,19 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     }
                     Input::Fetched(rid, nid, result) => {
                         let result = Rc::try_unwrap(result).unwrap();
-                        let mut repo = match p.storage().repository_mut(rid) {
+                        let repo = match p.storage().repository_mut(rid) {
                             Ok(repo) => repo,
                             Err(e) if e.is_not_found() => p.storage().create(rid).unwrap(),
                             Err(e) => panic!("Failed to open repository: {e}"),
                         };
                         match &result {
                             Ok((_, remotes)) => {
-                                fetch(&mut repo, &nid, Namespaces::Trusted(remotes.clone()))
-                                    .unwrap();
+                                radicle::test::fetch(
+                                    &repo,
+                                    &nid,
+                                    Namespaces::Trusted(remotes.clone()),
+                                )
+                                .unwrap();
                             }
                             Err(err) => panic!("Error fetching: {err}"),
                         }
@@ -672,57 +675,4 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
     fn is_partitioned(&self, a: NodeId, b: NodeId) -> bool {
         self.partitions.contains(&(a, b)) || self.partitions.contains(&(b, a))
     }
-}
-
-/// Perform a fetch between two local repositories.
-/// This has the same outcome as doing a "real" fetch, but suffices for the simulation, and
-/// doesn't require running nodes.
-fn fetch<W: WriteRepository>(
-    repo: &mut W,
-    node: &NodeId,
-    namespaces: impl Into<Namespaces>,
-) -> Result<Vec<RefUpdate>, radicle::storage::FetchError> {
-    let namespace = match namespaces.into() {
-        Namespaces::All => None,
-        Namespaces::Trusted(trusted) => trusted.into_iter().next(),
-    };
-    let mut updates = Vec::new();
-    let mut callbacks = git::RemoteCallbacks::new();
-    let mut opts = git::FetchOptions::default();
-    let refspec = if let Some(namespace) = namespace {
-        opts.prune(git::FetchPrune::On);
-        format!("refs/namespaces/{namespace}/refs/*:refs/namespaces/{namespace}/refs/*")
-    } else {
-        opts.prune(git::FetchPrune::Off);
-        "refs/namespaces/*:refs/namespaces/*".to_owned()
-    };
-
-    callbacks.update_tips(|name, old, new| {
-        if let Ok(name) = radicle::git::RefString::try_from(name) {
-            if name.to_namespaced().is_some() {
-                updates.push(RefUpdate::from(name, old, new));
-                // Returning `true` ensures the process is not aborted.
-                return true;
-            }
-        }
-        false
-    });
-    opts.remote_callbacks(callbacks);
-
-    let mut remote = repo.raw().remote_anonymous(
-        radicle::storage::git::transport::remote::Url {
-            node: *node,
-            repo: repo.id(),
-            namespace,
-        }
-        .to_string()
-        .as_str(),
-    )?;
-    remote.fetch(&[refspec], Some(&mut opts), None)?;
-    drop(opts);
-
-    repo.validate()?;
-    repo.set_head()?;
-
-    Ok(updates)
 }

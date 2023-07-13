@@ -6,10 +6,10 @@ use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use nonempty::NonEmpty;
-use radicle_crdt::Lamport;
 use serde::{Deserialize, Serialize};
 
-use crate::cob::op::{Op, Ops};
+use crate::cob::common::Timestamp;
+use crate::cob::op::Op;
 use crate::cob::{ActorId, Create, EntryId, History, ObjectId, TypeName, Update, Updated};
 use crate::git;
 use crate::prelude::*;
@@ -20,7 +20,7 @@ use crate::{cob, identity};
 /// History type for standard radicle COBs.
 pub const HISTORY_TYPE: &str = "radicle";
 
-pub trait HistoryAction {
+pub trait HistoryAction: std::fmt::Debug {
     /// Parent objects this action depends on. For example, patch revisions
     /// have the commit objects as their parent.
     fn parents(&self) -> Vec<git::Oid> {
@@ -42,7 +42,7 @@ pub trait FromHistory: Sized + Default + PartialEq {
     /// Apply a list of operations to the state.
     fn apply<R: ReadRepository>(
         &mut self,
-        ops: impl IntoIterator<Item = Op<Self::Action>>,
+        op: Op<Self::Action>,
         repo: &R,
     ) -> Result<(), Self::Error>;
 
@@ -50,14 +50,11 @@ pub trait FromHistory: Sized + Default + PartialEq {
     fn validate(&self) -> Result<(), Self::Error>;
 
     /// Create an object from a history.
-    fn from_history<R: ReadRepository>(
-        history: &History,
-        repo: &R,
-    ) -> Result<(Self, Lamport), Self::Error> {
+    fn from_history<R: ReadRepository>(history: &History, repo: &R) -> Result<Self, Self::Error> {
         let obj = history.traverse(Self::default(), |mut acc, _, entry| {
-            match Ops::try_from(entry) {
-                Ok(Ops(ops)) => {
-                    if let Err(err) = acc.apply(ops, repo) {
+            match Op::try_from(entry) {
+                Ok(op) => {
+                    if let Err(err) = acc.apply(op, repo) {
                         log::warn!("Error applying op to `{}` state: {err}", Self::type_name());
                         return ControlFlow::Break(acc);
                     }
@@ -75,7 +72,7 @@ pub trait FromHistory: Sized + Default + PartialEq {
 
         obj.validate()?;
 
-        Ok((obj, history.clock().into()))
+        Ok(obj)
     }
 
     /// Create an object from individual operations.
@@ -85,8 +82,9 @@ pub trait FromHistory: Sized + Default + PartialEq {
         repo: &R,
     ) -> Result<Self, Self::Error> {
         let mut state = Self::default();
-        state.apply(ops, repo)?;
-
+        for op in ops {
+            state.apply(op, repo)?;
+        }
         Ok(state)
     }
 }
@@ -197,7 +195,7 @@ where
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
         signer: &G,
-    ) -> Result<(ObjectId, T, Lamport), Error> {
+    ) -> Result<(ObjectId, T), Error> {
         let actions = actions.into();
         let parents = actions.iter().flat_map(T::Action::parents).collect();
         let contents = actions.try_map(encoding::encode)?;
@@ -214,11 +212,11 @@ where
                 contents,
             },
         )?;
-        let (object, clock) = T::from_history(cob.history(), self.repo).map_err(Error::apply)?;
+        let object = T::from_history(cob.history(), self.repo).map_err(Error::apply)?;
 
         self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
 
-        Ok((*cob.id(), object, clock))
+        Ok((*cob.id(), object))
     }
 
     /// Remove an object.
@@ -250,30 +248,28 @@ where
     T::Action: Serialize,
 {
     /// Get an object.
-    pub fn get(&self, id: &ObjectId) -> Result<Option<(T, Lamport)>, Error> {
+    pub fn get(&self, id: &ObjectId) -> Result<Option<T>, Error> {
         let cob = cob::get(self.repo, T::type_name(), id)?;
 
         if let Some(cob) = cob {
             if cob.manifest().history_type != HISTORY_TYPE {
                 return Err(Error::HistoryType(cob.manifest().history_type.clone()));
             }
-            let (obj, clock) = T::from_history(cob.history(), self.repo).map_err(Error::apply)?;
+            let obj = T::from_history(cob.history(), self.repo).map_err(Error::apply)?;
 
-            Ok(Some((obj, clock)))
+            Ok(Some(obj))
         } else {
             Ok(None)
         }
     }
 
     /// Return all objects.
-    pub fn all(
-        &self,
-    ) -> Result<impl Iterator<Item = Result<(ObjectId, T, Lamport), Error>> + 'a, Error> {
+    pub fn all(&self) -> Result<impl Iterator<Item = Result<(ObjectId, T), Error>> + 'a, Error> {
         let raw = cob::list(self.repo, T::type_name())?;
 
         Ok(raw.into_iter().map(|o| {
-            let (obj, clock) = T::from_history(o.history(), self.repo).map_err(Error::apply)?;
-            Ok((*o.id(), obj, clock))
+            let obj = T::from_history(o.history(), self.repo).map_err(Error::apply)?;
+            Ok((*o.id(), obj))
         }))
     }
 
@@ -294,16 +290,14 @@ where
 #[derive(Debug)]
 pub struct Transaction<T: FromHistory> {
     actor: ActorId,
-    clock: Lamport,
     actions: Vec<T::Action>,
 }
 
 impl<T: FromHistory> Transaction<T> {
     /// Create a new transaction.
-    pub fn new(actor: ActorId, clock: Lamport) -> Self {
+    pub fn new(actor: ActorId) -> Self {
         Self {
             actor,
-            clock,
             actions: Vec::new(),
         }
     }
@@ -314,7 +308,7 @@ impl<T: FromHistory> Transaction<T> {
         store: &mut Store<T, R>,
         signer: &G,
         operations: F,
-    ) -> Result<(ObjectId, T, Lamport), Error>
+    ) -> Result<(ObjectId, T), Error>
     where
         G: Signer,
         F: FnOnce(&mut Self) -> Result<(), Error>,
@@ -324,20 +318,15 @@ impl<T: FromHistory> Transaction<T> {
         let actor = *signer.public_key();
         let mut tx = Transaction {
             actor,
-            // Nb. The clock is never zero.
-            clock: Lamport::initial().tick(),
             actions: Vec::new(),
         };
         operations(&mut tx)?;
 
         let actions = NonEmpty::from_vec(tx.actions)
             .expect("Transaction::initial: transaction must contain at least one operation");
-        let (id, cob, clock) = store.create(message, actions, signer)?;
+        let (id, cob) = store.create(message, actions, signer)?;
 
-        // The history clock should be in sync with the tx clock.
-        assert_eq!(clock, tx.clock);
-
-        Ok((id, cob, clock))
+        Ok((id, cob))
     }
 
     /// Add an operation to this transaction.
@@ -351,12 +340,12 @@ impl<T: FromHistory> Transaction<T> {
     ///
     /// Returns a list of operations that can be applied onto an in-memory CRDT.
     pub fn commit<R, G: Signer>(
-        mut self,
+        self,
         msg: &str,
         id: ObjectId,
         store: &mut Store<T, R>,
         signer: &G,
-    ) -> Result<(Vec<cob::Op<T::Action>>, Lamport, EntryId), Error>
+    ) -> Result<(cob::Op<T::Action>, EntryId), Error>
     where
         R: ReadRepository + SignRepository + cob::Store,
         T::Action: Serialize + Clone,
@@ -366,27 +355,17 @@ impl<T: FromHistory> Transaction<T> {
         let Updated { head, object } = store.update(id, msg, actions.clone(), signer)?;
         let id = EntryId::from(head);
         let author = self.actor;
-        let timestamp = object.history().timestamp().into();
-        let clock = self.clock.tick();
+        let timestamp = Timestamp::from_secs(object.history().timestamp());
         let identity = store.identity;
+        let op = cob::Op {
+            id,
+            actions,
+            author,
+            timestamp,
+            identity,
+        };
 
-        // The history clock should be in sync with the tx clock.
-        assert_eq!(object.history().clock(), self.clock.get());
-
-        // Start the clock from where the transcation clock started.
-        let ops = actions
-            .into_iter()
-            .map(|action| cob::Op {
-                id,
-                action,
-                author,
-                clock,
-                timestamp,
-                identity,
-            })
-            .collect();
-
-        Ok((ops, clock, id))
+        Ok((op, id))
     }
 }
 

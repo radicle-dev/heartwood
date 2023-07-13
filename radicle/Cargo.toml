@@ -37,10 +37,6 @@ features = ["vendored-libgit2"]
 path = "../radicle-cob"
 version = "0"
 
-[dependencies.radicle-crdt]
-path = "../radicle-crdt"
-version = "0"
-
 [dependencies.radicle-crypto]
 path = "../radicle-crypto"
 version = "0"

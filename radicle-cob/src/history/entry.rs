@@ -15,9 +15,6 @@ use crate::{object, ObjectId};
 /// This is the change payload.
 pub type Contents = NonEmpty<Vec<u8>>;
 
-/// Logical clock used to track causality in change graph.
-pub type Clock = u64;
-
 /// Local time in seconds since epoch.
 pub type Timestamp = u64;
 
@@ -93,8 +90,6 @@ pub struct Entry {
     pub(super) contents: Contents,
     /// The entry timestamp, as seconds since epoch.
     pub(super) timestamp: Timestamp,
-    /// Logical clock.
-    pub(super) clock: Clock,
 }
 
 impl Entry {
@@ -104,7 +99,6 @@ impl Entry {
         resource: Oid,
         contents: Contents,
         timestamp: Timestamp,
-        clock: Clock,
     ) -> Self
     where
         Id: Into<EntryId>,
@@ -115,7 +109,6 @@ impl Entry {
             resource,
             contents,
             timestamp,
-            clock,
         }
     }
 
@@ -142,10 +135,5 @@ impl Entry {
     /// Entry ID.
     pub fn id(&self) -> &EntryId {
         &self.id
-    }
-
-    /// Logical clock.
-    pub fn clock(&self) -> Clock {
-        self.clock
     }
 }

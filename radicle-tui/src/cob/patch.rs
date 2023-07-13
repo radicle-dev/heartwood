@@ -10,7 +10,7 @@ pub fn all(repository: &Repository) -> Result<Vec<(PatchId, Patch)>> {
 
     Ok(patches
         .into_iter()
-        .map(|(id, patch, _)| (id, patch))
+        .map(|(id, patch)| (id, patch))
         .collect::<Vec<_>>())
 }
 

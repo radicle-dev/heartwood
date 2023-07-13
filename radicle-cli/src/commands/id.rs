@@ -379,7 +379,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let mut timestamped = Vec::new();
             let mut no_latest = Vec::new();
             for result in proposals.all()? {
-                let (id, proposal, _) = result?;
+                let (id, proposal) = result?;
                 match proposal.latest() {
                     None => no_latest.push((id, proposal)),
                     Some((_, revision)) => {
@@ -490,7 +490,7 @@ fn select<'a>(
             let revision = proposal
                 .revision(&id)
                 .context(format!("No revision found for {id}"))?
-                .get()
+                .as_ref()
                 .context(format!("Revision {id} was redacted"))?;
             (id, revision)
         }
@@ -524,7 +524,7 @@ fn commit_select<'a>(
             let revision = proposal
                 .revision(&id)
                 .context(format!("No revision found for {id}"))?
-                .get()
+                .as_ref()
                 .context(format!("Revision {id} was redacted"))?;
             (id, revision)
         }
@@ -623,7 +623,7 @@ fn print(
         Some(rid) => proposal
             .revision(rid)
             .context(format!("No revision found for {rid}"))?
-            .get()
+            .as_ref()
             .context(format!("Revision {rid} was redacted"))?,
     };
     print_meta(proposal.title(), proposal.description(), proposal.state());

@@ -42,7 +42,19 @@ impl git2::transport::SmartSubtransport for MockTransport {
                 url.node
             )));
         };
+        assert!(
+            storage.exists(),
+            "The storage path {} must exist",
+            storage.display()
+        );
+
         let git_dir = storage.join(url.repo.canonical());
+        assert!(
+            git_dir.exists(),
+            "The repository {} must exist",
+            git_dir.display()
+        );
+
         let mut cmd = process::Command::new("git");
         let mut child = cmd
             .arg("upload-pack")

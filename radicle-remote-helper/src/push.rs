@@ -452,12 +452,12 @@ fn patch_merge<G: Signer>(
 
     let mut patches = patch::Patches::open(stored)?;
     for patch in patches.all()? {
-        let (id, patch, clock) = patch?;
+        let (id, patch) = patch?;
         let (revision_id, revision) = patch.latest();
 
         if patch.is_open() && commits.contains(&revision.head()) {
             let revision_id = *revision_id;
-            let mut patch = patch::PatchMut::new(id, patch, clock, &mut patches);
+            let mut patch = patch::PatchMut::new(id, patch, &mut patches);
 
             patch.merge(revision_id, new, signer)?;
 

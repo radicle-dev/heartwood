@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_arguments)]
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::ops::Deref;
 use std::ops::Range;
@@ -10,11 +10,6 @@ use once_cell::sync::Lazy;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use radicle_crdt::clock;
-use radicle_crdt::{
-    GMap, GSet, Immutable, LWWMap, LWWReg, LWWSet, Lamport, Max, Redactable, Semilattice,
-};
 
 use crate::cob;
 use crate::cob::common::{Author, Tag, Timestamp};
@@ -30,9 +25,6 @@ use crate::identity;
 use crate::identity::doc::DocError;
 use crate::identity::PayloadError;
 use crate::prelude::*;
-
-/// The logical clock we use to order operations to patches.
-pub use clock::Lamport as Clock;
 
 /// Type name of a patch.
 pub static TYPENAME: Lazy<TypeName> =
@@ -182,18 +174,18 @@ impl MergeTarget {
     }
 }
 
-/// Patch CRDT.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Patch state.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Patch {
     /// Title of the patch.
-    title: LWWReg<Max<String>>,
+    title: String,
     /// Current state of the patch.
-    state: LWWReg<Max<State>>,
+    state: State,
     /// Target this patch is meant to be merged in.
-    target: LWWReg<Max<MergeTarget>>,
+    target: MergeTarget,
     /// Associated tags.
     /// Tags can be added and removed at will.
-    tags: LWWSet<Tag>,
+    tags: BTreeSet<Tag>,
     /// Patch merges.
     ///
     /// Only one merge is allowed per user.
@@ -201,64 +193,34 @@ pub struct Patch {
     /// Merges can be removed and replaced, but not modified. Generally, once a revision is merged,
     /// it stays that way. Being able to remove merges may be useful in case of force updates
     /// on the target branch.
-    merges: LWWMap<ActorId, Immutable<Merge>>,
+    merges: BTreeMap<ActorId, Merge>,
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
     ///
     /// Revisions can be redacted, but are otherwise immutable.
-    revisions: GMap<RevisionId, Redactable<Revision>>,
+    revisions: BTreeMap<RevisionId, Option<Revision>>,
     /// Users assigned to review this patch.
-    reviewers: LWWSet<ActorId>,
+    reviewers: BTreeSet<ActorId>,
     /// Timeline of operations.
-    timeline: GSet<(Lamport, EntryId)>,
+    timeline: Vec<EntryId>,
     /// Reviews index. Keeps track of reviews for better performance.
-    reviews: GMap<EntryId, Redactable<(EntryId, ActorId)>>,
-}
-
-impl Semilattice for Patch {
-    fn merge(&mut self, other: Self) {
-        self.title.merge(other.title);
-        self.state.merge(other.state);
-        self.target.merge(other.target);
-        self.merges.merge(other.merges);
-        self.tags.merge(other.tags);
-        self.revisions.merge(other.revisions);
-        self.reviewers.merge(other.reviewers);
-        self.timeline.merge(other.timeline);
-        self.reviews.merge(other.reviews);
-    }
-}
-
-impl Default for Patch {
-    fn default() -> Self {
-        Self {
-            title: LWWReg::initial(Max::from(String::default())),
-            state: LWWReg::initial(Max::from(State::default())),
-            target: LWWReg::initial(Max::from(MergeTarget::default())),
-            tags: LWWSet::default(),
-            merges: LWWMap::default(),
-            revisions: GMap::default(),
-            reviewers: LWWSet::default(),
-            timeline: GSet::default(),
-            reviews: GMap::default(),
-        }
-    }
+    reviews: BTreeMap<EntryId, Option<(EntryId, ActorId)>>,
 }
 
 impl Patch {
     /// Title of the patch.
     pub fn title(&self) -> &str {
-        self.title.get().get()
+        self.title.as_str()
     }
 
     /// Current state of the patch.
     pub fn state(&self) -> &State {
-        self.state.get().get()
+        &self.state
     }
 
     /// Target this patch is meant to be merged in.
     pub fn target(&self) -> MergeTarget {
-        *self.target.get().get()
+        self.target
     }
 
     /// Timestamp of the first revision of the patch.
@@ -294,16 +256,16 @@ impl Patch {
     ///
     /// None is returned if the `Revision` has been redacted (deleted).
     pub fn revision(&self, id: &RevisionId) -> Option<&Revision> {
-        self.revisions.get(id).and_then(Redactable::get)
+        self.revisions.get(id).and_then(|o| o.as_ref())
     }
 
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
     pub fn revisions(&self) -> impl DoubleEndedIterator<Item = (&RevisionId, &Revision)> {
-        self.timeline.iter().filter_map(|(_, id)| {
+        self.timeline.iter().filter_map(|id| {
             self.revisions
                 .get(id)
-                .and_then(Redactable::get)
+                .and_then(|o| o.as_ref())
                 .map(|rev| (id, rev))
         })
     }
@@ -315,7 +277,7 @@ impl Patch {
 
     /// Get the merges.
     pub fn merges(&self) -> impl Iterator<Item = (&ActorId, &Merge)> {
-        self.merges.iter().map(|(a, m)| (a, m.deref()))
+        self.merges.iter().map(|(a, m)| (a, m))
     }
 
     /// Reference to the Git object containing the code on the latest revision.
@@ -415,32 +377,30 @@ impl store::FromHistory for Patch {
         Ok(())
     }
 
-    fn apply<R: ReadRepository>(
-        &mut self,
-        ops: impl IntoIterator<Item = Op>,
-        repo: &R,
-    ) -> Result<(), Error> {
-        for op in ops {
-            let id = op.id;
-            let author = Author::new(op.author);
-            let timestamp = op.timestamp;
+    fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
+        let id = op.id;
+        let author = Author::new(op.author);
+        let timestamp = op.timestamp;
 
-            self.timeline.insert((op.clock, id));
+        debug_assert!(!self.timeline.contains(&op.id));
 
-            match op.action {
+        self.timeline.push(op.id);
+
+        for action in op.actions {
+            match action {
                 Action::Edit { title, target } => {
-                    self.title.set(title, op.clock);
-                    self.target.set(target, op.clock);
+                    self.title = title;
+                    self.target = target;
                 }
                 Action::Lifecycle { state } => {
-                    self.state.set(state, op.clock);
+                    self.state = state;
                 }
                 Action::Tag { add, remove } => {
                     for tag in add {
-                        self.tags.insert(tag, op.clock);
+                        self.tags.insert(tag);
                     }
                     for tag in remove {
-                        self.tags.remove(tag, op.clock);
+                        self.tags.remove(&tag);
                     }
                 }
                 Action::EditRevision {
@@ -449,15 +409,15 @@ impl store::FromHistory for Patch {
                 } => {
                     if let Some(redactable) = self.revisions.get_mut(&revision) {
                         // If the revision was redacted concurrently, there's nothing to do.
-                        if let Redactable::Present(revision) = redactable {
-                            revision.description.set(description, op.clock);
+                        if let Some(revision) = redactable {
+                            revision.description = description;
                         }
                     } else {
                         return Err(Error::Missing(revision));
                     }
                 }
                 Action::EditReview { review, summary } => {
-                    let Some(Redactable::Present((revision, author))) =
+                    let Some(Some((revision, author))) =
                         self.reviews.get(&review) else {
                             return Err(Error::Missing(review));
                     };
@@ -466,12 +426,12 @@ impl store::FromHistory for Patch {
                     };
                     // If the revision was redacted concurrently, there's nothing to do.
                     // Likewise, if the review was redacted concurrently, there's nothing to do.
-                    if let Some(rev) = rev.get_mut() {
+                    if let Some(rev) = rev {
                         let Some(review) = rev.reviews.get_mut(author) else {
                             return Err(Error::Missing(review));
                         };
-                        if let Redactable::Present(review) = review {
-                            review.summary.set(summary.map(Max::from), op.clock);
+                        if let Some(review) = review {
+                            review.summary = summary;
                         }
                     }
                 }
@@ -482,20 +442,19 @@ impl store::FromHistory for Patch {
                 } => {
                     self.revisions.insert(
                         id,
-                        Redactable::Present(Revision::new(
-                            author,
+                        Some(Revision::new(
+                            author.clone(),
                             description,
                             base,
                             oid,
                             timestamp,
-                            op.clock,
                         )),
                     );
                 }
                 Action::Redact { revision } => {
                     // Redactions must have observed a revision to be valid.
                     if let Some(revision) = self.revisions.get_mut(&revision) {
-                        revision.merge(Redactable::Redacted);
+                        *revision = None;
                     } else {
                         return Err(Error::Missing(revision));
                     }
@@ -508,21 +467,15 @@ impl store::FromHistory for Patch {
                     let Some(rev) = self.revisions.get_mut(&revision) else {
                         return Err(Error::Missing(revision));
                     };
-                    if let Some(rev) = rev.get_mut() {
+                    if let Some(rev) = rev {
                         // Nb. Applying two reviews by the same author is not allowed and
                         // results in the review being redacted.
                         rev.reviews.insert(
                             op.author,
-                            Redactable::Present(Review::new(
-                                verdict,
-                                summary.to_owned(),
-                                timestamp,
-                                op.clock,
-                            )),
+                            Some(Review::new(verdict, summary.to_owned(), timestamp)),
                         );
                         // Update reviews index.
-                        self.reviews
-                            .insert(op.id, Redactable::Present((revision, op.author)));
+                        self.reviews.insert(op.id, Some((revision, op.author)));
                     }
                 }
                 Action::EditCodeComment {
@@ -530,27 +483,31 @@ impl store::FromHistory for Patch {
                     comment,
                     body,
                 } => {
-                    let Some(Redactable::Present((revision, author))) =
-                        self.reviews.get(&review) else {
-                            return Err(Error::Missing(review));
-                    };
-                    let Some(rev) = self.revisions.get_mut(revision) else {
-                        return Err(Error::Missing(*revision));
-                    };
-                    // If the revision was redacted concurrently, there's nothing to do.
-                    // Likewise, if the review was redacted concurrently, there's nothing to do.
-                    if let Some(rev) = rev.get_mut() {
-                        let Some(review) = rev.reviews.get_mut(author) else {
-                            return Err(Error::Missing(review));
-                        };
-                        if let Some(review) = review.get_mut() {
-                            let Some(comment) = review.comments.get_mut(&comment) else {
-                                return Err(Error::Missing(comment));
+                    match self.reviews.get(&review) {
+                        Some(Some((revision, author))) => {
+                            let Some(rev) = self.revisions.get_mut(revision) else {
+                                return Err(Error::Missing(*revision));
                             };
-                            if let Some(comment) = comment.get_mut() {
-                                comment.edit(op.clock, body, timestamp);
+                            // If the revision was redacted concurrently, there's nothing to do.
+                            // Likewise, if the review was redacted concurrently, there's nothing to do.
+                            if let Some(rev) = rev {
+                                let Some(review) = rev.reviews.get_mut(author) else {
+                                    return Err(Error::Missing(review));
+                                };
+                                if let Some(review) = review {
+                                    let Some(comment) = review.comments.get_mut(&comment) else {
+                                        return Err(Error::Missing(comment));
+                                    };
+                                    if let Some(comment) = comment {
+                                        comment.edit(body, timestamp);
+                                    }
+                                }
                             }
                         }
+                        Some(None) => {
+                            // Redacted.
+                        }
+                        None => return Err(Error::Missing(review)),
                     }
                 }
                 Action::CodeComment {
@@ -558,34 +515,38 @@ impl store::FromHistory for Patch {
                     body,
                     location,
                 } => {
-                    let Some(Redactable::Present((revision, author))) =
-                        self.reviews.get(&review) else {
-                            return Err(Error::Missing(review));
-                    };
-                    let Some(rev) = self.revisions.get_mut(revision) else {
-                        return Err(Error::Missing(*revision));
-                    };
-                    // If the revision was redacted concurrently, there's nothing to do.
-                    // Likewise, if the review was redacted concurrently, there's nothing to do.
-                    if let Some(rev) = rev.get_mut() {
-                        let Some(review) = rev.reviews.get_mut(author) else {
-                            return Err(Error::Missing(review));
-                        };
-                        if let Redactable::Present(review) = review {
-                            review.comments.insert(
-                                id,
-                                Redactable::Present(CodeComment::new(
-                                    op.author, body, location, timestamp,
-                                )),
-                            );
+                    match self.reviews.get(&review) {
+                        Some(Some((revision, author))) => {
+                            let Some(rev) = self.revisions.get_mut(revision) else {
+                                return Err(Error::Missing(*revision));
+                            };
+                            // If the revision was redacted concurrently, there's nothing to do.
+                            // Likewise, if the review was redacted concurrently, there's nothing to do.
+                            if let Some(rev) = rev {
+                                let Some(review) = rev.reviews.get_mut(author) else {
+                                    return Err(Error::Missing(review));
+                                };
+                                if let Some(review) = review {
+                                    review.comments.insert(
+                                        id,
+                                        Some(CodeComment::new(
+                                            op.author, body, location, timestamp,
+                                        )),
+                                    );
+                                }
+                            }
                         }
+                        Some(None) => {
+                            // Redacted.
+                        }
+                        None => return Err(Error::Missing(review)),
                     }
                 }
                 Action::Merge { revision, commit } => {
                     let Some(rev) = self.revisions.get_mut(&revision) else {
                         return Err(Error::Missing(revision));
                     };
-                    if rev.get().is_some() {
+                    if rev.is_some() {
                         let doc = repo.identity_doc_at(op.identity)?.verified()?;
 
                         match self.target() {
@@ -612,12 +573,11 @@ impl store::FromHistory for Patch {
                         }
                         self.merges.insert(
                             op.author,
-                            Immutable::new(Merge {
+                            Merge {
                                 revision,
                                 commit,
                                 timestamp,
-                            }),
-                            op.clock,
+                            },
                         );
 
                         let mut merges = self.merges.iter().fold(
@@ -636,43 +596,32 @@ impl store::FromHistory for Patch {
                             }
                             [(revision, commit)] => {
                                 // Patch is merged.
-                                self.state.set(
-                                    State::Merged {
-                                        revision: *revision,
-                                        commit: *commit,
-                                    },
-                                    op.clock,
-                                );
+                                self.state = State::Merged {
+                                    revision: *revision,
+                                    commit: *commit,
+                                };
                             }
                             revisions => {
                                 // More than one revision met the quorum.
-                                self.state.set(
-                                    State::Open {
-                                        conflicts: revisions.to_vec(),
-                                    },
-                                    op.clock,
-                                );
+                                self.state = State::Open {
+                                    conflicts: revisions.to_vec(),
+                                };
                             }
                         }
                     }
                 }
                 Action::Thread { revision, action } => {
-                    // TODO(cloudhead): Make sure we can deal with redacted revisions which are added
-                    // to out of order, like in the `Merge` case.
-                    if let Some(Redactable::Present(revision)) = self.revisions.get_mut(&revision) {
-                        revision.discussion.apply(
-                            [cob::Op::new(
-                                op.id,
-                                action,
-                                op.author,
-                                timestamp,
-                                op.clock,
-                                op.identity,
-                            )],
-                            repo,
-                        )?;
-                    } else {
-                        return Err(Error::Missing(revision));
+                    match self.revisions.get_mut(&revision) {
+                        Some(Some(revision)) => {
+                            revision.discussion.apply(
+                                cob::Op::new(op.id, action, op.author, timestamp, op.identity),
+                                repo,
+                            )?;
+                        }
+                        Some(None) => {
+                            // Redacted.
+                        }
+                        None => return Err(Error::Missing(revision)),
                     }
                 }
             }
@@ -687,7 +636,7 @@ pub struct Revision {
     /// Author of the revision.
     author: Author,
     /// Revision description.
-    description: LWWReg<Max<String>>,
+    description: String,
     /// Base branch commit, used as a merge base.
     base: git::Oid,
     /// Reference to the Git object containing the code (revision head).
@@ -695,7 +644,7 @@ pub struct Revision {
     /// Discussion around this revision.
     discussion: Thread,
     /// Reviews of this revision's changes (one per actor).
-    reviews: GMap<ActorId, Redactable<Review>>,
+    reviews: BTreeMap<ActorId, Option<Review>>,
     /// When this revision was created.
     timestamp: Timestamp,
 }
@@ -707,21 +656,20 @@ impl Revision {
         base: git::Oid,
         oid: git::Oid,
         timestamp: Timestamp,
-        clock: Clock,
     ) -> Self {
         Self {
             author,
-            description: LWWReg::new(Max::from(description), clock),
+            description,
             base,
             oid,
             discussion: Thread::default(),
-            reviews: GMap::default(),
+            reviews: BTreeMap::default(),
             timestamp,
         }
     }
 
     pub fn description(&self) -> &str {
-        self.description.get()
+        self.description.as_str()
     }
 
     /// Author of the revision.
@@ -753,12 +701,12 @@ impl Revision {
     pub fn reviews(&self) -> impl DoubleEndedIterator<Item = (&PublicKey, &Review)> {
         self.reviews
             .iter()
-            .filter_map(|(author, review)| review.get().map(|r| (author, r)))
+            .filter_map(|(author, review)| review.as_ref().map(|r| (author, r)))
     }
 
     /// Get a review by author.
     pub fn review(&self, author: &ActorId) -> Option<&Review> {
-        self.reviews.get(author).and_then(Redactable::get)
+        self.reviews.get(author).and_then(|o| o.as_ref())
     }
 }
 
@@ -821,14 +769,6 @@ pub enum Verdict {
     Reject,
 }
 
-impl Semilattice for Verdict {
-    fn merge(&mut self, other: Self) {
-        if self == &Self::Accept && other == Self::Reject {
-            *self = other;
-        }
-    }
-}
-
 impl fmt::Display for Verdict {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -871,7 +811,7 @@ pub struct CodeComment {
     /// Code location of the comment.
     location: CodeLocation,
     /// Comment edits.
-    edits: GMap<Lamport, Max<thread::Edit>>,
+    edits: Vec<thread::Edit>,
 }
 
 impl Serialize for CodeComment {
@@ -899,14 +839,13 @@ impl CodeComment {
         Self {
             author,
             location,
-            edits: GMap::singleton(Lamport::initial(), Max::from(edit)),
+            edits: vec![edit],
         }
     }
 
     /// Add an edit.
-    pub fn edit(&mut self, clock: Lamport, body: String, timestamp: Timestamp) {
-        self.edits
-            .insert(clock, thread::Edit { body, timestamp }.into())
+    pub fn edit(&mut self, body: String, timestamp: Timestamp) {
+        self.edits.push(thread::Edit { body, timestamp });
     }
 
     /// Comment author.
@@ -924,7 +863,7 @@ impl CodeComment {
         // SAFETY: There is always at least one edit. This is guaranteed by [`CodeComment::new`]
         // constructor.
         #[allow(clippy::unwrap_used)]
-        self.edits.values().last().unwrap().get().body.as_str()
+        self.edits.last().unwrap().body.as_str()
     }
 }
 
@@ -938,9 +877,9 @@ pub struct Review {
     /// Review summary.
     ///
     /// Can be edited or set to `None`.
-    summary: LWWReg<Option<Max<String>>>,
+    summary: Option<String>,
     /// Review inline code comments.
-    comments: GMap<EntryId, Redactable<CodeComment>>,
+    comments: BTreeMap<EntryId, Option<CodeComment>>,
     /// Review timestamp.
     timestamp: Timestamp,
 }
@@ -963,16 +902,11 @@ impl Serialize for Review {
 }
 
 impl Review {
-    pub fn new(
-        verdict: Option<Verdict>,
-        summary: Option<String>,
-        timestamp: Timestamp,
-        clock: Clock,
-    ) -> Self {
+    pub fn new(verdict: Option<Verdict>, summary: Option<String>, timestamp: Timestamp) -> Self {
         Self {
             verdict,
-            summary: LWWReg::new(summary.map(Max::from), clock),
-            comments: GMap::default(),
+            summary,
+            comments: BTreeMap::default(),
             timestamp,
         }
     }
@@ -986,12 +920,12 @@ impl Review {
     pub fn comments(&self) -> impl Iterator<Item = (&EntryId, &CodeComment)> {
         self.comments
             .iter()
-            .filter_map(|(id, r)| r.get().map(|comment| (id, comment)))
+            .filter_map(|(id, r)| r.as_ref().map(|comment| (id, comment)))
     }
 
     /// Review general comment.
     pub fn summary(&self) -> Option<&str> {
-        self.summary.get().as_ref().map(|m| m.get().as_str())
+        self.summary.as_deref()
     }
 
     /// Review timestamp.
@@ -1146,7 +1080,6 @@ pub struct PatchMut<'a, 'g, R> {
     pub id: ObjectId,
 
     patch: Patch,
-    clock: clock::Lamport,
     store: &'g mut Patches<'a, R>,
 }
 
@@ -1154,18 +1087,8 @@ impl<'a, 'g, R> PatchMut<'a, 'g, R>
 where
     R: ReadRepository + SignRepository + cob::Store,
 {
-    pub fn new(
-        id: ObjectId,
-        patch: Patch,
-        clock: clock::Lamport,
-        store: &'g mut Patches<'a, R>,
-    ) -> Self {
-        Self {
-            id,
-            clock,
-            patch,
-            store,
-        }
+    pub fn new(id: ObjectId, patch: Patch, store: &'g mut Patches<'a, R>) -> Self {
+        Self { id, patch, store }
     }
 
     pub fn transaction<G, F>(
@@ -1178,19 +1101,13 @@ where
         G: Signer,
         F: FnOnce(&mut Transaction<Patch>) -> Result<(), store::Error>,
     {
-        let mut tx = Transaction::new(*signer.public_key(), self.clock);
+        let mut tx = Transaction::new(*signer.public_key());
         operations(&mut tx)?;
-        let (ops, clock, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        let (op, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
-        self.patch.apply(ops, self.store.as_ref())?;
-        self.clock = clock;
+        self.patch.apply(op, self.store.as_ref())?;
 
         Ok(commit)
-    }
-
-    /// Get the internal logical clock.
-    pub fn clock(&self) -> &clock::Lamport {
-        &self.clock
     }
 
     /// Edit patch metadata.
@@ -1406,7 +1323,7 @@ where
         let all = self.all()?;
         let state_groups =
             all.filter_map(|s| s.ok())
-                .fold(PatchCounts::default(), |mut state, (_, p, _)| {
+                .fold(PatchCounts::default(), |mut state, (_, p)| {
                     match p.state() {
                         State::Draft => state.draft += 1,
                         State::Open { .. } => state.open += 1,
@@ -1433,35 +1350,33 @@ where
         let result = self
             .all()?
             .filter_map(|result| result.ok())
-            .find_map(|(p_id, p, _)| p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
+            .find_map(|(p_id, p)| p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
         Ok(result)
     }
 
     /// Get a patch.
     pub fn get(&self, id: &ObjectId) -> Result<Option<Patch>, store::Error> {
-        self.raw.get(id).map(|r| r.map(|(p, _)| p))
+        self.raw.get(id)
     }
 
     /// Get proposed patches.
-    pub fn proposed(
-        &self,
-    ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)> + '_, Error> {
+    pub fn proposed(&self) -> Result<impl Iterator<Item = (PatchId, Patch)> + '_, Error> {
         let all = self.all()?;
 
         Ok(all
             .into_iter()
             .filter_map(|result| result.ok())
-            .filter(|(_, p, _)| p.is_open()))
+            .filter(|(_, p)| p.is_open()))
     }
 
     /// Get patches proposed by the given key.
     pub fn proposed_by<'b>(
         &'b self,
         who: &'b Did,
-    ) -> Result<impl Iterator<Item = (PatchId, Patch, clock::Lamport)> + '_, Error> {
+    ) -> Result<impl Iterator<Item = (PatchId, Patch)> + '_, Error> {
         Ok(self
             .proposed()?
-            .filter(move |(_, p, _)| p.author().id() == who))
+            .filter(move |(_, p)| p.author().id() == who))
     }
 }
 
@@ -1517,14 +1432,13 @@ where
 
     /// Get a patch mutably.
     pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<PatchMut<'a, 'g, R>, store::Error> {
-        let (patch, clock) = self
+        let patch = self
             .raw
             .get(id)?
             .ok_or_else(move || store::Error::NotFound(TYPENAME.clone(), *id))?;
 
         Ok(PatchMut {
             id: *id,
-            clock,
             patch,
             store: self,
         })
@@ -1542,186 +1456,34 @@ where
         state: State,
         signer: &G,
     ) -> Result<PatchMut<'a, 'g, R>, Error> {
-        let (id, patch, clock) =
-            Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
-                tx.revision(description, base, oid)?;
-                tx.edit(title, target)?;
-                tx.tag(tags.to_owned(), [])?;
+        let (id, patch) = Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
+            tx.revision(description, base, oid)?;
+            tx.edit(title, target)?;
+            tx.tag(tags.to_owned(), [])?;
 
-                if state != State::default() {
-                    tx.lifecycle(state)?;
-                }
-                Ok(())
-            })?;
-        // Just a sanity check that our clock is advancing as expected.
-        debug_assert_eq!(clock.get(), 1);
+            if state != State::default() {
+                tx.lifecycle(state)?;
+            }
+            Ok(())
+        })?;
 
-        Ok(PatchMut::new(id, patch, clock, self))
+        Ok(PatchMut::new(id, patch, self))
     }
 }
 
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
-    use std::{array, iter};
 
-    use radicle_crdt::test::{assert_laws, WeightedGenerator};
-
-    use nonempty::nonempty;
     use pretty_assertions::assert_eq;
-    use qcheck::{Arbitrary, TestResult};
 
     use super::*;
-    use crate::assert_matches;
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
     use crate::test;
     use crate::test::arbitrary;
     use crate::test::arbitrary::gen;
     use crate::test::storage::MockRepository;
-
-    #[derive(Clone)]
-    struct Changes<const N: usize> {
-        permutations: [Vec<Op>; N],
-    }
-
-    impl<const N: usize> std::fmt::Debug for Changes<N> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            for (i, p) in self.permutations.iter().enumerate() {
-                writeln!(
-                    f,
-                    "{i}: {:#?}",
-                    p.iter().map(|c| &c.action).collect::<Vec<_>>()
-                )?;
-            }
-            Ok(())
-        }
-    }
-
-    impl<const N: usize> Arbitrary for Changes<N> {
-        fn arbitrary(g: &mut qcheck::Gen) -> Self {
-            type State = (Actor<MockSigner>, clock::Lamport, Vec<EntryId>, Vec<Tag>);
-
-            let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
-            let oids = iter::repeat_with(|| {
-                git::Oid::try_from(
-                    iter::repeat_with(|| rng.u8(..))
-                        .take(20)
-                        .collect::<Vec<_>>()
-                        .as_slice(),
-                )
-                .unwrap()
-            })
-            .take(16)
-            .collect::<Vec<_>>();
-
-            let gen = WeightedGenerator::<(clock::Lamport, Op), State>::new(rng.clone())
-                .variant(1, |(actor, clock, _, _), rng| {
-                    Some((
-                        clock.tick(),
-                        actor.op(Action::Edit {
-                            title: iter::repeat_with(|| rng.alphabetic()).take(8).collect(),
-                            target: MergeTarget::Delegates,
-                        }),
-                    ))
-                })
-                .variant(1, |(actor, clock, revisions, _), rng| {
-                    if revisions.is_empty() {
-                        return None;
-                    }
-                    let revision = revisions[rng.usize(..revisions.len())];
-                    let commit = oids[rng.usize(..oids.len())];
-
-                    Some((clock.tick(), actor.op(Action::Merge { revision, commit })))
-                })
-                .variant(1, |(actor, clock, revisions, _), rng| {
-                    if revisions.is_empty() {
-                        return None;
-                    }
-                    let revision = revisions[rng.usize(..revisions.len())];
-
-                    Some((clock.tick(), actor.op(Action::Redact { revision })))
-                })
-                .variant(1, |(actor, clock, _, tags), rng| {
-                    let add = iter::repeat_with(|| rng.alphabetic())
-                        .take(rng.usize(0..=3))
-                        .map(|c| Tag::new(c).unwrap())
-                        .collect::<Vec<_>>();
-                    let remove = tags
-                        .iter()
-                        .take(rng.usize(0..=tags.len()))
-                        .cloned()
-                        .collect();
-                    for tag in &add {
-                        tags.push(tag.clone());
-                    }
-                    Some((clock.tick(), actor.op(Action::Tag { add, remove })))
-                })
-                .variant(1, |(actor, clock, revisions, _), rng| {
-                    let oid = oids[rng.usize(..oids.len())];
-                    let base = oids[rng.usize(..oids.len())];
-                    let description = iter::repeat_with(|| rng.alphabetic()).take(6).collect();
-                    let op = actor.op(Action::Revision {
-                        description,
-                        base,
-                        oid,
-                    });
-
-                    if rng.bool() {
-                        revisions.push(op.id);
-                    }
-                    Some((*clock, op))
-                });
-
-            let mut changes = Vec::new();
-            let mut permutations: [Vec<Op>; N] = array::from_fn(|_| Vec::new());
-
-            for (_, op) in gen.take(g.size()) {
-                changes.push(op);
-            }
-
-            for p in &mut permutations {
-                *p = changes.clone();
-                rng.shuffle(&mut changes);
-            }
-
-            Changes { permutations }
-        }
-    }
-
-    #[test]
-    fn prop_invariants() {
-        fn property(repo: MockRepository, log: Changes<3>) -> TestResult {
-            let t = Patch::default();
-            let [p1, p2, p3] = log.permutations;
-
-            let mut t1 = t.clone();
-            if t1.apply(p1, &repo).is_err() {
-                return TestResult::discard();
-            }
-
-            let mut t2 = t.clone();
-            if t2.apply(p2, &repo).is_err() {
-                return TestResult::discard();
-            }
-
-            let mut t3 = t;
-            if t3.apply(p3, &repo).is_err() {
-                return TestResult::discard();
-            }
-
-            assert_eq!(t1, t2);
-            assert_eq!(t2, t3);
-            assert_laws(&t1, &t2, &t3);
-
-            TestResult::passed()
-        }
-
-        qcheck::QuickCheck::new()
-            .min_tests_passed(100)
-            .gen(qcheck::Gen::new(7))
-            .quickcheck(property as fn(MockRepository, Changes<3>) -> TestResult);
-    }
 
     #[test]
     fn test_json_serialization() {
@@ -1737,26 +1499,23 @@ mod test {
 
     #[test]
     fn test_patch_create_and_get() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::setup::Context::new(&tmp);
-        let signer = &ctx.signer;
-        let pr = ctx.branch_with(test::setup::initial_blobs());
-        let mut patches = Patches::open(&ctx.project).unwrap();
-        let author: Did = signer.public_key().into();
+        let alice = test::setup::NodeWithRepo::default();
+        let checkout = alice.repo.checkout();
+        let branch = checkout.branch_with([("README", b"Hello World!")]);
+        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let author: Did = alice.signer.public_key().into();
         let target = MergeTarget::Delegates;
         let patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 target,
-                pr.base,
-                pr.oid,
+                branch.base,
+                branch.oid,
                 &[],
-                signer,
+                &alice.signer,
             )
             .unwrap();
-
-        assert_eq!(patch.clock.get(), 1);
 
         let patch_id = patch.id;
         let patch = patches.get(&patch_id).unwrap().unwrap();
@@ -1773,8 +1532,8 @@ mod test {
         assert_eq!(revision.author.id(), &author);
         assert_eq!(revision.description(), "Blah blah blah.");
         assert_eq!(revision.discussion.len(), 0);
-        assert_eq!(revision.oid, pr.oid);
-        assert_eq!(revision.base, pr.base);
+        assert_eq!(revision.oid, branch.oid);
+        assert_eq!(revision.base, branch.base);
 
         let (id, _, _) = patches.find_by_revision(rev_id).unwrap().unwrap();
         assert_eq!(id, patch_id);
@@ -1782,20 +1541,19 @@ mod test {
 
     #[test]
     fn test_patch_discussion() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::setup::Context::new(&tmp);
-        let signer = &ctx.signer;
-        let pr = ctx.branch_with(test::setup::initial_blobs());
-        let mut patches = Patches::open(&ctx.project).unwrap();
+        let alice = test::setup::NodeWithRepo::default();
+        let checkout = alice.repo.checkout();
+        let branch = checkout.branch_with([("README", b"Hello World!")]);
+        let mut patches = Patches::open(&*alice.repo).unwrap();
         let patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                pr.base,
-                pr.oid,
+                branch.base,
+                branch.oid,
                 &[],
-                signer,
+                &alice.signer,
             )
             .unwrap();
 
@@ -1804,7 +1562,7 @@ mod test {
         let (revision_id, _) = patch.revisions().last().unwrap();
         assert!(
             patch
-                .comment(*revision_id, "patch comment", None, signer)
+                .comment(*revision_id, "patch comment", None, &alice.signer)
                 .is_ok(),
             "can comment on patch"
         );
@@ -1816,26 +1574,25 @@ mod test {
 
     #[test]
     fn test_patch_merge() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::setup::Context::new(&tmp);
-        let signer = &ctx.signer;
-        let pr = ctx.branch_with(test::setup::initial_blobs());
-        let mut patches = Patches::open(&ctx.project).unwrap();
+        let alice = test::setup::NodeWithRepo::default();
+        let checkout = alice.repo.checkout();
+        let branch = checkout.branch_with([("README", b"Hello World!")]);
+        let mut patches = Patches::open(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                pr.base,
-                pr.oid,
+                branch.base,
+                branch.oid,
                 &[],
-                signer,
+                &alice.signer,
             )
             .unwrap();
 
         let id = patch.id;
         let (rid, _) = patch.revisions().next().unwrap();
-        let _merge = patch.merge(*rid, pr.base, signer).unwrap();
+        let _merge = patch.merge(*rid, branch.base, &alice.signer).unwrap();
 
         let patch = patches.get(&id).unwrap().unwrap();
 
@@ -1843,83 +1600,36 @@ mod test {
         assert_eq!(merges.len(), 1);
 
         let (merger, merge) = merges.first().unwrap();
-        assert_eq!(*merger, signer.public_key());
-        assert_eq!(merge.commit, pr.base);
-    }
-
-    #[test]
-    fn test_patch_merge_and_archive() {
-        let rid = gen::<Id>(1);
-        let base = git::Oid::from_str("d8711a8d43dc919fe39ae4b7c2f7b24667f5d470").unwrap();
-        let commit = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
-
-        let mut alice = Actor::<MockSigner>::default();
-        let mut bob = Actor::<MockSigner>::default();
-
-        let proj = gen::<Project>(1);
-        let doc = Doc::new(proj, nonempty![alice.did(), bob.did()], 1)
-            .verified()
-            .unwrap();
-        let repo = MockRepository::new(rid, doc);
-        let patch = alice
-            .patch("Some changes", "", base, commit, &repo)
-            .unwrap();
-        let (revision, _) = patch.revisions().next().unwrap();
-
-        // Create two concurrent operations.
-        let clock = Lamport::from(2);
-        let identity = repo.identity_head().unwrap();
-        let ops = [
-            alice.op_with(
-                Action::Merge {
-                    revision: *revision,
-                    commit,
-                },
-                clock,
-                identity,
-            ),
-            bob.op_with(
-                Action::Lifecycle {
-                    state: State::Archived,
-                },
-                clock,
-                identity,
-            ),
-        ];
-
-        let mut patch1 = patch.clone();
-        let mut patch2 = patch.clone();
-
-        // Apply the ops in different orders and expect the patch state to remain the same.
-        patch1.apply(ops.iter().cloned(), &repo).unwrap();
-        patch2.apply(ops.iter().cloned().rev(), &repo).unwrap();
-
-        assert_matches!(patch1.state(), &State::Merged { .. });
-        assert_matches!(patch2.state(), &State::Merged { .. });
+        assert_eq!(*merger, alice.signer.public_key());
+        assert_eq!(merge.commit, branch.base);
     }
 
     #[test]
     fn test_patch_review() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::setup::Context::new(&tmp);
-        let signer = &ctx.signer;
-        let pr = ctx.branch_with(test::setup::initial_blobs());
-        let mut patches = Patches::open(&ctx.project).unwrap();
+        let alice = test::setup::NodeWithRepo::default();
+        let checkout = alice.repo.checkout();
+        let branch = checkout.branch_with([("README", b"Hello World!")]);
+        let mut patches = Patches::open(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                pr.base,
-                pr.oid,
+                branch.base,
+                branch.oid,
                 &[],
-                signer,
+                &alice.signer,
             )
             .unwrap();
 
         let (rid, _) = patch.latest();
         patch
-            .review(*rid, Some(Verdict::Accept), Some("LGTM".to_owned()), signer)
+            .review(
+                *rid,
+                Some(Verdict::Accept),
+                Some("LGTM".to_owned()),
+                &alice.signer,
+            )
             .unwrap();
 
         let id = patch.id;
@@ -1927,7 +1637,7 @@ mod test {
         let (_, revision) = patch.latest();
         assert_eq!(revision.reviews.len(), 1);
 
-        let review = revision.review(signer.public_key()).unwrap();
+        let review = revision.review(alice.signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Accept));
         assert_eq!(review.summary(), Some("LGTM"));
     }
@@ -1956,14 +1666,14 @@ mod test {
             commit: oid,
         });
 
-        patch.apply([a1], &repo).unwrap();
+        patch.apply(a1, &repo).unwrap();
         assert!(patch.revisions().next().is_some());
 
-        patch.apply([a2], &repo).unwrap();
+        patch.apply(a2, &repo).unwrap();
         assert!(patch.revisions().next().is_none());
 
-        patch.apply([a3], &repo).unwrap();
-        patch.apply([a4], &repo).unwrap();
+        patch.apply(a3, &repo).unwrap();
+        patch.apply(a4, &repo).unwrap();
     }
 
     #[test]
@@ -1971,44 +1681,65 @@ mod test {
         let base = arbitrary::oid();
         let oid = arbitrary::oid();
         let repo = gen::<MockRepository>(1);
-        let mut alice = Actor::new(MockSigner::default());
-        let mut p1 = Patch::default();
-        let mut p2 = Patch::default();
+        let time = Timestamp::now();
+        let alice = MockSigner::default();
+        let bob = MockSigner::default();
+        let mut h0: cob::test::HistoryBuilder<Patch> = cob::test::history(
+            &Action::Revision {
+                description: String::from("Original"),
+                base,
+                oid,
+            },
+            time,
+            &alice,
+        );
+        h0.commit(
+            &Action::Edit {
+                title: String::from("Some patch"),
+                target: MergeTarget::Delegates,
+            },
+            &alice,
+        );
 
-        let a1 = alice.op(Action::Revision {
-            description: String::new(),
-            base,
-            oid,
-        });
-        let a2 = alice.op(Action::Redact { revision: a1.id });
-        let a3 = alice.op(Action::EditRevision {
-            revision: a1.id,
-            description: String::from("Edited"),
-        });
+        let mut h1 = h0.clone();
+        h1.commit(
+            &Action::Redact {
+                revision: h0.root(),
+            },
+            &alice,
+        );
 
-        p1.apply([a1.clone(), a2.clone(), a3.clone()], &repo)
-            .unwrap();
-        p2.apply([a1, a3, a2], &repo).unwrap();
+        let mut h2 = h0.clone();
+        h2.commit(
+            &Action::EditRevision {
+                revision: h0.root(),
+                description: String::from("Edited"),
+            },
+            &bob,
+        );
 
-        assert_eq!(p1, p2);
+        h0.merge(h1);
+        h0.merge(h2);
+
+        let patch = Patch::from_history(&h0, &repo).unwrap();
+        assert_eq!(patch.revisions().count(), 0);
     }
 
     #[test]
     fn test_patch_review_edit() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::setup::Context::new(&tmp);
-        let signer = &ctx.signer;
-        let pr = ctx.branch_with(test::setup::initial_blobs());
-        let mut patches = Patches::open(&ctx.project).unwrap();
+        let alice = test::setup::NodeWithRepo::default();
+        let checkout = alice.repo.checkout();
+        let branch = checkout.branch_with([("README", b"Hello World!")]);
+        let mut patches = Patches::open(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                pr.base,
-                pr.oid,
+                branch.base,
+                branch.oid,
                 &[],
-                signer,
+                &alice.signer,
             )
             .unwrap();
 
@@ -2016,56 +1747,60 @@ mod test {
         let rid = *rid;
 
         let review = patch
-            .review(rid, Some(Verdict::Accept), Some("LGTM".to_owned()), signer)
+            .review(
+                rid,
+                Some(Verdict::Accept),
+                Some("LGTM".to_owned()),
+                &alice.signer,
+            )
             .unwrap();
         patch
-            .edit_review(review, Some("Whoops!".to_owned()), signer)
+            .edit_review(review, Some("Whoops!".to_owned()), &alice.signer)
             .unwrap(); // Overwrite the comment.
                        //
         let (_, revision) = patch.latest();
-        let review = revision.review(signer.public_key()).unwrap();
+        let review = revision.review(alice.signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Accept));
         assert_eq!(review.summary(), Some("Whoops!"));
     }
 
     #[test]
     fn test_patch_review_comment() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::setup::Context::new(&tmp);
-        let signer = &ctx.signer;
-        let pr = ctx.branch_with(test::setup::initial_blobs());
-        let mut patches = Patches::open(&ctx.project).unwrap();
+        let alice = test::setup::NodeWithRepo::default();
+        let checkout = alice.repo.checkout();
+        let branch = checkout.branch_with([("README", b"Hello World!")]);
+        let mut patches = Patches::open(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                pr.base,
-                pr.oid,
+                branch.base,
+                branch.oid,
                 &[],
-                signer,
+                &alice.signer,
             )
             .unwrap();
 
         let (rid, _) = patch.latest();
         let rid = *rid;
         let location = CodeLocation {
-            path: PathBuf::from_str("README.md").unwrap(),
+            path: PathBuf::from_str("README").unwrap(),
             old: None,
             new: Some(5..8),
         };
-        let review = patch.review(rid, None, None, signer).unwrap();
+        let review = patch.review(rid, None, None, &alice.signer).unwrap();
         patch
             .code_comment(
                 review,
                 "I like these lines of code",
                 location.clone(),
-                signer,
+                &alice.signer,
             )
             .unwrap();
 
         let (_, revision) = patch.latest();
-        let review = revision.review(signer.public_key()).unwrap();
+        let review = revision.review(alice.signer.public_key()).unwrap();
         let (_, comment) = review.comments().next().unwrap();
 
         assert_eq!(comment.body(), "I like these lines of code");
@@ -2074,66 +1809,62 @@ mod test {
 
     #[test]
     fn test_patch_review_remove_summary() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::setup::Context::new(&tmp);
-        let signer = &ctx.signer;
-        let pr = ctx.branch_with(test::setup::initial_blobs());
-        let mut patches = Patches::open(&ctx.project).unwrap();
+        let alice = test::setup::NodeWithRepo::default();
+        let checkout = alice.repo.checkout();
+        let branch = checkout.branch_with([("README", b"Hello World!")]);
+        let mut patches = Patches::open(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                pr.base,
-                pr.oid,
+                branch.base,
+                branch.oid,
                 &[],
-                signer,
+                &alice.signer,
             )
             .unwrap();
 
         let (rid, _) = patch.latest();
         let rid = *rid;
         let review = patch
-            .review(rid, None, Some("Nah".to_owned()), signer)
+            .review(rid, None, Some("Nah".to_owned()), &alice.signer)
             .unwrap();
-        patch.edit_review(review, None, signer).unwrap();
+        patch.edit_review(review, None, &alice.signer).unwrap();
 
         let id = patch.id;
         let patch = patches.get_mut(&id).unwrap();
         let (_, revision) = patch.latest();
-        let review = revision.review(signer.public_key()).unwrap();
+        let review = revision.review(alice.signer.public_key()).unwrap();
 
         assert_eq!(review.summary(), None);
     }
 
     #[test]
     fn test_patch_update() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::setup::Context::new(&tmp);
-        let signer = &ctx.signer;
-        let pr = ctx.branch_with(test::setup::initial_blobs());
-        let mut patches = Patches::open(&ctx.project).unwrap();
+        let alice = test::setup::NodeWithRepo::default();
+        let checkout = alice.repo.checkout();
+        let branch = checkout.branch_with([("README", b"Hello World!")]);
+        let mut patches = Patches::open(&*alice.repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                pr.base,
-                pr.oid,
+                branch.base,
+                branch.oid,
                 &[],
-                signer,
+                &alice.signer,
             )
             .unwrap();
 
-        assert_eq!(patch.clock.get(), 1);
         assert_eq!(patch.description(), "Blah blah blah.");
         assert_eq!(patch.version(), 0);
 
-        let update = ctx.branch_with(test::setup::update_blobs());
+        let update = checkout.branch_with([("README", b"Hello Radicle!")]);
         let _ = patch
-            .update("I've made changes.", pr.base, update.oid, signer)
+            .update("I've made changes.", branch.base, update.oid, &alice.signer)
             .unwrap();
-        assert_eq!(patch.clock.get(), 2);
 
         let id = patch.id;
         let patch = patches.get(&id).unwrap().unwrap();
@@ -2158,35 +1889,38 @@ mod test {
 
     #[test]
     fn test_patch_redact() {
-        let tmp = tempfile::tempdir().unwrap();
-        let ctx = test::setup::Context::new(&tmp);
-        let signer = &ctx.signer;
-        let pr = ctx.branch_with(test::setup::initial_blobs());
-        let mut patches = Patches::open(&ctx.project).unwrap();
+        let alice = test::setup::Node::default();
+        let repo = alice.project();
+        let branch = repo
+            .checkout()
+            .branch_with([("README.md", b"Hello, World!")]);
+        let mut patches = Patches::open(&*repo).unwrap();
         let mut patch = patches
             .create(
                 "My first patch",
                 "Blah blah blah.",
                 MergeTarget::Delegates,
-                pr.base,
-                pr.oid,
+                branch.base,
+                branch.oid,
                 &[],
-                signer,
+                &alice.signer,
             )
             .unwrap();
         let patch_id = patch.id;
 
-        let update = ctx.branch_with(test::setup::update_blobs());
+        let update = repo
+            .checkout()
+            .branch_with([("README.md", b"Hello, Radicle!")]);
         let revision_id = patch
-            .update("I've made changes.", pr.base, update.oid, signer)
+            .update("I've made changes.", branch.base, update.oid, &alice.signer)
             .unwrap();
         assert_eq!(patch.revisions().count(), 2);
 
-        patch.redact(revision_id, signer).unwrap();
+        patch.redact(revision_id, &alice.signer).unwrap();
         assert_eq!(patch.latest().0, &RevisionId::from(patch_id));
         assert_eq!(patch.revisions().count(), 1);
 
         // The patch's root must always exist.
-        assert!(patch.redact(*patch.latest().0, signer).is_err());
+        assert!(patch.redact(*patch.latest().0, &alice.signer).is_err());
     }
 }
