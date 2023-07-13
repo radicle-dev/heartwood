@@ -233,45 +233,44 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             by_hunk,
             unified,
             hunk,
-        } => {
-            if by_hunk {
-                let mut opts = git::raw::DiffOptions::new();
-                opts.patience(true)
-                    .minimal(true)
-                    .context_lines(unified as u32);
+        } if by_hunk => {
+            let mut opts = git::raw::DiffOptions::new();
+            opts.patience(true)
+                .minimal(true)
+                .context_lines(unified as u32);
 
-                builder::ReviewBuilder::new(patch_id, *profile.id(), &repository)
-                    .hunk(hunk)
-                    .verdict(verdict)
-                    .run(revision, &mut opts)?;
+            builder::ReviewBuilder::new(patch_id, *profile.id(), &repository)
+                .hunk(hunk)
+                .verdict(verdict)
+                .run(revision, &mut opts)?;
+        }
+        Operation::Review { verdict, .. } => {
+            let message = options.message.get(REVIEW_HELP_MSG)?;
+            let message = message.replace(REVIEW_HELP_MSG.trim(), "");
+            let message = if message.is_empty() {
+                None
             } else {
-                let message = options.message.get(REVIEW_HELP_MSG)?;
-                let message = message.replace(REVIEW_HELP_MSG.trim(), "");
-                let message = if message.is_empty() {
-                    None
-                } else {
-                    Some(message)
-                };
-                patch.review(*revision_id, verdict, message, &signer)?;
+                Some(message)
+            };
+            patch.review(*revision_id, verdict, message, &signer)?;
 
-                match verdict {
-                    Some(Verdict::Accept) => {
-                        term::success!(
-                            "Patch {} {}",
-                            patch_id_pretty,
-                            term::format::highlight("accepted")
-                        );
-                    }
-                    Some(Verdict::Reject) => {
-                        term::success!(
-                            "Patch {} {}",
-                            patch_id_pretty,
-                            term::format::negative("rejected")
-                        );
-                    }
-                    None => {
-                        term::success!("Patch {} reviewed", patch_id_pretty);
-                    }
+            match verdict {
+                Some(Verdict::Accept) => {
+                    term::success!(
+                        "Patch {} {}",
+                        patch_id_pretty,
+                        term::format::highlight("accepted")
+                    );
+                }
+                Some(Verdict::Reject) => {
+                    term::success!(
+                        "Patch {} {}",
+                        patch_id_pretty,
+                        term::format::negative("rejected")
+                    );
+                }
+                None => {
+                    term::success!("Patch {} reviewed", patch_id_pretty);
                 }
             }
         }
