@@ -28,6 +28,8 @@ main () {
     cargo build --target="$target" --bin git-remote-rad --release
     cp target/"$target"/release/git-remote-rad "$staging"/
 
+    ./build-man-pages.sh "$staging" "$(find . -name '*.1.adoc')"
+
     tar czf "$staging.tar.gz" "$staging"
     cp "$staging.tar.gz" "$staging"/
 }

@@ -1,0 +1,202 @@
+= rad(1)
+The Radicle Team <team@radicle.xyz>
+:doctype: manpage
+:revnumber: 0.8.0
+:revdate: 2023-07-01
+:mansource: rad {revnumber}
+:manmanual: Radicle CLI Manual
+
+== Name
+
+rad - Radicle command-line tooling.
+
+== Synopsis
+
+*rad* *
+
+== Description
+
+The Radicle CLI is a set of tools designed for users of the Radicle
+peer-to-peer code collaboration stack. The CLI provides the ability to manage
+Radicle profiles and publish repositories to the Radicle network.
+
+== Requirements
+
+There are a few important requirements for running the Radicle CLI: first, a
+recent version of *git* (*2.34.0* or later) must be installed. You can check
+your installation by running *git --version*. Second, *ssh-agent* must be
+installed and running. To bypass ssh-agent, it's possible to set the
+*RAD_PASSPHRASE* environment variable. See the _Environment_ section.
+
+== Getting started
+
+Let's see how we can setup Radicle and clone a repository from the network.
+
+Before we start, make sure that the *rad* binary is available on your system by
+running:
+
+    $ rad
+
+This is the base command and the output will show you all available
+sub-commands.
+
+=== Creating a profile
+
+When using Radicle for the first time, you have to create a new Radicle
+_profile_. A profile is simply a cryptographic key pair associated with some
+storage space on your local device. Radicle stores everything under the Radicle
+_home_ directory, which defaults to *~/.radicle* on most systems.
+To create your profile, run:
+
+    $ rad auth
+
+Follow the instructions by entering an alias and a passphrase to protect your
+key pair. When you've completed the steps, your new Radicle _DID_
+(Decentralized Identifier) will be displayed. This identifies your device, as
+well as all the code you publish. Share it freely with collaborators. Your
+alias is a non-unique name that is shared across the network to identify your
+node. It can always be changed at a later time.
+
+After running *rad auth*, you should have a new profile and key pair under your
+Radicle home. The key pair is used for identifying peers across the network, as
+well as signing code and other artifacts published on the network.
+
+To avoid having to re-enter your passphrase every time a signature is required,
+*rad auth* adds your secret key to *ssh-agent*.
+
+You can always display the full path to your Radicle home directory using:
+
+    $ rad self --home
+
+The *self* sub-command is useful for querying profile information. You can
+run it without any arguments to show all of your profile information, including
+your DID:
+
+    $ rad self
+
+=== Connecting to the network
+
+Radicle is a peer-to-peer system. This means that there are no clients or
+servers; only _nodes_, and every user has to run their own. This ensures
+that there is no single point of failure, and the Radicle network can keep on
+existing as long as there are users to run nodes.
+
+The Radicle node is a lightweight process that runs in the background and
+manages connections with other nodes, as well as data replication. To check your
+node's status, run:
+
+    $ rad node status
+
+If the node is not running, you can start it with:
+
+    $ rad node start
+
+This will start the node in the foreground. Simply add *--daemon* to run the
+node in the background.
+
+When daemonized, the node will log all output to a file under your Radicle home.
+On most systems, this will be *~/.radicle/node/node.log*.
+
+You can also display the latest logs at any time using:
+
+    $ rad node logs
+
+Once your node is running, you'll have to ask it to connect to a public node.
+This is because network bootstrapping is not yet ready. Hence, we run the
+*connect* sub-command to establish a connection with a remote node. For example,
+to connect to the *radicle.garden* community node, you can run:
+
+    $ rad node connect z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776
+
+The argument given to *connect* is called a node _address_. It is composed of
+a Node ID (NID), followed by an *@* symbol, and the _host_ name and _port_.
+
+You can display your NID with *rad self --nid*.
+
+Now that you're connected to the network, we can try to clone a repository
+hosted on Radicle.
+
+=== Cloning a repository
+
+To clone a repository from the Radicle network, you need to be connected to a
+seed which is hosting the repository. Eventually, this won't be necessary,
+but for now, a direct connection with the seed you are cloning from is
+required. Once the connection is established, you can run the *rad clone*
+command to clone a repository, by supplying a Repository Identifier (RID).
+RIDs are globally unique URNs that identify a repository on Radicle.
+For example, let's clone the Radicle heartwood repository:
+
+    $ rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5
+
+If the command succeeds, you will have a checkout of the repository under
+*./heartwood*, with a *rad* remote setup, which you can pull from and push to.
+
+The *rad* remote is special in that it will always return the _authoritative_
+branch of the repo, when fetched from. This is defined as the latest commit
+on the repository's default branch that a threshold of delegates have published.
+
+Under the hood, the *clone* command does a few important things:
+
+* It subscribes to updates from this repository; this is called _tracking_.
+* It creates a copy of the repository under your local storage, which provides
+  a replica to the network.
+* It creates a Git remote for every repository _delegate_. These are usually
+  the repository maintainers.
+* It creates a fork of the repository that is under your public key.
+* It creates a *rad* remote which you can push to, to update your fork.
+
+You can see all replicated and locally-available repositories using:
+
+    $ rad ls
+
+By default, your node will subscribe to updates from _all_ peers. This
+behavior can be changed by passing *--scope trusted* when cloning. It can
+also be changed later via the *rad track* command.
+
+=== Publishing a repository on Radicle
+
+To publish an existing Git repository on the Radicle network, navigate to
+a working copy and run the *rad init* command:
+
+    $ cd my-repo
+    $ rad init
+
+You will be prompted to enter a project name and default branch. Once the
+repository is created, the Repository Identifier (RID) will be printed.
+Share this with collaborators so that they can clone your repository.
+
+Note that your new repository will only be replicated by nodes that you are
+connected to and either have an open tracking policy, or trust your Node ID.
+
+The *rad init* command creates a special remote in your working copy named
+*rad*. Pushing to this remote publishes changes to your local storage and to
+the network.
+
+You can view information about the *rad* remote with:
+
+    $ git remote show rad
+
+You can display the Repository ID (RID) from the root of any Git repository
+by running:
+
+    $ rad .
+
+You can also show the repository's identity payload, which contains its name,
+description and default branch by running:
+
+    $ rad inspect --payload
+
+=== Environment
+
+Various environment variables are used by *rad*.
+
+*RAD_HOME*::
+
+This sets the location of your Radicle home. If unset, your Radicle home will
+be located at *~/.radicle*.
+
+*RAD_PASSPHRASE*::
+
+If you would like to bypass *ssh-agent*, you can store your passphrase in this
+environment variable. Note that this is not secure and is equivalent to having
+an unencrypted secret key.
