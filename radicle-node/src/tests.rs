@@ -8,6 +8,7 @@ use std::time;
 
 use crossbeam_channel as chan;
 use netservices::Direction as Link;
+use radicle::node::routing::Store as _;
 use radicle::storage::ReadRepository;
 
 use crate::collections::{HashMap, HashSet};

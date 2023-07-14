@@ -333,6 +333,11 @@ where
         &mut self.addresses
     }
 
+    /// Get the routing store.
+    pub fn routing(&self) -> &R {
+        &self.routing
+    }
+
     /// Get the storage instance.
     pub fn storage(&self) -> &S {
         &self.storage
@@ -386,9 +391,11 @@ where
         // Ensure that our inventory is recorded in our routing table, and we are tracking
         // all of it. It can happen that inventory is not properly tracked if for eg. the
         // user creates a new repository while the node is stopped.
-        for rid in self.storage.inventory()? {
-            self.routing.insert(rid, self.node_id(), time.as_millis())?;
+        let rids = self.storage.inventory()?;
+        self.routing
+            .insert(&rids, self.node_id(), time.as_millis())?;
 
+        for rid in rids {
             if !self.is_tracking(&rid)? {
                 if self
                     .track_repo(&rid, tracking::Scope::Trusted)
@@ -913,11 +920,11 @@ where
 
                 // We update inventories when receiving ref announcements, as these could come
                 // from a new repository being initialized.
-                if let Ok(result) = self
-                    .routing
-                    .insert(message.rid, *announcer, message.timestamp)
+                if let Ok(result) =
+                    self.routing
+                        .insert([&message.rid], *announcer, message.timestamp)
                 {
-                    if let InsertResult::SeedAdded = result {
+                    if let &[(_, InsertResult::SeedAdded)] = result.as_slice() {
                         self.emitter.emit(Event::SeedDiscovered {
                             rid: message.rid,
                             nid: *relayer,
@@ -1182,28 +1189,24 @@ where
         timestamp: Timestamp,
     ) -> Result<SyncedRouting, Error> {
         let mut synced = SyncedRouting::default();
-        let mut included = HashSet::new();
+        let included: HashSet<&Id> = HashSet::from_iter(inventory);
 
-        for rid in inventory {
-            included.insert(rid);
-            match self.routing.insert(*rid, from, timestamp)? {
+        for (rid, result) in self.routing.insert(inventory, from, timestamp)? {
+            match result {
                 InsertResult::SeedAdded => {
                     info!(target: "service", "Routing table updated for {rid} with seed {from}");
-                    self.emitter.emit(Event::SeedDiscovered {
-                        rid: *rid,
-                        nid: from,
-                    });
+                    self.emitter.emit(Event::SeedDiscovered { rid, nid: from });
 
-                    if self.tracking.is_repo_tracked(rid).expect(
+                    if self.tracking.is_repo_tracked(&rid).expect(
                         "Service::process_inventory: error accessing tracking configuration",
                     ) {
                         // TODO: We should fetch here if we're already connected, case this seed has
                         // refs we don't have.
                     }
-                    synced.added.push(*rid);
+                    synced.added.push(rid);
                 }
                 InsertResult::TimeUpdated => {
-                    synced.updated.push(*rid);
+                    synced.updated.push(rid);
                 }
                 InsertResult::NotUpdated => {}
             }
@@ -1539,8 +1542,6 @@ pub trait ServiceState {
     fn clock_mut(&mut self) -> &mut LocalTime;
     /// Get service configuration.
     fn config(&self) -> &Config;
-    /// Get reference to routing table.
-    fn routing(&self) -> &dyn routing::Store;
 }
 
 impl<R, A, S, G> ServiceState for Service<R, A, S, G>
@@ -1571,10 +1572,6 @@ where
 
     fn config(&self) -> &Config {
         &self.config
-    }
-
-    fn routing(&self) -> &dyn routing::Store {
-        &self.routing
     }
 }
 
