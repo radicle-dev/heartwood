@@ -26,7 +26,7 @@ pub const HELP: Help = Help {
 Usage
 
     rad node status [<option>...]
-    rad node start [--daemon | -d] [<option>...] [-- <node-option>...]
+    rad node start [--foreground] [<option>...] [-- <node-option>...]
     rad node stop [<option>...]
     rad node logs [-n <lines>]
     rad node connect <nid>@<addr> [<option>...]
@@ -35,6 +35,10 @@ Usage
     rad node events [<option>...]
 
     For `<node-option>` see `radicle-node --help`.
+
+Start options
+
+    --foreground    Start the node in the foreground
 
 Routing options
 
@@ -68,7 +72,7 @@ pub enum Operation {
         nid: Option<NodeId>,
     },
     Start {
-        daemon: bool,
+        foreground: bool,
         options: Vec<OsString>,
     },
     Logs {
@@ -105,7 +109,7 @@ impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
         use lexopt::prelude::*;
 
-        let mut daemon = false;
+        let mut foreground = false;
         let mut options = vec![];
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
@@ -151,8 +155,8 @@ impl Args for Options {
                 Long("nodes") if matches!(op, Some(OperationName::Tracking)) => {
                     tracking_mode = TrackingMode::Nodes
                 }
-                Long("daemon") | Short('d') if matches!(op, Some(OperationName::Start)) => {
-                    daemon = true;
+                Long("foreground") if matches!(op, Some(OperationName::Start)) => {
+                    foreground = true;
                 }
                 Short('n') if matches!(op, Some(OperationName::Logs)) => {
                     lines = parser.value()?.parse()?;
@@ -173,7 +177,10 @@ impl Args for Options {
             OperationName::Events => Operation::Events,
             OperationName::Routing => Operation::Routing { rid, nid, json },
             OperationName::Logs => Operation::Logs { lines },
-            OperationName::Start => Operation::Start { daemon, options },
+            OperationName::Start => Operation::Start {
+                foreground,
+                options,
+            },
             OperationName::Status => Operation::Status,
             OperationName::Stop => Operation::Stop,
             OperationName::Tracking => Operation::Tracking {
@@ -199,8 +206,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             routing::run(&store, rid, nid, json)?;
         }
         Operation::Logs { lines } => control::logs(lines, Some(time::Duration::MAX), &profile)?,
-        Operation::Start { daemon, options } => {
-            control::start(node, daemon, options, &profile)?;
+        Operation::Start {
+            foreground,
+            options,
+        } => {
+            control::start(node, !foreground, options, &profile)?;
         }
         Operation::Status => {
             control::status(&node, &profile)?;
