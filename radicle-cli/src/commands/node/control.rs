@@ -24,10 +24,16 @@ pub fn start(
         term::success!("Node is already running");
         return Ok(());
     }
-    // Ask passphrase here, otherwise it'll be a fatal error when running the daemon
-    // without `RAD_PASSPHRASE`. To keep things consistent, we also use this in foreground mode.
-    let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
-        .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
+    let envs = if profile.keystore.is_encrypted()? {
+        // Ask passphrase here, otherwise it'll be a fatal error when running the daemon
+        // without `RAD_PASSPHRASE`. To keep things consistent, we also use this in foreground mode.
+        let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
+            .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
+
+        Some((profile::env::RAD_PASSPHRASE, passphrase))
+    } else {
+        None
+    };
 
     // Since we checked that the node is not running, it's safe to use `--force`
     // here.
@@ -42,7 +48,7 @@ pub fn start(
 
         process::Command::new("radicle-node")
             .args(options)
-            .env(profile::env::RAD_PASSPHRASE, passphrase)
+            .envs(envs)
             .stdin(process::Stdio::null())
             .stdout(process::Stdio::from(log))
             .stderr(process::Stdio::null())
@@ -52,7 +58,7 @@ pub fn start(
     } else {
         let mut child = process::Command::new("radicle-node")
             .args(options)
-            .env(profile::env::RAD_PASSPHRASE, passphrase)
+            .envs(envs)
             .spawn()?;
 
         child.wait()?;
@@ -139,6 +145,7 @@ pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
         term::success!("Node is {}", term::format::positive("running"));
     } else {
         term::info!("Node is {}", term::format::negative("stopped"));
+        return Ok(());
     }
 
     let sessions = sessions(node)?;

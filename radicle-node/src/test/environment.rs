@@ -78,7 +78,7 @@ impl Environment {
     /// is required. Use [`Environment::profile`] otherwise.
     pub fn node(&mut self, config: Config) -> Node<MemorySigner> {
         let profile = self.profile(&config.alias);
-        let signer = MemorySigner::load(&profile.keystore, "radicle".to_owned().into()).unwrap();
+        let signer = MemorySigner::load(&profile.keystore, None).unwrap();
         let tracking_db = profile.home.node().join(TRACKING_DB_FILE);
         TrackingStore::Config::open(tracking_db).unwrap();
         let addresses_db = profile.home.node().join(ADDRESS_DB_FILE);
@@ -109,9 +109,7 @@ impl Environment {
         Book::open(addresses_db).unwrap();
 
         transport::local::register(storage.clone());
-        keystore
-            .store(keypair.clone(), "radicle", "radicle".to_owned())
-            .unwrap();
+        keystore.store(keypair.clone(), "radicle", None).unwrap();
 
         // Ensures that each user has a unique but deterministic public key.
         self.users += 1;

@@ -46,8 +46,6 @@ pub const CONTRIBUTOR_PATCH_ID: &str = "044b577cc7551cd09d4b2f03566a553762180de4
 pub const CONTRIBUTOR_COMMENT_1: &str = "92aab76516ae7f60a9b2952043ba578383de7d46";
 pub const CONTRIBUTOR_COMMENT_2: &str = "cb360eee0ec70563d5c4c3613fdc076648523248";
 
-const PASSWORD: &str = "radicle";
-
 /// Create a new profile.
 pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
     let home = Home::new(home).unwrap();
@@ -56,9 +54,7 @@ pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
     let keypair = KeyPair::from_seed(Seed::from(seed));
 
     radicle::storage::git::transport::local::register(storage.clone());
-    keystore
-        .store(keypair.clone(), "radicle", PASSWORD.to_owned())
-        .unwrap();
+    keystore.store(keypair.clone(), "radicle", None).unwrap();
 
     radicle::Profile {
         home,
@@ -85,7 +81,7 @@ pub fn contributor(dir: &Path) -> Context {
 
     let home = dir.join("radicle");
     let profile = profile(home.as_path(), seed);
-    let signer = MemorySigner::load(&profile.keystore, PASSWORD.to_owned().into()).unwrap();
+    let signer = MemorySigner::load(&profile.keystore, None).unwrap();
 
     seed_with_signer(dir, profile, &signer)
 }
@@ -102,7 +98,6 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let workdir = dir.join("hello-world");
 
     env::set_var("RAD_COMMIT_TIME", TIMESTAMP.to_string());
-    env::set_var("RAD_PASSPHRASE", PASSWORD);
 
     fs::create_dir_all(&workdir).unwrap();
 

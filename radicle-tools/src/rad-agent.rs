@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
             let passphrase = passphrase.trim().to_owned().into();
             let secret = profile
                 .keystore
-                .secret_key(passphrase)?
+                .secret_key(Some(passphrase))?
                 .ok_or_else(|| anyhow!("Key not found in {:?}", profile.keystore.path()))?;
 
             agent.register(&secret)?;

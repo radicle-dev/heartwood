@@ -1,6 +1,7 @@
 #![allow(clippy::or_fun_call)]
 use std::env;
 use std::ffi::OsString;
+use std::ops::Not as _;
 use std::str::FromStr;
 
 use anyhow::anyhow;
@@ -109,22 +110,25 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     } else {
         term::passphrase_confirm("Enter a passphrase:", RAD_PASSPHRASE)
     }?;
+    let passphrase = passphrase.trim().is_empty().not().then_some(passphrase);
     let spinner = term::spinner("Creating your Ed25519 keypair...");
     let profile = Profile::init(home, alias, passphrase.clone())?;
     spinner.finish();
 
-    match ssh::agent::Agent::connect() {
-        Ok(mut agent) => {
-            let mut spinner = term::spinner("Adding your radicle key to ssh-agent...");
-            if register(&mut agent, &profile, passphrase).is_ok() {
-                spinner.finish();
-            } else {
-                spinner.message("Could not register radicle key in ssh-agent.");
-                spinner.warn();
+    if let Some(passphrase) = passphrase {
+        match ssh::agent::Agent::connect() {
+            Ok(mut agent) => {
+                let mut spinner = term::spinner("Adding your radicle key to ssh-agent...");
+                if register(&mut agent, &profile, passphrase).is_ok() {
+                    spinner.finish();
+                } else {
+                    spinner.message("Could not register radicle key in ssh-agent.");
+                    spinner.warn();
+                }
             }
+            Err(e) if e.is_not_running() => {}
+            Err(e) => Err(e)?,
         }
-        Err(e) if e.is_not_running() => {}
-        Err(e) => Err(e)?,
     }
 
     term::success!(
@@ -144,7 +148,13 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 /// Try loading the identity's key into SSH Agent, falling back to verifying `RAD_PASSPHRASE` for
 /// use.
 pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
-    // Authenticate with SSH Agent only if it is running.
+    if !profile.keystore.is_encrypted()? {
+        term::success!("Authenticated as {}", term::format::tertiary(profile.id()));
+        return Ok(());
+    }
+
+    // If our key is encrypted, we try to authenticate with SSH Agent and
+    // register it; only if it is running.
     match ssh::agent::Agent::connect() {
         Ok(mut agent) => {
             if agent.request_identities()?.contains(&profile.public_key) {
@@ -174,7 +184,7 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
 
     // Try RAD_PASSPHRASE fallback.
     if let Some(passphrase) = profile::env::passphrase() {
-        ssh::keystore::MemorySigner::load(&profile.keystore, passphrase)
+        ssh::keystore::MemorySigner::load(&profile.keystore, Some(passphrase))
             .map_err(|_| anyhow!("RAD_PASSPHRASE failed"))?;
         return Ok(());
     };
@@ -191,7 +201,7 @@ pub fn register(
 ) -> anyhow::Result<()> {
     let secret = profile
         .keystore
-        .secret_key(passphrase)
+        .secret_key(Some(passphrase))
         .map_err(|e| {
             if e.is_crypto_err() {
                 anyhow!("could not decrypt secret key: invalid passphrase")

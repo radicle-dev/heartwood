@@ -15,7 +15,7 @@ pub fn signer(profile: &Profile) -> anyhow::Result<Box<dyn Signer>> {
     }
     let passphrase = passphrase(RAD_PASSPHRASE)?;
     let spinner = spinner("Unsealing key...");
-    let signer = MemorySigner::load(&profile.keystore, passphrase)?;
+    let signer = MemorySigner::load(&profile.keystore, Some(passphrase))?;
 
     spinner.finish();
 

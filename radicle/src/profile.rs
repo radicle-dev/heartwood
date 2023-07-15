@@ -38,6 +38,7 @@ pub mod env {
     /// Passphrase for the encrypted radicle secret key.
     pub const RAD_PASSPHRASE: &str = "RAD_PASSPHRASE";
 
+    /// Get the radicle passphrase from the environment.
     pub fn passphrase() -> Option<super::Passphrase> {
         let Ok(passphrase) = std::env::var(RAD_PASSPHRASE) else {
             return None;
@@ -139,11 +140,7 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn init(
-        home: Home,
-        alias: Alias,
-        passphrase: impl Into<Passphrase>,
-    ) -> Result<Self, Error> {
+    pub fn init(home: Home, alias: Alias, passphrase: Option<Passphrase>) -> Result<Self, Error> {
         let storage = Storage::open(home.storage())?;
         let keystore = Keystore::new(&home.keys());
         let public_key = keystore.init("radicle", passphrase)?;
@@ -189,8 +186,13 @@ impl Profile {
     }
 
     pub fn signer(&self) -> Result<Box<dyn Signer>, Error> {
+        if !self.keystore.is_encrypted()? {
+            let signer = keystore::MemorySigner::load(&self.keystore, None)?;
+            return Ok(signer.boxed());
+        }
+
         if let Some(passphrase) = env::passphrase() {
-            let signer = keystore::MemorySigner::load(&self.keystore, passphrase)?;
+            let signer = keystore::MemorySigner::load(&self.keystore, Some(passphrase))?;
             return Ok(signer.boxed());
         }
 

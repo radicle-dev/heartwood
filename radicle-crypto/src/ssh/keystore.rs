@@ -56,11 +56,9 @@ impl Keystore {
     ///
     /// The `comment` is associated with the private key.
     /// The `passphrase` is used to encrypt the private key.
-    pub fn init(
-        &self,
-        comment: &str,
-        passphrase: impl Into<Passphrase>,
-    ) -> Result<PublicKey, Error> {
+    ///
+    /// If `passphrase` is `None`, the key is not encrypted.
+    pub fn init(&self, comment: &str, passphrase: Option<Passphrase>) -> Result<PublicKey, Error> {
         self.store(keypair::generate(), comment, passphrase)
     }
 
@@ -69,12 +67,16 @@ impl Keystore {
         &self,
         keypair: KeyPair,
         comment: &str,
-        passphrase: impl Into<Passphrase>,
+        passphrase: Option<Passphrase>,
     ) -> Result<PublicKey, Error> {
         let ssh_pair = ssh_key::private::Ed25519Keypair::from_bytes(&keypair)?;
         let ssh_pair = ssh_key::private::KeypairData::Ed25519(ssh_pair);
         let secret = ssh_key::PrivateKey::new(ssh_pair, comment)?;
-        let secret = secret.encrypt(ssh_key::rand_core::OsRng, passphrase.into())?;
+        let secret = if let Some(p) = passphrase {
+            secret.encrypt(ssh_key::rand_core::OsRng, p)?
+        } else {
+            secret
+        };
         let public = secret.public_key();
         let path = self.path.join("radicle");
 
@@ -111,22 +113,33 @@ impl Keystore {
     /// Returns `None` if it wasn't found.
     pub fn secret_key(
         &self,
-        passphrase: Passphrase,
+        passphrase: Option<Passphrase>,
     ) -> Result<Option<Zeroizing<SecretKey>>, Error> {
         let path = self.path.join("radicle");
         if !path.exists() {
             return Ok(None);
         }
 
-        let encrypted = ssh_key::PrivateKey::read_openssh_file(&path)?;
-        let secret = encrypted.decrypt(passphrase)?;
-
+        let secret = ssh_key::PrivateKey::read_openssh_file(&path)?;
+        let secret = if let Some(p) = passphrase {
+            secret.decrypt(p)?
+        } else {
+            secret
+        };
         match secret.key_data() {
             ssh_key::private::KeypairData::Ed25519(pair) => {
                 Ok(Some(SecretKey::from(pair.to_bytes()).into()))
             }
             _ => Err(Error::InvalidKeyType),
         }
+    }
+
+    /// Check whether the secret key is encrypted.
+    pub fn is_encrypted(&self) -> Result<bool, Error> {
+        let path = self.path.join("radicle");
+        let secret = ssh_key::PrivateKey::read_openssh_file(&path)?;
+
+        Ok(secret.is_encrypted())
     }
 }
 
@@ -192,7 +205,10 @@ impl Ecdh for MemorySigner {
 
 impl MemorySigner {
     /// Load this signer from a keystore, given a secret key passphrase.
-    pub fn load(keystore: &Keystore, passphrase: Passphrase) -> Result<Self, MemorySignerError> {
+    pub fn load(
+        keystore: &Keystore,
+        passphrase: Option<Passphrase>,
+    ) -> Result<Self, MemorySignerError> {
         let public = keystore
             .public_key()?
             .ok_or_else(|| MemorySignerError::NotFound(keystore.path().to_path_buf()))?;
@@ -238,20 +254,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_init() {
+    fn test_init_passphrase() {
         let tmp = tempfile::tempdir().unwrap();
         let store = Keystore::new(&tmp.path());
 
-        let public = store.init("test", "hunter".to_owned()).unwrap();
+        let public = store
+            .init("test", Some("hunter".to_owned().into()))
+            .unwrap();
         assert_eq!(public, store.public_key().unwrap().unwrap());
+        assert!(store.is_encrypted().unwrap());
 
         let secret = store
-            .secret_key("hunter".to_owned().into())
+            .secret_key(Some("hunter".to_owned().into()))
             .unwrap()
             .unwrap();
         assert_eq!(PublicKey::from(secret.public_key()), public);
 
-        store.secret_key("blunder".to_owned().into()).unwrap_err(); // Wrong passphrase.
+        store
+            .secret_key(Some("blunder".to_owned().into()))
+            .unwrap_err(); // Wrong passphrase.
+    }
+
+    #[test]
+    fn test_init_no_passphrase() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Keystore::new(&tmp.path());
+
+        let public = store.init("test", None).unwrap();
+        assert_eq!(public, store.public_key().unwrap().unwrap());
+        assert!(!store.is_encrypted().unwrap());
+
+        let secret = store.secret_key(None).unwrap().unwrap();
+        assert_eq!(PublicKey::from(secret.public_key()), public);
     }
 
     #[test]
@@ -259,8 +293,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let store = Keystore::new(&tmp.path());
 
-        let public = store.init("test", "hunter".to_owned()).unwrap();
-        let signer = MemorySigner::load(&store, "hunter".to_owned().into()).unwrap();
+        let public = store
+            .init("test", Some("hunter".to_owned().into()))
+            .unwrap();
+        let signer = MemorySigner::load(&store, Some("hunter".to_owned().into())).unwrap();
 
         assert_eq!(public, *signer.public_key());
     }

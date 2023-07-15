@@ -216,7 +216,7 @@ pub fn passphrase_confirm<K: AsRef<OsStr>>(
                 .with_display_mode(inquire::PasswordDisplayMode::Masked)
                 .with_custom_confirmation_message("Repeat passphrase:")
                 .with_custom_confirmation_error_message("The passphrases don't match.")
-                .with_help_message("This passphrase protects your radicle identity")
+                .with_help_message("Leave this blank to keep your radicle key unencrypted")
                 .prompt()?,
         ))
     }
