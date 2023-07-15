@@ -186,14 +186,11 @@ impl Args for Options {
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
+    let mut node = Node::new(profile.socket());
 
     match options.op {
-        Operation::Connect { addr } => {
-            let mut node = Node::new(profile.socket());
-            control::connect(&mut node, addr.id, addr.addr)?
-        }
+        Operation::Connect { addr } => control::connect(&mut node, addr.id, addr.addr)?,
         Operation::Events => {
-            let node = Node::new(profile.socket());
             events::run(node)?;
         }
         Operation::Routing { rid, nid, json } => {
@@ -202,13 +199,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             routing::run(&store, rid, nid, json)?;
         }
         Operation::Logs { lines } => control::logs(lines, Some(time::Duration::MAX), &profile)?,
-        Operation::Start { daemon, options } => control::start(daemon, options, &profile)?,
+        Operation::Start { daemon, options } => {
+            control::start(node, daemon, options, &profile)?;
+        }
         Operation::Status => {
-            let node = Node::new(profile.socket());
             control::status(&node, &profile)?;
         }
         Operation::Stop => {
-            let node = Node::new(profile.socket());
             control::stop(node)?;
         }
         Operation::Tracking { mode } => {

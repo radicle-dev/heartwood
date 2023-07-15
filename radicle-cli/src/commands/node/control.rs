@@ -14,12 +14,26 @@ use radicle::{profile, Profile};
 use crate::terminal as term;
 use crate::terminal::Element as _;
 
-pub fn start(daemon: bool, options: Vec<OsString>, profile: &Profile) -> anyhow::Result<()> {
+pub fn start(
+    node: Node,
+    daemon: bool,
+    mut options: Vec<OsString>,
+    profile: &Profile,
+) -> anyhow::Result<()> {
+    if node.is_running() {
+        term::success!("Node is already running");
+        return Ok(());
+    }
     // Ask passphrase here, otherwise it'll be a fatal error when running the daemon
     // without `RAD_PASSPHRASE`. To keep things consistent, we also use this in foreground mode.
     let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
         .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
 
+    // Since we checked that the node is not running, it's safe to use `--force`
+    // here.
+    if !options.contains(&OsString::from("--force")) {
+        options.push(OsString::from("--force"));
+    }
     if daemon {
         let log = OpenOptions::new()
             .append(true)
