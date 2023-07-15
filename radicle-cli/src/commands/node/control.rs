@@ -21,7 +21,7 @@ pub fn start(
     profile: &Profile,
 ) -> anyhow::Result<()> {
     if node.is_running() {
-        term::success!("Node is already running");
+        term::success!("Node is already running.");
         return Ok(());
     }
     let envs = if profile.keystore.is_encrypted()? {
@@ -142,9 +142,13 @@ pub fn connect(node: &mut Node, nid: NodeId, addr: Address) -> anyhow::Result<()
 
 pub fn status(node: &Node, profile: &Profile) -> anyhow::Result<()> {
     if node.is_running() {
-        term::success!("Node is {}", term::format::positive("running"));
+        term::success!("Node is {}.", term::format::positive("running"));
     } else {
-        term::info!("Node is {}", term::format::negative("stopped"));
+        term::info!("Node is {}.", term::format::negative("stopped"));
+        term::info!(
+            "To start it, run {}.",
+            term::format::command("rad node start")
+        );
         return Ok(());
     }
 

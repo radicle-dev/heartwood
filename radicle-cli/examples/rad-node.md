@@ -2,22 +2,20 @@ The radicle node is our daemon friend that is running as a background
 process. It allows us to interact with the network as well as storing
 some key data that we may be interested in.
 
-<details>
-<summary>🚧 `rad node start` is under construction 🚧</summary>
 If the node is not running we can start it by using the `rad node
 start` command:
 
-<!-- ``` -->
-<!-- $ rad node start -->
-<!-- ``` -->
-</details>
+```
+$ rad node start
+✓ Node is already running.
+```
 
 We can confirm the status of the node at any time by using the `rad
 node status` command (or just `rad node` for short):
 
 ```
 $ rad node status
-✓ Node is running
+✓ Node is running.
 ```
 
 The node also allows us to connect with other nodes in the
@@ -79,13 +77,17 @@ $ rad node routing
 ╰─────────────────────────────────────────────────────╯
 ```
 
-<details>
-<summary>🚧 `rad node stop` is under construction 🚧</summary>
 Finally, if we want to stop the daemon process from running we can
 issue the `rad node stop` command:
 
-<!-- ``` -->
-<!-- $ rad node stop -->
-<!-- Stopping the node... -->
-<!-- ``` -->
-</details>
+```
+$ rad node stop
+✓ Stopping node...
+```
+
+Running the command again gives us an error:
+
+```
+$ rad node stop
+✗ Stopping node... error: node is not running
+```
