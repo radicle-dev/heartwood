@@ -1,10 +1,11 @@
-use std::{fs, net, process};
+use std::{env, fs, net, process};
 
 use anyhow::{anyhow, Context as _};
 use crossbeam_channel as chan;
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
 
+use radicle::crypto;
 use radicle::node;
 use radicle::prelude::Signer;
 use radicle::profile;
@@ -12,7 +13,6 @@ use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::prelude::{Address, NodeId};
 use radicle_node::Runtime;
 use radicle_node::{logger, service, signals};
-use radicle_term as term;
 
 pub const HELP_MSG: &str = r#"
 Usage
@@ -126,7 +126,8 @@ fn execute() -> anyhow::Result<()> {
 
     log::info!(target: "node", "Unlocking node keystore..");
 
-    let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
+    let passphrase = env::var(profile::env::RAD_PASSPHRASE)
+        .map(crypto::ssh::Passphrase::from)
         .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
     let keystore = Keystore::new(&home.keys());
     let signer = MemorySigner::load(&keystore, passphrase)?;

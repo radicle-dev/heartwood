@@ -2113,7 +2113,6 @@ dependencies = [
  "radicle",
  "radicle-crypto",
  "radicle-git-ext",
- "radicle-term",
  "scrypt",
  "serde",
  "serde_json",
