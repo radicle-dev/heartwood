@@ -116,23 +116,23 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 fn all(profile: &Profile) -> anyhow::Result<()> {
-    let mut table = term::Table::default();
+    let mut table = term::Table::<2, term::Label>::default();
 
     table.push([
-        term::format::style("Alias").to_string(),
-        term::format::primary(profile.config.alias()).to_string(),
+        term::format::style("Alias").into(),
+        term::format::primary(profile.config.alias()).into(),
     ]);
 
     let did = profile.did();
     table.push([
-        term::format::style("DID").to_string(),
-        term::format::tertiary(did).to_string(),
+        term::format::style("DID").into(),
+        term::format::tertiary(did).into(),
     ]);
 
     let node_id = profile.id();
     table.push([
-        term::format::style("└╴Node ID (NID)").to_string(),
-        term::format::tertiary(node_id).to_string(),
+        term::format::style("└╴Node ID (NID)").into(),
+        term::format::tertiary(node_id).into(),
     ]);
 
     let ssh_agent = match ssh::agent::Agent::connect() {
@@ -144,49 +144,49 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
         Err(e) => term::format::negative(format!("error: {e}")),
     };
     table.push([
-        term::format::style("SSH").to_string(),
-        ssh_agent.to_string(),
+        term::format::style("SSH").into(),
+        ssh_agent.to_string().into(),
     ]);
 
     let ssh_short = ssh::fmt::fingerprint(node_id);
     table.push([
-        term::format::style("├╴Key (hash)").to_string(),
-        term::format::tertiary(ssh_short).to_string(),
+        term::format::style("├╴Key (hash)").into(),
+        term::format::tertiary(ssh_short).into(),
     ]);
 
     let ssh_long = ssh::fmt::key(node_id);
     table.push([
-        term::format::style("└╴Key (full)").to_string(),
-        term::format::tertiary(ssh_long).to_string(),
+        term::format::style("└╴Key (full)").into(),
+        term::format::tertiary(ssh_long).into(),
     ]);
 
     let home = profile.home();
     table.push([
-        term::format::style("Home").to_string(),
-        term::format::tertiary(home.display()).to_string(),
+        term::format::style("Home").into(),
+        term::format::tertiary(home.display()).into(),
     ]);
 
     let config_path = profile.home.config();
     table.push([
-        term::format::style("├╴Config").to_string(),
-        term::format::tertiary(config_path.display()).to_string(),
+        term::format::style("├╴Config").into(),
+        term::format::tertiary(config_path.display()).into(),
     ]);
 
     let storage_path = profile.home.storage();
     table.push([
-        term::format::style("├╴Storage").to_string(),
-        term::format::tertiary(storage_path.display()).to_string(),
+        term::format::style("├╴Storage").into(),
+        term::format::tertiary(storage_path.display()).into(),
     ]);
 
     let keys_path = profile.home.keys();
     table.push([
-        term::format::style("├╴Keys").to_string(),
-        term::format::tertiary(keys_path.display()).to_string(),
+        term::format::style("├╴Keys").into(),
+        term::format::tertiary(keys_path.display()).into(),
     ]);
 
     table.push([
-        term::format::style("└╴Node").to_string(),
-        term::format::tertiary(profile.home.node().display()).to_string(),
+        term::format::style("└╴Node").into(),
+        term::format::tertiary(profile.home.node().display()).into(),
     ]);
 
     table.print();
