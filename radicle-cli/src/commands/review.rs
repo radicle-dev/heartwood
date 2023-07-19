@@ -1,7 +1,5 @@
 #[path = "review/builder.rs"]
 mod builder;
-#[path = "review/diff.rs"]
-mod diff;
 
 use std::ffi::OsString;
 

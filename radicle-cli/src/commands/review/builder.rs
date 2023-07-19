@@ -22,9 +22,8 @@ use radicle::prelude::*;
 use radicle::storage::git::Repository;
 use radicle_surf::diff::*;
 
+use crate::git::unified_diff;
 use crate::terminal as term;
-
-use super::diff::DiffWriter;
 
 /// Help message shown to user.
 const HELP: &str = "\
@@ -222,7 +221,7 @@ impl<'a> ReviewBuilder<'a> {
             repo.find_commit(oid)?
         };
 
-        let mut writer = DiffWriter::new(io::stdout()).styled(true);
+        let mut writer = unified_diff::Writer::new(io::stdout()).styled(true);
         let mut queue = ReviewQueue::default(); // Queue of hunks to review.
         let mut current = None; // File of the current hunk.
         let mut stdin = io::stdin().lock();
@@ -249,35 +248,21 @@ impl<'a> ReviewBuilder<'a> {
         for file in diff.files() {
             match file {
                 FileDiff::Modified(f) => match &f.diff {
-                    DiffContent::Plain { hunks, .. } => {
-                        queue.push(file, Some(hunks));
-                    }
-                    DiffContent::Binary => {
-                        queue.push(file, None);
-                    }
+                    DiffContent::Plain { hunks, .. } => queue.push(file, Some(hunks)),
+                    DiffContent::Binary => queue.push(file, None),
                     DiffContent::Empty => {}
                 },
                 FileDiff::Added(f) => match &f.diff {
-                    DiffContent::Plain { hunks, .. } => {
-                        queue.push(file, Some(hunks));
-                    }
-                    DiffContent::Binary => {
-                        queue.push(file, None);
-                    }
+                    DiffContent::Plain { hunks, .. } => queue.push(file, Some(hunks)),
+                    DiffContent::Binary => queue.push(file, None),
                     DiffContent::Empty => {}
                 },
                 FileDiff::Deleted(f) => match &f.diff {
-                    DiffContent::Plain { hunks, .. } => {
-                        queue.push(file, Some(hunks));
-                    }
-                    DiffContent::Binary => {
-                        queue.push(file, None);
-                    }
+                    DiffContent::Plain { hunks, .. } => queue.push(file, Some(hunks)),
+                    DiffContent::Binary => queue.push(file, None),
                     DiffContent::Empty => {}
                 },
-                FileDiff::Moved(_) => {
-                    queue.push(file, None);
-                }
+                FileDiff::Moved(_) => queue.push(file, None),
                 FileDiff::Copied(_) => {
                     // Copies are not supported and should never be generated due to the diff
                     // options we pass.
@@ -297,23 +282,25 @@ impl<'a> ReviewBuilder<'a> {
             let ReviewItem { file, hunk } = item;
 
             if current.map_or(true, |c| c != file) {
-                writer.file_header(file)?;
+                writer.encode(&unified_diff::FileHeader::from(file))?;
                 current = Some(file);
             }
             if let Some(h) = hunk {
-                writer.hunk(h)?;
+                writer.encode(h)?;
             }
 
             match self.prompt(&mut stdin, &mut stderr, progress) {
                 Some(ReviewAction::Accept) => {
-                    let mut writer = DiffWriter::new(Vec::new());
+                    let mut buf = Vec::new();
+                    {
+                        let mut writer = unified_diff::Writer::new(&mut buf);
 
-                    writer.file_header(file)?;
-                    if let Some(h) = hunk {
-                        writer.hunk(h)?;
+                        writer.encode(&unified_diff::FileHeader::from(file))?;
+                        if let Some(h) = hunk {
+                            writer.encode(h)?;
+                        }
                     }
-                    let diff = writer.into_inner();
-                    let diff = git::raw::Diff::from_buffer(&diff)?;
+                    let diff = git::raw::Diff::from_buffer(&buf)?;
 
                     let mut index = repo.apply_to_tree(&brain, &diff, None)?;
                     let brain = index.write_tree_to(repo)?;

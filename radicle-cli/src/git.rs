@@ -1,4 +1,8 @@
 //! Git-related functions and types.
+
+#[path = "git/unified_diff.rs"]
+pub mod unified_diff;
+
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::fs::{File, OpenOptions};
