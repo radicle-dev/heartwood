@@ -122,21 +122,17 @@ pub struct ReviewQueue<'a> {
 impl<'a> ReviewQueue<'a> {
     /// Push an item to the queue.
     fn push(&mut self, file: &'a FileDiff, hunks: Option<&'a Hunks<Modification>>) {
+        let mut queue_item = |hunk| {
+            self.queue
+                .push_back((self.queue.len(), ReviewItem { file, hunk }))
+        };
+
         if let Some(hunks) = hunks {
             for hunk in hunks.iter() {
-                let ix = self.queue.len();
-
-                self.queue.push_back((
-                    ix,
-                    ReviewItem {
-                        file,
-                        hunk: Some(hunk),
-                    },
-                ));
+                queue_item(Some(hunk));
             }
         } else {
-            self.queue
-                .push_back((self.queue.len(), ReviewItem { file, hunk: None }));
+            queue_item(None);
         }
     }
 }
