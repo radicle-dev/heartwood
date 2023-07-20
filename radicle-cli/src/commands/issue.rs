@@ -135,7 +135,7 @@ impl Args for Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 Long("all") if op.is_none() || op == Some(OperationName::List) => {

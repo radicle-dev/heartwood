@@ -122,7 +122,7 @@ impl Args for Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {

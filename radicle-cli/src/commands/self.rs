@@ -71,7 +71,7 @@ impl Args for Options {
                 Long("ssh-fingerprint") if show.is_none() => {
                     show = Some(Show::SshFingerprint);
                 }
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),

@@ -49,7 +49,7 @@ impl Args for Options {
                 Long("no-confirm") => {
                     // Ignored for now.
                 }
-                Long("help") => return Err(Error::Help.into()),
+                Long("help") | Short('h') => return Err(Error::Help.into()),
                 Long("remote") => {
                     let val = parser.value().unwrap();
                     remote = Some(term::args::did(&val)?);

@@ -67,7 +67,7 @@ impl Args for Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(args::Error::Help.into());
                 }
                 Long("name") | Short('n') => {

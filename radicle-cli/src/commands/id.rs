@@ -133,7 +133,7 @@ impl Args for Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 Long("title") if op == Some(OperationName::Edit) => {

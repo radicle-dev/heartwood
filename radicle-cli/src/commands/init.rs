@@ -132,7 +132,7 @@ impl Args for Options {
                 Long("verbose") | Short('v') => {
                     verbose = true;
                 }
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 Value(val) if path.is_none() => {

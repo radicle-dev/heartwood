@@ -37,7 +37,7 @@ impl Args for Options {
         #[allow(clippy::never_loop)]
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 _ => return Err(anyhow!(arg.unexpected())),

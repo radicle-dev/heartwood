@@ -96,7 +96,7 @@ impl Args for Options {
 
                     timeout = time::Duration::from_secs(secs);
                 }
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 Value(val) if rid.is_none() => {

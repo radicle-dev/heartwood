@@ -41,7 +41,7 @@ impl Options {
                     println!("{NAME} {VERSION}+{GIT_HEAD}");
                     process::exit(0);
                 }
-                Long("help") => {
+                Long("help") | Short('h') => {
                     println!("{HELP}");
                     process::exit(0);
                 }

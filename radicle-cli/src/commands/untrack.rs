@@ -60,7 +60,7 @@ impl Args for Options {
                     }
                 }
                 (Long("verbose") | Short('v'), _) => verbose = true,
-                (Long("help"), _) => {
+                (Long("help") | Short('h'), _) => {
                     return Err(Error::Help.into());
                 }
                 _ => {

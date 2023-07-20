@@ -62,7 +62,7 @@ impl Args for Options {
                     frontend = Some(parser.value()?.to_string_lossy().to_string())
                 }
                 Long("json") => json = true,
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 _ => {

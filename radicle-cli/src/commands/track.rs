@@ -91,7 +91,7 @@ impl Args for Options {
                 (Long("fetch"), Some(Operation::TrackRepo { .. })) => fetch = true,
                 (Long("no-fetch"), Some(Operation::TrackRepo { .. })) => fetch = false,
                 (Long("verbose") | Short('v'), _) => verbose = true,
-                (Long("help"), _) => {
+                (Long("help") | Short('h'), _) => {
                     return Err(Error::Help.into());
                 }
                 _ => {

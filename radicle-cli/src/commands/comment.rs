@@ -66,7 +66,7 @@ impl Args for Options {
                 }
 
                 // Common.
-                Long("help") => return Err(Error::Help.into()),
+                Long("help") | Short('h') => return Err(Error::Help.into()),
 
                 Value(val) if id.is_none() => {
                     let val = string(&val);

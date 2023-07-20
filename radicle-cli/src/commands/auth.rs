@@ -61,7 +61,7 @@ impl Args for Options {
                 Long("stdin") => {
                     stdin = true;
                 }
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),

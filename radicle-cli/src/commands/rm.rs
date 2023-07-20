@@ -49,7 +49,7 @@ impl Args for Options {
                 Long("no-confirm") => {
                     confirm = false;
                 }
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 Value(val) if id.is_none() => {

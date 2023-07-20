@@ -74,7 +74,7 @@ impl Args for Options {
                 Long("announce") => {
                     announce = true;
                 }
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 Value(val) if id.is_none() => {

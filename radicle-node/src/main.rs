@@ -98,7 +98,7 @@ impl Options {
                     let addr = parser.value()?.parse()?;
                     listen.push(addr);
                 }
-                Long("help") => {
+                Long("help") | Short('h') => {
                     println!("{HELP_MSG}");
                     process::exit(0);
                 }

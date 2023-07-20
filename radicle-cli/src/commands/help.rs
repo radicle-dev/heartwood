@@ -51,7 +51,7 @@ impl Args for Options {
 
         if let Some(arg) = parser.next()? {
             match arg {
-                Long("help") => {
+                Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),

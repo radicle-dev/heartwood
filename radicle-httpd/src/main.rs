@@ -64,7 +64,7 @@ fn parse_options() -> Result<httpd::Options, lexopt::Error> {
 
                 aliases.insert(alias, id);
             }
-            Long("help") => {
+            Long("help") | Short('h') => {
                 println!("usage: radicle-httpd [--listen <addr>] [--alias <name> <rid>]..");
                 process::exit(0);
             }
