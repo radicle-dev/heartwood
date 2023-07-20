@@ -24,4 +24,4 @@ $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ```
 
 However, we don't have a local fork of the project. We can follow this
-up with [rad-fork][rad-fork.md].
+up with [rad-fork](rad-fork.md).
