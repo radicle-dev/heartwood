@@ -175,7 +175,7 @@ impl From<PublicKey> for ssh_key::PublicKey {
 #[cfg(feature = "cyphernet")]
 impl cyphernet::EcPk for PublicKey {
     const COMPRESSED_LEN: usize = 32;
-    const CURVE_NAME: &'static str = "Curve25519";
+    const CURVE_NAME: &'static str = "Edwards25519";
 
     type Compressed = [u8; 32];
 
