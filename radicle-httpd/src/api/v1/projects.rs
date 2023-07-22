@@ -206,7 +206,7 @@ async fn history_handler(
 
     let response = json!({
         "commits": commits,
-        "stats":  repo.stats()?,
+        "stats":  repo.stats_from(&sha)?,
     });
 
     Ok::<_, Error>((StatusCode::OK, Json(response)))
