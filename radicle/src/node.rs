@@ -6,7 +6,7 @@ pub mod events;
 pub mod routing;
 pub mod tracking;
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 use std::ops::Deref;
 use std::os::unix::net::UnixStream;
@@ -25,6 +25,7 @@ use crate::crypto::PublicKey;
 use crate::identity::Id;
 use crate::storage::RefUpdate;
 
+pub use address::KnownAddress;
 pub use config::Config;
 pub use cyphernet::addr::PeerAddr;
 pub use events::{Event, Events};
@@ -359,49 +360,50 @@ pub struct Session {
     pub state: State,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[serde(tag = "state", content = "id")]
-pub enum Seed {
-    Disconnected(NodeId),
-    Connected(NodeId),
+pub struct Seed {
+    pub nid: NodeId,
+    pub addrs: Vec<KnownAddress>,
+    pub state: Option<State>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Seeds(BTreeSet<Seed>);
+impl Seed {
+    /// Check if this is a "connected" seed.
+    pub fn is_connected(&self) -> bool {
+        matches!(self.state, Some(State::Connected { .. }))
+    }
+
+    pub fn new(nid: NodeId, addrs: Vec<KnownAddress>, state: Option<State>) -> Self {
+        Self { nid, addrs, state }
+    }
+}
+
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct Seeds(BTreeMap<NodeId, Seed>);
 
 impl Seeds {
     pub fn insert(&mut self, seed: Seed) {
-        self.0.insert(seed);
+        self.0.insert(seed.nid, seed);
     }
 
-    pub fn connected(&self) -> impl Iterator<Item = &NodeId> {
-        self.0.iter().filter_map(|s| match s {
-            Seed::Connected(node) => Some(node),
-            Seed::Disconnected(_) => None,
-        })
+    /// Partitions the list of seeds into connected and disconnected seeds.
+    /// Note that the disconnected seeds may be in a "connecting" state.
+    pub fn partition(&self) -> (Vec<Seed>, Vec<Seed>) {
+        self.0.values().cloned().partition(|s| s.is_connected())
     }
 
-    pub fn disconnected(&self) -> impl Iterator<Item = &NodeId> {
-        self.0.iter().filter_map(|s| match s {
-            Seed::Disconnected(node) => Some(node),
-            Seed::Connected(_) => None,
-        })
+    /// Return connected seeds.
+    pub fn connected(&self) -> impl Iterator<Item = &Seed> {
+        self.0.values().filter(|s| s.is_connected())
     }
 
-    pub fn has_connections(&self) -> bool {
-        self.0.iter().any(|s| match s {
-            Seed::Connected(_) => true,
-            Seed::Disconnected(_) => false,
-        })
+    pub fn iter(&self) -> impl Iterator<Item = &Seed> {
+        self.0.values()
     }
 
-    pub fn is_connected(&self, node: &NodeId) -> bool {
-        self.0.contains(&Seed::Connected(*node))
-    }
-
-    pub fn is_disconnected(&self, node: &NodeId) -> bool {
-        self.0.contains(&Seed::Disconnected(*node))
+    pub fn is_connected(&self, nid: &NodeId) -> bool {
+        self.0.get(nid).map_or(false, |s| s.is_connected())
     }
 }
 

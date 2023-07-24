@@ -636,8 +636,9 @@ fn test_clone_without_seeds() {
     let rid = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
     let mut alice = alice.spawn();
     let seeds = alice.handle.seeds(rid).unwrap();
+    let connected = seeds.connected().collect::<Vec<_>>();
 
-    assert!(!seeds.has_connections());
+    assert!(connected.is_empty());
 
     alice
         .rad("clone", &[rid.to_string().as_str()], working.as_path())

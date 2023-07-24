@@ -17,6 +17,7 @@ use crossbeam_channel as chan;
 use fastrand::Rng;
 use localtime::{LocalDuration, LocalTime};
 use log::*;
+use nonempty::NonEmpty;
 
 use radicle::node::address;
 use radicle::node::address::{AddressBook, KnownAddress};
@@ -502,10 +503,11 @@ where
             }
             Command::Seeds(rid, resp) => match self.seeds(&rid) {
                 Ok(seeds) => {
+                    let (connected, disconnected) = seeds.partition();
                     debug!(
                         target: "service",
                         "Found {} connected seed(s) and {} disconnected seed(s) for {}",
-                        seeds.connected().count(), seeds.disconnected().count(),  rid
+                        connected.len(), disconnected.len(),  rid
                     );
                     resp.send(seeds).ok();
                 }
@@ -1322,28 +1324,25 @@ where
     }
 
     fn seeds(&self, rid: &Id) -> Result<Seeds, Error> {
-        #[derive(Default)]
-        pub struct Stats {
-            connected: usize,
-            disconnected: usize,
-        }
+        let seeds = match self.routing.get(rid) {
+            Ok(seeds) => seeds.into_iter().fold(Seeds::default(), |mut seeds, node| {
+                if node != self.node_id() {
+                    let addrs: Vec<KnownAddress> = self
+                        .addresses
+                        .get(&node)
+                        .ok()
+                        .flatten()
+                        .map(|n| n.addrs)
+                        .unwrap_or(vec![]);
 
-        let (_, seeds) = match self.routing.get(rid) {
-            Ok(seeds) => seeds.into_iter().fold(
-                (Stats::default(), Seeds::default()),
-                |(mut stats, mut seeds), node| {
-                    if node != self.node_id() {
-                        if self.sessions.is_connected(&node) {
-                            seeds.insert(Seed::Connected(node));
-                            stats.connected += 1;
-                        } else if self.sessions.is_disconnected(&node) {
-                            seeds.insert(Seed::Disconnected(node));
-                            stats.disconnected += 1;
-                        }
+                    if let Some(s) = self.sessions.get(&node) {
+                        seeds.insert(Seed::new(node, addrs, Some(s.state.clone())));
+                    } else {
+                        seeds.insert(Seed::new(node, addrs, None));
                     }
-                    (stats, seeds)
-                },
-            ),
+                }
+                seeds
+            }),
             Err(err) => {
                 return Err(Error::Routing(err));
             }
@@ -1464,9 +1463,9 @@ where
         for rid in missing {
             match self.seeds(&rid) {
                 Ok(seeds) => {
-                    if seeds.has_connections() {
-                        for seed in seeds.connected() {
-                            self.fetch(rid, seed);
+                    if let Some(connected) = NonEmpty::from_vec(seeds.connected().collect()) {
+                        for seed in connected {
+                            self.fetch(rid, &seed.nid);
                         }
                     } else {
                         // TODO: We should make sure that this fetch is retried later, either

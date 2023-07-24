@@ -149,12 +149,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn announce(rid: Id, timeout: time::Duration, mut node: Node) -> anyhow::Result<()> {
     let seeds = node.seeds(rid)?;
-    if !seeds.has_connections() {
+    let connected = seeds.connected().map(|s| s.nid).collect::<Vec<_>>();
+    if connected.is_empty() {
         term::info!("Not connected to any seeds.");
         return Ok(());
     }
 
-    let connected = seeds.connected().cloned().collect::<Vec<_>>();
     let mut spinner = term::spinner(format!("Syncing with {} node(s)..", connected.len()));
     let result = node.announce(rid, connected, timeout, |event| match event {
         node::AnnounceEvent::Announced => {}
@@ -210,12 +210,10 @@ pub fn fetch_all(rid: Id, node: &mut Node) -> Result<FetchResults, node::Error> 
     let seeds = node.seeds(rid)?;
     let mut results = FetchResults::default();
 
-    if seeds.has_connections() {
-        // Fetch from all seeds.
-        for seed in seeds.connected() {
-            let result = fetch_from(rid, seed, node)?;
-            results.push(*seed, result);
-        }
+    // Fetch from connected seeds.
+    for seed in seeds.connected() {
+        let result = fetch_from(rid, &seed.nid, node)?;
+        results.push(seed.nid, result);
     }
     Ok(results)
 }

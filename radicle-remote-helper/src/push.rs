@@ -509,7 +509,7 @@ fn push_ref(
 /// Sync with the network.
 fn sync(rid: Id, mut node: radicle::Node) -> Result<(), radicle::node::Error> {
     let seeds = node.seeds(rid)?;
-    let connected = seeds.connected().cloned().collect::<Vec<_>>();
+    let connected = seeds.connected().map(|s| s.nid).collect::<Vec<_>>();
 
     if connected.is_empty() {
         eprintln!("Not connected to any seeds.");
