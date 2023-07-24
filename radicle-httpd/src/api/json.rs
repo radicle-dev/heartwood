@@ -33,6 +33,7 @@ pub(crate) fn commit(commit: &Commit) -> Value {
       },
       "summary": commit.summary,
       "description": commit.description(),
+      "parents": commit.parents,
       "committer": {
         "name": commit.committer.name,
         "email": commit.committer.email,

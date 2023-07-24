@@ -869,6 +869,9 @@ mod routes {
                     },
                     "summary": "Add another folder",
                     "description": "",
+                    "parents": [
+                      "ee8d6a29304623a78ebfa5eeed5af674d0e58f83",
+                    ],
                     "committer": {
                       "name": "Alice Liddell",
                       "email": "alice@radicle.xyz",
@@ -995,6 +998,9 @@ mod routes {
                     },
                     "summary": "Add contributing file",
                     "description": "",
+                    "parents": [
+                      "f604ce9fd5b7cc77b7609beda45ea8760bee78f7",
+                    ],
                     "committer": {
                       "name": "Alice Liddell",
                       "email": "alice@radicle.xyz",
@@ -1090,6 +1096,7 @@ mod routes {
                     },
                     "summary": "Initial commit",
                     "description": "",
+                    "parents": [],
                     "committer": {
                       "name": "Alice Liddell",
                       "email": "alice@radicle.xyz",
@@ -1172,6 +1179,9 @@ mod routes {
                 },
                 "summary": "Add another folder",
                 "description": "",
+                "parents": [
+                  "ee8d6a29304623a78ebfa5eeed5af674d0e58f83",
+                ],
                 "committer": {
                   "name": "Alice Liddell",
                   "email": "alice@radicle.xyz",
@@ -1322,6 +1332,9 @@ mod routes {
                   },
                   "summary": "Add another folder",
                   "description": "",
+                  "parents": [
+                    "ee8d6a29304623a78ebfa5eeed5af674d0e58f83",
+                  ],
                   "committer": {
                     "name": "Alice Liddell",
                     "email": "alice@radicle.xyz",
@@ -1331,8 +1344,8 @@ mod routes {
                 "name": "",
                 "path": "",
                 "stats": {
-                  "commits": 3,
                   "branches": 1,
+                  "commits": 3,
                   "contributors": 1
                 }
               }
@@ -1360,6 +1373,9 @@ mod routes {
                 },
                 "summary": "Add another folder",
                 "description": "",
+                "parents": [
+                  "ee8d6a29304623a78ebfa5eeed5af674d0e58f83",
+                ],
                 "committer": {
                   "name": "Alice Liddell",
                   "email": "alice@radicle.xyz",
@@ -1369,8 +1385,8 @@ mod routes {
               "name": "dir1",
               "path": "dir1",
               "stats": {
-                "branches": 1,
                 "commits": 3,
+                "branches": 1,
                 "contributors": 1
               }
             })
@@ -1442,6 +1458,9 @@ mod routes {
                   },
                   "summary": "Add another folder",
                   "description": "",
+                  "parents": [
+                    "ee8d6a29304623a78ebfa5eeed5af674d0e58f83"
+                  ],
                   "committer": {
                     "name": "Alice Liddell",
                     "email": "alice@radicle.xyz",
@@ -1464,7 +1483,8 @@ mod routes {
             response.json().await,
             json!({
                 "binary": false,
-                "content": "Hello World!\n",
+                "name": "README",
+                "path": "README",
                 "lastCommit": {
                   "id": INITIAL_COMMIT,
                   "author": {
@@ -1473,14 +1493,14 @@ mod routes {
                   },
                   "summary": "Initial commit",
                   "description": "",
+                  "parents": [],
                   "committer": {
                     "name": "Alice Liddell",
                     "email": "alice@radicle.xyz",
                     "time": 1673001014
                   },
                 },
-                "name": "README",
-                "path": "README"
+                "content": "Hello World!\n"
             })
         );
     }
@@ -1552,6 +1572,9 @@ mod routes {
                     },
                     "summary": "Add another folder",
                     "description": "",
+                    "parents": [
+                      "ee8d6a29304623a78ebfa5eeed5af674d0e58f83"
+                    ],
                     "committer": {
                       "name": "Alice Liddell",
                       "email": "alice@radicle.xyz",
@@ -1566,6 +1589,9 @@ mod routes {
                     },
                     "summary": "Add contributing file",
                     "description": "",
+                    "parents": [
+                      "f604ce9fd5b7cc77b7609beda45ea8760bee78f7",
+                    ],
                     "committer": {
                       "name": "Alice Liddell",
                       "email": "alice@radicle.xyz",
