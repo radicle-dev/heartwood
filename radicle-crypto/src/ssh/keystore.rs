@@ -23,6 +23,8 @@ pub enum Error {
     InvalidKeyType,
     #[error("keystore already initialized")]
     AlreadyInitialized,
+    #[error("keystore is encrypted; a passphrase is required")]
+    PassphraseMissing,
 }
 
 impl Error {
@@ -123,6 +125,8 @@ impl Keystore {
         let secret = ssh_key::PrivateKey::read_openssh_file(&path)?;
         let secret = if let Some(p) = passphrase {
             secret.decrypt(p)?
+        } else if secret.is_encrypted() {
+            return Err(Error::PassphraseMissing);
         } else {
             secret
         };
