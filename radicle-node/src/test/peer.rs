@@ -7,7 +7,7 @@ use std::str::FromStr;
 use log::*;
 
 use radicle::node::address::Store;
-use radicle::node::{address, Alias};
+use radicle::node::{address, Alias, ConnectOptions};
 use radicle::rad;
 use radicle::storage::ReadRepository;
 use radicle::Storage;
@@ -326,8 +326,11 @@ where
         let remote_addr = simulator::Peer::<T, H>::addr(peer);
 
         self.initialize();
-        self.service
-            .command(Command::Connect(remote_id, remote_addr.clone()));
+        self.service.command(Command::Connect(
+            remote_id,
+            remote_addr.clone(),
+            ConnectOptions::default(),
+        ));
 
         self.outbox()
             .find(|o| matches!(o, Io::Connect { .. }))

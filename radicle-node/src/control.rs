@@ -92,9 +92,9 @@ where
     let cmd: Command = json::from_str(input)?;
 
     match cmd {
-        Command::Connect { addr } => {
+        Command::Connect { addr, opts } => {
             let (nid, addr) = addr.into();
-            if let Err(e) = handle.connect(nid, addr) {
+            if let Err(e) = handle.connect(nid, addr, opts) {
                 return Err(CommandError::Runtime(e));
             } else {
                 CommandResult::Okay { updated: true }.to_writer(writer)?;

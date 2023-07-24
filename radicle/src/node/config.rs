@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::ops::Deref;
 
 use cyphernet::addr::PeerAddr;
@@ -40,7 +41,7 @@ impl Default for Limits {
 }
 
 /// Full address used to connect to a remote node.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Hash)]
 #[serde(transparent)]
 pub struct ConnectAddress(#[serde(with = "crate::serde_ext::string")] PeerAddr<NodeId, Address>);
 
@@ -78,7 +79,7 @@ pub struct Config {
     pub alias: Alias,
     /// Peers to connect to on startup.
     /// Connections to these peers will be maintained.
-    pub connect: Vec<ConnectAddress>,
+    pub connect: HashSet<ConnectAddress>,
     /// Specify the node's public addresses
     pub external_addresses: Vec<Address>,
     /// Peer-to-peer network.
@@ -97,7 +98,7 @@ impl Config {
     pub fn new(alias: Alias) -> Self {
         Self {
             alias,
-            connect: Vec::default(),
+            connect: HashSet::default(),
             external_addresses: vec![],
             network: Network::default(),
             relay: true,

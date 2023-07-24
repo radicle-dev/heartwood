@@ -127,7 +127,7 @@ pub fn connect(node: &mut Node, nid: NodeId, addr: Address) -> anyhow::Result<()
         "Connecting to {}@{addr}...",
         term::format::node(&nid)
     ));
-    if let Err(err) = node.connect(nid, addr.clone()) {
+    if let Err(err) = node.connect(nid, addr.clone(), node::ConnectOptions { persistent: true }) {
         spinner.error(format!(
             "Failed to connect to {}@{}: {}",
             term::format::node(&nid),

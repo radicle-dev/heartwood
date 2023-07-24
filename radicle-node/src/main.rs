@@ -57,7 +57,7 @@ impl Options {
             match arg {
                 Long("connect") => {
                     let peer: PeerAddr<NodeId, Address> = parser.value()?.parse()?;
-                    config.connect.push(peer.into());
+                    config.connect.insert(peer.into());
                 }
                 Long("external-address") => {
                     let addr = parser.value()?.parse()?;

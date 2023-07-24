@@ -196,6 +196,13 @@ impl FromStr for Alias {
     }
 }
 
+/// Options passed to the "connect" node command.
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ConnectOptions {
+    /// Establish a persistent connection.
+    pub persistent: bool,
+}
+
 /// Result of a command, on the node control socket.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "status")]
@@ -249,7 +256,7 @@ impl From<CommandResult> for Result<bool, Error> {
 }
 
 /// Peer public protocol address.
-#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, From, Serialize, Deserialize)]
+#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, Hash, From, Serialize, Deserialize)]
 #[wrapper(Deref, Display, FromStr)]
 #[wrapper_mut(DerefMut)]
 pub struct Address(#[serde(with = "crate::serde_ext::string")] NetAddr<HostName>);
@@ -292,7 +299,10 @@ pub enum Command {
 
     /// Connect to node with the given address.
     #[serde(rename_all = "camelCase")]
-    Connect { addr: config::ConnectAddress },
+    Connect {
+        addr: config::ConnectAddress,
+        opts: ConnectOptions,
+    },
 
     /// Lookup seeds for the given repository in the routing table.
     #[serde(rename_all = "camelCase")]
@@ -563,7 +573,12 @@ pub trait Handle: Clone + Sync + Send {
     /// Check if the node is running. to a peer.
     fn is_running(&self) -> bool;
     /// Connect to a peer.
-    fn connect(&mut self, node: NodeId, addr: Address) -> Result<(), Self::Error>;
+    fn connect(
+        &mut self,
+        node: NodeId,
+        addr: Address,
+        opts: ConnectOptions,
+    ) -> Result<(), Self::Error>;
     /// Lookup the seeds of a given repository in the routing table.
     fn seeds(&mut self, id: Id) -> Result<Seeds, Self::Error>;
     /// Fetch a repository from the network.
@@ -700,10 +715,11 @@ impl Handle for Node {
         matches!(result, CommandResult::Okay { .. })
     }
 
-    fn connect(&mut self, nid: NodeId, addr: Address) -> Result<(), Error> {
+    fn connect(&mut self, nid: NodeId, addr: Address, opts: ConnectOptions) -> Result<(), Error> {
         self.call::<CommandResult>(
             Command::Connect {
                 addr: (nid, addr).into(),
+                opts,
             },
             DEFAULT_TIMEOUT,
         )?

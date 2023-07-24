@@ -21,8 +21,8 @@ use radicle::identity::Id;
 use radicle::node::address::Book;
 use radicle::node::routing::Store;
 use radicle::node::tracking::store as TrackingStore;
-use radicle::node::Handle as _;
 use radicle::node::{Alias, ADDRESS_DB_FILE, TRACKING_DB_FILE};
+use radicle::node::{ConnectOptions, Handle as _};
 use radicle::profile;
 use radicle::profile::Home;
 use radicle::profile::Profile;
@@ -164,7 +164,9 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
         let local_events = self.handle.events();
         let remote_events = remote.handle.events();
 
-        self.handle.connect(remote.id, remote.addr.into()).unwrap();
+        self.handle
+            .connect(remote.id, remote.addr.into(), ConnectOptions::default())
+            .unwrap();
 
         local_events
             .iter()

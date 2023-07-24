@@ -20,6 +20,7 @@ use log::*;
 
 use radicle::node::address;
 use radicle::node::address::{AddressBook, KnownAddress};
+use radicle::node::ConnectOptions;
 
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
@@ -123,7 +124,7 @@ pub enum Command {
     /// Announce local inventory to peers.
     SyncInventory(chan::Sender<bool>),
     /// Connect to node with the given address.
-    Connect(NodeId, Address),
+    Connect(NodeId, Address, ConnectOptions),
     /// Disconnect from node.
     Disconnect(NodeId),
     /// Lookup seeds for the given repository in the routing table.
@@ -148,7 +149,7 @@ impl fmt::Debug for Command {
             Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({id})"),
             Self::AnnounceInventory => write!(f, "AnnounceInventory"),
             Self::SyncInventory(_) => write!(f, "SyncInventory(..)"),
-            Self::Connect(id, addr) => write!(f, "Connect({id}, {addr})"),
+            Self::Connect(id, addr, opts) => write!(f, "Connect({id}, {addr}, {opts:?})"),
             Self::Disconnect(id) => write!(f, "Disconnect({id})"),
             Self::Seeds(id, _) => write!(f, "Seeds({id})"),
             Self::Fetch(id, node, _) => write!(f, "Fetch({id}, {node})"),
@@ -490,7 +491,10 @@ where
         info!(target: "service", "Received command {:?}", cmd);
 
         match cmd {
-            Command::Connect(nid, addr) => {
+            Command::Connect(nid, addr, opts) => {
+                if opts.persistent {
+                    self.config.connect.insert((nid, addr.clone()).into());
+                }
                 self.connect(nid, addr);
             }
             Command::Disconnect(nid) => {

@@ -9,6 +9,7 @@ use std::time;
 use crossbeam_channel as chan;
 use netservices::Direction as Link;
 use radicle::node::routing::Store as _;
+use radicle::node::ConnectOptions;
 use radicle::storage::ReadRepository;
 
 use crate::collections::{HashMap, HashSet};
@@ -116,10 +117,11 @@ fn test_disconnecting_unresponsive_peer() {
 fn test_redundant_connect() {
     let mut alice = Peer::new("alice", [8, 8, 8, 8]);
     let bob = Peer::new("bob", [9, 9, 9, 9]);
+    let opts = ConnectOptions::default();
 
-    alice.command(Command::Connect(bob.id(), bob.address()));
-    alice.command(Command::Connect(bob.id(), bob.address()));
-    alice.command(Command::Connect(bob.id(), bob.address()));
+    alice.command(Command::Connect(bob.id(), bob.address(), opts.clone()));
+    alice.command(Command::Connect(bob.id(), bob.address(), opts.clone()));
+    alice.command(Command::Connect(bob.id(), bob.address(), opts));
 
     // Only one connection attempt is made.
     assert_matches!(
@@ -141,7 +143,11 @@ fn test_connection_kept_alive() {
     )
     .initialize([&mut alice, &mut bob]);
 
-    alice.command(service::Command::Connect(bob.id(), bob.address()));
+    alice.command(service::Command::Connect(
+        bob.id(),
+        bob.address(),
+        ConnectOptions::default(),
+    ));
     sim.run_while([&mut alice, &mut bob], |s| !s.is_settled());
     assert_eq!(1, alice.sessions().connected().count(), "bob connects");
 
@@ -201,18 +207,21 @@ fn test_inbound_connection() {
 
 #[test]
 fn test_persistent_peer_connect() {
+    use std::collections::HashSet;
+
     let bob = Peer::new("bob", [8, 8, 8, 8]);
     let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let connect = HashSet::<ConnectAddress>::from_iter([
+        (bob.id(), bob.address()).into(),
+        (eve.id(), eve.address()).into(),
+    ]);
     let mut alice = Peer::config(
         "alice",
         [7, 7, 7, 7],
         MockStorage::empty(),
         peer::Config {
             config: Config {
-                connect: vec![
-                    (bob.id(), bob.address()).into(),
-                    (eve.id(), eve.address()).into(),
-                ],
+                connect,
                 ..Config::new(node::Alias::new("alice"))
             },
             ..peer::Config::default()
@@ -221,10 +230,15 @@ fn test_persistent_peer_connect() {
 
     alice.initialize();
 
-    let mut outbox = alice.outbox();
-    assert_matches!(outbox.next(), Some(Io::Connect(a, _)) if a == bob.id());
-    assert_matches!(outbox.next(), Some(Io::Connect(a, _)) if a == eve.id());
-    assert_matches!(outbox.find(|o| matches!(o, Io::Connect { .. })), None);
+    let outbox = alice.outbox().collect::<Vec<_>>();
+    outbox
+        .iter()
+        .find(|o| matches!(o, Io::Connect(a, _) if *a == bob.id()))
+        .unwrap();
+    outbox
+        .iter()
+        .find(|o| matches!(o, Io::Connect(a, _) if *a == eve.id()))
+        .unwrap();
 }
 
 #[test]
@@ -886,6 +900,8 @@ fn test_inventory_relay() {
 
 #[test]
 fn test_persistent_peer_reconnect_attempt() {
+    use std::collections::HashSet;
+
     let mut bob = Peer::new("bob", [8, 8, 8, 8]);
     let mut eve = Peer::new("eve", [9, 9, 9, 9]);
     let mut alice = Peer::config(
@@ -894,10 +910,10 @@ fn test_persistent_peer_reconnect_attempt() {
         MockStorage::empty(),
         peer::Config {
             config: Config {
-                connect: vec![
+                connect: HashSet::from_iter([
                     (bob.id(), bob.address()).into(),
                     (eve.id(), eve.address()).into(),
-                ],
+                ]),
                 ..Config::new(node::Alias::new("alice"))
             },
             ..peer::Config::default()
@@ -943,6 +959,8 @@ fn test_persistent_peer_reconnect_attempt() {
 
 #[test]
 fn test_persistent_peer_reconnect_success() {
+    use std::collections::HashSet;
+
     let bob = Peer::config(
         "bob",
         [9, 9, 9, 9],
@@ -955,7 +973,7 @@ fn test_persistent_peer_reconnect_success() {
         MockStorage::empty(),
         peer::Config {
             config: Config {
-                connect: vec![(bob.id, bob.addr()).into()],
+                connect: HashSet::from_iter([(bob.id, bob.addr()).into()]),
                 ..Config::new(node::Alias::new("alice"))
             },
             ..peer::Config::default()
@@ -1246,8 +1264,16 @@ fn test_push_and_pull() {
     local::register(alice.storage().clone());
 
     // Alice and Bob connect to Eve.
-    alice.command(service::Command::Connect(eve.id(), eve.address()));
-    bob.command(service::Command::Connect(eve.id(), eve.address()));
+    alice.command(service::Command::Connect(
+        eve.id(),
+        eve.address(),
+        ConnectOptions::default(),
+    ));
+    bob.command(service::Command::Connect(
+        eve.id(),
+        eve.address(),
+        ConnectOptions::default(),
+    ));
 
     // Alice creates a new project.
     let (proj_id, _, _) = rad::init(
@@ -1364,9 +1390,21 @@ fn prop_inventory_exchange_dense() {
         }
 
         // Fully-connected.
-        bob.command(Command::Connect(alice.id(), alice.address()));
-        bob.command(Command::Connect(eve.id(), eve.address()));
-        eve.command(Command::Connect(alice.id(), alice.address()));
+        bob.command(Command::Connect(
+            alice.id(),
+            alice.address(),
+            ConnectOptions::default(),
+        ));
+        bob.command(Command::Connect(
+            eve.id(),
+            eve.address(),
+            ConnectOptions::default(),
+        ));
+        eve.command(Command::Connect(
+            alice.id(),
+            alice.address(),
+            ConnectOptions::default(),
+        ));
 
         let mut peers: HashMap<_, _> = [
             (alice.node_id(), alice),

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::{fmt, io, time};
 
 use crossbeam_channel as chan;
-use radicle::node::Seeds;
+use radicle::node::{ConnectOptions, Seeds};
 use reactor::poller::popol::PopolWaker;
 use thiserror::Error;
 
@@ -143,8 +143,13 @@ impl radicle::node::Handle for Handle {
         true
     }
 
-    fn connect(&mut self, node: NodeId, addr: radicle::node::Address) -> Result<(), Error> {
-        self.command(service::Command::Connect(node, addr))?;
+    fn connect(
+        &mut self,
+        node: NodeId,
+        addr: radicle::node::Address,
+        opts: ConnectOptions,
+    ) -> Result<(), Error> {
+        self.command(service::Command::Connect(node, addr, opts))?;
 
         Ok(())
     }

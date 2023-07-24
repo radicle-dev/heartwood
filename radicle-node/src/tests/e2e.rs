@@ -8,7 +8,7 @@ use radicle::test::fixtures;
 use radicle::{assert_matches, rad};
 
 use crate::node::config::Limits;
-use crate::node::Config;
+use crate::node::{Config, ConnectOptions};
 use crate::service;
 use crate::service::tracking::Scope;
 use crate::storage::git::transport;
@@ -734,8 +734,13 @@ fn test_connection_crossing() {
     let mut alice = alice.spawn();
     let mut bob = bob.spawn();
 
-    alice.handle.connect(bob.id, bob.addr.into()).unwrap();
-    bob.handle.connect(alice.id, alice.addr.into()).unwrap();
+    alice
+        .handle
+        .connect(bob.id, bob.addr.into(), ConnectOptions::default())
+        .unwrap();
+    bob.handle
+        .connect(alice.id, alice.addr.into(), ConnectOptions::default())
+        .unwrap();
 
     thread::sleep(time::Duration::from_secs(1));
 
