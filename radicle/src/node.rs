@@ -276,80 +276,65 @@ impl From<net::SocketAddr> for Address {
 }
 
 /// Command name.
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum CommandName {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum Command {
     /// Announce repository references for given repository to peers.
-    AnnounceRefs,
+    #[serde(rename_all = "camelCase")]
+    AnnounceRefs { rid: Id },
+
     /// Announce local repositories to peers.
+    #[serde(rename_all = "camelCase")]
     AnnounceInventory,
+
     /// Sync local inventory with node.
     SyncInventory,
+
     /// Connect to node with the given address.
-    Connect,
+    #[serde(rename_all = "camelCase")]
+    Connect { addr: config::ConnectAddress },
+
     /// Lookup seeds for the given repository in the routing table.
-    Seeds,
+    #[serde(rename_all = "camelCase")]
+    Seeds { rid: Id },
+
     /// Get the current peer sessions.
     Sessions,
+
     /// Fetch the given repository from the network.
-    Fetch,
+    #[serde(rename_all = "camelCase")]
+    Fetch { rid: Id, nid: NodeId },
+
     /// Track the given repository.
-    TrackRepo,
+    #[serde(rename_all = "camelCase")]
+    TrackRepo { rid: Id, scope: tracking::Scope },
+
     /// Untrack the given repository.
-    UntrackRepo,
+    #[serde(rename_all = "camelCase")]
+    UntrackRepo { rid: Id },
+
     /// Track the given node.
-    TrackNode,
+    #[serde(rename_all = "camelCase")]
+    TrackNode { nid: NodeId, alias: Option<Alias> },
+
     /// Untrack the given node.
-    UntrackNode,
+    #[serde(rename_all = "camelCase")]
+    UntrackNode { nid: NodeId },
+
     /// Get the node's status.
     Status,
+
     /// Get the node's NID.
     NodeId,
+
     /// Shutdown the node.
     Shutdown,
+
     /// Subscribe to events.
     Subscribe,
 }
 
-impl fmt::Display for CommandName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // SAFETY: The enum can always be converted to a value.
-        #[allow(clippy::unwrap_used)]
-        let val = json::to_value(self).unwrap();
-        // SAFETY: The value is always a string.
-        #[allow(clippy::unwrap_used)]
-        let s = val.as_str().unwrap();
-
-        write!(f, "{s}")
-    }
-}
-
-/// Commands sent to the node via the control socket.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Command {
-    /// Command name.
-    #[serde(rename = "cmd")]
-    pub name: CommandName,
-    /// Command arguments.
-    #[serde(rename = "args")]
-    pub args: Vec<String>,
-}
-
 impl Command {
-    /// Shutdown command.
-    pub const SHUTDOWN: Self = Self {
-        name: CommandName::Shutdown,
-        args: vec![],
-    };
-
-    /// Create a new command.
-    pub fn new<T: ToString>(name: CommandName, args: impl IntoIterator<Item = T>) -> Self {
-        Self {
-            name,
-            args: args.into_iter().map(|a| a.to_string()).collect(),
-        }
-    }
-
     /// Write this command to a stream, including a terminating LF character.
     pub fn to_writer(&self, mut w: impl io::Write) -> io::Result<()> {
         json::to_writer(&mut w, self).map_err(|_| io::ErrorKind::InvalidInput)?;
@@ -543,8 +528,8 @@ pub enum Error {
     Call(#[from] CallError),
     #[error("node: {0}")]
     Node(String),
-    #[error("received empty response for `{cmd}` command")]
-    EmptyResponse { cmd: CommandName },
+    #[error("received empty response for command")]
+    EmptyResponse,
 }
 
 impl Error {
@@ -559,9 +544,8 @@ impl Error {
 pub enum CallError {
     #[error("i/o: {0}")]
     Io(#[from] io::Error),
-    #[error("received invalid json in response for `{cmd}` command: '{response}': {error}")]
+    #[error("received invalid json in response to command: '{response}': {error}")]
     InvalidJson {
-        cmd: CommandName,
         response: String,
         error: json::Error,
     },
@@ -628,21 +612,19 @@ impl Node {
     }
 
     /// Call a command on the node.
-    pub fn call<A: ToString, T: DeserializeOwned>(
+    pub fn call<T: DeserializeOwned>(
         &self,
-        name: CommandName,
-        args: impl IntoIterator<Item = A>,
+        cmd: Command,
         timeout: time::Duration,
     ) -> Result<impl Iterator<Item = Result<T, CallError>>, io::Error> {
         let stream = UnixStream::connect(&self.socket)?;
-        Command::new(name, args).to_writer(&stream)?;
+        cmd.to_writer(&stream)?;
 
         stream.set_read_timeout(Some(timeout))?;
 
         Ok(BufReader::new(stream).lines().map(move |l| {
             let l = l?;
             let v = json::from_str(&l).map_err(|e| CallError::InvalidJson {
-                cmd: name,
                 response: l,
                 error: e,
             })?;
@@ -702,16 +684,14 @@ impl Handle for Node {
     type Error = Error;
 
     fn nid(&self) -> Result<NodeId, Error> {
-        self.call::<&str, NodeId>(CommandName::NodeId, [], DEFAULT_TIMEOUT)?
+        self.call::<NodeId>(Command::NodeId, DEFAULT_TIMEOUT)?
             .next()
-            .ok_or(Error::EmptyResponse {
-                cmd: CommandName::NodeId,
-            })?
+            .ok_or(Error::EmptyResponse)?
             .map_err(Error::from)
     }
 
     fn is_running(&self) -> bool {
-        let Ok(mut lines) = self.call::<&str, CommandResult>(CommandName::Status, [], DEFAULT_TIMEOUT) else {
+        let Ok(mut lines) = self.call::<CommandResult>(Command::Status, DEFAULT_TIMEOUT) else {
             return false;
         };
         let Some(Ok(result)) = lines.next() else {
@@ -721,115 +701,81 @@ impl Handle for Node {
     }
 
     fn connect(&mut self, nid: NodeId, addr: Address) -> Result<(), Error> {
-        self.call::<_, CommandResult>(
-            CommandName::Connect,
-            [nid.to_human(), addr.to_string()],
+        self.call::<CommandResult>(
+            Command::Connect {
+                addr: (nid, addr).into(),
+            },
             DEFAULT_TIMEOUT,
         )?
         .next()
-        .ok_or(Error::EmptyResponse {
-            cmd: CommandName::Connect,
-        })??;
+        .ok_or(Error::EmptyResponse)??;
 
         Ok(())
     }
 
-    fn seeds(&mut self, id: Id) -> Result<Seeds, Error> {
+    fn seeds(&mut self, rid: Id) -> Result<Seeds, Error> {
         let seeds: Seeds = self
-            .call(CommandName::Seeds, [id.urn()], DEFAULT_TIMEOUT)?
+            .call(Command::Seeds { rid }, DEFAULT_TIMEOUT)?
             .next()
-            .ok_or(Error::EmptyResponse {
-                cmd: CommandName::Seeds,
-            })??;
+            .ok_or(Error::EmptyResponse)??;
 
         Ok(seeds)
     }
 
-    fn fetch(&mut self, id: Id, from: NodeId) -> Result<FetchResult, Error> {
+    fn fetch(&mut self, rid: Id, from: NodeId) -> Result<FetchResult, Error> {
         let result = self
-            .call(
-                CommandName::Fetch,
-                [id.urn(), from.to_human()],
-                DEFAULT_TIMEOUT,
-            )?
+            .call(Command::Fetch { rid, nid: from }, DEFAULT_TIMEOUT)?
             .next()
-            .ok_or(Error::EmptyResponse {
-                cmd: CommandName::Fetch,
-            })??;
+            .ok_or(Error::EmptyResponse)??;
 
         Ok(result)
     }
 
-    fn track_node(&mut self, id: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
-        let id = id.to_human();
-        let args = if let Some(alias) = alias.as_deref() {
-            vec![id.as_str(), alias]
-        } else {
-            vec![id.as_str()]
-        };
-
-        let mut line = self.call(CommandName::TrackNode, args, DEFAULT_TIMEOUT)?;
-        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
-            cmd: CommandName::TrackNode,
-        })??;
+    fn track_node(&mut self, nid: NodeId, alias: Option<Alias>) -> Result<bool, Error> {
+        let mut line = self.call(Command::TrackNode { nid, alias }, DEFAULT_TIMEOUT)?;
+        let response: CommandResult = line.next().ok_or(Error::EmptyResponse)??;
 
         response.into()
     }
 
-    fn track_repo(&mut self, id: Id, scope: tracking::Scope) -> Result<bool, Error> {
-        let mut line = self.call(
-            CommandName::TrackRepo,
-            [id.urn(), scope.to_string()],
-            DEFAULT_TIMEOUT,
-        )?;
-        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
-            cmd: CommandName::TrackRepo,
-        })??;
+    fn track_repo(&mut self, rid: Id, scope: tracking::Scope) -> Result<bool, Error> {
+        let mut line = self.call(Command::TrackRepo { rid, scope }, DEFAULT_TIMEOUT)?;
+        let response: CommandResult = line.next().ok_or(Error::EmptyResponse)??;
 
         response.into()
     }
 
-    fn untrack_node(&mut self, id: NodeId) -> Result<bool, Error> {
-        let mut line = self.call(CommandName::UntrackNode, [id], DEFAULT_TIMEOUT)?;
-        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
-            cmd: CommandName::UntrackNode,
-        })??;
+    fn untrack_node(&mut self, nid: NodeId) -> Result<bool, Error> {
+        let mut line = self.call(Command::UntrackNode { nid }, DEFAULT_TIMEOUT)?;
+        let response: CommandResult = line.next().ok_or(Error::EmptyResponse)??;
 
         response.into()
     }
 
-    fn untrack_repo(&mut self, id: Id) -> Result<bool, Error> {
-        let mut line = self.call(CommandName::UntrackRepo, [id.urn()], DEFAULT_TIMEOUT)?;
-        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
-            cmd: CommandName::UntrackRepo,
-        })??;
+    fn untrack_repo(&mut self, rid: Id) -> Result<bool, Error> {
+        let mut line = self.call(Command::UntrackRepo { rid }, DEFAULT_TIMEOUT)?;
+        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {})??;
 
         response.into()
     }
 
-    fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
-        for line in
-            self.call::<_, CommandResult>(CommandName::AnnounceRefs, [id.urn()], DEFAULT_TIMEOUT)?
-        {
+    fn announce_refs(&mut self, rid: Id) -> Result<(), Error> {
+        for line in self.call::<CommandResult>(Command::AnnounceRefs { rid }, DEFAULT_TIMEOUT)? {
             line?;
         }
         Ok(())
     }
 
     fn announce_inventory(&mut self) -> Result<(), Error> {
-        for line in
-            self.call::<&str, CommandResult>(CommandName::AnnounceInventory, [], DEFAULT_TIMEOUT)?
-        {
+        for line in self.call::<CommandResult>(Command::AnnounceInventory, DEFAULT_TIMEOUT)? {
             line?;
         }
         Ok(())
     }
 
     fn sync_inventory(&mut self) -> Result<bool, Error> {
-        let mut line = self.call::<&str, _>(CommandName::SyncInventory, [], DEFAULT_TIMEOUT)?;
-        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {
-            cmd: CommandName::SyncInventory,
-        })??;
+        let mut line = self.call(Command::SyncInventory, DEFAULT_TIMEOUT)?;
+        let response: CommandResult = line.next().ok_or(Error::EmptyResponse {})??;
 
         response.into()
     }
@@ -838,7 +784,7 @@ impl Handle for Node {
         &self,
         timeout: time::Duration,
     ) -> Result<Box<dyn Iterator<Item = Result<Event, io::Error>>>, Error> {
-        let events = self.call::<&str, _>(CommandName::Subscribe, [], timeout)?;
+        let events = self.call(Command::Subscribe, timeout)?;
 
         Ok(Box::new(events.map(|e| {
             e.map_err(|err| match err {
@@ -852,17 +798,15 @@ impl Handle for Node {
 
     fn sessions(&self) -> Result<Self::Sessions, Error> {
         let sessions = self
-            .call::<&str, Vec<Session>>(CommandName::Sessions, [], DEFAULT_TIMEOUT)?
+            .call::<Vec<Session>>(Command::Sessions, DEFAULT_TIMEOUT)?
             .next()
-            .ok_or(Error::EmptyResponse {
-                cmd: CommandName::Sessions,
-            })??;
+            .ok_or(Error::EmptyResponse {})??;
 
         Ok(sessions)
     }
 
     fn shutdown(self) -> Result<(), Error> {
-        for line in self.call::<&str, CommandResult>(CommandName::Shutdown, [], DEFAULT_TIMEOUT)? {
+        for line in self.call::<CommandResult>(Command::Shutdown, DEFAULT_TIMEOUT)? {
             line?;
         }
         // Wait until the shutdown has completed.
@@ -900,11 +844,6 @@ impl AliasStore for HashMap<NodeId, Alias> {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[test]
-    fn test_command_name_display() {
-        assert_eq!(CommandName::TrackNode.to_string(), "track-node");
-    }
 
     #[test]
     fn test_alias() {

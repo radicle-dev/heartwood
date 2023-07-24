@@ -245,7 +245,7 @@ impl radicle::node::Handle for Handle {
         // control thread gracefully. Since the control thread may have called this function,
         // the control socket may already be disconnected. Ignore errors.
         UnixStream::connect(self.home.socket())
-            .and_then(|sock| Command::SHUTDOWN.to_writer(sock))
+            .and_then(|sock| Command::Shutdown.to_writer(sock))
             .ok();
 
         self.controller

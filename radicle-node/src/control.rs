@@ -5,7 +5,6 @@ use std::io::LineWriter;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::{io, net, time};
 
 use radicle::node::Handle;
@@ -13,7 +12,7 @@ use serde_json as json;
 
 use crate::identity::Id;
 use crate::node::NodeId;
-use crate::node::{Alias, Command, CommandName, CommandResult};
+use crate::node::{Command, CommandResult};
 use crate::runtime;
 use crate::runtime::thread;
 
@@ -67,11 +66,7 @@ where
 
 #[derive(thiserror::Error, Debug)]
 enum CommandError {
-    #[error("invalid command argument `{0}`, {1}")]
-    InvalidCommandArg(String, Box<dyn std::error::Error>),
-    #[error("invalid command arguments `{0:?}`")]
-    InvalidCommandArgs(Vec<String>),
-    #[error("serialization failed: {0}")]
+    #[error("(de)serialization failed: {0}")]
     Serialization(#[from] json::Error),
     #[error("runtime error: {0}")]
     Runtime(#[from] runtime::HandleError),
@@ -96,106 +91,29 @@ where
     log::debug!(target: "control", "Received `{input}` on control socket");
     let cmd: Command = json::from_str(input)?;
 
-    match cmd.name {
-        CommandName::Connect => {
-            let (nid, addr) = parse::args(cmd)?;
+    match cmd {
+        Command::Connect { addr } => {
+            let (nid, addr) = addr.into();
             if let Err(e) = handle.connect(nid, addr) {
                 return Err(CommandError::Runtime(e));
             } else {
                 CommandResult::Okay { updated: true }.to_writer(writer)?;
             }
         }
-        CommandName::Fetch => {
-            let (rid, nid): (Id, NodeId) = parse::args(cmd)?;
+        Command::Fetch { rid, nid } => {
             fetch(rid, nid, writer, &mut handle)?;
         }
-        CommandName::Seeds => {
-            let rid: Id = parse::arg(cmd)?;
+        Command::Seeds { rid } => {
             let seeds = handle.seeds(rid)?;
 
             json::to_writer(writer, &seeds)?;
         }
-        CommandName::Sessions => {
+        Command::Sessions => {
             let sessions = handle.sessions()?;
 
             json::to_writer(writer, &sessions)?;
         }
-        CommandName::TrackRepo => {
-            let (rid, scope) = parse::args(cmd)?;
-
-            match handle.track_repo(rid, scope) {
-                Ok(updated) => {
-                    CommandResult::Okay { updated }.to_writer(writer)?;
-                }
-                Err(e) => {
-                    return Err(CommandError::Runtime(e));
-                }
-            }
-        }
-        CommandName::UntrackRepo => {
-            let rid: Id = parse::arg(cmd)?;
-
-            match handle.untrack_repo(rid) {
-                Ok(updated) => {
-                    CommandResult::Okay { updated }.to_writer(writer)?;
-                }
-                Err(e) => {
-                    return Err(CommandError::Runtime(e));
-                }
-            }
-        }
-        CommandName::TrackNode => {
-            let (node, alias) = match cmd.args.as_slice() {
-                [node] => (node.as_str(), None),
-                [node, alias] => (node.as_str(), Some(alias.to_owned())),
-                _ => return Err(CommandError::InvalidCommandArgs(cmd.args)),
-            };
-            let alias = alias
-                .map(|a| {
-                    Alias::from_str(&a)
-                        .map_err(|e| CommandError::InvalidCommandArg(node.to_owned(), Box::new(e)))
-                })
-                .transpose()?;
-            let nid = node
-                .parse()
-                .map_err(|e| CommandError::InvalidCommandArg(node.to_owned(), Box::new(e)))?;
-
-            match handle.track_node(nid, alias) {
-                Ok(updated) => {
-                    CommandResult::Okay { updated }.to_writer(writer)?;
-                }
-                Err(e) => {
-                    return Err(CommandError::Runtime(e));
-                }
-            }
-        }
-        CommandName::UntrackNode => {
-            let nid: NodeId = parse::arg(cmd)?;
-
-            match handle.untrack_node(nid) {
-                Ok(updated) => {
-                    CommandResult::Okay { updated }.to_writer(writer)?;
-                }
-                Err(e) => {
-                    return Err(CommandError::Runtime(e));
-                }
-            }
-        }
-        CommandName::AnnounceRefs => {
-            let rid: Id = parse::arg(cmd)?;
-
-            if let Err(e) = handle.announce_refs(rid) {
-                return Err(CommandError::Runtime(e));
-            }
-            CommandResult::ok().to_writer(writer).ok();
-        }
-        CommandName::AnnounceInventory => {
-            if let Err(e) = handle.announce_inventory() {
-                return Err(CommandError::Runtime(e));
-            }
-            CommandResult::ok().to_writer(writer).ok();
-        }
-        CommandName::SyncInventory => match handle.sync_inventory() {
+        Command::TrackRepo { rid, scope } => match handle.track_repo(rid, scope) {
             Ok(updated) => {
                 CommandResult::Okay { updated }.to_writer(writer)?;
             }
@@ -203,7 +121,51 @@ where
                 return Err(CommandError::Runtime(e));
             }
         },
-        CommandName::Subscribe => match handle.subscribe(MAX_TIMEOUT) {
+        Command::UntrackRepo { rid } => match handle.untrack_repo(rid) {
+            Ok(updated) => {
+                CommandResult::Okay { updated }.to_writer(writer)?;
+            }
+            Err(e) => {
+                return Err(CommandError::Runtime(e));
+            }
+        },
+        Command::TrackNode { nid, alias } => match handle.track_node(nid, alias) {
+            Ok(updated) => {
+                CommandResult::Okay { updated }.to_writer(writer)?;
+            }
+            Err(e) => {
+                return Err(CommandError::Runtime(e));
+            }
+        },
+        Command::UntrackNode { nid } => match handle.untrack_node(nid) {
+            Ok(updated) => {
+                CommandResult::Okay { updated }.to_writer(writer)?;
+            }
+            Err(e) => {
+                return Err(CommandError::Runtime(e));
+            }
+        },
+        Command::AnnounceRefs { rid } => {
+            if let Err(e) = handle.announce_refs(rid) {
+                return Err(CommandError::Runtime(e));
+            }
+            CommandResult::ok().to_writer(writer).ok();
+        }
+        Command::AnnounceInventory => {
+            if let Err(e) = handle.announce_inventory() {
+                return Err(CommandError::Runtime(e));
+            }
+            CommandResult::ok().to_writer(writer).ok();
+        }
+        Command::SyncInventory => match handle.sync_inventory() {
+            Ok(updated) => {
+                CommandResult::Okay { updated }.to_writer(writer)?;
+            }
+            Err(e) => {
+                return Err(CommandError::Runtime(e));
+            }
+        },
+        Command::Subscribe => match handle.subscribe(MAX_TIMEOUT) {
             Ok(events) => {
                 for e in events {
                     let event = e?;
@@ -214,16 +176,16 @@ where
             }
             Err(e) => log::error!(target: "control", "Error subscribing to events: {e}"),
         },
-        CommandName::Status => {
+        Command::Status => {
             CommandResult::ok().to_writer(writer).ok();
         }
-        CommandName::NodeId => match handle.nid() {
+        Command::NodeId => match handle.nid() {
             Ok(nid) => {
                 writeln!(writer, "{nid}")?;
             }
             Err(e) => return Err(CommandError::Runtime(e)),
         },
-        CommandName::Shutdown => {
+        Command::Shutdown => {
             log::debug!(target: "control", "Shutdown requested..");
             // Channel might already be disconnected if shutdown
             // came from somewhere else. Ignore errors.
@@ -251,45 +213,6 @@ fn fetch<W: Write, H: Handle<Error = runtime::HandleError>>(
     Ok(())
 }
 
-mod parse {
-    use super::*;
-
-    pub(super) fn arg<T: FromStr>(cmd: Command) -> Result<T, CommandError>
-    where
-        <T as FromStr>::Err: std::error::Error + 'static,
-    {
-        let [arg]: [String; 1] = cmd
-            .args
-            .clone()
-            .try_into()
-            .map_err(|_| CommandError::InvalidCommandArgs(cmd.args))?;
-
-        arg.parse()
-            .map_err(|e| CommandError::InvalidCommandArg(arg, Box::new(e)))
-    }
-
-    pub(super) fn args<S: FromStr, T: FromStr>(cmd: Command) -> Result<(S, T), CommandError>
-    where
-        <S as FromStr>::Err: std::error::Error + 'static,
-        <T as FromStr>::Err: std::error::Error + 'static,
-    {
-        let [arg1, arg2]: [String; 2] = cmd
-            .args
-            .clone()
-            .try_into()
-            .map_err(|_| CommandError::InvalidCommandArgs(cmd.args))?;
-
-        let arg1 = arg1
-            .parse()
-            .map_err(|e| CommandError::InvalidCommandArg(arg1, Box::new(e)))?;
-        let arg2 = arg2
-            .parse()
-            .map_err(|e| CommandError::InvalidCommandArg(arg2, Box::new(e)))?;
-
-        Ok((arg1, arg2))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::io::prelude::*;
@@ -299,7 +222,7 @@ mod tests {
     use super::*;
     use crate::identity::Id;
     use crate::node::Handle;
-    use crate::node::{Node, NodeId};
+    use crate::node::{Alias, Node, NodeId};
     use crate::service::tracking::Scope;
     use crate::test;
 
@@ -308,7 +231,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let handle = test::handle::Handle::default();
         let socket = tmp.path().join("alice.sock");
-        let projs = test::arbitrary::set::<Id>(1..3);
+        let rids = test::arbitrary::set::<Id>(1..3);
         let listener = UnixListener::bind(&socket).unwrap();
 
         thread::spawn({
@@ -317,7 +240,7 @@ mod tests {
             move || listen(listener, handle)
         });
 
-        for proj in &projs {
+        for rid in &rids {
             let stream = loop {
                 if let Ok(stream) = UnixStream::connect(&socket) {
                     break stream;
@@ -326,7 +249,10 @@ mod tests {
             writeln!(
                 &stream,
                 "{}",
-                json::to_string(&Command::new(CommandName::AnnounceRefs, [proj])).unwrap()
+                json::to_string(&Command::AnnounceRefs {
+                    rid: rid.to_owned()
+                })
+                .unwrap()
             )
             .unwrap();
 
@@ -336,8 +262,8 @@ mod tests {
             assert_eq!(line, json::json!({ "status": "ok" }).to_string());
         }
 
-        for proj in &projs {
-            assert!(handle.updates.lock().unwrap().contains(proj));
+        for rid in &rids {
+            assert!(handle.updates.lock().unwrap().contains(rid));
         }
     }
 
