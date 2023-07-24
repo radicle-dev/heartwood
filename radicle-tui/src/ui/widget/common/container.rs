@@ -433,7 +433,8 @@ impl WidgetComponent for LabeledContainer {
                 .split(layout[1]);
             // reverse draw order: child needs to be drawn first?
 
-            self.component.attr(Attribute::Focus, AttrValue::Flag(focus));
+            self.component
+                .attr(Attribute::Focus, AttrValue::Flag(focus));
             self.component.view(frame, inner_layout[1]);
 
             let block = Block::default()
