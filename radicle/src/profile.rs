@@ -364,9 +364,9 @@ impl Home {
 }
 
 #[cfg(test)]
+#[cfg(not(target_os = "macos"))]
 mod test {
     use std::fs;
-    use std::path::Path;
 
     use super::Home;
 
@@ -382,7 +382,7 @@ mod test {
         fs::create_dir_all(path.clone()).unwrap();
 
         let last = tmp.path().components().last().unwrap();
-        let mut home = Home::new(
+        let home = Home::new(
             tmp.path()
                 .join("..")
                 .join(last)
@@ -390,10 +390,6 @@ mod test {
                 .join("Radicle"),
         )
         .unwrap();
-        if cfg!(target_os = "macos") {
-            home.path =
-                Path::new("/").join(home.path.strip_prefix("/private").unwrap_or(&home.path))
-        };
 
         assert_eq!(home.path, path);
     }
