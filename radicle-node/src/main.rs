@@ -1,3 +1,4 @@
+use std::io;
 use std::{env, fs, net, process};
 
 use anyhow::anyhow;
@@ -8,10 +9,15 @@ use localtime::LocalDuration;
 use radicle::node;
 use radicle::prelude::Signer;
 use radicle::profile;
+use radicle::version;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle_node::prelude::{Address, NodeId};
 use radicle_node::Runtime;
 use radicle_node::{logger, service, signals};
+
+pub const NAME: &str = "radicle-node";
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const GIT_HEAD: &str = env!("GIT_HEAD");
 
 pub const HELP_MSG: &str = r#"
 Usage
@@ -28,6 +34,7 @@ Options
     --force                             Force start even if an existing control socket is found
     --help                              Print help
     --listen             <address>      Address to listen on
+    --version                           Print program version
 "#;
 
 #[derive(Debug)]
@@ -93,6 +100,10 @@ impl Options {
                 }
                 Long("help") => {
                     println!("{HELP_MSG}");
+                    process::exit(0);
+                }
+                Long("version") => {
+                    version::print(&mut io::stdout(), NAME, VERSION, GIT_HEAD)?;
                     process::exit(0);
                 }
                 _ => anyhow::bail!(arg.unexpected()),

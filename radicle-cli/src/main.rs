@@ -4,6 +4,7 @@ use std::{io::ErrorKind, iter, process};
 
 use anyhow::anyhow;
 
+use radicle::version;
 use radicle_cli::commands::*;
 use radicle_cli::terminal as term;
 
@@ -63,20 +64,8 @@ fn parse_args() -> anyhow::Result<Command> {
     Ok(command.unwrap_or_else(|| Command::Other(vec![])))
 }
 
-/// Print the Radicle CLI's version.
-///
-/// Third party applications use it to parse Radicle Cli's version.
-fn print_version(mut w: impl std::io::Write) -> anyhow::Result<()> {
-    if VERSION.contains("-dev") {
-        writeln!(w, "{NAME} {VERSION}+{GIT_HEAD}")?;
-    } else {
-        writeln!(w, "{NAME} {VERSION} ({GIT_HEAD})")?;
-    }
-    Ok(())
-}
-
 fn print_help() -> anyhow::Result<()> {
-    print_version(&mut io::stdout())?;
+    version::print(&mut io::stdout(), NAME, VERSION, GIT_HEAD)?;
     println!("{DESCRIPTION}");
     println!();
 
@@ -86,7 +75,8 @@ fn print_help() -> anyhow::Result<()> {
 fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     match command {
         Command::Version => {
-            print_version(&mut io::stdout())?;
+            version::print(&mut io::stdout(), NAME, VERSION, GIT_HEAD)
+                .map_err(|e| Some(e.into()))?;
         }
         Command::Help => {
             print_help()?;
@@ -348,85 +338,4 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         }
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    fn is_dot_separated_identifier(s: &str) -> bool {
-        let vs: Vec<_> = s.split('.').collect();
-
-        if Some(&"") == vs.first() || Some(&"") == vs.last() {
-            return false;
-        }
-        for v in vs {
-            if v.is_empty() || v.contains(|c: char| !(c.is_ascii_alphanumeric() || c == '-')) {
-                return false;
-            }
-        }
-        true
-    }
-
-    /// https://semver.org/#backusnaur-form-grammar-for-valid-semver-versions
-    fn is_semantic_version(s: &str) -> bool {
-        let (s, build) = s.split_once('+').unwrap_or((s, ""));
-        let (version_core, pre_release) = s.split_once('-').unwrap_or((s, ""));
-
-        let versions: Vec<_> = version_core.split('.').collect();
-        if versions.len() != 3 {
-            return false;
-        }
-        for v in versions {
-            if v != "0" && (v.get(0..1) == Some("0") || v.parse::<u32>().is_err()) {
-                return false;
-            }
-        }
-
-        (pre_release.is_empty() || is_dot_separated_identifier(pre_release))
-            && (build.is_empty() || is_dot_separated_identifier(build))
-    }
-
-    #[test]
-    fn test_is_semantic_version() {
-        assert!(is_semantic_version("0.0.1"));
-        assert!(is_semantic_version("1.0.0-alpha.1"));
-        assert!(is_semantic_version("1.0.0-0.3.7"));
-        assert!(is_semantic_version("1.0.0-x.7.z.92"));
-        assert!(is_semantic_version("1.0.0-alpha+001"));
-        assert!(is_semantic_version("1.0.0+20130313144700"));
-        assert!(is_semantic_version("1.0.0-beta+exp.sha.5114f85"));
-        assert!(is_semantic_version("1.0.0+21AF26D3----117B344092BD"));
-
-        assert!(!is_semantic_version(""), "empty");
-        assert!(!is_semantic_version("1.0"), "too little versions");
-        assert!(!is_semantic_version("1.0.01"), "no leading zeroes");
-        assert!(
-            !is_semantic_version("1.0.0-beta+exp..sha.5114f85"),
-            "dot separated value must be non-empty"
-        );
-        assert!(
-            !is_semantic_version("1.0.0-beta+exp.sha.5114f85."),
-            "dot separated value must be non-empty"
-        );
-        assert!(
-            !is_semantic_version("1.0.0-alpha+001+002"),
-            "only one '+' allowed"
-        );
-    }
-
-    /// Ensure version output is consistent for consumption by third parties.
-    #[test]
-    fn test_version() {
-        let mut buffer = Vec::new();
-        print_version(&mut buffer).unwrap();
-        let str = std::str::from_utf8(&buffer).unwrap();
-
-        let mut strs = str.split(' ');
-        assert_eq!("rad", strs.next().unwrap_or_default(), "program name");
-        assert!(
-            is_semantic_version(strs.next().unwrap_or_default()),
-            "semantic version"
-        );
-    }
 }

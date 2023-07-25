@@ -21,6 +21,7 @@ pub mod sql;
 pub mod storage;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
+pub mod version;
 
 pub use node::Node;
 pub use profile::Profile;
