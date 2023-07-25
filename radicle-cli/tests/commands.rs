@@ -967,6 +967,33 @@ fn rad_merge_via_push() {
 }
 
 #[test]
+fn rad_merge_after_update() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::new(Alias::new("alice")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn();
+
+    test(
+        "examples/rad-merge-after-update.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn git_push_and_pull() {
     logger::init(log::Level::Debug);
 
