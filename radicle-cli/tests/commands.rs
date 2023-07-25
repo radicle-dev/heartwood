@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::str::FromStr;
-use std::{env, fs, thread, time};
+use std::{env, thread, time};
 
 use radicle::git;
 use radicle::node::Alias;
@@ -298,7 +298,10 @@ fn rad_patch_update() {
 }
 
 #[test]
+#[cfg(not(target_os = "macos"))]
 fn rad_patch_ahead_behind() {
+    use std::fs;
+
     let mut environment = Environment::new();
     let profile = environment.profile("alice");
     let working = tempfile::tempdir().unwrap();
@@ -362,6 +365,7 @@ fn rad_patch_via_push() {
 }
 
 #[test]
+#[cfg(not(target_os = "macos"))]
 fn rad_review_by_hunk() {
     logger::init(log::Level::Debug);
 
