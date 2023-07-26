@@ -24,10 +24,14 @@ Usage
 
    radicle-node [<option>...]
 
+   If you're running a public seed node, make sure to use `--listen` to bind a listening socket to
+   eg. `0.0.0.0:8776`, and `--external-address` to advertize your public/external address to the
+   network.
+
 Options
 
     --connect            <peer>         Connect to the given peer address on start
-    --external-address   <address>      Publicly accessible address (default 0.0.0.0:8776)
+    --external-address   <address>      Publicly accessible address (may be specified multiple times)
     --git-daemon         <address>      Address to bind git-daemon to (default 0.0.0.0:9418)
     --tracking-policy    (track|block)  Default tracking policy
     --tracking-scope     (trusted|all)  Default scope for tracking policies
