@@ -15,6 +15,7 @@ use crate::identity::{
     project::Project,
     Did,
 };
+use crate::node::address::AddressType;
 use crate::node::{Address, Alias};
 use crate::storage;
 use crate::storage::refs::{Refs, SignedRefs};
@@ -214,16 +215,38 @@ impl Arbitrary for Id {
     }
 }
 
+impl Arbitrary for AddressType {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let t = *g.choose(&[1, 2, 3]).unwrap() as u8;
+
+        AddressType::try_from(t).unwrap()
+    }
+}
+
 impl Arbitrary for Address {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let ip = if bool::arbitrary(g) {
-            net::IpAddr::V4(net::Ipv4Addr::from(u32::arbitrary(g)))
-        } else {
-            let octets: [u8; 16] = Arbitrary::arbitrary(g);
-            net::IpAddr::V6(net::Ipv6Addr::from(octets))
+        let host = match AddressType::arbitrary(g) {
+            AddressType::Ipv4 => cyphernet::addr::HostName::Ip(net::IpAddr::V4(
+                net::Ipv4Addr::from(u32::arbitrary(g)),
+            )),
+            AddressType::Ipv6 => {
+                let octets: [u8; 16] = Arbitrary::arbitrary(g);
+                cyphernet::addr::HostName::Ip(net::IpAddr::V6(net::Ipv6Addr::from(octets)))
+            }
+            AddressType::Dns => cyphernet::addr::HostName::Dns(
+                g.choose(&[
+                    "seed.radicle.xyz",
+                    "seed.radicle.garden",
+                    "seed.radicle.cloudhead.io",
+                ])
+                .unwrap()
+                .to_string(),
+            ),
+            AddressType::Onion => todo!(),
         };
+
         Address::from(cyphernet::addr::NetAddr {
-            host: cyphernet::addr::HostName::Ip(ip),
+            host,
             port: u16::arbitrary(g),
         })
     }

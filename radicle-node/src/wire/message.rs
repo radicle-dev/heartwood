@@ -85,7 +85,7 @@ impl netservices::Frame for Message {
 pub enum AddressType {
     Ipv4 = 1,
     Ipv6 = 2,
-    Hostname = 3,
+    Dns = 3,
     Onion = 4,
 }
 
@@ -100,7 +100,7 @@ impl From<&Address> for AddressType {
         match a.host {
             HostName::Ip(net::IpAddr::V4(_)) => AddressType::Ipv4,
             HostName::Ip(net::IpAddr::V6(_)) => AddressType::Ipv6,
-            HostName::Dns(_) => AddressType::Hostname,
+            HostName::Dns(_) => AddressType::Dns,
             HostName::Tor(_) => AddressType::Onion,
             _ => todo!(), // FIXME(cloudhead): Maxim will remove `non-exhaustive`
         }
@@ -114,7 +114,7 @@ impl TryFrom<u8> for AddressType {
         match other {
             1 => Ok(AddressType::Ipv4),
             2 => Ok(AddressType::Ipv6),
-            3 => Ok(AddressType::Hostname),
+            3 => Ok(AddressType::Dns),
             4 => Ok(AddressType::Onion),
             _ => Err(other),
         }
@@ -301,6 +301,10 @@ impl wire::Encode for Address {
                 n += u8::from(AddressType::Ipv6).encode(writer)?;
                 n += ip.octets().encode(writer)?;
             }
+            HostName::Dns(ref dns) => {
+                n += u8::from(AddressType::Dns).encode(writer)?;
+                n += dns.encode(writer)?;
+            }
             _ => {
                 todo!();
             }
@@ -327,8 +331,10 @@ impl wire::Decode for Address {
 
                 HostName::Ip(net::IpAddr::V6(ip))
             }
-            Ok(AddressType::Hostname) => {
-                todo!();
+            Ok(AddressType::Dns) => {
+                let dns: String = wire::Decode::decode(reader)?;
+
+                HostName::Dns(dns)
             }
             Ok(AddressType::Onion) => {
                 todo!();

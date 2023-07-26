@@ -342,7 +342,7 @@ impl TryFrom<&sql::Value> for AddressType {
             sql::Value::String(s) => match s.as_str() {
                 "ipv4" => Ok(AddressType::Ipv4),
                 "ipv6" => Ok(AddressType::Ipv6),
-                "hostname" => Ok(AddressType::Hostname),
+                "hostname" => Ok(AddressType::Dns),
                 "onion" => Ok(AddressType::Onion),
                 _ => Err(err),
             },
@@ -356,7 +356,7 @@ impl sql::BindableWithIndex for AddressType {
         match self {
             Self::Ipv4 => "ipv4".bind(stmt, i),
             Self::Ipv6 => "ipv6".bind(stmt, i),
-            Self::Hostname => "hostname".bind(stmt, i),
+            Self::Dns => "dns".bind(stmt, i),
             Self::Onion => "onion".bind(stmt, i),
         }
     }

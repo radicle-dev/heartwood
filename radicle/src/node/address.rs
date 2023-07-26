@@ -16,7 +16,7 @@ use crate::node::Address;
 pub enum AddressType {
     Ipv4 = 1,
     Ipv6 = 2,
-    Hostname = 3,
+    Dns = 3,
     Onion = 4,
 }
 
@@ -31,7 +31,7 @@ impl From<&Address> for AddressType {
         match a.host {
             HostName::Ip(net::IpAddr::V4(_)) => AddressType::Ipv4,
             HostName::Ip(net::IpAddr::V6(_)) => AddressType::Ipv6,
-            HostName::Dns(_) => AddressType::Hostname,
+            HostName::Dns(_) => AddressType::Dns,
             HostName::Tor(_) => AddressType::Onion,
             _ => todo!(), // FIXME(cloudhead): Maxim will remove `non-exhaustive`
         }
@@ -45,7 +45,7 @@ impl TryFrom<u8> for AddressType {
         match other {
             1 => Ok(AddressType::Ipv4),
             2 => Ok(AddressType::Ipv6),
-            3 => Ok(AddressType::Hostname),
+            3 => Ok(AddressType::Dns),
             4 => Ok(AddressType::Onion),
             _ => Err(other),
         }
