@@ -8,7 +8,7 @@ use crate::storage::RefUpdate;
 
 /// A service event.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "kebab-case", tag = "type")]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum Event {
     RefsFetched {
         remote: NodeId,

@@ -122,7 +122,7 @@ pub type RemoteId = PublicKey;
 
 /// An update to a reference.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum RefUpdate {
     Updated { name: RefString, old: Oid, new: Oid },
     Created { name: RefString, oid: Oid },

@@ -91,7 +91,7 @@ pub struct Node {
 
 /// A known address.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct KnownAddress {
     /// Network address.
     pub addr: Address,
@@ -117,7 +117,7 @@ impl KnownAddress {
 
 /// Address source. Specifies where an address originated from.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub enum Source {
     /// An address that was shared by another peer.
     Peer,

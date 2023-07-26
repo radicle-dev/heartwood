@@ -361,7 +361,7 @@ pub struct Session {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "camelCase")]
 pub struct Seed {
     pub nid: NodeId,
     pub addrs: Vec<KnownAddress>,
@@ -424,7 +424,7 @@ pub enum AnnounceEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "status", rename_all = "kebab-case")]
+#[serde(tag = "status", rename_all = "camelCase")]
 pub enum FetchResult {
     Success {
         updated: Vec<RefUpdate>,
