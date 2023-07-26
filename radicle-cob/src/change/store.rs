@@ -1,6 +1,6 @@
 // Copyright © 2022 The Radicle Link Contributors
 
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, num::NonZeroUsize};
 
 use nonempty::NonEmpty;
 use radicle_git_ext::Oid;
@@ -45,8 +45,7 @@ pub trait Storage {
 
 /// Change template, used to create a new change.
 pub struct Template<Id> {
-    pub typename: TypeName,
-    pub history_type: String,
+    pub type_name: TypeName,
     pub tips: Vec<Id>,
     pub message: String,
     pub contents: NonEmpty<Vec<u8>>,
@@ -89,8 +88,8 @@ impl<Resource, Id, Signatures> Change<Resource, Id, Signatures> {
         &self.id
     }
 
-    pub fn typename(&self) -> &TypeName {
-        &self.manifest.typename
+    pub fn type_name(&self) -> &TypeName {
+        &self.manifest.type_name
     }
 
     pub fn contents(&self) -> &Contents {
@@ -122,10 +121,61 @@ where
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Manifest {
     /// The name given to the type of collaborative object.
-    pub typename: TypeName,
-    /// The type of history for the collaborative oject.
-    pub history_type: String,
+    #[serde(alias = "typename")] // Deprecated name for compatibility reasons.
+    pub type_name: TypeName,
+    /// Version number.
+    #[serde(default)]
+    pub version: Version,
+
+    /// History type (deprecated).
+    #[serde(alias = "history_type")]
+    _history_type: Option<String>,
+}
+
+impl Manifest {
+    /// Create a new manifest.
+    pub fn new(type_name: TypeName, version: Version) -> Self {
+        Self {
+            type_name,
+            version,
+            _history_type: None,
+        }
+    }
+
+    /// Whether this is an old COB. Remove this function when support for legacy COBs is over.
+    pub fn is_legacy(&self) -> bool {
+        self._history_type.is_some()
+    }
+}
+
+/// COB version.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Version(NonZeroUsize);
+
+impl Default for Version {
+    fn default() -> Self {
+        Version(NonZeroUsize::MIN)
+    }
+}
+
+impl From<Version> for usize {
+    fn from(value: Version) -> Self {
+        value.0.into()
+    }
+}
+
+impl From<NonZeroUsize> for Version {
+    fn from(value: NonZeroUsize) -> Self {
+        Self(value)
+    }
+}
+
+impl Version {
+    pub fn new(version: usize) -> Option<Self> {
+        NonZeroUsize::new(version).map(Self)
+    }
 }

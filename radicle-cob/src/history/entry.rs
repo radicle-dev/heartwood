@@ -9,7 +9,7 @@ use nonempty::NonEmpty;
 use radicle_crypto::PublicKey;
 use serde::{Deserialize, Serialize};
 
-use crate::{object, ObjectId};
+use crate::{object, Manifest, ObjectId, Version};
 
 /// Entry contents.
 /// This is the change payload.
@@ -90,6 +90,8 @@ pub struct Entry {
     pub(super) contents: Contents,
     /// The entry timestamp, as seconds since epoch.
     pub(super) timestamp: Timestamp,
+    /// COB manifest.
+    pub(super) manifest: Manifest,
 }
 
 impl Entry {
@@ -99,6 +101,7 @@ impl Entry {
         resource: Oid,
         contents: Contents,
         timestamp: Timestamp,
+        manifest: Manifest,
     ) -> Self
     where
         Id: Into<EntryId>,
@@ -109,6 +112,7 @@ impl Entry {
             resource,
             contents,
             timestamp,
+            manifest,
         }
     }
 
@@ -120,6 +124,16 @@ impl Entry {
     /// The public key of the actor.
     pub fn actor(&self) -> &PublicKey {
         &self.actor
+    }
+
+    /// The COB version of this entry.
+    pub fn version(&self) -> &Version {
+        &self.manifest.version
+    }
+
+    /// The COB manifest.
+    pub fn manifest(&self) -> &Manifest {
+        &self.manifest
     }
 
     /// The entry timestamp.

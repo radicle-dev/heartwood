@@ -86,8 +86,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         _ => e.into(),
     })?;
     let signer = term::signer(&profile)?;
+    let assigned = issue
+        .assigned()
+        .cloned()
+        .filter(|did| !options.from.contains(did))
+        .collect::<Vec<_>>();
 
-    issue.unassign(options.from.into_iter().map(Did::into), &signer)?;
+    issue.assign(assigned, &signer)?;
 
     Ok(())
 }

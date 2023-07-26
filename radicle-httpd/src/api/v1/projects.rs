@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
-use radicle::cob::{issue, patch, thread, ActorId, Tag};
-use radicle::identity::Id;
+use radicle::cob::{issue, patch, Label};
+use radicle::identity::{Did, Id};
 use radicle::node::routing::Store;
 use radicle::node::AliasStore;
 use radicle::node::NodeId;
@@ -481,8 +481,8 @@ async fn issues_handler(
 pub struct IssueCreate {
     pub title: String,
     pub description: String,
-    pub tags: Vec<Tag>,
-    pub assignees: Vec<ActorId>,
+    pub labels: Vec<Label>,
+    pub assignees: Vec<Did>,
 }
 
 /// Create a new issue.
@@ -505,7 +505,7 @@ async fn issue_create_handler(
         .create(
             issue.title,
             issue.description,
-            &issue.tags,
+            &issue.labels,
             &issue.assignees,
             &signer,
         )
@@ -526,6 +526,7 @@ async fn issue_update_handler(
     Json(action): Json<issue::Action>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
+
     let storage = &ctx.profile.storage;
     let signer = ctx.profile.signer().unwrap();
     let repo = storage.repository(project)?;
@@ -533,37 +534,34 @@ async fn issue_update_handler(
     let mut issue = issues.get_mut(&issue_id.into())?;
 
     match action {
-        issue::Action::Assign { add, remove } => {
-            issue.assign(add, &signer)?;
-            issue.unassign(remove, &signer)?;
+        issue::Action::Assign { assignees } => {
+            issue.assign(assignees, &signer)?;
         }
         issue::Action::Lifecycle { state } => {
             issue.lifecycle(state, &signer)?;
         }
-        issue::Action::Tag { add, remove } => {
-            issue.tag(add, remove, &signer)?;
+        issue::Action::Label { labels } => {
+            issue.label(labels, &signer)?;
         }
         issue::Action::Edit { title } => {
             issue.edit(title, &signer)?;
         }
-        issue::Action::Thread { action } => match action {
-            thread::Action::Comment { body, reply_to } => {
-                if let Some(reply_to) = reply_to {
-                    issue.comment(body, reply_to, &signer)?;
-                } else {
-                    issue.thread(body, &signer)?;
-                }
+        issue::Action::Comment { body, reply_to } => {
+            if let Some(to) = reply_to {
+                issue.comment(body, to, &signer)?;
+            } else {
+                return Err(Error::BadRequest("`replyTo` missing".to_owned()));
             }
-            thread::Action::React { to, reaction, .. } => {
-                issue.react(to, reaction, &signer)?;
-            }
-            thread::Action::Edit { .. } => {
-                todo!();
-            }
-            thread::Action::Redact { .. } => {
-                todo!();
-            }
-        },
+        }
+        issue::Action::CommentReact { id, reaction, .. } => {
+            issue.react(id, reaction, &signer)?;
+        }
+        issue::Action::CommentEdit { .. } => {
+            todo!();
+        }
+        issue::Action::CommentRedact { .. } => {
+            todo!();
+        }
     };
 
     Ok::<_, Error>(Json(json!({ "success": true })))
@@ -591,7 +589,7 @@ pub struct PatchCreate {
     pub description: String,
     pub target: Oid,
     pub oid: Oid,
-    pub tags: Vec<Tag>,
+    pub labels: Vec<Label>,
 }
 
 /// Create a new patch.
@@ -619,7 +617,7 @@ async fn patch_create_handler(
             patch::MergeTarget::default(),
             base_oid,
             patch.oid,
-            &patch.tags,
+            &patch.labels,
             &signer,
         )
         .map_err(Error::from)?;
@@ -650,34 +648,32 @@ async fn patch_update_handler(
         patch::Action::Edit { title, target } => {
             patch.edit(title, target, &signer)?;
         }
-        patch::Action::EditRevision {
+        patch::Action::RevisionEdit {
             revision,
             description,
         } => {
             patch.edit_revision(revision, description, &signer)?;
         }
-        patch::Action::EditReview { review, summary } => {
+        patch::Action::ReviewEdit { review, summary } => {
             patch.edit_review(review, summary, &signer)?;
         }
-        patch::Action::EditCodeComment {
+        patch::Action::ReviewCommentEdit {
             review,
             comment,
             body,
         } => {
-            patch.edit_code_comment(review, comment, body, &signer)?;
+            patch.edit_review_comment(review, comment, body, &signer)?;
         }
-        patch::Action::Tag { add, remove } => {
-            patch.tag(add, remove, &signer)?;
+        patch::Action::Label { labels } => {
+            patch.label(labels, &signer)?;
         }
         patch::Action::Revision {
             description,
             base,
             oid,
+            ..
         } => {
             patch.update(description, base, oid, &signer)?;
-        }
-        patch::Action::Redact { .. } => {
-            todo!()
         }
         patch::Action::Lifecycle { state } => {
             patch.lifecycle(state, &signer)?;
@@ -686,33 +682,24 @@ async fn patch_update_handler(
             revision,
             summary,
             verdict,
+            labels,
         } => {
-            patch.review(revision, verdict, summary, &signer)?;
-        }
-        patch::Action::CodeComment { .. } => {
-            todo!()
+            patch.review(revision, verdict, summary, labels, &signer)?;
         }
         patch::Action::Merge { revision, commit } => {
             patch.merge(revision, commit, &signer)?;
         }
-        patch::Action::Thread { action, revision } => match action {
-            thread::Action::Comment { body, reply_to } => {
-                if let Some(reply_to) = reply_to {
-                    patch.comment(revision, body, Some(reply_to), &signer)?;
-                } else {
-                    patch.thread(revision, body, &signer)?;
-                }
-            }
-            thread::Action::Edit { .. } => {
-                todo!();
-            }
-            thread::Action::Redact { .. } => {
-                todo!();
-            }
-            thread::Action::React { .. } => {
-                todo!();
-            }
-        },
+        patch::Action::RevisionComment {
+            revision,
+            body,
+            reply_to,
+            ..
+        } => {
+            patch.comment(revision, body, reply_to, &signer)?;
+        }
+        _ => {
+            todo!();
+        }
     };
 
     Ok::<_, Error>(Json(json!({ "success": true })))
@@ -1635,7 +1622,7 @@ mod routes {
                     "replyTo": null
                   }
                 ],
-                "tags": []
+                "labels": []
               }
             ])
         );
@@ -1643,7 +1630,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_issues_create() {
-        const CREATED_ISSUE_ID: &str = "b457364fbe2ef0eac69a835a087f60ee13ccb367";
+        const CREATED_ISSUE_ID: &str = "c7cff5ab610408470406e023baa1ab087ce78adc";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -1654,7 +1641,7 @@ mod routes {
         let body = serde_json::to_vec(&json!({
             "title": "Issue #2",
             "description": "Change 'hello world' to 'hello everyone'",
-            "tags": ["bug"],
+            "labels": ["bug"],
             "assignees": [],
         }))
         .unwrap();
@@ -1701,7 +1688,7 @@ mod routes {
                 "timestamp": TIMESTAMP,
                 "replyTo": null,
               }],
-              "tags": [
+              "labels": [
                   "bug",
               ],
             })
@@ -1717,11 +1704,9 @@ mod routes {
         create_session(ctx).await;
 
         let body = serde_json::to_vec(&json!({
-          "type": "thread",
-          "action": {
-            "type": "comment",
-            "body": "This is first-level comment",
-          }
+          "type": "comment",
+          "body": "This is first-level comment",
+          "replyTo": CONTRIBUTOR_ISSUE_ID,
         }))
         .unwrap();
 
@@ -1737,13 +1722,10 @@ mod routes {
         assert_eq!(response.json().await, json!({ "success": true }));
 
         let body = serde_json::to_vec(&json!({
-          "type": "thread",
-          "action": {
-            "type": "react",
-            "to": "9685b141c2e939c3d60f8ca34f8c7bf01a609af1",
-            "reaction": "🚀",
-            "active": true,
-          }
+          "type": "comment.react",
+          "id": "26cadcc7cb51ee9c56b6232023e9bf63b7b0df60",
+          "reaction": "🚀",
+          "active": true,
         }))
         .unwrap();
         patch(
@@ -1784,7 +1766,7 @@ mod routes {
                   "replyTo": null,
                 },
                 {
-                  "id": "9685b141c2e939c3d60f8ca34f8c7bf01a609af1",
+                  "id": "26cadcc7cb51ee9c56b6232023e9bf63b7b0df60",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
@@ -1796,10 +1778,10 @@ mod routes {
                     ],
                   ],
                   "timestamp": TIMESTAMP,
-                  "replyTo": null,
+                  "replyTo": CONTRIBUTOR_ISSUE_ID,
                 },
               ],
-              "tags": [],
+              "labels": [],
             })
         );
     }
@@ -1813,12 +1795,9 @@ mod routes {
         create_session(ctx).await;
 
         let body = serde_json::to_vec(&json!({
-          "type": "thread",
-          "action": {
-            "type": "comment",
-            "body": "This is a reply to the first comment",
-            "replyTo": ISSUE_DISCUSSION_ID,
-          }
+          "type": "comment",
+          "body": "This is a reply to the first comment",
+          "replyTo": ISSUE_DISCUSSION_ID,
         }))
         .unwrap();
 
@@ -1874,7 +1853,7 @@ mod routes {
                   "replyTo": ISSUE_DISCUSSION_ID,
                 },
               ],
-              "tags": [],
+              "labels": [],
             })
         );
     }
@@ -1898,9 +1877,9 @@ mod routes {
                 "title": "A new `hello world`",
                 "state": { "status": "open" },
                 "target": "delegates",
-                "tags": [],
+                "labels": [],
                 "merges": [],
-                "reviewers": [],
+                "assignees": [],
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
@@ -1940,9 +1919,9 @@ mod routes {
                 "title": "A new `hello world`",
                 "state": { "status": "open" },
                 "target": "delegates",
-                "tags": [],
+                "labels": [],
                 "merges": [],
-                "reviewers": [],
+                "assignees": [],
                 "revisions": [
                   {
                     "id": CONTRIBUTOR_PATCH_ID,
@@ -1967,7 +1946,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
-        const CREATED_PATCH_ID: &str = "768e76ae6611d9392f04122a5aa7a587b47b9e19";
+        const CREATED_PATCH_ID: &str = "9cffd66099cceb0439a0f67c4aa99bde5e868eaa";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -1980,7 +1959,7 @@ mod routes {
           "description": "Do some changes to README",
           "target": INITIAL_COMMIT,
           "oid": HEAD,
-          "tags": [],
+          "labels": [],
         }))
         .unwrap();
 
@@ -2021,9 +2000,9 @@ mod routes {
                 "title": "Update README",
                 "state": { "status": "open" },
                 "target": "delegates",
-                "tags": [],
+                "labels": [],
                 "merges": [],
-                "reviewers": [],
+                "assignees": [],
                 "revisions": [
                   {
                     "id": CREATED_PATCH_ID,
@@ -2053,9 +2032,8 @@ mod routes {
         let app = super::router(ctx.to_owned());
         create_session(ctx).await;
         let body = serde_json::to_vec(&json!({
-          "type": "tag",
-          "add": ["bug","design"],
-          "remove": []
+          "type": "label",
+          "labels": ["bug","design"],
         }))
         .unwrap();
         let response = patch(
@@ -2084,12 +2062,12 @@ mod routes {
               "title": "A new `hello world`",
               "state": { "status": "open" },
               "target": "delegates",
-              "tags": [
+              "labels": [
                 "bug",
                 "design"
               ],
               "merges": [],
-              "reviewers": [],
+              "assignees": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2150,9 +2128,9 @@ mod routes {
               "title": "A new `hello world`",
               "state": { "status": "open" },
               "target": "delegates",
-              "tags": [],
+              "labels": [],
               "merges": [],
-              "reviewers": [],
+              "assignees": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2170,7 +2148,7 @@ mod routes {
                   "reviews": [],
                 },
                 {
-                  "id": "181e4219bc132e7716126a84200d4dbd628dd6be",
+                  "id": "b1f68feacb7040b089a77c1a0bff60a0411e6c1e",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
@@ -2228,9 +2206,9 @@ mod routes {
               "title": "This is a updated title",
               "state": { "status": "open" },
               "target": "delegates",
-              "tags": [],
+              "labels": [],
               "merges": [],
-              "reviewers": [],
+              "assignees": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2259,12 +2237,9 @@ mod routes {
         let app = super::router(ctx.to_owned());
         create_session(ctx).await;
         let thread_body = serde_json::to_vec(&json!({
-          "type": "thread",
+          "type": "revision.comment",
           "revision": CONTRIBUTOR_PATCH_ID,
-          "action": {
-            "type": "comment",
-            "body": "This is a root level comment"
-          }
+          "body": "This is a root level comment"
         }))
         .unwrap();
         let response = patch(
@@ -2278,13 +2253,10 @@ mod routes {
         assert_eq!(response.status(), StatusCode::OK);
 
         let reply_body = serde_json::to_vec(&json!({
-          "type": "thread",
+          "type": "revision.comment",
           "revision": CONTRIBUTOR_PATCH_ID,
-          "action": {
-            "type": "comment",
-            "body": "This is a root level comment",
-            "replyTo": CONTRIBUTOR_COMMENT_1,
-          }
+          "body": "This is a root level comment",
+          "replyTo": CONTRIBUTOR_COMMENT_1,
         }))
         .unwrap();
         let response = patch(
@@ -2313,9 +2285,9 @@ mod routes {
               "title": "A new `hello world`",
               "state": { "status": "open" },
               "target": "delegates",
-              "tags": [],
+              "labels": [],
               "merges": [],
-              "reviewers": [],
+              "assignees": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2397,9 +2369,9 @@ mod routes {
               "title": "A new `hello world`",
               "state": { "status": "open" },
               "target": "delegates",
-              "tags": [],
+              "labels": [],
               "merges": [],
-              "reviewers": [],
+              "assignees": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
@@ -2473,7 +2445,7 @@ mod routes {
                   "commit": PARENT,
               },
               "target": "delegates",
-              "tags": [],
+              "labels": [],
               "merges": [{
                   "author": {
                     "id": CONTRIBUTOR_NID,
@@ -2482,7 +2454,7 @@ mod routes {
                   "commit": PARENT,
                   "timestamp": TIMESTAMP,
               }],
-              "reviewers": [],
+              "assignees": [],
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,

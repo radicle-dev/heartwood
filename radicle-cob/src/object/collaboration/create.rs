@@ -8,21 +8,20 @@ use super::*;
 
 /// The metadata required for creating a new [`CollaborativeObject`].
 pub struct Create {
-    /// The type of history that will be used for this object.
-    pub history_type: String,
     /// The CRDT history to initialize this object with.
     pub contents: NonEmpty<Vec<u8>>,
     /// The typename for this object.
-    pub typename: TypeName,
+    pub type_name: TypeName,
     /// The message to add when creating this object.
     pub message: String,
+    /// COB version.
+    pub version: Version,
 }
 
 impl Create {
     fn template(&self) -> change::Template<git_ext::Oid> {
         change::Template {
-            typename: self.typename.clone(),
-            history_type: self.history_type.clone(),
+            type_name: self.type_name.clone(),
             tips: Vec::new(),
             message: self.message.clone(),
             contents: self.contents.clone(),
@@ -60,14 +59,14 @@ where
     S: Store<I>,
     G: crypto::Signer,
 {
-    let Create { ref typename, .. } = &args;
+    let Create { type_name, .. } = &args;
     let init_change = storage
         .store(resource, parents, signer, args.template())
         .map_err(error::Create::from)?;
     let object_id = init_change.id().into();
 
     storage
-        .update(identifier, typename, &object_id, &init_change)
+        .update(identifier, type_name, &object_id, &init_change)
         .map_err(|err| error::Create::Refs { err: Box::new(err) })?;
 
     let history = History::new_from_root(
@@ -76,13 +75,11 @@ where
         resource,
         init_change.contents,
         init_change.timestamp,
+        init_change.manifest,
     );
 
     Ok(CollaborativeObject {
-        manifest: Manifest {
-            typename: args.typename,
-            history_type: args.history_type,
-        },
+        manifest: Manifest::new(args.type_name, args.version),
         history,
         id: object_id,
     })

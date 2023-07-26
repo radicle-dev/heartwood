@@ -14,7 +14,7 @@ pub enum DidError {
     PublicKey(#[from] crypto::PublicKeyError),
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 #[serde(into = "String", try_from = "String")]
 pub struct Did(crypto::PublicKey);
 

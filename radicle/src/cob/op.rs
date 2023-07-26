@@ -1,4 +1,5 @@
 use nonempty::NonEmpty;
+use radicle_cob::Manifest;
 use thiserror::Error;
 
 use radicle_cob::history::{Entry, EntryId};
@@ -35,6 +36,8 @@ pub struct Op<A> {
     pub timestamp: Timestamp,
     /// Head of identity document committed to by this operation.
     pub identity: git::Oid,
+    /// Object manifest.
+    pub manifest: Manifest,
 }
 
 impl<A: Eq> PartialOrd for Op<A> {
@@ -56,6 +59,7 @@ impl<A> Op<A> {
         author: ActorId,
         timestamp: impl Into<Timestamp>,
         identity: git::Oid,
+        manifest: Manifest,
     ) -> Self {
         Self {
             id,
@@ -63,6 +67,7 @@ impl<A> Op<A> {
             author,
             timestamp: timestamp.into(),
             identity,
+            manifest,
         }
     }
 
@@ -85,6 +90,7 @@ where
             .iter()
             .map(|blob| serde_json::from_slice(blob.as_slice()))
             .collect::<Result<_, _>>()?;
+        let manifest = entry.manifest().clone();
 
         // SAFETY: Entry is guaranteed to have at least one operation.
         #[allow(clippy::unwrap_used)]
@@ -95,6 +101,7 @@ where
             author: *entry.actor(),
             timestamp: Timestamp::from_secs(entry.timestamp()),
             identity,
+            manifest,
         };
 
         Ok(op)

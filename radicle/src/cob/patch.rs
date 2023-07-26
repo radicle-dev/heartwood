@@ -12,12 +12,12 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::cob;
-use crate::cob::common::{Author, Tag, Timestamp};
+use crate::cob::common::{Author, Label, Reaction, Timestamp};
 use crate::cob::store::Transaction;
 use crate::cob::store::{FromHistory as _, HistoryAction};
 use crate::cob::thread;
-use crate::cob::thread::CommentId;
 use crate::cob::thread::Thread;
+use crate::cob::thread::{Comment, CommentId};
 use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
@@ -84,55 +84,140 @@ pub enum Error {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Action {
-    Edit {
-        title: String,
-        target: MergeTarget,
-    },
-    EditRevision {
-        revision: RevisionId,
-        description: String,
-    },
-    EditReview {
-        review: EntryId,
-        summary: Option<String>,
-    },
-    EditCodeComment {
-        review: EntryId,
-        comment: EntryId,
-        body: String,
-    },
-    Tag {
-        add: Vec<Tag>,
-        remove: Vec<Tag>,
-    },
-    Revision {
-        description: String,
-        base: git::Oid,
-        oid: git::Oid,
-    },
-    Lifecycle {
-        state: State,
-    },
-    Redact {
-        revision: RevisionId,
-    },
-    Review {
-        revision: RevisionId,
-        summary: Option<String>,
-        verdict: Option<Verdict>,
-    },
-    CodeComment {
-        review: EntryId,
-        body: String,
-        location: CodeLocation,
-    },
+    //
+    // Actions on patch.
+    //
+    #[serde(rename = "edit")]
+    Edit { title: String, target: MergeTarget },
+    #[serde(rename = "label")]
+    Label { labels: BTreeSet<Label> },
+    #[serde(rename = "lifecycle")]
+    Lifecycle { state: Lifecycle },
+    #[serde(rename = "assign")]
+    Assign { assignees: BTreeSet<Did> },
+    #[serde(rename = "merge")]
     Merge {
         revision: RevisionId,
         commit: git::Oid,
     },
-    Thread {
+
+    //
+    // Review actions
+    //
+    #[serde(rename = "review")]
+    Review {
         revision: RevisionId,
-        action: thread::Action,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        summary: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        verdict: Option<Verdict>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        labels: Vec<Label>,
+    },
+    #[serde(rename = "review.edit")]
+    ReviewEdit {
+        review: EntryId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        summary: Option<String>,
+    },
+    #[serde(rename = "review.redact")]
+    ReviewRedact { review: EntryId },
+    #[serde(rename = "review.comment")]
+    ReviewComment {
+        review: EntryId,
+        body: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        location: Option<CodeLocation>,
+        /// Comment this is a reply to.
+        /// Should be [`None`] if it's the first comment.
+        /// Should be [`Some`] otherwise.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reply_to: Option<CommentId>,
+    },
+    #[serde(rename = "review.comment.edit")]
+    ReviewCommentEdit {
+        review: EntryId,
+        comment: EntryId,
+        body: String,
+    },
+    #[serde(rename = "review.comment.redact")]
+    ReviewCommentRedact { review: EntryId, comment: EntryId },
+    #[serde(rename = "review.comment.react")]
+    ReviewCommentReact {
+        review: EntryId,
+        comment: EntryId,
+        reaction: Reaction,
+        active: bool,
+    },
+    #[serde(rename = "review.comment.resolve")]
+    ReviewCommentResolve { review: EntryId, comment: EntryId },
+    #[serde(rename = "review.comment.unresolve")]
+    ReviewCommentUnresolve { review: EntryId, comment: EntryId },
+
+    //
+    // Revision actions
+    //
+    #[serde(rename = "revision")]
+    Revision {
+        description: String,
+        base: git::Oid,
+        oid: git::Oid,
+        /// Review comments resolved by this revision.
+        #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+        resolves: BTreeSet<(EntryId, CommentId)>,
+    },
+    #[serde(rename = "revision.edit")]
+    RevisionEdit {
+        revision: RevisionId,
+        description: String,
+    },
+    /// React to the revision.
+    #[serde(rename = "revision.react")]
+    RevisionReact {
+        revision: RevisionId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        location: Option<CodeLocation>,
+        reaction: Reaction,
+        active: bool,
+    },
+    #[serde(rename = "revision.redact")]
+    RevisionRedact { revision: RevisionId },
+    #[serde(rename_all = "camelCase")]
+    #[serde(rename = "revision.comment")]
+    RevisionComment {
+        /// The revision to comment on.
+        revision: RevisionId,
+        /// For comments on the revision code.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        location: Option<CodeLocation>,
+        /// Comment body.
+        body: String,
+        /// Comment this is a reply to.
+        /// Should be [`None`] if it's the top-level comment.
+        /// Should be the root [`CommentId`] if it's a top-level comment.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reply_to: Option<CommentId>,
+    },
+    /// Edit a revision comment.
+    #[serde(rename = "revision.comment.edit")]
+    RevisionCommentEdit {
+        revision: RevisionId,
+        comment: CommentId,
+        body: String,
+    },
+    /// Redact a revision comment.
+    #[serde(rename = "revision.comment.redact")]
+    RevisionCommentRedact {
+        revision: RevisionId,
+        comment: CommentId,
+    },
+    /// React to a revision comment.
+    #[serde(rename = "revision.comment.react")]
+    RevisionCommentReact {
+        revision: RevisionId,
+        comment: CommentId,
+        reaction: Reaction,
+        active: bool,
     },
 }
 
@@ -152,7 +237,7 @@ impl HistoryAction for Action {
 
 /// Where a patch is intended to be merged.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum MergeTarget {
     /// Intended for the default branch of the project delegates.
     /// Note that if the delegations change while the patch is open,
@@ -178,14 +263,14 @@ impl MergeTarget {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Patch {
     /// Title of the patch.
-    title: String,
+    pub(super) title: String,
     /// Current state of the patch.
-    state: State,
+    pub(super) state: State,
     /// Target this patch is meant to be merged in.
-    target: MergeTarget,
-    /// Associated tags.
-    /// Tags can be added and removed at will.
-    tags: BTreeSet<Tag>,
+    pub(super) target: MergeTarget,
+    /// Associated labels.
+    /// Labels can be added and removed at will.
+    pub(super) labels: BTreeSet<Label>,
     /// Patch merges.
     ///
     /// Only one merge is allowed per user.
@@ -193,18 +278,18 @@ pub struct Patch {
     /// Merges can be removed and replaced, but not modified. Generally, once a revision is merged,
     /// it stays that way. Being able to remove merges may be useful in case of force updates
     /// on the target branch.
-    merges: BTreeMap<ActorId, Merge>,
+    pub(super) merges: BTreeMap<ActorId, Merge>,
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
     ///
     /// Revisions can be redacted, but are otherwise immutable.
-    revisions: BTreeMap<RevisionId, Option<Revision>>,
+    pub(super) revisions: BTreeMap<RevisionId, Option<Revision>>,
     /// Users assigned to review this patch.
-    reviewers: BTreeSet<ActorId>,
+    pub(super) assignees: BTreeSet<ActorId>,
     /// Timeline of operations.
-    timeline: Vec<EntryId>,
+    pub(super) timeline: Vec<EntryId>,
     /// Reviews index. Keeps track of reviews for better performance.
-    reviews: BTreeMap<EntryId, Option<(EntryId, ActorId)>>,
+    pub(super) reviews: BTreeMap<EntryId, Option<(EntryId, ActorId)>>,
 }
 
 impl Patch {
@@ -232,9 +317,9 @@ impl Patch {
             .timestamp
     }
 
-    /// Associated tags.
-    pub fn tags(&self) -> impl Iterator<Item = &Tag> {
-        self.tags.iter()
+    /// Associated labels.
+    pub fn labels(&self) -> impl Iterator<Item = &Label> {
+        self.labels.iter()
     }
 
     /// Patch description.
@@ -270,9 +355,9 @@ impl Patch {
         })
     }
 
-    /// List of patch reviewers.
-    pub fn reviewers(&self) -> impl Iterator<Item = Did> + '_ {
-        self.reviewers.iter().map(Did::from)
+    /// List of patch assignees.
+    pub fn assignees(&self) -> impl Iterator<Item = Did> + '_ {
+        self.assignees.iter().map(Did::from)
     }
 
     /// Get the merges.
@@ -377,8 +462,24 @@ impl store::FromHistory for Patch {
         Ok(())
     }
 
+    fn from_history<R: ReadRepository>(
+        history: &radicle_cob::History,
+        repo: &R,
+    ) -> Result<Self, Self::Error> {
+        let root = history.root();
+
+        // Deprecated. Remove when we drop legacy support.
+        if root.manifest().is_legacy() {
+            let legacy = super::legacy::patch::Patch::from_history(history, repo)?;
+            let patch = legacy.into();
+
+            Ok(patch)
+        } else {
+            store::from_history::<R, Self>(history, repo)
+        }
+    }
+
     fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
-        let id = op.id;
         let author = Author::new(op.author);
         let timestamp = op.timestamp;
 
@@ -392,18 +493,24 @@ impl store::FromHistory for Patch {
                     self.title = title;
                     self.target = target;
                 }
-                Action::Lifecycle { state } => {
-                    self.state = state;
-                }
-                Action::Tag { add, remove } => {
-                    for tag in add {
-                        self.tags.insert(tag);
+                Action::Lifecycle { state } => match state {
+                    Lifecycle::Open => {
+                        self.state = State::Open { conflicts: vec![] };
                     }
-                    for tag in remove {
-                        self.tags.remove(&tag);
+                    Lifecycle::Draft => {
+                        self.state = State::Draft;
                     }
+                    Lifecycle::Archived => {
+                        self.state = State::Archived;
+                    }
+                },
+                Action::Label { labels } => {
+                    self.labels = BTreeSet::from_iter(labels);
                 }
-                Action::EditRevision {
+                Action::Assign { .. } => {
+                    todo!();
+                }
+                Action::RevisionEdit {
                     revision,
                     description,
                 } => {
@@ -416,7 +523,7 @@ impl store::FromHistory for Patch {
                         return Err(Error::Missing(revision));
                     }
                 }
-                Action::EditReview { review, summary } => {
+                Action::ReviewEdit { review, summary } => {
                     let Some(Some((revision, author))) =
                         self.reviews.get(&review) else {
                             return Err(Error::Missing(review));
@@ -439,22 +546,34 @@ impl store::FromHistory for Patch {
                     description,
                     base,
                     oid,
+                    resolves,
                 } => {
+                    debug_assert!(!self.revisions.contains_key(&op.id));
+
                     self.revisions.insert(
-                        id,
+                        op.id,
                         Some(Revision::new(
                             author.clone(),
                             description,
                             base,
                             oid,
                             timestamp,
+                            resolves,
                         )),
                     );
                 }
-                Action::Redact { revision } => {
+                Action::RevisionReact { .. } => {
+                    todo!();
+                }
+                Action::RevisionRedact { revision } => {
                     // Redactions must have observed a revision to be valid.
-                    if let Some(revision) = self.revisions.get_mut(&revision) {
-                        *revision = None;
+                    if let Some(r) = self.revisions.get_mut(&revision) {
+                        // If the revision has already been merged, ignore the redaction. We
+                        // don't want to redact merged revisions.
+                        if self.merges.values().any(|m| m.revision == revision) {
+                            return Ok(());
+                        }
+                        *r = None;
                     } else {
                         return Err(Error::Missing(revision));
                     }
@@ -463,6 +582,7 @@ impl store::FromHistory for Patch {
                     revision,
                     ref summary,
                     verdict,
+                    labels,
                 } => {
                     let Some(rev) = self.revisions.get_mut(&revision) else {
                         return Err(Error::Missing(revision));
@@ -472,156 +592,185 @@ impl store::FromHistory for Patch {
                         // results in the review being redacted.
                         rev.reviews.insert(
                             op.author,
-                            Some(Review::new(verdict, summary.to_owned(), timestamp)),
+                            Some(Review::new(verdict, summary.to_owned(), labels, timestamp)),
                         );
                         // Update reviews index.
                         self.reviews.insert(op.id, Some((revision, op.author)));
                     }
                 }
-                Action::EditCodeComment {
+                Action::ReviewCommentReact {
+                    review,
+                    comment,
+                    reaction,
+                    active,
+                } => {
+                    if let Some(review) = lookup::review(self, &review)? {
+                        thread::react(
+                            &mut review.comments,
+                            op.id,
+                            author.id.into(),
+                            comment,
+                            reaction,
+                            active,
+                        )?;
+                    }
+                }
+                Action::ReviewCommentRedact { review, comment } => {
+                    if let Some(review) = lookup::review(self, &review)? {
+                        thread::redact(&mut review.comments, op.id, comment)?;
+                    }
+                }
+                Action::ReviewCommentEdit {
                     review,
                     comment,
                     body,
                 } => {
-                    match self.reviews.get(&review) {
-                        Some(Some((revision, author))) => {
-                            let Some(rev) = self.revisions.get_mut(revision) else {
-                                return Err(Error::Missing(*revision));
-                            };
-                            // If the revision was redacted concurrently, there's nothing to do.
-                            // Likewise, if the review was redacted concurrently, there's nothing to do.
-                            if let Some(rev) = rev {
-                                let Some(review) = rev.reviews.get_mut(author) else {
-                                    return Err(Error::Missing(review));
-                                };
-                                if let Some(review) = review {
-                                    let Some(comment) = review.comments.get_mut(&comment) else {
-                                        return Err(Error::Missing(comment));
-                                    };
-                                    if let Some(comment) = comment {
-                                        comment.edit(body, timestamp);
-                                    }
-                                }
-                            }
-                        }
-                        Some(None) => {
-                            // Redacted.
-                        }
-                        None => return Err(Error::Missing(review)),
+                    if let Some(review) = lookup::review(self, &review)? {
+                        thread::edit(&mut review.comments, op.id, comment, timestamp, body)?;
                     }
                 }
-                Action::CodeComment {
+                Action::ReviewCommentResolve { .. } => {
+                    todo!();
+                }
+                Action::ReviewCommentUnresolve { .. } => {
+                    todo!();
+                }
+                Action::ReviewComment {
                     review,
                     body,
                     location,
+                    reply_to,
                 } => {
-                    match self.reviews.get(&review) {
-                        Some(Some((revision, author))) => {
-                            let Some(rev) = self.revisions.get_mut(revision) else {
-                                return Err(Error::Missing(*revision));
-                            };
-                            // If the revision was redacted concurrently, there's nothing to do.
-                            // Likewise, if the review was redacted concurrently, there's nothing to do.
-                            if let Some(rev) = rev {
-                                let Some(review) = rev.reviews.get_mut(author) else {
-                                    return Err(Error::Missing(review));
-                                };
-                                if let Some(review) = review {
-                                    review.comments.insert(
-                                        id,
-                                        Some(CodeComment::new(
-                                            op.author, body, location, timestamp,
-                                        )),
-                                    );
-                                }
-                            }
-                        }
-                        Some(None) => {
-                            // Redacted.
-                        }
-                        None => return Err(Error::Missing(review)),
+                    if let Some(review) = lookup::review(self, &review)? {
+                        thread::comment(
+                            &mut review.comments,
+                            op.id,
+                            author.id.into(),
+                            timestamp,
+                            body,
+                            reply_to,
+                            location,
+                        )?;
                     }
+                }
+                Action::ReviewRedact { .. } => {
+                    todo!();
                 }
                 Action::Merge { revision, commit } => {
-                    let Some(rev) = self.revisions.get_mut(&revision) else {
-                        return Err(Error::Missing(revision));
+                    // If the revision was redacted before the merge, ignore the merge.
+                    if lookup::revision(self, &revision)?.is_none() {
+                        return Ok(());
                     };
-                    if rev.is_some() {
-                        let doc = repo.identity_doc_at(op.identity)?.verified()?;
+                    let doc = repo.identity_doc_at(op.identity)?.verified()?;
 
-                        match self.target() {
-                            MergeTarget::Delegates => {
-                                if !doc.is_delegate(&op.author) {
-                                    return Err(Error::InvalidMerge(op.id));
-                                }
-                                let proj = doc.project()?;
-                                let branch = git::refs::branch(proj.default_branch());
+                    match self.target() {
+                        MergeTarget::Delegates => {
+                            if !doc.is_delegate(&op.author) {
+                                return Err(Error::InvalidMerge(op.id));
+                            }
+                            let proj = doc.project()?;
+                            let branch = git::refs::branch(proj.default_branch());
 
-                                // Nb. We don't return an error in case the merge commit is not an
-                                // ancestor of the default branch. The default branch can change
-                                // *after* the merge action is created, which is out of the control
-                                // of the merge author. We simply skip it, which allows archiving in
-                                // case of a rebase off the master branch, or a redaction of the
-                                // merge.
-                                let Ok(head) = repo.reference_oid(&op.author, &branch) else {
+                            // Nb. We don't return an error in case the merge commit is not an
+                            // ancestor of the default branch. The default branch can change
+                            // *after* the merge action is created, which is out of the control
+                            // of the merge author. We simply skip it, which allows archiving in
+                            // case of a rebase off the master branch, or a redaction of the
+                            // merge.
+                            let Ok(head) = repo.reference_oid(&op.author, &branch) else {
                                     continue;
                                 };
-                                if commit != head && !repo.is_ancestor_of(commit, head)? {
-                                    continue;
-                                }
-                            }
-                        }
-                        self.merges.insert(
-                            op.author,
-                            Merge {
-                                revision,
-                                commit,
-                                timestamp,
-                            },
-                        );
-
-                        let mut merges = self.merges.iter().fold(
-                            HashMap::<(RevisionId, git::Oid), usize>::new(),
-                            |mut acc, (_, merge)| {
-                                *acc.entry((merge.revision, merge.commit)).or_default() += 1;
-                                acc
-                            },
-                        );
-                        // Discard revisions that weren't merged by a threshold of delegates.
-                        merges.retain(|_, count| *count >= doc.threshold);
-
-                        match merges.into_keys().collect::<Vec<_>>().as_slice() {
-                            [] => {
-                                // None of the revisions met the quorum.
-                            }
-                            [(revision, commit)] => {
-                                // Patch is merged.
-                                self.state = State::Merged {
-                                    revision: *revision,
-                                    commit: *commit,
-                                };
-                            }
-                            revisions => {
-                                // More than one revision met the quorum.
-                                self.state = State::Open {
-                                    conflicts: revisions.to_vec(),
-                                };
+                            if commit != head && !repo.is_ancestor_of(commit, head)? {
+                                continue;
                             }
                         }
                     }
+                    self.merges.insert(
+                        op.author,
+                        Merge {
+                            revision,
+                            commit,
+                            timestamp,
+                        },
+                    );
+
+                    let mut merges = self.merges.iter().fold(
+                        HashMap::<(RevisionId, git::Oid), usize>::new(),
+                        |mut acc, (_, merge)| {
+                            *acc.entry((merge.revision, merge.commit)).or_default() += 1;
+                            acc
+                        },
+                    );
+                    // Discard revisions that weren't merged by a threshold of delegates.
+                    merges.retain(|_, count| *count >= doc.threshold);
+
+                    match merges.into_keys().collect::<Vec<_>>().as_slice() {
+                        [] => {
+                            // None of the revisions met the quorum.
+                        }
+                        [(revision, commit)] => {
+                            // Patch is merged.
+                            self.state = State::Merged {
+                                revision: *revision,
+                                commit: *commit,
+                            };
+                        }
+                        revisions => {
+                            // More than one revision met the quorum.
+                            self.state = State::Open {
+                                conflicts: revisions.to_vec(),
+                            };
+                        }
+                    }
                 }
-                Action::Thread { revision, action } => {
-                    match self.revisions.get_mut(&revision) {
-                        Some(Some(revision)) => {
-                            revision.discussion.apply(
-                                cob::Op::new(op.id, action, op.author, timestamp, op.identity),
-                                repo,
-                            )?;
-                        }
-                        Some(None) => {
-                            // Redacted.
-                        }
-                        None => return Err(Error::Missing(revision)),
+
+                Action::RevisionComment {
+                    revision,
+                    body,
+                    reply_to,
+                    ..
+                } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        thread::comment(
+                            &mut revision.discussion,
+                            op.id,
+                            op.author,
+                            op.timestamp,
+                            body,
+                            reply_to,
+                            None,
+                        )?;
+                    }
+                }
+                Action::RevisionCommentEdit {
+                    revision,
+                    comment,
+                    body,
+                } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        thread::edit(&mut revision.discussion, op.id, comment, op.timestamp, body)?;
+                    }
+                }
+                Action::RevisionCommentRedact { revision, comment } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        thread::redact(&mut revision.discussion, op.id, comment)?;
+                    }
+                }
+                Action::RevisionCommentReact {
+                    revision,
+                    comment,
+                    reaction,
+                    active,
+                } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        thread::react(
+                            &mut revision.discussion,
+                            op.id,
+                            op.author,
+                            comment,
+                            reaction,
+                            active,
+                        )?;
                     }
                 }
             }
@@ -630,23 +779,71 @@ impl store::FromHistory for Patch {
     }
 }
 
+mod lookup {
+    use super::*;
+
+    pub fn revision<'a>(
+        patch: &'a mut Patch,
+        revision: &RevisionId,
+    ) -> Result<Option<&'a mut Revision>, Error> {
+        match patch.revisions.get_mut(revision) {
+            Some(Some(revision)) => Ok(Some(revision)),
+            // Redacted.
+            Some(None) => Ok(None),
+            // Missing. Causal error.
+            None => Err(Error::Missing(*revision)),
+        }
+    }
+
+    pub fn review<'a>(
+        patch: &'a mut Patch,
+        review: &EntryId,
+    ) -> Result<Option<&'a mut Review>, Error> {
+        match patch.reviews.get(review) {
+            Some(Some((revision, author))) => {
+                match patch.revisions.get_mut(revision) {
+                    Some(Some(r)) => {
+                        let Some(review) = r.reviews.get_mut(author) else {
+                        return Err(Error::Missing(*review));
+                    };
+                        Ok(review.as_mut())
+                    }
+                    Some(None) => {
+                        // If the revision was redacted concurrently, there's nothing to do.
+                        // Likewise, if the review was redacted concurrently, there's nothing to do.
+                        Ok(None)
+                    }
+                    None => Err(Error::Missing(*revision)),
+                }
+            }
+            Some(None) => {
+                // Redacted.
+                Ok(None)
+            }
+            None => Err(Error::Missing(*review)),
+        }
+    }
+}
+
 /// A patch revision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Revision {
     /// Author of the revision.
-    author: Author,
+    pub(super) author: Author,
     /// Revision description.
-    description: String,
+    pub(super) description: String,
     /// Base branch commit, used as a merge base.
-    base: git::Oid,
+    pub(super) base: git::Oid,
     /// Reference to the Git object containing the code (revision head).
-    oid: git::Oid,
+    pub(super) oid: git::Oid,
     /// Discussion around this revision.
-    discussion: Thread,
+    pub(super) discussion: Thread<Comment>,
     /// Reviews of this revision's changes (one per actor).
-    reviews: BTreeMap<ActorId, Option<Review>>,
+    pub(super) reviews: BTreeMap<ActorId, Option<Review>>,
     /// When this revision was created.
-    timestamp: Timestamp,
+    pub(super) timestamp: Timestamp,
+    /// Review comments resolved by this revision.
+    pub(super) resolves: BTreeSet<(EntryId, CommentId)>,
 }
 
 impl Revision {
@@ -656,6 +853,7 @@ impl Revision {
         base: git::Oid,
         oid: git::Oid,
         timestamp: Timestamp,
+        resolves: BTreeSet<(EntryId, CommentId)>,
     ) -> Self {
         Self {
             author,
@@ -665,6 +863,7 @@ impl Revision {
             discussion: Thread::default(),
             reviews: BTreeMap::default(),
             timestamp,
+            resolves,
         }
     }
 
@@ -693,7 +892,7 @@ impl Revision {
     }
 
     /// Discussion around this revision.
-    pub fn discussion(&self) -> &Thread {
+    pub fn discussion(&self) -> &Thread<Comment> {
         &self.discussion
     }
 
@@ -747,6 +946,16 @@ impl fmt::Display for State {
     }
 }
 
+/// A lifecycle operation, resulting in a new state.
+#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
+pub enum Lifecycle {
+    #[default]
+    Open,
+    Draft,
+    Archived,
+}
+
 /// A merged patch revision.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
@@ -778,6 +987,16 @@ impl fmt::Display for Verdict {
     }
 }
 
+/// Code range.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum CodeRange {
+    /// One or more lines.
+    Lines { range: Range<usize> },
+    /// Character range within a line.
+    Chars { line: usize, range: Range<usize> },
+}
+
 /// Code location, used for attaching comments to diffs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -785,86 +1004,9 @@ pub struct CodeLocation {
     /// Path of file.
     pub path: PathBuf,
     /// Line range on old file. `None` for added files.
-    pub old: Option<Range<usize>>,
+    pub old: Option<CodeRange>,
     /// Line range on new file. `None` for deleted files.
-    pub new: Option<Range<usize>>,
-}
-
-impl PartialOrd for CodeLocation {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for CodeLocation {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (&self.path, &self.old.as_ref().map(|o| (o.start, o.end)))
-            .cmp(&(&other.path, &other.new.as_ref().map(|o| (o.start, o.end))))
-    }
-}
-
-/// Comment on code diff.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CodeComment {
-    /// Comment author.
-    author: ActorId,
-    /// Code location of the comment.
-    location: CodeLocation,
-    /// Comment edits.
-    edits: Vec<thread::Edit>,
-}
-
-impl Serialize for CodeComment {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        let mut state = serializer.serialize_struct("CodeComment", 3)?;
-        state.serialize_field("author", &self.author())?;
-        state.serialize_field("location", self.location())?;
-        state.serialize_field("body", self.body())?;
-        state.end()
-    }
-}
-
-impl CodeComment {
-    pub fn new(
-        author: ActorId,
-        body: String,
-        location: CodeLocation,
-        timestamp: Timestamp,
-    ) -> Self {
-        let edit = thread::Edit { body, timestamp };
-
-        Self {
-            author,
-            location,
-            edits: vec![edit],
-        }
-    }
-
-    /// Add an edit.
-    pub fn edit(&mut self, body: String, timestamp: Timestamp) {
-        self.edits.push(thread::Edit { body, timestamp });
-    }
-
-    /// Comment author.
-    pub fn author(&self) -> ActorId {
-        self.author
-    }
-
-    /// Get the comment location.
-    pub fn location(&self) -> &CodeLocation {
-        &self.location
-    }
-
-    /// Get the comment body. If there are multiple edits, gets the value at the latest edit.
-    pub fn body(&self) -> &str {
-        // SAFETY: There is always at least one edit. This is guaranteed by [`CodeComment::new`]
-        // constructor.
-        #[allow(clippy::unwrap_used)]
-        self.edits.last().unwrap().body.as_str()
-    }
+    pub new: Option<CodeRange>,
 }
 
 /// A patch review on a revision.
@@ -873,15 +1015,18 @@ pub struct Review {
     /// Review verdict.
     ///
     /// The verdict cannot be changed, since revisions are immutable.
-    verdict: Option<Verdict>,
+    pub(super) verdict: Option<Verdict>,
     /// Review summary.
     ///
     /// Can be edited or set to `None`.
-    summary: Option<String>,
-    /// Review inline code comments.
-    comments: BTreeMap<EntryId, Option<CodeComment>>,
+    pub(super) summary: Option<String>,
+    /// Review comments.
+    pub(super) comments: Thread<Comment<CodeLocation>>,
+    /// Labels qualifying the review. For example if this review only looks at the
+    /// concept or intention of the patch, it could have a "concept" label.
+    pub(super) labels: Vec<Label>,
     /// Review timestamp.
-    timestamp: Timestamp,
+    pub(super) timestamp: Timestamp,
 }
 
 impl Serialize for Review {
@@ -902,11 +1047,17 @@ impl Serialize for Review {
 }
 
 impl Review {
-    pub fn new(verdict: Option<Verdict>, summary: Option<String>, timestamp: Timestamp) -> Self {
+    pub fn new(
+        verdict: Option<Verdict>,
+        summary: Option<String>,
+        labels: Vec<Label>,
+        timestamp: Timestamp,
+    ) -> Self {
         Self {
             verdict,
             summary,
-            comments: BTreeMap::default(),
+            comments: Thread::default(),
+            labels,
             timestamp,
         }
     }
@@ -917,10 +1068,8 @@ impl Review {
     }
 
     /// Review inline code comments.
-    pub fn comments(&self) -> impl Iterator<Item = (&EntryId, &CodeComment)> {
-        self.comments
-            .iter()
-            .filter_map(|(id, r)| r.as_ref().map(|comment| (id, comment)))
+    pub fn comments(&self) -> impl DoubleEndedIterator<Item = (&EntryId, &Comment<CodeLocation>)> {
+        self.comments.comments()
     }
 
     /// Review general comment.
@@ -947,7 +1096,7 @@ impl store::Transaction<Patch> {
         revision: RevisionId,
         description: impl ToString,
     ) -> Result<(), store::Error> {
-        self.push(Action::EditRevision {
+        self.push(Action::RevisionEdit {
             revision,
             description: description.to_string(),
         })
@@ -958,12 +1107,12 @@ impl store::Transaction<Patch> {
         review: EntryId,
         summary: Option<String>,
     ) -> Result<(), store::Error> {
-        self.push(Action::EditReview { review, summary })
+        self.push(Action::ReviewEdit { review, summary })
     }
 
     /// Redact the revision.
     pub fn redact(&mut self, revision: RevisionId) -> Result<(), store::Error> {
-        self.push(Action::Redact { revision })
+        self.push(Action::RevisionRedact { revision })
     }
 
     /// Start a patch revision discussion.
@@ -972,12 +1121,11 @@ impl store::Transaction<Patch> {
         revision: RevisionId,
         body: S,
     ) -> Result<(), store::Error> {
-        self.push(Action::Thread {
+        self.push(Action::RevisionComment {
             revision,
-            action: thread::Action::Comment {
-                body: body.to_string(),
-                reply_to: None,
-            },
+            body: body.to_string(),
+            reply_to: None,
+            location: None,
         })
     }
 
@@ -988,37 +1136,38 @@ impl store::Transaction<Patch> {
         body: S,
         reply_to: Option<CommentId>,
     ) -> Result<(), store::Error> {
-        self.push(Action::Thread {
+        self.push(Action::RevisionComment {
             revision,
-            action: thread::Action::Comment {
-                body: body.to_string(),
-                reply_to,
-            },
+            body: body.to_string(),
+            reply_to,
+            location: None,
         })
     }
 
-    /// Comment on code.
-    pub fn code_comment<S: ToString>(
+    /// Comment on a review.
+    pub fn review_comment<S: ToString>(
         &mut self,
         review: EntryId,
         body: S,
-        location: CodeLocation,
+        location: Option<CodeLocation>,
+        reply_to: Option<CommentId>,
     ) -> Result<(), store::Error> {
-        self.push(Action::CodeComment {
+        self.push(Action::ReviewComment {
             review,
             body: body.to_string(),
             location,
+            reply_to,
         })
     }
 
-    /// Edit comment on code.
-    pub fn edit_code_comment<S: ToString>(
+    /// Edit review comment.
+    pub fn edit_review_comment<S: ToString>(
         &mut self,
         review: EntryId,
         comment: EntryId,
         body: S,
     ) -> Result<(), store::Error> {
-        self.push(Action::EditCodeComment {
+        self.push(Action::ReviewCommentEdit {
             review,
             comment,
             body: body.to_string(),
@@ -1031,11 +1180,13 @@ impl store::Transaction<Patch> {
         revision: RevisionId,
         verdict: Option<Verdict>,
         summary: Option<String>,
+        labels: Vec<Label>,
     ) -> Result<(), store::Error> {
         self.push(Action::Review {
             revision,
             summary,
             verdict,
+            labels,
         })
     }
 
@@ -1055,24 +1206,20 @@ impl store::Transaction<Patch> {
             description: description.to_string(),
             base: base.into(),
             oid: oid.into(),
+            resolves: BTreeSet::new(),
         })
     }
 
     /// Lifecycle a patch.
-    pub fn lifecycle(&mut self, state: State) -> Result<(), store::Error> {
+    pub fn lifecycle(&mut self, state: Lifecycle) -> Result<(), store::Error> {
         self.push(Action::Lifecycle { state })
     }
 
-    /// Tag a patch.
-    pub fn tag(
-        &mut self,
-        add: impl IntoIterator<Item = Tag>,
-        remove: impl IntoIterator<Item = Tag>,
-    ) -> Result<(), store::Error> {
-        let add = add.into_iter().collect::<Vec<_>>();
-        let remove = remove.into_iter().collect::<Vec<_>>();
-
-        self.push(Action::Tag { add, remove })
+    /// Label a patch.
+    pub fn label(&mut self, labels: impl IntoIterator<Item = Label>) -> Result<(), store::Error> {
+        self.push(Action::Label {
+            labels: labels.into_iter().collect(),
+        })
     }
 }
 
@@ -1089,6 +1236,10 @@ where
 {
     pub fn new(id: ObjectId, patch: Patch, store: &'g mut Patches<'a, R>) -> Self {
         Self { id, patch, store }
+    }
+
+    pub fn id(&self) -> &ObjectId {
+        &self.id
     }
 
     pub fn transaction<G, F>(
@@ -1176,28 +1327,29 @@ where
     }
 
     /// Comment on a line of code as part of a review.
-    pub fn code_comment<G: Signer, S: ToString>(
+    pub fn review_comment<G: Signer, S: ToString>(
         &mut self,
         review: EntryId,
         body: S,
-        location: CodeLocation,
+        location: Option<CodeLocation>,
+        reply_to: Option<CommentId>,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Code comment", signer, |tx| {
-            tx.code_comment(review, body, location)
+        self.transaction("Review comment", signer, |tx| {
+            tx.review_comment(review, body, location, reply_to)
         })
     }
 
-    /// Edit comment on code.
-    pub fn edit_code_comment<G: Signer, S: ToString>(
+    /// Edit review comment.
+    pub fn edit_review_comment<G: Signer, S: ToString>(
         &mut self,
         review: EntryId,
         comment: EntryId,
         body: S,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit code comment", signer, |tx| {
-            tx.edit_code_comment(review, comment, body)
+        self.transaction("Edit review comment", signer, |tx| {
+            tx.edit_review_comment(review, comment, body)
         })
     }
 
@@ -1207,9 +1359,12 @@ where
         revision: RevisionId,
         verdict: Option<Verdict>,
         comment: Option<String>,
+        labels: Vec<Label>,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Review", signer, |tx| tx.review(revision, verdict, comment))
+        self.transaction("Review", signer, |tx| {
+            tx.review(revision, verdict, comment, labels)
+        })
     }
 
     /// Merge a patch revision.
@@ -1237,13 +1392,13 @@ where
     }
 
     /// Lifecycle a patch.
-    pub fn lifecycle<G: Signer>(&mut self, state: State, signer: &G) -> Result<EntryId, Error> {
+    pub fn lifecycle<G: Signer>(&mut self, state: Lifecycle, signer: &G) -> Result<EntryId, Error> {
         self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
     }
 
     /// Archive a patch.
     pub fn archive<G: Signer>(&mut self, signer: &G) -> Result<EntryId, Error> {
-        self.lifecycle(State::Archived, signer)
+        self.lifecycle(Lifecycle::Archived, signer)
     }
 
     /// Mark a patch as ready to be reviewed. Returns `false` if the patch was not a draft.
@@ -1251,7 +1406,7 @@ where
         if !self.is_draft() {
             return Ok(false);
         }
-        self.lifecycle(State::Open { conflicts: vec![] }, signer)?;
+        self.lifecycle(Lifecycle::Open, signer)?;
 
         Ok(true)
     }
@@ -1261,19 +1416,18 @@ where
         if !matches!(self.state(), State::Open { conflicts } if conflicts.is_empty()) {
             return Ok(false);
         }
-        self.lifecycle(State::Draft, signer)?;
+        self.lifecycle(Lifecycle::Draft, signer)?;
 
         Ok(true)
     }
 
-    /// Tag a patch.
-    pub fn tag<G: Signer>(
+    /// Label a patch.
+    pub fn label<G: Signer>(
         &mut self,
-        add: impl IntoIterator<Item = Tag>,
-        remove: impl IntoIterator<Item = Tag>,
+        labels: impl IntoIterator<Item = Label>,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Tag", signer, |tx| tx.tag(add, remove))
+        self.transaction("Label", signer, |tx| tx.label(labels))
     }
 }
 
@@ -1392,7 +1546,7 @@ where
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
-        tags: &[Tag],
+        labels: &[Label],
         signer: &G,
     ) -> Result<PatchMut<'a, 'g, R>, Error> {
         self._create(
@@ -1401,8 +1555,8 @@ where
             target,
             base,
             oid,
-            tags,
-            State::default(),
+            labels,
+            Lifecycle::default(),
             signer,
         )
     }
@@ -1415,7 +1569,7 @@ where
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
-        tags: &[Tag],
+        labels: &[Label],
         signer: &G,
     ) -> Result<PatchMut<'a, 'g, R>, Error> {
         self._create(
@@ -1424,8 +1578,8 @@ where
             target,
             base,
             oid,
-            tags,
-            State::Draft,
+            labels,
+            Lifecycle::Draft,
             signer,
         )
     }
@@ -1452,16 +1606,16 @@ where
         target: MergeTarget,
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
-        tags: &[Tag],
-        state: State,
+        labels: &[Label],
+        state: Lifecycle,
         signer: &G,
     ) -> Result<PatchMut<'a, 'g, R>, Error> {
         let (id, patch) = Transaction::initial("Create patch", &mut self.raw, signer, |tx| {
             tx.revision(description, base, oid)?;
             tx.edit(title, target)?;
-            tx.tag(tags.to_owned(), [])?;
+            tx.label(labels.to_owned())?;
 
-            if state != State::default() {
+            if state != Lifecycle::default() {
                 tx.lifecycle(state)?;
             }
             Ok(())
@@ -1487,13 +1641,12 @@ mod test {
 
     #[test]
     fn test_json_serialization() {
-        let edit = Action::Tag {
-            add: vec![],
-            remove: vec![],
+        let edit = Action::Label {
+            labels: BTreeSet::new(),
         };
         assert_eq!(
             serde_json::to_string(&edit).unwrap(),
-            String::from(r#"{"type":"tag","add":[],"remove":[]}"#)
+            String::from(r#"{"type":"label","labels":[]}"#)
         );
     }
 
@@ -1628,6 +1781,7 @@ mod test {
                 *rid,
                 Some(Verdict::Accept),
                 Some("LGTM".to_owned()),
+                vec![],
                 &alice.signer,
             )
             .unwrap();
@@ -1650,18 +1804,20 @@ mod test {
         let mut patch = Patch::default();
         let repo = gen::<MockRepository>(1);
 
-        let a1 = alice.op(Action::Revision {
+        let a1 = alice.op::<Patch>(Action::Revision {
             description: String::new(),
             base,
             oid,
+            resolves: Default::default(),
         });
-        let a2 = alice.op(Action::Redact { revision: a1.id() });
-        let a3 = alice.op(Action::Review {
+        let a2 = alice.op::<Patch>(Action::RevisionRedact { revision: a1.id() });
+        let a3 = alice.op::<Patch>(Action::Review {
             revision: a1.id(),
             summary: None,
             verdict: Some(Verdict::Accept),
+            labels: vec![],
         });
-        let a4 = alice.op(Action::Merge {
+        let a4 = alice.op::<Patch>(Action::Merge {
             revision: a1.id(),
             commit: oid,
         });
@@ -1689,6 +1845,7 @@ mod test {
                 description: String::from("Original"),
                 base,
                 oid,
+                resolves: Default::default(),
             },
             time,
             &alice,
@@ -1703,16 +1860,16 @@ mod test {
 
         let mut h1 = h0.clone();
         h1.commit(
-            &Action::Redact {
-                revision: h0.root(),
+            &Action::RevisionRedact {
+                revision: *h0.root().id(),
             },
             &alice,
         );
 
         let mut h2 = h0.clone();
         h2.commit(
-            &Action::EditRevision {
-                revision: h0.root(),
+            &Action::RevisionEdit {
+                revision: *h0.root().id(),
                 description: String::from("Edited"),
             },
             &bob,
@@ -1751,6 +1908,7 @@ mod test {
                 rid,
                 Some(Verdict::Accept),
                 Some("LGTM".to_owned()),
+                vec![],
                 &alice.signer,
             )
             .unwrap();
@@ -1787,14 +1945,17 @@ mod test {
         let location = CodeLocation {
             path: PathBuf::from_str("README").unwrap(),
             old: None,
-            new: Some(5..8),
+            new: Some(CodeRange::Lines { range: 5..8 }),
         };
-        let review = patch.review(rid, None, None, &alice.signer).unwrap();
+        let review = patch
+            .review(rid, None, None, vec![], &alice.signer)
+            .unwrap();
         patch
-            .code_comment(
+            .review_comment(
                 review,
                 "I like these lines of code",
-                location.clone(),
+                Some(location.clone()),
+                None,
                 &alice.signer,
             )
             .unwrap();
@@ -1804,7 +1965,7 @@ mod test {
         let (_, comment) = review.comments().next().unwrap();
 
         assert_eq!(comment.body(), "I like these lines of code");
-        assert_eq!(comment.location(), &location);
+        assert_eq!(comment.location(), Some(&location));
     }
 
     #[test]
@@ -1828,7 +1989,7 @@ mod test {
         let (rid, _) = patch.latest();
         let rid = *rid;
         let review = patch
-            .review(rid, None, Some("Nah".to_owned()), &alice.signer)
+            .review(rid, None, Some("Nah".to_owned()), vec![], &alice.signer)
             .unwrap();
         patch.edit_review(review, None, &alice.signer).unwrap();
 
@@ -1922,5 +2083,44 @@ mod test {
 
         // The patch's root must always exist.
         assert!(patch.redact(*patch.latest().0, &alice.signer).is_err());
+    }
+
+    #[test]
+    fn test_json() {
+        use serde_json::json;
+
+        assert_eq!(
+            serde_json::to_value(Action::Lifecycle {
+                state: Lifecycle::Draft
+            })
+            .unwrap(),
+            json!({
+                "type": "lifecycle",
+                "state": { "status": "draft" }
+            })
+        );
+
+        let revision = arbitrary::entry_id();
+        assert_eq!(
+            serde_json::to_value(Action::Review {
+                revision,
+                summary: None,
+                verdict: None,
+                labels: vec![],
+            })
+            .unwrap(),
+            json!({
+                "type": "review",
+                "revision": revision,
+            })
+        );
+
+        assert_eq!(
+            serde_json::to_value(CodeRange::Lines { range: 4..8 }).unwrap(),
+            json!({
+                "type": "lines",
+                "range": { "start": 4, "end": 8 },
+            })
+        );
     }
 }

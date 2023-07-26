@@ -7,12 +7,12 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::cob;
-use crate::cob::common::{Author, Reaction, Tag, Timestamp};
+use crate::cob::common::{Author, Label, Reaction, Timestamp};
 use crate::cob::store::Transaction;
 use crate::cob::store::{FromHistory as _, HistoryAction};
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
-use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
+use crate::cob::{store, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
 use crate::prelude::{Did, ReadRepository};
 use crate::storage::WriteRepository;
@@ -93,15 +93,15 @@ impl State {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Issue {
     /// Actors assigned to this issue.
-    assignees: BTreeSet<ActorId>,
+    pub(super) assignees: BTreeSet<Did>,
     /// Title of the issue.
-    title: String,
+    pub(super) title: String,
     /// Current state of the issue.
-    state: State,
-    /// Associated tags.
-    tags: BTreeSet<Tag>,
+    pub(super) state: State,
+    /// Associated labels.
+    pub(super) labels: BTreeSet<Label>,
     /// Discussion around this issue.
-    thread: Thread,
+    pub(super) thread: Thread,
 }
 
 impl store::FromHistory for Issue {
@@ -122,16 +122,28 @@ impl store::FromHistory for Issue {
         Ok(())
     }
 
-    fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
+    fn from_history<R: ReadRepository>(
+        history: &radicle_cob::History,
+        repo: &R,
+    ) -> Result<Self, Self::Error> {
+        let root = history.root();
+
+        // Deprecated. Remove when we drop legacy support.
+        if root.manifest().is_legacy() {
+            let legacy = super::legacy::issue::Issue::from_history(history, repo)?;
+            let issue = legacy.into();
+
+            Ok(issue)
+        } else {
+            store::from_history::<R, Self>(history, repo)
+        }
+    }
+
+    fn apply<R: ReadRepository>(&mut self, op: Op, _repo: &R) -> Result<(), Error> {
         for action in op.actions {
             match action {
-                Action::Assign { add, remove } => {
-                    for assignee in add {
-                        self.assignees.insert(assignee);
-                    }
-                    for assignee in remove {
-                        self.assignees.remove(&assignee);
-                    }
+                Action::Assign { assignees } => {
+                    self.assignees = BTreeSet::from_iter(assignees);
                 }
                 Action::Edit { title } => {
                     self.title = title;
@@ -139,19 +151,32 @@ impl store::FromHistory for Issue {
                 Action::Lifecycle { state } => {
                     self.state = state;
                 }
-                Action::Tag { add, remove } => {
-                    for tag in add {
-                        self.tags.insert(tag);
-                    }
-                    for tag in remove {
-                        self.tags.remove(&tag);
-                    }
+                Action::Label { labels } => {
+                    self.labels = BTreeSet::from_iter(labels);
                 }
-                Action::Thread { action } => {
-                    self.thread.apply(
-                        cob::Op::new(op.id, action, op.author, op.timestamp, op.identity),
-                        repo,
+                Action::Comment { body, reply_to } => {
+                    thread::comment(
+                        &mut self.thread,
+                        op.id,
+                        op.author,
+                        op.timestamp,
+                        body,
+                        reply_to,
+                        None,
                     )?;
+                }
+                Action::CommentEdit { id, body } => {
+                    thread::edit(&mut self.thread, op.id, id, op.timestamp, body)?;
+                }
+                Action::CommentRedact { id } => {
+                    thread::redact(&mut self.thread, op.id, id)?;
+                }
+                Action::CommentReact {
+                    id,
+                    reaction,
+                    active,
+                } => {
+                    thread::react(&mut self.thread, op.id, op.author, id, reaction, active)?;
                 }
             }
         }
@@ -160,8 +185,8 @@ impl store::FromHistory for Issue {
 }
 
 impl Issue {
-    pub fn assigned(&self) -> impl Iterator<Item = Did> + '_ {
-        self.assignees.iter().map(Did::from)
+    pub fn assigned(&self) -> impl Iterator<Item = &Did> + '_ {
+        self.assignees.iter()
     }
 
     pub fn title(&self) -> &str {
@@ -172,8 +197,8 @@ impl Issue {
         &self.state
     }
 
-    pub fn tags(&self) -> impl Iterator<Item = &Tag> {
-        self.tags.iter()
+    pub fn labels(&self) -> impl Iterator<Item = &Label> {
+        self.labels.iter()
     }
 
     pub fn timestamp(&self) -> Timestamp {
@@ -219,24 +244,18 @@ impl Deref for Issue {
 }
 
 impl store::Transaction<Issue> {
-    pub fn assign(
-        &mut self,
-        add: impl IntoIterator<Item = ActorId>,
-        remove: impl IntoIterator<Item = ActorId>,
-    ) -> Result<(), store::Error> {
-        let add = add.into_iter().collect::<Vec<_>>();
-        let remove = remove.into_iter().collect::<Vec<_>>();
-
-        self.push(Action::Assign { add, remove })
+    /// Assign DIDs to the issue.
+    pub fn assign(&mut self, assignees: impl IntoIterator<Item = Did>) -> Result<(), store::Error> {
+        self.push(Action::Assign {
+            assignees: assignees.into_iter().collect(),
+        })
     }
 
     /// Edit an issue comment.
     pub fn edit_comment(&mut self, id: CommentId, body: impl ToString) -> Result<(), store::Error> {
-        self.push(Action::Thread {
-            action: thread::Action::Edit {
-                id,
-                body: body.to_string(),
-            },
+        self.push(Action::CommentEdit {
+            id,
+            body: body.to_string(),
         })
     }
 
@@ -252,46 +271,41 @@ impl store::Transaction<Issue> {
         self.push(Action::Lifecycle { state })
     }
 
-    /// Create the issue thread.
-    pub fn thread<S: ToString>(&mut self, body: S) -> Result<(), store::Error> {
-        self.push(Action::from(thread::Action::Comment {
-            body: body.to_string(),
-            reply_to: None,
-        }))
-    }
-
     /// Comment on an issue.
     pub fn comment<S: ToString>(
         &mut self,
         body: S,
         reply_to: CommentId,
     ) -> Result<(), store::Error> {
-        self.push(Action::from(thread::Action::Comment {
+        self.push(Action::Comment {
             body: body.to_string(),
             reply_to: Some(reply_to),
-        }))
+        })
     }
 
-    /// Tag an issue.
-    pub fn tag(
-        &mut self,
-        add: impl IntoIterator<Item = Tag>,
-        remove: impl IntoIterator<Item = Tag>,
-    ) -> Result<(), store::Error> {
-        let add = add.into_iter().collect::<Vec<_>>();
-        let remove = remove.into_iter().collect::<Vec<_>>();
-
-        self.push(Action::Tag { add, remove })
+    /// Label an issue.
+    pub fn label(&mut self, labels: impl IntoIterator<Item = Label>) -> Result<(), store::Error> {
+        self.push(Action::Label {
+            labels: labels.into_iter().collect(),
+        })
     }
 
     /// React to an issue comment.
-    pub fn react(&mut self, to: CommentId, reaction: Reaction) -> Result<(), store::Error> {
-        self.push(Action::Thread {
-            action: thread::Action::React {
-                to,
-                reaction,
-                active: true,
-            },
+    pub fn react(&mut self, id: CommentId, reaction: Reaction) -> Result<(), store::Error> {
+        self.push(Action::CommentReact {
+            id,
+            reaction,
+            active: true,
+        })
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /// Create the issue thread.
+    fn thread<S: ToString>(&mut self, body: S) -> Result<(), store::Error> {
+        self.push(Action::Comment {
+            body: body.to_string(),
+            reply_to: None,
         })
     }
 }
@@ -300,6 +314,15 @@ pub struct IssueMut<'a, 'g, R> {
     id: ObjectId,
     issue: Issue,
     store: &'g mut Issues<'a, R>,
+}
+
+impl<'a, 'g, R> std::fmt::Debug for IssueMut<'a, 'g, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("IssueMut")
+            .field("id", &self.id)
+            .field("issue", &self.issue)
+            .finish()
+    }
 }
 
 impl<'a, 'g, R> IssueMut<'a, 'g, R>
@@ -324,10 +347,10 @@ where
     /// Assign one or more actors to an issue.
     pub fn assign<G: Signer>(
         &mut self,
-        assignees: impl IntoIterator<Item = ActorId>,
+        assignees: impl IntoIterator<Item = Did>,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Assign", signer, |tx| tx.assign(assignees, []))
+        self.transaction("Assign", signer, |tx| tx.assign(assignees))
     }
 
     /// Set the issue title.
@@ -355,15 +378,6 @@ where
         self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
     }
 
-    /// Create the issue thread.
-    pub fn thread<G: Signer, S: ToString>(
-        &mut self,
-        body: S,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
-        self.transaction("Create thread", signer, |tx| tx.thread(body))
-    }
-
     /// Comment on an issue.
     pub fn comment<G: Signer, S: ToString>(
         &mut self,
@@ -378,14 +392,13 @@ where
         self.transaction("Comment", signer, |tx| tx.comment(body, reply_to))
     }
 
-    /// Tag an issue.
-    pub fn tag<G: Signer>(
+    /// Label an issue.
+    pub fn label<G: Signer>(
         &mut self,
-        add: impl IntoIterator<Item = Tag>,
-        remove: impl IntoIterator<Item = Tag>,
+        labels: impl IntoIterator<Item = Label>,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Tag", signer, |tx| tx.tag(add, remove))
+        self.transaction("Label", signer, |tx| tx.label(labels))
     }
 
     /// React to an issue comment.
@@ -396,16 +409,6 @@ where
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("React", signer, |tx| tx.react(to, reaction))
-    }
-
-    /// Unassign one or more actors from an issue.
-    pub fn unassign<G: Signer>(
-        &mut self,
-        assignees: impl IntoIterator<Item = ActorId>,
-        signer: &G,
-    ) -> Result<EntryId, Error> {
-        self.transaction("Unassign", signer, |tx| tx.assign([], assignees))
-            .map_err(Error::from)
     }
 
     pub fn transaction<G, F>(
@@ -491,15 +494,15 @@ where
         &'g mut self,
         title: impl ToString,
         description: impl ToString,
-        tags: &[Tag],
-        assignees: &[ActorId],
+        labels: &[Label],
+        assignees: &[Did],
         signer: &G,
     ) -> Result<IssueMut<'a, 'g, R>, Error> {
         let (id, issue) = Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
             tx.thread(description)?;
-            tx.assign(assignees.to_owned(), [])?;
+            tx.assign(assignees.to_owned())?;
             tx.edit(title)?;
-            tx.tag(tags.to_owned(), [])?;
+            tx.label(labels.to_owned())?;
 
             Ok(())
         })?;
@@ -533,43 +536,64 @@ where
     }
 }
 
-/// Issue operation.
+/// Issue action.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Action {
-    Assign {
-        add: Vec<ActorId>,
-        remove: Vec<ActorId>,
+    /// Assign issue to an actor.
+    #[serde(rename = "assign")]
+    Assign { assignees: BTreeSet<Did> },
+
+    /// Edit issue title.
+    #[serde(rename = "edit")]
+    Edit { title: String },
+
+    /// Transition to a different state.
+    #[serde(rename = "lifecycle")]
+    Lifecycle { state: State },
+
+    /// Modify issue labels.
+    #[serde(rename = "label")]
+    Label { labels: BTreeSet<Label> },
+
+    /// Comment on a thread.
+    #[serde(rename_all = "camelCase")]
+    #[serde(rename = "comment")]
+    Comment {
+        /// Comment body.
+        body: String,
+        /// Comment this is a reply to.
+        /// Should be [`None`] if it's the top-level comment.
+        /// Should be the root [`CommentId`] if it's a top-level comment.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reply_to: Option<CommentId>,
     },
-    Edit {
-        title: String,
-    },
-    Lifecycle {
-        state: State,
-    },
-    Tag {
-        add: Vec<Tag>,
-        remove: Vec<Tag>,
-    },
-    Thread {
-        action: thread::Action,
+
+    /// Edit a comment.
+    #[serde(rename = "comment.edit")]
+    CommentEdit { id: CommentId, body: String },
+
+    /// Redact a change. Not all changes can be redacted.
+    #[serde(rename = "comment.redact")]
+    CommentRedact { id: CommentId },
+
+    /// React to a comment.
+    #[serde(rename = "comment.react")]
+    CommentReact {
+        id: CommentId,
+        reaction: Reaction,
+        active: bool,
     },
 }
 
 impl HistoryAction for Action {}
-
-impl From<thread::Action> for Action {
-    fn from(action: thread::Action) -> Self {
-        Self::Thread { action }
-    }
-}
 
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::cob::Reaction;
+    use crate::cob::{ActorId, Reaction};
     use crate::test;
     use crate::test::arbitrary;
 
@@ -660,8 +684,8 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
 
-        let assignee: ActorId = arbitrary::gen(1);
-        let assignee_two: ActorId = arbitrary::gen(1);
+        let assignee = Did::from(arbitrary::gen::<ActorId>(1));
+        let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
         let issue = issues
             .create(
                 "My first issue",
@@ -674,21 +698,23 @@ mod test {
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let assignees: Vec<_> = issue.assigned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
 
         assert_eq!(1, assignees.len());
-        assert!(assignees.contains(&Did::from(assignee)));
+        assert!(assignees.contains(&assignee));
 
         let mut issue = issues.get_mut(&id).unwrap();
-        issue.assign([assignee_two], &node.signer).unwrap();
+        issue
+            .assign([assignee, assignee_two], &node.signer)
+            .unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let assignees: Vec<_> = issue.assigned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
 
         assert_eq!(2, assignees.len());
-        assert!(assignees.contains(&Did::from(assignee)));
-        assert!(assignees.contains(&Did::from(assignee_two)));
+        assert!(assignees.contains(&assignee));
+        assert!(assignees.contains(&assignee_two));
     }
 
     #[test]
@@ -696,8 +722,8 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
 
-        let assignee: ActorId = arbitrary::gen(1);
-        let assignee_two: ActorId = arbitrary::gen(1);
+        let assignee = Did::from(arbitrary::gen::<ActorId>(1));
+        let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
         let mut issue = issues
             .create(
                 "My first issue",
@@ -710,14 +736,17 @@ mod test {
 
         issue.assign([assignee_two], &node.signer).unwrap();
         issue.assign([assignee_two], &node.signer).unwrap();
+        issue.reload().unwrap();
 
-        let id = issue.id;
-        let issue = issues.get(&id).unwrap().unwrap();
-        let assignees: Vec<_> = issue.assigned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
 
-        assert_eq!(2, assignees.len());
-        assert!(assignees.contains(&Did::from(assignee)));
-        assert!(assignees.contains(&Did::from(assignee_two)));
+        assert_eq!(1, assignees.len());
+        assert!(assignees.contains(&assignee_two));
+
+        issue.assign([], &node.signer).unwrap();
+        issue.reload().unwrap();
+
+        assert_eq!(0, issue.assigned().count());
     }
 
     #[test]
@@ -777,8 +806,8 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
 
-        let assignee: ActorId = arbitrary::gen(1);
-        let assignee_two: ActorId = arbitrary::gen(1);
+        let assignee = Did::from(arbitrary::gen::<ActorId>(1));
+        let assignee_two = Did::from(arbitrary::gen::<ActorId>(1));
         let mut issue = issues
             .create(
                 "My first issue",
@@ -788,15 +817,15 @@ mod test {
                 &node.signer,
             )
             .unwrap();
+        assert_eq!(2, issue.assigned().count());
 
-        issue.unassign([assignee], &node.signer).unwrap();
+        issue.assign([assignee_two], &node.signer).unwrap();
+        issue.reload().unwrap();
 
-        let id = issue.id;
-        let issue = issues.get(&id).unwrap().unwrap();
-        let assignees: Vec<_> = issue.assigned().collect::<Vec<_>>();
+        let assignees: Vec<_> = issue.assigned().cloned().collect::<Vec<_>>();
 
         assert_eq!(1, assignees.len());
-        assert!(assignees.contains(&Did::from(assignee_two)));
+        assert!(assignees.contains(&assignee_two));
     }
 
     #[test]
@@ -895,32 +924,39 @@ mod test {
     }
 
     #[test]
-    fn test_issue_tag() {
+    fn test_issue_label() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
-        let bug_tag = Tag::new("bug").unwrap();
-        let ux_tag = Tag::new("ux").unwrap();
-        let wontfix_tag = Tag::new("wontfix").unwrap();
+        let bug_label = Label::new("bug").unwrap();
+        let ux_label = Label::new("ux").unwrap();
+        let wontfix_label = Label::new("wontfix").unwrap();
         let mut issue = issues
             .create(
                 "My first issue",
                 "Blah blah blah.",
-                &[ux_tag.clone()],
+                &[ux_label.clone()],
                 &[],
                 &node.signer,
             )
             .unwrap();
 
-        issue.tag([bug_tag.clone()], [], &node.signer).unwrap();
-        issue.tag([wontfix_tag.clone()], [], &node.signer).unwrap();
+        issue
+            .label([ux_label.clone(), bug_label.clone()], &node.signer)
+            .unwrap();
+        issue
+            .label(
+                [ux_label.clone(), bug_label.clone(), wontfix_label.clone()],
+                &node.signer,
+            )
+            .unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let tags = issue.tags().cloned().collect::<Vec<_>>();
+        let labels = issue.labels().cloned().collect::<Vec<_>>();
 
-        assert!(tags.contains(&ux_tag));
-        assert!(tags.contains(&bug_tag));
-        assert!(tags.contains(&wontfix_tag));
+        assert!(labels.contains(&ux_label));
+        assert!(labels.contains(&bug_label));
+        assert!(labels.contains(&wontfix_label));
     }
 
     #[test]

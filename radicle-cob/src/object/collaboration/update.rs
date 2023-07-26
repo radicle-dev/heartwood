@@ -18,14 +18,12 @@ pub struct Updated {
 
 /// The data required to update an object
 pub struct Update {
-    /// The type of history that will be used for this object.
-    pub history_type: String,
     /// The CRDT changes to add to the object.
     pub changes: NonEmpty<Vec<u8>>,
     /// The object ID of the object to be updated.
     pub object_id: ObjectId,
     /// The typename of the object to be updated.
-    pub typename: TypeName,
+    pub type_name: TypeName,
     /// The message to add when updating this object.
     pub message: String,
 }
@@ -62,9 +60,8 @@ where
     G: crypto::Signer,
 {
     let Update {
-        ref typename,
+        type_name: ref typename,
         object_id,
-        history_type,
         changes,
         message,
     } = args;
@@ -83,9 +80,8 @@ where
         signer,
         change::Template {
             tips: object.tips().iter().cloned().collect(),
-            history_type,
             contents: changes,
-            typename: typename.clone(),
+            type_name: typename.clone(),
             message,
         },
     )?;
@@ -100,6 +96,7 @@ where
         change.resource,
         change.contents,
         change.timestamp,
+        change.manifest,
     );
 
     Ok(Updated {

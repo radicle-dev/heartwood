@@ -24,6 +24,8 @@ pub mod rad_init;
 pub mod rad_inspect;
 #[path = "commands/issue.rs"]
 pub mod rad_issue;
+#[path = "commands/label.rs"]
+pub mod rad_label;
 #[path = "commands/ls.rs"]
 pub mod rad_ls;
 #[path = "commands/node.rs"]
@@ -42,14 +44,12 @@ pub mod rad_rm;
 pub mod rad_self;
 #[path = "commands/sync.rs"]
 pub mod rad_sync;
-#[path = "commands/tag.rs"]
-pub mod rad_tag;
 #[path = "commands/track.rs"]
 pub mod rad_track;
 #[path = "commands/unassign.rs"]
 pub mod rad_unassign;
-#[path = "commands/untag.rs"]
-pub mod rad_untag;
+#[path = "commands/unlabel.rs"]
+pub mod rad_unlabel;
 #[path = "commands/untrack.rs"]
 pub mod rad_untrack;
 #[path = "commands/web.rs"]

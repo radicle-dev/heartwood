@@ -102,6 +102,7 @@ impl ChangeGraph {
                     change.resource,
                     change.contents().clone(),
                     change.timestamp,
+                    change.manifest.clone(),
                 );
                 let id = *entry.id();
 

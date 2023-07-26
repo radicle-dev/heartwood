@@ -80,6 +80,7 @@ mod change_graph;
 mod trailers;
 
 pub mod change;
+pub use change::store::{Manifest, Version};
 pub use change::Change;
 
 pub mod history;

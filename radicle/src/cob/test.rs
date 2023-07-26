@@ -8,7 +8,7 @@ use crate::cob::op::Op;
 use crate::cob::patch;
 use crate::cob::patch::Patch;
 use crate::cob::store::encoding;
-use crate::cob::{EntryId, History, Timestamp};
+use crate::cob::{Entry, History, Manifest, Timestamp, Version};
 use crate::crypto::Signer;
 use crate::git;
 use crate::git::ext::author::Author;
@@ -59,6 +59,7 @@ where
     pub fn new<G: Signer>(action: &T::Action, time: Timestamp, signer: &G) -> HistoryBuilder<T> {
         let resource = arbitrary::oid();
         let (data, root) = encoded::<T, _>(action, time, [], signer);
+        let manifest = Manifest::new(T::type_name().clone(), Version::default());
 
         Self {
             history: History::new_from_root(
@@ -67,6 +68,7 @@ where
                 resource,
                 NonEmpty::new(data),
                 time.as_secs(),
+                manifest,
             ),
             time,
             resource,
@@ -74,7 +76,7 @@ where
         }
     }
 
-    pub fn root(&self) -> EntryId {
+    pub fn root(&self) -> &Entry {
         self.history.root()
     }
 
@@ -86,6 +88,7 @@ where
         let timestamp = self.time;
         let tips = self.tips();
         let (data, oid) = encoded::<T, _>(action, timestamp, tips, signer);
+        let manifest = Manifest::new(T::type_name().clone(), Version::default());
 
         self.history.extend(
             oid,
@@ -93,6 +96,7 @@ where
             self.resource,
             NonEmpty::new(data),
             timestamp.as_secs(),
+            manifest,
         );
         oid
     }
@@ -137,12 +141,15 @@ impl<G> Actor<G> {
 
 impl<G: Signer> Actor<G> {
     /// Create a new operation.
-    pub fn op_with<A: Clone + Serialize>(
+    pub fn op_with<T: FromHistory>(
         &mut self,
-        action: A,
+        action: T::Action,
         identity: Oid,
         timestamp: Timestamp,
-    ) -> Op<A> {
+    ) -> Op<T::Action>
+    where
+        T::Action: Clone + Serialize,
+    {
         let data = encoding::encode(serde_json::json!({
             "action": action,
             "nonce": fastrand::u64(..),
@@ -152,6 +159,7 @@ impl<G: Signer> Actor<G> {
         let id = oid.into();
         let author = *self.signer.public_key();
         let actions = NonEmpty::new(action);
+        let manifest = Manifest::new(T::type_name().clone(), Version::default());
 
         Op {
             id,
@@ -159,15 +167,19 @@ impl<G: Signer> Actor<G> {
             author,
             timestamp,
             identity,
+            manifest,
         }
     }
 
     /// Create a new operation.
-    pub fn op<A: Clone + Serialize>(&mut self, action: A) -> Op<A> {
+    pub fn op<T: FromHistory>(&mut self, action: T::Action) -> Op<T::Action>
+    where
+        T::Action: Clone + Serialize,
+    {
         let identity = arbitrary::oid();
         let timestamp = Timestamp::now();
 
-        self.op_with(action, identity, timestamp)
+        self.op_with::<T>(action, identity, timestamp)
     }
 
     /// Get the actor's DID.
@@ -188,12 +200,13 @@ impl<G: Signer> Actor<G> {
     ) -> Result<Patch, patch::Error> {
         Patch::from_ops(
             [
-                self.op(patch::Action::Revision {
+                self.op::<Patch>(patch::Action::Revision {
                     description: description.to_string(),
                     base,
                     oid,
+                    resolves: Default::default(),
                 }),
-                self.op(patch::Action::Edit {
+                self.op::<Patch>(patch::Action::Edit {
                     title: title.to_string(),
                     target: patch::MergeTarget::default(),
                 }),

@@ -33,18 +33,18 @@ pub const HEAD: &str = "e8c676b9e3b42308dc9d218b70faa5408f8e58ca";
 pub const PARENT: &str = "ee8d6a29304623a78ebfa5eeed5af674d0e58f83";
 pub const INITIAL_COMMIT: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
 pub const DID: &str = "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi";
-pub const ISSUE_ID: &str = "5ad77fa3f476beed9a26f49b2b3b844e61bef792";
-pub const ISSUE_DISCUSSION_ID: &str = "f1dff128a22e8183a23516dd9812e72e80914c92";
-pub const ISSUE_COMMENT_ID: &str = "845218041bf9eb8155bfa4aaa8f0c91ce18e5c13";
+pub const ISSUE_ID: &str = "0b0b8ca3b75e109971f87d92c1a6c930e87484c6";
+pub const ISSUE_DISCUSSION_ID: &str = "7466975f0bef37b459887824a9655f3e78262522";
+pub const ISSUE_COMMENT_ID: &str = "24ee306c508cd731a8427612dbdd826209096f99";
 pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
 pub const TIMESTAMP: u64 = 1671125284;
 pub const CONTRIBUTOR_RID: &str = "rad:z4XaCmN3jLSeiMvW15YTDpNbDHFhG";
 pub const CONTRIBUTOR_DID: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
 pub const CONTRIBUTOR_NID: &str = "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
-pub const CONTRIBUTOR_ISSUE_ID: &str = "f1dff128a22e8183a23516dd9812e72e80914c92";
-pub const CONTRIBUTOR_PATCH_ID: &str = "044b577cc7551cd09d4b2f03566a553762180de4";
-pub const CONTRIBUTOR_COMMENT_1: &str = "92aab76516ae7f60a9b2952043ba578383de7d46";
-pub const CONTRIBUTOR_COMMENT_2: &str = "cb360eee0ec70563d5c4c3613fdc076648523248";
+pub const CONTRIBUTOR_ISSUE_ID: &str = "7466975f0bef37b459887824a9655f3e78262522";
+pub const CONTRIBUTOR_PATCH_ID: &str = "e651ae5869a2c1ac8ad4f6deae4cc835656ffa25";
+pub const CONTRIBUTOR_COMMENT_1: &str = "d0bb75b2c72ab8b5486d39f6cf5f41f104b63cb1";
+pub const CONTRIBUTOR_COMMENT_2: &str = "2a4ec5bcb1be09c1f2213f418c0159fff894b989";
 
 /// Create a new profile.
 pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
@@ -297,6 +297,7 @@ fn request(
     request.body(body.unwrap_or_else(Body::empty)).unwrap()
 }
 
+#[derive(Debug)]
 pub struct Response(axum::response::Response);
 
 impl Response {

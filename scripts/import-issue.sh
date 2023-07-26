@@ -56,7 +56,7 @@ labels="$(echo "$response" | jq -r '.labels | .[].name')"
 
 tags=()
 for label in $labels; do
-  tags+=("--tag" "$label")
+  tags+=("--label" "$label")
 done
 
 rad issue open --title "$title" "${tags[@]}" --description "$body" --no-announce

@@ -1,18 +1,18 @@
-Tagging an issue is easy, let's add the `bug` and `good-first-issue` tags to
+Labeling an issue is easy, let's add the `bug` and `good-first-issue` labels to
 some issue:
 
 ```
-$ rad tag 2e8c1bf3fe0532a314778357c886608a966a34bd bug good-first-issue
+$ rad label 42028af21fabc09bfac2f25490f119f7c7e11542 bug good-first-issue
 ```
 
-We can now show the issue to check whether those tags were added:
+We can now show the issue to check whether those labels were added:
 
 ```
-$ rad issue show 2e8c1bf3fe0532a314778357c886608a966a34bd
+$ rad issue show 42028af21fabc09bfac2f25490f119f7c7e11542
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
-│ Issue   2e8c1bf3fe0532a314778357c886608a966a34bd        │
-│ Tags    bug, good-first-issue                           │
+│ Issue   42028af21fabc09bfac2f25490f119f7c7e11542        │
+│ Labels  bug, good-first-issue                           │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
@@ -22,17 +22,17 @@ $ rad issue show 2e8c1bf3fe0532a314778357c886608a966a34bd
 Untagging an issue is very similar:
 
 ```
-$ rad untag 2e8c1bf3fe0532a314778357c886608a966a34bd good-first-issue
+$ rad unlabel 42028af21fabc09bfac2f25490f119f7c7e11542 good-first-issue
 ```
 
-Notice that the `good-first-issue` tag has disappeared:
+Notice that the `good-first-issue` label has disappeared:
 
 ```
-$ rad issue show 2e8c1bf3fe0532a314778357c886608a966a34bd
+$ rad issue show 42028af21fabc09bfac2f25490f119f7c7e11542
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
-│ Issue   2e8c1bf3fe0532a314778357c886608a966a34bd        │
-│ Tags    bug                                             │
+│ Issue   42028af21fabc09bfac2f25490f119f7c7e11542        │
+│ Labels  bug                                             │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │

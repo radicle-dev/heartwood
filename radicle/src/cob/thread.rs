@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
+use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::cob;
@@ -53,7 +53,7 @@ pub struct Edit {
 
 /// A comment on a discussion thread.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Comment {
+pub struct Comment<T = ()> {
     /// Comment author.
     author: ActorId,
     /// The comment body.
@@ -63,14 +63,36 @@ pub struct Comment {
     /// Comment this is a reply to.
     /// Should always be set, except for the root comment.
     reply_to: Option<CommentId>,
+    /// Location of comment, if this is an inline comment.
+    location: Option<T>,
 }
 
-impl Comment {
+impl<T: Serialize> Serialize for Comment<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        let mut state = serializer.serialize_struct("Comment", 5)?;
+        state.serialize_field("author", &self.author())?;
+        if let Some(loc) = &self.location {
+            state.serialize_field("location", loc)?;
+        }
+        if let Some(to) = self.reply_to {
+            state.serialize_field("replyTo", &to)?;
+        }
+        state.serialize_field("reactions", &self.reactions)?;
+        state.serialize_field("body", self.body())?;
+        state.end()
+    }
+}
+
+impl<L> Comment<L> {
     /// Create a new comment.
     pub fn new(
         author: ActorId,
         body: String,
         reply_to: Option<CommentId>,
+        location: Option<L>,
         timestamp: Timestamp,
     ) -> Self {
         let edit = Edit { body, timestamp };
@@ -80,6 +102,7 @@ impl Comment {
             reactions: BTreeSet::default(),
             edits: vec![edit],
             reply_to,
+            location,
         }
     }
 
@@ -124,9 +147,14 @@ impl Comment {
     pub fn reactions(&self) -> impl Iterator<Item = (&ActorId, &Reaction)> {
         self.reactions.iter().map(|(a, r)| (a, r))
     }
+
+    /// Get comment location, if any.
+    pub fn location(&self) -> Option<&L> {
+        self.location.as_ref()
+    }
 }
 
-impl PartialOrd for Comment {
+impl<T: PartialOrd> PartialOrd for Comment<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if self == other {
             Some(Ordering::Equal)
@@ -171,16 +199,25 @@ impl From<Action> for nonempty::NonEmpty<Action> {
 }
 
 /// A discussion thread.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct Thread {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Thread<T = Comment<()>> {
     /// The comments under the thread.
-    comments: BTreeMap<CommentId, Option<Comment>>,
+    comments: BTreeMap<CommentId, Option<T>>,
     /// Comment timeline.
     timeline: Vec<CommentId>,
 }
 
-impl Thread {
-    pub fn new(id: CommentId, comment: Comment) -> Self {
+impl<T> Default for Thread<T> {
+    fn default() -> Self {
+        Self {
+            comments: BTreeMap::default(),
+            timeline: Vec::default(),
+        }
+    }
+}
+
+impl<T> Thread<T> {
+    pub fn new(id: CommentId, comment: T) -> Self {
         Self {
             comments: BTreeMap::from_iter([(id, Some(comment))]),
             timeline: Vec::default(),
@@ -199,26 +236,37 @@ impl Thread {
         self.comments.len()
     }
 
-    pub fn comment(&self, id: &CommentId) -> Option<&Comment> {
+    pub fn comment(&self, id: &CommentId) -> Option<&T> {
         self.comments.get(id).and_then(|o| o.as_ref())
     }
 
-    pub fn root(&self) -> (&CommentId, &Comment) {
+    pub fn root(&self) -> (&CommentId, &T) {
         self.first().expect("Thread::root: thread is empty")
     }
 
-    pub fn first(&self) -> Option<(&CommentId, &Comment)> {
+    pub fn first(&self) -> Option<(&CommentId, &T)> {
         self.comments().next()
     }
 
-    pub fn last(&self) -> Option<(&CommentId, &Comment)> {
+    pub fn last(&self) -> Option<(&CommentId, &T)> {
         self.comments().next_back()
     }
 
+    pub fn comments(&self) -> impl DoubleEndedIterator<Item = (&CommentId, &T)> + '_ {
+        self.timeline.iter().filter_map(|id| {
+            self.comments
+                .get(id)
+                .and_then(|o| o.as_ref())
+                .map(|comment| (id, comment))
+        })
+    }
+}
+
+impl<L> Thread<Comment<L>> {
     pub fn replies<'a>(
         &'a self,
         to: &'a CommentId,
-    ) -> impl Iterator<Item = (&CommentId, &Comment)> {
+    ) -> impl Iterator<Item = (&CommentId, &Comment<L>)> {
         self.comments().filter_map(move |(id, c)| {
             if let Some(reply_to) = c.reply_to {
                 if &reply_to == to {
@@ -226,15 +274,6 @@ impl Thread {
                 }
             }
             None
-        })
-    }
-
-    pub fn comments(&self) -> impl DoubleEndedIterator<Item = (&CommentId, &Comment)> + '_ {
-        self.timeline.iter().filter_map(|id| {
-            self.comments
-                .get(id)
-                .and_then(|o| o.as_ref())
-                .map(|comment| (id, comment))
         })
     }
 }
@@ -259,67 +298,118 @@ impl cob::store::FromHistory for Thread {
         let author = op.author;
         let timestamp = op.timestamp;
 
-        debug_assert!(!self.timeline.contains(&op.id));
-
-        self.timeline.push(op.id);
-
-        for action in op.into_iter() {
+        for action in op.actions {
             match action {
                 Action::Comment { body, reply_to } => {
-                    if body.is_empty() {
-                        return Err(Error::Comment(id));
-                    }
-                    // Nb. If a comment is already present, it must be redacted, because the
-                    // underlying store guarantees exactly-once delivery of ops.
-                    self.comments
-                        .insert(id, Some(Comment::new(author, body, reply_to, timestamp)));
+                    comment(self, id, author, timestamp, body, reply_to, None)?;
                 }
                 Action::Edit { id, body } => {
-                    if body.is_empty() {
-                        return Err(Error::Edit(id));
-                    }
-                    // It's possible for a comment to be redacted before we're able to edit it, in
-                    // case of a concurrent update.
-                    //
-                    // However, it's *not* possible for the comment to be absent. Therefore we treat
-                    // that as an error.
-                    if let Some(comment) = self.comments.get_mut(&id) {
-                        if let Some(comment) = comment {
-                            comment.edit(body, timestamp);
-                        }
-                    } else {
-                        return Err(Error::Missing(id));
-                    }
+                    edit(self, op.id, id, timestamp, body)?;
                 }
                 Action::Redact { id } => {
-                    if let Some(comment) = self.comments.get_mut(&id) {
-                        *comment = None;
-                    } else {
-                        return Err(Error::Missing(id));
-                    }
+                    redact(self, op.id, id)?;
                 }
                 Action::React {
                     to,
                     reaction,
                     active,
                 } => {
-                    let key = (author, reaction);
-                    if let Some(comment) = self.comments.get_mut(&to) {
-                        if let Some(comment) = comment {
-                            if active {
-                                comment.reactions.insert(key);
-                            } else {
-                                comment.reactions.remove(&key);
-                            }
-                        }
-                    } else {
-                        return Err(Error::Missing(id));
-                    }
+                    react(self, op.id, author, to, reaction, active)?;
                 }
             }
         }
         Ok(())
     }
+}
+
+pub fn comment<L>(
+    thread: &mut Thread<Comment<L>>,
+    id: EntryId,
+    author: ActorId,
+    timestamp: Timestamp,
+    body: String,
+    reply_to: Option<CommentId>,
+    location: Option<L>,
+) -> Result<(), Error> {
+    if body.is_empty() {
+        return Err(Error::Comment(id));
+    }
+    debug_assert!(!thread.timeline.contains(&id));
+    thread.timeline.push(id);
+
+    // Nb. If a comment is already present, it must be redacted, because the
+    // underlying store guarantees exactly-once delivery of ops.
+    thread.comments.insert(
+        id,
+        Some(Comment::new(author, body, reply_to, location, timestamp)),
+    );
+
+    Ok(())
+}
+
+pub fn edit<L>(
+    thread: &mut Thread<Comment<L>>,
+    id: EntryId,
+    comment: EntryId,
+    timestamp: Timestamp,
+    body: String,
+) -> Result<(), Error> {
+    if body.is_empty() {
+        return Err(Error::Edit(id));
+    }
+    debug_assert!(!thread.timeline.contains(&id));
+    thread.timeline.push(id);
+
+    // It's possible for a comment to be redacted before we're able to edit it, in
+    // case of a concurrent update.
+    //
+    // However, it's *not* possible for the comment to be absent. Therefore we treat
+    // that as an error.
+    if let Some(comment) = thread.comments.get_mut(&comment) {
+        if let Some(comment) = comment {
+            comment.edit(body, timestamp);
+        }
+    } else {
+        return Err(Error::Missing(comment));
+    }
+    Ok(())
+}
+
+pub fn redact<T>(thread: &mut Thread<T>, id: EntryId, comment: EntryId) -> Result<(), Error> {
+    if let Some(comment) = thread.comments.get_mut(&comment) {
+        debug_assert!(!thread.timeline.contains(&id));
+        thread.timeline.push(id);
+
+        *comment = None;
+    } else {
+        return Err(Error::Missing(id));
+    }
+    Ok(())
+}
+
+pub fn react<T>(
+    thread: &mut Thread<Comment<T>>,
+    id: EntryId,
+    author: ActorId,
+    comment: EntryId,
+    reaction: Reaction,
+    active: bool,
+) -> Result<(), Error> {
+    let key = (author, reaction);
+    let Some(comment) = thread.comments.get_mut(&comment) else {
+        return Err(Error::Missing(comment));
+    };
+    if let Some(comment) = comment {
+        debug_assert!(!thread.timeline.contains(&id));
+        thread.timeline.push(id);
+
+        if active {
+            comment.reactions.insert(key);
+        } else {
+            comment.reactions.remove(&key);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -361,7 +451,7 @@ mod tests {
 
         /// Create a new comment.
         pub fn comment(&mut self, body: &str, reply_to: Option<CommentId>) -> Op<Action> {
-            self.op(Action::Comment {
+            self.op::<Thread>(Action::Comment {
                 body: String::from(body),
                 reply_to,
             })
@@ -369,12 +459,12 @@ mod tests {
 
         /// Create a new redaction.
         pub fn redact(&mut self, id: CommentId) -> Op<Action> {
-            self.op(Action::Redact { id })
+            self.op::<Thread>(Action::Redact { id })
         }
 
         /// Edit a comment.
         pub fn edit(&mut self, id: CommentId, body: &str) -> Op<Action> {
-            self.op(Action::Edit {
+            self.op::<Thread>(Action::Edit {
                 id,
                 body: body.to_owned(),
             })
@@ -456,13 +546,13 @@ mod tests {
             time,
             &alice,
         );
-        a.comment("Alice comment", Some(a.root()), &alice);
+        a.comment("Alice comment", Some(*a.root().id()), &alice);
 
         let mut b = a.clone();
-        let b1 = b.comment("Bob comment", Some(a.root()), &bob);
+        let b1 = b.comment("Bob comment", Some(*a.root().id()), &bob);
 
         let mut e = a.clone();
-        let e1 = e.comment("Eve comment", Some(a.root()), &eve);
+        let e1 = e.comment("Eve comment", Some(*a.root().id()), &eve);
 
         assert_eq!(a.as_ref().len(), 2);
         assert_eq!(b.as_ref().len(), 3);
@@ -561,14 +651,14 @@ mod tests {
 
         let e1 = h1.commit(
             &Action::Edit {
-                id: h0.root(),
+                id: *h0.root().id(),
                 body: String::from("Bye World."),
             },
             &alice,
         );
         let e2 = h2.commit(
             &Action::Edit {
-                id: h0.root(),
+                id: *h0.root().id(),
                 body: String::from("Hi World."),
             },
             &bob,
@@ -588,7 +678,7 @@ mod tests {
 
         let _e3 = h1.commit(
             &Action::Edit {
-                id: h0.root(),
+                id: *h0.root().id(),
                 body: String::from("Hoho World!"),
             },
             &alice,

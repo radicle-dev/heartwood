@@ -23,7 +23,7 @@ $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
 $ git fetch bob
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new branch]      master     -> bob/master
- * [new branch]      patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c -> bob/patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
+ * [new branch]      patches/69e881c606639691330051d7d8f013854f32fb87 -> bob/patches/69e881c606639691330051d7d8f013854f32fb87
 ```
 
 The contributor's changes are now visible to us.
@@ -31,12 +31,12 @@ The contributor's changes are now visible to us.
 ```
 $ git branch -r
   bob/master
-  bob/patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
+  bob/patches/69e881c606639691330051d7d8f013854f32fb87
   rad/master
-$ rad patch show 50e29a1
+$ rad patch show 69e881c
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title    Define power requirements                                           │
-│ Patch    50e29a111972f3b7d2123c5057de5bdf09bc7b1c                            │
+│ Patch    69e881c606639691330051d7d8f013854f32fb87                            │
 │ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk            │
 │ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                            │
 │ Commits  ahead 2, behind 0                                                   │
@@ -48,7 +48,7 @@ $ rad patch show 50e29a1
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by bob (z6Mkt67…v4N1tRk) [   ...    ]                               │
-│ ↑ updated to 3530243d46a2e7a8e4eac7afcbb17cc7c56b3d29 (27857ec) [   ...    ] │
+│ ↑ updated to dcf3e6dd97c95cf8653cbb8ce47df20d28eb1821 (27857ec) [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -58,20 +58,20 @@ way will tell others about the corrections we needed before merging the
 changes.
 
 ```
-$ rad patch checkout 50e29a111972f3b7d2123c5057de5bdf09bc7b1c
-✓ Switched to branch patch/50e29a1
-✓ Branch patch/50e29a1 setup to track rad/patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
+$ rad patch checkout 69e881c606639691330051d7d8f013854f32fb87
+✓ Switched to branch patch/69e881c
+✓ Branch patch/69e881c setup to track rad/patches/69e881c606639691330051d7d8f013854f32fb87
 $ git mv REQUIREMENTS REQUIREMENTS.md
 $ git commit -m "Use markdown for requirements"
-[patch/50e29a1 f567f69] Use markdown for requirements
+[patch/69e881c f567f69] Use markdown for requirements
  1 file changed, 0 insertions(+), 0 deletions(-)
  rename REQUIREMENTS => REQUIREMENTS.md (100%)
 ```
 ``` (stderr)
 $ git push rad -o no-sync -o patch.message="Use markdown for requirements"
-✓ Patch 50e29a1 updated to 744c1f0a75b1c42833c9aa32f79cd40443925d66
+✓ Patch 69e881c updated to ab05fcdca93cf4d5b22da8913e2fe0b6d8c79338
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
- * [new branch]      patch/50e29a1 -> patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
+ * [new branch]      patch/69e881c -> patches/69e881c606639691330051d7d8f013854f32fb87
 ```
 
 Great, all fixed up, lets merge the code.
@@ -79,7 +79,7 @@ Great, all fixed up, lets merge the code.
 ```
 $ git checkout master
 Your branch is up to date with 'rad/master'.
-$ git merge patch/50e29a1
+$ git merge patch/69e881c
 Updating f2de534..f567f69
 Fast-forward
  README.md       | 0
@@ -93,13 +93,13 @@ $ git push rad master
 The patch is now merged and closed :).
 
 ```
-$ rad patch show 50e29a1
+$ rad patch show 69e881c
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                          │
-│ Patch     50e29a111972f3b7d2123c5057de5bdf09bc7b1c                           │
+│ Patch     69e881c606639691330051d7d8f013854f32fb87                           │
 │ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk           │
 │ Head      f567f695d25b4e8fb63b5f5ad2a584529826e908                           │
-│ Branches  master, patch/50e29a1                                              │
+│ Branches  master, patch/69e881c                                              │
 │ Commits   up to date                                                         │
 │ Status    merged                                                             │
 │                                                                              │
@@ -110,8 +110,8 @@ $ rad patch show 50e29a1
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by bob (z6Mkt67…v4N1tRk) [   ...    ]                               │
-│ ↑ updated to 3530243d46a2e7a8e4eac7afcbb17cc7c56b3d29 (27857ec) [   ...    ] │
-│ ↑ updated to 744c1f0a75b1c42833c9aa32f79cd40443925d66 (f567f69) [   ...    ] │
+│ ↑ updated to dcf3e6dd97c95cf8653cbb8ce47df20d28eb1821 (27857ec) [   ...    ] │
+│ ↑ updated to ab05fcdca93cf4d5b22da8913e2fe0b6d8c79338 (f567f69) [   ...    ] │
 │ ✓ merged by alice (you) [   ...    ]                                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```

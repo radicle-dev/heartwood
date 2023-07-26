@@ -6,6 +6,7 @@ use radicle_cob as cob;
 use radicle_cob::change;
 use storage::SignRepository;
 
+use crate::git::*;
 use crate::storage;
 use crate::storage::Error;
 use crate::storage::{
@@ -16,9 +17,6 @@ use crate::{
     git, identity,
     identity::{doc::DocError, IdentityError},
 };
-
-pub use crate::git::*;
-pub use cob::*;
 
 use super::{RemoteId, Repository};
 

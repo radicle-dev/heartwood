@@ -77,20 +77,29 @@ pub enum Error {
     /// Routing store error.
     #[error(transparent)]
     RoutingStore(#[from] radicle::node::routing::Error),
+
+    /// Invalid update to issue or patch.
+    #[error("{0}")]
+    BadRequest(String),
 }
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        let (status, msg) = match &self {
+        let message = self.to_string();
+        let (status, msg) = match self {
             Error::NotFound => (StatusCode::NOT_FOUND, None),
+            Error::CobStore(radicle::cob::store::Error::NotFound(_, _)) => {
+                (StatusCode::NOT_FOUND, None)
+            }
             Error::Auth(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
             Error::Crypto(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
             Error::Git2(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Some(e.message().to_owned()),
             ),
+            Error::BadRequest(msg) => (StatusCode::BAD_REQUEST, Some(msg)),
             other => {
-                tracing::error!("Error: {:?}", &self);
+                tracing::error!("Error: {message}");
 
                 if cfg!(debug_assertions) {
                     (

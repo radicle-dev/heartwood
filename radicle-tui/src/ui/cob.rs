@@ -10,7 +10,7 @@ use radicle::Profile;
 
 use radicle::cob::issue::{Issue, IssueId, State as IssueState};
 use radicle::cob::patch::{Patch, PatchId, State as PatchState};
-use radicle::cob::{Tag, Timestamp};
+use radicle::cob::{Label, Timestamp};
 
 use tuirealm::props::{Color, Style};
 use tuirealm::tui::text::{Span, Spans};
@@ -172,8 +172,8 @@ pub struct IssueItem {
     title: String,
     /// Issue author.
     author: AuthorItem,
-    /// Issue tags.
-    tags: Vec<Tag>,
+    /// Issue labels.
+    labels: Vec<Label>,
     /// Issue assignees.
     assignees: Vec<AuthorItem>,
     /// Time when issue was opened.
@@ -197,8 +197,8 @@ impl IssueItem {
         &self.author
     }
 
-    pub fn tags(&self) -> &Vec<Tag> {
-        &self.tags
+    pub fn labels(&self) -> &Vec<Label> {
+        &self.labels
     }
 
     pub fn assignees(&self) -> &Vec<AuthorItem> {
@@ -222,9 +222,10 @@ impl From<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
                 did: issue.author().id,
                 is_you: *issue.author().id == *profile.did(),
             },
-            tags: issue.tags().cloned().collect(),
+            labels: issue.labels().cloned().collect(),
             assignees: issue
                 .assigned()
+                .cloned()
                 .map(|did| AuthorItem {
                     did,
                     is_you: did == profile.did(),
@@ -249,7 +250,7 @@ impl TableItem<7> for IssueItem {
         let author = Cell::from(format_author(&self.author.did, self.author.is_you))
             .style(Style::default().fg(theme.colors.browser_list_author));
 
-        let tags = Cell::from(format_tags(&self.tags))
+        let tags = Cell::from(format_labels(&self.labels))
             .style(Style::default().fg(theme.colors.browser_list_tags));
 
         let assignees = self
@@ -331,14 +332,14 @@ pub fn format_issue_state(state: &IssueState) -> (String, Color) {
     }
 }
 
-pub fn format_tags(tags: &[Tag]) -> String {
+pub fn format_labels(labels: &[Label]) -> String {
     let mut output = String::new();
-    let mut tags = tags.iter().peekable();
+    let mut labels = labels.iter().peekable();
 
-    while let Some(tag) = tags.next() {
+    while let Some(tag) = labels.next() {
         output.push_str(&tag.to_string());
 
-        if tags.peek().is_some() {
+        if labels.peek().is_some() {
             output.push(',');
         }
     }

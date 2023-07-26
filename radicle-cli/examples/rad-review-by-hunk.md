@@ -61,7 +61,7 @@ $ git commit -q -m "Update files"
 
 ``` (stderr)
 $ git push rad HEAD:refs/patches
-✓ Patch a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c opened
+✓ Patch 7f6ed9bd562a36eb1d5689f95600d09247726a23 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```
@@ -70,7 +70,7 @@ Finally, we do a review of the patch by hunk. The output of this command should
 match `git diff master -W100% -U5 --patience`:
 
 ```
-$ rad review --no-sync --patch -U5 a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
+$ rad review --no-sync --patch -U5 7f6ed9bd562a36eb1d5689f95600d09247726a23
 diff --git a/.gitignore b/.gitignore
 deleted file mode 100644
 index 7937fb3..0000000
@@ -116,8 +116,8 @@ rename to notes/INSTRUCTIONS.txt
 Now let's accept these hunks one by one..
 
 ```
-$ rad review --no-sync --patch --accept --hunk 1 a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
-✓ Loaded existing review ([..]) for patch a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
+$ rad review --no-sync --patch --accept --hunk 1 7f6ed9bd562a36eb1d5689f95600d09247726a23
+✓ Loaded existing review ([..]) for patch 7f6ed9bd562a36eb1d5689f95600d09247726a23
 diff --git a/.gitignore b/.gitignore
 deleted file mode 100644
 index 7937fb3..0000000
@@ -127,8 +127,8 @@ index 7937fb3..0000000
 -*.draft
 ```
 ```
-$ rad review --no-sync --patch --accept --hunk 1 a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
-✓ Loaded existing review ([..]) for patch a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
+$ rad review --no-sync --patch --accept --hunk 1 7f6ed9bd562a36eb1d5689f95600d09247726a23
+✓ Loaded existing review ([..]) for patch 7f6ed9bd562a36eb1d5689f95600d09247726a23
 diff --git a/DISCLAIMER.txt b/DISCLAIMER.txt
 new file mode 100644
 index 0000000..2b5bd86
@@ -138,8 +138,8 @@ index 0000000..2b5bd86
 +All food is served as-is, with no warranty!
 ```
 ```
-$ rad review --no-sync --patch --accept -U3 --hunk 1 a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
-✓ Loaded existing review ([..]) for patch a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
+$ rad review --no-sync --patch --accept -U3 --hunk 1 7f6ed9bd562a36eb1d5689f95600d09247726a23
+✓ Loaded existing review ([..]) for patch 7f6ed9bd562a36eb1d5689f95600d09247726a23
 diff --git a/MENU.txt b/MENU.txt
 index 867958c..3af9741 100644
 --- a/MENU.txt
@@ -153,8 +153,8 @@ index 867958c..3af9741 100644
 [..]
 ```
 ```
-$ rad review --no-sync --patch --accept -U3 --hunk 1 a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
-✓ Loaded existing review ([..]) for patch a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
+$ rad review --no-sync --patch --accept -U3 --hunk 1 7f6ed9bd562a36eb1d5689f95600d09247726a23
+✓ Loaded existing review ([..]) for patch 7f6ed9bd562a36eb1d5689f95600d09247726a23
 diff --git a/MENU.txt b/MENU.txt
 index 4e2e828..3af9741 100644
 --- a/MENU.txt
@@ -169,8 +169,8 @@ index 4e2e828..3af9741 100644
 ```
 
 ```
-$ rad review --no-sync --patch --accept --hunk 1 a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
-✓ Loaded existing review ([..]) for patch a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
+$ rad review --no-sync --patch --accept --hunk 1 7f6ed9bd562a36eb1d5689f95600d09247726a23
+✓ Loaded existing review ([..]) for patch 7f6ed9bd562a36eb1d5689f95600d09247726a23
 diff --git a/INSTRUCTIONS.txt b/notes/INSTRUCTIONS.txt
 similarity index 100%
 rename from INSTRUCTIONS.txt
@@ -178,7 +178,7 @@ rename to notes/INSTRUCTIONS.txt
 ```
 
 ```
-$ rad review --no-sync --patch --accept --hunk 1 a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
-✓ Loaded existing review ([..]) for patch a05c57911e6ec9eba4e5539a095a6a86e2bf7c2c
+$ rad review --no-sync --patch --accept --hunk 1 7f6ed9bd562a36eb1d5689f95600d09247726a23
+✓ Loaded existing review ([..]) for patch 7f6ed9bd562a36eb1d5689f95600d09247726a23
 ✓ All hunks have been reviewed
 ```

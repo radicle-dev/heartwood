@@ -8,7 +8,7 @@ use radicle_crypto::Signer;
 
 use crate::{
     create, get, list, object, test::arbitrary::Invalid, update, Create, ObjectId, TypeName,
-    Update, Updated,
+    Update, Updated, Version,
 };
 
 use super::test;
@@ -31,10 +31,10 @@ fn roundtrip() {
         vec![],
         &proj.identifier(),
         Create {
-            history_type: "test".to_string(),
             contents: nonempty!(Vec::new()),
-            typename: typename.clone(),
+            type_name: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
+            version: Version::default(),
         },
     )
     .unwrap();
@@ -64,10 +64,10 @@ fn list_cobs() {
         vec![],
         &proj.identifier(),
         Create {
-            history_type: "test".to_string(),
             contents: nonempty!(b"issue 1".to_vec()),
-            typename: typename.clone(),
+            type_name: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
+            version: Version::default(),
         },
     )
     .unwrap();
@@ -79,10 +79,10 @@ fn list_cobs() {
         vec![],
         &proj.identifier(),
         Create {
-            history_type: "test".to_string(),
             contents: nonempty!(b"issue 2".to_vec()),
-            typename: typename.clone(),
+            type_name: typename.clone(),
             message: "commenting xyz.rad.issue".to_string(),
+            version: Version::default(),
         },
     )
     .unwrap();
@@ -114,10 +114,10 @@ fn update_cob() {
         vec![],
         &proj.identifier(),
         Create {
-            history_type: "test".to_string(),
             contents: nonempty!(Vec::new()),
-            typename: typename.clone(),
+            type_name: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
+            version: Version::default(),
         },
     )
     .unwrap();
@@ -134,9 +134,8 @@ fn update_cob() {
         &proj.identifier(),
         Update {
             changes: nonempty!(b"issue 1".to_vec()),
-            history_type: "test".to_string(),
             object_id: *cob.id(),
-            typename: typename.clone(),
+            type_name: typename.clone(),
             message: "commenting xyz.rad.issue".to_string(),
         },
     )
@@ -175,9 +174,9 @@ fn traverse_cobs() {
         &terry_proj.identifier(),
         Create {
             contents: nonempty!(b"issue 1".to_vec()),
-            history_type: "test".to_string(),
-            typename: typename.clone(),
+            type_name: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
+            version: Version::default(),
         },
     )
     .unwrap();
@@ -198,9 +197,8 @@ fn traverse_cobs() {
         &neil_proj.identifier(),
         Update {
             changes: nonempty!(b"issue 2".to_vec()),
-            history_type: "test".to_string(),
             object_id: *cob.id(),
-            typename,
+            type_name: typename,
             message: "commenting on xyz.rad.issue".to_string(),
         },
     )

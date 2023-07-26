@@ -90,9 +90,9 @@ impl Details {
             common::label(item.title()).foreground(theme.colors.browser_list_title),
         );
 
-        let tags = Property::new(
-            common::label("Tags").foreground(theme.colors.property_name_fg),
-            common::label(&cob::format_tags(item.tags()))
+        let labels = Property::new(
+            common::label("Labels").foreground(theme.colors.property_name_fg),
+            common::label(&cob::format_labels(item.labels()))
                 .foreground(theme.colors.browser_list_tags),
         );
 
@@ -113,12 +113,11 @@ impl Details {
             common::label(&item.state().to_string()).foreground(theme.colors.browser_list_title),
         );
 
-        // let table = common::property_table(theme, vec![title, tags, assignees, state]);
         let table = common::property_table(
             theme,
             vec![
                 Widget::new(title),
-                Widget::new(tags),
+                Widget::new(labels),
                 Widget::new(assignees),
                 Widget::new(state),
             ],

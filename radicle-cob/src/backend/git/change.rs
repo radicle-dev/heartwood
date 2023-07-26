@@ -9,6 +9,7 @@ use git_ext::Oid;
 use nonempty::NonEmpty;
 use radicle_git_ext::commit::trailers::OwnedTrailer;
 
+use crate::change::store::Version;
 use crate::history::entry::Timestamp;
 use crate::signatures;
 use crate::{
@@ -98,17 +99,12 @@ impl change::Storage for git2::Repository {
         Signer: crypto::Signer,
     {
         let change::Template {
-            typename,
-            history_type,
+            type_name,
             tips,
             message,
             contents,
         } = spec;
-        let manifest = store::Manifest {
-            typename,
-            history_type,
-        };
-
+        let manifest = store::Manifest::new(type_name, Version::default());
         let revision = write_manifest(self, &manifest, &contents)?;
         let tree = self.find_tree(revision)?;
         let signature = {
@@ -211,6 +207,7 @@ fn load_manifest(
     let manifest_blob = manifest_object
         .as_blob()
         .ok_or_else(|| error::Load::ManifestIsNotBlob(tree.id().into()))?;
+
     serde_json::from_slice(manifest_blob.content()).map_err(|err| error::Load::InvalidManifest {
         id: tree.id().into(),
         err,

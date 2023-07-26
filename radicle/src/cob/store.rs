@@ -10,15 +10,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::cob::common::Timestamp;
 use crate::cob::op::Op;
-use crate::cob::{ActorId, Create, EntryId, History, ObjectId, TypeName, Update, Updated};
+use crate::cob::{ActorId, Create, EntryId, History, ObjectId, TypeName, Update, Updated, Version};
 use crate::git;
 use crate::prelude::*;
 use crate::storage::git as storage;
 use crate::storage::SignRepository;
 use crate::{cob, identity};
-
-/// History type for standard radicle COBs.
-pub const HISTORY_TYPE: &str = "radicle";
 
 pub trait HistoryAction: std::fmt::Debug {
     /// Parent objects this action depends on. For example, patch revisions
@@ -51,28 +48,7 @@ pub trait FromHistory: Sized + Default + PartialEq {
 
     /// Create an object from a history.
     fn from_history<R: ReadRepository>(history: &History, repo: &R) -> Result<Self, Self::Error> {
-        let obj = history.traverse(Self::default(), |mut acc, _, entry| {
-            match Op::try_from(entry) {
-                Ok(op) => {
-                    if let Err(err) = acc.apply(op, repo) {
-                        log::warn!("Error applying op to `{}` state: {err}", Self::type_name());
-                        return ControlFlow::Break(acc);
-                    }
-                }
-                Err(err) => {
-                    log::warn!(
-                        "Error decoding ops for `{}` state: {err}",
-                        Self::type_name()
-                    );
-                    return ControlFlow::Break(acc);
-                }
-            }
-            ControlFlow::Continue(acc)
-        });
-
-        obj.validate()?;
-
-        Ok(obj)
+        self::from_history::<R, Self>(history, repo)
     }
 
     /// Create an object from individual operations.
@@ -87,6 +63,33 @@ pub trait FromHistory: Sized + Default + PartialEq {
         }
         Ok(state)
     }
+}
+
+/// Turn a history into a concrete type, by traversing the history and applying each operation
+/// to the state, skipping branches that return errors.
+pub fn from_history<R: ReadRepository, T: FromHistory>(
+    history: &History,
+    repo: &R,
+) -> Result<T, T::Error> {
+    let obj = history.traverse(T::default(), |mut acc, _, entry| {
+        match Op::try_from(entry) {
+            Ok(op) => {
+                if let Err(err) = acc.apply(op, repo) {
+                    log::warn!("Error applying op to `{}` state: {err}", T::type_name());
+                    return ControlFlow::Break(acc);
+                }
+            }
+            Err(err) => {
+                log::warn!("Error decoding ops for `{}` state: {err}", T::type_name());
+                return ControlFlow::Break(acc);
+            }
+        }
+        ControlFlow::Continue(acc)
+    });
+
+    obj.validate()?;
+
+    Ok(obj)
 }
 
 /// Store error.
@@ -104,8 +107,6 @@ pub enum Error {
     Identity(#[from] identity::IdentityError),
     #[error(transparent)]
     Serialize(#[from] serde_json::Error),
-    #[error("unexpected history type '{0}'")]
-    HistoryType(String),
     #[error("object `{1}` of type `{0}` was not found")]
     NotFound(TypeName, ObjectId),
     #[error("apply: {0}")]
@@ -177,8 +178,7 @@ where
             signer.public_key(),
             Update {
                 object_id,
-                history_type: HISTORY_TYPE.to_owned(),
-                typename: T::type_name().clone(),
+                type_name: T::type_name().clone(),
                 message: message.to_owned(),
                 changes,
             },
@@ -206,8 +206,8 @@ where
             parents,
             signer.public_key(),
             Create {
-                history_type: HISTORY_TYPE.to_owned(),
-                typename: T::type_name().clone(),
+                type_name: T::type_name().clone(),
+                version: Version::default(),
                 message: message.to_owned(),
                 contents,
             },
@@ -252,9 +252,6 @@ where
         let cob = cob::get(self.repo, T::type_name(), id)?;
 
         if let Some(cob) = cob {
-            if cob.manifest().history_type != HISTORY_TYPE {
-                return Err(Error::HistoryType(cob.manifest().history_type.clone()));
-            }
             let obj = T::from_history(cob.history(), self.repo).map_err(Error::apply)?;
 
             Ok(Some(obj))
@@ -357,12 +354,14 @@ impl<T: FromHistory> Transaction<T> {
         let author = self.actor;
         let timestamp = Timestamp::from_secs(object.history().timestamp());
         let identity = store.identity;
+        let manifest = object.manifest().clone();
         let op = cob::Op {
             id,
             actions,
             author,
             timestamp,
             identity,
+            manifest,
         };
 
         Ok((op, id))

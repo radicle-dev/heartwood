@@ -61,7 +61,7 @@ impl IssueBrowser {
             common::label("ID"),
             common::label("Title"),
             common::label("Author"),
-            common::label("Tags"),
+            common::label("Labels"),
             common::label("Assignees"),
             common::label("Opened"),
         ];

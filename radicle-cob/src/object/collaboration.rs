@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use git_ext::Oid;
 
-use crate::change::store::Manifest;
+use crate::change::store::{Manifest, Version};
 use crate::{change, History, ObjectId, TypeName};
 
 pub mod error;
@@ -47,7 +47,7 @@ impl CollaborativeObject {
     }
 
     pub fn typename(&self) -> &TypeName {
-        &self.manifest.typename
+        &self.manifest.type_name
     }
 
     pub fn manifest(&self) -> &Manifest {

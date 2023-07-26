@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
 
-use radicle::cob::common::{Reaction, Tag};
+use radicle::cob::common::{Label, Reaction};
 use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, Issues, State};
 use radicle::cob::thread;
@@ -36,7 +36,7 @@ Usage
     rad issue delete <issue-id> [<option>...]
     rad issue edit <issue-id> [<option>...]
     rad issue list [--assigned <did>] [--all | --closed | --open | --solved] [<option>...]
-    rad issue open [--title <title>] [--description <text>] [--tag <tag>] [<option>...]
+    rad issue open [--title <title>] [--description <text>] [--label <label>] [<option>...]
     rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
     rad issue show <issue-id> [<option>...]
     rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
@@ -52,7 +52,7 @@ Options
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub struct Metadata {
     title: String,
-    tags: Vec<Tag>,
+    labels: Vec<Label>,
     assignees: Vec<Did>,
 }
 
@@ -86,7 +86,7 @@ pub enum Operation {
     Open {
         title: Option<String>,
         description: Option<String>,
-        tags: Vec<Tag>,
+        labels: Vec<Label>,
     },
     Show {
         id: Rev,
@@ -129,7 +129,7 @@ impl Args for Options {
         let mut comment_id: Option<thread::CommentId> = None;
         let mut description: Option<String> = None;
         let mut state: Option<State> = Some(State::Open);
-        let mut tags = Vec::new();
+        let mut labels = Vec::new();
         let mut announce = true;
         let mut quiet = false;
 
@@ -157,12 +157,12 @@ impl Args for Options {
                 Long("title") if op == Some(OperationName::Open) => {
                     title = Some(parser.value()?.to_string_lossy().into());
                 }
-                Long("tag") if op == Some(OperationName::Open) => {
+                Long("label") if op == Some(OperationName::Open) => {
                     let val = parser.value()?;
                     let name = term::args::string(&val);
-                    let tag = Tag::new(name)?;
+                    let label = Label::new(name)?;
 
-                    tags.push(tag);
+                    labels.push(label);
                 }
                 Long("closed") if op == Some(OperationName::State) => {
                     state = Some(State::Closed {
@@ -234,7 +234,7 @@ impl Args for Options {
             OperationName::Open => Operation::Open {
                 title,
                 description,
-                tags,
+                labels,
             },
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
@@ -293,9 +293,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Open {
             title: Some(title),
             description: Some(description),
-            tags,
+            labels,
         } => {
-            let issue = issues.create(title, description, tags.as_slice(), &[], &signer)?;
+            let issue = issues.create(title, description, labels.as_slice(), &[], &signer)?;
             if !options.quiet {
                 show_issue(&issue, issue.id())?;
             }
@@ -329,12 +329,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Open {
             ref title,
             ref description,
-            ref tags,
+            ref labels,
         } => {
             open(
                 title.clone(),
                 description.clone(),
-                tags.to_vec(),
+                labels.to_vec(),
                 &options,
                 &mut issues,
                 &signer,
@@ -387,7 +387,7 @@ fn list<R: WriteRepository + cob::Store>(
         };
 
         if let Some(a) = assignee {
-            if !issue.assigned().any(|v| v == Did::from(a)) {
+            if !issue.assigned().any(|v| v == &Did::from(a)) {
                 continue;
             }
         }
@@ -413,7 +413,7 @@ fn list<R: WriteRepository + cob::Store>(
         term::format::bold(String::from("Title")).into(),
         term::format::bold(String::from("Author")).into(),
         term::format::bold(String::new()).into(),
-        term::format::bold(String::from("Tags")).into(),
+        term::format::bold(String::from("Labels")).into(),
         term::format::bold(String::from("Assignees")).into(),
         term::format::bold(String::from("Opened")).into(),
     ]);
@@ -424,7 +424,7 @@ fn list<R: WriteRepository + cob::Store>(
     for (id, issue) in all {
         let assigned: String = issue
             .assigned()
-            .map(|ref p| {
+            .map(|p| {
                 if let Some(alias) = aliases.alias(p) {
                     format!("{alias} ({})", term::format::did(p))
                 } else {
@@ -434,8 +434,8 @@ fn list<R: WriteRepository + cob::Store>(
             .collect::<Vec<_>>()
             .join(", ");
 
-        let mut tags = issue.tags().map(|t| t.to_string()).collect::<Vec<_>>();
-        tags.sort();
+        let mut labels = issue.labels().map(|t| t.to_string()).collect::<Vec<_>>();
+        labels.sort();
 
         let author = issue.author().id;
         let alias = aliases.alias(&author);
@@ -452,7 +452,7 @@ fn list<R: WriteRepository + cob::Store>(
             term::format::default(issue.title().to_owned()).into(),
             term::format::did(&issue.author().id).dim().into(),
             display.alias(),
-            term::format::secondary(tags.join(", ")).into(),
+            term::format::secondary(labels.join(", ")).into(),
             if assigned.is_empty() {
                 term::format::dim(String::default()).into()
             } else {
@@ -473,7 +473,7 @@ fn list<R: WriteRepository + cob::Store>(
 fn prompt_issue(
     title: &str,
     description: &str,
-    tags: &[Tag],
+    labels: &[Label],
     assignees: &[Did],
 ) -> anyhow::Result<Option<(Metadata, String)>> {
     let title = if title.is_empty() {
@@ -491,7 +491,7 @@ fn prompt_issue(
 
     let meta = Metadata {
         title: title.to_string(),
-        tags: tags.to_vec(),
+        labels: labels.to_vec(),
         assignees: assignees.to_vec(),
     };
     let yaml = serde_yaml::to_string(&meta)?;
@@ -550,7 +550,7 @@ fn prompt_issue(
 fn open<R: WriteRepository + cob::Store, G: Signer>(
     title: Option<String>,
     description: Option<String>,
-    tags: Vec<Tag>,
+    labels: Vec<Label>,
     options: &Options,
     issues: &mut Issues<R>,
     signer: &G,
@@ -558,7 +558,7 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
     let Some((meta, description)) = prompt_issue(
         &title.unwrap_or_default(),
         &description.unwrap_or_default(),
-        &tags,
+        &labels,
         &[],
     )? else {
         return Ok(());
@@ -567,12 +567,8 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
     let issue = issues.create(
         &meta.title,
         description.trim(),
-        meta.tags.as_slice(),
-        meta.assignees
-            .into_iter()
-            .map(cob::ActorId::from)
-            .collect::<Vec<_>>()
-            .as_slice(),
+        meta.labels.as_slice(),
+        meta.assignees.as_slice(),
         signer,
     )?;
     if !options.quiet {
@@ -611,49 +607,23 @@ fn edit<R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
     }
 
     // Editing by editor
-    let tags: Vec<_> = issue.tags().cloned().collect();
-    let assigned: Vec<_> = issue.assigned().collect();
+    let labels: Vec<_> = issue.labels().cloned().collect();
+    let assigned: Vec<_> = issue.assigned().cloned().collect();
 
-    let Some((meta, description)) = prompt_issue(
+    let Some((edited, description)) = prompt_issue(
         issue.title(),
         issue_desc,
-        &tags,
+        &labels,
         &assigned,
     )? else {
         return Ok(());
     };
 
     issue.transaction("Edit", signer, |tx| {
-        tx.edit(meta.title)?;
+        tx.edit(edited.title)?;
         tx.edit_comment(desc_id, description)?;
-
-        let add: Vec<_> = meta
-            .tags
-            .iter()
-            .filter(|t| !tags.contains(t))
-            .cloned()
-            .collect();
-        let remove: Vec<_> = tags
-            .iter()
-            .filter(|t| !meta.tags.contains(t))
-            .cloned()
-            .collect();
-        tx.tag(add, remove)?;
-
-        let assign: Vec<_> = meta
-            .assignees
-            .iter()
-            .filter(|t| !assigned.contains(t))
-            .cloned()
-            .map(cob::ActorId::from)
-            .collect();
-        let unassign: Vec<_> = assigned
-            .iter()
-            .filter(|t| !meta.assignees.contains(t))
-            .cloned()
-            .map(cob::ActorId::from)
-            .collect();
-        tx.assign(assign, unassign)?;
+        tx.label(edited.labels)?;
+        tx.assign(edited.assignees)?;
 
         Ok(())
     })?;
@@ -664,10 +634,10 @@ fn edit<R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
 }
 
 fn show_issue(issue: &issue::Issue, id: &cob::ObjectId) -> anyhow::Result<()> {
-    let tags: Vec<String> = issue.tags().cloned().map(|t| t.into()).collect();
+    let labels: Vec<String> = issue.labels().cloned().map(|t| t.into()).collect();
     let assignees: Vec<String> = issue
         .assigned()
-        .map(|a| term::format::did(&a).to_string())
+        .map(|a| term::format::did(a).to_string())
         .collect();
 
     let mut attrs = Table::<2, Paint<String>>::new(TableOptions {
@@ -685,10 +655,10 @@ fn show_issue(issue: &issue::Issue, id: &cob::ObjectId) -> anyhow::Result<()> {
         term::format::bold(id.to_string()),
     ]);
 
-    if !tags.is_empty() {
+    if !labels.is_empty() {
         attrs.push([
-            term::format::tertiary("Tags".to_owned()),
-            term::format::secondary(tags.join(", ")),
+            term::format::tertiary("Labels".to_owned()),
+            term::format::secondary(labels.join(", ")),
         ]);
     }
 

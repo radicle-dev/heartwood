@@ -91,7 +91,7 @@ fn rad_issue() {
 }
 
 #[test]
-fn rad_tag() {
+fn rad_label() {
     let mut environment = Environment::new();
     let profile = environment.profile("alice");
     let home = &profile.home;
@@ -102,7 +102,7 @@ fn rad_tag() {
 
     test("examples/rad-init.md", &working, Some(home), []).unwrap();
     test("examples/rad-issue.md", &working, Some(home), []).unwrap();
-    test("examples/rad-tag.md", &working, Some(home), []).unwrap();
+    test("examples/rad-label.md", &working, Some(home), []).unwrap();
 }
 
 #[test]

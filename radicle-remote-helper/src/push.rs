@@ -7,13 +7,13 @@ use std::{assert_eq, io};
 
 use thiserror::Error;
 
+use radicle::cob::object::ParseObjectId;
 use radicle::cob::patch;
 use radicle::crypto::{PublicKey, Signer};
 use radicle::node;
 use radicle::node::{Handle, NodeId};
 use radicle::prelude::Id;
 use radicle::storage;
-use radicle::storage::git::cob::object::ParseObjectId;
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::{ReadRepository, SignRepository as _, WriteRepository};
 use radicle::Profile;

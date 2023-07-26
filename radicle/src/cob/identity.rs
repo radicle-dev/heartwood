@@ -13,7 +13,7 @@ use crate::{
     cob::{
         self,
         store::{self, FromHistory as _, HistoryAction, Transaction},
-        Timestamp,
+        Reaction, Timestamp,
     },
     identity::{doc::DocError, Did, Identity, IdentityError},
     prelude::{Doc, ReadRepository},
@@ -37,33 +37,68 @@ pub type RevisionId = EntryId;
 
 /// Proposal operation.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type")]
 pub enum Action {
+    #[serde(rename = "accept")]
     Accept {
         revision: RevisionId,
         signature: Signature,
     },
+    #[serde(rename = "close")]
     Close,
+    #[serde(rename = "edit")]
     Edit {
         title: String,
         description: String,
     },
     Commit,
-    Redact {
+    #[serde(rename = "revision.redact")]
+    RevisionRedact {
         revision: RevisionId,
     },
+    #[serde(rename = "reject")]
     Reject {
         revision: RevisionId,
     },
+    #[serde(rename = "revision")]
     Revision {
         // N.b. the `Oid` is a blob identifier and not a commit, so we
         // do not need to propagate it via HistoryAction.
         current: Oid,
         proposed: Doc<Verified>,
     },
-    Thread {
+    #[serde(rename_all = "camelCase")]
+    #[serde(rename = "revision.comment")]
+    RevisionComment {
+        /// The revision to comment on.
         revision: RevisionId,
-        action: thread::Action,
+        /// Comment body.
+        body: String,
+        /// Comment this is a reply to.
+        /// Should be [`None`] if it's the top-level comment.
+        /// Should be the root [`EntryId`] if it's a top-level comment.
+        reply_to: Option<EntryId>,
+    },
+    /// Edit a revision comment.
+    #[serde(rename = "revision.comment.edit")]
+    RevisionCommentEdit {
+        revision: RevisionId,
+        comment: EntryId,
+        body: String,
+    },
+    /// Redact a revision comment.
+    #[serde(rename = "revision.comment.redact")]
+    RevisionCommentRedact {
+        revision: RevisionId,
+        comment: EntryId,
+    },
+    /// React to a revision comment.
+    #[serde(rename = "revision.comment.react")]
+    RevisionCommentReact {
+        revision: RevisionId,
+        comment: EntryId,
+        reaction: Reaction,
+        active: bool,
     },
 }
 
@@ -85,8 +120,6 @@ pub enum ApplyError {
     Committed,
     #[error(transparent)]
     Commit(#[from] CommitError),
-    #[error("the revision {0:?} is redacted")]
-    Redacted(EntryId),
     /// Error applying an op to the proposal thread.
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::Error),
@@ -104,9 +137,7 @@ pub enum CommitError {
     Closed(EntryId),
     #[error("the revision {0} is missing")]
     Missing(EntryId),
-    #[error(
-        "the identity hashes do match '{current} =/= {expected}' for the revision '{revision}'"
-    )]
+    #[error("the identity hashes do not match for revision {revision} ({current} =/= {expected})")]
     Mismatch {
         current: Oid,
         expected: Oid,
@@ -299,7 +330,7 @@ impl store::FromHistory for Proposal {
         Ok(())
     }
 
-    fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Self::Error> {
+    fn apply<R: ReadRepository>(&mut self, op: Op, _repo: &R) -> Result<(), Self::Error> {
         let id = op.id;
         let author = Author::new(op.author);
         let timestamp = op.timestamp;
@@ -313,54 +344,107 @@ impl store::FromHistory for Proposal {
                 Action::Accept {
                     revision,
                     signature,
-                } => match self.revisions.get_mut(&revision) {
-                    Some(Some(revision)) => revision.accept(op.author, signature),
-                    Some(None) => return Err(ApplyError::Redacted(revision)),
-                    None => return Err(ApplyError::Missing(revision)),
-                },
+                } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        revision.accept(op.author, signature);
+                    }
+                }
                 Action::Close => self.state = State::Closed,
                 Action::Edit { title, description } => {
                     self.title = title;
                     self.description = description;
                 }
                 Action::Commit => self.state = State::Committed,
-                Action::Redact { revision } => {
+                Action::RevisionRedact { revision } => {
                     if let Some(revision) = self.revisions.get_mut(&revision) {
                         *revision = None;
                     } else {
                         return Err(ApplyError::Missing(revision));
                     }
                 }
-                Action::Reject { revision } => match self.revisions.get_mut(&revision) {
-                    Some(Some(revision)) => revision.reject(op.author),
-                    Some(None) => return Err(ApplyError::Redacted(revision)),
-                    None => return Err(ApplyError::Missing(revision)),
-                },
-                Action::Revision { current, proposed } => {
-                    // Since revisions are keyed by content hash, we shouldn't re-insert a revision
-                    // if it already exists, otherwise this will be resolved via the `merge`
-                    // operation of `Redactable`.
-                    if self.revisions.contains_key(&id) {
-                        continue;
+                Action::Reject { revision } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        revision.reject(op.author);
                     }
+                }
+                Action::Revision { current, proposed } => {
+                    debug_assert!(!self.revisions.contains_key(&id));
+
                     self.revisions.insert(
                         id,
                         Some(Revision::new(author.clone(), current, proposed, timestamp)),
                     );
                 }
 
-                Action::Thread { revision, action } => match self.revisions.get_mut(&revision) {
-                    Some(Some(revision)) => revision.discussion.apply(
-                        cob::Op::new(op.id, action, op.author, op.timestamp, op.identity),
-                        repo,
-                    )?,
-                    Some(None) => return Err(ApplyError::Redacted(revision)),
-                    None => return Err(ApplyError::Missing(revision)),
-                },
+                Action::RevisionComment {
+                    revision,
+                    body,
+                    reply_to,
+                } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        thread::comment(
+                            &mut revision.discussion,
+                            op.id,
+                            op.author,
+                            op.timestamp,
+                            body,
+                            reply_to,
+                            None,
+                        )?;
+                    }
+                }
+                Action::RevisionCommentEdit {
+                    revision,
+                    comment,
+                    body,
+                } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        thread::edit(&mut revision.discussion, op.id, comment, op.timestamp, body)?;
+                    }
+                }
+                Action::RevisionCommentRedact { revision, comment } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        thread::redact(&mut revision.discussion, op.id, comment)?;
+                    }
+                }
+                Action::RevisionCommentReact {
+                    revision,
+                    comment,
+                    reaction,
+                    active,
+                } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        thread::react(
+                            &mut revision.discussion,
+                            op.id,
+                            op.author,
+                            comment,
+                            reaction,
+                            active,
+                        )?;
+                    }
+                }
             }
         }
 
         Ok(())
+    }
+}
+
+mod lookup {
+    use super::*;
+
+    pub fn revision<'a>(
+        proposal: &'a mut Proposal,
+        revision: &RevisionId,
+    ) -> Result<Option<&'a mut Revision>, ApplyError> {
+        match proposal.revisions.get_mut(revision) {
+            Some(Some(revision)) => Ok(Some(revision)),
+            // Redacted.
+            Some(None) => Ok(None),
+            // Missing. Causal error.
+            None => Err(ApplyError::Missing(*revision)),
+        }
     }
 }
 
@@ -487,7 +571,7 @@ impl store::Transaction<Proposal> {
     }
 
     pub fn redact(&mut self, revision: RevisionId) -> Result<(), store::Error> {
-        self.push(Action::Redact { revision })
+        self.push(Action::RevisionRedact { revision })
     }
 
     pub fn revision(&mut self, current: Oid, proposed: Doc<Verified>) -> Result<(), store::Error> {
@@ -500,12 +584,10 @@ impl store::Transaction<Proposal> {
         revision: RevisionId,
         body: S,
     ) -> Result<(), store::Error> {
-        self.push(Action::Thread {
+        self.push(Action::RevisionComment {
             revision,
-            action: thread::Action::Comment {
-                body: body.to_string(),
-                reply_to: None,
-            },
+            body: body.to_string(),
+            reply_to: None,
         })
     }
 
@@ -516,12 +598,10 @@ impl store::Transaction<Proposal> {
         body: S,
         reply_to: thread::CommentId,
     ) -> Result<(), store::Error> {
-        self.push(Action::Thread {
+        self.push(Action::RevisionComment {
             revision,
-            action: thread::Action::Comment {
-                body: body.to_string(),
-                reply_to: Some(reply_to),
-            },
+            body: body.to_string(),
+            reply_to: Some(reply_to),
         })
     }
 }

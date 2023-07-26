@@ -44,11 +44,30 @@ pub struct Reaction {
 }
 
 impl Reaction {
+    /// Create a new reaction from an emoji.
     pub fn new(emoji: char) -> Result<Self, ReactionError> {
-        if emoji.is_whitespace() || emoji.is_ascii() || emoji.is_alphanumeric() {
-            return Err(ReactionError::InvalidReaction);
+        let val = emoji as u32;
+        let emoticons = 0x1F600..=0x1F64F;
+        let misc = 0x1F300..=0x1F5FF; // Miscellaneous Symbols and Pictographs
+        let dingbats = 0x2700..=0x27BF;
+        let supp = 0x1F900..=0x1F9FF; // Supplemental Symbols and Pictographs
+        let transport = 0x1F680..=0x1F6FF;
+
+        if emoticons.contains(&val)
+            || misc.contains(&val)
+            || dingbats.contains(&val)
+            || supp.contains(&val)
+            || transport.contains(&val)
+        {
+            Ok(Self { emoji })
+        } else {
+            Err(ReactionError::InvalidReaction)
         }
-        Ok(Self { emoji })
+    }
+
+    /// Get the reaction emoji.
+    pub fn emoji(&self) -> char {
+        self.emoji
     }
 }
 
@@ -108,21 +127,21 @@ impl FromStr for Reaction {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum TagError {
+pub enum LabelError {
     #[error("invalid tag name: `{0}`")]
     InvalidName(String),
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Tag(String);
+pub struct Label(String);
 
-impl Tag {
-    pub fn new(name: impl ToString) -> Result<Self, TagError> {
+impl Label {
+    pub fn new(name: impl ToString) -> Result<Self, LabelError> {
         let name = name.to_string();
 
         if name.chars().any(|c| c.is_whitespace()) || name.is_empty() {
-            return Err(TagError::InvalidName(name));
+            return Err(LabelError::InvalidName(name));
         }
         Ok(Self(name))
     }
@@ -132,22 +151,22 @@ impl Tag {
     }
 }
 
-impl FromStr for Tag {
-    type Err = TagError;
+impl FromStr for Label {
+    type Err = LabelError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::new(s)
     }
 }
 
-impl Display for Tag {
+impl Display for Label {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl From<Tag> for String {
-    fn from(Tag(name): Tag) -> Self {
+impl From<Label> for String {
+    fn from(Label(name): Label) -> Self {
         name
     }
 }

@@ -9,6 +9,8 @@ use radicle_dag::Dag;
 pub mod entry;
 pub use entry::{Contents, Entry, EntryId, Timestamp};
 
+use crate::Manifest;
+
 /// The DAG of changes making up the history of a collaborative object.
 #[derive(Clone, Debug)]
 pub struct History {
@@ -40,6 +42,7 @@ impl History {
         resource: Oid,
         contents: Contents,
         timestamp: Timestamp,
+        manifest: Manifest,
     ) -> Self
     where
         Id: Into<EntryId>,
@@ -51,6 +54,7 @@ impl History {
             resource,
             contents,
             timestamp,
+            manifest,
         };
 
         Self {
@@ -111,12 +115,20 @@ impl History {
         new_resource: Oid,
         new_contents: Contents,
         new_timestamp: Timestamp,
+        manifest: Manifest,
     ) where
         Id: Into<EntryId>,
     {
         let tips = self.tips();
         let new_id = new_id.into();
-        let new_entry = Entry::new(new_id, new_actor, new_resource, new_contents, new_timestamp);
+        let new_entry = Entry::new(
+            new_id,
+            new_actor,
+            new_resource,
+            new_contents,
+            new_timestamp,
+            manifest,
+        );
 
         self.graph.node(new_id, new_entry);
 
@@ -141,7 +153,10 @@ impl History {
     }
 
     /// Get the root entry.
-    pub fn root(&self) -> EntryId {
-        self.root
+    pub fn root(&self) -> &Entry {
+        // SAFETY: We don't allow construction of histories without a root.
+        self.graph
+            .get(&self.root)
+            .expect("History::root: the root entry must be present in the graph")
     }
 }
