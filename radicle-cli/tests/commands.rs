@@ -793,6 +793,8 @@ fn rad_sync() {
     alice.connect(&bob);
     eve.connect(&alice);
 
+    thread::sleep(time::Duration::from_millis(30));
+
     bob.routes_to(&[(acme, alice.id)]);
     eve.routes_to(&[(acme, alice.id)]);
     alice.routes_to(&[(acme, alice.id), (acme, eve.id), (acme, bob.id)]);
