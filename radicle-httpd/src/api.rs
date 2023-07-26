@@ -1,6 +1,7 @@
 pub mod auth;
 
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -38,6 +39,7 @@ pub struct Context {
     profile: Arc<Profile>,
     sessions: Arc<RwLock<HashMap<SessionId, auth::Session>>>,
     cache: Option<Cache>,
+    address: SocketAddr,
 }
 
 impl Context {
@@ -46,6 +48,7 @@ impl Context {
             profile,
             sessions: Default::default(),
             cache: options.cache.map(Cache::new),
+            address: options.listen,
         }
     }
 
