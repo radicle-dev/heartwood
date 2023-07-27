@@ -132,12 +132,12 @@ impl Options {
 fn execute() -> anyhow::Result<()> {
     logger::init(log::Level::Debug)?;
 
-    log::info!(target: "node", "Starting node..");
-    log::info!(target: "node", "Version {} ({})", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));
-
     let home = profile::home()?;
     let mut config = profile::Config::load(&home.config())?.node;
+    let options = Options::from_env(&mut config)?;
 
+    log::info!(target: "node", "Starting node..");
+    log::info!(target: "node", "Version {} ({})", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));
     log::info!(target: "node", "Unlocking node keystore..");
 
     let passphrase = profile::env::passphrase();
@@ -146,7 +146,6 @@ fn execute() -> anyhow::Result<()> {
 
     log::info!(target: "node", "Node ID is {}", signer.public_key());
 
-    let options = Options::from_env(&mut config)?;
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
     let daemon = options.daemon.unwrap_or_else(|| {
         net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), radicle::git::PROTOCOL_PORT)
