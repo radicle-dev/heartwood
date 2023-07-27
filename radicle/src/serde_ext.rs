@@ -29,22 +29,20 @@ pub mod string {
 pub mod localtime {
     pub mod time {
         use localtime::LocalTime;
-        use serde::{de, Deserialize, Deserializer, Serializer};
+        use serde::{Deserialize, Deserializer, Serializer};
 
         pub fn serialize<S>(value: &LocalTime, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
         {
-            serializer.collect_str(&value.as_secs())
+            serializer.serialize_u64(value.as_secs())
         }
 
         pub fn deserialize<'de, D>(deserializer: D) -> Result<LocalTime, D::Error>
         where
             D: Deserializer<'de>,
         {
-            let seconds: u64 = String::deserialize(deserializer)?
-                .parse()
-                .map_err(de::Error::custom)?;
+            let seconds = u64::deserialize(deserializer)?;
 
             Ok(LocalTime::from_secs(seconds))
         }
@@ -52,22 +50,20 @@ pub mod localtime {
 
     pub mod duration {
         use localtime::LocalDuration;
-        use serde::{de, Deserialize, Deserializer, Serializer};
+        use serde::{Deserialize, Deserializer, Serializer};
 
         pub fn serialize<S>(value: &LocalDuration, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
         {
-            serializer.collect_str(&value.as_secs())
+            serializer.serialize_u64(value.as_secs())
         }
 
         pub fn deserialize<'de, D>(deserializer: D) -> Result<LocalDuration, D::Error>
         where
             D: Deserializer<'de>,
         {
-            let seconds: u64 = String::deserialize(deserializer)?
-                .parse()
-                .map_err(de::Error::custom)?;
+            let seconds = u64::deserialize(deserializer)?;
 
             Ok(LocalDuration::from_secs(seconds))
         }

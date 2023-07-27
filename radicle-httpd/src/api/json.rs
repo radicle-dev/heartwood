@@ -139,7 +139,7 @@ pub(crate) fn patch(
                 "discussions": rev.discussion().comments()
                   .map(|(id, comment)| Comment::new(id, comment,  aliases))
                   .collect::<Vec<_>>(),
-                "timestamp": rev.timestamp().as_secs().to_string(),
+                "timestamp": rev.timestamp().as_secs(),
                 "reviews": rev.reviews().map(|(nid, _review)| review(nid, aliases.alias(nid), _review)).collect::<Vec<_>>(),
             })
         }).collect::<Vec<_>>(),
@@ -166,7 +166,7 @@ fn merge(merge: &Merge, nid: &NodeId, alias: Option<Alias>) -> Value {
                 "alias": alias,
             },
             "commit": merge.commit,
-            "timestamp": merge.timestamp.as_secs().to_string(),
+            "timestamp": merge.timestamp.as_secs(),
             "revision": merge.revision,
         }),
         None => json!({
@@ -174,7 +174,7 @@ fn merge(merge: &Merge, nid: &NodeId, alias: Option<Alias>) -> Value {
                 "id": nid,
             },
             "commit": merge.commit,
-            "timestamp": merge.timestamp.as_secs().to_string(),
+            "timestamp": merge.timestamp.as_secs(),
             "revision": merge.revision,
         }),
     }
@@ -191,7 +191,7 @@ fn review(nid: &NodeId, alias: Option<Alias>, review: &Review) -> Value {
             "verdict": review.verdict(),
             "summary": review.summary(),
             "comments": review.comments().collect::<Vec<_>>(),
-            "timestamp": review.timestamp().as_secs().to_string(),
+            "timestamp": review.timestamp().as_secs(),
         }),
         None => json!({
             "author": {
@@ -200,7 +200,7 @@ fn review(nid: &NodeId, alias: Option<Alias>, review: &Review) -> Value {
             "verdict": review.verdict(),
             "summary": review.summary(),
             "comments": review.comments().collect::<Vec<_>>(),
-            "timestamp": review.timestamp().as_secs().to_string(),
+            "timestamp": review.timestamp().as_secs(),
         }),
     }
 }
