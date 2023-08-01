@@ -153,6 +153,8 @@ pub enum MemorySignerError {
     Keystore(#[from] Error),
     #[error("key not found in '{0}'")]
     NotFound(PathBuf),
+    #[error("invalid passphrase")]
+    InvalidPassphrase,
 }
 
 /// An in-memory signer that keeps its secret key internally
@@ -217,7 +219,14 @@ impl MemorySigner {
             .public_key()?
             .ok_or_else(|| MemorySignerError::NotFound(keystore.path().to_path_buf()))?;
         let secret = keystore
-            .secret_key(passphrase)?
+            .secret_key(passphrase)
+            .map_err(|e| {
+                if e.is_crypto_err() {
+                    MemorySignerError::InvalidPassphrase
+                } else {
+                    e.into()
+                }
+            })?
             .ok_or_else(|| MemorySignerError::NotFound(keystore.path().to_path_buf()))?;
 
         Ok(Self { public, secret })

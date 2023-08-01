@@ -81,14 +81,14 @@ pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> 
     let logs = profile.home.node().join("node.log");
 
     let mut file = BufReader::new(File::open(logs)?);
-    file.seek(SeekFrom::End(-1))?;
+    file.seek(SeekFrom::End(0))?;
 
     let mut tail = Vec::new();
     let mut nlines = 0;
 
-    for i in (0..=file.stream_position()?).rev() {
+    for i in (1..=file.stream_position()?).rev() {
         let mut buf = [0; 1];
-        file.seek(SeekFrom::Start(i))?;
+        file.seek(SeekFrom::Start(i - 1))?;
         file.read_exact(&mut buf)?;
 
         if buf[0] == b'\n' {

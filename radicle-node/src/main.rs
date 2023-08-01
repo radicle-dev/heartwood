@@ -1,7 +1,7 @@
 use std::io;
 use std::{env, fs, net, process};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use crossbeam_channel as chan;
 use cyphernet::addr::PeerAddr;
 use localtime::LocalDuration;
@@ -142,7 +142,7 @@ fn execute() -> anyhow::Result<()> {
 
     let passphrase = profile::env::passphrase();
     let keystore = Keystore::new(&home.keys());
-    let signer = MemorySigner::load(&keystore, passphrase)?;
+    let signer = MemorySigner::load(&keystore, passphrase).context("couldn't load secret key")?;
 
     log::info!(target: "node", "Node ID is {}", signer.public_key());
 
