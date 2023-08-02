@@ -26,7 +26,7 @@ pub fn run(
     let commit = find_patch_commit(&patch, &patch_branch, stored, working)?;
 
     // Create patch branch and switch to it.
-    working.branch(patch_branch.as_str(), &commit, false)?;
+    working.branch(patch_branch.as_str(), &commit, true)?;
     working.checkout_tree(commit.as_object(), None)?;
     working.set_head(&git::refs::workdir::branch(&patch_branch))?;
 
