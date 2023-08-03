@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::io::IsTerminal;
 use std::path::Path;
 use std::str::FromStr;
 use std::time;
@@ -535,11 +536,12 @@ fn sync(rid: Id, mut node: radicle::Node) -> Result<(), radicle::node::Error> {
         eprintln!("Not connected to any seeds.");
         return Ok(());
     }
-    let mut spinner = cli::spinner_to(
-        format!("Syncing with {} node(s)..", connected.len()),
-        io::stderr(),
-        io::stderr(),
-    );
+    let message = format!("Syncing with {} node(s)..", connected.len());
+    let mut spinner = if io::stderr().is_terminal() {
+        cli::spinner_to(message, io::stderr(), io::stderr())
+    } else {
+        cli::spinner_to(message, io::stderr(), io::sink())
+    };
     let result = node.announce(rid, connected, DEFAULT_SYNC_TIMEOUT, |event| match event {
         node::AnnounceEvent::Announced => {}
         node::AnnounceEvent::RefsSynced { remote } => {

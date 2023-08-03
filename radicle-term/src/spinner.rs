@@ -111,7 +111,7 @@ pub fn spinner(message: impl ToString) -> Spinner {
 /// Create a new spinner with the given message, and send output to the given writers.
 pub fn spinner_to(
     message: impl ToString,
-    completion: impl io::Write + Send + 'static,
+    mut completion: impl io::Write + Send + 'static,
     animation: impl io::Write + Send + 'static,
 ) -> Spinner {
     let message = message.to_string();
@@ -122,13 +122,12 @@ pub fn spinner_to(
             let progress = progress.clone();
 
             move || {
-                let mut stdout = completion;
-                let mut stderr = termion::cursor::HideCursor::from(animation);
+                let mut animation = termion::cursor::HideCursor::from(animation);
 
                 loop {
                     let Ok(mut progress) = progress.lock() else {
-                    break;
-                };
+                        break;
+                    };
                     match &mut *progress {
                         Progress {
                             state: State::Running { cursor },
@@ -137,14 +136,14 @@ pub fn spinner_to(
                             let spinner = DEFAULT_STYLE[*cursor];
 
                             write!(
-                                stderr,
+                                animation,
                                 "{}{}{spinner} {message}",
                                 termion::cursor::Save,
                                 termion::clear::AfterCursor,
                             )
                             .ok();
 
-                            write!(stderr, "{}", termion::cursor::Restore).ok();
+                            write!(animation, "{}", termion::cursor::Restore).ok();
 
                             *cursor += 1;
                             *cursor %= DEFAULT_STYLE.len();
@@ -153,17 +152,17 @@ pub fn spinner_to(
                             state: State::Done,
                             message,
                         } => {
-                            write!(stderr, "{}", termion::clear::AfterCursor).ok();
-                            writeln!(stdout, "{} {message}", Paint::green("✓")).ok();
+                            write!(animation, "{}", termion::clear::AfterCursor).ok();
+                            writeln!(completion, "{} {message}", Paint::green("✓")).ok();
                             break;
                         }
                         Progress {
                             state: State::Canceled,
                             message,
                         } => {
-                            write!(stderr, "{}", termion::clear::AfterCursor).ok();
+                            write!(animation, "{}", termion::clear::AfterCursor).ok();
                             writeln!(
-                                stdout,
+                                completion,
                                 "{ERROR_PREFIX} {message} {}",
                                 Paint::red("<canceled>")
                             )
@@ -174,14 +173,14 @@ pub fn spinner_to(
                             state: State::Warn,
                             message,
                         } => {
-                            writeln!(stdout, "{WARNING_PREFIX} {message}").ok();
+                            writeln!(completion, "{WARNING_PREFIX} {message}").ok();
                             break;
                         }
                         Progress {
                             state: State::Error,
                             message,
                         } => {
-                            writeln!(stdout, "{ERROR_PREFIX} {message}").ok();
+                            writeln!(completion, "{ERROR_PREFIX} {message}").ok();
                             break;
                         }
                     }
