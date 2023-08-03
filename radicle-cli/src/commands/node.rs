@@ -32,28 +32,33 @@ Usage
     rad node connect <nid>@<addr> [<option>...]
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
     rad node tracking [--repos | --nodes] [<option>...]
-    rad node events [<option>...]
+    rad node events [--timeout <secs>] [-n <count>] [<option>...]
 
     For `<node-option>` see `radicle-node --help`.
 
 Start options
 
-    --foreground    Start the node in the foreground
+    --foreground         Start the node in the foreground
 
 Routing options
 
-    --rid <rid>     Show the routing table entries for the given RID
-    --nid <nid>     Show the routing table entries for the given NID
-    --json          Output the routing table as json
+    --rid <rid>          Show the routing table entries for the given RID
+    --nid <nid>          Show the routing table entries for the given NID
+    --json               Output the routing table as json
 
 Tracking options
 
-    --repos         Show the tracked repositories table
-    --nodes         Show the tracked nodes table
+    --repos              Show the tracked repositories table
+    --nodes              Show the tracked nodes table
+
+Events options
+
+    --timeout <secs>     How long to wait to receive an event before giving up
+    --count, -n <count>  Exit after <count> events
 
 General options
 
-    --help          Print help
+    --help               Print help
 "#,
 };
 
@@ -65,7 +70,10 @@ pub enum Operation {
     Connect {
         addr: PeerAddr<NodeId, Address>,
     },
-    Events,
+    Events {
+        timeout: time::Duration,
+        count: usize,
+    },
     Routing {
         json: bool,
         rid: Option<Id>,
@@ -119,6 +127,8 @@ impl Args for Options {
         let mut json: bool = false;
         let mut addr: Option<PeerAddr<NodeId, Address>> = None;
         let mut lines: usize = 10;
+        let mut count: usize = usize::MAX;
+        let mut timeout = time::Duration::MAX;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -149,6 +159,14 @@ impl Args for Options {
                     nid = term::args::nid(&val).ok();
                 }
                 Long("json") if matches!(op, Some(OperationName::Routing)) => json = true,
+                Long("timeout") if matches!(op, Some(OperationName::Events)) => {
+                    let val = parser.value()?;
+                    timeout = term::args::seconds(&val)?;
+                }
+                Long("count") | Short('n') if matches!(op, Some(OperationName::Events)) => {
+                    let val = parser.value()?;
+                    count = term::args::number(&val)?;
+                }
                 Long("repos") if matches!(op, Some(OperationName::Tracking)) => {
                     tracking_mode = TrackingMode::Repos
                 }
@@ -174,7 +192,7 @@ impl Args for Options {
                     anyhow!("an address of the form `<nid>@<host>:<port>` must be provided")
                 })?,
             },
-            OperationName::Events => Operation::Events,
+            OperationName::Events => Operation::Events { timeout, count },
             OperationName::Routing => Operation::Routing { rid, nid, json },
             OperationName::Logs => Operation::Logs { lines },
             OperationName::Start => Operation::Start {
@@ -197,8 +215,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.op {
         Operation::Connect { addr } => control::connect(&mut node, addr.id, addr.addr)?,
-        Operation::Events => {
-            events::run(node)?;
+        Operation::Events { timeout, count } => {
+            events::run(node, count, timeout)?;
         }
         Operation::Routing { rid, nid, json } => {
             let store =

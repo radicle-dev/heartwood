@@ -1,5 +1,6 @@
 use std::ffi::OsString;
 use std::str::FromStr;
+use std::time;
 
 use anyhow::anyhow;
 
@@ -130,6 +131,13 @@ pub fn addr(val: &OsString) -> anyhow::Result<Address> {
 pub fn number(val: &OsString) -> anyhow::Result<usize> {
     let val = val.to_string_lossy();
     usize::from_str(&val).map_err(|_| anyhow!("invalid number '{}'", val))
+}
+
+pub fn seconds(val: &OsString) -> anyhow::Result<time::Duration> {
+    let val = val.to_string_lossy();
+    let secs = u64::from_str(&val).map_err(|_| anyhow!("invalid number of seconds '{}'", val))?;
+
+    Ok(time::Duration::from_secs(secs))
 }
 
 pub fn string(val: &OsString) -> String {
