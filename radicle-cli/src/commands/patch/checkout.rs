@@ -23,7 +23,7 @@ pub fn run(
     let patch_branch =
         // SAFETY: Patch IDs are valid refstrings.
         git::refname!("patch").join(RefString::try_from(term::format::cob(patch_id)).unwrap());
-    let commit = find_patch_commit(&patch, &patch_branch, stored, working)?;
+    let commit = find_patch_commit(&patch, stored, working)?;
 
     // Create patch branch and switch to it.
     working.branch(patch_branch.as_str(), &commit, true)?;
@@ -53,7 +53,6 @@ pub fn run(
 /// fetch it from storage first.
 fn find_patch_commit<'a>(
     patch: &Patch,
-    patch_branch: &RefString,
     stored: &Repository,
     working: &'a git::raw::Repository,
 ) -> anyhow::Result<git::raw::Commit<'a>> {
@@ -62,26 +61,10 @@ fn find_patch_commit<'a>(
     match working.find_commit(patch_head.into()) {
         Ok(commit) => Ok(commit),
         Err(e) if git::ext::is_not_found_err(&e) => {
-            let (_, rev) = patch.latest();
-            let author = *rev.author().id();
-            let remote = stored.remote(&author)?;
+            let url = git::url::File::new(stored.path());
 
-            // Find a ref in storage that points to our patch, so that we can fetch the patch
-            // objects into our working copy.
-            let (refstr, _) = remote
-                .refs
-                .iter()
-                .find(|(_, o)| **o == patch_head)
-                .ok_or(anyhow!("patch ref for {patch_head} not found in storage"))?;
-            let remote_branch = git::refs::workdir::remote_branch(
-                &RefString::try_from(author.as_key().to_human())?,
-                patch_branch,
-            );
-            let url = git::Url::from(stored.id).with_namespace(*author);
-
-            // Fetch only the ref pointing to the patch revision.
             working.remote_anonymous(url.to_string().as_str())?.fetch(
-                &[&format!("{refstr}:{remote_branch}")],
+                &[patch_head.to_string()],
                 None,
                 None,
             )?;

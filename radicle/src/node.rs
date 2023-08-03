@@ -408,6 +408,7 @@ impl Seeds {
 }
 
 /// Announcement result returned by [`Node::announce`].
+#[derive(Debug)]
 pub struct AnnounceResult {
     /// Nodes that timed out.
     pub timeout: Vec<NodeId>,
@@ -416,6 +417,7 @@ pub struct AnnounceResult {
 }
 
 /// A sync event, emitted by [`Node::announce`].
+#[derive(Debug)]
 pub enum AnnounceEvent {
     /// Refs were synced with the given node.
     RefsSynced { remote: NodeId },
@@ -640,7 +642,16 @@ impl Node {
         stream.set_read_timeout(Some(timeout))?;
 
         Ok(BufReader::new(stream).lines().map(move |l| {
-            let l = l?;
+            let l = l.map_err(|e| {
+                if e.kind() == io::ErrorKind::WouldBlock {
+                    io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "timed out reading from control socket",
+                    )
+                } else {
+                    e
+                }
+            })?;
             let v = json::from_str(&l).map_err(|e| CallError::InvalidJson {
                 response: l,
                 error: e,
@@ -680,7 +691,7 @@ impl Node {
                 }
                 Ok(_) => {}
 
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                Err(e) if e.kind() == io::ErrorKind::TimedOut => {
                     timeout.extend(seeds.iter());
                     break;
                 }

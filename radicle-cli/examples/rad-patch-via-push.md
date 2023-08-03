@@ -62,7 +62,7 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354 refs/remotes/rad/master
 42d894a83c9c356552a57af09ccdbd5587a99045 refs/remotes/rad/patches/2647168c23e7c2b2c1936d695443944e143bc3f7
 ```
 ```
-$ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 'refs/heads/patches/*'
+$ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji 'refs/heads/patches/*'
 42d894a83c9c356552a57af09ccdbd5587a99045	refs/heads/patches/2647168c23e7c2b2c1936d695443944e143bc3f7
 $ git ls-remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 'refs/cobs/*'
 2647168c23e7c2b2c1936d695443944e143bc3f7	refs/cobs/xyz.radicle.patch/2647168c23e7c2b2c1936d695443944e143bc3f7

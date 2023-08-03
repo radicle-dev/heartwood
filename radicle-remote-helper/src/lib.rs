@@ -8,6 +8,7 @@ mod list;
 mod push;
 
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::{env, io};
 
 use thiserror::Error;
@@ -40,6 +41,9 @@ pub enum Error {
     /// Git error.
     #[error("git: {0}")]
     Git(#[from] git::raw::Error),
+    /// Invalid reference name.
+    #[error("invalid ref: {0}")]
+    InvalidRef(#[from] radicle::git::fmt::Error),
     /// Storage error.
     #[error(transparent)]
     Storage(#[from] radicle::storage::Error),
@@ -90,6 +94,8 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
     let working = env::var("GIT_DIR")
         .map(PathBuf::from)
         .map_err(|_| Error::NoGitDir)?;
+    // Whether we should output debug logs.
+    let debug = env::var("RAD_DEBUG").is_ok();
 
     let stdin = io::stdin();
     let mut line = String::new();
@@ -97,6 +103,10 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
 
     loop {
         let tokens = read_line(&stdin, &mut line)?;
+
+        if debug {
+            eprintln!("git-remote-rad: {:?}", &tokens);
+        }
 
         match tokens.as_slice() {
             ["capabilities"] => {
@@ -144,8 +154,11 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
             ["option", ..] => {
                 println!("unsupported");
             }
-            ["fetch", _oid, refstr] => {
-                return fetch::run(vec![refstr.to_string()], &working, url, stored, &stdin)
+            ["fetch", oid, refstr] => {
+                let oid = git::Oid::from_str(oid)?;
+                let refstr = git::RefString::try_from(*refstr)?;
+
+                return fetch::run(vec![(oid, refstr)], &working, url, stored, &stdin)
                     .map_err(Error::from);
             }
             ["push", refspec] => {

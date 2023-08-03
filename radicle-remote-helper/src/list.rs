@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+use radicle::cob;
 use radicle::git;
 use radicle::storage::git::transport::local::Url;
 use radicle::storage::ReadRepository;
@@ -16,10 +17,13 @@ pub enum Error {
     /// Git error.
     #[error(transparent)]
     Git(#[from] radicle::git::ext::Error),
+    /// COB store error.
+    #[error(transparent)]
+    CobStore(#[from] cob::store::Error),
 }
 
 /// List refs for fetching (`git fetch` and `git ls-remote`).
-pub fn for_fetch<R: ReadRepository>(url: &Url, stored: &R) -> Result<(), Error> {
+pub fn for_fetch<R: ReadRepository + cob::Store>(url: &Url, stored: &R) -> Result<(), Error> {
     if let Some(namespace) = url.namespace {
         // Listing namespaced refs.
         for (name, oid) in stored.references_of(&namespace)? {
@@ -36,6 +40,11 @@ pub fn for_fetch<R: ReadRepository>(url: &Url, stored: &R) -> Result<(), Error> 
                 println!("{oid} {name}");
             }
         }
+        // List the patch refs, but don't abort if there's an error, as this would break
+        // all fetch behavior. Instead, just output an error to the user.
+        if let Err(e) = patch_refs(stored) {
+            eprintln!("remote: error listing patch refs: {e}");
+        }
     }
     println!();
 
@@ -46,9 +55,24 @@ pub fn for_fetch<R: ReadRepository>(url: &Url, stored: &R) -> Result<(), Error> 
 pub fn for_push<R: ReadRepository>(profile: &Profile, stored: &R) -> Result<(), Error> {
     // Only our own refs can be pushed to.
     for (name, oid) in stored.references_of(profile.id())? {
-        println!("{oid} {name}");
+        // Only branches and tags can be pushed to.
+        if name.starts_with(git::refname!("refs/heads").as_str())
+            || name.starts_with(git::refname!("refs/tags").as_str())
+        {
+            println!("{oid} {name}");
+        }
     }
     println!();
 
+    Ok(())
+}
+
+/// List canonical patch references. These are magic refs that can be used to pull patch updates.
+fn patch_refs<R: ReadRepository + cob::Store>(stored: &R) -> Result<(), Error> {
+    let patches = radicle::cob::patch::Patches::open(stored)?;
+    for patch in patches.all()? {
+        let (id, patch) = patch?;
+        println!("{} {}", patch.head(), git::refs::storage::patch(&id));
+    }
     Ok(())
 }

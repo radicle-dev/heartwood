@@ -230,15 +230,14 @@ pub mod refs {
 
         /// A patch reference.
         ///
-        /// `refs/namespaces/<remote>/refs/heads/patches/<object_id>`
+        /// `refs/heads/patches/<object_id>`
         ///
-        pub fn patch<'a>(remote: &RemoteId, object_id: &cob::ObjectId) -> Namespaced<'a> {
+        pub fn patch<'a>(object_id: &cob::ObjectId) -> Qualified<'a> {
             Qualified::from_components(
                 component!("heads"),
                 component!("patches"),
                 Some(object_id.into()),
             )
-            .with_namespace(remote.into())
         }
 
         /// Draft references.

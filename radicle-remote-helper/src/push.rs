@@ -318,7 +318,7 @@ fn patch_open<G: Signer>(
             //
             //  refs/namespaces/<nid>/refs/heads/patches/<patch-id>
             //
-            let refname = git::refs::storage::patch(nid, &patch);
+            let refname = git::refs::storage::patch(&patch).with_namespace(nid.into());
             let _ = stored.raw().reference(
                 refname.as_str(),
                 commit.id(),
@@ -493,7 +493,7 @@ fn patch_merge<G: Signer>(
     // Note that we don't return an error if we can't delete the refs, since it's
     // not critical.
     let nid = signer.public_key();
-    let stored_ref = git::refs::storage::patch(nid, &patch.id);
+    let stored_ref = git::refs::storage::patch(&patch.id).with_namespace(nid.into());
     let working_ref = git::refs::workdir::patch_upstream(&patch.id);
 
     stored

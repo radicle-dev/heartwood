@@ -95,9 +95,16 @@ impl<'de> Deserialize<'de> for ObjectId {
 
 impl From<&ObjectId> for Component<'_> {
     fn from(id: &ObjectId) -> Self {
-        let refstr = RefString::try_from(id.0.to_string())
-            .expect("collaborative object id's are valid ref strings");
+        let refstr = RefString::from(*id);
+
         Component::from_refstr(refstr)
             .expect("collaborative object id's are valid refname components")
+    }
+}
+
+impl From<ObjectId> for RefString {
+    fn from(id: ObjectId) -> Self {
+        RefString::try_from(id.0.to_string())
+            .expect("collaborative object id's are valid ref strings")
     }
 }
