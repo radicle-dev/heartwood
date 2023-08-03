@@ -19,6 +19,8 @@ pub enum Error {
     Parse,
     #[error("invalid file path: {0:?}")]
     InvalidFilePath(String),
+    #[error("unknown home {0:?}")]
+    UnknownHome(String),
     #[error("test file not found: {0:?}")]
     TestNotFound(PathBuf),
     #[error("i/o: {0}")]
@@ -44,6 +46,8 @@ pub struct Test {
     stderr: bool,
     /// Whether to expect an error status code.
     fail: bool,
+    /// Home directory under which to run this test.
+    home: Option<String>,
     /// Local env vars to use just for this test.
     env: HashMap<String, String>,
 }
@@ -63,10 +67,92 @@ pub struct Assertion {
     exit: ExitStatus,
 }
 
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub struct Home {
+    name: Option<String>,
+    path: PathBuf,
+    envs: HashMap<String, String>,
+}
+
+#[derive(Debug)]
+pub struct TestRun {
+    home: Home,
+}
+
+impl TestRun {
+    fn cd(&mut self, path: PathBuf) {
+        self.home.path = path;
+    }
+
+    fn envs(&self) -> impl Iterator<Item = (&String, &String)> {
+        self.home.envs.iter()
+    }
+
+    fn path(&self) -> PathBuf {
+        self.home.path.clone()
+    }
+}
+
+#[derive(Debug)]
+pub struct TestRunner<'a> {
+    cwd: Option<PathBuf>,
+    homes: HashMap<String, Home>,
+    formula: &'a TestFormula,
+}
+
+impl<'a> TestRunner<'a> {
+    fn new(formula: &'a TestFormula) -> Self {
+        Self {
+            cwd: None,
+            homes: formula.homes.clone(),
+            formula,
+        }
+    }
+
+    fn run(&mut self, test: &'a Test) -> TestRun {
+        let mut envs = self.formula.env.clone();
+
+        if let Some(ref h) = test.home {
+            if let Some(home) = self.homes.get(h) {
+                envs.extend(home.envs.clone());
+                envs.extend(test.env.clone());
+
+                let home = Home {
+                    name: home.name.clone(),
+                    path: home.path.clone(),
+                    envs,
+                };
+                return TestRun { home };
+            } else {
+                panic!("TestRunner::test: home `~{h}` does not exist");
+            }
+        }
+        envs.extend(test.env.clone());
+
+        TestRun {
+            home: Home {
+                name: None,
+                path: self.cwd.clone().unwrap_or_else(|| self.formula.cwd.clone()),
+                envs,
+            },
+        }
+    }
+
+    fn finish(&mut self, run: TestRun) {
+        if let Some(name) = &run.home.name {
+            self.homes.insert(name.clone(), run.home);
+        } else {
+            self.cwd = Some(run.home.path);
+        }
+    }
+}
+
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct TestFormula {
     /// Current working directory to run the test in.
     cwd: PathBuf,
+    /// User homes.
+    homes: HashMap<String, Home>,
     /// Environment to pass to the test.
     env: HashMap<String, String>,
     /// Tests to run.
@@ -78,10 +164,11 @@ pub struct TestFormula {
 }
 
 impl TestFormula {
-    pub fn new() -> Self {
+    pub fn new(cwd: PathBuf) -> Self {
         Self {
-            cwd: PathBuf::new(),
+            cwd,
             env: HashMap::new(),
+            homes: HashMap::new(),
             tests: Vec::new(),
             subs: Substitutions::new(),
             bins: env::var("PATH")
@@ -140,13 +227,28 @@ impl TestFormula {
         self
     }
 
-    pub fn cwd(&mut self, path: impl AsRef<Path>) -> &mut Self {
-        self.cwd = path.as_ref().into();
+    pub fn env(&mut self, key: impl ToString, val: impl ToString) -> &mut Self {
+        self.env.insert(key.to_string(), val.to_string());
         self
     }
 
-    pub fn env(&mut self, key: impl Into<String>, val: impl Into<String>) -> &mut Self {
-        self.env.insert(key.into(), val.into());
+    pub fn home(
+        &mut self,
+        user: impl ToString,
+        path: impl AsRef<Path>,
+        envs: impl IntoIterator<Item = (impl ToString, impl ToString)>,
+    ) -> &mut Self {
+        self.homes.insert(
+            user.to_string(),
+            Home {
+                name: Some(user.to_string()),
+                path: path.as_ref().to_path_buf(),
+                envs: envs
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect(),
+            },
+        );
         self
     }
 
@@ -198,21 +300,20 @@ impl TestFormula {
                     }
                 } else {
                     for token in line.split_whitespace() {
-                        if token.contains("stderr") {
+                        if let Some(home) = token.strip_prefix('~') {
+                            test.home = Some(home.to_owned());
+                        } else if let Some((key, val)) = token.split_once('=') {
+                            test.env.insert(key.to_owned(), val.to_owned());
+                        } else if token.contains("stderr") {
                             test.stderr = true;
-                        }
-                        if token.contains("fail") {
+                        } else if token.contains("fail") {
                             test.fail = true;
-                        }
-                        if let Some(path) = token.strip_prefix("./") {
+                        } else if let Some(path) = token.strip_prefix("./") {
                             file = Some((
                                 PathBuf::from_str(path)
                                     .map_err(|_| Error::InvalidFilePath(token.to_owned()))?,
                                 String::new(),
                             ));
-                        }
-                        if let Some((key, val)) = token.split_once('=') {
-                            test.env.insert(key.to_owned(), val.to_owned());
                         }
                     }
                 }
@@ -291,11 +392,16 @@ impl TestFormula {
 
     pub fn run(&mut self) -> Result<bool, io::Error> {
         let assert = Assert::new().substitutions(self.subs.clone());
+        let mut runner = TestRunner::new(self);
 
         fs::create_dir_all(&self.cwd)?;
         log::debug!(target: "test", "Using PATH {:?}", self.bins);
 
+        // For each code block.
         for test in &self.tests {
+            let mut run = runner.run(test);
+
+            // For each command.
             for assertion in &test.assertions {
                 let path = assertion
                     .path
@@ -305,28 +411,34 @@ impl TestFormula {
                 let cmd = if assertion.command == "rad" {
                     snapbox::cmd::cargo_bin("rad")
                 } else if assertion.command == "cd" {
-                    let path: PathBuf = assertion.args.first().unwrap().into();
-                    let path = self.cwd.join(path);
+                    let mut arg = assertion.args.first().unwrap().clone();
+                    for (k, v) in run.envs() {
+                        arg = arg.replace(&format!("${k}"), v);
+                    }
+                    let dir: PathBuf = arg.into();
+                    let dir = run.path().join(dir);
 
                     // TODO: Add support for `..` and `/`
                     // TODO: Error if more than one args are given.
 
-                    if !path.exists() {
+                    log::debug!(target: "test", "{path}: Running `cd {}`..", dir.display());
+
+                    if !dir.exists() {
                         return Err(io::Error::new(
                             io::ErrorKind::NotFound,
-                            format!("cd: '{}' does not exist", path.display()),
+                            format!("cd: '{}' does not exist", dir.display()),
                         ));
                     }
-                    self.cwd = path;
+                    run.cd(dir);
 
                     continue;
                 } else {
                     PathBuf::from(&assertion.command)
                 };
-                log::debug!(target: "test", "{path}: Running `{}` with {:?} in `{}`..", cmd.display(), assertion.args, self.cwd.display());
+                log::debug!(target: "test", "{path}: Running `{}` with {:?} in `{}`..", cmd.display(), assertion.args, run.path().display());
 
-                if !self.cwd.exists() {
-                    log::error!(target: "test", "{path}: Directory {} does not exist..", self.cwd.display());
+                if !run.path().exists() {
+                    log::error!(target: "test", "{path}: Directory {} does not exist..", run.path().display());
                 }
 
                 let bins = self
@@ -339,9 +451,8 @@ impl TestFormula {
                     .env_clear()
                     .env("PATH", &bins)
                     .env("RUST_BACKTRACE", "1")
-                    .envs(self.env.clone())
-                    .envs(test.env.clone())
-                    .current_dir(&self.cwd)
+                    .envs(run.envs())
+                    .current_dir(run.path())
                     .args(&assertion.args)
                     .with_assert(assert.clone())
                     .output();
@@ -376,6 +487,7 @@ impl TestFormula {
                     }
                 }
             }
+            runner.finish(run);
         }
         Ok(true)
     }
@@ -409,13 +521,14 @@ $ rad sync
         .as_bytes()
         .to_owned();
 
-        let mut actual = TestFormula::new();
+        let mut actual = TestFormula::new(PathBuf::new());
         let path = Path::new("test.md").to_path_buf();
         actual
             .read(path.as_path(), io::BufReader::new(io::Cursor::new(input)))
             .unwrap();
 
         let expected = TestFormula {
+            homes: HashMap::new(),
             cwd: PathBuf::new(),
             env: HashMap::new(),
             subs: Substitutions::new(),
@@ -427,6 +540,7 @@ $ rad sync
             tests: vec![
                 Test {
                     context: vec![String::from("Let's try to track @dave and @sean:")],
+                    home: None,
                     assertions: vec![
                         Assertion {
                             path: path.clone(),
@@ -453,6 +567,7 @@ $ rad sync
                 },
                 Test {
                     context: vec![String::from("Super, now let's move on to the next step.")],
+                    home: None,
                     assertions: vec![Assertion {
                         path: path.clone(),
                         command: String::from("rad"),
@@ -484,9 +599,8 @@ name = "radicle-cli-test"
         .as_bytes()
         .to_owned();
 
-        let mut formula = TestFormula::new();
+        let mut formula = TestFormula::new(PathBuf::from_str(env!("CARGO_MANIFEST_DIR")).unwrap());
         formula
-            .cwd(env!("CARGO_MANIFEST_DIR"))
             .read(
                 Path::new("test.md"),
                 io::BufReader::new(io::Cursor::new(input)),
@@ -518,9 +632,8 @@ $ echo "[bug, good-first-issue]"
         .as_bytes()
         .to_owned();
 
-        let mut formula = TestFormula::new();
+        let mut formula = TestFormula::new(PathBuf::from_str(env!("CARGO_MANIFEST_DIR")).unwrap());
         formula
-            .cwd(env!("CARGO_MANIFEST_DIR"))
             .read(
                 Path::new("test.md"),
                 io::BufReader::new(io::Cursor::new(input)),

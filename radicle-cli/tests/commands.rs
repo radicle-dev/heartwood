@@ -28,7 +28,6 @@ fn test<'a>(
     home: Option<&Home>,
     envs: impl IntoIterator<Item = (&'a str, &'a str)>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let base = Path::new(env!("CARGO_MANIFEST_DIR"));
     let tmp = tempfile::tempdir().unwrap();
     let home = if let Some(home) = home {
         home.path().to_path_buf()
@@ -36,14 +35,25 @@ fn test<'a>(
         tmp.path().to_path_buf()
     };
 
-    TestFormula::new()
+    formula(cwd.as_ref(), test)?
+        .env("RAD_HOME", home.to_string_lossy())
+        .envs(envs)
+        .run()?;
+
+    Ok(())
+}
+
+fn formula(root: &Path, test: impl AsRef<Path>) -> Result<TestFormula, Box<dyn std::error::Error>> {
+    let mut formula = TestFormula::new(root.to_path_buf());
+    let base = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    formula
         .env("GIT_AUTHOR_DATE", "1671125284")
         .env("GIT_AUTHOR_EMAIL", "radicle@localhost")
         .env("GIT_AUTHOR_NAME", "radicle")
         .env("GIT_COMMITTER_DATE", "1671125284")
         .env("GIT_COMMITTER_EMAIL", "radicle@localhost")
         .env("GIT_COMMITTER_NAME", "radicle")
-        .env("RAD_HOME", home.to_string_lossy())
         .env("RAD_PASSPHRASE", "radicle")
         .env("RAD_SEED", RAD_SEED)
         .env("EDITOR", "true")
@@ -52,16 +62,13 @@ fn test<'a>(
         .env("USER", "alice")
         .env(radicle_cob::git::RAD_COMMIT_TIME, "1671125284")
         .envs(git::env::GIT_DEFAULT_CONFIG)
-        .envs(envs)
-        .cwd(cwd)
         .build(&[
             ("radicle-remote-helper", "git-remote-rad"),
             ("radicle-cli", "rad"),
         ])
-        .file(base.join(test))?
-        .run()?;
+        .file(base.join(test))?;
 
-    Ok(())
+    Ok(formula)
 }
 
 #[test]
@@ -991,6 +998,29 @@ fn rad_merge_after_update() {
         [],
     )
     .unwrap();
+}
+
+fn framework_home() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::new(Alias::new("alice")));
+    let bob = environment.node(Config::new(Alias::new("bob")));
+
+    formula(&environment.tmp(), "examples/framework/home.md")
+        .unwrap()
+        .home(
+            "alice",
+            alice.home.path(),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            bob.home.path(),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .run()
+        .unwrap();
 }
 
 #[test]
