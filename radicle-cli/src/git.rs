@@ -1,5 +1,6 @@
 //! Git-related functions and types.
 
+pub mod ddiff;
 #[path = "git/unified_diff.rs"]
 pub mod unified_diff;
 

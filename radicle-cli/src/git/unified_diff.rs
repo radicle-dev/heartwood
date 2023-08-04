@@ -548,7 +548,7 @@ impl<'a> Writer<'a> {
         self
     }
 
-    fn write(&mut self, s: impl fmt::Display, style: term::Style) -> io::Result<()> {
+    pub fn write(&mut self, s: impl fmt::Display, style: term::Style) -> io::Result<()> {
         if self.styled {
             writeln!(self.stream, "{}", term::Paint::new(s).with_style(style))
         } else {
@@ -556,11 +556,11 @@ impl<'a> Writer<'a> {
         }
     }
 
-    fn meta(&mut self, s: impl fmt::Display) -> io::Result<()> {
+    pub fn meta(&mut self, s: impl fmt::Display) -> io::Result<()> {
         self.write(s, term::Style::new(term::Color::Yellow))
     }
 
-    fn magenta(&mut self, s: impl fmt::Display) -> io::Result<()> {
+    pub fn magenta(&mut self, s: impl fmt::Display) -> io::Result<()> {
         self.write(s, term::Style::new(term::Color::Magenta))
     }
 }
