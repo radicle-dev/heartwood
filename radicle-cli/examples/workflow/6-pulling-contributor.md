@@ -23,7 +23,6 @@ Your branch is up to date with 'rad/master'.
 $ git pull --all --ff
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
    f2de534..f567f69  master     -> rad/master
-   27857ec..f567f69  patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c -> rad/patches/50e29a111972f3b7d2123c5057de5bdf09bc7b1c
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..f567f69  master     -> alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master
 ```

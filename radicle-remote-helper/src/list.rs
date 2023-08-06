@@ -72,7 +72,11 @@ fn patch_refs<R: ReadRepository + cob::Store>(stored: &R) -> Result<(), Error> {
     let patches = radicle::cob::patch::Patches::open(stored)?;
     for patch in patches.all()? {
         let (id, patch) = patch?;
-        println!("{} {}", patch.head(), git::refs::storage::patch(&id));
+        let head = patch.head();
+
+        if patch.is_open() && stored.commit(*head).is_ok() {
+            println!("{} {}", patch.head(), git::refs::storage::patch(&id));
+        }
     }
     Ok(())
 }

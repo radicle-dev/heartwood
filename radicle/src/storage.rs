@@ -391,7 +391,7 @@ pub trait ReadRepository: Sized {
 
     /// Get the [`git2::Commit`] found using its `oid`.
     ///
-    /// Returns `None` if the commit did not exist.
+    /// Returns `Err` if the commit did not exist.
     fn commit(&self, oid: Oid) -> Result<git2::Commit, git::ext::Error>;
 
     /// Perform a revision walk of a commit history starting from the given head.
