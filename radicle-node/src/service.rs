@@ -1423,20 +1423,7 @@ where
     }
 
     /// Get a list of peers available to connect to.
-    fn available_peers(&mut self) -> Vec<(NodeId, KnownAddress)> {
-        let outbound = self
-            .sessions
-            .values()
-            .filter(|s| s.link.is_outbound())
-            .filter(|s| s.is_connected() || s.is_connecting())
-            .count();
-
-        let wanted = TARGET_OUTBOUND_PEERS.saturating_sub(outbound);
-        // Don't connect to more peers than needed.
-        if wanted == 0 {
-            return Vec::new();
-        }
-
+    fn available_peers(&mut self) -> HashMap<NodeId, Vec<KnownAddress>> {
         match self.addresses.entries() {
             Ok(entries) => {
                 // Nb. we don't want to connect to any peers that already have a session with us,
@@ -1444,12 +1431,14 @@ where
                 entries
                     .filter(|(nid, _)| !self.sessions.contains_key(nid))
                     .filter(|(nid, _)| nid != &self.node_id())
-                    .take(wanted)
-                    .collect()
+                    .fold(HashMap::new(), |mut acc, (nid, addr)| {
+                        acc.entry(nid).or_insert_with(Vec::new).push(addr);
+                        acc
+                    })
             }
             Err(e) => {
                 error!(target: "service", "Unable to lookup available peers in address book: {e}");
-                Vec::new()
+                HashMap::new()
             }
         }
     }
@@ -1492,7 +1481,21 @@ where
     }
 
     fn maintain_connections(&mut self) {
+        trace!(target: "service", "Maintaining connections..");
+
         let now = self.clock;
+        let outbound = self
+            .sessions
+            .values()
+            .filter(|s| s.link.is_outbound())
+            .filter(|s| s.is_connected() || s.is_connecting())
+            .count();
+        let wanted = TARGET_OUTBOUND_PEERS.saturating_sub(outbound);
+
+        // Don't connect to more peers than needed.
+        if wanted == 0 {
+            return;
+        }
 
         // Nb. We use the `MAX_RECONNECTION_DELTA` to know when it's ok to reconnect, because
         // these aren't persistent peers. They could go offline for a long time and we don't want to
@@ -1500,7 +1503,9 @@ where
         for (id, ka) in self
             .available_peers()
             .into_iter()
+            .flat_map(|(nid, kas)| kas.into_iter().map(move |ka| (nid, ka)))
             .filter(|(_, ka)| now - ka.last_attempt.unwrap_or_default() >= MAX_RECONNECTION_DELTA)
+            .take(wanted)
         {
             self.connect(id, ka.addr.clone());
         }
