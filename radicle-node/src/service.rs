@@ -75,6 +75,8 @@ pub const SUBSCRIBE_BACKLOG_DELTA: LocalDuration = LocalDuration::from_mins(60);
 pub const MIN_RECONNECTION_DELTA: LocalDuration = LocalDuration::from_secs(3);
 /// Maximum amount of time to wait before reconnecting to a peer.
 pub const MAX_RECONNECTION_DELTA: LocalDuration = LocalDuration::from_mins(60);
+/// Connection retry delta used for ephemeral peers that failed to connect previously.
+pub const CONNECTION_RETRY_DELTA: LocalDuration = LocalDuration::from_mins(10);
 
 /// Maximum external address limit imposed by message size limits.
 pub use message::ADDRESS_LIMIT;
@@ -1499,14 +1501,18 @@ where
             return;
         }
 
-        // Nb. We use the `MAX_RECONNECTION_DELTA` to know when it's ok to reconnect, because
-        // these aren't persistent peers. They could go offline for a long time and we don't want to
-        // be too persistent.
         for (id, ka) in self
             .available_peers()
             .into_iter()
             .flat_map(|(nid, kas)| kas.into_iter().map(move |ka| (nid, ka)))
-            .filter(|(_, ka)| now - ka.last_attempt.unwrap_or_default() >= MAX_RECONNECTION_DELTA)
+            .filter(|(_, ka)| match (ka.last_success, ka.last_attempt) {
+                // If we succeeded the last time we tried, this is a good address.
+                (Some(success), attempt) => success >= attempt.unwrap_or_default(),
+                // If we haven't succeeded yet, and we waited long enough, we can try this address.
+                (None, Some(attempt)) => now - attempt >= CONNECTION_RETRY_DELTA,
+                // If we've never tried this address, it's worth a try.
+                (None, None) => true,
+            })
             .take(wanted)
         {
             self.connect(id, ka.addr.clone());
