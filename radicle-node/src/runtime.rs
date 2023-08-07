@@ -15,7 +15,9 @@ use reactor::Reactor;
 use thiserror::Error;
 
 use radicle::git;
+use radicle::node;
 use radicle::node::address;
+use radicle::node::address::Store as _;
 use radicle::node::Handle as _;
 use radicle::node::{ADDRESS_DB_FILE, NODE_ANNOUNCEMENT_FILE, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle::profile::Home;
@@ -138,7 +140,7 @@ impl Runtime {
         let tracking_db = node_dir.join(TRACKING_DB_FILE);
 
         log::info!(target: "node", "Opening address book {}..", address_db.display());
-        let addresses = address::Book::open(address_db)?;
+        let mut addresses = address::Book::open(address_db)?;
 
         log::info!(target: "node", "Opening routing table {}..", routing_db.display());
         let routing = routing::Table::open(routing_db)?;
@@ -175,6 +177,24 @@ impl Runtime {
                 .solve(Default::default())
                 .expect("Runtime::init: unable to solve proof-of-work puzzle")
         };
+
+        if config.connect.is_empty() && addresses.is_empty()? {
+            log::info!(target: "node", "Address book is empty. Adding bootstrap nodes..");
+
+            for (alias, addr) in config.network.bootstrap() {
+                let (id, addr) = addr.into();
+
+                addresses.insert(
+                    &id,
+                    radicle::node::Features::SEED,
+                    alias,
+                    0,
+                    clock.as_secs(),
+                    [node::KnownAddress::new(addr, address::Source::Bootstrap)],
+                )?;
+            }
+            log::info!(target: "node", "{} nodes added to address book", addresses.len()?);
+        }
 
         let emitter: Emitter<Event> = Default::default();
         let service = service::Service::new(

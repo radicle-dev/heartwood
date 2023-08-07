@@ -17,6 +17,32 @@ pub enum Network {
     Test,
 }
 
+impl Network {
+    /// Bootstrap nodes for this network.
+    pub fn bootstrap(&self) -> Vec<(Alias, ConnectAddress)> {
+        use std::str::FromStr;
+
+        match self {
+            Self::Main => [
+                (
+                    "seed.radicle.garden",
+                    "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776",
+                ),
+                (
+                    "seed.radicle.xyz",
+                    "z6MksmpU5b1dS7oaqF2bHXhQi1DWy2hB7Mh9CuN7y1DN6QSz@seed.radicle.xyz:8776",
+                ),
+            ]
+            .into_iter()
+            // SAFETY: These are valid addresses.
+            .map(|(a, s)| (Alias::new(a), PeerAddr::from_str(s).unwrap().into()))
+            .collect(),
+
+            Self::Test => vec![],
+        }
+    }
+}
+
 /// Configuration parameters defining attributes of minima and maxima.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,6 +89,12 @@ impl From<(NodeId, Address)> for ConnectAddress {
     }
 }
 
+impl From<ConnectAddress> for Address {
+    fn from(value: ConnectAddress) -> Self {
+        value.0.addr
+    }
+}
+
 impl Deref for ConnectAddress {
     type Target = PeerAddr<NodeId, Address>;
 
@@ -95,6 +127,13 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn test(alias: Alias) -> Self {
+        Self {
+            network: Network::Test,
+            ..Self::new(alias)
+        }
+    }
+
     pub fn new(alias: Alias) -> Self {
         Self {
             alias,

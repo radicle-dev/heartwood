@@ -111,7 +111,7 @@ impl Default for Config<MockSigner> {
         let signer = MockSigner::new(&mut rng);
 
         Config {
-            config: service::Config::new(Alias::from_str("mocky").unwrap()),
+            config: service::Config::test(Alias::from_str("mocky").unwrap()),
             addrs: address::Book::memory().unwrap(),
             local_time: LocalTime::now(),
             policy: Policy::default(),

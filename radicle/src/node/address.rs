@@ -4,9 +4,8 @@ mod types;
 pub use store::*;
 pub use types::*;
 
-use std::net;
-
 use cyphernet::addr::HostName;
+use std::net;
 
 use crate::node::Address;
 

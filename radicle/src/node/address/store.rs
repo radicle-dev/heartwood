@@ -310,7 +310,7 @@ impl TryFrom<&sql::Value> for Source {
         };
         match value {
             sql::Value::String(s) => match s.as_str() {
-                "dns" => Ok(Source::Dns),
+                "bootstrap" => Ok(Source::Bootstrap),
                 "peer" => Ok(Source::Peer),
                 "imported" => Ok(Source::Imported),
                 _ => Err(err),
@@ -323,7 +323,7 @@ impl TryFrom<&sql::Value> for Source {
 impl sql::BindableWithIndex for Source {
     fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
         match self {
-            Self::Dns => "dns".bind(stmt, i),
+            Self::Bootstrap => "bootstrap".bind(stmt, i),
             Self::Peer => "peer".bind(stmt, i),
             Self::Imported => "imported".bind(stmt, i),
         }
@@ -342,7 +342,7 @@ impl TryFrom<&sql::Value> for AddressType {
             sql::Value::String(s) => match s.as_str() {
                 "ipv4" => Ok(AddressType::Ipv4),
                 "ipv6" => Ok(AddressType::Ipv6),
-                "hostname" => Ok(AddressType::Dns),
+                "dns" => Ok(AddressType::Dns),
                 "onion" => Ok(AddressType::Onion),
                 _ => Err(err),
             },
@@ -592,7 +592,7 @@ mod test {
             let addr = net::SocketAddr::from((net::Ipv4Addr::from(ip), rng.u16(..)));
             let ka = KnownAddress {
                 addr: addr.into(),
-                source: Source::Dns,
+                source: Source::Bootstrap,
                 // TODO: Test times as well.
                 last_success: None,
                 last_attempt: None,

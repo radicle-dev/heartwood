@@ -121,8 +121,8 @@ impl KnownAddress {
 pub enum Source {
     /// An address that was shared by another peer.
     Peer,
-    /// An address that came from a DNS seed.
-    Dns,
+    /// An bootstrap node address.
+    Bootstrap,
     /// An address that came from some source external to the system, eg.
     /// specified by the user or added directly to the address manager.
     Imported,
@@ -132,7 +132,7 @@ impl std::fmt::Display for Source {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Peer => write!(f, "Peer"),
-            Self::Dns => write!(f, "DNS"),
+            Self::Bootstrap => write!(f, "Bootstrap"),
             Self::Imported => write!(f, "Imported"),
         }
     }

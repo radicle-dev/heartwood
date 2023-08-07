@@ -243,8 +243,8 @@ fn rad_node() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
     let working = tempfile::tempdir().unwrap();
 
     let alice = alice.spawn();
@@ -411,7 +411,7 @@ fn rad_rm() {
 #[test]
 fn rad_track() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
     let working = tempfile::tempdir().unwrap();
     let alice = alice.spawn();
 
@@ -429,8 +429,8 @@ fn rad_clone() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
 
     // Setup a test project.
@@ -451,9 +451,9 @@ fn rad_clone_all() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
-    let eve = environment.node(Config::new(Alias::new("eve")));
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let eve = environment.node(Config::test(Alias::new("eve")));
     let working = environment.tmp().join("working");
 
     // Setup a test project.
@@ -490,7 +490,7 @@ fn rad_clone_all() {
 #[test]
 fn rad_self() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
     let working = environment.tmp().join("working");
 
     test("examples/rad-self.md", working, Some(&alice.home), []).unwrap();
@@ -501,7 +501,7 @@ fn rad_clone_unknown() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
     let working = environment.tmp().join("working");
 
     let alice = alice.spawn();
@@ -520,8 +520,8 @@ fn rad_init_sync_and_clone() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
 
     let alice = alice.spawn();
@@ -561,8 +561,8 @@ fn rad_init_sync_and_clone() {
 fn rad_fetch() {
     let mut environment = Environment::new();
     let working = environment.tmp().join("working");
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
 
     let mut alice = alice.spawn();
     let bob = bob.spawn();
@@ -595,8 +595,8 @@ fn rad_fetch() {
 fn rad_fork() {
     let mut environment = Environment::new();
     let working = environment.tmp().join("working");
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
 
     let mut alice = alice.spawn();
     let bob = bob.spawn();
@@ -638,7 +638,7 @@ fn test_clone_without_seeds() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let mut alice = environment.node(Config::new(Alias::new("alice")));
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
     let working = environment.tmp().join("working");
     let rid = alice.project("heartwood", "Radicle Heartwood Protocol & Stack");
     let mut alice = alice.spawn();
@@ -662,8 +662,8 @@ fn test_cob_replication() {
 
     let mut environment = Environment::new();
     let working = tempfile::tempdir().unwrap();
-    let mut alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
 
     let rid = alice.project("heartwood", "");
 
@@ -722,8 +722,8 @@ fn test_cob_replication() {
 fn test_cob_deletion() {
     let mut environment = Environment::new();
     let working = tempfile::tempdir().unwrap();
-    let mut alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let mut alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
 
     let rid = alice.project("heartwood", "");
 
@@ -776,9 +776,9 @@ fn rad_sync() {
 
     let mut environment = Environment::new();
     let working = environment.tmp().join("working");
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
-    let eve = environment.node(Config::new(Alias::new("eve")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let eve = environment.node(Config::test(Alias::new("eve")));
     let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
     fixtures::repository(working.join("acme"));
@@ -820,12 +820,12 @@ fn rad_sync() {
 //
 fn test_replication_via_seed() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
     let seed = environment.node(Config {
         policy: Policy::Track,
         scope: Scope::All,
-        ..Config::new(Alias::new("seed"))
+        ..Config::test(Alias::new("seed"))
     });
     let working = environment.tmp().join("working");
     let rid = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -905,8 +905,8 @@ fn test_replication_via_seed() {
 #[test]
 fn rad_remote() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
     let home = alice.home.clone();
     let rid = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -949,7 +949,7 @@ fn rad_merge_via_push() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -976,7 +976,7 @@ fn rad_merge_via_push() {
 #[test]
 fn rad_merge_after_update() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -1005,8 +1005,8 @@ fn rad_patch_pull_update() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -1037,8 +1037,8 @@ fn framework_home() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
 
     formula(&environment.tmp(), "examples/framework/home.md")
         .unwrap()
@@ -1061,8 +1061,8 @@ fn git_push_and_pull() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
@@ -1113,8 +1113,8 @@ fn git_push_and_pull() {
 #[test]
 fn rad_workflow() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::new(Alias::new("alice")));
-    let bob = environment.node(Config::new(Alias::new("bob")));
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
 
     fixtures::repository(working.join("alice"));
