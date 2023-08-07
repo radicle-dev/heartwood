@@ -428,6 +428,8 @@ where
                 .repo_policies()?
                 .filter_map(|t| (t.policy == tracking::Policy::Track).then_some(t.id)),
         );
+        // Try to establish some connections.
+        self.maintain_connections();
         // Start periodic tasks.
         self.outbox.wakeup(IDLE_INTERVAL);
 

@@ -1015,7 +1015,6 @@ fn test_maintain_connections() {
     ];
 
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
-    alice.import_addresses(&unconnected);
 
     for peer in connected.iter() {
         alice.connect_to(peer);
@@ -1023,8 +1022,10 @@ fn test_maintain_connections() {
     assert_eq!(
         connected.len(),
         alice.sessions().len(),
-        "alice should be connected to all peers"
+        "alice should be connected to the first set of peers"
     );
+    // We now import the other addresses.
+    alice.import_addresses(&unconnected);
 
     // A transient error such as this will cause Alice to attempt a reconnection.
     let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
