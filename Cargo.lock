@@ -1930,7 +1930,6 @@ dependencies = [
  "qcheck",
  "qcheck-macros",
  "radicle-cob",
- "radicle-crdt",
  "radicle-crypto",
  "radicle-git-ext",
  "radicle-ssh",
@@ -1989,7 +1988,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cob"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "fastrand",
  "git2",
@@ -2022,7 +2021,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-crypto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "amplify",
  "cyphernet 0.2.0",
@@ -2043,7 +2042,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-dag"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "fastrand",
 ]

@@ -1,11 +1,14 @@
 [package]
 name = "radicle-ssh"
+description = "Radicle SSH library"
+homepage = "https://radicle.xyz"
+repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
 license = "Apache-2.0"
 version = "0.2.0"
 authors = [
   "Fintan Halpenny <fintan.halpenny@gmail.com>",
   "Pierre-Étienne Meunier <pe@pijul.org>",
-  "Alexis Sellier <alexis@radicle.xyz>"
+  "cloudhead <cloudhead@radicle.xyz>"
 ]
 edition = "2021"
 

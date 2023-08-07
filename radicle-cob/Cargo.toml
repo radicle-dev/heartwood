@@ -1,16 +1,16 @@
 [package]
 name = "radicle-cob"
-version = "0.1.0"
+description = "Radicle Collaborative Objects library"
+homepage = "https://radicle.xyz"
+repository = "https://app.radicle.xyz/seeds/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5"
+version = "0.2.0"
 authors = [
   "Alex Good <alex@memoryandthought.me>",
   "Fintan Halpenny <fintan.halpenny@gmail.com>",
 ]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Library for implementing Radicle Collaborative Objects"
-keywords = ["radicle", "collaborative objects", "cob", "cobs"]
-
-[lib]
+keywords = ["radicle", "cob", "cobs"]
 
 [dependencies]
 fastrand = { version = "1.9.0" }
@@ -27,12 +27,12 @@ features = ["vendored-libgit2"]
 
 [dependencies.radicle-crypto]
 path = "../radicle-crypto"
-version = "0.1"
+version = "0"
 features = ["ssh"]
 
 [dependencies.radicle-dag]
 path = "../radicle-dag"
-version = "0.1"
+version = "0"
 
 [dependencies.serde]
 version = "1.0"
@@ -46,5 +46,5 @@ qcheck-macros = { version = "1", default-features = false }
 
 [dev-dependencies.radicle-crypto]
 path = "../radicle-crypto"
-version = "0.1"
+version = "0"
 features = ["test"]
