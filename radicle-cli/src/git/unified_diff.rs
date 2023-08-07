@@ -85,10 +85,10 @@ pub struct HunkHeader {
 }
 
 /// A Trait for converting a value to its UnifiedDiff format.
-pub trait UnifiedDiff: Clone {
+pub trait UnifiedDiff: Sized {
     fn encode(&self, w: &mut Writer) -> io::Result<()>;
 
-    fn to_unified_string(self) -> String {
+    fn to_unified_string(&self) -> String {
         let mut buf = Vec::new();
 
         {
@@ -100,7 +100,7 @@ pub trait UnifiedDiff: Clone {
     }
 }
 
-impl UnifiedDiff for &Diff {
+impl UnifiedDiff for Diff {
     fn encode(&self, w: &mut Writer) -> io::Result<()> {
         for fdiff in self.files() {
             fdiff.encode(w)?;
@@ -110,7 +110,7 @@ impl UnifiedDiff for &Diff {
     }
 }
 
-impl UnifiedDiff for &DiffContent {
+impl UnifiedDiff for DiffContent {
     fn encode(&self, w: &mut Writer) -> io::Result<()> {
         match self {
             DiffContent::Plain { hunks, .. } => {
@@ -151,7 +151,7 @@ impl UnifiedDiff for FileDiff {
     }
 }
 
-impl UnifiedDiff for &FileHeader {
+impl UnifiedDiff for FileHeader {
     fn encode(&self, w: &mut Writer) -> io::Result<()> {
         match self {
             FileHeader::Modified { path, old, new } => {
@@ -234,7 +234,7 @@ impl UnifiedDiff for &FileHeader {
     }
 }
 
-impl UnifiedDiff for &HunkHeader {
+impl UnifiedDiff for HunkHeader {
     fn encode(&self, w: &mut Writer) -> io::Result<()> {
         let old = if self.old_size == 1 {
             format!("{}", self.old_line_no)
@@ -256,7 +256,7 @@ impl UnifiedDiff for &HunkHeader {
     }
 }
 
-impl UnifiedDiff for &Hunk<Modification> {
+impl UnifiedDiff for Hunk<Modification> {
     fn encode(&self, w: &mut Writer) -> io::Result<()> {
         // TODO: Remove trailing newlines accurately.
         //   trim_end() will destroy diff information if the diff has a trailing whitespace on
@@ -270,7 +270,7 @@ impl UnifiedDiff for &Hunk<Modification> {
     }
 }
 
-impl UnifiedDiff for &Modification {
+impl UnifiedDiff for Modification {
     fn encode(&self, w: &mut Writer) -> io::Result<()> {
         match self {
             Modification::Deletion(radicle_surf::diff::Deletion { line, .. }) => {
@@ -303,7 +303,7 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn encode(&mut self, arg: impl UnifiedDiff) -> io::Result<()> {
+    pub fn encode(&mut self, arg: &impl UnifiedDiff) -> io::Result<()> {
         arg.encode(self)
     }
 
