@@ -828,6 +828,7 @@ where
     pub fn handle_announcement(
         &mut self,
         relayer: &NodeId,
+        relayer_addr: &Address,
         announcement: &Announcement,
     ) -> Result<bool, session::Error> {
         if !announcement.verify() {
@@ -1023,6 +1024,7 @@ where
                     timestamp,
                     addresses
                         .iter()
+                        .filter(|a| a.is_routable() || relayer_addr.is_local())
                         .map(|a| KnownAddress::new(a.clone(), address::Source::Peer)),
                 ) {
                     Ok(updated) => {
@@ -1100,12 +1102,13 @@ where
 
         match (&mut peer.state, message) {
             // Process a peer announcement.
-            (session::State::Connected { .. }, Message::Announcement(ann)) => {
+            (session::State::Connected { addr, .. }, Message::Announcement(ann)) => {
                 let relayer = peer.id;
+                let relayer_addr = addr.clone();
                 let announcer = ann.node;
 
                 // Returning true here means that the message should be relayed.
-                if self.handle_announcement(&relayer, &ann)? {
+                if self.handle_announcement(&relayer, &relayer_addr, &ann)? {
                     // Choose peers we should relay this message to.
                     // 1. Don't relay to the peer who sent us this message.
                     // 2. Don't relay to the peer who signed this announcement.

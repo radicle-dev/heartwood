@@ -50,3 +50,47 @@ impl TryFrom<u8> for AddressType {
         }
     }
 }
+/// Check whether an IP address is globally routable.
+pub fn is_routable(addr: &net::IpAddr) -> bool {
+    match addr {
+        net::IpAddr::V4(addr) => ipv4_is_routable(addr),
+        net::IpAddr::V6(addr) => ipv6_is_routable(addr),
+    }
+}
+
+/// Check whether an IP address is locally routable.
+pub fn is_local(addr: &net::IpAddr) -> bool {
+    match addr {
+        net::IpAddr::V4(addr) => {
+            addr.is_private() || addr.is_loopback() || addr.is_link_local() || addr.is_unspecified()
+        }
+        net::IpAddr::V6(_) => false,
+    }
+}
+
+/// Check whether an IPv4 address is globally routable.
+///
+/// This code is adapted from the Rust standard library's `net::Ipv4Addr::is_global`. It can be
+/// replaced once that function is stabilized.
+fn ipv4_is_routable(addr: &net::Ipv4Addr) -> bool {
+    // Check if this address is 192.0.0.9 or 192.0.0.10. These addresses are the only two
+    // globally routable addresses in the 192.0.0.0/24 range.
+    if u32::from(*addr) == 0xc0000009 || u32::from(*addr) == 0xc000000a {
+        return true;
+    }
+    !addr.is_private()
+        && !addr.is_loopback()
+        && !addr.is_link_local()
+        && !addr.is_broadcast()
+        && !addr.is_documentation()
+        // Make sure the address is not in 0.0.0.0/8.
+        && addr.octets()[0] != 0
+}
+
+/// Check whether an IPv6 address is globally routable.
+///
+/// For now, this always returns `true`, as IPv6 addresses
+/// are not fully supported.
+fn ipv6_is_routable(_addr: &net::Ipv6Addr) -> bool {
+    true
+}

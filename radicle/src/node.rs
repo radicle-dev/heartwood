@@ -262,6 +262,24 @@ impl From<CommandResult> for Result<bool, Error> {
 #[wrapper_mut(DerefMut)]
 pub struct Address(#[serde(with = "crate::serde_ext::string")] NetAddr<HostName>);
 
+impl Address {
+    /// Check whether this address is local.
+    pub fn is_local(&self) -> bool {
+        match self.0.host {
+            HostName::Ip(ip) => address::is_local(&ip),
+            _ => false,
+        }
+    }
+
+    /// Check whether this address is globally routable.
+    pub fn is_routable(&self) -> bool {
+        match self.0.host {
+            HostName::Ip(ip) => address::is_routable(&ip),
+            _ => true,
+        }
+    }
+}
+
 impl cyphernet::addr::Host for Address {
     fn requires_proxy(&self) -> bool {
         self.0.requires_proxy()
