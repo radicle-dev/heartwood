@@ -57,6 +57,8 @@ impl Error {
 pub struct Session {
     /// Peer id.
     pub id: NodeId,
+    /// Peer address.
+    pub addr: Address,
     /// Connection direction.
     pub link: Link,
     /// Whether we should attempt to re-connect
@@ -101,9 +103,10 @@ impl fmt::Display for Session {
 }
 
 impl Session {
-    pub fn outbound(id: NodeId, persistent: bool, rng: Rng, limits: Limits) -> Self {
+    pub fn outbound(id: NodeId, addr: Address, persistent: bool, rng: Rng, limits: Limits) -> Self {
         Self {
             id,
+            addr,
             state: State::Initial,
             link: Link::Outbound,
             subscribe: None,
@@ -126,8 +129,8 @@ impl Session {
     ) -> Self {
         Self {
             id,
+            addr,
             state: State::Connected {
-                addr,
                 since: time,
                 ping: PingState::default(),
                 fetching: HashSet::default(),
@@ -193,30 +196,26 @@ impl Session {
         None
     }
 
-    pub fn to_attempted(&mut self, addr: Address) {
+    pub fn to_attempted(&mut self) {
         assert!(
             self.is_initial(),
             "Can only transition to 'attempted' state from 'initial' state"
         );
-        self.state = State::Attempted { addr };
+        self.state = State::Attempted;
         self.attempts += 1;
     }
 
-    pub fn to_connected(&mut self, since: LocalTime) -> Address {
+    pub fn to_connected(&mut self, since: LocalTime) {
         self.attempts = 0;
 
-        let addr = if let State::Attempted { addr } = &self.state {
-            addr.clone()
-        } else {
+        let State::Attempted = &self.state else {
             panic!("Session::to_connected: can only transition to 'connected' state from 'attempted' state");
         };
         self.state = State::Connected {
-            addr: addr.clone(),
             since,
             ping: PingState::default(),
             fetching: HashSet::default(),
         };
-        addr
     }
 
     /// Move the session state to "disconnected". Returns any pending RID

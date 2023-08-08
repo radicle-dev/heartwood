@@ -191,18 +191,18 @@ pub fn sessions(node: &Node) -> Result<Option<term::Table<4, term::Label>>, node
                 term::Label::from(term::format::dim("initial")),
                 term::Label::blank(),
             ),
-            node::State::Attempted { addr } => (
-                addr.to_string().into(),
+            node::State::Attempted => (
+                sess.addr.to_string().into(),
                 term::Label::from(term::format::tertiary("attempted")),
                 term::Label::blank(),
             ),
-            node::State::Connected { addr, since, .. } => (
-                addr.to_string().into(),
+            node::State::Connected { since, .. } => (
+                sess.addr.to_string().into(),
                 term::Label::from(term::format::positive("connected")),
                 term::format::dim(now - since).into(),
             ),
             node::State::Disconnected { retry_at, .. } => (
-                term::Label::blank(),
+                sess.addr.to_string().into(),
                 term::Label::from(term::format::negative("disconnected")),
                 term::format::dim(retry_at - now).into(),
             ),

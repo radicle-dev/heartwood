@@ -72,11 +72,9 @@ pub enum State {
     /// Initial state for outgoing connections.
     Initial,
     /// Connection attempted successfully.
-    Attempted { addr: Address },
+    Attempted,
     /// Initial state after handshake protocol hand-off.
     Connected {
-        /// Remote address.
-        addr: Address,
         /// Connected since this time.
         since: LocalTime,
         /// Ping state.
@@ -375,6 +373,7 @@ impl Command {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub nid: NodeId,
+    pub addr: Address,
     pub state: State,
 }
 

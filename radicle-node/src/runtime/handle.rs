@@ -221,6 +221,7 @@ impl radicle::node::Handle for Handle {
                 .iter()
                 .map(|(nid, s)| radicle::node::Session {
                     nid: *nid,
+                    addr: s.addr.clone(),
                     state: s.state.clone(),
                 })
                 .collect();

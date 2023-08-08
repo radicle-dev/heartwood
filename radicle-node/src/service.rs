@@ -718,7 +718,7 @@ where
         debug!(target: "service", "Attempted connection to {nid} ({addr})");
 
         if let Some(sess) = self.sessions.get_mut(&nid) {
-            sess.to_attempted(addr);
+            sess.to_attempted();
         } else {
             #[cfg(debug_assertions)]
             panic!("Service::attempted: unknown session {nid}@{addr}");
@@ -730,13 +730,14 @@ where
         self.emitter.emit(Event::PeerConnected { nid: remote });
 
         let msgs = self.initial(link);
+        let now = self.time();
 
         if link.is_outbound() {
             if let Some(peer) = self.sessions.get_mut(&remote) {
-                let attempted = peer.to_connected(self.clock);
+                peer.to_connected(self.clock);
                 self.outbox.write_all(peer, msgs);
 
-                if let Err(e) = self.addresses.connected(&remote, &attempted, self.time()) {
+                if let Err(e) = self.addresses.connected(&remote, &peer.addr, now) {
                     error!(target: "service", "Error updating address book with connection: {e}");
                 }
             }
@@ -811,17 +812,14 @@ where
     }
 
     pub fn received_message(&mut self, remote: NodeId, message: Message) {
-        match self.handle_message(&remote, message) {
-            Ok(_) => {}
-            Err(err) => {
-                // If there's an error, stop processing messages from this peer.
-                // However, we still relay messages returned up to this point.
-                self.outbox
-                    .disconnect(remote, DisconnectReason::Session(err));
+        if let Err(err) = self.handle_message(&remote, message) {
+            // If there's an error, stop processing messages from this peer.
+            // However, we still relay messages returned up to this point.
+            self.outbox
+                .disconnect(remote, DisconnectReason::Session(err));
 
-                // FIXME: The peer should be set in a state such that we don't
-                // process further messages.
-            }
+            // FIXME: The peer should be set in a state such that we don't
+            // process further messages.
         }
     }
 
@@ -1106,9 +1104,9 @@ where
 
         match (&mut peer.state, message) {
             // Process a peer announcement.
-            (session::State::Connected { addr, .. }, Message::Announcement(ann)) => {
+            (session::State::Connected { .. }, Message::Announcement(ann)) => {
                 let relayer = peer.id;
-                let relayer_addr = addr.clone();
+                let relayer_addr = peer.addr.clone();
                 let announcer = ann.node;
 
                 // Returning true here means that the message should be relayed.
@@ -1320,6 +1318,7 @@ where
             nid,
             Session::outbound(
                 nid,
+                addr.clone(),
                 persistent,
                 self.rng.clone(),
                 self.config.limits.clone(),
