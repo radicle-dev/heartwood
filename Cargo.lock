@@ -40,17 +40,6 @@ dependencies = [
 
 [[package]]
 name = "ahash"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
-dependencies = [
- "getrandom 0.2.10",
- "once_cell",
- "version_check",
-]
-
-[[package]]
-name = "ahash"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c99f64d1e06488f620f932677e24bc6e2897582980441ae90a671415bd7ec2f"
@@ -419,12 +408,6 @@ name = "bytes"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
-
-[[package]]
-name = "cassowary"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df8670b8c7b9dae1793364eafadf7239c40d669904660c5960d74cfd80b46a53"
 
 [[package]]
 name = "cc"
@@ -1053,9 +1036,6 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
-dependencies = [
- "ahash 0.7.6",
-]
 
 [[package]]
 name = "hashbrown"
@@ -1063,7 +1043,7 @@ version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
 dependencies = [
- "ahash 0.8.3",
+ "ahash",
 ]
 
 [[package]]
@@ -1308,15 +1288,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "isolang"
-version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f80f221db1bc708b71128757b9396727c04de86968081e18e89b0575e03be071"
-dependencies = [
- "phf",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1358,29 +1329,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f6d5ed8676d904364de097082f4e7d240b571b67989ced0240f08b7f966f940"
 dependencies = [
  "cpufeatures",
-]
-
-[[package]]
-name = "lazy-regex"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff63c423c68ea6814b7da9e88ce585f793c87ddd9e78f646970891769c8235d4"
-dependencies = [
- "lazy-regex-proc_macros",
- "once_cell",
- "regex",
-]
-
-[[package]]
-name = "lazy-regex-proc_macros"
-version = "2.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8edfc11b8f56ce85e207e62ea21557cfa09bb24a8f6b04ae181b086ff8611c22"
-dependencies = [
- "proc-macro2",
- "quote",
- "regex",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -1737,24 +1685,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
 
 [[package]]
-name = "phf"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ade2d8b8f33c7333b51bcf0428d37e217e9f32192ae4772156f65063b8ce03dc"
-dependencies = [
- "phf_shared",
-]
-
-[[package]]
-name = "phf_shared"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90fcb95eef784c2ac79119d1dd819e162b5da872ce6f3c3abe1e8ca1c082f72b"
-dependencies = [
- "siphasher",
-]
-
-[[package]]
 name = "pin-project"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1969,7 +1899,7 @@ dependencies = [
  "similar",
  "tempfile",
  "thiserror",
- "timeago 0.3.1",
+ "timeago",
  "ureq",
  "zeroize",
 ]
@@ -2200,21 +2130,6 @@ dependencies = [
  "radicle",
  "radicle-cli",
  "radicle-git-ext",
-]
-
-[[package]]
-name = "radicle-tui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "lexopt",
- "radicle",
- "radicle-cli",
- "radicle-surf",
- "radicle-term",
- "timeago 0.4.1",
- "tui-realm-stdlib",
- "tuirealm",
 ]
 
 [[package]]
@@ -2635,12 +2550,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
 
 [[package]]
-name = "smawk"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f67ad224767faa3c7d8b6d91985b78e70a1324408abcb1cfcc2be4c06bc06043"
-
-[[package]]
 name = "snapbox"
 version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2854,17 +2763,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "textwrap"
-version = "0.15.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7b3e525a49ec206798b40326a44121291b530c963cfb01018f63e135bac543d"
-dependencies = [
- "smawk",
- "unicode-linebreak",
- "unicode-width",
-]
-
-[[package]]
 name = "thiserror"
 version = "1.0.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2937,16 +2835,6 @@ name = "timeago"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ec32dde57efb15c035ac074118d7f32820451395f28cb0524a01d4e94983b26"
-
-[[package]]
-name = "timeago"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5082dc942361cdfb74eab98bf995762d6015e5bb3a20bf7c5c71213778b4fcb4"
-dependencies = [
- "chrono",
- "isolang",
-]
 
 [[package]]
 name = "tinyvec"
@@ -3135,55 +3023,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3528ecfd12c466c6f163363caf2d02a71161dd5e1cc6ae7b34207ea2d42d81ed"
 
 [[package]]
-name = "tui"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccdd26cbd674007e649a272da4475fb666d3aa0ad0531da7136db6fab0e5bad1"
-dependencies = [
- "bitflags 1.3.2",
- "cassowary",
- "termion 1.5.6",
- "unicode-segmentation",
- "unicode-width",
-]
-
-[[package]]
-name = "tui-realm-stdlib"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66f252bf8b07c6fd708ddd6349b5f044ae5b488b26929c745728d9c7e2cebfa6"
-dependencies = [
- "textwrap",
- "tuirealm",
- "unicode-width",
-]
-
-[[package]]
-name = "tuirealm"
-version = "1.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "265411b5606f400459af94fbc5aae6a7bc0e98094d08cb5868390c932be88e26"
-dependencies = [
- "bitflags 1.3.2",
- "lazy-regex",
- "termion 1.5.6",
- "thiserror",
- "tui",
- "tuirealm_derive",
-]
-
-[[package]]
-name = "tuirealm_derive"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0adcdaf59881626555558eae08f8a53003c8a1961723b4d7a10c51599abbc81"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "typenum"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3200,16 +3039,6 @@ name = "unicode-ident"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22049a19f4a68748a168c0fc439f9516686aa045927ff767eca0a85101fb6e73"
-
-[[package]]
-name = "unicode-linebreak"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5faade31a542b8b35855fff6e8def199853b2da8da256da52f52f1316ee3137"
-dependencies = [
- "hashbrown 0.12.3",
- "regex",
-]
 
 [[package]]
 name = "unicode-normalization"
