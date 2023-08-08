@@ -3,10 +3,44 @@ use std::fmt;
 use std::io;
 use std::path::PathBuf;
 
+use thiserror::Error;
+
+use radicle::git;
+use radicle::git::raw::Oid;
+use radicle_surf::diff;
+use radicle_surf::diff::{Diff, DiffContent, DiffFile, FileDiff, Hunk, Hunks, Line, Modification};
+
 use crate::terminal as term;
 
-use radicle::git::raw::Oid;
-use radicle_surf::diff::{Diff, DiffContent, DiffFile, FileDiff, Hunk, Modification};
+#[derive(Debug, Error)]
+pub enum Error {
+    /// Attempt to decode from a source with no data left.
+    #[error("unexpected end of file")]
+    UnexpectedEof,
+    #[error(transparent)]
+    Io(#[from] io::Error),
+    /// Catchall for syntax error messages.
+    #[error("{0}")]
+    Syntax(String),
+    #[error(transparent)]
+    ParseInt(#[from] std::num::ParseIntError),
+    #[error(transparent)]
+    Utf8(#[from] std::string::FromUtf8Error),
+}
+
+impl Error {
+    pub fn syntax(msg: impl ToString) -> Self {
+        Self::Syntax(msg.to_string())
+    }
+
+    pub fn is_eof(&self) -> bool {
+        match self {
+            Self::UnexpectedEof => true,
+            Self::Io(e) => e.kind() == io::ErrorKind::UnexpectedEof,
+            _ => false,
+        }
+    }
+}
 
 /// The kind of FileDiff Header which can be used to print the FileDiff information which precedes
 /// `Hunks`.
@@ -68,13 +102,13 @@ impl std::convert::From<&FileDiff> for FileHeader {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct HunkHeader {
     /// Line the hunk started in the old file.
-    pub old_line_no: usize,
+    pub old_line_no: u32,
     /// Number of removed and context lines.
-    pub old_size: usize,
+    pub old_size: u32,
     /// Line the hunk started in the new file.
-    pub new_line_no: usize,
+    pub new_line_no: u32,
     /// Number of added and context lines.
-    pub new_size: usize,
+    pub new_size: u32,
     /// Trailing text for the Hunk Header.
     ///
     /// From Git's documentation "Hunk headers mention the name of the function to which the hunk
@@ -84,49 +118,121 @@ pub struct HunkHeader {
     pub text: Vec<u8>,
 }
 
-/// A Trait for converting a value to its UnifiedDiff format.
-pub trait UnifiedDiff: Sized {
-    fn encode(&self, w: &mut Writer) -> io::Result<()>;
+impl HunkHeader {
+    pub fn old_line_range(&self) -> std::ops::Range<u32> {
+        let start: u32 = self.old_line_no;
+        let end: u32 = self.old_line_no + self.old_size;
+        start..end
+    }
 
-    fn to_unified_string(&self) -> String {
-        let mut buf = Vec::new();
-
-        {
-            let mut w = Writer::new(&mut buf);
-            w.encode(self).unwrap();
-        }
-
-        String::from_utf8(buf).unwrap()
+    pub fn new_line_range(&self) -> std::ops::Range<u32> {
+        let start: u32 = self.new_line_no;
+        let end: u32 = self.new_line_no + self.new_size;
+        start..end
     }
 }
 
-impl UnifiedDiff for Diff {
-    fn encode(&self, w: &mut Writer) -> io::Result<()> {
+/// Diff-related types that can be decoded from the unified diff format.
+pub trait Decode: Sized {
+    /// Decode, and fail if we reach the end of the stream.
+    fn decode(r: &mut impl io::BufRead) -> Result<Self, Error>;
+
+    /// Decode, and return a `None` if we reached the end of the stream.
+    fn try_decode(r: &mut impl io::BufRead) -> Result<Option<Self>, Error> {
+        match Self::decode(r) {
+            Ok(v) => Ok(Some(v)),
+            Err(Error::UnexpectedEof) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Decode from a string input.
+    fn parse(s: &str) -> Result<Self, Error> {
+        let mut r = io::BufReader::new(s.as_bytes());
+        Self::decode(&mut r)
+    }
+}
+
+/// Diff-related types that can be encoded intro the unified diff format.
+pub trait Encode: Sized {
+    /// Encode type into diff writer.
+    fn encode(&self, w: &mut Writer) -> Result<(), Error>;
+
+    /// Encode into unified diff string.
+    fn to_unified_string(&self) -> Result<String, Error> {
+        let mut buf = Vec::new();
+        let mut w = Writer::new(&mut buf);
+
+        w.encode(self)?;
+        drop(w);
+
+        String::from_utf8(buf).map_err(Error::from)
+    }
+}
+
+impl Decode for Diff {
+    /// Decode from git's unified diff format, consuming the entire input.
+    fn decode(r: &mut impl io::BufRead) -> Result<Self, Error> {
+        let mut s = String::new();
+
+        r.read_to_string(&mut s)?;
+
+        let d = git::raw::Diff::from_buffer(s.as_ref())
+            .map_err(|e| Error::syntax(format!("decoding unified diff: {}", e)))?;
+        let d = Diff::try_from(d)
+            .map_err(|e| Error::syntax(format!("decoding unified diff: {}", e)))?;
+
+        Ok(d)
+    }
+}
+
+impl Encode for Diff {
+    fn encode(&self, w: &mut Writer) -> Result<(), Error> {
         for fdiff in self.files() {
             fdiff.encode(w)?;
         }
-
         Ok(())
     }
 }
 
-impl UnifiedDiff for DiffContent {
-    fn encode(&self, w: &mut Writer) -> io::Result<()> {
+impl Decode for DiffContent {
+    fn decode(r: &mut impl io::BufRead) -> Result<Self, Error> {
+        let mut hunks = Vec::default();
+
+        while let Some(h) = Hunk::<_>::try_decode(r)? {
+            hunks.push(h);
+        }
+
+        if hunks.is_empty() {
+            Ok(DiffContent::Empty)
+        } else {
+            // TODO: Handle case for binary.
+            Ok(DiffContent::Plain {
+                hunks: Hunks::from(hunks),
+                // TODO: Properly handle EndOfLine field
+                eof: diff::EofNewLine::NoneMissing,
+            })
+        }
+    }
+}
+
+impl Encode for DiffContent {
+    fn encode(&self, w: &mut Writer) -> Result<(), Error> {
         match self {
             DiffContent::Plain { hunks, .. } => {
                 for h in hunks.iter() {
                     h.encode(w)?;
                 }
-                Ok(())
             }
-            DiffContent::Empty => Ok(()),
-            DiffContent::Binary => unimplemented!(),
+            DiffContent::Empty => {}
+            DiffContent::Binary => todo!("DiffContent::Binary encoding not implemented"),
         }
+        Ok(())
     }
 }
 
-impl UnifiedDiff for FileDiff {
-    fn encode(&self, w: &mut Writer) -> io::Result<()> {
+impl Encode for FileDiff {
+    fn encode(&self, w: &mut Writer) -> Result<(), Error> {
         w.encode(&FileHeader::from(self))?;
         match self {
             FileDiff::Modified(f) => {
@@ -151,8 +257,8 @@ impl UnifiedDiff for FileDiff {
     }
 }
 
-impl UnifiedDiff for FileHeader {
-    fn encode(&self, w: &mut Writer) -> io::Result<()> {
+impl Encode for FileHeader {
+    fn encode(&self, w: &mut Writer) -> Result<(), Error> {
         match self {
             FileHeader::Modified { path, old, new } => {
                 w.meta(format!(
@@ -234,8 +340,43 @@ impl UnifiedDiff for FileHeader {
     }
 }
 
-impl UnifiedDiff for HunkHeader {
-    fn encode(&self, w: &mut Writer) -> io::Result<()> {
+impl Decode for HunkHeader {
+    fn decode(r: &mut impl io::BufRead) -> Result<Self, Error> {
+        let mut line = String::default();
+        if r.read_line(&mut line)? == 0 {
+            return Err(Error::UnexpectedEof);
+        };
+
+        let mut header = HunkHeader::default();
+        let s = line
+            .strip_prefix("@@ -")
+            .ok_or(Error::syntax("missing '@@ -'"))?;
+
+        let (old, s) = s
+            .split_once(" +")
+            .ok_or(Error::syntax("missing new line information"))?;
+        let (line_no, size) = old.split_once(',').unwrap_or((old, "1"));
+
+        header.old_line_no = line_no.parse()?;
+        header.old_size = size.parse()?;
+
+        let (new, s) = s
+            .split_once(" @@")
+            .ok_or(Error::syntax("closing '@@' is missing"))?;
+        let (line_no, size) = new.split_once(',').unwrap_or((new, "1"));
+
+        header.new_line_no = line_no.parse()?;
+        header.new_size = size.parse()?;
+
+        let s = s.strip_prefix(' ').unwrap_or(s);
+        header.text = s.as_bytes().to_vec();
+
+        Ok(header)
+    }
+}
+
+impl Encode for HunkHeader {
+    fn encode(&self, w: &mut Writer) -> Result<(), Error> {
         let old = if self.old_size == 1 {
             format!("{}", self.old_line_no)
         } else {
@@ -251,16 +392,80 @@ impl UnifiedDiff for HunkHeader {
         } else {
             format!(" {}", String::from_utf8_lossy(&self.text))
         };
+        w.meta(format!("@@ -{old} +{new} @@{text}"))?;
 
-        w.meta(format!("@@ -{old} +{new} @@{text}"))
+        Ok(())
     }
 }
 
-impl UnifiedDiff for Hunk<Modification> {
-    fn encode(&self, w: &mut Writer) -> io::Result<()> {
+impl Decode for Hunk<Modification> {
+    fn decode(r: &mut impl io::BufRead) -> Result<Self, Error> {
+        let header = HunkHeader::decode(r)?;
+
+        let mut lines = Vec::new();
+        let mut new_line: u32 = 0;
+        let mut old_line: u32 = 0;
+
+        while old_line < header.old_size || new_line < header.new_size {
+            if old_line > header.old_size {
+                return Err(Error::syntax(format!(
+                    "expected '{}' old lines",
+                    header.old_size
+                )));
+            } else if new_line > header.new_size {
+                return Err(Error::syntax(format!(
+                    "expected '{0}' new lines",
+                    header.new_size
+                )));
+            }
+
+            let Some(line) = Modification::try_decode(r)? else {
+                    return Err(Error::syntax(format!(
+                        "expected '{}' old lines and '{}' new lines, but found '{}' and '{}'",
+                        header.old_size, header.new_size, old_line, new_line,
+                    )));
+            };
+
+            let line = match line {
+                Modification::Addition(v) => {
+                    let l = Modification::addition(v.line, header.new_line_no + new_line);
+                    new_line += 1;
+                    l
+                }
+                Modification::Deletion(v) => {
+                    let l = Modification::deletion(v.line, header.old_line_no + old_line);
+                    old_line += 1;
+                    l
+                }
+                Modification::Context { line, .. } => {
+                    let l = Modification::Context {
+                        line,
+                        line_no_old: header.old_line_no + old_line,
+                        line_no_new: header.new_line_no + new_line,
+                    };
+                    new_line += 1;
+                    old_line += 1;
+                    l
+                }
+            };
+
+            lines.push(line);
+        }
+
+        Ok(Hunk {
+            header: Line::from(header.to_unified_string()?),
+            lines,
+            old: header.old_line_range(),
+            new: header.new_line_range(),
+        })
+    }
+}
+
+impl Encode for Hunk<Modification> {
+    fn encode(&self, w: &mut Writer) -> Result<(), Error> {
         // TODO: Remove trailing newlines accurately.
-        //   trim_end() will destroy diff information if the diff has a trailing whitespace on
-        //   purpose.
+        // `trim_end()` will destroy diff information if the diff has a trailing whitespace on
+        // purpose.
         w.magenta(self.header.from_utf8_lossy().trim_end())?;
         for l in &self.lines {
             l.encode(w)?;
@@ -270,22 +475,52 @@ impl UnifiedDiff for Hunk<Modification> {
     }
 }
 
-impl UnifiedDiff for Modification {
-    fn encode(&self, w: &mut Writer) -> io::Result<()> {
+impl Decode for Modification {
+    fn decode(r: &mut impl io::BufRead) -> Result<Self, Error> {
+        let mut line = String::new();
+        if r.read_line(&mut line)? == 0 {
+            return Err(Error::UnexpectedEof);
+        };
+
+        let mut chars = line.chars();
+        let l = match chars.next() {
+            Some('+') => Modification::addition(chars.as_str().to_string(), 0),
+            Some('-') => Modification::deletion(chars.as_str().to_string(), 0),
+            Some(' ') => Modification::Context {
+                line: chars.as_str().to_string().into(),
+                line_no_old: 0,
+                line_no_new: 0,
+            },
+            Some(c) => {
+                return Err(Error::syntax(format!(
+                    "indicator character expected, but got '{c}'",
+                )))
+            }
+            None => return Err(Error::UnexpectedEof),
+        };
+
+        Ok(l)
+    }
+}
+
+impl Encode for Modification {
+    fn encode(&self, w: &mut Writer) -> Result<(), Error> {
         match self {
             Modification::Deletion(radicle_surf::diff::Deletion { line, .. }) => {
                 let s = format!("-{}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Red))
+                w.write(s, term::Style::new(term::Color::Red))?;
             }
             Modification::Addition(radicle_surf::diff::Addition { line, .. }) => {
                 let s = format!("+{}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::new(term::Color::Green))
+                w.write(s, term::Style::new(term::Color::Green))?;
             }
             Modification::Context { line, .. } => {
                 let s = format!(" {}", String::from_utf8_lossy(line.as_bytes()).trim_end());
-                w.write(s, term::Style::default().dim())
+                w.write(s, term::Style::default().dim())?;
             }
         }
+
+        Ok(())
     }
 }
 
@@ -303,8 +538,9 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn encode(&mut self, arg: &impl UnifiedDiff) -> io::Result<()> {
-        arg.encode(self)
+    pub fn encode<T: Encode>(&mut self, arg: &T) -> Result<(), Error> {
+        arg.encode(self)?;
+        Ok(())
     }
 
     pub fn styled(mut self, value: bool) -> Self {
@@ -327,4 +563,40 @@ impl<'a> Writer<'a> {
     fn magenta(&mut self, s: impl fmt::Display) -> io::Result<()> {
         self.write(s, term::Style::new(term::Color::Magenta))
     }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_diff_encode_decode_diff() {
+        let diff_a = diff::Diff::parse(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/data/diff.diff"
+        )))
+        .unwrap();
+        assert_eq!(
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/diff.diff")),
+            diff_a.to_unified_string().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_diff_content_encode_decode_content() {
+        let diff_content = diff::DiffContent::parse(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/data/diff_body.diff"
+        )))
+        .unwrap();
+        assert_eq!(
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/data/diff_body.diff"
+            )),
+            diff_content.to_unified_string().unwrap()
+        );
+    }
+
+    // TODO: Test parsing a real diff from this repository.
 }
