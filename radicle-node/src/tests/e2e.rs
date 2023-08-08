@@ -603,7 +603,10 @@ fn test_large_fetch() {
 
     bob_events
         .wait(
-            |e| matches!(e, service::Event::RefsFetched { updated, .. } if !updated.is_empty()),
+            |e| {
+                matches!(e, service::Event::RefsFetched { updated, .. } if !updated.is_empty())
+                    .then_some(())
+            },
             time::Duration::from_secs(9 * scale as u64),
         )
         .unwrap();

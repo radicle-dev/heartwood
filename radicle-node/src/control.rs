@@ -94,10 +94,12 @@ where
     match cmd {
         Command::Connect { addr, opts } => {
             let (nid, addr) = addr.into();
-            if let Err(e) = handle.connect(nid, addr, opts) {
-                return Err(CommandError::Runtime(e));
-            } else {
-                CommandResult::Okay { updated: true }.to_writer(writer)?;
+            match handle.connect(nid, addr, opts) {
+                Err(e) => return Err(CommandError::Runtime(e)),
+                Ok(result) => {
+                    json::to_writer(&mut writer, &result)?;
+                    writer.write_all(b"\n")?;
+                }
             }
         }
         Command::Fetch { rid, nid } => {

@@ -151,7 +151,7 @@ impl Session {
     }
 
     pub fn is_connected(&self) -> bool {
-        matches!(self.state, State::Connected { .. })
+        self.state.is_connected()
     }
 
     pub fn is_disconnected(&self) -> bool {

@@ -92,6 +92,13 @@ pub enum State {
     },
 }
 
+impl State {
+    /// Check if this is a connected state.
+    pub fn is_connected(&self) -> bool {
+        matches!(self, Self::Connected { .. })
+    }
+}
+
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -200,6 +207,8 @@ impl FromStr for Alias {
 pub struct ConnectOptions {
     /// Establish a persistent connection.
     pub persistent: bool,
+    /// How long to wait for the connection to be established.
+    pub timeout: time::Duration,
 }
 
 /// Result of a command, on the node control socket.
@@ -597,6 +606,13 @@ pub enum CallError {
     },
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
+pub enum ConnectResult {
+    Connected,
+    Disconnected { reason: String },
+}
+
 /// A handle to send commands to the node or request information.
 pub trait Handle: Clone + Sync + Send {
     /// The peer sessions type.
@@ -614,7 +630,7 @@ pub trait Handle: Clone + Sync + Send {
         node: NodeId,
         addr: Address,
         opts: ConnectOptions,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<ConnectResult, Self::Error>;
     /// Lookup the seeds of a given repository in the routing table.
     fn seeds(&mut self, id: Id) -> Result<Seeds, Self::Error>;
     /// Fetch a repository from the network.
@@ -760,18 +776,25 @@ impl Handle for Node {
         matches!(result, CommandResult::Okay { .. })
     }
 
-    fn connect(&mut self, nid: NodeId, addr: Address, opts: ConnectOptions) -> Result<(), Error> {
-        self.call::<CommandResult>(
-            Command::Connect {
-                addr: (nid, addr).into(),
-                opts,
-            },
-            DEFAULT_TIMEOUT,
-        )?
-        .next()
-        .ok_or(Error::EmptyResponse)??;
+    fn connect(
+        &mut self,
+        nid: NodeId,
+        addr: Address,
+        opts: ConnectOptions,
+    ) -> Result<ConnectResult, Error> {
+        let timeout = opts.timeout;
+        let result = self
+            .call::<ConnectResult>(
+                Command::Connect {
+                    addr: (nid, addr).into(),
+                    opts,
+                },
+                timeout,
+            )?
+            .next()
+            .ok_or(Error::EmptyResponse)??;
 
-        Ok(())
+        Ok(result)
     }
 
     fn seeds(&mut self, rid: Id) -> Result<Seeds, Error> {

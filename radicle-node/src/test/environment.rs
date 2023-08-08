@@ -166,7 +166,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
 
         self.handle
             .connect(remote.id, remote.addr.into(), ConnectOptions::default())
-            .unwrap();
+            .ok();
 
         local_events
             .iter()
@@ -226,7 +226,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             }
             events
                 .wait(
-                    |e| matches!(e, Event::SeedDiscovered { .. }),
+                    |e| matches!(e, Event::SeedDiscovered { .. }).then_some(()),
                     time::Duration::from_secs(6),
                 )
                 .unwrap();
@@ -247,7 +247,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             }
             events
                 .wait(
-                    |e| matches!(e, Event::RefsFetched { .. }),
+                    |e| matches!(e, Event::RefsFetched { .. }).then_some(()),
                     time::Duration::from_secs(6),
                 )
                 .unwrap();

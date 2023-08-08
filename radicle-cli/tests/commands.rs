@@ -239,16 +239,40 @@ fn rad_id_rebase() {
 }
 
 #[test]
-fn rad_node() {
+fn rad_node_connect() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let working = tempfile::tempdir().unwrap();
-
     let alice = alice.spawn();
-    let _bob = bob.spawn();
+    let bob = bob.spawn();
+
+    alice
+        .rad(
+            "node",
+            &["connect", format!("{}@{}", bob.id, bob.addr).as_str()],
+            working.path(),
+        )
+        .unwrap();
+
+    let sessions = alice.handle.sessions().unwrap();
+    let session = sessions.first().unwrap();
+
+    assert_eq!(session.nid, bob.id);
+    assert_eq!(session.addr, bob.addr.into());
+    assert!(session.state.is_connected());
+}
+
+#[test]
+fn rad_node() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let working = tempfile::tempdir().unwrap();
+    let alice = alice.spawn();
 
     fixtures::repository(working.path().join("alice"));
 
@@ -681,7 +705,7 @@ fn test_cob_replication() {
     // Wait for Alice to fetch the clone refs.
     events
         .wait(
-            |e| matches!(e, Event::RefsFetched { .. }),
+            |e| matches!(e, Event::RefsFetched { .. }).then_some(()),
             time::Duration::from_secs(6),
         )
         .unwrap();

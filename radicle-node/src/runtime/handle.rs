@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::{fmt, io, time};
 
 use crossbeam_channel as chan;
-use radicle::node::{ConnectOptions, Seeds};
+use radicle::node::{ConnectOptions, ConnectResult, Seeds};
 use reactor::poller::popol::PopolWaker;
 use thiserror::Error;
 
@@ -148,10 +148,33 @@ impl radicle::node::Handle for Handle {
         node: NodeId,
         addr: radicle::node::Address,
         opts: ConnectOptions,
-    ) -> Result<(), Error> {
+    ) -> Result<ConnectResult, Error> {
+        let events = self.events();
+        let timeout = opts.timeout;
+        let sessions = self.sessions()?;
+        let session = sessions.iter().find(|s| s.nid == node);
+
+        if let Some(s) = session {
+            if s.state.is_connected() {
+                return Ok(ConnectResult::Connected);
+            }
+        }
         self.command(service::Command::Connect(node, addr, opts))?;
 
-        Ok(())
+        events
+            .wait(
+                |e| match e {
+                    Event::PeerConnected { nid } if nid == &node => Some(ConnectResult::Connected),
+                    Event::PeerDisconnected { nid, reason } if nid == &node => {
+                        Some(ConnectResult::Disconnected {
+                            reason: reason.clone(),
+                        })
+                    }
+                    _ => None,
+                },
+                timeout,
+            )
+            .map_err(Error::from)
     }
 
     fn seeds(&mut self, id: Id) -> Result<Seeds, Self::Error> {

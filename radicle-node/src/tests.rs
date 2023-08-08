@@ -1230,9 +1230,9 @@ fn test_refs_synced_event() {
                     assert_eq!(remote, &bob.id);
                     assert_eq!(rid, &acme);
 
-                    true
+                    Some(())
                 } else {
-                    false
+                    None
                 }
             },
             time::Duration::from_secs(3),

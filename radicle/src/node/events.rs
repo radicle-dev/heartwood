@@ -30,6 +30,10 @@ pub enum Event {
     PeerConnected {
         nid: NodeId,
     },
+    PeerDisconnected {
+        nid: NodeId,
+        reason: String,
+    },
 }
 
 /// Events feed.
@@ -61,13 +65,9 @@ impl Deref for Events {
 impl Events {
     /// Listen for events, and wait for the given predicate to return something,
     /// or timeout if the specified amount of time has elapsed.
-    pub fn wait<F>(
-        &self,
-        mut f: F,
-        timeout: time::Duration,
-    ) -> Result<Event, chan::RecvTimeoutError>
+    pub fn wait<F, T>(&self, mut f: F, timeout: time::Duration) -> Result<T, chan::RecvTimeoutError>
     where
-        F: FnMut(&Event) -> bool,
+        F: FnMut(&Event) -> Option<T>,
     {
         let start = time::Instant::now();
 
@@ -75,8 +75,8 @@ impl Events {
             if let Some(timeout) = timeout.checked_sub(start.elapsed()) {
                 match self.recv_timeout(timeout) {
                     Ok(event) => {
-                        if f(&event) {
-                            return Ok(event);
+                        if let Some(output) = f(&event) {
+                            return Ok(output);
                         }
                     }
                     Err(err @ chan::RecvTimeoutError::Disconnected) => {

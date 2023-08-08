@@ -505,7 +505,9 @@ where
                 if opts.persistent {
                     self.config.connect.insert((nid, addr.clone()).into());
                 }
-                self.connect(nid, addr);
+                if !self.connect(nid, addr) {
+                    // TODO: Return error to command.
+                }
             }
             Command::Disconnect(nid) => {
                 self.outbox.disconnect(nid, DisconnectReason::Command);
@@ -784,6 +786,10 @@ where
         let since = self.local_time();
 
         debug!(target: "service", "Disconnected from {} ({})", remote, reason);
+        self.emitter.emit(Event::PeerDisconnected {
+            nid: remote,
+            reason: reason.to_string(),
+        });
 
         let Some(session) = self.sessions.get_mut(&remote) else {
             if cfg!(debug_assertions) {

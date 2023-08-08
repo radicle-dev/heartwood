@@ -69,6 +69,7 @@ pub struct Options {
 pub enum Operation {
     Connect {
         addr: PeerAddr<NodeId, Address>,
+        timeout: time::Duration,
     },
     Events {
         timeout: time::Duration,
@@ -100,7 +101,7 @@ pub enum TrackingMode {
     Nodes,
 }
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq)]
 pub enum OperationName {
     Connect,
     Events,
@@ -159,7 +160,9 @@ impl Args for Options {
                     nid = term::args::nid(&val).ok();
                 }
                 Long("json") if matches!(op, Some(OperationName::Routing)) => json = true,
-                Long("timeout") if matches!(op, Some(OperationName::Events)) => {
+                Long("timeout")
+                    if op == Some(OperationName::Events) || op == Some(OperationName::Connect) =>
+                {
                     let val = parser.value()?;
                     timeout = term::args::seconds(&val)?;
                 }
@@ -191,6 +194,7 @@ impl Args for Options {
                 addr: addr.ok_or_else(|| {
                     anyhow!("an address of the form `<nid>@<host>:<port>` must be provided")
                 })?,
+                timeout,
             },
             OperationName::Events => Operation::Events { timeout, count },
             OperationName::Routing => Operation::Routing { rid, nid, json },
@@ -214,7 +218,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = Node::new(profile.socket());
 
     match options.op {
-        Operation::Connect { addr } => control::connect(&mut node, addr.id, addr.addr)?,
+        Operation::Connect { addr, timeout } => {
+            control::connect(&mut node, addr.id, addr.addr, timeout)?
+        }
         Operation::Events { timeout, count } => {
             events::run(node, count, timeout)?;
         }

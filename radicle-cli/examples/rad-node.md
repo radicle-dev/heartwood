@@ -18,15 +18,6 @@ $ rad node status
 ✓ Node is running.
 ```
 
-The node also allows us to connect with other nodes in the
-network. For example, let's connect to a known peer using their Node
-ID and their network address:
-
-```
-$ rad node connect z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk@0.0.0.0:3679
-✓ Connecting to z6Mkt67…v4N1tRk@0.0.0.0:3679...
-```
-
 The node also allows us to query data that it has access too such as
 the tracking relationships and the routing table. Before we explore
 those commands we'll first track a peer so that we have something to

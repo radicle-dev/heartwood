@@ -7,7 +7,7 @@ use anyhow::Context as _;
 use localtime::LocalTime;
 
 use radicle::node;
-use radicle::node::{Address, Handle as _, NodeId};
+use radicle::node::{Address, ConnectResult, Handle as _, NodeId};
 use radicle::Node;
 use radicle::{profile, Profile};
 
@@ -122,20 +122,27 @@ pub fn logs(lines: usize, follow: Option<time::Duration>, profile: &Profile) -> 
     Ok(())
 }
 
-pub fn connect(node: &mut Node, nid: NodeId, addr: Address) -> anyhow::Result<()> {
+pub fn connect(
+    node: &mut Node,
+    nid: NodeId,
+    addr: Address,
+    timeout: time::Duration,
+) -> anyhow::Result<()> {
     let spinner = term::spinner(format!(
         "Connecting to {}@{addr}...",
         term::format::node(&nid)
     ));
-    if let Err(err) = node.connect(nid, addr.clone(), node::ConnectOptions { persistent: true }) {
-        spinner.error(format!(
-            "Failed to connect to {}@{}: {}",
-            term::format::node(&nid),
-            term::format::secondary(addr),
-            err,
-        ))
-    } else {
-        spinner.finish()
+    match node.connect(
+        nid,
+        addr,
+        node::ConnectOptions {
+            persistent: true,
+            timeout,
+        },
+    ) {
+        Ok(ConnectResult::Connected) => spinner.finish(),
+        Ok(ConnectResult::Disconnected { reason }) => spinner.error(reason),
+        Err(err) => spinner.error(err.to_string()),
     }
     Ok(())
 }
