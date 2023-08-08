@@ -3,15 +3,16 @@
 #![allow(clippy::collapsible_if)]
 pub mod filter;
 pub mod io;
+pub mod limitter;
 pub mod message;
 pub mod session;
 pub mod tracking;
 
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::{fmt, net};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
@@ -29,7 +30,7 @@ use crate::identity::IdentityError;
 use crate::identity::{Doc, Id};
 use crate::node::routing;
 use crate::node::routing::InsertResult;
-use crate::node::{Address, Alias, Features, FetchResult, Seed, Seeds};
+use crate::node::{Address, Alias, Features, FetchResult, HostName, Seed, Seeds};
 use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
@@ -48,6 +49,7 @@ pub use crate::service::session::Session;
 
 use self::gossip::Gossip;
 use self::io::Outbox;
+use self::limitter::RateLimiter;
 use self::message::InventoryAnnouncement;
 use self::tracking::NamespacesError;
 
@@ -204,6 +206,8 @@ pub struct Service<R, A, S, G> {
     rng: Rng,
     /// Fetch requests initiated by user, which are waiting for results.
     fetch_reqs: HashMap<(Id, NodeId), chan::Sender<FetchResult>>,
+    /// Request/connection rate limitter.
+    limiter: RateLimiter,
     /// Current tracked repository bloom filter.
     filter: Filter,
     /// Last time the service was idle.
@@ -268,6 +272,7 @@ where
             routing,
             gossip: Gossip::default(),
             outbox: Outbox::default(),
+            limiter: RateLimiter::default(),
             sessions,
             fetch_reqs: HashMap::new(),
             filter: Filter::empty(),
@@ -710,8 +715,19 @@ where
         }
     }
 
-    pub fn accepted(&mut self, _addr: net::SocketAddr) {
-        // Inbound connection attempt.
+    /// Inbound connection attempt.
+    pub fn accepted(&mut self, addr: Address) -> bool {
+        // Always accept trusted connections.
+        if addr.is_trusted() {
+            return true;
+        }
+        let host: HostName = addr.into();
+
+        if self.limiter.limit(host.clone(), &Link::Inbound, self.clock) {
+            trace!(target: "service", "Rate limitting inbound connection from {host}..");
+            return false;
+        }
+        true
     }
 
     pub fn attempted(&mut self, nid: NodeId, addr: Address) {
@@ -1097,6 +1113,13 @@ where
             warn!(target: "service", "Session not found for {remote}");
             return Ok(());
         };
+        if self
+            .limiter
+            .limit(peer.addr.clone().into(), &peer.link, self.clock)
+        {
+            trace!(target: "service", "Rate limiting message from {remote} ({})", peer.addr);
+            return Ok(());
+        }
         peer.last_active = self.clock;
         message.log(log::Level::Debug, remote, Link::Inbound);
 

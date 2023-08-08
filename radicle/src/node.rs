@@ -15,7 +15,7 @@ use std::str::FromStr;
 use std::{fmt, io, net, thread, time};
 
 use amplify::WrapperMut;
-use cyphernet::addr::{HostName, NetAddr};
+use cyphernet::addr::NetAddr;
 use localtime::LocalTime;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ use crate::storage::RefUpdate;
 
 pub use address::KnownAddress;
 pub use config::Config;
-pub use cyphernet::addr::PeerAddr;
+pub use cyphernet::addr::{HostName, PeerAddr};
 pub use events::{Event, Events};
 pub use features::Features;
 
@@ -261,10 +261,19 @@ impl From<CommandResult> for Result<bool, Error> {
 pub struct Address(#[serde(with = "crate::serde_ext::string")] NetAddr<HostName>);
 
 impl Address {
-    /// Check whether this address is local.
+    /// Check whether this address is from the local network.
     pub fn is_local(&self) -> bool {
         match self.0.host {
             HostName::Ip(ip) => address::is_local(&ip),
+            _ => false,
+        }
+    }
+
+    /// Check whether this address is trusted.
+    /// Returns true if the address is 127.0.0.1 or 0.0.0.0.
+    pub fn is_trusted(&self) -> bool {
+        match self.0.host {
+            HostName::Ip(ip) => ip.is_loopback() || ip.is_unspecified(),
             _ => false,
         }
     }
@@ -296,6 +305,12 @@ impl From<net::SocketAddr> for Address {
             host: HostName::Ip(addr.ip()),
             port: addr.port(),
         })
+    }
+}
+
+impl From<Address> for HostName {
+    fn from(addr: Address) -> Self {
+        addr.0.host
     }
 }
 

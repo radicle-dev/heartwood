@@ -466,21 +466,26 @@ where
 
     fn handle_listener_event(
         &mut self,
-        socket_addr: net::SocketAddr,
+        _sock: net::SocketAddr,
         event: ListenerEvent<WireSession<G>>,
         _: Timestamp,
     ) {
         match event {
             ListenerEvent::Accepted(connection) => {
-                log::debug!(
-                    target: "wire",
-                    "Accepting inbound peer connection from {}..",
-                    connection.remote_addr()
-                );
-                self.peers.insert(
-                    connection.as_raw_fd(),
-                    Peer::inbound(connection.remote_addr().into()),
-                );
+                let addr = connection.remote_addr();
+                log::debug!(target: "wire", "Accepting inbound peer connection from {addr}..");
+
+                self.peers
+                    .insert(connection.as_raw_fd(), Peer::inbound(addr.clone().into()));
+
+                // If the service doesn't want to accept this connection,
+                // we drop the connection here, which disconnects the socket.
+                if !self.service.accepted(NetAddr::from(addr.clone()).into()) {
+                    log::debug!(target: "wire", "Dropping inbound connection from {addr}..");
+                    drop(connection);
+
+                    return;
+                }
 
                 let session = accept::<G>(connection, self.signer.clone());
                 let transport = match NetTransport::with_session(session, Link::Inbound) {
@@ -490,7 +495,6 @@ where
                         return;
                     }
                 };
-                self.service.accepted(socket_addr);
                 self.actions
                     .push_back(reactor::Action::RegisterTransport(transport))
             }
