@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use localtime::LocalTime;
 use nonempty::NonEmpty;
 
-use crate::collections::HashMap;
+use crate::collections::RandomMap;
 use crate::node;
 use crate::node::{Address, Alias};
 use crate::prelude::Timestamp;
@@ -11,7 +11,7 @@ use crate::prelude::Timestamp;
 /// A map with the ability to randomly select values.
 #[derive(Debug, Clone)]
 pub struct AddressBook<K, V> {
-    inner: HashMap<K, V>,
+    inner: RandomMap<K, V>,
     rng: fastrand::Rng,
 }
 
@@ -19,7 +19,7 @@ impl<K, V> AddressBook<K, V> {
     /// Create a new address book.
     pub fn new(rng: fastrand::Rng) -> Self {
         Self {
-            inner: HashMap::with_hasher(rng.clone().into()),
+            inner: RandomMap::with_hasher(rng.clone().into()),
             rng,
         }
     }
@@ -61,7 +61,7 @@ impl<K, V> AddressBook<K, V> {
 }
 
 impl<K, V> Deref for AddressBook<K, V> {
-    type Target = HashMap<K, V>;
+    type Target = RandomMap<K, V>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner

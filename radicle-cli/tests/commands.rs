@@ -56,6 +56,7 @@ fn formula(root: &Path, test: impl AsRef<Path>) -> Result<TestFormula, Box<dyn s
         .env("GIT_COMMITTER_NAME", "radicle")
         .env("RAD_PASSPHRASE", "radicle")
         .env("RAD_SEED", RAD_SEED)
+        .env("RAD_RNG_SEED", "0")
         .env("EDITOR", "true")
         .env("TZ", "UTC")
         .env("LANG", "C")

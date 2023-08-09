@@ -12,7 +12,7 @@ use radicle::node::routing::Store as _;
 use radicle::node::ConnectOptions;
 use radicle::storage::ReadRepository;
 
-use crate::collections::{HashMap, HashSet};
+use crate::collections::{RandomMap, RandomSet};
 use crate::crypto::test::signer::MockSigner;
 use crate::identity::Id;
 use crate::node;
@@ -1375,7 +1375,7 @@ fn prop_inventory_exchange_dense() {
             eve_inv.clone(),
             peer::Config::default(),
         );
-        let mut routing = HashMap::with_hasher(rng.clone().into());
+        let mut routing = RandomMap::with_hasher(rng.clone().into());
 
         for (inv, peer) in &[
             (alice_inv.inventory, alice.node_id()),
@@ -1385,7 +1385,7 @@ fn prop_inventory_exchange_dense() {
             for id in inv.keys() {
                 routing
                     .entry(*id)
-                    .or_insert_with(|| HashSet::with_hasher(rng.clone().into()))
+                    .or_insert_with(|| RandomSet::with_hasher(rng.clone().into()))
                     .insert(*peer);
             }
         }
@@ -1407,7 +1407,7 @@ fn prop_inventory_exchange_dense() {
             ConnectOptions::default(),
         ));
 
-        let mut peers: HashMap<_, _> = [
+        let mut peers: RandomMap<_, _> = [
             (alice.node_id(), alice),
             (bob.node_id(), bob),
             (eve.node_id(), eve),
@@ -1439,7 +1439,7 @@ fn prop_inventory_exchange_dense() {
                         "There are remote locations for the project"
                     );
                     assert_eq!(
-                        &lookup.remote.into_iter().collect::<HashSet<_>>(),
+                        &lookup.remote.into_iter().collect::<RandomSet<_>>(),
                         remotes,
                         "The remotes match the global routing table"
                     );

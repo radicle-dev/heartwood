@@ -6,7 +6,7 @@ use std::str::FromStr;
 use git_ext::ref_format as format;
 use once_cell::sync::Lazy;
 
-use crate::collections::HashMap;
+use crate::collections::RandomMap;
 use crate::crypto::PublicKey;
 use crate::storage;
 use crate::storage::refs::Refs;
@@ -367,9 +367,9 @@ pub mod refs {
 }
 
 /// List remote refs of a project, given the remote URL.
-pub fn remote_refs(url: &Url) -> Result<HashMap<RemoteId, Refs>, ListRefsError> {
+pub fn remote_refs(url: &Url) -> Result<RandomMap<RemoteId, Refs>, ListRefsError> {
     let url = url.to_string();
-    let mut remotes = HashMap::default();
+    let mut remotes = RandomMap::default();
     let mut remote = git2::Remote::create_detached(url)?;
 
     remote.connect(git2::Direction::Fetch)?;

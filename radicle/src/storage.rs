@@ -14,7 +14,7 @@ use crypto::{PublicKey, Signer, Unverified, Verified};
 pub use git::VerifyError;
 pub use radicle_git_ext::Oid;
 
-use crate::collections::HashMap;
+use crate::collections::RandomMap;
 use crate::git::ext as git_ext;
 use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefString};
 use crate::identity;
@@ -168,7 +168,7 @@ impl fmt::Display for RefUpdate {
 
 /// Project remotes. Tracks the git state of a project.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Remotes<V>(HashMap<RemoteId, Remote<V>>);
+pub struct Remotes<V>(RandomMap<RemoteId, Remote<V>>);
 
 impl<V> FromIterator<(RemoteId, Remote<V>)> for Remotes<V> {
     fn from_iter<T: IntoIterator<Item = (RemoteId, Remote<V>)>>(iter: T) -> Self {
@@ -177,7 +177,7 @@ impl<V> FromIterator<(RemoteId, Remote<V>)> for Remotes<V> {
 }
 
 impl<V> Deref for Remotes<V> {
-    type Target = HashMap<RemoteId, Remote<V>>;
+    type Target = RandomMap<RemoteId, Remote<V>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -185,7 +185,7 @@ impl<V> Deref for Remotes<V> {
 }
 
 impl<V> Remotes<V> {
-    pub fn new(remotes: HashMap<RemoteId, Remote<V>>) -> Self {
+    pub fn new(remotes: RandomMap<RemoteId, Remote<V>>) -> Self {
         Self(remotes)
     }
 }
@@ -202,7 +202,7 @@ impl Remotes<Verified> {
 
 impl<V> Default for Remotes<V> {
     fn default() -> Self {
-        Self(HashMap::default())
+        Self(RandomMap::default())
     }
 }
 
@@ -215,9 +215,9 @@ impl<V> IntoIterator for Remotes<V> {
     }
 }
 
-impl<V> From<Remotes<V>> for HashMap<RemoteId, Refs> {
+impl<V> From<Remotes<V>> for RandomMap<RemoteId, Refs> {
     fn from(other: Remotes<V>) -> Self {
-        let mut remotes = HashMap::with_hasher(fastrand::Rng::new().into());
+        let mut remotes = RandomMap::with_hasher(fastrand::Rng::new().into());
 
         for (k, v) in other.into_iter() {
             remotes.insert(k, v.refs.into());

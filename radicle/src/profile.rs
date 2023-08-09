@@ -37,6 +37,8 @@ pub mod env {
     pub const RAD_SOCKET: &str = "RAD_SOCKET";
     /// Passphrase for the encrypted radicle secret key.
     pub const RAD_PASSPHRASE: &str = "RAD_PASSPHRASE";
+    /// RNG seed. Must be convertible to a `u64`.
+    pub const RAD_RNG_SEED: &str = "RAD_RNG_SEED";
 
     /// Get the radicle passphrase from the environment.
     pub fn passphrase() -> Option<super::Passphrase> {
@@ -44,6 +46,17 @@ pub mod env {
             return None;
         };
         Some(super::Passphrase::from(passphrase))
+    }
+
+    /// Get a random number generator from the environment.
+    pub fn rng() -> fastrand::Rng {
+        let Ok(seed) = std::env::var(RAD_RNG_SEED) else {
+            return fastrand::Rng::new();
+        };
+        fastrand::Rng::with_seed(
+            seed.parse()
+                .expect("env::rng: invalid seed specified in `RAD_RNG_SEED`"),
+        )
     }
 }
 

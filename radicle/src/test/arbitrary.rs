@@ -9,7 +9,7 @@ use crypto::{PublicKey, Unverified, Verified};
 use nonempty::NonEmpty;
 use qcheck::Arbitrary;
 
-use crate::collections::HashMap;
+use crate::collections::RandomMap;
 use crate::identity::{
     doc::{Doc, Id},
     project::Project,
@@ -82,7 +82,7 @@ pub fn gen<T: Arbitrary>(size: usize) -> T {
 
 impl Arbitrary for storage::Remotes<crypto::Verified> {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let remotes: HashMap<storage::RemoteId, storage::Remote<crypto::Verified>> =
+        let remotes: RandomMap<storage::RemoteId, storage::Remote<crypto::Verified>> =
             Arbitrary::arbitrary(g);
 
         storage::Remotes::new(remotes)

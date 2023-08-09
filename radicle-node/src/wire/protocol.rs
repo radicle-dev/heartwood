@@ -21,7 +21,7 @@ use netservices::session::{ProtocolArtifact, Socks5Session};
 use netservices::{NetConnection, NetProtocol, NetReader, NetWriter};
 use reactor::Timestamp;
 
-use radicle::collections::HashMap;
+use radicle::collections::RandomMap;
 use radicle::node::{address, routing, NodeId};
 use radicle::storage::WriteStorage;
 
@@ -74,7 +74,7 @@ struct Streams {
     /// Active streams and their associated worker channels.
     /// Note that the gossip and control streams are not included here as they are always
     /// implied to exist.
-    streams: HashMap<StreamId, worker::Channels>,
+    streams: RandomMap<StreamId, worker::Channels>,
     /// Connection direction.
     link: Link,
     /// Sequence number used to compute the next stream id.
@@ -85,7 +85,7 @@ impl Streams {
     /// Create a new [`Streams`] object, passing the connection link.
     fn new(link: Link) -> Self {
         Self {
-            streams: HashMap::default(),
+            streams: RandomMap::default(),
             link,
             seq: 0,
         }
@@ -257,7 +257,7 @@ impl Peer {
     }
 }
 
-struct Peers(HashMap<RawFd, Peer>);
+struct Peers(RandomMap<RawFd, Peer>);
 
 impl Peers {
     fn get_mut(&mut self, fd: &RawFd) -> Option<&mut Peer> {
@@ -352,7 +352,7 @@ where
             signer,
             proxy,
             actions: VecDeque::new(),
-            peers: Peers(HashMap::default()),
+            peers: Peers(RandomMap::default()),
         }
     }
 

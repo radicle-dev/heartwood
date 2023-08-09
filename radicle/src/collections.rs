@@ -2,10 +2,10 @@
 use siphasher::sip::SipHasher13;
 
 /// A `HashMap` which uses [`fastrand::Rng`] for its random state.
-pub type HashMap<K, V> = std::collections::HashMap<K, V, RandomState>;
+pub type RandomMap<K, V> = std::collections::HashMap<K, V, RandomState>;
 
 /// A `HashSet` which uses [`fastrand::Rng`] for its random state.
-pub type HashSet<K> = std::collections::HashSet<K, RandomState>;
+pub type RandomSet<K> = std::collections::HashSet<K, RandomState>;
 
 /// Random hasher state.
 #[derive(Clone)]
@@ -16,7 +16,7 @@ pub struct RandomState {
 
 impl Default for RandomState {
     fn default() -> Self {
-        Self::new(fastrand::Rng::new())
+        Self::new(crate::profile::env::rng())
     }
 }
 
