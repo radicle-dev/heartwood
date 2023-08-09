@@ -59,15 +59,15 @@ impl<'a> Element for Box<dyn Element + 'a> {
 
 impl<T: Element> Element for &T {
     fn size(&self) -> Size {
-        self.deref().size()
+        (*self).size()
     }
 
     fn render(&self) -> Vec<Line> {
-        self.deref().render()
+        (*self).render()
     }
 
     fn print(&self) {
-        self.deref().print()
+        (*self).print()
     }
 }
 

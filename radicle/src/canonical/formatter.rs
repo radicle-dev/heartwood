@@ -217,13 +217,13 @@ impl Formatter for CanonicalFormatter {
     }
 
     fn begin_object_key<W: Write + ?Sized>(&mut self, _writer: &mut W, _first: bool) -> Result<()> {
-        let mut object = self.obj_mut()?;
+        let object = self.obj_mut()?;
         object.key_done = false;
         Ok(())
     }
 
     fn end_object_key<W: Write + ?Sized>(&mut self, _writer: &mut W) -> Result<()> {
-        let mut object = self.obj_mut()?;
+        let object = self.obj_mut()?;
         object.key_done = true;
         Ok(())
     }

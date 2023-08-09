@@ -85,7 +85,7 @@ pub fn register(node: &RemoteId, path: &Path) {
 
     REGISTER.call_once(|| unsafe {
         git2::transport::register(Url::SCHEME, move |remote| {
-            git2::transport::Transport::smart(remote, false, MockTransport::default())
+            git2::transport::Transport::smart(remote, false, MockTransport)
         })
         .expect("transport registration is successful");
     });
