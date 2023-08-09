@@ -3,36 +3,13 @@ use std::{collections::HashMap, process};
 
 use radicle::prelude::Id;
 use radicle_httpd as httpd;
-use tracing::dispatcher::Dispatch;
-
-#[cfg(feature = "logfmt")]
-mod logger {
-    use tracing_subscriber::layer::SubscriberExt as _;
-    use tracing_subscriber::EnvFilter;
-
-    pub fn subscriber() -> impl tracing::Subscriber {
-        tracing_subscriber::Registry::default()
-            .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
-            .with(tracing_logfmt::layer())
-    }
-}
-
-#[cfg(not(feature = "logfmt"))]
-mod logger {
-    pub fn subscriber() -> impl tracing::Subscriber {
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_target(false)
-            .finish()
-    }
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let options = parse_options()?;
 
-    tracing::dispatcher::set_global_default(Dispatch::new(logger::subscriber()))
-        .expect("Global logger hasn't already been set");
-
+    // SAFETY: The logger is only initialized once.
+    httpd::logger::init().unwrap();
     tracing::info!("version {}-{}", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));
 
     match httpd::run(options).await {

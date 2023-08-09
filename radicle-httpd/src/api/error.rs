@@ -93,11 +93,19 @@ impl IntoResponse for Error {
             }
             Error::Auth(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
             Error::Crypto(msg) => (StatusCode::BAD_REQUEST, Some(msg.to_string())),
+            Error::Surf(radicle_surf::Error::Git(e)) if radicle::git::is_not_found_err(&e) => {
+                (StatusCode::NOT_FOUND, None)
+            }
+            Error::Surf(radicle_surf::Error::Directory(
+                radicle_surf::fs::error::Directory::PathNotFound(_),
+            )) => (StatusCode::NOT_FOUND, None),
+            Error::Git2(e) if radicle::git::is_not_found_err(&e) => (StatusCode::NOT_FOUND, None),
             Error::Git2(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Some(e.message().to_owned()),
             ),
             Error::Storage(err) if err.is_not_found() => (StatusCode::NOT_FOUND, None),
+            Error::StorageRef(err) if err.is_not_found() => (StatusCode::NOT_FOUND, None),
             Error::BadRequest(msg) => (StatusCode::BAD_REQUEST, Some(msg)),
             other => {
                 tracing::error!("Error: {message}");

@@ -1299,6 +1299,19 @@ mod routes {
     }
 
     #[tokio::test]
+    async fn test_projects_commits_not_found() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(seed(tmp.path()));
+        let response = get(
+            &app,
+            format!("/projects/{RID}/commits/ffffffffffffffffffffffffffffffffffffffff"),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
     async fn test_projects_tree() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(seed(tmp.path()));
@@ -1390,6 +1403,21 @@ mod routes {
     }
 
     #[tokio::test]
+    async fn test_projects_tree_not_found() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(seed(tmp.path()));
+        let response = get(
+            &app,
+            format!("/projects/{RID}/tree/ffffffffffffffffffffffffffffffffffffffff"),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let response = get(&app, format!("/projects/{RID}/tree/{HEAD}/unknown")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
     async fn test_projects_remotes_root() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(seed(tmp.path()));
@@ -1434,6 +1462,19 @@ mod routes {
     }
 
     #[tokio::test]
+    async fn test_projects_remotes_not_found() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(seed(tmp.path()));
+        let response = get(
+            &app,
+            format!("/projects/{RID}/remotes/z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT"),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
     async fn test_projects_blob() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(seed(tmp.path()));
@@ -1466,6 +1507,15 @@ mod routes {
                 "content": "Hello World!\n",
             })
         );
+    }
+
+    #[tokio::test]
+    async fn test_projects_blob_not_found() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(seed(tmp.path()));
+        let response = get(&app, format!("/projects/{RID}/blob/{HEAD}/unknown")).await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

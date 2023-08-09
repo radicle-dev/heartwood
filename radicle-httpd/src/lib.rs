@@ -121,6 +121,31 @@ fn router(options: Options, profile: Profile) -> anyhow::Result<Router> {
     Ok(app)
 }
 
+pub mod logger {
+    use tracing::dispatcher::Dispatch;
+
+    pub fn init() -> Result<(), tracing::subscriber::SetGlobalDefaultError> {
+        tracing::dispatcher::set_global_default(Dispatch::new(subscriber()))
+    }
+
+    #[cfg(feature = "logfmt")]
+    pub fn subscriber() -> impl tracing::Subscriber {
+        use tracing_subscriber::layer::SubscriberExt as _;
+        use tracing_subscriber::EnvFilter;
+
+        tracing_subscriber::Registry::default()
+            .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+            .with(tracing_logfmt::layer())
+    }
+
+    #[cfg(not(feature = "logfmt"))]
+    pub fn subscriber() -> impl tracing::Subscriber {
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_target(false)
+            .finish()
+    }
+}
+
 #[cfg(test)]
 mod routes {
     use std::collections::HashMap;

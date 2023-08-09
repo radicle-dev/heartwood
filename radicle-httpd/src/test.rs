@@ -72,6 +72,8 @@ pub fn seed(dir: &Path) -> Context {
     let profile = profile(home.as_path(), [0xff; 32]);
     let signer = Box::new(MockSigner::from_seed([0xff; 32]));
 
+    crate::logger::init().ok();
+
     seed_with_signer(dir, profile, &signer)
 }
 
