@@ -837,6 +837,15 @@ mod routes {
     }
 
     #[tokio::test]
+    async fn test_projects_not_found() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = super::router(seed(tmp.path()));
+        let response = get(&app, "/projects/rad:z2u2CP3ZJzB7ZqE8jHrau19yjcfCQ").await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
     async fn test_projects_commits_root() {
         let tmp = tempfile::tempdir().unwrap();
         let app = super::router(seed(tmp.path()));

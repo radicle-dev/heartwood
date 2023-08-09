@@ -97,6 +97,7 @@ impl IntoResponse for Error {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Some(e.message().to_owned()),
             ),
+            Error::Storage(err) if err.is_not_found() => (StatusCode::NOT_FOUND, None),
             Error::BadRequest(msg) => (StatusCode::BAD_REQUEST, Some(msg)),
             other => {
                 tracing::error!("Error: {message}");
