@@ -2,6 +2,7 @@
 use std::ffi::OsString;
 use std::path::Path;
 use std::str::FromStr;
+use std::time;
 
 use anyhow::anyhow;
 use thiserror::Error;
@@ -183,7 +184,12 @@ pub fn clone<G: Signer>(
         );
     }
 
-    let results = sync::fetch_all(id, node)?;
+    let results = sync::fetch(
+        id,
+        sync::SyncMode::default(),
+        time::Duration::from_secs(9),
+        node,
+    )?;
     let Ok(repository) = storage.repository(id) else {
         // If we don't have the project locally, even after attempting to fetch,
         // there's nothing we can do.

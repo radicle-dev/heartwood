@@ -19,9 +19,10 @@ use radicle::git;
 use radicle::git::refname;
 use radicle::identity::Id;
 use radicle::node::address::Book;
+use radicle::node::routing;
 use radicle::node::routing::Store;
-use radicle::node::tracking::store as TrackingStore;
-use radicle::node::{Alias, ADDRESS_DB_FILE, TRACKING_DB_FILE};
+use radicle::node::tracking::store as tracking;
+use radicle::node::{Alias, ADDRESS_DB_FILE, ROUTING_DB_FILE, TRACKING_DB_FILE};
 use radicle::node::{ConnectOptions, Handle as _};
 use radicle::profile;
 use radicle::profile::Home;
@@ -79,16 +80,24 @@ impl Environment {
     pub fn node(&mut self, config: Config) -> Node<MemorySigner> {
         let profile = self.profile(&config.alias);
         let signer = MemorySigner::load(&profile.keystore, None).unwrap();
+
         let tracking_db = profile.home.node().join(TRACKING_DB_FILE);
-        TrackingStore::Config::open(tracking_db).unwrap();
+        let tracking = tracking::Config::open(tracking_db).unwrap();
+
+        let routing_db = profile.home.node().join(ROUTING_DB_FILE);
+        let routing = routing::Table::open(routing_db).unwrap();
+
         let addresses_db = profile.home.node().join(ADDRESS_DB_FILE);
-        Book::open(addresses_db).unwrap();
+        let addresses = Book::open(addresses_db).unwrap();
 
         Node {
             id: *profile.id(),
             home: profile.home,
             config,
             signer,
+            addresses,
+            routing,
+            tracking,
             storage: profile.storage,
         }
     }
@@ -104,7 +113,7 @@ impl Environment {
         let alias = Alias::from_str(alias).unwrap();
         let config = profile::Config::init(alias, &home.config()).unwrap();
 
-        TrackingStore::Config::open(tracking_db).unwrap();
+        tracking::Config::open(tracking_db).unwrap();
         let addresses_db = home.node().join(ADDRESS_DB_FILE);
         Book::open(addresses_db).unwrap();
 
@@ -131,6 +140,9 @@ pub struct Node<G> {
     pub signer: G,
     pub storage: Storage,
     pub config: Config,
+    pub addresses: Book,
+    pub routing: routing::Table,
+    pub tracking: tracking::Config<tracking::Write>,
 }
 
 /// Handle to a running node.
@@ -320,6 +332,9 @@ impl Node<MockSigner> {
         let home = Home::new(home).unwrap();
         let signer = MockSigner::default();
         let storage = Storage::open(home.storage()).unwrap();
+        let addresses = Book::memory().unwrap();
+        let tracking = tracking::Config::<tracking::Write>::memory().unwrap();
+        let routing = routing::Table::memory().unwrap();
 
         Self {
             id: *signer.public_key(),
@@ -327,6 +342,9 @@ impl Node<MockSigner> {
             signer,
             storage,
             config,
+            addresses,
+            tracking,
+            routing,
         }
     }
 }

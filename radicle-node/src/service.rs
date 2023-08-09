@@ -22,6 +22,7 @@ use nonempty::NonEmpty;
 
 use radicle::node::address;
 use radicle::node::address::{AddressBook, KnownAddress};
+use radicle::node::config::PeerConfig;
 use radicle::node::ConnectOptions;
 
 use crate::crypto;
@@ -53,8 +54,6 @@ use self::limitter::RateLimiter;
 use self::message::InventoryAnnouncement;
 use self::tracking::NamespacesError;
 
-/// Target number of peers to maintain connections to.
-pub const TARGET_OUTBOUND_PEERS: usize = 8;
 /// How often to run the "idle" task.
 pub const IDLE_INTERVAL: LocalDuration = LocalDuration::from_secs(30);
 /// How often to run the "announce" task.
@@ -1359,30 +1358,31 @@ where
     }
 
     fn seeds(&self, rid: &Id) -> Result<Seeds, Error> {
-        let seeds = match self.routing.get(rid) {
-            Ok(seeds) => seeds.into_iter().fold(Seeds::default(), |mut seeds, node| {
-                if node != self.node_id() {
-                    let addrs: Vec<KnownAddress> = self
-                        .addresses
-                        .get(&node)
-                        .ok()
-                        .flatten()
-                        .map(|n| n.addrs)
-                        .unwrap_or(vec![]);
+        match self.routing.get(rid) {
+            Ok(seeds) => {
+                Ok(seeds
+                    .into_iter()
+                    .fold(Seeds::new(self.rng.clone()), |mut seeds, node| {
+                        if node != self.node_id() {
+                            let addrs: Vec<KnownAddress> = self
+                                .addresses
+                                .get(&node)
+                                .ok()
+                                .flatten()
+                                .map(|n| n.addrs)
+                                .unwrap_or(vec![]);
 
-                    if let Some(s) = self.sessions.get(&node) {
-                        seeds.insert(Seed::new(node, addrs, Some(s.state.clone())));
-                    } else {
-                        seeds.insert(Seed::new(node, addrs, None));
-                    }
-                }
-                seeds
-            }),
-            Err(err) => {
-                return Err(Error::Routing(err));
+                            if let Some(s) = self.sessions.get(&node) {
+                                seeds.insert(Seed::new(node, addrs, Some(s.state.clone())));
+                            } else {
+                                seeds.insert(Seed::new(node, addrs, None));
+                            }
+                        }
+                        seeds
+                    }))
             }
-        };
-        Ok(seeds)
+            Err(err) => Err(Error::Routing(err)),
+        }
     }
 
     /// Return a new filter object, based on our tracking policy.
@@ -1513,6 +1513,9 @@ where
     }
 
     fn maintain_connections(&mut self) {
+        let PeerConfig::Dynamic { target } = self.config.peers else {
+            return;
+        };
         trace!(target: "service", "Maintaining connections..");
 
         let now = self.clock;
@@ -1522,7 +1525,7 @@ where
             .filter(|s| s.link.is_outbound())
             .filter(|s| s.is_connected() || s.is_connecting())
             .count();
-        let wanted = TARGET_OUTBOUND_PEERS.saturating_sub(outbound);
+        let wanted = target.saturating_sub(outbound);
 
         // Don't connect to more peers than needed.
         if wanted == 0 {

@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::time;
 
 use anyhow::anyhow;
 
@@ -123,7 +124,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             track_repo(rid, scope, &mut node)?;
 
             if options.fetch {
-                sync::fetch(rid, None, &mut node, profile)?;
+                sync::fetch(
+                    rid,
+                    sync::SyncMode::default(),
+                    time::Duration::from_secs(6),
+                    &mut node,
+                )?;
             }
         }
     }

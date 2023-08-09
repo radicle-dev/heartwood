@@ -152,7 +152,7 @@ impl TryFrom<String> for Signature {
 }
 
 /// The public/verification key.
-#[derive(Serialize, Deserialize, Eq, Copy, Clone)]
+#[derive(Hash, Serialize, Deserialize, PartialEq, Eq, Copy, Clone)]
 #[serde(into = "String", try_from = "String")]
 pub struct PublicKey(pub ed25519::PublicKey);
 
@@ -282,12 +282,6 @@ pub enum PublicKeyError {
     InvalidKey(#[from] ed25519::Error),
 }
 
-impl std::hash::Hash for PublicKey {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.deref().hash(state)
-    }
-}
-
 impl PartialOrd for PublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.0.as_ref().partial_cmp(other.as_ref())
@@ -315,12 +309,6 @@ impl From<PublicKey> for String {
 impl fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "PublicKey({self})")
-    }
-}
-
-impl PartialEq for PublicKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
     }
 }
 

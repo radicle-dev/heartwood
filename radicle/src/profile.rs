@@ -50,13 +50,13 @@ pub mod env {
 
     /// Get a random number generator from the environment.
     pub fn rng() -> fastrand::Rng {
-        let Ok(seed) = std::env::var(RAD_RNG_SEED) else {
-            return fastrand::Rng::new();
-        };
-        fastrand::Rng::with_seed(
-            seed.parse()
-                .expect("env::rng: invalid seed specified in `RAD_RNG_SEED`"),
-        )
+        if let Ok(seed) = std::env::var(RAD_RNG_SEED) {
+            return fastrand::Rng::with_seed(
+                seed.parse()
+                    .expect("env::rng: invalid seed specified in `RAD_RNG_SEED`"),
+            );
+        }
+        fastrand::Rng::new()
     }
 }
 

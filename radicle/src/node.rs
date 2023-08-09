@@ -6,7 +6,7 @@ pub mod events;
 pub mod routing;
 pub mod tracking;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 use std::ops::Deref;
 use std::os::unix::net::UnixStream;
@@ -23,6 +23,7 @@ use serde_json as json;
 
 use crate::crypto::PublicKey;
 use crate::identity::Id;
+use crate::profile;
 use crate::storage::RefUpdate;
 
 pub use address::KnownAddress;
@@ -66,7 +67,7 @@ pub enum PingState {
     Ok,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
 pub enum State {
     /// Initial state for outgoing connections.
@@ -401,7 +402,7 @@ pub struct Session {
     pub state: State,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Seed {
     pub nid: NodeId,
@@ -420,10 +421,18 @@ impl Seed {
     }
 }
 
-#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
-pub struct Seeds(BTreeMap<NodeId, Seed>);
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+/// Represents a set of seeds with associated metadata. Uses an RNG
+/// underneath, so every iteration returns a different ordering.
+pub struct Seeds(address::AddressBook<NodeId, Seed>);
 
 impl Seeds {
+    /// Create a new seeds list from an RNG.
+    pub fn new(rng: fastrand::Rng) -> Self {
+        Self(address::AddressBook::new(rng))
+    }
+
+    /// Insert a seed.
     pub fn insert(&mut self, seed: Seed) {
         self.0.insert(seed.nid, seed);
     }
@@ -431,20 +440,29 @@ impl Seeds {
     /// Partitions the list of seeds into connected and disconnected seeds.
     /// Note that the disconnected seeds may be in a "connecting" state.
     pub fn partition(&self) -> (Vec<Seed>, Vec<Seed>) {
-        self.0.values().cloned().partition(|s| s.is_connected())
+        self.0
+            .shuffled()
+            .map(|(_, v)| v)
+            .cloned()
+            .partition(|s| s.is_connected())
     }
 
     /// Return connected seeds.
     pub fn connected(&self) -> impl Iterator<Item = &Seed> {
-        self.0.values().filter(|s| s.is_connected())
+        self.0
+            .shuffled()
+            .map(|(_, v)| v)
+            .filter(|s| s.is_connected())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Seed> {
-        self.0.values()
-    }
-
+    /// Check if a seed is connected.
     pub fn is_connected(&self, nid: &NodeId) -> bool {
         self.0.get(nid).map_or(false, |s| s.is_connected())
+    }
+
+    /// Return a new seeds object with the given RNG.
+    pub fn with(self, rng: fastrand::Rng) -> Self {
+        Self(self.0.with(rng))
     }
 }
 
@@ -803,7 +821,7 @@ impl Handle for Node {
             .next()
             .ok_or(Error::EmptyResponse)??;
 
-        Ok(seeds)
+        Ok(seeds.with(profile::env::rng()))
     }
 
     fn fetch(&mut self, rid: Id, from: NodeId) -> Result<FetchResult, Error> {

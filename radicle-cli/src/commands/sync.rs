@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::node;
 use radicle::node::{FetchResult, FetchResults, Handle as _, Node};
-use radicle::prelude::{Id, NodeId, Profile};
+use radicle::prelude::{Id, NodeId};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -19,35 +19,57 @@ pub const HELP: Help = Help {
 Usage
 
     rad sync [<rid>] [<option>...]
-    rad sync [<rid>] [--fetch] [--seed <nid>] [<option>...]
-    rad sync [<rid>] [--announce] [<option>...]
+    rad sync [<rid>] [--fetch] [<rid>] [<option>...]
+    rad sync [<rid>] [--announce] [<rid>] [<option>...]
 
     By default, the current repository is synchronized both ways.
+    If an <rid> is specified, that repository is synced instead.
 
     The process begins by fetching changes from connected seeds,
     followed by announcing local refs to peers, thereby prompting
     them to fetch from us.
 
-    When `--fetch` is specified, a seed may be given with the `--seed`
-    option.
+    When `--fetch` is specified, any number of seeds may be given
+    using the `--seed` option, eg. `--seed <nid>@<addr>:<port>`.
 
-    When either `--fetch` or `--announce` are specified, this command
+    When `--replicas` is specified, the given replication factor will try
+    to be matched. For example, `--replicas 5` will sync with 5 seeds.
+
+    When `--fetch` or `--announce` are specified on their own, this command
     will only fetch or announce.
 
 Options
 
-    --fetch, -f         Fetch from seeds
-    --announce, -a      Announce refs to seeds
-    --seed <nid>        Seed to fetch from (use with `--fetch`)
-    --timeout <secs>    How many seconds to wait while syncing
-    --verbose, -v       Verbose output
-    --help              Print help
-
+    --fetch, -f               Turn on fetching (default: true)
+    --announce, -a            Turn on announcing (default: true)
+    --timeout <secs>          How many seconds to wait while syncing
+    --seed <nid>              Sync with the given node (may be specified multiple times)
+    --replicas, -r <count>    Sync with a specific number of seeds
+    --verbose, -v             Verbose output
+    --help                    Print help
 "#,
 };
 
-#[derive(Default, Debug, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct SyncOptions {
+    mode: SyncMode,
+    direction: SyncDirection,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SyncMode {
+    Replicas(usize),
+    Seeds(Vec<NodeId>),
+}
+
+impl Default for SyncMode {
+    fn default() -> Self {
+        Self::Replicas(3)
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum SyncDirection {
     Fetch,
     Announce,
     #[default]
@@ -57,10 +79,9 @@ pub enum SyncMode {
 #[derive(Default, Debug)]
 pub struct Options {
     pub rid: Option<Id>,
-    pub seed: Option<NodeId>,
     pub verbose: bool,
     pub timeout: time::Duration,
-    pub mode: SyncMode,
+    pub sync: SyncOptions,
 }
 
 impl Args for Options {
@@ -71,24 +92,46 @@ impl Args for Options {
         let mut verbose = false;
         let mut timeout = time::Duration::from_secs(9);
         let mut rid = None;
-        let mut seed = None;
-        let mut mode = SyncMode::default();
+        let mut sync = SyncOptions::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("verbose") | Short('v') => {
                     verbose = true;
                 }
+                Long("fetch") | Short('f') => {
+                    sync.direction = match sync.direction {
+                        SyncDirection::Both => SyncDirection::Fetch,
+                        SyncDirection::Announce => SyncDirection::Both,
+                        SyncDirection::Fetch => SyncDirection::Fetch,
+                    };
+                }
+                Long("replicas") | Short('r') => {
+                    let val = parser.value()?;
+                    let count = term::args::number(&val)?;
+
+                    if let SyncMode::Replicas(ref mut r) = sync.mode {
+                        *r = count;
+                    } else {
+                        anyhow::bail!("`--replicas` (-r) cannot be specified with `--seed`");
+                    }
+                }
                 Long("seed") => {
                     let val = parser.value()?;
-                    let val = term::args::nid(&val)?;
-                    seed = Some(val);
+                    let nid = term::args::nid(&val)?;
+
+                    if let SyncMode::Seeds(ref mut seeds) = sync.mode {
+                        seeds.push(nid);
+                    } else {
+                        sync.mode = SyncMode::Seeds(vec![nid]);
+                    }
                 }
-                Long("fetch") | Short('f') if mode == SyncMode::Both => {
-                    mode = SyncMode::Fetch;
-                }
-                Long("announce") | Short('a') if mode == SyncMode::Both => {
-                    mode = SyncMode::Announce;
+                Long("announce") | Short('a') => {
+                    sync.direction = match sync.direction {
+                        SyncDirection::Both => SyncDirection::Announce,
+                        SyncDirection::Announce => SyncDirection::Announce,
+                        SyncDirection::Fetch => SyncDirection::Both,
+                    };
                 }
                 Long("timeout") | Short('t') => {
                     let value = parser.value()?;
@@ -108,8 +151,10 @@ impl Args for Options {
             }
         }
 
-        if seed.is_some() && mode != SyncMode::Fetch {
-            anyhow::bail!("`--seed` must be used with `--fetch`");
+        if sync.direction == SyncDirection::Announce {
+            if let SyncMode::Seeds(_) = sync.mode {
+                anyhow::bail!("`--seed` is only supported when fetching.");
+            }
         }
 
         Ok((
@@ -117,8 +162,7 @@ impl Args for Options {
                 rid,
                 verbose,
                 timeout,
-                seed,
-                mode,
+                sync,
             },
             vec![],
         ))
@@ -136,22 +180,35 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             rid
         }
     };
-
     let mut node = radicle::Node::new(profile.socket());
+    let mode = options.sync.mode;
 
-    match options.mode {
-        SyncMode::Announce => announce(rid, options.timeout, node),
-        SyncMode::Fetch => fetch(rid, options.seed, &mut node, profile),
-        SyncMode::Both => {
-            fetch(rid, options.seed, &mut node, profile)?;
-            announce(rid, options.timeout, node)?;
+    if [SyncDirection::Fetch, SyncDirection::Both].contains(&options.sync.direction) {
+        if !profile.tracking()?.is_repo_tracked(&rid)? {
+            anyhow::bail!("repository {rid} is not tracked");
+        }
+        let results = fetch(rid, mode.clone(), options.timeout, &mut node)?;
+        let success = results.success().count();
+        let failed = results.failed().count();
 
-            Ok(())
+        if success == 0 {
+            term::error(format!("Failed to fetch repository from {failed} seed(s)"));
+        } else {
+            term::success!("Fetched repository from {success} seed(s)");
         }
     }
+    if [SyncDirection::Announce, SyncDirection::Both].contains(&options.sync.direction) {
+        announce(rid, mode, options.timeout, node)?;
+    }
+    Ok(())
 }
 
-fn announce(rid: Id, timeout: time::Duration, mut node: Node) -> anyhow::Result<()> {
+fn announce(
+    rid: Id,
+    _mode: SyncMode,
+    timeout: time::Duration,
+    mut node: Node,
+) -> anyhow::Result<()> {
     let seeds = node.seeds(rid)?;
     let connected = seeds.connected().map(|s| s.nid).collect::<Vec<_>>();
     if connected.is_empty() {
@@ -184,45 +241,80 @@ fn announce(rid: Id, timeout: time::Duration, mut node: Node) -> anyhow::Result<
 
 pub fn fetch(
     rid: Id,
-    seed: Option<NodeId>,
+    mode: SyncMode,
+    timeout: time::Duration,
     node: &mut Node,
-    profile: Profile,
-) -> anyhow::Result<()> {
-    if !profile.tracking()?.is_repo_tracked(&rid)? {
-        anyhow::bail!("repository {rid} is not tracked");
+) -> Result<FetchResults, node::Error> {
+    match mode {
+        SyncMode::Seeds(seeds) => {
+            let mut results = FetchResults::default();
+            for seed in seeds {
+                let result = fetch_from(rid, &seed, node)?;
+                results.push(seed, result);
+            }
+            Ok(results)
+        }
+        SyncMode::Replicas(count) => fetch_all(rid, count, timeout, node),
     }
-
-    let results = if let Some(seed) = seed {
-        let result = fetch_from(rid, &seed, node)?;
-        FetchResults::from(vec![(seed, result)])
-    } else {
-        fetch_all(rid, node)?
-    };
-    let success = results.success().count();
-    let failed = results.failed().count();
-
-    if success == 0 {
-        term::error(format!("Failed to fetch repository from {failed} seed(s)"));
-    } else {
-        term::success!("Fetched repository from {success} seed(s)");
-    }
-    Ok(())
 }
 
-pub fn fetch_all(rid: Id, node: &mut Node) -> Result<FetchResults, node::Error> {
+fn fetch_all(
+    rid: Id,
+    count: usize,
+    timeout: time::Duration,
+    node: &mut Node,
+) -> Result<FetchResults, node::Error> {
     // Get seeds. This consults the local routing table only.
     let seeds = node.seeds(rid)?;
     let mut results = FetchResults::default();
+    let (connected, mut disconnected) = seeds.partition();
 
     // Fetch from connected seeds.
-    for seed in seeds.connected() {
+    for seed in connected.iter().take(count) {
         let result = fetch_from(rid, &seed.nid, node)?;
         results.push(seed.nid, result);
     }
+
+    // Try to connect to disconnected seeds and fetch from them.
+    while results.success().count() < count {
+        let Some(seed) = disconnected.pop() else {
+            break;
+        };
+        // Try all seed addresses until one succeeds.
+        for ka in seed.addrs {
+            let spinner = term::spinner(format!(
+                "Connecting to {}@{}..",
+                term::format::tertiary(&seed.nid),
+                term::format::tertiary(&ka.addr)
+            ));
+            let cr = node.connect(
+                seed.nid,
+                ka.addr,
+                node::ConnectOptions {
+                    persistent: false,
+                    timeout,
+                },
+            )?;
+
+            match cr {
+                node::ConnectResult::Connected => {
+                    spinner.finish();
+                    let result = fetch_from(rid, &seed.nid, node)?;
+                    results.push(seed.nid, result);
+                    break;
+                }
+                node::ConnectResult::Disconnected { .. } => {
+                    spinner.failed();
+                    continue;
+                }
+            }
+        }
+    }
+
     Ok(results)
 }
 
-pub fn fetch_from(rid: Id, seed: &NodeId, node: &mut Node) -> Result<FetchResult, node::Error> {
+fn fetch_from(rid: Id, seed: &NodeId, node: &mut Node) -> Result<FetchResult, node::Error> {
     let spinner = term::spinner(format!(
         "Fetching {} from {}..",
         term::format::tertiary(rid),

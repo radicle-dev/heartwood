@@ -8,6 +8,9 @@ use crate::node;
 use crate::node::tracking::{Policy, Scope};
 use crate::node::{Address, Alias, NodeId};
 
+/// Target number of peers to maintain connections to.
+pub const TARGET_OUTBOUND_PEERS: usize = 8;
+
 /// Peer-to-peer network.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -103,12 +106,32 @@ impl Deref for ConnectAddress {
     }
 }
 
+/// Peer configuration.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum PeerConfig {
+    /// Static peer set. Connect to the configured peers and maintain the connections.
+    Static,
+    /// Dynamic peer set.
+    Dynamic { target: usize },
+}
+
+impl Default for PeerConfig {
+    fn default() -> Self {
+        Self::Dynamic {
+            target: TARGET_OUTBOUND_PEERS,
+        }
+    }
+}
+
 /// Service configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     /// Node alias.
     pub alias: Alias,
+    /// Peer configuration.
+    pub peers: PeerConfig,
     /// Peers to connect to on startup.
     /// Connections to these peers will be maintained.
     pub connect: HashSet<ConnectAddress>,
@@ -137,6 +160,7 @@ impl Config {
     pub fn new(alias: Alias) -> Self {
         Self {
             alias,
+            peers: PeerConfig::default(),
             connect: HashSet::default(),
             external_addresses: vec![],
             network: Network::default(),

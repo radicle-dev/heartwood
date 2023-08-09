@@ -3,6 +3,9 @@ use std::str::FromStr;
 use std::{env, thread, time};
 
 use radicle::git;
+use radicle::node;
+use radicle::node::address::Store as _;
+use radicle::node::routing::Store as _;
 use radicle::node::Alias;
 use radicle::node::Handle as _;
 use radicle::prelude::Id;
@@ -510,6 +513,77 @@ fn rad_clone_all() {
     )
     .unwrap();
     eve.has_inventory_of(&acme, &bob.id);
+}
+
+#[test]
+fn rad_clone_connect() {
+    let mut environment = Environment::new();
+    let working = environment.tmp().join("working");
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let mut eve = environment.node(Config::test(Alias::new("eve")));
+    let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    let now = localtime::LocalTime::now().as_secs();
+
+    fixtures::repository(working.join("acme"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("acme"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    // Let Eve know about Alice and Bob having the repo.
+    eve.routing.insert([&acme], alice.id, now).unwrap();
+    eve.routing.insert([&acme], bob.id, now).unwrap();
+    eve.addresses
+        .insert(
+            &alice.id,
+            node::Features::SEED,
+            Alias::new("alice"),
+            0,
+            now,
+            [node::KnownAddress::new(
+                node::Address::from(alice.addr),
+                node::address::Source::Imported,
+            )],
+        )
+        .unwrap();
+    eve.addresses
+        .insert(
+            &bob.id,
+            node::Features::SEED,
+            Alias::new("bob"),
+            0,
+            now,
+            [node::KnownAddress::new(
+                node::Address::from(bob.addr),
+                node::address::Source::Imported,
+            )],
+        )
+        .unwrap();
+    eve.config.peers = node::config::PeerConfig::Static;
+
+    let eve = eve.spawn();
+
+    bob.handle.track_repo(acme, Scope::All).unwrap();
+    alice.connect(&bob);
+    bob.routes_to(&[(acme, alice.id)]);
+    eve.routes_to(&[(acme, alice.id), (acme, bob.id)]);
+    alice.routes_to(&[(acme, alice.id), (acme, bob.id)]);
+
+    test(
+        "examples/rad-clone-connect.md",
+        working.join("acme"),
+        Some(&eve.home),
+        [],
+    )
+    .unwrap();
 }
 
 #[test]

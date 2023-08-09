@@ -1,3 +1,4 @@
+use std::hash;
 use std::ops::{Deref, DerefMut};
 
 use localtime::LocalTime;
@@ -9,13 +10,15 @@ use crate::node::{Address, Alias};
 use crate::prelude::Timestamp;
 
 /// A map with the ability to randomly select values.
-#[derive(Debug, Clone)]
-pub struct AddressBook<K, V> {
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct AddressBook<K: hash::Hash + Eq, V> {
     inner: RandomMap<K, V>,
+    #[serde(skip)]
     rng: fastrand::Rng,
 }
 
-impl<K, V> AddressBook<K, V> {
+impl<K: hash::Hash + Eq, V> AddressBook<K, V> {
     /// Create a new address book.
     pub fn new(rng: fastrand::Rng) -> Self {
         Self {
@@ -53,14 +56,22 @@ impl<K, V> AddressBook<K, V> {
 
     /// Return a shuffled iterator over the keys.
     pub fn shuffled(&self) -> std::vec::IntoIter<(&K, &V)> {
-        let mut keys = self.inner.iter().collect::<Vec<_>>();
-        self.rng.shuffle(&mut keys);
+        let mut items = self.inner.iter().collect::<Vec<_>>();
+        self.rng.shuffle(&mut items);
 
-        keys.into_iter()
+        items.into_iter()
+    }
+
+    /// Return a new address book with the given RNG.
+    pub fn with(self, rng: fastrand::Rng) -> Self {
+        Self {
+            inner: self.inner,
+            rng,
+        }
     }
 }
 
-impl<K, V> Deref for AddressBook<K, V> {
+impl<K: hash::Hash + Eq, V> Deref for AddressBook<K, V> {
     type Target = RandomMap<K, V>;
 
     fn deref(&self) -> &Self::Target {
@@ -68,7 +79,7 @@ impl<K, V> Deref for AddressBook<K, V> {
     }
 }
 
-impl<K, V> DerefMut for AddressBook<K, V> {
+impl<K: hash::Hash + Eq, V> DerefMut for AddressBook<K, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }

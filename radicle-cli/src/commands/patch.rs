@@ -25,10 +25,9 @@ use anyhow::anyhow;
 
 use radicle::cob::patch;
 use radicle::cob::patch::PatchId;
+use radicle::prelude::*;
 use radicle::storage::git::transport;
-use radicle::{prelude::*, Node};
 
-use crate::commands::rad_sync as sync;
 use crate::git::Rev;
 use crate::terminal as term;
 use crate::terminal::args::{string, Args, Error, Help};
@@ -158,7 +157,6 @@ pub enum Operation {
 #[derive(Debug)]
 pub struct Options {
     pub op: Operation,
-    pub fetch: bool,
     pub announce: bool,
     pub push: bool,
     pub verbose: bool,
@@ -171,7 +169,6 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut verbose = false;
-        let mut fetch = false;
         let mut announce = false;
         let mut patch_id = None;
         let mut revision_id = None;
@@ -193,12 +190,6 @@ impl Args for Options {
                 }
                 Long("no-message") => {
                     message = Message::Blank;
-                }
-                Long("fetch") => {
-                    fetch = true;
-                }
-                Long("no-fetch") => {
-                    fetch = false;
                 }
                 Long("announce") => {
                     announce = true;
@@ -327,7 +318,6 @@ impl Args for Options {
         Ok((
             Options {
                 op,
-                fetch,
                 push,
                 verbose,
                 announce,
@@ -345,10 +335,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repository = profile.storage.repository(id)?;
 
     transport::local::register(profile.storage.clone());
-
-    if options.fetch {
-        sync::fetch_all(repository.id(), &mut Node::new(profile.socket()))?;
-    }
 
     match options.op {
         Operation::List { filter: Filter(f) } => {
