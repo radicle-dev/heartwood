@@ -99,9 +99,6 @@ impl TokenBucket {
 #[cfg(test)]
 #[allow(clippy::bool_assert_comparison, clippy::redundant_clone)]
 mod test {
-    use radicle::node::Address;
-    use radicle::test::arbitrary::gen;
-
     use super::*;
 
     impl AsTokens for (usize, f64) {
@@ -118,7 +115,7 @@ mod test {
     fn test_limitter_refill() {
         let mut r = RateLimiter::default();
         let t = (3, 0.2); // Three tokens burst. One token every 5 seconds.
-        let a: HostName = gen::<Address>(1).into();
+        let a = HostName::Dns(String::from("seed.radicle.xyz"));
 
         assert_eq!(r.limit(a.clone(), &t, LocalTime::from_secs(0)), false); // Burst capacity
         assert_eq!(r.limit(a.clone(), &t, LocalTime::from_secs(1)), false); // Burst capacity
@@ -147,8 +144,8 @@ mod test {
     fn test_limitter_multi() {
         let t = (1, 1.0); // One token per second. One token burst.
         let mut r = RateLimiter::default();
-        let addr1: HostName = gen::<Address>(1).into();
-        let addr2: HostName = gen::<Address>(1).into();
+        let addr1 = HostName::Dns(String::from("seed.radicle.xyz"));
+        let addr2 = HostName::Dns(String::from("seed.radicle.net"));
 
         assert_eq!(r.limit(addr1.clone(), &t, LocalTime::from_secs(0)), false);
         assert_eq!(r.limit(addr1.clone(), &t, LocalTime::from_secs(0)), true);
@@ -165,8 +162,8 @@ mod test {
         let t1 = (1, 1.0); // One token per second. One token burst.
         let t2 = (2, 2.0); // Two tokens per second. Two token burst.
         let mut r = RateLimiter::default();
-        let addr1: HostName = gen::<Address>(1).into();
-        let addr2: HostName = gen::<Address>(1).into();
+        let addr1 = HostName::Dns(String::from("seed.radicle.xyz"));
+        let addr2 = HostName::Dns(String::from("seed.radicle.net"));
 
         assert_eq!(r.limit(addr1.clone(), &t1, LocalTime::from_secs(0)), false);
         assert_eq!(r.limit(addr1.clone(), &t1, LocalTime::from_secs(0)), true);
