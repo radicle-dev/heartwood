@@ -678,8 +678,8 @@ impl store::FromHistory for Patch {
                             // case of a rebase off the master branch, or a redaction of the
                             // merge.
                             let Ok(head) = repo.reference_oid(&op.author, &branch) else {
-                                    continue;
-                                };
+                                continue;
+                            };
                             if commit != head && !repo.is_ancestor_of(commit, head)? {
                                 continue;
                             }

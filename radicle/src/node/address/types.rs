@@ -49,25 +49,28 @@ impl<K: hash::Hash + Eq, V> AddressBook<K, V> {
         }
     }
 
-    /// Cycle through the keys at random. The random cycle repeats ad-infintum.
-    pub fn cycle(&self) -> impl Iterator<Item = &K> {
-        self.shuffled().map(|(k, _)| k).cycle()
-    }
-
-    /// Return a shuffled iterator over the keys.
-    pub fn shuffled(&self) -> std::vec::IntoIter<(&K, &V)> {
-        let mut items = self.inner.iter().collect::<Vec<_>>();
-        self.rng.shuffle(&mut items);
-
-        items.into_iter()
-    }
-
     /// Return a new address book with the given RNG.
     pub fn with(self, rng: fastrand::Rng) -> Self {
         Self {
             inner: self.inner,
             rng,
         }
+    }
+}
+
+impl<K: hash::Hash + Eq + Ord, V> AddressBook<K, V> {
+    /// Return a shuffled iterator over the keys.
+    pub fn shuffled(&self) -> std::vec::IntoIter<(&K, &V)> {
+        let mut items = self.inner.iter().collect::<Vec<_>>();
+        items.sort_by_key(|(k, _)| *k);
+        self.rng.shuffle(&mut items);
+
+        items.into_iter()
+    }
+
+    /// Cycle through the keys at random. The random cycle repeats ad-infintum.
+    pub fn cycle(&self) -> impl Iterator<Item = &K> {
+        self.shuffled().map(|(k, _)| k).cycle()
     }
 }
 
