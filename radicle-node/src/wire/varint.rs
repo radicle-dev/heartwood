@@ -146,6 +146,35 @@ impl Encode for VarInt {
     }
 }
 
+/// Encoding and decoding varint-prefixed payloads.
+pub mod payload {
+    use super::*;
+
+    /// Encode varint-prefixed data payload.
+    pub fn encode<W: io::Write + ?Sized>(payload: &[u8], writer: &mut W) -> io::Result<usize> {
+        let mut n = 0;
+        let len = payload.len();
+        let varint =
+            VarInt::new(len as u64).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+
+        n += varint.encode(writer)?; // The length of the payload length.
+        n += len; // The length of the data payload itself.
+
+        writer.write_all(payload)?;
+
+        Ok(n)
+    }
+
+    /// Decode varint-prefixed data payload.
+    pub fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Vec<u8>, wire::Error> {
+        let size = VarInt::decode(reader)?;
+        let mut data = vec![0; *size as usize];
+        reader.read_exact(&mut data[..])?;
+
+        Ok(data)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

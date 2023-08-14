@@ -16,6 +16,7 @@ const CONTROL_CLOSE: u8 = 1;
 const CONTROL_EOF: u8 = 2;
 
 /// Protocol version.
+#[derive(Debug, PartialEq, Eq)]
 pub struct Version([u8; 4]);
 
 impl wire::Encode for Version {
@@ -182,6 +183,7 @@ impl TryFrom<u8> for StreamKind {
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |                     Data                                   ...| Data (variable size)
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#[derive(Debug, PartialEq, Eq)]
 pub struct Frame {
     /// The protocol version.
     pub version: Version,
@@ -226,6 +228,7 @@ impl Frame {
 }
 
 /// Frame payload.
+#[derive(Debug, PartialEq, Eq)]
 pub enum FrameData {
     /// Control frame payload.
     Control(Control),
@@ -236,6 +239,7 @@ pub enum FrameData {
 }
 
 /// A control message sent over a control stream.
+#[derive(Debug, PartialEq, Eq)]
 pub enum Control {
     /// Open a new stream.
     Open {
@@ -315,19 +319,22 @@ impl wire::Decode for Frame {
                 Ok(frame)
             }
             Ok(StreamKind::Gossip) => {
-                let msg = Message::decode(reader)?;
+                let data = varint::payload::decode(reader)?;
+                let mut cursor = io::Cursor::new(data);
+                let msg = Message::decode(&mut cursor)?;
                 let frame = Frame {
                     version,
                     stream,
                     data: FrameData::Gossip(msg),
                 };
+
+                // Nb. If there is data after the `Message` that is not decoded,
+                // it is simply dropped here.
+
                 Ok(frame)
             }
             Ok(StreamKind::Git { .. }) => {
-                let size = VarInt::decode(reader)?;
-                let mut data = vec![0; *size as usize];
-                reader.read_exact(&mut data[..])?;
-
+                let data = varint::payload::decode(reader)?;
                 Ok(Frame::git(stream, data))
             }
             Err(n) => Err(wire::Error::InvalidStreamKind(n)),
@@ -341,24 +348,12 @@ impl wire::Encode for Frame {
 
         n += self.version.encode(writer)?;
         n += self.stream.encode(writer)?;
+        n += match &self.data {
+            FrameData::Control(ctrl) => ctrl.encode(writer)?,
+            FrameData::Git(data) => varint::payload::encode(data, writer)?,
+            FrameData::Gossip(msg) => varint::payload::encode(&wire::serialize(msg), writer)?,
+        };
 
-        match &self.data {
-            FrameData::Control(ctrl) => {
-                n += ctrl.encode(writer)?;
-            }
-            FrameData::Gossip(msg) => {
-                n += msg.encode(writer)?;
-            }
-            FrameData::Git(data) => {
-                let len = data.len();
-                let size = VarInt::new(len as u64)
-                    .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
-                n += size.encode(writer)?;
-
-                writer.write_all(data.as_slice())?;
-                n += len;
-            }
-        }
         Ok(n)
     }
 }

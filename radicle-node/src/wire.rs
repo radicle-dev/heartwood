@@ -59,6 +59,8 @@ pub enum Error {
     UnknownAddressType(u8),
     #[error("unknown message type `{0}`")]
     UnknownMessageType(u16),
+    #[error("unexpected bytes")]
+    UnexpectedBytes,
 }
 
 impl Error {
@@ -94,8 +96,12 @@ pub fn serialize<T: Encode + ?Sized>(data: &T) -> Vec<u8> {
 /// Decode an object from a vector.
 pub fn deserialize<T: Decode>(data: &[u8]) -> Result<T, Error> {
     let mut cursor = io::Cursor::new(data);
+    let obj = T::decode(&mut cursor)?;
 
-    T::decode(&mut cursor)
+    if cursor.position() as usize != cursor.get_ref().len() {
+        return Err(Error::UnexpectedBytes);
+    }
+    Ok(obj)
 }
 
 impl Encode for u8 {

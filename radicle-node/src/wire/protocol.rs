@@ -937,3 +937,44 @@ fn session<G: Signer + Ecdh<Pk = NodeId>>(
     );
     WireSession::with(proxy, noise)
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::service::{Message, ZeroBytes};
+    use crate::wire;
+    use crate::wire::varint;
+
+    #[test]
+    fn test_message_with_extension() {
+        use crate::deserializer;
+
+        let mut stream = Vec::new();
+        let pong = Message::Pong {
+            zeroes: ZeroBytes::new(42),
+        };
+        frame::PROTOCOL_VERSION.encode(&mut stream).unwrap();
+        frame::StreamId::gossip(Link::Outbound)
+            .encode(&mut stream)
+            .unwrap();
+
+        // Serialize gossip message with some extension fields.
+        let mut gossip = wire::serialize(&pong);
+        String::from("extra").encode(&mut gossip).unwrap();
+        48u8.encode(&mut gossip).unwrap();
+
+        // Encode gossip message using the varint-prefix format into the stream.
+        varint::payload::encode(&gossip, &mut stream).unwrap();
+
+        let mut de = deserializer::Deserializer::<Frame>::new(1024);
+        de.input(&stream);
+
+        // The "pong" message decodes successfully, even though there is trailing data.
+        assert_eq!(
+            de.deserialize_next().unwrap().unwrap(),
+            Frame::gossip(Link::Outbound, pong)
+        );
+        assert!(de.deserialize_next().unwrap().is_none());
+        assert!(de.is_empty());
+    }
+}
