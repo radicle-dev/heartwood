@@ -22,6 +22,7 @@ Options
     --nid                Show your Node ID (NID)
     --did                Show your DID
     --home               Show your Radicle home
+    --config             Show the location of your configuration file
     --ssh-key            Show your public key in OpenSSH format
     --ssh-fingerprint    Show your public key fingerprint in OpenSSH format
     --help               Show help
@@ -34,6 +35,7 @@ enum Show {
     NodeId,
     Did,
     Home,
+    Config,
     SshKey,
     SshFingerprint,
     All,
@@ -64,6 +66,9 @@ impl Args for Options {
                 }
                 Long("home") if show.is_none() => {
                     show = Some(Show::Home);
+                }
+                Long("config") if show.is_none() => {
+                    show = Some(Show::Config);
                 }
                 Long("ssh-key") if show.is_none() => {
                     show = Some(Show::SshKey);
@@ -102,6 +107,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Show::Home => {
             term::print(profile.home().display());
+        }
+        Show::Config => {
+            term::print(profile.home.config().display());
         }
         Show::SshKey => {
             term::print(ssh::fmt::key(profile.id()));
