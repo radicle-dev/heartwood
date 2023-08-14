@@ -291,11 +291,16 @@ impl store::Transaction<Issue> {
     }
 
     /// React to an issue comment.
-    pub fn react(&mut self, id: CommentId, reaction: Reaction) -> Result<(), store::Error> {
+    pub fn react(
+        &mut self,
+        id: CommentId,
+        reaction: Reaction,
+        active: bool,
+    ) -> Result<(), store::Error> {
         self.push(Action::CommentReact {
             id,
             reaction,
-            active: true,
+            active,
         })
     }
 
@@ -406,9 +411,10 @@ where
         &mut self,
         to: CommentId,
         reaction: Reaction,
+        active: bool,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("React", signer, |tx| tx.react(to, reaction))
+        self.transaction("React", signer, |tx| tx.react(to, reaction, active))
     }
 
     pub fn transaction<G, F>(
@@ -875,7 +881,7 @@ mod test {
         let (comment, _) = issue.root();
         let comment = *comment;
         let reaction = Reaction::new('🥳').unwrap();
-        issue.react(comment, reaction, &node.signer).unwrap();
+        issue.react(comment, reaction, true, &node.signer).unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();

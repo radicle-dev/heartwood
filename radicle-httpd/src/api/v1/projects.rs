@@ -553,8 +553,12 @@ async fn issue_update_handler(
                 return Err(Error::BadRequest("`replyTo` missing".to_owned()));
             }
         }
-        issue::Action::CommentReact { id, reaction, .. } => {
-            issue.react(id, reaction, &signer)?;
+        issue::Action::CommentReact {
+            id,
+            reaction,
+            active,
+        } => {
+            issue.react(id, reaction, active, &signer)?;
         }
         issue::Action::CommentEdit { .. } => {
             todo!();

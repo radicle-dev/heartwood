@@ -323,7 +323,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     let (comment_id, _) = term::io::comment_select(&issue).unwrap();
                     *comment_id
                 });
-                issue.react(comment_id, reaction, &signer)?;
+                issue.react(comment_id, reaction, true, &signer)?;
             }
         }
         Operation::Open {
