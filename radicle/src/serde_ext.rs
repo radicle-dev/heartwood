@@ -1,3 +1,10 @@
+pub mod bool {
+    /// Function that always returns `true`, for use in `serde(default)` attributes.
+    pub fn yes() -> bool {
+        true
+    }
+}
+
 pub mod string {
     use std::fmt::Display;
     use std::str::FromStr;

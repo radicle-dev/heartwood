@@ -131,21 +131,29 @@ pub struct Config {
     /// Node alias.
     pub alias: Alias,
     /// Peer configuration.
+    #[serde(default)]
     pub peers: PeerConfig,
     /// Peers to connect to on startup.
     /// Connections to these peers will be maintained.
+    #[serde(default)]
     pub connect: HashSet<ConnectAddress>,
     /// Specify the node's public addresses
+    #[serde(default)]
     pub external_addresses: Vec<Address>,
     /// Peer-to-peer network.
+    #[serde(default)]
     pub network: Network,
     /// Whether or not our node should relay inventories.
+    #[serde(default = "crate::serde_ext::bool::yes")]
     pub relay: bool,
     /// Configured service limits.
+    #[serde(default)]
     pub limits: Limits,
     /// Default tracking policy.
+    #[serde(default)]
     pub policy: Policy,
     /// Default tracking scope.
+    #[serde(default)]
     pub scope: Scope,
 }
 
