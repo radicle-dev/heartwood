@@ -101,17 +101,20 @@ You can also display the latest logs at any time using:
 
     $ rad node logs
 
-Once your node is running, you'll have to ask it to connect to a public node.
-This is because network bootstrapping is not yet ready. Hence, we run the
-*connect* sub-command to establish a connection with a remote node. For example,
-to connect to the *radicle.garden* community node, you can run:
+After your node starts, it will attempt to connect to peers on the network.
+
+To connect to a specific peer, the *connect* sub-command can be used:
+For example, to connect to the *radicle.garden* community node, you can run:
 
     $ rad node connect z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776
 
 The argument given to *connect* is called a node _address_. It is composed of
 a Node ID (NID), followed by an *@* symbol, and the _host_ name and _port_.
-
 You can display your NID with *rad self --nid*.
+
+To make these connections permanent, such that they are always tried on
+startup, add the addresses to your configuration file at
+*~/.radicle/config.json*, under the *"connect"* field.
 
 Now that you're connected to the network, we can try to clone a repository
 hosted on Radicle.
