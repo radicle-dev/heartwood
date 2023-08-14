@@ -1,0 +1,154 @@
+= rad-patch(1)
+The Radicle Team <team@radicle.xyz>
+:doctype: manpage
+:revnumber: 0.8.0
+:revdate: 2023-08-01
+:mansource: rad {revnumber}
+:manmanual: Radicle CLI Manual
+
+== Name
+
+rad-patch - Manage radicle patches.
+
+== Synopsis
+
+*rad patch* *
+
+== Description
+
+The Radicle *patch* command is used for managing changesets inside of Radicle
+repositories.
+
+Though many actions can be performed using *rad patch*, certain patch-related
+actions require using *git* directly. For example, opening a patch is typically
+done using *git push*, while merging a patch is done with a combination of
+*git merge* and *git push*.
+
+To make this possible, Radicle ships with a helper program, *git-remote-rad*
+which is invoked by *git* on push and fetch to and from Radicle remotes.
+
+== Opening a patch
+
+To open a patch, we start by making changes to our working copy, typically on
+a feature branch. For example:
+
+    $ git checkout -b fix/option-parsing
+      ... edit some files ...
+    $ git commit -a -m "Fix option parsing"
+
+Once our changes are ready to be proposed as a patch, we push them via *git*
+to a special reference on the *rad* remote, that is used for opening patches
+(*refs/patches*):
+
+    $ git push rad HEAD:refs/patches
+    ✓ Patch 90c77f2c33b7e472e058de4a586156f8a7fec7d6 opened
+    ...
+
+Radicle will then open your editor, where you can edit the patch title and
+description. Make sure either *EDITOR* or *VISUAL* is set in your environment
+(See *environ(7)* for more details). Once you're done, simply save and exit your
+editor. If successful, the patch is opened and its identifier is printed out.
+You can then display the patch metadata using the *show* sub-command:
+
+    $ rad patch show 90c77f2
+
+Note that you don't have to use the full patch identifier. An unambiguous
+prefix of it also works.
+
+Radicle can create a patch from any Git commit. Simply substitute *HEAD* with
+the branch name or commit hash you wish to propose a patch for. For example:
+
+    $ git push rad d39fe32387496876fae6446daf3762aacf69d83b:refs/patches
+
+After the patch is opened, you may notice that Radicle has set your branch
+upstream to something like *rad/patches/90c77f2c33b7e472e058de4a586156f8a7fec7d6*.
+This means your branch is now associated with the newly opened patch, and any
+push from this branch will result in the patch being updated. See the next
+section on updating a patch for more information.
+
+=== Options
+
+When opening a patch, various options can be specified using git push options.
+This is done via the *-o* or *--push-option* flag. For example, *-o=patch.draft*.
+The full list of options follows:
+
+*sync*, *no-sync*::
+  Whether or not to sync with the network after the patch is opened. Defaults
+  to _sync_.
+
+*patch.draft*::
+  Open the patch as a _draft_. Turned off by default.
+
+*patch.message*=_<message>_::
+  To prevent the editor from opening, you can specify the patch message via this
+  option. Multiple *patch.message* options are concatenated with a blank line
+  in between.
+
+*patch.base*=_<oid>_::
+  The base commit onto which this patch should be merged. By default, this is
+  your "master" branch. When building stacked patches, it may be useful to
+  set this to the head of a previous patch.
+
+For more information on push options, see *git-push(1)*.
+
+== Updating a patch
+
+To update a patch, we simply make our changes locally and push:
+
+    $ git commit --amend
+    $ git push --force
+    ✓ Patch 90c77f2 updated to d0018fcc21d87c91a1ff9155aed6b4e57535566b
+    ...
+
+Note that this will only work if the current branch upstream is set correctly.
+This happens automatically when a patch is opened from a branch without an
+upstream set. In the above example, we used the *--force* option, since the
+commit was amended. This is common practice when a patch has been reworked
+after receiving a review.
+
+As with opening a patch, you will be asked to enter a reason for updating the
+patch, via your editor. Simply save and exit when you're done; or leave it
+blank to skip this step.
+
+It's also possible to change the patch _base_ during an update. Simply use the
+*patch.base* push option as described in _Opening a patch_.
+
+== Checking out a patch
+
+When working with patches opened by peers, it's often useful to be able to
+checkout the code in its own branch. With a patch checkout, you can browse the
+code, run tests and even propose your own update to the patch. The *checkout*
+sub-command is used to that effect:
+
+    $ rad patch checkout 90c77f2
+
+Radicle will create a new branch if necessary and checkout the patch head. From
+there, you can *git-push* to publish a patch update, or simply browse the code.
+
+== Merging a patch
+
+Once a patch is ready to merge, the repository maintainer simply has to use the
+*git-merge(1)* command from the "master" branch and push via *git*. For
+example, if some patch *26e3e56* is ready to merge, the steps would be:
+
+    $ rad patch checkout 26e3e56
+    ✓ Switched to branch patch/26e3e56
+    $ git checkout master
+    $ git merge patch/26e3e56
+    $ git push rad
+    ✓ Patch 26e3e563ddc7df8dd0c9f81274c0b3cb1b764568 merged
+    To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+       f2de534..d6399c7  master -> master
+
+In the above, we created a checkout for the patch, and merged that branch into
+our master branch. Then we pushed to our *rad* remote.
+
+== Listing patches
+
+To list patches, run *rad patch*. By default, this will only show open patches.
+To list all patches, including ones that have been merged or archived, add the
+*--all* option.
+
+== Other patch commands
+
+For a full list of patch sub-commands, run *rad patch --help*.
