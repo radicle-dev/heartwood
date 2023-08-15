@@ -162,10 +162,10 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
                 return Ok(());
             }
 
-            term::headline(format!(
+            term::info!(
                 "Authenticating as 👾 {}",
                 term::format::Identity::new(profile).styled()
-            ));
+            );
 
             let passphrase = if options.stdin {
                 term::passphrase_stdin()
