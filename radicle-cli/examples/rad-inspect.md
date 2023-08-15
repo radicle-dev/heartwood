@@ -26,7 +26,7 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
         └── sigrefs
 ```
 
-Or display the repository identity's payload:
+Or display the repository identity's payload and delegates:
 
 ```
 $ rad inspect --payload
@@ -37,6 +37,8 @@ $ rad inspect --payload
     "name": "heartwood"
   }
 }
+$ rad inspect --delegates
+did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Finally, the `--history` flag allows you to examine the identity document's

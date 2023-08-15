@@ -11,7 +11,8 @@ use json_color::{Color, Colorizer};
 use radicle::crypto::{Unverified, Verified};
 use radicle::identity::Untrusted;
 use radicle::identity::{Doc, Id};
-use radicle::storage::git::Storage;
+use radicle::node::tracking::Policy;
+use radicle::node::AliasStore as _;
 use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::terminal as term;
@@ -36,6 +37,8 @@ Options
     --id        Return the repository identifier (RID)
     --payload   Inspect the repository's identity payload
     --refs      Inspect the repository's refs on the local device
+    --delegates Inspect the repository's delegates
+    --policy    Inspect the repository's tracking policy
     --history   Show the history of the repository identity document
     --help      Print help
 "#,
@@ -45,6 +48,8 @@ Options
 pub enum Target {
     Refs,
     Payload,
+    Delegates,
+    Policy,
     History,
     #[default]
     Id,
@@ -74,6 +79,12 @@ impl Args for Options {
                 }
                 Long("payload") => {
                     target = Target::Payload;
+                }
+                Long("policy") => {
+                    target = Target::Policy;
+                }
+                Long("delegates") => {
+                    target = Target::Delegates;
                 }
                 Long("history") => {
                     target = Target::History;
@@ -128,7 +139,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.target {
         Target::Refs => {
-            refs(storage, id)?;
+            refs(&repo)?;
         }
         Target::Payload => {
             println!(
@@ -136,8 +147,41 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 colorizer().colorize_json_str(&serde_json::to_string_pretty(&project.payload)?)?
             );
         }
+        Target::Policy => {
+            let tracking = profile.tracking()?;
+            if let Some(repo) = tracking.repo_policy(&id)? {
+                let tracking = match repo.policy {
+                    Policy::Track => term::format::positive("tracked"),
+                    Policy::Block => term::format::negative("blocked"),
+                };
+                println!(
+                    "Repository {} is {} with scope {}",
+                    term::format::tertiary(&id),
+                    tracking,
+                    term::format::dim(format!("`{}`", repo.scope))
+                );
+            } else {
+                term::print(term::format::italic(format!(
+                    "No tracking policy found for {id}"
+                )));
+            }
+        }
+        Target::Delegates => {
+            let (doc, _) = Doc::<_>::load(signer.public_key(), &repo)?;
+            let aliases = profile.aliases();
+            for did in doc.delegates {
+                if let Some(alias) = aliases.alias(&did) {
+                    println!(
+                        "{} {}",
+                        term::format::tertiary(&did),
+                        term::format::parens(term::format::dim(alias))
+                    );
+                } else {
+                    println!("{}", term::format::tertiary(&did));
+                }
+            }
+        }
         Target::History => {
-            let repo = storage.repository(id)?;
             let head = Doc::<Untrusted>::head(signer.public_key(), &repo)?;
             let history = repo.revwalk(head)?;
 
@@ -210,8 +254,7 @@ fn colorizer() -> Colorizer {
         .build()
 }
 
-fn refs(storage: &Storage, id: Id) -> anyhow::Result<()> {
-    let repo = storage.repository(id)?;
+fn refs(repo: &radicle::storage::git::Repository) -> anyhow::Result<()> {
     let mut refs = Vec::new();
     for r in repo.references()? {
         let r = r?;
