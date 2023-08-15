@@ -1,19 +1,15 @@
 use std::io;
-use std::{env, fs, net, process};
+use std::{env, fs, net, path::PathBuf, process};
 
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use crossbeam_channel as chan;
-use cyphernet::addr::PeerAddr;
-use localtime::LocalDuration;
 
-use radicle::node;
 use radicle::prelude::Signer;
 use radicle::profile;
 use radicle::version;
 use radicle_node::crypto::ssh::keystore::{Keystore, MemorySigner};
-use radicle_node::prelude::{Address, NodeId};
 use radicle_node::Runtime;
-use radicle_node::{logger, service, signals};
+use radicle_node::{logger, signals};
 
 pub const NAME: &str = "radicle-node";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -25,48 +21,38 @@ Usage
    radicle-node [<option>...]
 
    If you're running a public seed node, make sure to use `--listen` to bind a listening socket to
-   eg. `0.0.0.0:8776`, and `--external-address` to advertize your public/external address to the
-   network.
+   eg. `0.0.0.0:8776`, and add your external addresses in your configuration.
 
 Options
 
-    --connect            <peer>         Connect to the given peer address on start
-    --external-address   <address>      Publicly accessible address (may be specified multiple times)
+    --config             <path>         Config file to use (default ~/.radicle/config.json)
     --git-daemon         <address>      Address to bind git-daemon to (default 0.0.0.0:9418)
-    --tracking-policy    (track|block)  Default tracking policy
-    --tracking-scope     (trusted|all)  Default scope for tracking policies
     --force                             Force start even if an existing control socket is found
-    --help                              Print help
     --listen             <address>      Address to listen on
     --version                           Print program version
+    --help                              Print help
 "#;
 
 #[derive(Debug)]
 struct Options {
     daemon: Option<net::SocketAddr>,
+    config: Option<PathBuf>,
     listen: Vec<net::SocketAddr>,
     force: bool,
 }
 
 impl Options {
-    fn from_env(config: &mut node::Config) -> Result<Self, anyhow::Error> {
+    fn from_env() -> Result<Self, anyhow::Error> {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_env();
         let mut listen = Vec::new();
         let mut daemon = None;
+        let mut config = None;
         let mut force = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
-                Long("connect") => {
-                    let peer: PeerAddr<NodeId, Address> = parser.value()?.parse()?;
-                    config.connect.insert(peer.into());
-                }
-                Long("external-address") => {
-                    let addr = parser.value()?.parse()?;
-                    config.external_addresses.push(addr);
-                }
                 Long("force") => {
                     force = true;
                 }
@@ -74,29 +60,10 @@ impl Options {
                     let addr = parser.value()?.parse()?;
                     daemon = Some(addr);
                 }
-                Long("tracking-policy") => {
-                    let policy = parser
-                        .value()?
-                        .parse()
-                        .map_err(|s| anyhow!("unknown tracking policy {:?}", s))?;
-                    config.policy = policy;
-                }
-                Long("tracking-scope") => {
-                    let scope = parser
-                        .value()?
-                        .parse()
-                        .map_err(|s| anyhow!("unknown tracking scope {:?}", s))?;
-                    config.scope = scope;
-                }
-                Long("limit-routing-max-age") => {
-                    let secs: u64 = parser.value()?.parse()?;
-                    config.limits.routing_max_age = LocalDuration::from_secs(secs);
-                }
-                Long("limit-routing-max-size") => {
-                    config.limits.routing_max_size = parser.value()?.parse()?;
-                }
-                Long("limit-fetch-concurrency") => {
-                    config.limits.fetch_concurrency = parser.value()?.parse()?;
+                Long("config") => {
+                    let value = parser.value()?;
+                    let path = PathBuf::from(value);
+                    config = Some(path);
                 }
                 Long("listen") => {
                     let addr = parser.value()?.parse()?;
@@ -114,17 +81,11 @@ impl Options {
             }
         }
 
-        if config.external_addresses.len() > service::ADDRESS_LIMIT {
-            anyhow::bail!(
-                "external address limit ({}) exceeded",
-                service::ADDRESS_LIMIT,
-            )
-        }
-
         Ok(Self {
             daemon,
             force,
             listen,
+            config,
         })
     }
 }
@@ -133,8 +94,7 @@ fn execute() -> anyhow::Result<()> {
     logger::init(log::Level::Debug)?;
 
     let home = profile::home()?;
-    let mut config = profile::Config::load(&home.config())?.node;
-    let options = Options::from_env(&mut config)?;
+    let options = Options::from_env()?;
 
     log::info!(target: "node", "Starting node..");
     log::info!(target: "node", "Version {} ({})", env!("CARGO_PKG_VERSION"), env!("GIT_HEAD"));
@@ -146,6 +106,8 @@ fn execute() -> anyhow::Result<()> {
 
     log::info!(target: "node", "Node ID is {}", signer.public_key());
 
+    let config = options.config.unwrap_or_else(|| home.config());
+    let config = profile::Config::load(&config)?.node;
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
     let daemon = options.daemon.unwrap_or_else(|| {
         net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), radicle::git::PROTOCOL_PORT)
