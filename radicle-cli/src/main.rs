@@ -129,6 +129,14 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "cob" => {
+            term::run_command_args::<rad_cob::Options, _>(
+                rad_cob::HELP,
+                "Cob",
+                rad_cob::run,
+                args.to_vec(),
+            );
+        }
         "comment" => {
             term::run_command_args::<rad_comment::Options, _>(
                 rad_comment::HELP,

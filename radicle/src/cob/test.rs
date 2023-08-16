@@ -95,6 +95,7 @@ where
             *signer.public_key(),
             self.resource,
             NonEmpty::new(data),
+            vec![],
             timestamp.as_secs(),
             manifest,
         );
@@ -160,11 +161,13 @@ impl<G: Signer> Actor<G> {
         let author = *self.signer.public_key();
         let actions = NonEmpty::new(action);
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
+        let parents = vec![];
 
         Op {
             id,
             actions,
             author,
+            parents,
             timestamp,
             identity,
             manifest,

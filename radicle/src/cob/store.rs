@@ -335,7 +335,7 @@ impl<T: FromHistory> Transaction<T> {
 
     /// Commit transaction.
     ///
-    /// Returns a list of operations that can be applied onto an in-memory CRDT.
+    /// Returns an operation that can be applied onto an in-memory state.
     pub fn commit<R, G: Signer>(
         self,
         msg: &str,
@@ -349,7 +349,11 @@ impl<T: FromHistory> Transaction<T> {
     {
         let actions = NonEmpty::from_vec(self.actions)
             .expect("Transaction::commit: transaction must not be empty");
-        let Updated { head, object } = store.update(id, msg, actions.clone(), signer)?;
+        let Updated {
+            head,
+            object,
+            parents,
+        } = store.update(id, msg, actions.clone(), signer)?;
         let id = EntryId::from(head);
         let author = self.actor;
         let timestamp = Timestamp::from_secs(object.history().timestamp());
@@ -360,11 +364,31 @@ impl<T: FromHistory> Transaction<T> {
             actions,
             author,
             timestamp,
+            parents,
             identity,
             manifest,
         };
 
         Ok((op, id))
+    }
+}
+
+/// Get an object's operations without decoding them.
+pub fn ops<R: cob::Store>(
+    id: &ObjectId,
+    type_name: &TypeName,
+    repo: &R,
+) -> Result<Vec<Op<Vec<u8>>>, Error> {
+    let cob = cob::get(repo, type_name, id)?;
+
+    if let Some(cob) = cob {
+        let ops = cob.history().traverse(Vec::new(), |mut ops, _, entry| {
+            ops.push(Op::from(entry.clone()));
+            ControlFlow::Continue(ops)
+        });
+        Ok(ops)
+    } else {
+        Err(Error::NotFound(type_name.clone(), *id))
     }
 }
 

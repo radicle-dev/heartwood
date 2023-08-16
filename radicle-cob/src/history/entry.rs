@@ -86,6 +86,8 @@ pub struct Entry {
     /// The content-address for the resource this entry lives under.
     /// If the resource was updated, this should point to its latest version.
     pub(super) resource: Oid,
+    /// Parent entries.
+    pub(super) parents: Vec<EntryId>,
     /// The contents of this entry.
     pub(super) contents: Contents,
     /// The entry timestamp, as seconds since epoch.
@@ -100,6 +102,7 @@ impl Entry {
         actor: PublicKey,
         resource: Oid,
         contents: Contents,
+        parents: Vec<EntryId>,
         timestamp: Timestamp,
         manifest: Manifest,
     ) -> Self
@@ -112,6 +115,7 @@ impl Entry {
             resource,
             contents,
             timestamp,
+            parents,
             manifest,
         }
     }
@@ -119,6 +123,11 @@ impl Entry {
     /// The current `Oid` of the resource this change lives under.
     pub fn resource(&self) -> Oid {
         self.resource
+    }
+
+    /// Parent entries.
+    pub fn parents(&self) -> &[EntryId] {
+        &self.parents
     }
 
     /// The public key of the actor.

@@ -34,6 +34,8 @@ pub struct Op<A> {
     pub author: ActorId,
     /// Timestamp of this operation.
     pub timestamp: Timestamp,
+    /// Parent operations.
+    pub parents: Vec<EntryId>,
     /// Head of identity document committed to by this operation.
     pub identity: git::Oid,
     /// Object manifest.
@@ -66,6 +68,7 @@ impl<A> Op<A> {
             actions: actions.into(),
             author,
             timestamp: timestamp.into(),
+            parents: vec![],
             identity,
             manifest,
         }
@@ -73,6 +76,20 @@ impl<A> Op<A> {
 
     pub fn id(&self) -> EntryId {
         self.id
+    }
+}
+
+impl From<Entry> for Op<Vec<u8>> {
+    fn from(entry: Entry) -> Self {
+        Self {
+            id: *entry.id(),
+            actions: entry.contents().clone(),
+            author: *entry.actor(),
+            parents: entry.parents().to_owned(),
+            timestamp: Timestamp::from_secs(entry.timestamp()),
+            identity: entry.resource(),
+            manifest: entry.manifest().clone(),
+        }
     }
 }
 
@@ -100,6 +117,7 @@ where
             actions,
             author: *entry.actor(),
             timestamp: Timestamp::from_secs(entry.timestamp()),
+            parents: entry.parents().to_owned(),
             identity,
             manifest,
         };

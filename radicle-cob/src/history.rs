@@ -1,5 +1,5 @@
 // Copyright © 2021 The Radicle Link Contributors
-
+#![allow(clippy::too_many_arguments)]
 use std::{cmp::Ordering, collections::BTreeSet, ops::ControlFlow};
 
 use git_ext::Oid;
@@ -53,6 +53,7 @@ impl History {
             actor,
             resource,
             contents,
+            parents: vec![],
             timestamp,
             manifest,
         };
@@ -114,6 +115,7 @@ impl History {
         new_actor: PublicKey,
         new_resource: Oid,
         new_contents: Contents,
+        new_parents: Vec<EntryId>,
         new_timestamp: Timestamp,
         manifest: Manifest,
     ) where
@@ -126,6 +128,7 @@ impl History {
             new_actor,
             new_resource,
             new_contents,
+            new_parents,
             new_timestamp,
             manifest,
         );

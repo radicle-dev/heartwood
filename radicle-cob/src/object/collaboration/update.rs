@@ -3,7 +3,10 @@
 use git_ext::Oid;
 use nonempty::NonEmpty;
 
-use crate::{change, change_graph::ChangeGraph, CollaborativeObject, ObjectId, Store, TypeName};
+use crate::{
+    change, change_graph::ChangeGraph, history::EntryId, CollaborativeObject, ObjectId, Store,
+    TypeName,
+};
 
 use super::error;
 
@@ -14,6 +17,8 @@ pub struct Updated {
     pub head: Oid,
     /// The newly updated collaborative object.
     pub object: CollaborativeObject,
+    /// Entry parents.
+    pub parents: Vec<EntryId>,
 }
 
 /// The data required to update an object
@@ -90,11 +95,14 @@ where
         .update(identifier, typename, &object_id, &change)
         .map_err(|err| error::Update::Refs { err: Box::new(err) })?;
 
+    let parents: Vec<EntryId> = change.parents.into_iter().map(|oid| oid.into()).collect();
+
     object.history.extend(
         change.id,
         change.signature.key,
         change.resource,
         change.contents,
+        parents.clone(),
         change.timestamp,
         change.manifest,
     );
@@ -102,5 +110,6 @@ where
     Ok(Updated {
         object,
         head: change.id,
+        parents,
     })
 }

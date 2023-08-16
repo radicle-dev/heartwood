@@ -101,6 +101,12 @@ impl ChangeGraph {
                     change.signature.key,
                     change.resource,
                     change.contents().clone(),
+                    change
+                        .parents
+                        .iter()
+                        .cloned()
+                        .map(|oid| oid.into())
+                        .collect(),
                     change.timestamp,
                     change.manifest.clone(),
                 );
