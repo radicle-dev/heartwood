@@ -5,11 +5,9 @@ use std::ops;
 use log::error;
 use thiserror::Error;
 
-use radicle::crypto::PublicKey;
-use radicle::storage::{Namespaces, ReadRepository as _, ReadStorage, RepositoryError};
-
-use crate::prelude::Id;
-use crate::service::NodeId;
+use crate::crypto::PublicKey;
+use crate::prelude::{Id, NodeId};
+use crate::storage::{Namespaces, ReadRepository as _, ReadStorage, RepositoryError};
 
 pub use crate::node::tracking::store;
 pub use crate::node::tracking::store::Config as Store;
@@ -38,6 +36,8 @@ pub enum NamespacesError {
         #[source]
         err: RepositoryError,
     },
+    #[error(transparent)]
+    Git(#[from] crate::git::raw::Error),
     #[error("Could not find any trusted nodes for {rid}")]
     NoTrusted { rid: Id },
 }

@@ -6,7 +6,6 @@ pub mod io;
 pub mod limitter;
 pub mod message;
 pub mod session;
-pub mod tracking;
 
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -23,6 +22,7 @@ use nonempty::NonEmpty;
 use radicle::node::address;
 use radicle::node::address::{AddressBook, KnownAddress};
 use radicle::node::config::PeerConfig;
+pub use radicle::node::tracking::config as tracking;
 use radicle::node::ConnectOptions;
 use radicle::storage::RepositoryError;
 

@@ -1,3 +1,4 @@
+pub mod config;
 pub mod store;
 
 use std::fmt;
