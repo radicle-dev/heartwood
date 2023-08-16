@@ -1100,6 +1100,31 @@ fn rad_merge_after_update() {
 }
 
 #[test]
+fn rad_merge_no_ff() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    test(
+        "examples/rad-merge-no-ff.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_patch_pull_update() {
     logger::init(log::Level::Debug);
 
