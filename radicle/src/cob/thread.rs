@@ -42,6 +42,9 @@ pub enum Error {
 /// Identifies a comment.
 pub type CommentId = EntryId;
 
+/// Reactions to a comment or other action.
+pub type Reactions = BTreeSet<(ActorId, Reaction)>;
+
 /// A comment edit is just some text and an edit time.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Edit {
@@ -61,12 +64,14 @@ pub struct Comment<T = ()> {
     /// The comment body.
     edits: Vec<Edit>,
     /// Reactions to this comment.
-    reactions: BTreeSet<(ActorId, Reaction)>,
+    reactions: Reactions,
     /// Comment this is a reply to.
     /// Should always be set, except for the root comment.
     reply_to: Option<CommentId>,
     /// Location of comment, if this is an inline comment.
     location: Option<T>,
+    /// Whether the comment has been resolved.
+    resolved: bool,
 }
 
 impl<T: Serialize> Serialize for Comment<T> {
@@ -115,6 +120,7 @@ impl<L> Comment<L> {
             edits: vec![edit],
             reply_to,
             location,
+            resolved: false,
         }
     }
 
@@ -175,6 +181,14 @@ impl<L> Comment<L> {
         // constructor.
         #[allow(clippy::unwrap_used)]
         &self.edits.last().unwrap().embeds
+    }
+
+    pub fn resolve(&mut self) {
+        self.resolved = true;
+    }
+
+    pub fn unresolve(&mut self) {
+        self.resolved = false;
     }
 }
 
@@ -436,6 +450,40 @@ pub fn react<T>(
         } else {
             comment.reactions.remove(&key);
         }
+    }
+    Ok(())
+}
+
+pub fn resolve<T>(
+    thread: &mut Thread<Comment<T>>,
+    id: EntryId,
+    comment: EntryId,
+) -> Result<(), Error> {
+    let Some(comment) = thread.comments.get_mut(&comment) else {
+        return Err(Error::Missing(comment));
+    };
+
+    if let Some(comment) = comment {
+        debug_assert!(!thread.timeline.contains(&id));
+        thread.timeline.push(id);
+        comment.resolve();
+    }
+    Ok(())
+}
+
+pub fn unresolve<T>(
+    thread: &mut Thread<Comment<T>>,
+    id: EntryId,
+    comment: EntryId,
+) -> Result<(), Error> {
+    let Some(comment) = thread.comments.get_mut(&comment) else {
+        return Err(Error::Missing(comment));
+    };
+
+    if let Some(comment) = comment {
+        debug_assert!(!thread.timeline.contains(&id));
+        thread.timeline.push(id);
+        comment.unresolve();
     }
     Ok(())
 }

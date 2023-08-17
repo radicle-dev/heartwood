@@ -18,7 +18,7 @@ use crate::cob::store::Transaction;
 use crate::cob::store::{FromHistory as _, HistoryAction};
 use crate::cob::thread;
 use crate::cob::thread::Thread;
-use crate::cob::thread::{Comment, CommentId};
+use crate::cob::thread::{Comment, CommentId, Reactions};
 use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
@@ -162,7 +162,7 @@ pub enum Action {
         summary: Option<String>,
     },
     #[serde(rename = "review.redact")]
-    ReviewRedact { review: EntryId },
+    ReviewRedact { review: ReviewId },
     #[serde(rename = "review.comment")]
     ReviewComment {
         review: ReviewId,
@@ -571,8 +571,8 @@ impl store::FromHistory for Patch {
                 Action::Label { labels } => {
                     self.labels = BTreeSet::from_iter(labels);
                 }
-                Action::Assign { .. } => {
-                    todo!();
+                Action::Assign { assignees } => {
+                    self.assignees = BTreeSet::from_iter(assignees.into_iter().map(ActorId::from));
                 }
                 Action::RevisionEdit {
                     revision,
@@ -631,8 +631,22 @@ impl store::FromHistory for Patch {
                         )),
                     );
                 }
-                Action::RevisionReact { .. } => {
-                    todo!();
+                Action::RevisionReact {
+                    revision,
+                    reaction,
+                    active,
+                    location,
+                } => {
+                    if let Some(revision) = lookup::revision(self, &revision)? {
+                        let key = (op.author, reaction);
+                        let reactions = revision.reactions.entry(location).or_default();
+
+                        if active {
+                            reactions.insert(key);
+                        } else {
+                            reactions.remove(&key);
+                        }
+                    }
                 }
                 Action::RevisionRedact { revision } => {
                     // Redactions must have observed a revision to be valid.
@@ -706,11 +720,15 @@ impl store::FromHistory for Patch {
                         )?;
                     }
                 }
-                Action::ReviewCommentResolve { .. } => {
-                    todo!();
+                Action::ReviewCommentResolve { review, comment } => {
+                    if let Some(review) = lookup::review(self, &review)? {
+                        thread::resolve(&mut review.comments, op.id, comment)?;
+                    }
                 }
-                Action::ReviewCommentUnresolve { .. } => {
-                    todo!();
+                Action::ReviewCommentUnresolve { review, comment } => {
+                    if let Some(review) = lookup::review(self, &review)? {
+                        thread::unresolve(&mut review.comments, op.id, comment)?;
+                    }
                 }
                 Action::ReviewComment {
                     review,
@@ -731,8 +749,30 @@ impl store::FromHistory for Patch {
                         )?;
                     }
                 }
-                Action::ReviewRedact { .. } => {
-                    todo!();
+                Action::ReviewRedact { review } => {
+                    // Redactions must have observed a review to be valid.
+                    let Some(locator) = self.reviews.get_mut(&review) else {
+                        return Err(Error::Missing(review.into_inner()));
+                    };
+                    // If the review is already redacted, do nothing.
+                    let Some((revision, reviewer)) = locator else {
+                        return Ok(());
+                    };
+                    // The revision must have existed at some point.
+                    let Some(redactable) = self.revisions.get_mut(revision) else {
+                        return Err(Error::Missing(revision.into_inner()));
+                    };
+                    // But it could be redacted.
+                    let Some(revision) = redactable else {
+                        return Ok(());
+                    };
+                    // The review must have existed as well.
+                    let Some(review) = revision.reviews.get_mut(reviewer) else {
+                        return Err(Error::Missing(review.into_inner()));
+                    };
+                    // Set both the review and the locator in the review index to redacted.
+                    *review = None;
+                    *locator = None;
                 }
                 Action::Merge { revision, commit } => {
                     // If the revision was redacted before the merge, ignore the merge.
@@ -930,6 +970,8 @@ pub struct Revision {
     pub(super) timestamp: Timestamp,
     /// Review comments resolved by this revision.
     pub(super) resolves: BTreeSet<(EntryId, CommentId)>,
+    /// Reactions on code locations and revision itself
+    pub(super) reactions: BTreeMap<Option<CodeLocation>, Reactions>,
 }
 
 impl Revision {
@@ -950,6 +992,7 @@ impl Revision {
             reviews: BTreeMap::default(),
             timestamp,
             resolves,
+            reactions: Default::default(),
         }
     }
 
@@ -1083,8 +1126,37 @@ pub enum CodeRange {
     Chars { line: usize, range: Range<usize> },
 }
 
+impl std::cmp::PartialOrd for CodeRange {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::cmp::Ord for CodeRange {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (CodeRange::Lines { .. }, CodeRange::Chars { .. }) => std::cmp::Ordering::Less,
+            (CodeRange::Chars { .. }, CodeRange::Lines { .. }) => std::cmp::Ordering::Greater,
+
+            (CodeRange::Lines { range: a }, CodeRange::Lines { range: b }) => {
+                a.clone().cmp(b.clone())
+            }
+            (
+                CodeRange::Chars {
+                    line: l1,
+                    range: r1,
+                },
+                CodeRange::Chars {
+                    line: l2,
+                    range: r2,
+                },
+            ) => l1.cmp(l2).then(r1.clone().cmp(r2.clone())),
+        }
+    }
+}
+
 /// Code location, used for attaching comments to diffs.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CodeLocation {
     /// Path of file.
@@ -1345,6 +1417,11 @@ impl store::Transaction<Patch> {
         })
     }
 
+    /// Redact a patch review.
+    pub fn redact_review(&mut self, review: ReviewId) -> Result<(), store::Error> {
+        self.push(Action::ReviewRedact { review })
+    }
+
     /// Merge a patch revision.
     pub fn merge(&mut self, revision: RevisionId, commit: git::Oid) -> Result<(), store::Error> {
         self.push(Action::Merge { revision, commit })
@@ -1395,6 +1472,16 @@ where
 
     pub fn id(&self) -> &ObjectId {
         &self.id
+    }
+
+    /// Reload the patch data from storage.
+    pub fn reload(&mut self) -> Result<(), store::Error> {
+        self.patch = self
+            .store
+            .get(&self.id)?
+            .ok_or_else(|| store::Error::NotFound(TYPENAME.clone(), self.id))?;
+
+        Ok(())
     }
 
     pub fn transaction<G, F>(
@@ -1559,7 +1646,7 @@ where
         active: bool,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("React review comment", signer, |tx| {
+        self.transaction("React to review comment", signer, |tx| {
             tx.react_review_comment(review, comment, reaction, active)
         })
     }
@@ -1571,7 +1658,7 @@ where
         comment: EntryId,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("React review comment", signer, |tx| {
+        self.transaction("Redact review comment", signer, |tx| {
             tx.redact_review_comment(review, comment)
         })
     }
@@ -1589,6 +1676,15 @@ where
             tx.review(revision, verdict, comment, labels)
         })
         .map(ReviewId)
+    }
+
+    /// Redact a patch review.
+    pub fn redact_review<G: Signer>(
+        &mut self,
+        review: ReviewId,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Redact review", signer, |tx| tx.redact_review(review))
     }
 
     /// Merge a patch revision.
@@ -2014,10 +2110,10 @@ mod test {
             )
             .unwrap();
 
-        let (rid, _) = patch.latest();
-        patch
+        let (revision_id, _) = patch.latest();
+        let review_id = patch
             .review(
-                rid,
+                revision_id,
                 Some(Verdict::Accept),
                 Some("LGTM".to_owned()),
                 vec![],
@@ -2026,13 +2122,57 @@ mod test {
             .unwrap();
 
         let id = patch.id;
-        let patch = patches.get(&id).unwrap().unwrap();
+        let mut patch = patches.get_mut(&id).unwrap();
         let (_, revision) = patch.latest();
         assert_eq!(revision.reviews.len(), 1);
 
         let review = revision.review(alice.signer.public_key()).unwrap();
         assert_eq!(review.verdict(), Some(Verdict::Accept));
         assert_eq!(review.summary(), Some("LGTM"));
+
+        patch.redact_review(review_id, &alice.signer).unwrap();
+        patch.reload().unwrap();
+
+        let (_, revision) = patch.latest();
+        assert_eq!(revision.reviews().count(), 0);
+
+        // This is fine, redacting an already-redacted review is a no-op.
+        patch.redact_review(review_id, &alice.signer).unwrap();
+        // If the review never existed, it's an error.
+        patch
+            .redact_review(ReviewId(arbitrary::entry_id()), &alice.signer)
+            .unwrap_err();
+    }
+
+    #[test]
+    fn test_patch_review_revision_redact() {
+        let alice = test::setup::NodeWithRepo::default();
+        let checkout = alice.repo.checkout();
+        let branch = checkout.branch_with([("README", b"Hello World!")]);
+        let mut patches = Patches::open(&*alice.repo).unwrap();
+        let mut patch = patches
+            .create(
+                "My first patch",
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                branch.base,
+                branch.oid,
+                &[],
+                &alice.signer,
+            )
+            .unwrap();
+
+        let update = checkout.branch_with([("README", b"Hello Radicle!")]);
+        let updated = patch
+            .update("I've made changes.", branch.base, update.oid, &alice.signer)
+            .unwrap();
+
+        // It's fine to redact a review from a redacted revision.
+        let review = patch
+            .review(updated, None, None, vec![], &alice.signer)
+            .unwrap();
+        patch.redact(updated, &alice.signer).unwrap();
+        patch.redact_review(review, &alice.signer).unwrap();
     }
 
     #[test]
@@ -2121,6 +2261,38 @@ mod test {
 
         let patch = Patch::from_history(&h0, &repo).unwrap();
         assert_eq!(patch.revisions().count(), 0);
+    }
+
+    #[test]
+    fn test_revision_reaction() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let mut alice = Actor::new(MockSigner::default());
+        let repo = gen::<MockRepository>(1);
+        let reaction = Reaction::new('👍').expect("failed to create a reaction");
+
+        let a1 = alice.op::<Patch>(Action::Revision {
+            description: String::new(),
+            base,
+            oid,
+            resolves: Default::default(),
+        });
+        let a2 = alice.op::<Patch>(Action::RevisionReact {
+            revision: RevisionId(a1.id()),
+            location: None,
+            reaction,
+            active: true,
+        });
+        let patch = Patch::from_ops([a1, a2], &repo).unwrap();
+
+        let (_, r1) = patch.revisions().next().unwrap();
+        assert!(!r1.reactions.is_empty());
+
+        let mut reactions = r1.reactions.get(&None).unwrap().clone();
+        assert!(!reactions.is_empty());
+
+        let (_, first_reaction) = reactions.pop_first().unwrap();
+        assert_eq!(first_reaction, reaction);
     }
 
     #[test]
