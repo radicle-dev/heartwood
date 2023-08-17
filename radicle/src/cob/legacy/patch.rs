@@ -103,7 +103,7 @@ impl store::FromHistory for Patch {
     type Error = Error;
 
     fn type_name() -> &'static TypeName {
-        &*TYPENAME
+        &TYPENAME
     }
 
     fn validate(&self) -> Result<(), Self::Error> {
@@ -242,6 +242,7 @@ impl store::FromHistory for Patch {
                                         comment,
                                         timestamp,
                                         body,
+                                        vec![],
                                     )?;
                                 }
                             }
@@ -277,6 +278,7 @@ impl store::FromHistory for Patch {
                                         body,
                                         None,
                                         Some(location),
+                                        vec![],
                                     )?;
                                 }
                             }

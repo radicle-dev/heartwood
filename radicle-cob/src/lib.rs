@@ -1,5 +1,6 @@
 // Copyright © 2021 The Radicle Link Contributors
 
+#![warn(clippy::unwrap_used)]
 //! # Collaborative Objects
 //!
 //! Collaborative objects are graphs of CRDTs. The current CRDTs that
@@ -80,7 +81,7 @@ mod change_graph;
 mod trailers;
 
 pub mod change;
-pub use change::store::{Manifest, Version};
+pub use change::store::{Embed, Manifest, Version};
 pub use change::Change;
 
 pub mod history;
@@ -98,9 +99,11 @@ pub use object::{
 };
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test;
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests;
 
 /// The `Store` is an aggregation of the different types of storage

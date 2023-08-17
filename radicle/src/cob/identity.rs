@@ -320,7 +320,7 @@ impl store::FromHistory for Proposal {
     type Error = ApplyError;
 
     fn type_name() -> &'static TypeName {
-        &*TYPENAME
+        &TYPENAME
     }
 
     fn validate(&self) -> Result<(), Self::Error> {
@@ -390,6 +390,7 @@ impl store::FromHistory for Proposal {
                             body,
                             reply_to,
                             None,
+                            vec![],
                         )?;
                     }
                 }
@@ -399,7 +400,14 @@ impl store::FromHistory for Proposal {
                     body,
                 } => {
                     if let Some(revision) = lookup::revision(self, &revision)? {
-                        thread::edit(&mut revision.discussion, op.id, comment, op.timestamp, body)?;
+                        thread::edit(
+                            &mut revision.discussion,
+                            op.id,
+                            comment,
+                            op.timestamp,
+                            body,
+                            vec![],
+                        )?;
                     }
                 }
                 Action::RevisionCommentRedact { revision, comment } => {

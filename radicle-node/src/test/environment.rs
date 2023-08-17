@@ -315,7 +315,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
         let repo = self.storage.repository(rid).unwrap();
         let mut issues = issue::Issues::open(&repo).unwrap();
         *issues
-            .create(title, desc, &[], &[], &self.signer)
+            .create(title, desc, &[], &[], [], &self.signer)
             .unwrap()
             .id()
     }

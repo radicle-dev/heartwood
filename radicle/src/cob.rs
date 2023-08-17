@@ -12,7 +12,7 @@ pub mod test;
 
 pub use cob::{
     change, history::EntryId, object, object::collaboration::error, CollaborativeObject, Contents,
-    Create, Entry, History, Manifest, ObjectId, Store, TypeName, Update, Updated, Version,
+    Create, Embed, Entry, History, Manifest, ObjectId, Store, TypeName, Update, Updated, Version,
 };
 pub use cob::{create, get, list, remove, update};
 pub use common::*;

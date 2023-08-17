@@ -28,7 +28,7 @@ impl store::FromHistory for Issue {
     type Error = Error;
 
     fn type_name() -> &'static TypeName {
-        &*issue::TYPENAME
+        &issue::TYPENAME
     }
 
     fn validate(&self) -> Result<(), Self::Error> {

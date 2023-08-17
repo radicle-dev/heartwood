@@ -333,6 +333,9 @@ pub trait ReadRepository: Sized {
     fn blob_at<'a>(&'a self, commit: Oid, path: &'a Path)
         -> Result<git2::Blob<'a>, git_ext::Error>;
 
+    /// Get a blob in this repository, given its id.
+    fn blob(&self, oid: Oid) -> Result<git2::Blob, git_ext::Error>;
+
     /// Validate all remotes with [`ReadRepository::validate_remote`].
     fn validate(&self) -> Result<(), VerifyError> {
         for (_, remote) in self.remotes()? {

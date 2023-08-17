@@ -17,7 +17,7 @@ pub struct ChangeGraphInfo {
     /// The ID of the object
     pub object_id: ObjectId,
     /// The number of nodes in the change graph of the object
-    pub number_of_nodes: u64,
+    pub number_of_nodes: usize,
     /// The "tips" of the change graph, i.e the object IDs pointed to by
     /// references to the object
     pub tips: BTreeSet<Oid>,

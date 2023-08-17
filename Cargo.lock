@@ -1924,6 +1924,7 @@ dependencies = [
  "git2",
  "log",
  "nonempty 0.8.1",
+ "once_cell",
  "qcheck",
  "qcheck-macros",
  "radicle-crypto",

@@ -295,7 +295,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             description: Some(description),
             labels,
         } => {
-            let issue = issues.create(title, description, labels.as_slice(), &[], &signer)?;
+            let issue = issues.create(title, description, labels.as_slice(), &[], [], &signer)?;
             if !options.quiet {
                 show_issue(&issue, issue.id())?;
             }
@@ -569,6 +569,7 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
         description.trim(),
         meta.labels.as_slice(),
         meta.assignees.as_slice(),
+        [],
         signer,
     )?;
     if !options.quiet {
@@ -598,7 +599,7 @@ fn edit<R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
                 tx.edit(t)?;
             }
             if let Some(d) = description {
-                tx.edit_comment(desc_id, d)?;
+                tx.edit_comment(desc_id, d, vec![])?;
             }
 
             Ok(())
@@ -621,7 +622,7 @@ fn edit<R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
 
     issue.transaction("Edit", signer, |tx| {
         tx.edit(edited.title)?;
-        tx.edit_comment(desc_id, description)?;
+        tx.edit_comment(desc_id, description, vec![])?;
         tx.label(edited.labels)?;
         tx.assign(edited.assignees)?;
 

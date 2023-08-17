@@ -794,6 +794,7 @@ fn test_cob_replication() {
             "I don't know what it is",
             &[],
             &[],
+            [],
             &bob.signer,
         )
         .unwrap();
@@ -843,6 +844,7 @@ fn test_cob_deletion() {
             "I don't know what it is",
             &[],
             &[],
+            [],
             &alice.signer,
         )
         .unwrap();

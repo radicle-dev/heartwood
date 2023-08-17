@@ -2,11 +2,13 @@
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::path::PathBuf;
 
 use git_ext::author::Author;
 use git_ext::commit::{headers::Headers, Commit};
 use git_ext::Oid;
 use nonempty::NonEmpty;
+use once_cell::sync::Lazy;
 use radicle_git_ext::commit::trailers::OwnedTrailer;
 
 use crate::change::store::Version;
@@ -16,10 +18,13 @@ use crate::{
     change::{self, store, Change},
     history::entry,
     signatures::{ExtendedSignature, Signatures},
-    trailers,
+    trailers, Embed,
 };
 
-const MANIFEST_BLOB_NAME: &str = "manifest";
+/// Name of the COB manifest file.
+pub const MANIFEST_BLOB_NAME: &str = "manifest";
+/// Path under which COB embeds are kept.
+pub static EMBEDS_PATH: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("embeds"));
 
 pub mod error {
     use std::str::Utf8Error;
@@ -102,10 +107,11 @@ impl change::Storage for git2::Repository {
             type_name,
             tips,
             message,
+            embeds,
             contents,
         } = spec;
         let manifest = store::Manifest::new(type_name, Version::default());
-        let revision = write_manifest(self, &manifest, &contents)?;
+        let revision = write_manifest(self, &manifest, embeds, &contents)?;
         let tree = self.find_tree(revision)?;
         let signature = {
             let sig = signer.sign(revision.as_bytes());
@@ -281,6 +287,8 @@ where
 
     #[cfg(debug_assertions)]
     let (author, timestamp) = if let Ok(s) = std::env::var(crate::git::RAD_COMMIT_TIME) {
+        // SAFETY: It's ok to panic here, since this is only enabled in debug mode.
+        #[allow(clippy::unwrap_used)]
         let timestamp = s.trim().parse::<i64>().unwrap();
         let author = Author {
             time: git_ext::author::Time::new(timestamp, 0),
@@ -308,24 +316,47 @@ where
 fn write_manifest(
     repo: &git2::Repository,
     manifest: &store::Manifest,
+    embeds: Vec<Embed>,
     contents: &NonEmpty<Vec<u8>>,
 ) -> Result<git2::Oid, git2::Error> {
-    let mut tb = repo.treebuilder(None)?;
-    // SAFETY: we're serializing to an in memory buffer so the only source of
-    // errors here is a programming error, which we can't recover from
-    let serialized_manifest = serde_json::to_vec(manifest).unwrap();
-    let manifest_oid = repo.blob(&serialized_manifest)?;
-    tb.insert(
-        MANIFEST_BLOB_NAME,
-        manifest_oid,
-        git2::FileMode::Blob.into(),
-    )?;
+    let mut root = repo.treebuilder(None)?;
 
+    // Insert manifest file into tree.
+    {
+        // SAFETY: we're serializing to an in memory buffer so the only source of
+        // errors here is a programming error, which we can't recover from.
+        #[allow(clippy::unwrap_used)]
+        let manifest = serde_json::to_vec(manifest).unwrap();
+        let manifest_oid = repo.blob(&manifest)?;
+
+        root.insert(
+            MANIFEST_BLOB_NAME,
+            manifest_oid,
+            git2::FileMode::Blob.into(),
+        )?;
+    }
+
+    // Insert each COB entry.
     for (ix, op) in contents.iter().enumerate() {
         let oid = repo.blob(op.as_ref())?;
-        tb.insert(&ix.to_string(), oid, git2::FileMode::Blob.into())?;
+        root.insert(&ix.to_string(), oid, git2::FileMode::Blob.into())?;
     }
-    let tree_oid = tb.write()?;
 
-    Ok(tree_oid)
+    // Insert each embed in a tree at `/embeds`.
+    if !embeds.is_empty() {
+        let mut embeds_tree = repo.treebuilder(None)?;
+
+        for embed in embeds {
+            let oid = repo.blob(&embed.content)?;
+            let path = PathBuf::from(embed.name);
+
+            embeds_tree.insert(path, oid, git2::FileMode::Blob.into())?;
+        }
+        let oid = embeds_tree.write()?;
+
+        root.insert(&*EMBEDS_PATH, oid, git2::FileMode::Tree.into())?;
+    }
+    let oid = root.write()?;
+
+    Ok(oid)
 }

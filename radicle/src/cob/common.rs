@@ -4,6 +4,7 @@ use std::str::FromStr;
 use localtime::LocalTime;
 use serde::{Deserialize, Serialize};
 
+use crate::git_ext::Oid;
 use crate::prelude::*;
 
 /// Timestamp used for COB operations.
@@ -223,6 +224,57 @@ impl<'a> Deserialize<'a> for Color {
     {
         let color = String::deserialize(deserializer)?;
         Self::from_str(&color).map_err(serde::de::Error::custom)
+    }
+}
+
+/// A URI.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Uri(String);
+
+impl Uri {
+    /// Get a string reference to the URI.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl From<Oid> for Uri {
+    fn from(oid: Oid) -> Self {
+        Uri(format!("git:{oid}"))
+    }
+}
+
+impl TryFrom<&Uri> for Oid {
+    type Error = Uri;
+
+    fn try_from(value: &Uri) -> Result<Self, Self::Error> {
+        if let Some(oid) = value.as_str().strip_prefix("git:") {
+            let oid = oid.parse().map_err(|_| value.clone())?;
+
+            return Ok(oid);
+        }
+        Err(value.clone())
+    }
+}
+
+impl std::fmt::Display for Uri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for Uri {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.chars().all(|c| c.is_ascii()) {
+            return Err(s.to_owned());
+        }
+        if !s.contains(':') {
+            return Err(s.to_owned());
+        }
+        Ok(Self(s.to_owned()))
     }
 }
 

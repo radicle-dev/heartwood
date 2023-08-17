@@ -58,6 +58,8 @@ impl From<git2::Oid> for ResourceCommitTrailer {
 impl From<ResourceCommitTrailer> for Trailer<'_> {
     fn from(containing: ResourceCommitTrailer) -> Self {
         Trailer {
+            // SAFETY: "Rad-Resource" is a valid `Token`.
+            #[allow(clippy::unwrap_used)]
             token: Token::try_from("Rad-Resource").unwrap(),
             value: containing.0.to_string().into(),
         }

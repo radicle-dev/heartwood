@@ -34,6 +34,7 @@ fn roundtrip() {
             contents: nonempty!(Vec::new()),
             type_name: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
+            embeds: vec![],
             version: Version::default(),
         },
     )
@@ -67,6 +68,7 @@ fn list_cobs() {
             contents: nonempty!(b"issue 1".to_vec()),
             type_name: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
+            embeds: vec![],
             version: Version::default(),
         },
     )
@@ -82,6 +84,7 @@ fn list_cobs() {
             contents: nonempty!(b"issue 2".to_vec()),
             type_name: typename.clone(),
             message: "commenting xyz.rad.issue".to_string(),
+            embeds: vec![],
             version: Version::default(),
         },
     )
@@ -117,6 +120,7 @@ fn update_cob() {
             contents: nonempty!(Vec::new()),
             type_name: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
+            embeds: vec![],
             version: Version::default(),
         },
     )
@@ -136,6 +140,7 @@ fn update_cob() {
             changes: nonempty!(b"issue 1".to_vec()),
             object_id: *cob.id(),
             type_name: typename.clone(),
+            embeds: vec![],
             message: "commenting xyz.rad.issue".to_string(),
         },
     )
@@ -176,6 +181,7 @@ fn traverse_cobs() {
             contents: nonempty!(b"issue 1".to_vec()),
             type_name: typename.clone(),
             message: "creating xyz.rad.issue".to_string(),
+            embeds: vec![],
             version: Version::default(),
         },
     )
@@ -199,6 +205,7 @@ fn traverse_cobs() {
             changes: nonempty!(b"issue 2".to_vec()),
             object_id: *cob.id(),
             type_name: typename,
+            embeds: vec![],
             message: "commenting on xyz.rad.issue".to_string(),
         },
     )

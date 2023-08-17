@@ -1,7 +1,7 @@
 // Copyright © 2021 The Radicle Link Contributors
 
+use std::collections::BTreeSet;
 use std::ops::ControlFlow;
-use std::{collections::BTreeSet, convert::TryInto};
 
 use git_ext::Oid;
 use radicle_dag::Dag;
@@ -135,8 +135,8 @@ impl ChangeGraph {
         self.graph.tips().map(|(_, change)| *change.id()).collect()
     }
 
-    pub(crate) fn number_of_nodes(&self) -> u64 {
-        self.graph.len().try_into().unwrap()
+    pub(crate) fn number_of_nodes(&self) -> usize {
+        self.graph.len()
     }
 }
 

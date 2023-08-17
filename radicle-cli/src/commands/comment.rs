@@ -110,7 +110,7 @@ fn comment(
                 let (comment_id, _) = issue.comments().next().expect("root comment always exists");
                 *comment_id
             });
-            let comment_id = issue.comment(message, comment_id, &signer)?;
+            let comment_id = issue.comment(message, comment_id, vec![], &signer)?;
 
             term::print(comment_id);
             return Ok(());

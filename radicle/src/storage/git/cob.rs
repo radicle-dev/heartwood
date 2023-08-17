@@ -283,6 +283,10 @@ impl<'a> ReadRepository for DraftStore<'a> {
         self.repo.blob_at(oid, path)
     }
 
+    fn blob(&self, oid: git_ext::Oid) -> Result<raw::Blob, ext::Error> {
+        self.repo.blob(oid)
+    }
+
     fn reference(
         &self,
         remote: &RemoteId,

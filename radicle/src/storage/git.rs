@@ -357,12 +357,16 @@ impl ReadRepository for Repository {
         self.backend.path()
     }
 
-    fn blob_at<'a>(&'a self, oid: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git::Error> {
+    fn blob_at<'a>(&'a self, commit: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git::Error> {
         git::ext::Blob::At {
-            object: oid.into(),
+            object: commit.into(),
             path,
         }
         .get(&self.backend)
+    }
+
+    fn blob(&self, oid: Oid) -> Result<git2::Blob, git::Error> {
+        self.backend.find_blob(oid.into()).map_err(git::Error::from)
     }
 
     fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Vec<RefString>, VerifyError> {

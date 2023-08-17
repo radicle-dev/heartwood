@@ -449,7 +449,7 @@ impl store::FromHistory for Patch {
     type Error = Error;
 
     fn type_name() -> &'static TypeName {
-        &*TYPENAME
+        &TYPENAME
     }
 
     fn validate(&self) -> Result<(), Self::Error> {
@@ -626,7 +626,14 @@ impl store::FromHistory for Patch {
                     body,
                 } => {
                     if let Some(review) = lookup::review(self, &review)? {
-                        thread::edit(&mut review.comments, op.id, comment, timestamp, body)?;
+                        thread::edit(
+                            &mut review.comments,
+                            op.id,
+                            comment,
+                            timestamp,
+                            body,
+                            vec![],
+                        )?;
                     }
                 }
                 Action::ReviewCommentResolve { .. } => {
@@ -650,6 +657,7 @@ impl store::FromHistory for Patch {
                             body,
                             reply_to,
                             location,
+                            vec![],
                         )?;
                     }
                 }
@@ -739,6 +747,7 @@ impl store::FromHistory for Patch {
                             body,
                             reply_to,
                             None,
+                            vec![],
                         )?;
                     }
                 }
@@ -748,7 +757,14 @@ impl store::FromHistory for Patch {
                     body,
                 } => {
                     if let Some(revision) = lookup::revision(self, &revision)? {
-                        thread::edit(&mut revision.discussion, op.id, comment, op.timestamp, body)?;
+                        thread::edit(
+                            &mut revision.discussion,
+                            op.id,
+                            comment,
+                            op.timestamp,
+                            body,
+                            vec![],
+                        )?;
                     }
                 }
                 Action::RevisionCommentRedact { revision, comment } => {

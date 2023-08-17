@@ -178,6 +178,10 @@ impl ReadRepository for MockRepository {
         Ok(true)
     }
 
+    fn blob(&self, _oid: Oid) -> Result<git2::Blob, git_ext::Error> {
+        todo!()
+    }
+
     fn blob_at<'a>(
         &'a self,
         _oid: git_ext::Oid,

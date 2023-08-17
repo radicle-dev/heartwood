@@ -16,6 +16,7 @@ keywords = ["radicle", "cob", "cobs"]
 fastrand = { version = "1.9.0" }
 log = { version = "0.4.17" }
 nonempty = { version = "0.8.1", features = ["serialize"] }
+once_cell = { version = "1.13" }
 radicle-git-ext = { version = "0.6.0", features = ["serde"] }
 serde_json = { version = "1.0" }
 thiserror = { version = "1.0" }

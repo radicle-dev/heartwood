@@ -7,8 +7,8 @@ use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::cob;
-use crate::cob::common::{Reaction, Timestamp};
-use crate::cob::{ActorId, EntryId, Op};
+use crate::cob::common::{Reaction, Timestamp, Uri};
+use crate::cob::{ActorId, Embed, EntryId, Op};
 use crate::prelude::ReadRepository;
 
 /// Type name of a thread, as well as the domain for all thread operations.
@@ -49,6 +49,8 @@ pub struct Edit {
     pub timestamp: Timestamp,
     /// Edit contents. Replaces previous edits.
     pub body: String,
+    /// Edit embed list.
+    pub embeds: Vec<Embed<Uri>>,
 }
 
 /// A comment on a discussion thread.
@@ -72,7 +74,7 @@ impl<T: Serialize> Serialize for Comment<T> {
     where
         S: serde::ser::Serializer,
     {
-        let mut state = serializer.serialize_struct("Comment", 5)?;
+        let mut state = serializer.serialize_struct("Comment", 6)?;
         state.serialize_field("author", &self.author())?;
         if let Some(loc) = &self.location {
             state.serialize_field("location", loc)?;
@@ -82,6 +84,7 @@ impl<T: Serialize> Serialize for Comment<T> {
         }
         state.serialize_field("reactions", &self.reactions)?;
         state.serialize_field("body", self.body())?;
+        state.serialize_field("embeds", self.embeds())?;
         state.end()
     }
 }
@@ -93,9 +96,14 @@ impl<L> Comment<L> {
         body: String,
         reply_to: Option<CommentId>,
         location: Option<L>,
+        embeds: Vec<Embed<Uri>>,
         timestamp: Timestamp,
     ) -> Self {
-        let edit = Edit { body, timestamp };
+        let edit = Edit {
+            body,
+            embeds,
+            timestamp,
+        };
 
         Self {
             author,
@@ -139,8 +147,12 @@ impl<L> Comment<L> {
     }
 
     /// Add an edit.
-    pub fn edit(&mut self, body: String, timestamp: Timestamp) {
-        self.edits.push(Edit { body, timestamp });
+    pub fn edit(&mut self, body: String, embeds: Vec<Embed<Uri>>, timestamp: Timestamp) {
+        self.edits.push(Edit {
+            body,
+            embeds,
+            timestamp,
+        });
     }
 
     /// Comment reactions.
@@ -151,6 +163,14 @@ impl<L> Comment<L> {
     /// Get comment location, if any.
     pub fn location(&self) -> Option<&L> {
         self.location.as_ref()
+    }
+
+    /// Return the embedded media.
+    pub fn embeds(&self) -> &[Embed<Uri>] {
+        // SAFETY: There is always at least one edit. This is guaranteed by the [`Comment`]
+        // constructor.
+        #[allow(clippy::unwrap_used)]
+        &self.edits.last().unwrap().embeds
     }
 }
 
@@ -283,7 +303,7 @@ impl cob::store::FromHistory for Thread {
     type Error = Error;
 
     fn type_name() -> &'static radicle_cob::TypeName {
-        &*TYPENAME
+        &TYPENAME
     }
 
     fn validate(&self) -> Result<(), Self::Error> {
@@ -301,10 +321,10 @@ impl cob::store::FromHistory for Thread {
         for action in op.actions {
             match action {
                 Action::Comment { body, reply_to } => {
-                    comment(self, id, author, timestamp, body, reply_to, None)?;
+                    comment(self, id, author, timestamp, body, reply_to, None, vec![])?;
                 }
                 Action::Edit { id, body } => {
-                    edit(self, op.id, id, timestamp, body)?;
+                    edit(self, op.id, id, timestamp, body, vec![])?;
                 }
                 Action::Redact { id } => {
                     redact(self, op.id, id)?;
@@ -330,6 +350,7 @@ pub fn comment<L>(
     body: String,
     reply_to: Option<CommentId>,
     location: Option<L>,
+    embeds: Vec<Embed<Uri>>,
 ) -> Result<(), Error> {
     if body.is_empty() {
         return Err(Error::Comment(id));
@@ -341,7 +362,9 @@ pub fn comment<L>(
     // underlying store guarantees exactly-once delivery of ops.
     thread.comments.insert(
         id,
-        Some(Comment::new(author, body, reply_to, location, timestamp)),
+        Some(Comment::new(
+            author, body, reply_to, location, embeds, timestamp,
+        )),
     );
 
     Ok(())
@@ -353,6 +376,7 @@ pub fn edit<L>(
     comment: EntryId,
     timestamp: Timestamp,
     body: String,
+    embeds: Vec<Embed<Uri>>,
 ) -> Result<(), Error> {
     if body.is_empty() {
         return Err(Error::Edit(id));
@@ -367,7 +391,7 @@ pub fn edit<L>(
     // that as an error.
     if let Some(comment) = thread.comments.get_mut(&comment) {
         if let Some(comment) = comment {
-            comment.edit(body, timestamp);
+            comment.edit(body, embeds, timestamp);
         }
     } else {
         return Err(Error::Missing(comment));

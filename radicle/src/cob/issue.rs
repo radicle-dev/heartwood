@@ -7,12 +7,12 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::cob;
-use crate::cob::common::{Author, Label, Reaction, Timestamp};
+use crate::cob::common::{Author, Label, Reaction, Timestamp, Uri};
 use crate::cob::store::Transaction;
 use crate::cob::store::{FromHistory as _, HistoryAction};
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
-use crate::cob::{store, EntryId, ObjectId, TypeName};
+use crate::cob::{store, Embed, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
 use crate::prelude::{Did, ReadRepository};
 use crate::storage::WriteRepository;
@@ -109,7 +109,7 @@ impl store::FromHistory for Issue {
     type Error = Error;
 
     fn type_name() -> &'static TypeName {
-        &*TYPENAME
+        &TYPENAME
     }
 
     fn validate(&self) -> Result<(), Self::Error> {
@@ -154,7 +154,11 @@ impl store::FromHistory for Issue {
                 Action::Label { labels } => {
                     self.labels = BTreeSet::from_iter(labels);
                 }
-                Action::Comment { body, reply_to } => {
+                Action::Comment {
+                    body,
+                    reply_to,
+                    embeds,
+                } => {
                     thread::comment(
                         &mut self.thread,
                         op.id,
@@ -163,10 +167,11 @@ impl store::FromHistory for Issue {
                         body,
                         reply_to,
                         None,
+                        embeds,
                     )?;
                 }
-                Action::CommentEdit { id, body } => {
-                    thread::edit(&mut self.thread, op.id, id, op.timestamp, body)?;
+                Action::CommentEdit { id, body, embeds } => {
+                    thread::edit(&mut self.thread, op.id, id, op.timestamp, body, embeds)?;
                 }
                 Action::CommentRedact { id } => {
                     thread::redact(&mut self.thread, op.id, id)?;
@@ -252,10 +257,19 @@ impl store::Transaction<Issue> {
     }
 
     /// Edit an issue comment.
-    pub fn edit_comment(&mut self, id: CommentId, body: impl ToString) -> Result<(), store::Error> {
+    pub fn edit_comment(
+        &mut self,
+        id: CommentId,
+        body: impl ToString,
+        embeds: Vec<Embed>,
+    ) -> Result<(), store::Error> {
+        let hashed = embeds.iter().map(|e| e.hashed()).collect();
+
+        self.embed(embeds)?;
         self.push(Action::CommentEdit {
             id,
             body: body.to_string(),
+            embeds: hashed,
         })
     }
 
@@ -276,10 +290,15 @@ impl store::Transaction<Issue> {
         &mut self,
         body: S,
         reply_to: CommentId,
+        embeds: Vec<Embed>,
     ) -> Result<(), store::Error> {
+        let hashed = embeds.iter().map(|e| e.hashed()).collect();
+
+        self.embed(embeds)?;
         self.push(Action::Comment {
             body: body.to_string(),
             reply_to: Some(reply_to),
+            embeds: hashed,
         })
     }
 
@@ -307,10 +326,19 @@ impl store::Transaction<Issue> {
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
     /// Create the issue thread.
-    fn thread<S: ToString>(&mut self, body: S) -> Result<(), store::Error> {
+    fn thread<S: ToString>(
+        &mut self,
+        body: S,
+        embeds: impl IntoIterator<Item = Embed>,
+    ) -> Result<(), store::Error> {
+        let embeds = embeds.into_iter().collect::<Vec<_>>();
+        let hashed = embeds.iter().map(|e| e.hashed()).collect();
+
+        self.embed(embeds)?;
         self.push(Action::Comment {
             body: body.to_string(),
             reply_to: None,
+            embeds: hashed,
         })
     }
 }
@@ -367,6 +395,7 @@ where
     pub fn edit_description<G: Signer>(
         &mut self,
         description: impl ToString,
+        embeds: impl IntoIterator<Item = Embed>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         let Some((id, _)) = self.thread.comments().next() else {
@@ -374,7 +403,7 @@ where
         };
         let id = *id;
         self.transaction("Edit description", signer, |tx| {
-            tx.edit_comment(id, description)
+            tx.edit_comment(id, description, embeds.into_iter().collect())
         })
     }
 
@@ -388,13 +417,16 @@ where
         &mut self,
         body: S,
         reply_to: CommentId,
+        embeds: impl IntoIterator<Item = Embed>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         assert!(
             self.thread.comment(&reply_to).is_some(),
             "Comment {reply_to} not found"
         );
-        self.transaction("Comment", signer, |tx| tx.comment(body, reply_to))
+        self.transaction("Comment", signer, |tx| {
+            tx.comment(body, reply_to, embeds.into_iter().collect())
+        })
     }
 
     /// Label an issue.
@@ -502,10 +534,11 @@ where
         description: impl ToString,
         labels: &[Label],
         assignees: &[Did],
+        embeds: impl IntoIterator<Item = Embed>,
         signer: &G,
     ) -> Result<IssueMut<'a, 'g, R>, Error> {
         let (id, issue) = Transaction::initial("Create issue", &mut self.raw, signer, |tx| {
-            tx.thread(description)?;
+            tx.thread(description, embeds)?;
             tx.assign(assignees.to_owned())?;
             tx.edit(title)?;
             tx.label(labels.to_owned())?;
@@ -573,11 +606,21 @@ pub enum Action {
         /// Should be the root [`CommentId`] if it's a top-level comment.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reply_to: Option<CommentId>,
+        /// Embeded content.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        embeds: Vec<Embed<Uri>>,
     },
 
     /// Edit a comment.
     #[serde(rename = "comment.edit")]
-    CommentEdit { id: CommentId, body: String },
+    CommentEdit {
+        /// Comment being edited.
+        id: CommentId,
+        /// New value for the comment body.
+        body: String,
+        /// New value for the embeds list.
+        embeds: Vec<Embed<Uri>>,
+    },
 
     /// Redact a change. Not all changes can be redacted.
     #[serde(rename = "comment.redact")]
@@ -600,6 +643,7 @@ mod test {
 
     use super::*;
     use crate::cob::{ActorId, Reaction};
+    use crate::git::Oid;
     use crate::test;
     use crate::test::arbitrary;
 
@@ -611,7 +655,14 @@ mod test {
         let mut eve_issues = Issues::open(&*t.eve.repo).unwrap();
 
         let mut issue_alice = issues_alice
-            .create("Alice Issue", "Alice's comment", &[], &[], &t.alice.signer)
+            .create(
+                "Alice Issue",
+                "Alice's comment",
+                &[],
+                &[],
+                [],
+                &t.alice.signer,
+            )
             .unwrap();
         let id = *issue_alice.id();
 
@@ -622,10 +673,10 @@ mod test {
         let mut issue_bob = bob_issues.get_mut(&id).unwrap();
 
         issue_bob
-            .comment("Bob's reply", id.into(), &t.bob.signer)
+            .comment("Bob's reply", id.into(), vec![], &t.bob.signer)
             .unwrap();
         issue_alice
-            .comment("Alice's reply", id.into(), &t.alice.signer)
+            .comment("Alice's reply", id.into(), vec![], &t.alice.signer)
             .unwrap();
 
         assert_eq!(issue_bob.comments().count(), 2);
@@ -653,7 +704,7 @@ mod test {
         t.eve.repo.fetch(&t.alice);
 
         let eve_reply = issue_eve
-            .comment("Eve's reply", id.into(), &t.eve.signer)
+            .comment("Eve's reply", id.into(), vec![], &t.eve.signer)
             .unwrap();
 
         t.bob.repo.fetch(&t.eve);
@@ -698,6 +749,7 @@ mod test {
                 "Blah blah blah.",
                 &[],
                 &[assignee],
+                [],
                 &node.signer,
             )
             .unwrap();
@@ -736,6 +788,7 @@ mod test {
                 "Blah blah blah.",
                 &[],
                 &[assignee],
+                [],
                 &node.signer,
             )
             .unwrap();
@@ -760,7 +813,14 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
         let created = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
             .unwrap();
 
         let (id, created) = (created.id, created.issue);
@@ -779,7 +839,14 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
             .unwrap();
 
         issue
@@ -820,6 +887,7 @@ mod test {
                 "Blah blah blah.",
                 &[],
                 &[assignee, assignee_two],
+                [],
                 &node.signer,
             )
             .unwrap();
@@ -839,7 +907,14 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
             .unwrap();
 
         issue.edit("Sorry typo", &node.signer).unwrap();
@@ -856,11 +931,18 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
             .unwrap();
 
         issue
-            .edit_description("Bob Loblaw law blog", &node.signer)
+            .edit_description("Bob Loblaw law blog", vec![], &node.signer)
             .unwrap();
 
         let id = issue.id;
@@ -875,7 +957,14 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
             .unwrap();
 
         let (comment, _) = issue.root();
@@ -897,13 +986,24 @@ mod test {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
             .unwrap();
         let (root, _) = issue.root();
         let root = *root;
 
-        let c1 = issue.comment("Hi hi hi.", root, &node.signer).unwrap();
-        let c2 = issue.comment("Ha ha ha.", root, &node.signer).unwrap();
+        let c1 = issue
+            .comment("Hi hi hi.", root, vec![], &node.signer)
+            .unwrap();
+        let c2 = issue
+            .comment("Ha ha ha.", root, vec![], &node.signer)
+            .unwrap();
 
         let id = issue.id;
         let mut issue = issues.get_mut(&id).unwrap();
@@ -913,10 +1013,14 @@ mod test {
         assert_eq!(reply1.body(), "Hi hi hi.");
         assert_eq!(reply2.body(), "Ha ha ha.");
 
-        issue.comment("Re: Hi.", c1, &node.signer).unwrap();
-        issue.comment("Re: Ha.", c2, &node.signer).unwrap();
-        issue.comment("Re: Ha. Ha.", c2, &node.signer).unwrap();
-        issue.comment("Re: Ha. Ha. Ha.", c2, &node.signer).unwrap();
+        issue.comment("Re: Hi.", c1, vec![], &node.signer).unwrap();
+        issue.comment("Re: Ha.", c2, vec![], &node.signer).unwrap();
+        issue
+            .comment("Re: Ha. Ha.", c2, vec![], &node.signer)
+            .unwrap();
+        issue
+            .comment("Re: Ha. Ha. Ha.", c2, vec![], &node.signer)
+            .unwrap();
 
         let issue = issues.get(&id).unwrap().unwrap();
 
@@ -942,6 +1046,7 @@ mod test {
                 "Blah blah blah.",
                 &[ux_label.clone()],
                 &[],
+                [],
                 &node.signer,
             )
             .unwrap();
@@ -971,15 +1076,26 @@ mod test {
         let author = *node.signer.public_key();
         let mut issues = Issues::open(&*repo).unwrap();
         let mut issue = issues
-            .create("My first issue", "Blah blah blah.", &[], &[], &node.signer)
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
             .unwrap();
 
         // The root thread op id is always the same.
         let (c0, _) = issue.root();
         let c0 = *c0;
 
-        issue.comment("Ho ho ho.", c0, &node.signer).unwrap();
-        issue.comment("Ha ha ha.", c0, &node.signer).unwrap();
+        issue
+            .comment("Ho ho ho.", c0, vec![], &node.signer)
+            .unwrap();
+        issue
+            .comment("Ha ha ha.", c0, vec![], &node.signer)
+            .unwrap();
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
@@ -1017,13 +1133,13 @@ mod test {
         let mut issues = Issues::open(&*repo).unwrap();
 
         issues
-            .create("First", "Blah", &[], &[], &node.signer)
+            .create("First", "Blah", &[], &[], [], &node.signer)
             .unwrap();
         issues
-            .create("Second", "Blah", &[], &[], &node.signer)
+            .create("Second", "Blah", &[], &[], [], &node.signer)
             .unwrap();
         issues
-            .create("Third", "Blah", &[], &[], &node.signer)
+            .create("Third", "Blah", &[], &[], [], &node.signer)
             .unwrap();
 
         let issues = issues
@@ -1050,6 +1166,7 @@ mod test {
                 "Blah blah blah.\nYah yah yah",
                 &[],
                 &[],
+                [],
                 &node.signer,
             )
             .unwrap();
@@ -1063,5 +1180,107 @@ mod test {
         assert_eq!(issue.description().1, "Blah blah blah.\nYah yah yah");
         assert_eq!(issue.comments().count(), 1);
         assert_eq!(issue.state(), &State::Open);
+    }
+
+    #[test]
+    fn test_embeds() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
+        let embed1 = Embed {
+            name: String::from("example.html"),
+            content: b"<html>Hello World!</html>".to_vec(),
+        };
+        let embed2 = Embed {
+            name: String::from("style.css"),
+            content: b"body { color: red }".to_vec(),
+        };
+        let embed3 = Embed {
+            name: String::from("bin"),
+            content: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        };
+        let mut issue = issues
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [embed1.clone(), embed2.clone()],
+                &node.signer,
+            )
+            .unwrap();
+
+        issue
+            .comment(
+                "Here's a binary file",
+                issue.id.into(),
+                [embed3.clone()],
+                &node.signer,
+            )
+            .unwrap();
+
+        issue.reload().unwrap();
+
+        let (_, c0) = issue.thread().comments().next().unwrap();
+        let (_, c1) = issue.thread().comments().next_back().unwrap();
+
+        let e1 = &c0.embeds()[0];
+        let e2 = &c0.embeds()[1];
+        let e3 = &c1.embeds()[0];
+
+        let b1 = repo.blob(Oid::try_from(&e1.content).unwrap()).unwrap();
+        let b2 = repo.blob(Oid::try_from(&e2.content).unwrap()).unwrap();
+        let b3 = repo.blob(Oid::try_from(&e3.content).unwrap()).unwrap();
+
+        assert_eq!(b1.content(), &embed1.content);
+        assert_eq!(b2.content(), &embed2.content);
+        assert_eq!(b3.content(), &embed3.content);
+
+        assert_eq!(b1.is_binary(), false);
+        assert_eq!(b2.is_binary(), false);
+        assert_eq!(b3.is_binary(), true);
+    }
+
+    #[test]
+    fn test_embeds_edit() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
+        let embed1 = Embed {
+            name: String::from("example.html"),
+            content: b"<html>Hello World!</html>".to_vec(),
+        };
+        let embed1_edited = Embed {
+            name: String::from("example.html"),
+            content: b"<html>Hello Radicle!</html>".to_vec(),
+        };
+        let embed2 = Embed {
+            name: String::from("style.css"),
+            content: b"body { color: red }".to_vec(),
+        };
+        let mut issue = issues
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [embed1.clone(), embed2.clone()],
+                &node.signer,
+            )
+            .unwrap();
+
+        issue.reload().unwrap();
+        issue
+            .edit_description("My first issue", [embed1_edited.clone()], &node.signer)
+            .unwrap();
+        issue.reload().unwrap();
+
+        let (_, c0) = issue.thread().comments().next().unwrap();
+
+        assert_eq!(c0.embeds().len(), 1);
+
+        let e1 = &c0.embeds()[0];
+        let b1 = repo.blob(Oid::try_from(&e1.content).unwrap()).unwrap();
+
+        assert_eq!(e1.content, Uri::from(embed1_edited.oid()));
+        assert_eq!(b1.content(), &embed1_edited.content);
     }
 }

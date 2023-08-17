@@ -48,6 +48,7 @@ pub struct Template<Id> {
     pub type_name: TypeName,
     pub tips: Vec<Id>,
     pub message: String,
+    pub embeds: Vec<Embed>,
     pub contents: NonEmpty<Vec<u8>>,
 }
 
@@ -177,5 +178,40 @@ impl From<NonZeroUsize> for Version {
 impl Version {
     pub fn new(version: usize) -> Option<Self> {
         NonZeroUsize::new(version).map(Self)
+    }
+}
+
+/// Embedded object.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Embed<T = Vec<u8>> {
+    /// File name.
+    pub name: String,
+    /// File content or content hash.
+    pub content: T,
+}
+
+impl Embed<Vec<u8>> {
+    /// Get the object id of the embedded content.
+    pub fn oid(&self) -> Oid {
+        // SAFETY: This should not fail since we are using a valid object type.
+        git2::Oid::hash_object(git2::ObjectType::Blob, &self.content)
+            .expect("Embed::oid: invalid object")
+            .into()
+    }
+
+    /// Return am embed where the content is replaced by a content hash.
+    pub fn hashed<T: From<Oid>>(&self) -> Embed<T> {
+        Embed {
+            name: self.name.clone(),
+            content: T::from(self.oid()),
+        }
+    }
+}
+
+impl Embed<Oid> {
+    /// Get the object id of the embedded content.
+    pub fn oid(&self) -> Oid {
+        self.content
     }
 }

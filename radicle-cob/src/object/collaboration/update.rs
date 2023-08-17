@@ -4,8 +4,8 @@ use git_ext::Oid;
 use nonempty::NonEmpty;
 
 use crate::{
-    change, change_graph::ChangeGraph, history::EntryId, CollaborativeObject, ObjectId, Store,
-    TypeName,
+    change, change_graph::ChangeGraph, history::EntryId, CollaborativeObject, Embed, ObjectId,
+    Store, TypeName,
 };
 
 use super::error;
@@ -31,6 +31,8 @@ pub struct Update {
     pub type_name: TypeName,
     /// The message to add when updating this object.
     pub message: String,
+    /// Embedded files.
+    pub embeds: Vec<Embed>,
 }
 
 /// Update an existing [`CollaborativeObject`].
@@ -67,6 +69,7 @@ where
     let Update {
         type_name: ref typename,
         object_id,
+        embeds,
         changes,
         message,
     } = args;
@@ -85,6 +88,7 @@ where
         signer,
         change::Template {
             tips: object.tips().iter().cloned().collect(),
+            embeds,
             contents: changes,
             type_name: typename.clone(),
             message,

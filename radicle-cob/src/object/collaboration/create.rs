@@ -2,6 +2,7 @@
 
 use nonempty::NonEmpty;
 
+use crate::Embed;
 use crate::Store;
 
 use super::*;
@@ -14,17 +15,20 @@ pub struct Create {
     pub type_name: TypeName,
     /// The message to add when creating this object.
     pub message: String,
+    /// Embedded content.
+    pub embeds: Vec<Embed>,
     /// COB version.
     pub version: Version,
 }
 
 impl Create {
-    fn template(&self) -> change::Template<git_ext::Oid> {
+    fn template(self) -> change::Template<git_ext::Oid> {
         change::Template {
-            type_name: self.type_name.clone(),
+            type_name: self.type_name,
             tips: Vec::new(),
-            message: self.message.clone(),
-            contents: self.contents.clone(),
+            message: self.message,
+            embeds: self.embeds,
+            contents: self.contents,
         }
     }
 }
@@ -59,14 +63,15 @@ where
     S: Store<I>,
     G: crypto::Signer,
 {
-    let Create { type_name, .. } = &args;
+    let type_name = args.type_name.clone();
+    let version = args.version;
     let init_change = storage
         .store(resource, parents, signer, args.template())
         .map_err(error::Create::from)?;
     let object_id = init_change.id().into();
 
     storage
-        .update(identifier, type_name, &object_id, &init_change)
+        .update(identifier, &type_name, &object_id, &init_change)
         .map_err(|err| error::Create::Refs { err: Box::new(err) })?;
 
     let history = History::new_from_root(
@@ -79,7 +84,7 @@ where
     );
 
     Ok(CollaborativeObject {
-        manifest: Manifest::new(args.type_name, args.version),
+        manifest: Manifest::new(type_name, version),
         history,
         id: object_id,
     })

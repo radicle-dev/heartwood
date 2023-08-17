@@ -10,7 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::cob::common::Timestamp;
 use crate::cob::op::Op;
-use crate::cob::{ActorId, Create, EntryId, History, ObjectId, TypeName, Update, Updated, Version};
+use crate::cob::{
+    ActorId, Create, Embed, EntryId, History, ObjectId, TypeName, Update, Updated, Version,
+};
 use crate::git;
 use crate::prelude::*;
 use crate::storage::git as storage;
@@ -165,6 +167,7 @@ where
         object_id: ObjectId,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
+        embeds: Vec<Embed>,
         signer: &G,
     ) -> Result<Updated, Error> {
         let actions = actions.into();
@@ -180,6 +183,7 @@ where
                 object_id,
                 type_name: T::type_name().clone(),
                 message: message.to_owned(),
+                embeds,
                 changes,
             },
         )?;
@@ -194,6 +198,7 @@ where
         &self,
         message: &str,
         actions: impl Into<NonEmpty<T::Action>>,
+        embeds: Vec<Embed>,
         signer: &G,
     ) -> Result<(ObjectId, T), Error> {
         let actions = actions.into();
@@ -209,6 +214,7 @@ where
                 type_name: T::type_name().clone(),
                 version: Version::default(),
                 message: message.to_owned(),
+                embeds,
                 contents,
             },
         )?;
@@ -288,6 +294,7 @@ where
 pub struct Transaction<T: FromHistory> {
     actor: ActorId,
     actions: Vec<T::Action>,
+    embeds: Vec<Embed>,
 }
 
 impl<T: FromHistory> Transaction<T> {
@@ -296,6 +303,7 @@ impl<T: FromHistory> Transaction<T> {
         Self {
             actor,
             actions: Vec::new(),
+            embeds: Vec::new(),
         }
     }
 
@@ -313,15 +321,13 @@ impl<T: FromHistory> Transaction<T> {
         T::Action: Serialize + Clone,
     {
         let actor = *signer.public_key();
-        let mut tx = Transaction {
-            actor,
-            actions: Vec::new(),
-        };
+        let mut tx = Transaction::new(actor);
+
         operations(&mut tx)?;
 
         let actions = NonEmpty::from_vec(tx.actions)
             .expect("Transaction::initial: transaction must contain at least one operation");
-        let (id, cob) = store.create(message, actions, signer)?;
+        let (id, cob) = store.create(message, actions, tx.embeds, signer)?;
 
         Ok((id, cob))
     }
@@ -329,6 +335,13 @@ impl<T: FromHistory> Transaction<T> {
     /// Add an operation to this transaction.
     pub fn push(&mut self, action: T::Action) -> Result<(), Error> {
         self.actions.push(action);
+
+        Ok(())
+    }
+
+    /// Embed media into the transaction.
+    pub fn embed(&mut self, embeds: impl IntoIterator<Item = Embed>) -> Result<(), Error> {
+        self.embeds.extend(embeds);
 
         Ok(())
     }
@@ -353,7 +366,7 @@ impl<T: FromHistory> Transaction<T> {
             head,
             object,
             parents,
-        } = store.update(id, msg, actions.clone(), signer)?;
+        } = store.update(id, msg, actions.clone(), self.embeds, signer)?;
         let id = EntryId::from(head);
         let author = self.actor;
         let timestamp = Timestamp::from_secs(object.history().timestamp());

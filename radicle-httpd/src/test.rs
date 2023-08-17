@@ -185,6 +185,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
             "Change 'hello world' to 'hello everyone'".to_string(),
             &[],
             &[],
+            [],
             signer,
         )
         .unwrap();

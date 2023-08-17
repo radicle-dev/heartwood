@@ -507,6 +507,7 @@ async fn issue_create_handler(
             issue.description,
             &issue.labels,
             &issue.assignees,
+            [],
             &signer,
         )
         .map_err(Error::from)?;
@@ -546,9 +547,9 @@ async fn issue_update_handler(
         issue::Action::Edit { title } => {
             issue.edit(title, &signer)?;
         }
-        issue::Action::Comment { body, reply_to } => {
+        issue::Action::Comment { body, reply_to, .. } => {
             if let Some(to) = reply_to {
-                issue.comment(body, to, &signer)?;
+                issue.comment(body, to, [], &signer)?;
             } else {
                 return Err(Error::BadRequest("`replyTo` missing".to_owned()));
             }
