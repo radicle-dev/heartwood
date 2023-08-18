@@ -1160,6 +1160,45 @@ impl store::Transaction<Patch> {
         })
     }
 
+    /// Edit a comment on a patch revision.
+    pub fn comment_edit<S: ToString>(
+        &mut self,
+        revision: RevisionId,
+        comment: CommentId,
+        body: S,
+    ) -> Result<(), store::Error> {
+        self.push(Action::RevisionCommentEdit {
+            revision,
+            comment,
+            body: body.to_string(),
+        })
+    }
+
+    /// React a comment on a patch revision.
+    pub fn comment_react(
+        &mut self,
+        revision: RevisionId,
+        comment: CommentId,
+        reaction: Reaction,
+        active: bool,
+    ) -> Result<(), store::Error> {
+        self.push(Action::RevisionCommentReact {
+            revision,
+            comment,
+            reaction,
+            active,
+        })
+    }
+
+    /// Redact a comment on a patch revision.
+    pub fn comment_redact(
+        &mut self,
+        revision: RevisionId,
+        comment: CommentId,
+    ) -> Result<(), store::Error> {
+        self.push(Action::RevisionCommentRedact { revision, comment })
+    }
+
     /// Comment on a review.
     pub fn review_comment<S: ToString>(
         &mut self,
@@ -1188,6 +1227,31 @@ impl store::Transaction<Patch> {
             comment,
             body: body.to_string(),
         })
+    }
+
+    /// React to a review comment.
+    pub fn react_review_comment(
+        &mut self,
+        review: EntryId,
+        comment: EntryId,
+        reaction: Reaction,
+        active: bool,
+    ) -> Result<(), store::Error> {
+        self.push(Action::ReviewCommentReact {
+            review,
+            comment,
+            reaction,
+            active,
+        })
+    }
+
+    /// Redact a review comment.
+    pub fn redact_review_comment(
+        &mut self,
+        review: EntryId,
+        comment: EntryId,
+    ) -> Result<(), store::Error> {
+        self.push(Action::ReviewCommentRedact { review, comment })
     }
 
     /// Review a patch revision.
@@ -1342,6 +1406,45 @@ where
         self.transaction("Comment", signer, |tx| tx.comment(revision, body, reply_to))
     }
 
+    /// Edit a comment on a patch revision.
+    pub fn comment_edit<G: Signer, S: ToString>(
+        &mut self,
+        revision: RevisionId,
+        comment: CommentId,
+        body: S,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Edit comment", signer, |tx| {
+            tx.comment_edit(revision, comment, body)
+        })
+    }
+
+    /// React to a comment on a patch revision.
+    pub fn comment_react<G: Signer>(
+        &mut self,
+        revision: RevisionId,
+        comment: CommentId,
+        reaction: Reaction,
+        active: bool,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("React comment", signer, |tx| {
+            tx.comment_react(revision, comment, reaction, active)
+        })
+    }
+
+    /// Redact a comment on a patch revision.
+    pub fn comment_redact<G: Signer>(
+        &mut self,
+        revision: RevisionId,
+        comment: CommentId,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Redact comment", signer, |tx| {
+            tx.comment_redact(revision, comment)
+        })
+    }
+
     /// Comment on a line of code as part of a review.
     pub fn review_comment<G: Signer, S: ToString>(
         &mut self,
@@ -1366,6 +1469,32 @@ where
     ) -> Result<EntryId, Error> {
         self.transaction("Edit review comment", signer, |tx| {
             tx.edit_review_comment(review, comment, body)
+        })
+    }
+
+    /// React to a review comment.
+    pub fn react_review_comment<G: Signer>(
+        &mut self,
+        review: EntryId,
+        comment: EntryId,
+        reaction: Reaction,
+        active: bool,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("React review comment", signer, |tx| {
+            tx.react_review_comment(review, comment, reaction, active)
+        })
+    }
+
+    /// React to a review comment.
+    pub fn redact_review_comment<G: Signer>(
+        &mut self,
+        review: EntryId,
+        comment: EntryId,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("React review comment", signer, |tx| {
+            tx.redact_review_comment(review, comment)
         })
     }
 

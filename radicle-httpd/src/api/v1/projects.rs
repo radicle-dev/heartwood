@@ -662,12 +662,31 @@ async fn patch_update_handler(
         patch::Action::ReviewEdit { review, summary } => {
             patch.edit_review(review, summary, &signer)?;
         }
+        patch::Action::ReviewComment {
+            review,
+            body,
+            reply_to,
+            ..
+        } => {
+            patch.review_comment(review, body, None, reply_to, &signer)?;
+        }
         patch::Action::ReviewCommentEdit {
             review,
             comment,
             body,
         } => {
             patch.edit_review_comment(review, comment, body, &signer)?;
+        }
+        patch::Action::ReviewCommentReact {
+            review,
+            comment,
+            reaction,
+            active,
+        } => {
+            patch.react_review_comment(review, comment, reaction, active, &signer)?;
+        }
+        patch::Action::ReviewCommentRedact { review, comment } => {
+            patch.redact_review_comment(review, comment, &signer)?;
         }
         patch::Action::Label { labels } => {
             patch.label(labels, &signer)?;
@@ -701,6 +720,24 @@ async fn patch_update_handler(
             ..
         } => {
             patch.comment(revision, body, reply_to, &signer)?;
+        }
+        patch::Action::RevisionCommentEdit {
+            revision,
+            comment,
+            body,
+        } => {
+            patch.comment_edit(revision, comment, body, &signer)?;
+        }
+        patch::Action::RevisionCommentReact {
+            revision,
+            comment,
+            reaction,
+            active,
+        } => {
+            patch.comment_react(revision, comment, reaction, active, &signer)?;
+        }
+        patch::Action::RevisionCommentRedact { revision, comment } => {
+            patch.comment_redact(revision, comment, &signer)?;
         }
         _ => {
             todo!();
@@ -2315,7 +2352,38 @@ mod routes {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
+        let comment_react_body = serde_json::to_vec(&json!({
+          "type": "revision.comment.react",
+          "revision": CONTRIBUTOR_PATCH_ID,
+          "comment": CONTRIBUTOR_COMMENT_1,
+          "reaction": "🚀",
+          "active": true
+        }))
+        .unwrap();
+        patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(comment_react_body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
 
+        let comment_edit = serde_json::to_vec(&json!({
+          "type": "revision.comment.edit",
+          "revision": CONTRIBUTOR_PATCH_ID,
+          "comment": CONTRIBUTOR_COMMENT_1,
+          "body": "EDIT: This is a root level comment"
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(comment_edit)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
         let reply_body = serde_json::to_vec(&json!({
           "type": "revision.comment",
           "revision": CONTRIBUTOR_PATCH_ID,
@@ -2355,10 +2423,10 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "change `hello world` in README to something else",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
+                  "description": "change `hello world` in README to something else",
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2370,8 +2438,8 @@ mod routes {
                       "author": {
                         "id": CONTRIBUTOR_DID,
                       },
-                      "body": "This is a root level comment",
-                      "reactions": [],
+                      "body": "EDIT: This is a root level comment",
+                      "reactions": [["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8","🚀"]],
                       "timestamp": TIMESTAMP,
                       "replyTo": null,
                     },
@@ -2417,6 +2485,51 @@ mod routes {
 
         assert_eq!(response.status(), StatusCode::OK);
 
+        let review_comment_body = serde_json::to_vec(&json!({
+          "type": "review.comment",
+          "review": CONTRIBUTOR_PATCH_REVIEW,
+          "body": "This is a comment on a review"
+        }))
+        .unwrap();
+        patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(review_comment_body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        let review_comment_edit_body = serde_json::to_vec(&json!({
+          "type": "review.comment.edit",
+          "review": CONTRIBUTOR_PATCH_REVIEW,
+          "comment": CONTRIBUTOR_COMMENT_3,
+          "body": "EDIT: This is a comment on a review"
+        }))
+        .unwrap();
+        patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(review_comment_edit_body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        let review_react_body = serde_json::to_vec(&json!({
+          "type": "review.comment.react",
+          "review": CONTRIBUTOR_PATCH_REVIEW,
+          "comment": CONTRIBUTOR_COMMENT_3,
+          "reaction": "🚀",
+          "active": true
+        }))
+        .unwrap();
+        patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(review_react_body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
         let response = get(
             &app,
             format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
@@ -2439,10 +2552,10 @@ mod routes {
               "revisions": [
                 {
                   "id": CONTRIBUTOR_PATCH_ID,
-                  "description": "change `hello world` in README to something else",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
+                  "description": "change `hello world` in README to something else",
                   "base": PARENT,
                   "oid": HEAD,
                   "refs": [
@@ -2457,7 +2570,19 @@ mod routes {
                       },
                       "verdict": "accept",
                       "summary": "A small review",
-                      "comments": [],
+                      "comments": [[
+                        "dd9743bb964ba22399548c86a3c1765020d58f48",
+                        {
+                          "author": "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                          "reactions": [
+                            [
+                              "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                              "🚀",
+                            ],
+                          ],
+                          "body": "EDIT: This is a comment on a review",
+                        },
+                      ]],
                       "timestamp": TIMESTAMP,
                     },
                   ],

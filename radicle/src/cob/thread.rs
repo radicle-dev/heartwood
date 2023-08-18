@@ -84,7 +84,11 @@ impl<T: Serialize> Serialize for Comment<T> {
         }
         state.serialize_field("reactions", &self.reactions)?;
         state.serialize_field("body", self.body())?;
-        state.serialize_field("embeds", self.embeds())?;
+
+        let embeds = self.embeds();
+        if !embeds.is_empty() {
+            state.serialize_field("embeds", self.embeds())?;
+        }
         state.end()
     }
 }
