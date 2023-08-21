@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use axum::extract::State;
 use axum::handler::Handler;
@@ -8,6 +8,7 @@ use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use axum_auth::AuthBearer;
 use hyper::StatusCode;
+use radicle_surf::blob::{Blob, BlobRef};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -19,7 +20,7 @@ use radicle::node::AliasStore;
 use radicle::node::NodeId;
 use radicle::storage::git::paths;
 use radicle::storage::{ReadRepository, ReadStorage, WriteRepository};
-use radicle_surf::{Glob, Oid, Repository};
+use radicle_surf::{diff, Glob, Oid, Repository};
 
 use crate::api::error::Error;
 use crate::api::project::Info;
@@ -249,6 +250,29 @@ async fn diff_handler(
     let base = repo.commit(base)?;
     let commit = repo.commit(oid)?;
     let diff = repo.diff(base.id, commit.id)?;
+    let mut files: HashMap<Oid, Blob<BlobRef<'_>>> = HashMap::new();
+    diff.files().for_each(|file_diff| match file_diff {
+        diff::FileDiff::Added(added) => {
+            if let Ok(blob) = repo.blob(commit.id, &added.path) {
+                files.insert(added.new.oid, blob);
+            }
+        }
+        diff::FileDiff::Deleted(deleted) => {
+            if let Ok(blob) = repo.blob(commit.id, &deleted.path) {
+                files.insert(deleted.old.oid, blob);
+            }
+        }
+        diff::FileDiff::Modified(modified) => {
+            if let (Ok(old_blob), Ok(new_blob)) = (
+                repo.blob(commit.parents[0], &modified.path),
+                repo.blob(commit.id, &modified.path),
+            ) {
+                files.insert(modified.old.oid, old_blob);
+                files.insert(modified.new.oid, new_blob);
+            }
+        }
+        _ => (),
+    });
 
     let commits = repo
         .history(commit.id)?
@@ -262,7 +286,7 @@ async fn diff_handler(
         .map(|r| r.map(|c| api::json::commit(&c)))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let response = json!({ "diff": diff, "commits": commits });
+    let response = json!({ "diff": diff, "files": files, "commits": commits });
 
     Ok::<_, Error>(Json(response))
 }
@@ -1654,6 +1678,32 @@ mod routes {
                     "filesChanged": 1,
                     "insertions": 1,
                     "deletions": 0,
+                  },
+                },
+                "files": {
+                  "1dd5654ca2d2cf9f33b14c92b5ca9e1d21a91ae1": {
+                    "id": "1dd5654ca2d2cf9f33b14c92b5ca9e1d21a91ae1",
+                    "binary": false,
+                    "content": "Hello World from dir1!\n",
+                    "lastCommit": {
+                      "id": "e8c676b9e3b42308dc9d218b70faa5408f8e58ca",
+                      "author": {
+                        "name": "Alice Liddell",
+                        "email": "alice@radicle.xyz",
+                        "time": 1673003014,
+                      },
+                      "committer": {
+                        "name": "Alice Liddell",
+                        "email": "alice@radicle.xyz",
+                        "time": 1673003014,
+                      },
+                      "summary": "Add another folder",
+                      "message": "Add another folder\n",
+                      "description": "",
+                      "parents": [
+                        "ee8d6a29304623a78ebfa5eeed5af674d0e58f83",
+                      ],
+                    },
                   },
                 },
                 "commits": [
