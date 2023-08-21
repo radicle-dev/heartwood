@@ -571,7 +571,8 @@ fn rad_clone_connect() {
 
     let eve = eve.spawn();
 
-    bob.handle.track_repo(acme, Scope::All).unwrap();
+    alice.handle.track_repo(acme, Scope::Trusted).unwrap();
+    bob.handle.track_repo(acme, Scope::Trusted).unwrap();
     alice.connect(&bob);
     bob.routes_to(&[(acme, alice.id)]);
     eve.routes_to(&[(acme, alice.id), (acme, bob.id)]);

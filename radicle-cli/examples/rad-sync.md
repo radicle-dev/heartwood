@@ -38,7 +38,7 @@ $ rad sync --fetch
 Specifying both `--fetch` and `--announce` is equivalent to specifying none:
 
 ``` (fail)
-$ rad sync --fetch --announce
+$ rad sync --fetch --announce --timeout 1
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Fetched repository from 2 seed(s)
