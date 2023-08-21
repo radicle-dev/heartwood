@@ -460,7 +460,7 @@ mod tests {
             [5, 4, 2, 3, 1, 0],
         ];
         let mut sorts = BTreeSet::new();
-        let rng = fastrand::Rng::new();
+        let mut rng = fastrand::Rng::new();
 
         while sorts.len() < expected.len() {
             sorts.insert(dag.sorted(|a, b| if rng.bool() { a.cmp(b) } else { b.cmp(a) }));

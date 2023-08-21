@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 #![allow(clippy::type_complexity)]
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Range};
@@ -195,7 +196,7 @@ pub struct Simulation<S, G> {
     /// Current simulation time. Updated when a scheduled message is processed.
     time: LocalTime,
     /// RNG.
-    rng: fastrand::Rng,
+    rng: RefCell<fastrand::Rng>,
     /// Storage type.
     storage: PhantomData<S>,
     /// Signer type.
@@ -218,7 +219,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
             opts,
             start_time: time,
             time,
-            rng,
+            rng: RefCell::new(rng),
             storage: PhantomData,
             signer: PhantomData,
         }
@@ -255,6 +256,8 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
             .get(&(from, to))
             .cloned()
             .map(|l| {
+                let mut rng = self.rng.borrow_mut();
+
                 if l <= MIN_LATENCY {
                     l
                 } else {
@@ -262,12 +265,12 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     // will be between half, and two times the base latency.
                     let millis = l.as_millis();
 
-                    if self.rng.bool() {
+                    if rng.bool() {
                         // More latency.
-                        LocalDuration::from_millis(millis + self.rng.u128(0..millis))
+                        LocalDuration::from_millis(millis + rng.u128(0..millis))
                     } else {
                         // Less latency.
-                        LocalDuration::from_millis(millis - self.rng.u128(0..millis / 2))
+                        LocalDuration::from_millis(millis - rng.u128(0..millis / 2))
                     }
                 }
             })
@@ -318,6 +321,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     let range = self.opts.latency.clone();
                     let latency = LocalDuration::from_millis(
                         self.rng
+                            .borrow_mut()
                             .u128(range.start as u128 * 1_000..range.end as u128 * 1_000),
                     );
 
@@ -515,7 +519,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                     log::info!(target: "sim", "{} -/-> {} (partitioned)", node, remote);
 
                     // Sometimes, the service gets a failure input, other times it just hangs.
-                    if self.rng.bool() {
+                    if self.rng.borrow_mut().bool() {
                         self.inbox.insert(
                             self.time + MIN_LATENCY,
                             Scheduled {
@@ -668,7 +672,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
 
     /// Check whether we should fail the next operation.
     fn is_fallible(&self) -> bool {
-        self.rng.f64() % 1.0 < self.opts.failure_rate
+        self.rng.borrow_mut().f64() % 1.0 < self.opts.failure_rate
     }
 
     /// Check whether two nodes are partitioned.

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::hash;
 use std::ops::{Deref, DerefMut};
 
@@ -15,7 +16,7 @@ use crate::prelude::Timestamp;
 pub struct AddressBook<K: hash::Hash + Eq, V> {
     inner: RandomMap<K, V>,
     #[serde(skip)]
-    rng: fastrand::Rng,
+    rng: RefCell<fastrand::Rng>,
 }
 
 impl<K: hash::Hash + Eq, V> AddressBook<K, V> {
@@ -23,7 +24,7 @@ impl<K: hash::Hash + Eq, V> AddressBook<K, V> {
     pub fn new(rng: fastrand::Rng) -> Self {
         Self {
             inner: RandomMap::with_hasher(rng.clone().into()),
-            rng,
+            rng: RefCell::new(rng),
         }
     }
 
@@ -40,7 +41,7 @@ impl<K: hash::Hash + Eq, V> AddressBook<K, V> {
                 .filter(|(k, v)| predicate(*k, *v))
                 .collect(),
         ) {
-            let ix = self.rng.usize(..pairs.len());
+            let ix = self.rng.borrow_mut().usize(..pairs.len());
             let pair = pairs[ix]; // Can't fail.
 
             Some(pair)
@@ -53,7 +54,7 @@ impl<K: hash::Hash + Eq, V> AddressBook<K, V> {
     pub fn with(self, rng: fastrand::Rng) -> Self {
         Self {
             inner: self.inner,
-            rng,
+            rng: RefCell::new(rng),
         }
     }
 }
@@ -63,7 +64,7 @@ impl<K: hash::Hash + Eq + Ord, V> AddressBook<K, V> {
     pub fn shuffled(&self) -> std::vec::IntoIter<(&K, &V)> {
         let mut items = self.inner.iter().collect::<Vec<_>>();
         items.sort_by_key(|(k, _)| *k);
-        self.rng.shuffle(&mut items);
+        self.rng.borrow_mut().shuffle(&mut items);
 
         items.into_iter()
     }

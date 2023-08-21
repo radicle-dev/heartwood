@@ -580,7 +580,7 @@ mod test {
     #[test]
     fn test_entries() {
         let ids = arbitrary::vec::<NodeId>(16);
-        let rng = fastrand::Rng::new();
+        let mut rng = fastrand::Rng::new();
         let mut cache = Book::memory().unwrap();
         let mut expected = Vec::new();
         let timestamp = LocalTime::now().as_millis();

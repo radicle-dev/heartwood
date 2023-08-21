@@ -21,7 +21,7 @@ impl Default for RandomState {
 }
 
 impl RandomState {
-    fn new(rng: fastrand::Rng) -> Self {
+    fn new(mut rng: fastrand::Rng) -> Self {
         Self {
             key1: rng.u64(..),
             key2: rng.u64(..),

@@ -1,0 +1,124 @@
+# Note that all fields that take a lint level have these possible values:
+# * deny - An error will be produced and the check will fail
+# * warn - A warning will be produced, but the check will not fail
+# * allow - No warning or error will be produced
+
+targets = []
+
+# If true, metadata will be collected with `--all-features`. Note that this can't
+# be toggled off if true, if you want to conditionally enable `--all-features` it
+# is recommended to pass `--all-features` on the cmd line instead
+all-features = false
+# If true, metadata will be collected with `--no-default-features`. The same
+# caveat with `all-features` applies
+no-default-features = false
+feature-depth = 1
+
+# This section is considered when running `cargo deny check advisories`
+[advisories]
+# The path where the advisory database is cloned/fetched into
+db-path = "~/.cargo/advisory-db"
+# The url(s) of the advisory databases to use
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# The lint level for security vulnerabilities
+vulnerability = "deny"
+# The lint level for unmaintained crates
+unmaintained = "warn"
+# The lint level for crates that have been yanked from their source registry.
+yanked = "warn"
+# The lint level for crates with security notices.
+notice = "warn"
+# A list of advisory IDs to ignore. Note that ignored advisories will still
+# output a note when they are encountered.
+ignore = []
+
+# This section is considered when running `cargo deny check licenses`
+[licenses]
+# The lint level for crates which do not have a detectable license
+unlicensed = "deny"
+# List of explicitly allowed licenses
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Unicode-DFS-2016",
+    "BSD-3-Clause"
+]
+# List of explicitly disallowed licenses
+deny = []
+# Lint level for licenses considered copyleft
+copyleft = "warn"
+allow-osi-fsf-free = "neither"
+default = "deny"
+# The confidence threshold for detecting a license from license text.
+confidence-threshold = 0.8
+# Allow 1 or more licenses on a per-crate basis, so that particular licenses
+# aren't accepted for every possible crate as with the normal allow list
+exceptions = [
+    { allow = ["GPL-3.0"], name = "radicle-surf", version = "*" },
+    { allow = ["GPL-3.0"], name = "radicle-std-ext", version = "*" },
+    { allow = ["GPL-3.0"], name = "radicle-git-ext", version = "*" },
+    { allow = ["GPL-3.0"], name = "git-ref-format-core", version = "*" },
+    { allow = ["GPL-3.0"], name = "git-ref-format-macro", version = "*" },
+    { allow = ["GPL-3.0"], name = "git-ref-format", version = "*" },
+]
+
+[licenses.private]
+# If true, ignores workspace crates that aren't published, or are only
+# published to private registries.
+ignore = false
+registries = []
+
+# This section is considered when running `cargo deny check bans`.
+[bans]
+# Lint level for when multiple versions of the same crate are detected
+multiple-versions = "warn"
+# Lint level for when a crate version requirement is `*`
+wildcards = "allow"
+# The graph highlighting used when creating dotgraphs for crates
+# with multiple versions
+# * lowest-version - The path to the lowest versioned duplicate is highlighted
+# * simplest-path - The path to the version with the fewest edges is highlighted
+# * all - Both lowest-version and simplest-path are used
+highlight = "all"
+# The default lint level for `default` features for crates that are members of
+# the workspace that is being checked. This can be overridden by allowing/denying
+# `default` on a crate-by-crate basis if desired.
+workspace-default-features = "allow"
+# The default lint level for `default` features for external crates that are not
+# members of the workspace. This can be overridden by allowing/denying `default`
+# on a crate-by-crate basis if desired.
+external-default-features = "allow"
+# List of crates that are allowed. Use with care!
+allow = []
+# List of crates to deny
+deny = []
+
+# Certain crates/versions that will be skipped when doing duplicate detection.
+skip = []
+# Similarly to `skip` allows you to skip certain crates during duplicate
+# detection. Unlike skip, it also includes the entire tree of transitive
+# dependencies starting at the specified crate, up to a certain depth, which is
+# by default infinite.
+skip-tree = []
+
+# This section is considered when running `cargo deny check sources`.
+[sources]
+# Lint level for what to happen when a crate from a crate registry that is not
+# in the allow list is encountered
+unknown-registry = "warn"
+# Lint level for what to happen when a crate from a git repository that is not
+# in the allow list is encountered
+unknown-git = "warn"
+# List of URLs for allowed crate registries. Defaults to the crates.io index
+# if not specified. If it is specified but empty, no registries are allowed.
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# List of URLs for allowed Git repositories
+allow-git = []
+
+[sources.allow-org]
+# 1 or more github.com organizations to allow git sources for
+github = []
+# 1 or more gitlab.com organizations to allow git sources for
+gitlab = []
+# 1 or more bitbucket.org organizations to allow git sources for
+bitbucket = []

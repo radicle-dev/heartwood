@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { version = "1" }
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+chrono = { version = "0.4.26", default-features = false, features = ["clock", "std"] }
 git-ref-format = { version = "0.3.0", features = ["macro"] }
 json-color = { version = "0.7" }
 lexopt = { version = "0.2" }

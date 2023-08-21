@@ -37,7 +37,7 @@ struct AuthChallenge {
 /// Create session.
 /// `POST /sessions`
 async fn session_create_handler(State(ctx): State<Context>) -> impl IntoResponse {
-    let rng = fastrand::Rng::new();
+    let mut rng = fastrand::Rng::new();
     let session_id = repeat_with(|| rng.alphanumeric())
         .take(32)
         .collect::<String>();

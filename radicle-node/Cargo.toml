@@ -14,11 +14,11 @@ amplify = { version = "4.0.0" }
 anyhow = { version = "1" }
 bloomy = { version = "1.2" }
 byteorder = { version = "1" }
-chrono = { version = "0.4.0" }
+chrono = { version = "0.4.0", default-features = false }
 colored = { version = "1.9.0" }
 crossbeam-channel = { version = "0.5.6" }
 cyphernet = { version = "0.3.0", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
-fastrand = { version = "1.9.0" }
+fastrand = { version = "2.0.0" }
 io-reactor = { version = "0.2.1", features = ["popol"] }
 lexopt = { version = "0.2.1" }
 libc = { version = "0.2.137" }

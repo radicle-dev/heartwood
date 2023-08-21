@@ -97,15 +97,16 @@ impl Arbitrary for Did {
 
 impl Arbitrary for Project {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+        let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+        let length = rng.usize(1..16);
         let name = iter::repeat_with(|| rng.alphanumeric())
-            .take(rng.usize(1..16))
+            .take(length)
             .collect();
         let description = iter::repeat_with(|| rng.alphanumeric())
-            .take(rng.usize(0..32))
+            .take(length * 2)
             .collect();
         let default_branch: git::RefString = iter::repeat_with(|| rng.alphanumeric())
-            .take(rng.usize(1..16))
+            .take(length)
             .collect::<String>()
             .try_into()
             .unwrap();
@@ -125,7 +126,7 @@ impl Arbitrary for Doc<Unverified> {
 
 impl Arbitrary for Doc<Verified> {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+        let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let project = Project::arbitrary(g);
         let delegates: NonEmpty<_> = iter::repeat_with(|| Did::arbitrary(g))
             .take(rng.usize(1..6))

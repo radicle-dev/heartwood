@@ -12,14 +12,11 @@ pub struct Invalid<T> {
 
 impl Arbitrary for TypeName {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+        let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let mut name: Vec<String> = Vec::new();
         for _ in 0..rng.usize(1..5) {
-            name.push(
-                iter::repeat_with(|| rng.alphanumeric())
-                    .take(rng.usize(1..16))
-                    .collect(),
-            );
+            let len = rng.usize(1..16);
+            name.push(iter::repeat_with(|| rng.alphanumeric()).take(len).collect());
         }
         name.join(".")
             .parse::<TypeName>()
@@ -29,7 +26,7 @@ impl Arbitrary for TypeName {
 
 impl Arbitrary for ObjectId {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+        let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
         let bytes = iter::repeat_with(|| rng.u8(..))
             .take(20)
             .collect::<Vec<_>>();
@@ -39,10 +36,9 @@ impl Arbitrary for ObjectId {
 
 impl Arbitrary for Invalid<ObjectId> {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        let rng = fastrand::Rng::with_seed(u64::arbitrary(g));
-        let value = iter::repeat_with(|| rng.alphanumeric())
-            .take(rng.usize(21..50))
-            .collect();
+        let mut rng = fastrand::Rng::with_seed(u64::arbitrary(g));
+        let len = rng.usize(21..50);
+        let value = iter::repeat_with(|| rng.alphanumeric()).take(len).collect();
         Invalid {
             value,
             _marker: PhantomData,

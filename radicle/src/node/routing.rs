@@ -454,7 +454,7 @@ mod test {
 
     #[test]
     fn test_prune() {
-        let rng = fastrand::Rng::new();
+        let mut rng = fastrand::Rng::new();
         let now = LocalTime::now();
         let ids = arbitrary::vec::<Id>(10);
         let nodes = arbitrary::vec::<NodeId>(10);

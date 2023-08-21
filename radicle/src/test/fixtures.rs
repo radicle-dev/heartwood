@@ -95,7 +95,7 @@ pub fn populate(repo: &git2::Repository, scale: usize) -> Vec<git::Qualified> {
         return vec![];
     }
     let head = repo.head().unwrap().peel_to_commit().unwrap();
-    let rng = fastrand::Rng::with_seed(42);
+    let mut rng = fastrand::Rng::with_seed(42);
     let mut buffer = vec![0; 1024 * 1024 * scale];
     let mut refs = Vec::new();
 

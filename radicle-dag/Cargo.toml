@@ -9,4 +9,4 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-fastrand = { version = "1.9.0" }
+fastrand = { version = "2.0.0" }
