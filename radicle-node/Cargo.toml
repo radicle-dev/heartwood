@@ -14,7 +14,7 @@ amplify = { version = "4.0.0" }
 anyhow = { version = "1" }
 bloomy = { version = "1.2" }
 byteorder = { version = "1" }
-chrono = { version = "0.4.0", default-features = false }
+chrono = { version = "0.4.0", default-features = false, features = ["clock"] }
 colored = { version = "1.9.0" }
 crossbeam-channel = { version = "0.5.6" }
 cyphernet = { version = "0.3.0", features = ["tor", "dns", "ed25519", "p2p-ed25519"] }
