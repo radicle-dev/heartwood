@@ -7,7 +7,7 @@ use super::error;
 /// List a set of [`CollaborativeObject`].
 ///
 /// The `storage` is the backing storage for storing
-/// [`crate::Change`]s at content-addressable locations. Please see
+/// [`crate::Entry`]s at content-addressable locations. Please see
 /// [`Store`] for further information.
 ///
 /// The `typename` is the type of objects to be listed.

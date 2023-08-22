@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use nonempty::NonEmpty;
+use radicle_crypto::ssh::ExtendedSignature;
 use serde::{Deserialize, Serialize};
 
 use crate::cob::op::Op;
@@ -58,18 +59,24 @@ where
 {
     pub fn new<G: Signer>(action: &T::Action, time: Timestamp, signer: &G) -> HistoryBuilder<T> {
         let resource = arbitrary::oid();
+        let revision = arbitrary::oid();
         let (data, root) = encoded::<T, _>(action, time, [], signer);
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
+        let signature = signer.sign(data.as_slice());
+        let signature = ExtendedSignature::new(*signer.public_key(), signature);
+        let change = Entry {
+            id: root,
+            signature,
+            resource,
+            contents: NonEmpty::new(data),
+            timestamp: time.as_secs(),
+            revision,
+            parents: vec![],
+            manifest,
+        };
 
         Self {
-            history: History::new_from_root(
-                root,
-                *signer.public_key(),
-                resource,
-                NonEmpty::new(data),
-                time.as_secs(),
-                manifest,
-            ),
+            history: History::new_from_root(change),
             time,
             resource,
             witness: PhantomData,
@@ -87,18 +94,23 @@ where
     pub fn commit<G: Signer>(&mut self, action: &T::Action, signer: &G) -> git::ext::Oid {
         let timestamp = self.time;
         let tips = self.tips();
+        let revision = arbitrary::oid();
         let (data, oid) = encoded::<T, _>(action, timestamp, tips, signer);
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
-
-        self.history.extend(
-            oid,
-            *signer.public_key(),
-            self.resource,
-            NonEmpty::new(data),
-            vec![],
-            timestamp.as_secs(),
+        let signature = signer.sign(data.as_slice());
+        let signature = ExtendedSignature::new(*signer.public_key(), signature);
+        let change = Entry {
+            id: oid,
+            signature,
+            resource: self.resource,
+            contents: NonEmpty::new(data),
+            timestamp: timestamp.as_secs(),
+            revision,
+            parents: vec![],
             manifest,
-        );
+        };
+        self.history.extend(change);
+
         oid
     }
 }

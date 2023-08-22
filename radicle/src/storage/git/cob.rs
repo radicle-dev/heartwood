@@ -58,14 +58,14 @@ impl change::Storage for Repository {
         parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: change::Template<Self::ObjectId>,
-    ) -> Result<cob::Change, Self::StoreError>
+    ) -> Result<cob::Entry, Self::StoreError>
     where
         Signer: crypto::Signer,
     {
         self.backend.store(authority, parents, signer, spec)
     }
 
-    fn load(&self, id: Self::ObjectId) -> Result<cob::Change, Self::LoadError> {
+    fn load(&self, id: Self::ObjectId) -> Result<cob::Entry, Self::LoadError> {
         self.backend.load(id)
     }
 
@@ -139,7 +139,7 @@ impl cob::object::Storage for Repository {
         identifier: &Self::Identifier,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
-        change: &cob::Change,
+        change: &cob::Entry,
     ) -> Result<(), Self::UpdateError> {
         self.backend.reference(
             git::refs::storage::cob(identifier, typename, object_id).as_str(),
@@ -202,14 +202,14 @@ impl<'a> change::Storage for DraftStore<'a> {
         parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: change::Template<Self::ObjectId>,
-    ) -> Result<cob::Change, Self::StoreError>
+    ) -> Result<cob::Entry, Self::StoreError>
     where
         Signer: crypto::Signer,
     {
         self.repo.backend.store(authority, parents, signer, spec)
     }
 
-    fn load(&self, id: Self::ObjectId) -> Result<cob::Change, Self::LoadError> {
+    fn load(&self, id: Self::ObjectId) -> Result<cob::Entry, Self::LoadError> {
         self.repo.backend.load(id)
     }
 
@@ -387,7 +387,7 @@ impl<'a> cob::object::Storage for DraftStore<'a> {
         identifier: &Self::Identifier,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
-        change: &cob::Change,
+        change: &cob::Entry,
     ) -> Result<(), Self::UpdateError> {
         self.repo.backend.reference(
             git::refs::storage::draft::cob(identifier, typename, object_id).as_str(),

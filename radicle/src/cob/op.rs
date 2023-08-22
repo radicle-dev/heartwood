@@ -84,11 +84,11 @@ impl From<Entry> for Op<Vec<u8>> {
         Self {
             id: *entry.id(),
             actions: entry.contents().clone(),
-            author: *entry.actor(),
-            parents: entry.parents().to_owned(),
-            timestamp: Timestamp::from_secs(entry.timestamp()),
-            identity: entry.resource(),
-            manifest: entry.manifest().clone(),
+            author: *entry.author(),
+            parents: entry.parents.to_owned(),
+            timestamp: Timestamp::from_secs(entry.timestamp),
+            identity: entry.resource,
+            manifest: entry.manifest.clone(),
         }
     }
 }
@@ -101,13 +101,13 @@ where
 
     fn try_from(entry: &'a Entry) -> Result<Self, Self::Error> {
         let id = *entry.id();
-        let identity = entry.resource();
+        let identity = *entry.resource();
         let actions: Vec<_> = entry
             .contents()
             .iter()
             .map(|blob| serde_json::from_slice(blob.as_slice()))
             .collect::<Result<_, _>>()?;
-        let manifest = entry.manifest().clone();
+        let manifest = entry.manifest.clone();
 
         // SAFETY: Entry is guaranteed to have at least one operation.
         #[allow(clippy::unwrap_used)]
@@ -115,9 +115,9 @@ where
         let op = Op {
             id,
             actions,
-            author: *entry.actor(),
-            timestamp: Timestamp::from_secs(entry.timestamp()),
-            parents: entry.parents().to_owned(),
+            author: *entry.author(),
+            timestamp: Timestamp::from_secs(entry.timestamp),
+            parents: entry.parents.to_owned(),
             identity,
             manifest,
         };

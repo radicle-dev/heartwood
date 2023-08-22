@@ -28,7 +28,7 @@ pub fn oid() -> storage::Oid {
 }
 
 pub fn entry_id() -> cob::EntryId {
-    self::oid().into()
+    self::oid()
 }
 
 pub fn refstring(len: usize) -> git::RefString {

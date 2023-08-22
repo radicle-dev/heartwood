@@ -145,7 +145,7 @@ pub fn timeline(
 
     for (revision_id, revision) in patch.revisions() {
         // Don't show an "update" line for the first revision.
-        if **revision_id != **patch_id {
+        if *revision_id != **patch_id {
             timeline.push((
                 revision.timestamp(),
                 term::Line::spaced(

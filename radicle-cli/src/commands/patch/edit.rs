@@ -36,7 +36,7 @@ pub fn run(
         return Ok(());
     }
 
-    let root = patch.id.into();
+    let root = *patch.id;
     let target = patch.target();
 
     patch.transaction("Edit", &signer, |tx| {

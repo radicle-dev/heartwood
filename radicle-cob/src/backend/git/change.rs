@@ -12,11 +12,10 @@ use once_cell::sync::Lazy;
 use radicle_git_ext::commit::trailers::OwnedTrailer;
 
 use crate::change::store::Version;
-use crate::history::entry::Timestamp;
 use crate::signatures;
 use crate::{
-    change::{self, store, Change},
-    history::entry,
+    change,
+    change::{store, Contents, Entry, Timestamp},
     signatures::{ExtendedSignature, Signatures},
     trailers, Embed,
 };
@@ -99,7 +98,7 @@ impl change::Storage for git2::Repository {
         parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: store::Template<Self::ObjectId>,
-    ) -> Result<Change, Self::StoreError>
+    ) -> Result<Entry, Self::StoreError>
     where
         Signer: crypto::Signer,
     {
@@ -129,7 +128,7 @@ impl change::Storage for git2::Repository {
             tree,
         )?;
 
-        Ok(Change {
+        Ok(Entry {
             id,
             revision: revision.into(),
             signature,
@@ -149,7 +148,7 @@ impl change::Storage for git2::Repository {
             .collect::<Vec<_>>())
     }
 
-    fn load(&self, id: Self::ObjectId) -> Result<Change, Self::LoadError> {
+    fn load(&self, id: Self::ObjectId) -> Result<Entry, Self::LoadError> {
         let commit = Commit::read(self, id.into())?;
         let timestamp = git2::Time::from(commit.committer().time).seconds() as u64;
         let resource = parse_resource_trailer(commit.trailers())?;
@@ -172,7 +171,7 @@ impl change::Storage for git2::Repository {
         let manifest = load_manifest(self, &tree)?;
         let contents = load_contents(self, &tree)?;
 
-        Ok(Change {
+        Ok(Entry {
             id,
             revision: tree.id().into(),
             signature: ExtendedSignature::new(key, sig),
@@ -220,10 +219,7 @@ fn load_manifest(
     })
 }
 
-fn load_contents(
-    repo: &git2::Repository,
-    tree: &git2::Tree,
-) -> Result<entry::Contents, error::Load> {
+fn load_contents(repo: &git2::Repository, tree: &git2::Tree) -> Result<Contents, error::Load> {
     let ops = tree
         .iter()
         .filter_map(|entry| {

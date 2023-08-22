@@ -213,7 +213,7 @@ fn traverse_cobs() {
 
     // traverse over the history and filter by changes that were only authorized by terry
     let contents = object.history().traverse(Vec::new(), |mut acc, _, entry| {
-        if entry.actor() == terry_signer.public_key() {
+        if entry.author() == terry_signer.public_key() {
             acc.push(entry.contents().head.clone());
         }
         ControlFlow::Continue(acc)

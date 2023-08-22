@@ -3,13 +3,9 @@
 use std::{cmp::Ordering, collections::BTreeSet, ops::ControlFlow};
 
 use git_ext::Oid;
-use radicle_crypto::PublicKey;
 use radicle_dag::Dag;
 
-pub mod entry;
-pub use entry::{Contents, Entry, EntryId, Timestamp};
-
-use crate::Manifest;
+pub use crate::change::{Contents, Entry, EntryId, Timestamp};
 
 /// The DAG of changes making up the history of a collaborative object.
 #[derive(Clone, Debug)]
@@ -36,32 +32,11 @@ impl History {
         Self { root, graph }
     }
 
-    pub fn new_from_root<Id>(
-        id: Id,
-        actor: PublicKey,
-        resource: Oid,
-        contents: Contents,
-        timestamp: Timestamp,
-        manifest: Manifest,
-    ) -> Self
-    where
-        Id: Into<EntryId>,
-    {
-        let id = id.into();
-        let root = Entry {
-            id,
-            actor,
-            resource,
-            contents,
-            parents: vec![],
-            timestamp,
-            manifest,
-        };
+    /// Create a new history from a root entry.
+    pub fn new_from_root(root: Entry) -> Self {
+        let id = *root.id();
 
-        Self {
-            root: id,
-            graph: Dag::root(id, root),
-        }
+        Self::new(id, Dag::root(id, root))
     }
 
     /// Get the current history timestamp.
@@ -69,17 +44,14 @@ impl History {
     pub fn timestamp(&self) -> Timestamp {
         self.graph
             .tips()
-            .map(|(_, n)| n.timestamp())
+            .map(|(_, n)| n.timestamp)
             .max()
             .unwrap_or_default()
     }
 
     /// Get all the tips of the graph.
     pub fn tips(&self) -> BTreeSet<Oid> {
-        self.graph
-            .tips()
-            .map(|(_, entry)| (*entry.id()).into())
-            .collect()
+        self.graph.tips().map(|(_, entry)| *entry.id()).collect()
     }
 
     /// A topological (parents before children) traversal of the dependency
@@ -109,34 +81,14 @@ impl History {
     }
 
     /// Extend this history with a new entry.
-    pub fn extend<Id>(
-        &mut self,
-        new_id: Id,
-        new_actor: PublicKey,
-        new_resource: Oid,
-        new_contents: Contents,
-        new_parents: Vec<EntryId>,
-        new_timestamp: Timestamp,
-        manifest: Manifest,
-    ) where
-        Id: Into<EntryId>,
-    {
+    pub fn extend(&mut self, change: Entry) {
         let tips = self.tips();
-        let new_id = new_id.into();
-        let new_entry = Entry::new(
-            new_id,
-            new_actor,
-            new_resource,
-            new_contents,
-            new_parents,
-            new_timestamp,
-            manifest,
-        );
+        let id = *change.id();
 
-        self.graph.node(new_id, new_entry);
+        self.graph.node(id, change);
 
         for tip in tips {
-            self.graph.dependency(new_id, (*tip).into());
+            self.graph.dependency(id, (*tip).into());
         }
     }
 

@@ -27,7 +27,7 @@ pub struct ChangeGraphInfo {
 /// is mostly useful for debugging and testing
 ///
 /// The `storage` is the backing storage for storing
-/// [`crate::Change`]s at content-addressable locations. Please see
+/// [`crate::Entry`]s at content-addressable locations. Please see
 /// [`Store`] for further information.
 ///
 /// The `typename` is the type of object to be found, while the `oid`

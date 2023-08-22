@@ -469,7 +469,7 @@ impl store::FromHistory for Patch {
         let root = history.root();
 
         // Deprecated. Remove when we drop legacy support.
-        if root.manifest().is_legacy() {
+        if root.manifest.is_legacy() {
             let legacy = super::legacy::patch::Patch::from_history(history, repo)?;
             let patch = legacy.into();
 
@@ -1379,7 +1379,7 @@ where
         revision: RevisionId,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        if revision == RevisionId::from(self.id) {
+        if revision == RevisionId::from(*self.id) {
             return Err(Error::RootRevision(revision));
         }
         self.transaction("Redact revision", signer, |tx| tx.redact(revision))
@@ -2223,7 +2223,7 @@ mod test {
         assert_eq!(patch.revisions().count(), 2);
 
         patch.redact(revision_id, &alice.signer).unwrap();
-        assert_eq!(patch.latest().0, &RevisionId::from(patch_id));
+        assert_eq!(patch.latest().0, &RevisionId::from(*patch_id));
         assert_eq!(patch.revisions().count(), 1);
 
         // The patch's root must always exist.

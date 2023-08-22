@@ -38,7 +38,7 @@ pub struct Update {
 /// Update an existing [`CollaborativeObject`].
 ///
 /// The `storage` is the backing storage for storing
-/// [`crate::Change`]s at content-addressable locations. Please see
+/// [`crate::Entry`]s at content-addressable locations. Please see
 /// [`Store`] for further information.
 ///
 /// The `signer` is expected to be a cryptographic signing key. This
@@ -99,21 +99,14 @@ where
         .update(identifier, typename, &object_id, &change)
         .map_err(|err| error::Update::Refs { err: Box::new(err) })?;
 
-    let parents: Vec<EntryId> = change.parents.into_iter().map(|oid| oid.into()).collect();
+    let parents = change.parents.to_vec();
+    let head = change.id;
 
-    object.history.extend(
-        change.id,
-        change.signature.key,
-        change.resource,
-        change.contents,
-        parents.clone(),
-        change.timestamp,
-        change.manifest,
-    );
+    object.history.extend(change);
 
     Ok(Updated {
         object,
-        head: change.id,
+        head,
         parents,
     })
 }

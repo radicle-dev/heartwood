@@ -73,7 +73,7 @@ impl change::Storage for Storage {
         signer: &Signer,
         spec: change::Template<Self::ObjectId>,
     ) -> Result<
-        change::store::Change<Self::Parent, Self::ObjectId, Self::Signatures>,
+        change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>,
         Self::StoreError,
     >
     where
@@ -85,10 +85,8 @@ impl change::Storage for Storage {
     fn load(
         &self,
         id: Self::ObjectId,
-    ) -> Result<
-        change::store::Change<Self::Parent, Self::ObjectId, Self::Signatures>,
-        Self::LoadError,
-    > {
+    ) -> Result<change::store::Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::LoadError>
+    {
         self.as_raw().load(id)
     }
 
@@ -156,7 +154,7 @@ impl object::Storage for Storage {
         identifier: &Self::Identifier,
         typename: &crate::TypeName,
         object_id: &ObjectId,
-        change: &change::Change,
+        change: &change::Entry,
     ) -> Result<(), Self::UpdateError> {
         let name = format!(
             "refs/rad/{}/cobs/{}/{}",

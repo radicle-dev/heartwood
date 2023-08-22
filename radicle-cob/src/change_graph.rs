@@ -7,14 +7,14 @@ use git_ext::Oid;
 use radicle_dag::Dag;
 
 use crate::{
-    change, history::EntryId, object, signatures::ExtendedSignature, Change, CollaborativeObject,
-    Entry, History, ObjectId, TypeName,
+    change, history::EntryId, object, signatures::ExtendedSignature, CollaborativeObject, Entry,
+    History, ObjectId, TypeName,
 };
 
 /// The graph of changes for a particular collaborative object
 pub(super) struct ChangeGraph {
     object_id: ObjectId,
-    graph: Dag<Oid, Change>,
+    graph: Dag<Oid, Entry>,
 }
 
 impl ChangeGraph {
@@ -96,20 +96,7 @@ impl ChangeGraph {
                 if !change.valid_signatures() {
                     return ControlFlow::Break(graph);
                 }
-                let entry = Entry::new(
-                    *change.id(),
-                    change.signature.key,
-                    change.resource,
-                    change.contents().clone(),
-                    change
-                        .parents
-                        .iter()
-                        .cloned()
-                        .map(|oid| oid.into())
-                        .collect(),
-                    change.timestamp,
-                    change.manifest.clone(),
-                );
+                let entry = change.value.clone();
                 let id = *entry.id();
 
                 graph.node(id, entry);
@@ -141,7 +128,7 @@ impl ChangeGraph {
 }
 
 struct GraphBuilder {
-    graph: Dag<Oid, Change>,
+    graph: Dag<Oid, Entry>,
 }
 
 impl Default for GraphBuilder {
@@ -157,7 +144,7 @@ impl GraphBuilder {
         &mut self,
         storage: &S,
         commit_id: Oid,
-        change: Change,
+        change: Entry,
     ) -> Result<Vec<(Oid, Oid)>, S::LoadError>
     where
         S: change::Storage<ObjectId = Oid, Parent = Oid, Signatures = ExtendedSignature>,

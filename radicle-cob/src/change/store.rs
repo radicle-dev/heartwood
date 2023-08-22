@@ -6,12 +6,9 @@ use nonempty::NonEmpty;
 use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    history::{Contents, Timestamp},
-    signatures, TypeName,
-};
+use crate::{signatures, TypeName};
 
-/// Change storage.
+/// Change entry storage.
 pub trait Storage {
     type StoreError: Error + Send + Sync + 'static;
     type LoadError: Error + Send + Sync + 'static;
@@ -20,7 +17,7 @@ pub trait Storage {
     type Parent;
     type Signatures;
 
-    /// Store a new change.
+    /// Store a new change entry.
     #[allow(clippy::type_complexity)]
     fn store<G>(
         &self,
@@ -28,16 +25,16 @@ pub trait Storage {
         parents: Vec<Self::Parent>,
         signer: &G,
         template: Template<Self::ObjectId>,
-    ) -> Result<Change<Self::Parent, Self::ObjectId, Self::Signatures>, Self::StoreError>
+    ) -> Result<Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::StoreError>
     where
         G: crypto::Signer;
 
-    /// Load a change.
+    /// Load a change entry.
     #[allow(clippy::type_complexity)]
     fn load(
         &self,
         id: Self::ObjectId,
-    ) -> Result<Change<Self::Parent, Self::ObjectId, Self::Signatures>, Self::LoadError>;
+    ) -> Result<Entry<Self::Parent, Self::ObjectId, Self::Signatures>, Self::LoadError>;
 
     /// Returns the parents of the object with the specified ID.
     fn parents_of(&self, id: &Oid) -> Result<Vec<Oid>, Self::LoadError>;
@@ -52,8 +49,18 @@ pub struct Template<Id> {
     pub contents: NonEmpty<Vec<u8>>,
 }
 
+/// Entry contents.
+/// This is the change payload.
+pub type Contents = NonEmpty<Vec<u8>>;
+
+/// Local time in seconds since epoch.
+pub type Timestamp = u64;
+
+/// A unique identifier for a history entry.
+pub type EntryId = Oid;
+
 #[derive(Clone, Debug)]
-pub struct Change<Resource, Id, Signature> {
+pub struct Entry<Resource, Id, Signature> {
     /// The content address of the `Change` itself.
     pub id: Id,
     /// The content address of the tree of the `Change`.
@@ -75,7 +82,7 @@ pub struct Change<Resource, Id, Signature> {
     pub timestamp: Timestamp,
 }
 
-impl<Resource, Id, S> fmt::Display for Change<Resource, Id, S>
+impl<Resource, Id, S> fmt::Display for Entry<Resource, Id, S>
 where
     Id: fmt::Display,
 {
@@ -84,7 +91,7 @@ where
     }
 }
 
-impl<Resource, Id, Signatures> Change<Resource, Id, Signatures> {
+impl<Resource, Id, Signatures> Entry<Resource, Id, Signatures> {
     pub fn id(&self) -> &Id {
         &self.id
     }
@@ -102,7 +109,7 @@ impl<Resource, Id, Signatures> Change<Resource, Id, Signatures> {
     }
 }
 
-impl<R, Id> Change<R, Id, signatures::Signatures>
+impl<R, Id> Entry<R, Id, signatures::Signatures>
 where
     Id: AsRef<[u8]>,
 {
@@ -113,12 +120,16 @@ where
     }
 }
 
-impl<R, Id> Change<R, Id, signatures::ExtendedSignature>
+impl<R, Id> Entry<R, Id, signatures::ExtendedSignature>
 where
     Id: AsRef<[u8]>,
 {
     pub fn valid_signatures(&self) -> bool {
         self.signature.verify(self.revision.as_ref())
+    }
+
+    pub fn author(&self) -> &crypto::PublicKey {
+        &self.signature.key
     }
 }
 

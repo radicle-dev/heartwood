@@ -6,9 +6,6 @@
 //! Collaborative objects are graphs of CRDTs. The current CRDTs that
 //! is intended to be used are specifically [automerge] CRDTs.
 //!
-//! The initial design is proposed at [RFC-0662], and this
-//! implementation keeps to most of its design principle.
-//!
 //! ## Basic Types
 //!
 //! The basic types that are found in `radicle-cob` are:
@@ -55,15 +52,14 @@
 //! automerge document and deserialize into an application defined
 //! object.
 //!
-//! This traversal is also the point at which the [`Entry::actor`]
+//! This traversal is also the point at which the [`Entry::author`]
 //! and [`Entry::resource`] can be retrieved to apply any kind of
-//! filtering logic. For example, a specific `actor`'s change may be
+//! filtering logic. For example, a specific `author`'s change may be
 //! egregious, spouting terrible libel about Radicle. It is at this
 //! point that the `actor`'s change can be filtered out from the
 //! final product of the traversal.
 //!
 //! [automerge]: https://automerge.org
-//! [RFC-0662]: https://github.com/radicle-dev/radicle-link/blob/master/docs/rfc/0662-collaborative-objects.adoc
 
 #[cfg(test)]
 extern crate qcheck;
@@ -81,11 +77,11 @@ mod change_graph;
 mod trailers;
 
 pub mod change;
-pub use change::store::{Embed, Manifest, Version};
-pub use change::Change;
+pub use change::store::{Contents, Embed, Manifest, Version};
+pub use change::Entry;
 
 pub mod history;
-pub use history::{Contents, Entry, History};
+pub use history::History;
 
 pub mod signatures;
 use signatures::ExtendedSignature;

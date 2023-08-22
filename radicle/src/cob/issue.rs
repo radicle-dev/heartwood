@@ -129,7 +129,7 @@ impl store::FromHistory for Issue {
         let root = history.root();
 
         // Deprecated. Remove when we drop legacy support.
-        if root.manifest().is_legacy() {
+        if root.manifest.is_legacy() {
             let legacy = super::legacy::issue::Issue::from_history(history, repo)?;
             let issue = legacy.into();
 
@@ -673,10 +673,10 @@ mod test {
         let mut issue_bob = bob_issues.get_mut(&id).unwrap();
 
         issue_bob
-            .comment("Bob's reply", id.into(), vec![], &t.bob.signer)
+            .comment("Bob's reply", *id, vec![], &t.bob.signer)
             .unwrap();
         issue_alice
-            .comment("Alice's reply", id.into(), vec![], &t.alice.signer)
+            .comment("Alice's reply", *id, vec![], &t.alice.signer)
             .unwrap();
 
         assert_eq!(issue_bob.comments().count(), 2);
@@ -704,7 +704,7 @@ mod test {
         t.eve.repo.fetch(&t.alice);
 
         let eve_reply = issue_eve
-            .comment("Eve's reply", id.into(), vec![], &t.eve.signer)
+            .comment("Eve's reply", *id, vec![], &t.eve.signer)
             .unwrap();
 
         t.bob.repo.fetch(&t.eve);
@@ -721,7 +721,7 @@ mod test {
         let (first, _) = issue_bob.comments().next().unwrap();
         let (last, _) = issue_bob.comments().last().unwrap();
 
-        assert_eq!(*first, issue_alice.id.into());
+        assert_eq!(*first, *issue_alice.id);
         assert_eq!(*last, eve_reply);
     }
 
@@ -1212,7 +1212,7 @@ mod test {
         issue
             .comment(
                 "Here's a binary file",
-                issue.id.into(),
+                *issue.id,
                 [embed3.clone()],
                 &node.signer,
             )

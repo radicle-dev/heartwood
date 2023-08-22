@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, error::Error};
 use git_ext::ref_format::RefString;
 use git_ext::Oid;
 
-use crate::change::Change;
+use crate::change::Entry;
 use crate::{ObjectId, TypeName};
 
 /// The [`Reference`]s that refer to the commits that make up a
@@ -78,7 +78,7 @@ pub trait Storage {
         identifier: &Self::Identifier,
         typename: &TypeName,
         object_id: &ObjectId,
-        change: &Change,
+        change: &Entry,
     ) -> Result<(), Self::UpdateError>;
 
     /// Remove a ref to a particular collaborative object
