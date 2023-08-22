@@ -353,20 +353,12 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
     pub fn spawn(self) -> NodeHandle<G> {
         let listen = vec![([0, 0, 0, 0], 0).into()];
         let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
-        let daemon: net::SocketAddr = {
-            // Find free port for git-daemon to bind to.
-            // This is a somewhat racy solution, though it works much better than assigning a random
-            // port.
-            let sock = net::TcpListener::bind("0.0.0.0:0").unwrap();
-            ([0, 0, 0, 0], sock.local_addr().unwrap().port()).into()
-        };
         let (_, signals) = chan::bounded(1);
         let rt = Runtime::init(
             self.home.clone(),
             self.config,
             listen,
             proxy,
-            daemon,
             signals,
             self.signer.clone(),
         )

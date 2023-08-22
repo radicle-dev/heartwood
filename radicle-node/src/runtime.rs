@@ -1,7 +1,6 @@
 pub mod handle;
 pub mod thread;
 
-use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -108,7 +107,6 @@ pub struct Runtime {
     pub handle: Handle,
     pub storage: Storage,
     pub reactor: Reactor<wire::Control, popol::Poller>,
-    pub daemon: net::SocketAddr,
     pub pool: worker::Pool,
     pub local_addrs: Vec<net::SocketAddr>,
     pub signals: chan::Receiver<()>,
@@ -123,7 +121,6 @@ impl Runtime {
         config: service::Config,
         listen: Vec<net::SocketAddr>,
         proxy: net::SocketAddr,
-        daemon: net::SocketAddr,
         signals: chan::Receiver<()>,
         signer: G,
     ) -> Result<Runtime, Error>
@@ -255,7 +252,6 @@ impl Runtime {
                 capacity: 8,
                 timeout: time::Duration::from_secs(9),
                 storage: storage.clone(),
-                daemon,
                 fetch,
             },
         );
@@ -275,7 +271,6 @@ impl Runtime {
             control,
             storage,
             reactor,
-            daemon,
             handle,
             pool,
             signals,
@@ -300,27 +295,8 @@ impl Runtime {
             }
         });
 
-        log::info!(target: "node", "Spawning git daemon at {}..", self.storage.path().display());
-
-        let mut daemon = daemon::spawn(self.storage.path(), self.daemon)?;
-        thread::spawn(&self.id, "daemon", {
-            let stderr = daemon.stderr.take().unwrap();
-            || {
-                for line in BufReader::new(stderr).lines().flatten() {
-                    if line.starts_with("fatal") {
-                        log::error!(target: "daemon", "{line}");
-                    } else {
-                        log::debug!(target: "daemon", "{line}");
-                    }
-                }
-            }
-        });
-
         self.pool.run().unwrap();
         self.reactor.join().unwrap();
-
-        daemon::kill(&daemon).ok(); // Ignore error if daemon has already exited, for whatever reason.
-        daemon.wait()?;
 
         // Nb. We don't join the control thread here, as we have no way of notifying it that the
         // node is shutting down.
@@ -331,64 +307,5 @@ impl Runtime {
         log::debug!(target: "node", "Node shutdown completed for {}", self.id);
 
         Ok(())
-    }
-}
-
-pub mod daemon {
-    use std::path::Path;
-    use std::process::{Child, Command, Stdio};
-    use std::{env, io, net};
-
-    /// Kill the daemon process.
-    pub fn kill(child: &Child) -> io::Result<()> {
-        // SAFETY: We use `libc::kill` because `Child::kill` always sends a `SIGKILL` and that doesn't
-        // work for us. We need to send a `SIGTERM` to fully reap the child process. This is because
-        // `git-daemon` spawns its own children, and isn't able to reap them if it receives
-        // a `SIGKILL`.
-        let result = unsafe { libc::kill(child.id() as libc::c_int, libc::SIGTERM) };
-        match result {
-            0 => Ok(()),
-            _ => Err(io::Error::last_os_error()),
-        }
-    }
-
-    /// Spawn the daemon process.
-    pub fn spawn(storage: &Path, addr: net::SocketAddr) -> io::Result<Child> {
-        let storage = storage.canonicalize()?;
-        let listen = format!("--listen={}", addr.ip());
-        let port = format!("--port={}", addr.port());
-        let child = Command::new("git")
-            .env_clear()
-            .envs(env::vars().filter(|(k, _)| k == "PATH" || k.starts_with("GIT")))
-            .envs(radicle::git::env::GIT_DEFAULT_CONFIG)
-            .env("GIT_PROTOCOL", "version=2")
-            .current_dir(storage)
-            // Send a keep-alive packet every 3 seconds to make sure the client doesn't
-            // timeout during pack building.
-            .args(["-c", "uploadpack.keepAlive=3"])
-            .arg("daemon")
-            // Make all git directories available.
-            .arg("--export-all")
-            .arg("--reuseaddr")
-            .arg("--max-connections=32")
-            .arg("--informative-errors")
-            .arg("--verbose")
-            // The git "root". Should be our storage path.
-            .arg("--base-path=.")
-            // Timeout (in seconds) between the moment the connection is established
-            // and the client request is received (typically a rather low value,
-            // since that should be basically immediate).
-            .arg("--init-timeout=3")
-            // Timeout (in seconds) for specific client sub-requests.
-            // This includes the time it takes for the server to process the sub-request
-            // and the time spent waiting for the next client’s request.
-            .arg("--timeout=9")
-            .arg("--log-destination=stderr")
-            .arg(listen)
-            .arg(port)
-            .stderr(Stdio::piped())
-            .spawn()?;
-
-        Ok(child)
     }
 }

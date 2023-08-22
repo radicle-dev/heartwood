@@ -26,7 +26,6 @@ Usage
 Options
 
     --config             <path>         Config file to use (default ~/.radicle/config.json)
-    --git-daemon         <address>      Address to bind git-daemon to (default 0.0.0.0:9418)
     --force                             Force start even if an existing control socket is found
     --listen             <address>      Address to listen on
     --version                           Print program version
@@ -35,7 +34,6 @@ Options
 
 #[derive(Debug)]
 struct Options {
-    daemon: Option<net::SocketAddr>,
     config: Option<PathBuf>,
     listen: Vec<net::SocketAddr>,
     force: bool,
@@ -47,7 +45,6 @@ impl Options {
 
         let mut parser = lexopt::Parser::from_env();
         let mut listen = Vec::new();
-        let mut daemon = None;
         let mut config = None;
         let mut force = false;
 
@@ -55,10 +52,6 @@ impl Options {
             match arg {
                 Long("force") => {
                     force = true;
-                }
-                Long("git-daemon") => {
-                    let addr = parser.value()?.parse()?;
-                    daemon = Some(addr);
                 }
                 Long("config") => {
                     let value = parser.value()?;
@@ -82,7 +75,6 @@ impl Options {
         }
 
         Ok(Self {
-            daemon,
             force,
             listen,
             config,
@@ -109,9 +101,6 @@ fn execute() -> anyhow::Result<()> {
     let config = options.config.unwrap_or_else(|| home.config());
     let config = profile::Config::load(&config)?.node;
     let proxy = net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), 9050);
-    let daemon = options.daemon.unwrap_or_else(|| {
-        net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), radicle::git::PROTOCOL_PORT)
-    });
     let listen: Vec<std::net::SocketAddr> = if !options.listen.is_empty() {
         options.listen.clone()
     } else {
@@ -125,7 +114,7 @@ fn execute() -> anyhow::Result<()> {
         log::debug!(target: "node", "Removing existing control socket..");
         fs::remove_file(home.socket()).ok();
     }
-    Runtime::init(home, config, listen, proxy, daemon, signals, signer)?.run()?;
+    Runtime::init(home, config, listen, proxy, signals, signer)?.run()?;
 
     Ok(())
 }

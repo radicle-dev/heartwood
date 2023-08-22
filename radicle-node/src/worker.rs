@@ -5,7 +5,7 @@ mod upload_pack;
 pub mod fetch;
 
 use std::path::PathBuf;
-use std::{io, net, time};
+use std::{io, time};
 
 use crossbeam_channel as chan;
 
@@ -27,8 +27,6 @@ pub struct Config {
     pub capacity: usize,
     /// Timeout for all operations.
     pub timeout: time::Duration,
-    /// Git daemon address.
-    pub daemon: net::SocketAddr,
     /// Git storage.
     pub storage: Storage,
     /// Configuration for performing fetched.
@@ -66,8 +64,6 @@ impl FetchError {
 /// Error returned by fetch responder.
 #[derive(thiserror::Error, Debug)]
 pub enum UploadError {
-    #[error("worker failed to connect to git daemon: {0}")]
-    DaemonConnectionFailed(io::Error),
     #[error("error parsing git command packet-line: {0}")]
     PacketLine(io::Error),
     #[error(transparent)]
