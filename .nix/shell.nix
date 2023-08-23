@@ -15,7 +15,7 @@ in
     name = "development";
     buildInputs = devault.buildInputs ++ [
         gcc
-
         ripgrep
+        rust-analyzer
     ];
   }
