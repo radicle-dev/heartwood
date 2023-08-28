@@ -200,6 +200,15 @@ pub mod refs {
             IDENTITY_BRANCH.with_namespace(remote.into())
         }
 
+        /// Get the branch where the `remote`'s signed references are
+        /// stored.
+        ///
+        /// `refs/namespaces/<remote>/refs/rad/sigrefs`
+        ///
+        pub fn sigrefs(remote: &RemoteId) -> Namespaced {
+            SIGREFS_BRANCH.with_namespace(remote.into())
+        }
+
         /// The collaborative object reference, identified by `typename` and `object_id`, under the given `remote`.
         ///
         /// `refs/namespaces/<remote>/refs/cobs/<typename>/<object_id>`
