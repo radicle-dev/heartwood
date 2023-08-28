@@ -8,6 +8,7 @@ use std::time;
 
 use crossbeam_channel as chan;
 use netservices::Direction as Link;
+use radicle::identity::Visibility;
 use radicle::node::routing::Store as _;
 use radicle::node::ConnectOptions;
 use radicle::storage::ReadRepository;
@@ -1282,6 +1283,7 @@ fn test_push_and_pull() {
         "alice",
         "alice's repo",
         git::refname!("master"),
+        Visibility::default(),
         alice.signer(),
         alice.storage(),
     )

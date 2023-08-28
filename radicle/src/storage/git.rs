@@ -105,7 +105,13 @@ impl ReadStorage for Storage {
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
-        self.repositories()
+        let repos = self.repositories()?;
+
+        Ok(repos
+            .into_iter()
+            .filter(|(_, _, doc)| doc.visibility.is_public())
+            .map(|(rid, _, _)| rid)
+            .collect())
     }
 
     fn repository(&self, rid: Id) -> Result<Self::Repository, Error> {
@@ -143,7 +149,7 @@ impl Storage {
         self.path.as_path()
     }
 
-    pub fn repositories(&self) -> Result<Vec<Id>, Error> {
+    pub fn repositories(&self) -> Result<Vec<(Id, Oid, Doc<Unverified>)>, Error> {
         let mut repos = Vec::new();
 
         for result in fs::read_dir(&self.path)? {
@@ -159,28 +165,45 @@ impl Storage {
             }
             let rid =
                 Id::try_from(path.file_name()).map_err(|_| Error::InvalidId(path.file_name()))?;
-            let repo = self.repository(rid)?;
+
+            let repo = match self.repository(rid) {
+                Ok(repo) => repo,
+                Err(e) => {
+                    log::warn!(target: "storage", "Repository {rid} is invalid: {e}");
+                    continue;
+                }
+            };
+            let doc = match repo.identity_doc() {
+                Ok((_, doc)) => doc,
+                Err(e) => {
+                    log::warn!(target: "storage", "Repository {rid} is invalid: looking up doc: {e}");
+                    continue;
+                }
+            };
 
             // For performance reasons, we don't do a full repository check here.
-            if let Err(e) = repo.head() {
-                log::warn!(target: "storage", "Repository {rid} is invalid: looking up head: {e}");
-                continue;
-            }
-            repos.push(rid);
+            let head = match repo.head() {
+                Ok((_, head)) => head,
+                Err(e) => {
+                    log::warn!(target: "storage", "Repository {rid} is invalid: looking up head: {e}");
+                    continue;
+                }
+            };
+            repos.push((rid, head, doc));
         }
         Ok(repos)
     }
 
     pub fn inspect(&self) -> Result<(), Error> {
-        for proj in self.repositories()? {
-            let repo = self.repository(proj)?;
+        for (rid, _, _) in self.repositories()? {
+            let repo = self.repository(rid)?;
 
             for r in repo.raw().references()? {
                 let r = r?;
                 let name = r.name().ok_or(Error::InvalidRef)?;
                 let oid = r.target().ok_or(Error::InvalidRef)?;
 
-                println!("{} {oid} {name}", proj.urn());
+                println!("{} {oid} {name}", rid.urn());
             }
         }
         Ok(())

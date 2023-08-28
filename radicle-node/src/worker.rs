@@ -11,7 +11,7 @@ use crossbeam_channel as chan;
 
 use radicle::identity::Id;
 use radicle::prelude::NodeId;
-use radicle::storage::{Namespaces, ReadRepository, RefUpdate};
+use radicle::storage::{Namespaces, ReadRepository, ReadStorage, RefUpdate};
 use radicle::{git, storage, Storage};
 
 use crate::runtime::{thread, Handle};
@@ -66,6 +66,12 @@ pub enum UploadError {
     PacketLine(io::Error),
     #[error(transparent)]
     Io(#[from] io::Error),
+    #[error("{0} is not authorized to fetch {1}")]
+    Unauthorized(NodeId, Id),
+    #[error(transparent)]
+    Storage(#[from] radicle::storage::Error),
+    #[error(transparent)]
+    Identity(#[from] radicle::identity::IdentityError),
 }
 
 impl UploadError {
@@ -308,6 +314,13 @@ impl Worker {
             }
         };
         log::debug!(target: "worker", "Received Git request pktline for {rid}..");
+
+        let repo = self.storage.repository(rid)?;
+        let (_, doc) = repo.identity_doc()?;
+
+        if !doc.is_visible_to(&remote) {
+            return Err(UploadError::Unauthorized(remote, rid));
+        }
 
         match self._upload_pack(rid, remote, request, stream, stream_r, stream_w) {
             Ok(()) => {

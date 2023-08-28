@@ -303,6 +303,7 @@ pub trait ReadStorage {
     /// Check whether storage contains a repository.
     fn contains(&self, rid: &Id) -> Result<bool, IdentityError>;
     /// Get the inventory of repositories hosted under this storage.
+    /// This function should typically only return public repositories.
     fn inventory(&self) -> Result<Inventory, Error>;
     /// Open or create a read-only repository.
     fn repository(&self, rid: Id) -> Result<Self::Repository, Error>;

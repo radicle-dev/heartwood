@@ -9,6 +9,7 @@ use serde_json as json;
 
 use radicle::crypto::ssh;
 use radicle::git::RefString;
+use radicle::identity::Visibility;
 use radicle::node::tracking::Scope;
 use radicle::node::{Handle, NodeId};
 use radicle::profile;
@@ -172,6 +173,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     let path = options.path.unwrap_or_else(|| cwd.clone());
     let path = path.as_path().canonicalize()?;
     let interactive = options.interactive;
+    let visibility = Visibility::default();
 
     term::headline(format!(
         "Initializing radicle 👾 project in {}",
@@ -222,6 +224,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         &name,
         &description,
         branch,
+        visibility,
         &signer,
         &profile.storage,
     ) {

@@ -135,6 +135,26 @@ impl Deref for DocAt {
     }
 }
 
+/// Repository visibility.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum Visibility {
+    /// Anyone and everyone.
+    #[default]
+    Public,
+    /// Delegates plus the allowed DIDs.
+    Private {
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        allow: Vec<Did>,
+    },
+}
+
+impl Visibility {
+    pub fn is_public(&self) -> bool {
+        matches!(self, Self::Public)
+    }
+}
+
 /// An identity document.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -145,12 +165,25 @@ pub struct Doc<V> {
     pub delegates: NonEmpty<Did>,
     /// The signature threshold.
     pub threshold: usize,
+    /// Repository visibility.
+    #[serde(default, skip_serializing_if = "Visibility::is_public")]
+    pub visibility: Visibility,
 
     #[serde(skip)]
     verified: PhantomData<V>,
 }
 
 impl<V> Doc<V> {
+    /// Check whether this document and the associated repository is visible to the given peer.
+    pub fn is_visible_to(&self, peer: &PublicKey) -> bool {
+        match &self.visibility {
+            Visibility::Public => true,
+            Visibility::Private { allow } => {
+                allow.contains(&Did::from(*peer)) || self.is_delegate(peer)
+            }
+        }
+    }
+
     pub fn canonical_head(repo: &storage::git::Repository) -> Result<Oid, DocError> {
         repo.backend
             .refname_to_id(storage::git::CANONICAL_IDENTITY.as_str())
@@ -327,17 +360,23 @@ impl Doc<Verified> {
             payload: self.payload,
             delegates: self.delegates,
             threshold: self.threshold,
+            visibility: self.visibility,
             verified: PhantomData,
         }
     }
 }
 
 impl Doc<Unverified> {
-    pub fn initial(project: Project, delegate: Did) -> Self {
-        Self::new(project, NonEmpty::new(delegate), 1)
+    pub fn initial(project: Project, delegate: Did, visibility: Visibility) -> Self {
+        Self::new(project, NonEmpty::new(delegate), 1, visibility)
     }
 
-    pub fn new(project: Project, delegates: NonEmpty<Did>, threshold: usize) -> Self {
+    pub fn new(
+        project: Project,
+        delegates: NonEmpty<Did>,
+        threshold: usize,
+        visibility: Visibility,
+    ) -> Self {
         let project =
             serde_json::to_value(project).expect("Doc::initial: payload must be serializable");
 
@@ -345,6 +384,7 @@ impl Doc<Unverified> {
             payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
             delegates,
             threshold,
+            visibility,
             verified: PhantomData,
         }
     }
@@ -377,6 +417,7 @@ impl Doc<Unverified> {
             payload: self.payload,
             delegates: self.delegates,
             threshold: self.threshold,
+            visibility: self.visibility,
             verified: PhantomData,
         })
     }
@@ -424,6 +465,7 @@ mod test {
             "heartwood",
             "Radicle Heartwood Protocol & Stack",
             git::refname!("master"),
+            Visibility::default(),
             &delegate,
             &storage,
         )
@@ -470,6 +512,7 @@ mod test {
             "heartwood",
             "Radicle Heartwood Protocol & Stack",
             git::refname!("master"),
+            Visibility::default(),
             &delegate,
             &storage,
         )
@@ -483,5 +526,29 @@ mod test {
     fn prop_encode_decode(doc: Doc<Verified>) {
         let (_, bytes) = doc.encode().unwrap();
         assert_eq!(Doc::from_json(&bytes).unwrap().verified().unwrap(), doc);
+    }
+
+    #[test]
+    fn test_visibility_json() {
+        use std::str::FromStr;
+
+        assert_eq!(
+            serde_json::to_value(Visibility::Public).unwrap(),
+            serde_json::json!({ "type": "public" })
+        );
+        assert_eq!(
+            serde_json::to_value(Visibility::Private { allow: vec![] }).unwrap(),
+            serde_json::json!({ "type": "private" })
+        );
+        assert_eq!(
+            serde_json::to_value(Visibility::Private {
+                allow: vec![Did::from_str(
+                    "did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT"
+                )
+                .unwrap()]
+            })
+            .unwrap(),
+            serde_json::json!({ "type": "private", "allow": ["did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT"] })
+        );
     }
 }

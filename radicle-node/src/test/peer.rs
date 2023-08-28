@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use log::*;
 
+use radicle::identity::Visibility;
 use radicle::node::address::Store;
 use radicle::node::{address, Alias, ConnectOptions};
 use radicle::rad;
@@ -132,6 +133,7 @@ impl<G: Signer> Peer<Storage, G> {
             name,
             description,
             radicle::git::refname!("master"),
+            Visibility::default(),
             self.signer(),
             self.storage(),
         )

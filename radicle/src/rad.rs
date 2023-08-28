@@ -9,7 +9,7 @@ use thiserror::Error;
 use crate::cob::ObjectId;
 use crate::crypto::{Signer, Verified};
 use crate::git;
-use crate::identity::doc::{DocError, Id};
+use crate::identity::doc::{DocError, Id, Visibility};
 use crate::identity::project::Project;
 use crate::identity::{doc, IdentityError};
 use crate::storage::git::transport;
@@ -54,6 +54,7 @@ pub fn init<G: Signer, S: WriteStorage>(
     name: &str,
     description: &str,
     default_branch: BranchName,
+    visibility: Visibility,
     signer: &G,
     storage: S,
 ) -> Result<(Id, identity::Doc<Verified>, SignedRefs<Verified>), InitError> {
@@ -73,7 +74,7 @@ pub fn init<G: Signer, S: WriteStorage>(
                 .join(", "),
         )
     })?;
-    let doc = identity::Doc::initial(proj, delegate).verified()?;
+    let doc = identity::Doc::initial(proj, delegate, visibility).verified()?;
     let (project, _) = Repository::init(&doc, pk, storage, signer)?;
     let url = git::Url::from(project.id);
 
@@ -388,6 +389,7 @@ mod tests {
             "acme",
             "Acme's repo",
             git::refname!("master"),
+            Visibility::default(),
             &signer,
             &storage,
         )
@@ -442,6 +444,7 @@ mod tests {
             "acme",
             "Acme's repo",
             git::refname!("master"),
+            Visibility::default(),
             &alice,
             &storage,
         )
@@ -477,6 +480,7 @@ mod tests {
             "acme",
             "Acme's repo",
             git::refname!("master"),
+            Visibility::default(),
             &signer,
             &storage,
         )

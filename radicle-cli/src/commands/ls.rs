@@ -1,7 +1,5 @@
 use std::ffi::OsString;
 
-use radicle::storage::{ReadRepository, ReadStorage};
-
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
@@ -53,26 +51,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let mut table = term::Table::default();
 
-    for id in storage.repositories()? {
-        let repo = match storage.repository(id) {
-            Ok(repo) => repo,
-            Err(err) => {
-                if options.verbose {
-                    term::warning(&format!("failed to load project '{id}': {err}"));
-                }
-                continue;
-            }
-        };
-        let head = match repo.head() {
-            Ok((_, head)) => head,
-            Err(err) => {
-                if options.verbose {
-                    term::warning(&format!("failed to get head of project '{id}': {err}"));
-                }
-                continue;
-            }
-        };
-        let proj = match repo.project() {
+    for (id, head, doc) in storage.repositories()? {
+        let proj = match doc.verified()?.project() {
             Ok(proj) => proj,
             Err(err) => {
                 if options.verbose {

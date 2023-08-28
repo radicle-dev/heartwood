@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use radicle::{git, Profile};
+use radicle::{git, identity::Visibility, Profile};
 
 fn main() -> anyhow::Result<()> {
     let cwd = Path::new(".").canonicalize()?;
@@ -13,6 +13,7 @@ fn main() -> anyhow::Result<()> {
         &name,
         "",
         git::refname!("master"),
+        Visibility::default(),
         &signer,
         &profile.storage,
     )?;

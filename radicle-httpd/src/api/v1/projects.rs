@@ -81,7 +81,7 @@ async fn project_root_handler(
     let storage = &ctx.profile.storage;
     let routing = &ctx.profile.routing()?;
     let projects = storage
-        .repositories()?
+        .inventory()?
         .into_iter()
         .filter_map(|id| {
             let Ok(repo) = storage.repository(id) else { return None };

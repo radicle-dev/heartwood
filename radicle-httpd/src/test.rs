@@ -16,6 +16,7 @@ use radicle::crypto::ssh::keystore::MemorySigner;
 use radicle::crypto::ssh::Keystore;
 use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git::{raw as git2, RefString};
+use radicle::identity::Visibility;
 use radicle::node;
 use radicle::node::address as AddressStore;
 use radicle::node::routing as RoutingStore;
@@ -175,8 +176,17 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let name = "hello-world".to_string();
     let description = "Rad repository for tests".to_string();
     let branch = RefString::try_from("master").unwrap();
-    let (id, _, _) =
-        radicle::rad::init(&repo, &name, &description, branch, signer, &profile.storage).unwrap();
+    let visibility = Visibility::default();
+    let (id, _, _) = radicle::rad::init(
+        &repo,
+        &name,
+        &description,
+        branch,
+        visibility,
+        signer,
+        &profile.storage,
+    )
+    .unwrap();
 
     let storage = &profile.storage;
     let repo = storage.repository(id).unwrap();

@@ -10,6 +10,7 @@ use nonempty::NonEmpty;
 use qcheck::Arbitrary;
 
 use crate::collections::RandomMap;
+use crate::identity::doc::Visibility;
 use crate::identity::{
     doc::{Doc, Id},
     project::Project,
@@ -115,12 +116,25 @@ impl Arbitrary for Project {
     }
 }
 
+impl Arbitrary for Visibility {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        if bool::arbitrary(g) {
+            Visibility::Public
+        } else {
+            Visibility::Private {
+                allow: Vec::arbitrary(g),
+            }
+        }
+    }
+}
+
 impl Arbitrary for Doc<Unverified> {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let proj = Project::arbitrary(g);
         let delegate = Did::arbitrary(g);
+        let visibility = Visibility::arbitrary(g);
 
-        Self::initial(proj, delegate)
+        Self::initial(proj, delegate, visibility)
     }
 }
 
@@ -134,7 +148,8 @@ impl Arbitrary for Doc<Verified> {
             .try_into()
             .unwrap();
         let threshold = delegates.len() / 2 + 1;
-        let doc: Doc<Unverified> = Doc::new(project, delegates, threshold);
+        let visibility = Visibility::arbitrary(g);
+        let doc: Doc<Unverified> = Doc::new(project, delegates, threshold, visibility);
 
         doc.verified().unwrap()
     }

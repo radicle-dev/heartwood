@@ -20,6 +20,7 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 use nonempty::NonEmpty;
 
+use radicle::identity;
 use radicle::node::address;
 use radicle::node::address::{AddressBook, KnownAddress};
 use radicle::node::config::PeerConfig;
@@ -109,9 +110,13 @@ pub enum Error {
     #[error(transparent)]
     Storage(#[from] storage::Error),
     #[error(transparent)]
+    Refs(#[from] storage::refs::Error),
+    #[error(transparent)]
     Routing(#[from] routing::Error),
     #[error(transparent)]
     Tracking(#[from] tracking::Error),
+    #[error(transparent)]
+    Identity(#[from] identity::IdentityError),
     #[error("namespaces error: {0}")]
     Namespaces(#[from] NamespacesError),
 }
@@ -590,7 +595,8 @@ where
         }
     }
 
-    pub fn fetch(&mut self, rid: Id, from: &NodeId) {
+    /// Initiate an outgoing fetch for some repository.
+    fn fetch(&mut self, rid: Id, from: &NodeId) {
         let Some(session) = self.sessions.get_mut(from) else {
             error!(target: "service", "Session {from} does not exist; cannot initiate fetch");
             return;
@@ -714,6 +720,21 @@ where
                 self.fetch(dequeued, &remote);
             }
         }
+    }
+
+    /// Called when a remote requests a repository be uploaded to it.
+    /// The upload is authorized if this function returns `true`.
+    pub fn upload(&mut self, rid: Id, remote: &NodeId) -> bool {
+        let Ok(repo) = self.storage.repository(rid) else {
+            return false;
+        };
+        let Ok((_, doc)) = repo.identity_doc() else {
+            return false;
+        };
+        if !doc.is_visible_to(remote) {
+            return false;
+        }
+        true
     }
 
     /// Inbound connection attempt.
@@ -1266,8 +1287,9 @@ where
         &mut self,
         rid: Id,
         remotes: impl IntoIterator<Item = NodeId>,
-    ) -> Result<(), storage::Error> {
+    ) -> Result<(), Error> {
         let repo = self.storage.repository(rid)?;
+        let (_, doc) = repo.identity_doc()?;
         let peers = self.sessions.connected().map(|(_, p)| p);
         let timestamp = self.time();
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
@@ -1293,7 +1315,13 @@ where
         });
         let ann = msg.signed(&self.signer);
 
-        self.outbox.broadcast(ann, peers);
+        self.outbox.broadcast(
+            ann,
+            peers.filter(|p| {
+                // Only announce to peers who are allowed to view this repo.
+                doc.is_visible_to(&p.id)
+            }),
+        );
 
         Ok(())
     }

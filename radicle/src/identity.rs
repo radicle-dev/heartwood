@@ -15,7 +15,7 @@ use crate::storage::{refs, ReadRepository, RemoteId};
 
 pub use crypto::PublicKey;
 pub use did::Did;
-pub use doc::{Doc, Id, IdError, PayloadError};
+pub use doc::{Doc, Id, IdError, PayloadError, Visibility};
 pub use project::Project;
 
 /// Untrusted, well-formed input.
@@ -164,6 +164,7 @@ impl Identity<Untrusted> {
         })
     }
 }
+
 #[cfg(test)]
 mod test {
     use qcheck_macros::quickcheck;

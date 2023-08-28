@@ -17,7 +17,7 @@ use radicle::crypto::test::signer::MockSigner;
 use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git;
 use radicle::git::refname;
-use radicle::identity::Id;
+use radicle::identity::{Id, Visibility};
 use radicle::node::address::Book;
 use radicle::node::routing;
 use radicle::node::routing::Store;
@@ -402,6 +402,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
             name,
             description,
             refname!("master"),
+            Visibility::default(),
             &self.signer,
             &self.storage,
         )

@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::crypto::{Signer, Verified};
 use crate::git;
+use crate::identity::doc::Visibility;
 use crate::identity::Id;
 use crate::rad;
 use crate::storage::git::transport;
@@ -25,7 +26,15 @@ pub fn storage<P: AsRef<Path>, G: Signer>(path: P, signer: &G) -> Result<Storage
         ("rx", "A pixel editor"),
     ] {
         let (repo, _) = repository(path.join("workdir").join(name));
-        rad::init(&repo, name, desc, git::refname!("master"), signer, &storage)?;
+        rad::init(
+            &repo,
+            name,
+            desc,
+            git::refname!("master"),
+            Visibility::default(),
+            signer,
+            &storage,
+        )?;
     }
 
     Ok(storage)
@@ -45,6 +54,7 @@ pub fn project<P: AsRef<Path>, G: Signer>(
         "acme",
         "Acme's repository",
         git::refname!("master"),
+        Visibility::default(),
         signer,
         storage,
     )?;

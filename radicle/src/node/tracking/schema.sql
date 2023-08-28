@@ -22,7 +22,6 @@ create table if not exists "repo-policies" (
   -- Valid values are:
   --
   -- "trusted"         track repository delegates and remotes in the `node-policies` table.
-  -- "delegates-only"  only track repository delegates.
   -- "all"             track all remotes.
   --
   "scope"              text      default 'trusted',
