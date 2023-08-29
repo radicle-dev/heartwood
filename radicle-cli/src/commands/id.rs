@@ -1,10 +1,11 @@
-use std::{ffi::OsString, str::FromStr as _};
+use std::io::IsTerminal;
+use std::{ffi::OsString, io, str::FromStr as _};
 
 use anyhow::{anyhow, Context as _};
 
 use radicle::cob::identity::{self, Proposal, Proposals, Revision, RevisionId};
 use radicle::git::Oid;
-use radicle::identity::Identity;
+use radicle::identity::{Identity, Visibility};
 use radicle::prelude::{Did, Doc};
 use radicle::storage::ReadStorage as _;
 use radicle_crypto::Verified;
@@ -24,14 +25,16 @@ Usage
 
     rad id (update|edit) [--title|-t] [--description|-d]
                          [--delegates <did>] [--threshold <num>]
-                         [--no-confirm] [<option>...]
+                         [--visibility <private | public>]
+                         [--allow <did>] [--no-confirm] [<option>...]
     rad id list [<option>...]
     rad id rebase <id> [--rev <revision-id>] [<option>...]
     rad id show <id> [--rev <revision-id>] [--revisions] [<option>...]
-    rad id (accept|reject|close|commit) [--rev <revision-id>] [--no-confirm] [<option>...]
+    rad id (accept|reject|close|commit) <id> [--rev <revision-id>] [--no-confirm] [<option>...]
 
 Options
 
+    --quiet, -q            Don't print anything
     --help                 Print help
 "#,
 };
@@ -67,6 +70,7 @@ pub enum Operation {
         title: Option<String>,
         description: Option<String>,
         delegates: Vec<Did>,
+        visibility: Option<Visibility>,
         threshold: Option<usize>,
     },
     Update {
@@ -114,6 +118,7 @@ pub enum OperationName {
 pub struct Options {
     pub op: Operation,
     pub interactive: Interactive,
+    pub quiet: bool,
 }
 
 impl Args for Options {
@@ -127,9 +132,11 @@ impl Args for Options {
         let mut title: Option<String> = None;
         let mut description: Option<String> = None;
         let mut delegates: Vec<Did> = Vec::new();
+        let mut visibility: Option<Visibility> = None;
         let mut threshold: Option<usize> = None;
-        let mut interactive = Interactive::Yes;
+        let mut interactive = Interactive::from(io::stdout().is_terminal());
         let mut show_revisions = false;
+        let mut quiet = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -141,6 +148,9 @@ impl Args for Options {
                 }
                 Long("description") if op == Some(OperationName::Edit) => {
                     description = Some(parser.value()?.to_string_lossy().into());
+                }
+                Long("quiet") | Short('q') => {
+                    quiet = true;
                 }
                 Long("no-confirm") => {
                     interactive = Interactive::No;
@@ -168,6 +178,21 @@ impl Args for Options {
                 Long("delegates") => {
                     let did = term::args::did(&parser.value()?)?;
                     delegates.push(did);
+                }
+                Long("allow") => {
+                    let value = parser.value()?;
+                    let did = term::args::did(&value)?;
+                    if let Some(Visibility::Private { allow }) = &mut visibility {
+                        allow.insert(did);
+                    } else {
+                        visibility = Some(Visibility::private([did]));
+                    }
+                }
+                Long("visibility") => {
+                    let value = parser.value()?;
+                    let value = term::args::parse_value("visibility", value)?;
+
+                    visibility = Some(value);
                 }
                 Long("threshold") => {
                     threshold = Some(parser.value()?.to_string_lossy().parse()?);
@@ -198,6 +223,7 @@ impl Args for Options {
                 title,
                 description,
                 delegates,
+                visibility,
                 threshold,
             },
             OperationName::Update => Operation::Update {
@@ -226,7 +252,14 @@ impl Args for Options {
                 id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
             },
         };
-        Ok((Options { op, interactive }, vec![]))
+        Ok((
+            Options {
+                op,
+                interactive,
+                quiet,
+            },
+            vec![],
+        ))
     }
 }
 
@@ -247,11 +280,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let (rid, revision) = select(&proposal, rev, &previous, interactive)?;
             warn_out_of_date(revision, &previous);
             let yes = confirm(interactive, "Are you sure you want to accept?");
+
             if yes {
                 let (_, signature) = revision.proposed.sign(&signer)?;
                 proposal.accept(rid, signature, &signer)?;
-                term::success!("Accepted proposal ✓");
-                print(&proposal, &previous, None)?;
+
+                if !options.quiet {
+                    term::success!("Accepted proposal ✓");
+                    print(&proposal, &previous, None)?;
+                }
             }
         }
         Operation::Reject { id, rev } => {
@@ -260,22 +297,28 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let (rid, revision) = select(&proposal, rev, &previous, interactive)?;
             warn_out_of_date(revision, &previous);
             let yes = confirm(interactive, "Are you sure you want to reject?");
+
             if yes {
                 proposal.reject(rid, &signer)?;
-                term::success!("Rejected proposal 👎");
-                print(&proposal, &previous, None)?;
+
+                if !options.quiet {
+                    term::success!("Rejected proposal 👎");
+                    print(&proposal, &previous, None)?;
+                }
             }
         }
         Operation::Edit {
             title,
             description,
             delegates,
+            visibility,
             threshold,
         } => {
             let proposed = {
                 let mut proposed = previous.doc.clone();
                 proposed.threshold = threshold.unwrap_or(proposed.threshold);
                 proposed.delegates.extend(delegates);
+                proposed.visibility = visibility.unwrap_or(proposed.visibility);
                 proposed
             };
 
@@ -296,11 +339,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 create.proposed,
                 &signer,
             )?;
-            term::success!(
-                "Identity proposal '{}' created",
-                term::format::highlight(proposal.id)
-            );
-            print(&proposal, &previous, None)?;
+            if options.quiet {
+                term::print(proposal.id);
+            } else {
+                term::success!(
+                    "Identity proposal '{}' created",
+                    term::format::highlight(proposal.id)
+                );
+                print(&proposal, &previous, None)?;
+            }
         }
         Operation::Update {
             id,
@@ -342,15 +389,20 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if yes {
                 proposal.edit(update.title, update.description, &signer)?;
                 let revision = proposal.update(previous.current, update.proposed, &signer)?;
-                term::success!(
-                    "Identity proposal '{}' updated",
-                    term::format::highlight(proposal.id)
-                );
-                term::success!(
-                    "Revision '{}'",
-                    term::format::highlight(revision.to_string())
-                );
-                print(&proposal, &previous, None)?;
+
+                if options.quiet {
+                    term::print(revision.to_string());
+                } else {
+                    term::success!(
+                        "Identity proposal '{}' updated",
+                        term::format::highlight(proposal.id)
+                    );
+                    term::success!(
+                        "Revision '{}'",
+                        term::format::highlight(revision.to_string())
+                    );
+                    print(&proposal, &previous, None)?;
+                }
             }
         }
         Operation::Rebase { id, rev } => {
@@ -362,15 +414,20 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if yes {
                 let revision =
                     proposal.update(previous.current, revision.proposed.clone(), &signer)?;
-                term::success!(
-                    "Identity proposal '{}' rebased",
-                    term::format::highlight(proposal.id)
-                );
-                term::success!(
-                    "Revision '{}'",
-                    term::format::highlight(revision.to_string())
-                );
-                print(&proposal, &previous, None)?;
+
+                if options.quiet {
+                    term::print(revision.to_string());
+                } else {
+                    term::success!(
+                        "Identity proposal '{}' rebased",
+                        term::format::highlight(proposal.id)
+                    );
+                    term::success!(
+                        "Revision '{}'",
+                        term::format::highlight(revision.to_string())
+                    );
+                    print(&proposal, &previous, None)?;
+                }
             }
         }
         Operation::List => {
@@ -413,21 +470,31 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let (rid, revision) = commit_select(&proposal, rev, &previous, interactive)?;
             warn_out_of_date(revision, &previous);
             let yes = confirm(interactive, "Are you sure you want to commit?");
+
             if yes {
                 let id = Proposal::commit(&proposal, &rid, signer.public_key(), &repo, &signer)?;
                 proposal.commit(&signer)?;
-                term::success!("Committed new identity '{}'", id.current);
-                print(&proposal, &previous, None)?;
+
+                if options.quiet {
+                    term::print(id.current);
+                } else {
+                    term::success!("Committed new identity '{}'", id.current);
+                    print(&proposal, &previous, None)?;
+                }
             }
         }
         Operation::Close { id } => {
             let id = id.resolve(&repo.backend)?;
             let mut proposal = proposals.get_mut(&id)?;
             let yes = confirm(interactive, "Are you sure you want to close?");
+
             if yes {
                 proposal.close(&signer)?;
-                term::success!("Closed identity proposal '{}'", id);
-                print(&proposal, &previous, None)?;
+
+                if !options.quiet {
+                    term::success!("Closed identity proposal '{}'", id);
+                    print(&proposal, &previous, None)?;
+                }
             }
         }
         Operation::Show {

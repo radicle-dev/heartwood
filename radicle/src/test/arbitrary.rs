@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::hash::Hash;
 use std::ops::RangeBounds;
 use std::str::FromStr;
@@ -122,7 +122,7 @@ impl Arbitrary for Visibility {
             Visibility::Public
         } else {
             Visibility::Private {
-                allow: Vec::arbitrary(g),
+                allow: BTreeSet::arbitrary(g),
             }
         }
     }

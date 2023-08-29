@@ -16,6 +16,8 @@ Usage
 
 Options
 
+    --private       Show only private repositories
+    --public        Show only public repositories
     --verbose, -v   Verbose output
     --help          Print help
 "#,
@@ -23,6 +25,8 @@ Options
 
 pub struct Options {
     verbose: bool,
+    public: bool,
+    private: bool,
 }
 
 impl Args for Options {
@@ -31,18 +35,33 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut verbose = false;
+        let mut private = false;
+        let mut public = false;
 
-        if let Some(arg) = parser.next()? {
+        while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
+                }
+                Long("private") => {
+                    private = true;
+                }
+                Long("public") => {
+                    public = true;
                 }
                 Long("verbose") | Short('v') => verbose = true,
                 _ => return Err(anyhow::anyhow!(arg.unexpected())),
             }
         }
 
-        Ok((Options { verbose }, vec![]))
+        Ok((
+            Options {
+                verbose,
+                private,
+                public,
+            },
+            vec![],
+        ))
     }
 }
 
@@ -52,6 +71,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut table = term::Table::default();
 
     for (id, head, doc) in storage.repositories()? {
+        if doc.visibility.is_public() && options.private && !options.public {
+            continue;
+        }
+        if !doc.visibility.is_public() && !options.private && options.public {
+            continue;
+        }
+
         let proj = match doc.verified()?.project() {
             Ok(proj) => proj,
             Err(err) => {

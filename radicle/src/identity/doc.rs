@@ -1,11 +1,12 @@
 mod id;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::fmt::Write as _;
 use std::marker::PhantomData;
 use std::ops::{Deref, Not};
 use std::path::Path;
+use std::str::FromStr;
 
 use nonempty::NonEmpty;
 use once_cell::sync::Lazy;
@@ -144,9 +145,25 @@ pub enum Visibility {
     Public,
     /// Delegates plus the allowed DIDs.
     Private {
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        allow: Vec<Did>,
+        #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+        allow: BTreeSet<Did>,
     },
+}
+
+#[derive(Error, Debug)]
+#[error("'{0}' is not a valid visibility type")]
+pub struct VisibilityParseError(String);
+
+impl FromStr for Visibility {
+    type Err = VisibilityParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "public" => Ok(Visibility::Public),
+            "private" => Ok(Visibility::private([])),
+            _ => Err(VisibilityParseError(s.to_owned())),
+        }
+    }
 }
 
 impl Visibility {
@@ -156,9 +173,9 @@ impl Visibility {
     }
 
     /// Private visibility with list of allowed DIDs beyond the repository delegates.
-    pub fn private(allow: impl Into<Vec<Did>>) -> Self {
+    pub fn private(allow: impl IntoIterator<Item = Did>) -> Self {
         Self::Private {
-            allow: allow.into(),
+            allow: BTreeSet::from_iter(allow),
         }
     }
 }
@@ -545,16 +562,14 @@ mod test {
             serde_json::json!({ "type": "public" })
         );
         assert_eq!(
-            serde_json::to_value(Visibility::Private { allow: vec![] }).unwrap(),
+            serde_json::to_value(Visibility::private([])).unwrap(),
             serde_json::json!({ "type": "private" })
         );
         assert_eq!(
-            serde_json::to_value(Visibility::Private {
-                allow: vec![Did::from_str(
-                    "did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT"
-                )
-                .unwrap()]
-            })
+            serde_json::to_value(Visibility::private([Did::from_str(
+                "did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT"
+            )
+            .unwrap()]))
             .unwrap(),
             serde_json::json!({ "type": "private", "allow": ["did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT"] })
         );

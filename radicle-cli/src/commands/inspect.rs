@@ -37,6 +37,7 @@ Options
     --id        Return the repository identifier (RID)
     --payload   Inspect the repository's identity payload
     --refs      Inspect the repository's refs on the local device
+    --identity  Inspect the identity document
     --delegates Inspect the repository's delegates
     --policy    Inspect the repository's tracking policy
     --history   Show the history of the repository identity document
@@ -49,6 +50,7 @@ pub enum Target {
     Refs,
     Payload,
     Delegates,
+    Identity,
     Policy,
     History,
     #[default]
@@ -88,6 +90,9 @@ impl Args for Options {
                 }
                 Long("history") => {
                     target = Target::History;
+                }
+                Long("identity") => {
+                    target = Target::Identity;
                 }
                 Long("id") => {
                     target = Target::Id;
@@ -145,6 +150,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             println!(
                 "{}",
                 colorizer().colorize_json_str(&serde_json::to_string_pretty(&project.payload)?)?
+            );
+        }
+        Target::Identity => {
+            println!(
+                "{}",
+                colorizer().colorize_json_str(&serde_json::to_string_pretty(&project.doc)?)?
             );
         }
         Target::Policy => {

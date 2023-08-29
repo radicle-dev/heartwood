@@ -182,7 +182,12 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     let interactive = options.interactive;
 
     term::headline(format!(
-        "Initializing radicle 👾 project in {}",
+        "Initializing{}radicle 👾 project in {}",
+        if !options.visibility.is_public() {
+            term::format::yellow(" private ")
+        } else {
+            term::format::default(" ")
+        },
         if path == cwd {
             term::format::highlight(".").to_string()
         } else {
