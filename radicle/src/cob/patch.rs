@@ -462,23 +462,6 @@ impl store::FromHistory for Patch {
         Ok(())
     }
 
-    fn from_history<R: ReadRepository>(
-        history: &radicle_cob::History,
-        repo: &R,
-    ) -> Result<Self, Self::Error> {
-        let root = history.root();
-
-        // Deprecated. Remove when we drop legacy support.
-        if root.manifest.is_legacy() {
-            let legacy = super::legacy::patch::Patch::from_history(history, repo)?;
-            let patch = legacy.into();
-
-            Ok(patch)
-        } else {
-            store::from_history::<R, Self>(history, repo)
-        }
-    }
-
     fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
         let author = Author::new(op.author);
         let timestamp = op.timestamp;
