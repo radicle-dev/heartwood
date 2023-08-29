@@ -392,6 +392,7 @@ where
                 rid,
                 remote,
                 namespaces,
+                ..
             } = io
             {
                 Some((rid, remote, namespaces))

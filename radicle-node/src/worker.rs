@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 mod channels;
 mod fetch;
 mod tunnel;
@@ -93,6 +94,8 @@ pub enum FetchRequest {
         namespaces: Namespaces,
         /// Remote peer we are interacting with.
         remote: NodeId,
+        /// Fetch timeout.
+        timeout: time::Duration,
     },
     /// Server is responding to a fetch request by uploading the
     /// specified `refspecs` sent by the client.
@@ -197,9 +200,10 @@ impl Worker {
                 rid,
                 namespaces,
                 remote,
+                timeout,
             } => {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {}", rid);
-                let result = self.fetch(rid, remote, stream, &namespaces, channels);
+                let result = self.fetch(rid, remote, stream, &namespaces, channels, timeout);
 
                 FetchResult::Initiator { rid, result }
             }
@@ -230,6 +234,7 @@ impl Worker {
         stream: StreamId,
         namespaces: &Namespaces,
         mut channels: Channels,
+        timeout: time::Duration,
     ) -> Result<(Vec<RefUpdate>, HashSet<NodeId>), FetchError> {
         let staging =
             fetch::StagingPhaseInitial::new(&self.storage, rid, self.nid, namespaces.clone())?;
@@ -241,6 +246,7 @@ impl Worker {
                 staging.refspecs(),
                 stream,
                 &mut channels,
+                timeout,
             ) {
                 Ok(_) => {
                     log::debug!(target: "worker", "Initial fetch for {rid} exited successfully")
@@ -279,6 +285,7 @@ impl Worker {
             staging.refspecs(),
             stream,
             &mut channels,
+            timeout,
         ) {
             Ok(()) => log::debug!(target: "worker", "Final fetch for {rid} exited successfully"),
             Err(e) => {
@@ -496,6 +503,7 @@ impl Worker {
         specs: S,
         stream: StreamId,
         channels: &mut Channels,
+        timeout: time::Duration,
     ) -> Result<(), FetchError>
     where
         S: IntoIterator<Item = fetch::Refspec>,
@@ -546,7 +554,7 @@ impl Worker {
             }
         });
 
-        tunnel.run(self.timeout)?;
+        tunnel.run(timeout)?;
 
         let result = child.wait()?;
         if result.success() {

@@ -626,6 +626,7 @@ impl<S: WriteStorage + 'static, G: Signer> Simulation<S, G> {
                 rid,
                 remote,
                 namespaces,
+                ..
             } => {
                 log::info!(
                     target: "sim",

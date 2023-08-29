@@ -10,9 +10,9 @@ pub mod tracking;
 
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+use std::{fmt, time};
 
 use crossbeam_channel as chan;
 use fastrand::Rng;
@@ -79,6 +79,8 @@ pub const MIN_RECONNECTION_DELTA: LocalDuration = LocalDuration::from_secs(3);
 pub const MAX_RECONNECTION_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Connection retry delta used for ephemeral peers that failed to connect previously.
 pub const CONNECTION_RETRY_DELTA: LocalDuration = LocalDuration::from_mins(10);
+/// How long to wait for a fetch to stall before aborting.
+pub const FETCH_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 
 /// Maximum external address limit imposed by message size limits.
 pub use message::ADDRESS_LIMIT;
@@ -139,7 +141,7 @@ pub enum Command {
     /// Lookup seeds for the given repository in the routing table.
     Seeds(Id, chan::Sender<Seeds>),
     /// Fetch the given repository from the network.
-    Fetch(Id, NodeId, chan::Sender<FetchResult>),
+    Fetch(Id, NodeId, time::Duration, chan::Sender<FetchResult>),
     /// Track the given repository.
     TrackRepo(Id, Scope, chan::Sender<bool>),
     /// Untrack the given repository.
@@ -161,7 +163,7 @@ impl fmt::Debug for Command {
             Self::Connect(id, addr, opts) => write!(f, "Connect({id}, {addr}, {opts:?})"),
             Self::Disconnect(id) => write!(f, "Disconnect({id})"),
             Self::Seeds(id, _) => write!(f, "Seeds({id})"),
-            Self::Fetch(id, node, _) => write!(f, "Fetch({id}, {node})"),
+            Self::Fetch(id, node, _, _) => write!(f, "Fetch({id}, {node})"),
             Self::TrackRepo(id, scope, _) => write!(f, "TrackRepo({id}, {scope})"),
             Self::UntrackRepo(id, _) => write!(f, "UntrackRepo({id})"),
             Self::TrackNode(id, _, _) => write!(f, "TrackNode({id})"),
@@ -530,10 +532,10 @@ where
                     error!(target: "service", "Error reading routing table for {rid}: {e}");
                 }
             },
-            Command::Fetch(rid, seed, resp) => {
+            Command::Fetch(rid, seed, timeout, resp) => {
                 // TODO: Establish connections to unconnected seeds, and retry.
                 self.fetch_reqs.insert((rid, seed), resp);
-                self.fetch(rid, &seed);
+                self.fetch(rid, &seed, timeout);
             }
             Command::TrackRepo(rid, scope, resp) => {
                 // Update our tracking policy.
@@ -596,7 +598,7 @@ where
     }
 
     /// Initiate an outgoing fetch for some repository.
-    fn fetch(&mut self, rid: Id, from: &NodeId) {
+    fn fetch(&mut self, rid: Id, from: &NodeId, timeout: time::Duration) {
         let Some(session) = self.sessions.get_mut(from) else {
             error!(target: "service", "Session {from} does not exist; cannot initiate fetch");
             return;
@@ -618,7 +620,7 @@ where
 
                 match self.tracking.namespaces_for(&self.storage, &rid) {
                     Ok(namespaces) => {
-                        self.outbox.fetch(session, rid, namespaces);
+                        self.outbox.fetch(session, rid, namespaces, timeout);
                     }
                     Err(err) => {
                         error!(target: "service", "Error getting namespaces for {rid}: {err}");
@@ -717,7 +719,7 @@ where
             if let Some(dequeued) = s.fetched(rid) {
                 debug!(target: "service", "Dequeued fetch {dequeued} from session {remote}..");
 
-                self.fetch(dequeued, &remote);
+                self.fetch(dequeued, &remote, FETCH_TIMEOUT);
             }
         }
     }
@@ -933,7 +935,7 @@ where
                                 Ok(false) => {
                                     debug!(target: "service", "Missing tracked inventory {id}; initiating fetch..");
 
-                                    self.fetch(*id, announcer);
+                                    self.fetch(*id, announcer, FETCH_TIMEOUT);
                                 }
                                 Err(e) => {
                                     error!(target: "service", "Error checking local inventory: {e}");
@@ -1002,7 +1004,7 @@ where
                     // which is required by the protocol to only announce refs it has.
                     if self.sessions.is_connected(announcer) {
                         match self.should_fetch_refs_announcement(message, &repo_entry.scope) {
-                            Ok(true) => self.fetch(message.rid, announcer),
+                            Ok(true) => self.fetch(message.rid, announcer, FETCH_TIMEOUT),
                             Ok(false) => {}
                             Err(e) => {
                                 error!(target: "service", "Failed to check refs announcement: {e}");
@@ -1502,7 +1504,7 @@ where
                 Ok(seeds) => {
                     if let Some(connected) = NonEmpty::from_vec(seeds.connected().collect()) {
                         for seed in connected {
-                            self.fetch(rid, &seed.nid);
+                            self.fetch(rid, &seed.nid, FETCH_TIMEOUT);
                         }
                     } else {
                         // TODO: We should make sure that this fetch is retried later, either

@@ -10,7 +10,7 @@ use crossbeam_channel as chan;
 use netservices::Direction as Link;
 use radicle::identity::Visibility;
 use radicle::node::routing::Store as _;
-use radicle::node::ConnectOptions;
+use radicle::node::{ConnectOptions, DEFAULT_TIMEOUT};
 use radicle::storage::ReadRepository;
 
 use crate::collections::{RandomMap, RandomSet};
@@ -1167,15 +1167,15 @@ fn test_queued_fetch() {
 
     // Send the first fetch.
     let (send, _recv1) = chan::bounded::<node::FetchResult>(1);
-    alice.command(Command::Fetch(rid1, bob.id, send));
+    alice.command(Command::Fetch(rid1, bob.id, DEFAULT_TIMEOUT, send));
 
     // Send the 2nd fetch that will be queued.
     let (send2, _recv2) = chan::bounded::<node::FetchResult>(1);
-    alice.command(Command::Fetch(rid2, bob.id, send2));
+    alice.command(Command::Fetch(rid2, bob.id, DEFAULT_TIMEOUT, send2));
 
     // Send the 3rd fetch that will be queued.
     let (send3, _recv3) = chan::bounded::<node::FetchResult>(1);
-    alice.command(Command::Fetch(rid3, bob.id, send3));
+    alice.command(Command::Fetch(rid3, bob.id, DEFAULT_TIMEOUT, send3));
 
     // The first fetch is initiated.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid1);

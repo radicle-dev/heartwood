@@ -828,6 +828,7 @@ where
                     rid,
                     remote,
                     namespaces,
+                    timeout,
                 } => {
                     log::trace!(target: "wire", "Processing fetch for {rid} from {remote}..");
 
@@ -850,6 +851,7 @@ where
                             rid,
                             namespaces,
                             remote,
+                            timeout,
                         },
                         stream,
                         channels,

@@ -183,9 +183,14 @@ impl radicle::node::Handle for Handle {
         receiver.recv().map_err(Error::from)
     }
 
-    fn fetch(&mut self, id: Id, from: NodeId) -> Result<FetchResult, Error> {
+    fn fetch(
+        &mut self,
+        id: Id,
+        from: NodeId,
+        timeout: time::Duration,
+    ) -> Result<FetchResult, Error> {
         let (sender, receiver) = chan::bounded(1);
-        self.command(service::Command::Fetch(id, from, sender))?;
+        self.command(service::Command::Fetch(id, from, timeout, sender))?;
         receiver.recv().map_err(Error::from)
     }
 

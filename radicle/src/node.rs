@@ -355,7 +355,11 @@ pub enum Command {
 
     /// Fetch the given repository from the network.
     #[serde(rename_all = "camelCase")]
-    Fetch { rid: Id, nid: NodeId },
+    Fetch {
+        rid: Id,
+        nid: NodeId,
+        timeout: time::Duration,
+    },
 
     /// Track the given repository.
     #[serde(rename_all = "camelCase")]
@@ -652,7 +656,12 @@ pub trait Handle: Clone + Sync + Send {
     /// Lookup the seeds of a given repository in the routing table.
     fn seeds(&mut self, id: Id) -> Result<Seeds, Self::Error>;
     /// Fetch a repository from the network.
-    fn fetch(&mut self, id: Id, from: NodeId) -> Result<FetchResult, Self::Error>;
+    fn fetch(
+        &mut self,
+        id: Id,
+        from: NodeId,
+        timeout: time::Duration,
+    ) -> Result<FetchResult, Self::Error>;
     /// Start tracking the given project. Doesn't do anything if the project is already
     /// tracked.
     fn track_repo(&mut self, id: Id, scope: tracking::Scope) -> Result<bool, Self::Error>;
@@ -824,9 +833,21 @@ impl Handle for Node {
         Ok(seeds.with(profile::env::rng()))
     }
 
-    fn fetch(&mut self, rid: Id, from: NodeId) -> Result<FetchResult, Error> {
+    fn fetch(
+        &mut self,
+        rid: Id,
+        from: NodeId,
+        timeout: time::Duration,
+    ) -> Result<FetchResult, Error> {
         let result = self
-            .call(Command::Fetch { rid, nid: from }, DEFAULT_TIMEOUT)?
+            .call(
+                Command::Fetch {
+                    rid,
+                    nid: from,
+                    timeout,
+                },
+                DEFAULT_TIMEOUT,
+            )?
             .next()
             .ok_or(Error::EmptyResponse)??;
 

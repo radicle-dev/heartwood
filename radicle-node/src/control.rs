@@ -102,8 +102,8 @@ where
                 }
             }
         }
-        Command::Fetch { rid, nid } => {
-            fetch(rid, nid, writer, &mut handle)?;
+        Command::Fetch { rid, nid, timeout } => {
+            fetch(rid, nid, timeout, writer, &mut handle)?;
         }
         Command::Seeds { rid } => {
             let seeds = handle.seeds(rid)?;
@@ -201,10 +201,11 @@ where
 fn fetch<W: Write, H: Handle<Error = runtime::HandleError>>(
     id: Id,
     node: NodeId,
+    timeout: time::Duration,
     mut writer: W,
     handle: &mut H,
 ) -> Result<(), CommandError> {
-    match handle.fetch(id, node) {
+    match handle.fetch(id, node, timeout) {
         Ok(result) => {
             json::to_writer(&mut writer, &result)?;
         }

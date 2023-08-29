@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::time;
 
 use log::*;
 
@@ -26,6 +27,8 @@ pub enum Io {
         remote: NodeId,
         /// Namespaces being fetched.
         namespaces: Namespaces,
+        /// Fetch timeout.
+        timeout: time::Duration,
     },
     /// Ask for a wakeup in a specified amount of time.
     Wakeup(LocalDuration),
@@ -77,11 +80,18 @@ impl Outbox {
         self.io.push_back(Io::Wakeup(after));
     }
 
-    pub fn fetch(&mut self, remote: &mut Session, rid: Id, namespaces: Namespaces) {
+    pub fn fetch(
+        &mut self,
+        remote: &mut Session,
+        rid: Id,
+        namespaces: Namespaces,
+        timeout: time::Duration,
+    ) {
         self.io.push_back(Io::Fetch {
             rid,
             namespaces,
             remote: remote.id,
+            timeout,
         });
     }
 

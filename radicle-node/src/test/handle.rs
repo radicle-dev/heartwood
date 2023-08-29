@@ -41,7 +41,12 @@ impl radicle::node::Handle for Handle {
         unimplemented!();
     }
 
-    fn fetch(&mut self, _id: Id, _from: NodeId) -> Result<FetchResult, Self::Error> {
+    fn fetch(
+        &mut self,
+        _id: Id,
+        _from: NodeId,
+        _timeout: time::Duration,
+    ) -> Result<FetchResult, Self::Error> {
         Ok(FetchResult::Success {
             updated: vec![],
             namespaces: HashSet::new(),

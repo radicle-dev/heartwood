@@ -6,8 +6,8 @@ use radicle::git;
 use radicle::node;
 use radicle::node::address::Store as _;
 use radicle::node::routing::Store as _;
-use radicle::node::Alias;
 use radicle::node::Handle as _;
+use radicle::node::{Alias, DEFAULT_TIMEOUT};
 use radicle::prelude::Id;
 use radicle::profile::Home;
 use radicle::storage::{ReadRepository, ReadStorage};
@@ -864,7 +864,7 @@ fn test_cob_deletion() {
     log::debug!(target: "test", "Removing issue..");
 
     radicle::assert_matches!(
-        bob.handle.fetch(rid, alice.id).unwrap(),
+        bob.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap(),
         radicle::node::FetchResult::Success { .. }
     );
     let bob_repo = bob.storage.repository(rid).unwrap();

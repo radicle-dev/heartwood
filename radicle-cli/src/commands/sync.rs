@@ -262,7 +262,7 @@ pub fn fetch(
         SyncMode::Seeds(seeds) => {
             let mut results = FetchResults::default();
             for seed in seeds {
-                let result = fetch_from(rid, &seed, node)?;
+                let result = fetch_from(rid, &seed, timeout, node)?;
                 results.push(seed, result);
             }
             Ok(results)
@@ -284,7 +284,7 @@ fn fetch_all(
 
     // Fetch from connected seeds.
     for seed in connected.iter().take(count) {
-        let result = fetch_from(rid, &seed.nid, node)?;
+        let result = fetch_from(rid, &seed.nid, timeout, node)?;
         results.push(seed.nid, result);
     }
 
@@ -312,7 +312,7 @@ fn fetch_all(
             match cr {
                 node::ConnectResult::Connected => {
                     spinner.finish();
-                    let result = fetch_from(rid, &seed.nid, node)?;
+                    let result = fetch_from(rid, &seed.nid, timeout, node)?;
                     results.push(seed.nid, result);
                     break;
                 }
@@ -327,13 +327,18 @@ fn fetch_all(
     Ok(results)
 }
 
-fn fetch_from(rid: Id, seed: &NodeId, node: &mut Node) -> Result<FetchResult, node::Error> {
+fn fetch_from(
+    rid: Id,
+    seed: &NodeId,
+    timeout: time::Duration,
+    node: &mut Node,
+) -> Result<FetchResult, node::Error> {
     let spinner = term::spinner(format!(
         "Fetching {} from {}..",
         term::format::tertiary(rid),
         term::format::tertiary(term::format::node(seed))
     ));
-    let result = node.fetch(rid, *seed)?;
+    let result = node.fetch(rid, *seed, timeout)?;
 
     match &result {
         FetchResult::Success { .. } => {
