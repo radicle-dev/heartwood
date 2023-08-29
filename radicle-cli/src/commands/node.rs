@@ -8,6 +8,7 @@ use radicle::prelude::Id;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::Element as _;
 
 #[path = "node/control.rs"]
 mod control;
@@ -88,6 +89,7 @@ pub enum Operation {
         lines: usize,
     },
     Status,
+    Sessions,
     Stop,
     Tracking {
         mode: TrackingMode,
@@ -110,6 +112,7 @@ pub enum OperationName {
     Start,
     #[default]
     Status,
+    Sessions,
     Stop,
     Tracking,
 }
@@ -145,6 +148,7 @@ impl Args for Options {
                     "status" => op = Some(OperationName::Status),
                     "stop" => op = Some(OperationName::Stop),
                     "tracking" => op = Some(OperationName::Tracking),
+                    "sessions" => op = Some(OperationName::Sessions),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
@@ -204,6 +208,7 @@ impl Args for Options {
                 options,
             },
             OperationName::Status => Operation::Status,
+            OperationName::Sessions => Operation::Sessions,
             OperationName::Stop => Operation::Stop,
             OperationName::Tracking => Operation::Tracking {
                 mode: tracking_mode,
@@ -220,6 +225,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     match options.op {
         Operation::Connect { addr, timeout } => {
             control::connect(&mut node, addr.id, addr.addr, timeout)?
+        }
+        Operation::Sessions => {
+            let sessions = control::sessions(&node)?;
+            if let Some(table) = sessions {
+                table.print();
+            }
         }
         Operation::Events { timeout, count } => {
             events::run(node, count, timeout)?;
