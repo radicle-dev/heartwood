@@ -34,6 +34,7 @@ Options
         --description <string>     Description of the project
         --default-branch <name>    The default branch of the project
         --scope <scope>            Tracking scope (default: all)
+        --private                  Set repository visibility to *private* (default: public)
     -u, --set-upstream             Setup the upstream of the default branch
         --setup-signing            Setup the radicle key as a signing key for this repository
         --announce                 Announce the new project to the network
@@ -50,6 +51,7 @@ pub struct Options {
     pub description: Option<String>,
     pub branch: Option<String>,
     pub interactive: Interactive,
+    pub visibility: Visibility,
     pub setup_signing: bool,
     pub scope: Scope,
     pub set_upstream: bool,
@@ -75,6 +77,7 @@ impl Args for Options {
         let mut scope = Scope::All;
         let mut track = true;
         let mut verbose = false;
+        let mut visibility = Visibility::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -130,6 +133,9 @@ impl Args for Options {
                 Long("no-track") => {
                     track = false;
                 }
+                Long("private") => {
+                    visibility = Visibility::private([]);
+                }
                 Long("verbose") | Short('v') => {
                     verbose = true;
                 }
@@ -155,6 +161,7 @@ impl Args for Options {
                 setup_signing,
                 announce,
                 track,
+                visibility,
                 verbose,
             },
             vec![],
@@ -173,7 +180,6 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     let path = options.path.unwrap_or_else(|| cwd.clone());
     let path = path.as_path().canonicalize()?;
     let interactive = options.interactive;
-    let visibility = Visibility::default();
 
     term::headline(format!(
         "Initializing radicle 👾 project in {}",
@@ -224,7 +230,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         &name,
         &description,
         branch,
-        visibility,
+        options.visibility,
         &signer,
         &profile.storage,
     ) {

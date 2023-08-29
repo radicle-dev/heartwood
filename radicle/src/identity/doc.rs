@@ -150,8 +150,16 @@ pub enum Visibility {
 }
 
 impl Visibility {
+    /// Check whether the visibility is public.
     pub fn is_public(&self) -> bool {
         matches!(self, Self::Public)
+    }
+
+    /// Private visibility with list of allowed DIDs beyond the repository delegates.
+    pub fn private(allow: impl Into<Vec<Did>>) -> Self {
+        Self::Private {
+            allow: allow.into(),
+        }
     }
 }
 
