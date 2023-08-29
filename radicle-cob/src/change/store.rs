@@ -206,7 +206,7 @@ impl Embed<Vec<u8>> {
             .into()
     }
 
-    /// Return am embed where the content is replaced by a content hash.
+    /// Return an embed where the content is replaced by a content hash.
     pub fn hashed<T: From<Oid>>(&self) -> Embed<T> {
         Embed {
             name: self.name.clone(),

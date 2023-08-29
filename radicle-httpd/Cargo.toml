@@ -19,6 +19,7 @@ anyhow = { version = "1" }
 axum = { version = "0.6.7", default-features = false, features = ["headers", "json", "query", "tokio"] }
 axum-auth = { version= "0.4.0", default-features = false, features = ["auth-bearer"] }
 axum-server = { version = "0.5.1", default-features = false }
+base64 = "0.21.3"
 chrono = { version = "0.4.22", default-features = false, features = ["clock"] }
 fastrand = { version = "2.0.0" }
 flate2 = { version = "1" }

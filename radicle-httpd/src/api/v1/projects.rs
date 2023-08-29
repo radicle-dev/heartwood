@@ -7,13 +7,14 @@ use axum::response::IntoResponse;
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use axum_auth::AuthBearer;
+use base64::prelude::{Engine, BASE64_STANDARD};
 use hyper::StatusCode;
 use radicle_surf::blob::{Blob, BlobRef};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_http::set_header::SetResponseHeaderLayer;
 
-use radicle::cob::{issue, patch, Label};
+use radicle::cob::{issue, patch, Embed, Label, Uri};
 use radicle::identity::{Did, Id};
 use radicle::node::routing::Store;
 use radicle::node::AliasStore;
@@ -511,6 +512,7 @@ pub struct IssueCreate {
     pub description: String,
     pub labels: Vec<Label>,
     pub assignees: Vec<Did>,
+    pub embeds: Vec<Embed<Uri>>,
 }
 
 /// Create a new issue.
@@ -528,6 +530,25 @@ async fn issue_create_handler(
         .signer()
         .map_err(|_| Error::Auth("Unauthorized"))?;
     let repo = storage.repository(project)?;
+    let embeds: Vec<Embed> = issue
+        .embeds
+        .into_iter()
+        .filter_map(|embed| {
+            if let Some(content) = embed
+                .content
+                .as_str()
+                .strip_prefix("data:content/type;base64,")
+            {
+                return BASE64_STANDARD.decode(content).ok().map(|content| Embed {
+                    name: embed.name,
+                    content,
+                });
+            }
+
+            None
+        })
+        .collect();
+
     let mut issues = issue::Issues::open(&repo)?;
     let issue = issues
         .create(
@@ -535,7 +556,7 @@ async fn issue_create_handler(
             issue.description,
             &issue.labels,
             &issue.assignees,
-            [],
+            embeds,
             &signer,
         )
         .map_err(Error::from)?;
@@ -575,9 +596,30 @@ async fn issue_update_handler(
         issue::Action::Edit { title } => {
             issue.edit(title, &signer)?;
         }
-        issue::Action::Comment { body, reply_to, .. } => {
+        issue::Action::Comment {
+            body,
+            reply_to,
+            embeds,
+        } => {
+            let embeds: Vec<Embed> = embeds
+                .into_iter()
+                .filter_map(|embed| {
+                    if let Some(content) = embed
+                        .content
+                        .as_str()
+                        .strip_prefix("data:content/type;base64,")
+                    {
+                        return BASE64_STANDARD.decode(content).ok().map(|content| Embed {
+                            name: embed.name,
+                            content,
+                        });
+                    }
+
+                    None
+                })
+                .collect();
             if let Some(to) = reply_to {
-                issue.comment(body, to, [], &signer)?;
+                issue.comment(body, to, embeds, &signer)?;
             } else {
                 return Err(Error::BadRequest("`replyTo` missing".to_owned()));
             }
@@ -1777,6 +1819,7 @@ mod routes {
                       "id": DID
                     },
                     "body": "Change 'hello world' to 'hello everyone'",
+                    "embeds": [],
                     "reactions": [],
                     "timestamp": TIMESTAMP,
                     "replyTo": null
@@ -1790,7 +1833,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_issues_create() {
-        const CREATED_ISSUE_ID: &str = "c7cff5ab610408470406e023baa1ab087ce78adc";
+        const CREATED_ISSUE_ID: &str = "e712eb0b5874d5256022fb620f26caf847d96723";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -1802,6 +1845,12 @@ mod routes {
             "title": "Issue #2",
             "description": "Change 'hello world' to 'hello everyone'",
             "labels": ["bug"],
+            "embeds": [
+              {
+                "name": "example.html",
+                "content": "data:content/type;base64,PGh0bWw+SGVsbG8gV29ybGQhPC9odG1sPg=="
+              }
+            ],
             "assignees": [],
         }))
         .unwrap();
@@ -1833,17 +1882,23 @@ mod routes {
               "author": {
                 "id": CONTRIBUTOR_DID,
               },
-              "assignees": [],
               "title": "Issue #2",
               "state": {
                 "status": "open",
               },
+              "assignees": [],
               "discussion": [{
                 "id": CREATED_ISSUE_ID,
                 "author": {
                   "id": CONTRIBUTOR_DID,
                 },
                 "body": "Change 'hello world' to 'hello everyone'",
+                "embeds": [
+                  {
+                    "name": "example.html",
+                    "content": "git:b62df2ec90365e3749cd4fa431cb844492908b84"
+                  }
+                ],
                 "reactions": [],
                 "timestamp": TIMESTAMP,
                 "replyTo": null,
@@ -1866,6 +1921,12 @@ mod routes {
         let body = serde_json::to_vec(&json!({
           "type": "comment",
           "body": "This is first-level comment",
+          "embeds": [
+            {
+              "name": "image.jpg",
+              "content": "data:content/type;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
+            }
+          ],
           "replyTo": CONTRIBUTOR_ISSUE_ID,
         }))
         .unwrap();
@@ -1883,7 +1944,7 @@ mod routes {
 
         let body = serde_json::to_vec(&json!({
           "type": "comment.react",
-          "id": "26cadcc7cb51ee9c56b6232023e9bf63b7b0df60",
+          "id": "6fe9fdec2ec9f6436f2875dbcbedb95dd215b863",
           "reaction": "🚀",
           "active": true,
         }))
@@ -1921,16 +1982,23 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
+                  "embeds": [],
                   "reactions": [],
                   "timestamp": TIMESTAMP,
                   "replyTo": null,
                 },
                 {
-                  "id": "26cadcc7cb51ee9c56b6232023e9bf63b7b0df60",
+                  "id": "6fe9fdec2ec9f6436f2875dbcbedb95dd215b863",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
                   "body": "This is first-level comment",
+                  "embeds": [
+                    {
+                      "name": "image.jpg",
+                      "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                    },
+                  ],
                   "reactions": [
                     [
                       "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
@@ -1998,6 +2066,7 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "body": "Change 'hello world' to 'hello everyone'",
+                  "embeds": [],
                   "reactions": [],
                   "timestamp": TIMESTAMP,
                   "replyTo": null,
@@ -2008,6 +2077,7 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "body": "This is a reply to the first comment",
+                  "embeds": [],
                   "reactions": [],
                   "timestamp": TIMESTAMP,
                   "replyTo": ISSUE_DISCUSSION_ID,
@@ -2498,6 +2568,7 @@ mod routes {
                         "id": CONTRIBUTOR_DID,
                       },
                       "body": "EDIT: This is a root level comment",
+                      "embeds": [],
                       "reactions": [["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8","🚀"]],
                       "timestamp": TIMESTAMP,
                       "replyTo": null,
@@ -2508,6 +2579,7 @@ mod routes {
                         "id": CONTRIBUTOR_DID,
                       },
                       "body": "This is a root level comment",
+                      "embeds": [],
                       "reactions": [],
                       "timestamp": TIMESTAMP,
                       "replyTo": CONTRIBUTOR_COMMENT_1,

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::State;
-use axum::http::{header, Method, StatusCode};
+use axum::extract::{Query, State};
+use axum::http::{header, HeaderValue, Method, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
@@ -11,9 +11,10 @@ use tower_http::cors;
 
 use radicle::prelude::Id;
 use radicle::profile::Profile;
-use radicle::storage::git::paths;
+use radicle::storage::{ReadRepository, ReadStorage};
 use radicle_surf::{Oid, Repository};
 
+use crate::api::RawQuery;
 use crate::axum_extra::Path;
 use crate::error::RawError as Error;
 
@@ -93,7 +94,8 @@ static MIMES: &[(&str, &str)] = &[
 
 pub fn router(profile: Arc<Profile>) -> Router {
     Router::new()
-        .route("/:project/:sha/*path", get(file_handler))
+        .route("/:project/:sha/*path", get(file_by_path_handler))
+        .route("/:project/blobs/:oid", get(file_by_oid_handler))
         .with_state(profile)
         .layer(
             cors::CorsLayer::new()
@@ -104,32 +106,53 @@ pub fn router(profile: Arc<Profile>) -> Router {
         )
 }
 
-async fn file_handler(
+async fn file_by_path_handler(
     Path((project, sha, path)): Path<(Id, Oid, String)>,
     State(profile): State<Arc<Profile>>,
 ) -> impl IntoResponse {
     let storage = &profile.storage;
-    let repo = Repository::open(paths::repository(storage, &project))?;
+    let repo = storage.repository(project)?;
     let mut response_headers = HeaderMap::new();
+    let repo: Repository = repo.backend.into();
+    let blob = repo.blob(sha, &path)?;
 
-    if repo.file(sha, &path)?.content(&repo)?.size() > MAX_BLOB_SIZE {
+    if blob.size() > MAX_BLOB_SIZE {
         return Ok::<_, Error>((StatusCode::PAYLOAD_TOO_LARGE, response_headers, vec![]));
     }
 
-    let blob = repo.blob(sha, &path)?;
-    let mime = {
-        if let Some(ext) = path.split('.').last() {
-            MIMES
-                .binary_search_by(|(k, _)| k.cmp(&ext))
-                .map(|k| MIMES[k].1)
-                .unwrap_or("text; charset=utf-8")
-        } else {
-            "application/octet-stream"
-        }
+    let mime = if let Some(ext) = path.split('.').last() {
+        MIMES
+            .binary_search_by(|(k, _)| k.cmp(&ext))
+            .map(|k| MIMES[k].1)
+            .unwrap_or("text; charset=utf-8")
+    } else {
+        "application/octet-stream"
     };
-    response_headers.insert(header::CONTENT_TYPE, mime.parse().unwrap());
+    response_headers.insert(header::CONTENT_TYPE, HeaderValue::from_str(mime)?);
 
     Ok::<_, Error>((StatusCode::OK, response_headers, blob.content().to_owned()))
+}
+
+async fn file_by_oid_handler(
+    Path((project, oid)): Path<(Id, Oid)>,
+    State(profile): State<Arc<Profile>>,
+    Query(qs): Query<RawQuery>,
+) -> impl IntoResponse {
+    let storage = &profile.storage;
+    let repo = storage.repository(project)?;
+    let blob = repo.blob(oid)?;
+    let mut response_headers = HeaderMap::new();
+
+    if blob.size() > MAX_BLOB_SIZE {
+        return Ok::<_, Error>((StatusCode::PAYLOAD_TOO_LARGE, response_headers, vec![]));
+    }
+
+    response_headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str(&qs.mime.unwrap_or("application/octet-stream".to_string()))?,
+    );
+
+    Ok::<_, Error>((StatusCode::OK, response_headers, blob.content().to_vec()))
 }
 
 #[cfg(test)]

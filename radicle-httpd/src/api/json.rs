@@ -12,7 +12,7 @@ use radicle::cob::patch::Review;
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::cob::thread;
 use radicle::cob::thread::CommentId;
-use radicle::cob::{ActorId, Author, Reaction, Timestamp};
+use radicle::cob::{ActorId, Author, Embed, Reaction, Timestamp, Uri};
 use radicle::git::RefString;
 use radicle::node::{Alias, AliasStore};
 use radicle::prelude::NodeId;
@@ -241,6 +241,7 @@ struct Comment<'a> {
     id: CommentId,
     author: Value,
     body: &'a str,
+    embeds: Vec<Embed<Uri>>,
     reactions: Vec<(&'a ActorId, &'a Reaction)>,
     #[serde(with = "radicle::serde_ext::localtime::time")]
     timestamp: Timestamp,
@@ -254,6 +255,7 @@ impl<'a> Comment<'a> {
             id: *id,
             author: author(&comment_author, aliases.alias(comment_author.id())),
             body: comment.body(),
+            embeds: comment.embeds().to_vec(),
             reactions: comment.reactions().collect::<Vec<_>>(),
             timestamp: comment.timestamp(),
             reply_to: comment.reply_to(),

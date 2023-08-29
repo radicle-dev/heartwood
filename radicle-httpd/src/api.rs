@@ -129,6 +129,12 @@ pub struct PaginationQuery {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct RawQuery {
+    pub mime: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct CobsQuery<T> {
     pub page: Option<usize>,
     pub per_page: Option<usize>,

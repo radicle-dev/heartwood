@@ -65,6 +65,18 @@ pub enum RawError {
     #[error(transparent)]
     Surf(#[from] radicle_surf::Error),
 
+    /// Git error.
+    #[error(transparent)]
+    Git(#[from] radicle::git::ext::Error),
+
+    /// Radicle Storage error.
+    #[error(transparent)]
+    Storage(#[from] radicle::storage::Error),
+
+    /// Http Headers error.
+    #[error(transparent)]
+    Headers(#[from] http::header::InvalidHeaderValue),
+
     /// Surf file error.
     #[error(transparent)]
     SurfFile(#[from] radicle_surf::fs::error::File),
