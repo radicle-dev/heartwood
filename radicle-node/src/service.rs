@@ -722,21 +722,6 @@ where
         }
     }
 
-    /// Called when a remote requests a repository be uploaded to it.
-    /// The upload is authorized if this function returns `true`.
-    pub fn upload(&mut self, rid: Id, remote: &NodeId) -> bool {
-        let Ok(repo) = self.storage.repository(rid) else {
-            return false;
-        };
-        let Ok((_, doc)) = repo.identity_doc() else {
-            return false;
-        };
-        if !doc.is_visible_to(remote) {
-            return false;
-        }
-        true
-    }
-
     /// Inbound connection attempt.
     pub fn accepted(&mut self, addr: Address) -> bool {
         // Always accept trusted connections.

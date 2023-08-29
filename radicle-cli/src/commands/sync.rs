@@ -6,7 +6,8 @@ use anyhow::{anyhow, Context as _};
 
 use radicle::node;
 use radicle::node::{FetchResult, FetchResults, Handle as _, Node};
-use radicle::prelude::{Id, NodeId};
+use radicle::prelude::{Id, NodeId, Profile};
+use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -192,13 +193,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         let failed = results.failed().count();
 
         if success == 0 {
-            term::error(format!("Failed to fetch repository from {failed} seed(s)"));
+            anyhow::bail!("repository fetch from {failed} seed(s) failed");
         } else {
             term::success!("Fetched repository from {success} seed(s)");
         }
     }
     if [SyncDirection::Announce, SyncDirection::Both].contains(&options.sync.direction) {
-        announce(rid, mode, options.timeout, node)?;
+        announce(rid, mode, options.timeout, node, &profile)?;
     }
     Ok(())
 }
@@ -208,9 +209,21 @@ fn announce(
     _mode: SyncMode,
     timeout: time::Duration,
     mut node: Node,
+    profile: &Profile,
 ) -> anyhow::Result<()> {
-    let seeds = node.seeds(rid)?;
-    let connected = seeds.connected().map(|s| s.nid).collect::<Vec<_>>();
+    let repo = profile.storage.repository(rid)?;
+    let (_, doc) = repo.identity_doc()?;
+    let connected: Vec<_> = if doc.visibility.is_public() {
+        let seeds = node.seeds(rid)?;
+        seeds.connected().map(|s| s.nid).collect()
+    } else {
+        node.sessions()?
+            .into_iter()
+            .filter(|s| s.state.is_connected() && doc.is_visible_to(&s.nid))
+            .map(|s| s.nid)
+            .collect()
+    };
+
     if connected.is_empty() {
         term::info!("Not connected to any seeds.");
         return Ok(());
