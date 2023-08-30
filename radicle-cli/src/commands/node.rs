@@ -27,7 +27,7 @@ pub const HELP: Help = Help {
 Usage
 
     rad node status [<option>...]
-    rad node start [--foreground] [<option>...] [-- <node-option>...]
+    rad node start [--foreground] [--verbose] [<option>...] [-- <node-option>...]
     rad node stop [<option>...]
     rad node logs [-n <lines>]
     rad node connect <nid>@<addr> [<option>...]
@@ -40,6 +40,7 @@ Usage
 Start options
 
     --foreground         Start the node in the foreground
+    --verbose, -v        Verbose output
 
 Routing options
 
@@ -83,6 +84,7 @@ pub enum Operation {
     },
     Start {
         foreground: bool,
+        verbose: bool,
         options: Vec<OsString>,
     },
     Logs {
@@ -133,6 +135,7 @@ impl Args for Options {
         let mut lines: usize = 10;
         let mut count: usize = usize::MAX;
         let mut timeout = time::Duration::MAX;
+        let mut verbose = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -183,6 +186,9 @@ impl Args for Options {
                 Long("foreground") if matches!(op, Some(OperationName::Start)) => {
                     foreground = true;
                 }
+                Long("verbose") | Short('v') if matches!(op, Some(OperationName::Start)) => {
+                    verbose = true;
+                }
                 Short('n') if matches!(op, Some(OperationName::Logs)) => {
                     lines = parser.value()?.parse()?;
                 }
@@ -205,6 +211,7 @@ impl Args for Options {
             OperationName::Logs => Operation::Logs { lines },
             OperationName::Start => Operation::Start {
                 foreground,
+                verbose,
                 options,
             },
             OperationName::Status => Operation::Status,
@@ -244,8 +251,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Start {
             foreground,
             options,
+            verbose,
         } => {
-            control::start(node, !foreground, options, &profile)?;
+            control::start(node, !foreground, verbose, options, &profile)?;
         }
         Operation::Status => {
             control::status(&node, &profile)?;

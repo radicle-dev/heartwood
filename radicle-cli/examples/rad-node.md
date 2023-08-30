@@ -73,7 +73,7 @@ issue the `rad node stop` command:
 
 ```
 $ rad node stop
-✓ Stopping node...
+✓ Node stopped
 ```
 
 Running the command again gives us an error:

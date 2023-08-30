@@ -14,9 +14,13 @@ use radicle::{profile, Profile};
 use crate::terminal as term;
 use crate::terminal::Element as _;
 
+/// How long to wait for the node to start before returning an error.
+pub const NODE_START_TIMEOUT: time::Duration = time::Duration::from_secs(6);
+
 pub fn start(
     node: Node,
     daemon: bool,
+    verbose: bool,
     mut options: Vec<OsString>,
     profile: &Profile,
 ) -> anyhow::Result<()> {
@@ -54,7 +58,30 @@ pub fn start(
             .stderr(process::Stdio::null())
             .spawn()?;
 
-        logs(0, Some(time::Duration::from_secs(1)), profile)?;
+        if verbose {
+            logs(0, Some(time::Duration::from_secs(1)), profile)?;
+        } else {
+            let started = time::Instant::now();
+            loop {
+                if node.is_running() {
+                    term::success!("Node started");
+                    term::print(term::format::dim(
+                        "To stay in sync with the network, leave the node running in the background.",
+                    ));
+                    term::info!(
+                        "{} {}{}",
+                        term::format::dim("To learn more, run"),
+                        term::format::command("rad node --help"),
+                        term::format::dim("."),
+                    );
+
+                    break;
+                } else if started.elapsed() >= NODE_START_TIMEOUT {
+                    anyhow::bail!("node failed to start. Try running in verbose mode with `rad node start --verbose`");
+                }
+                thread::sleep(time::Duration::from_millis(60));
+            }
+        }
     } else {
         let mut child = process::Command::new("radicle-node")
             .args(options)
@@ -68,10 +95,11 @@ pub fn start(
 }
 
 pub fn stop(node: Node) -> anyhow::Result<()> {
-    let spinner = term::spinner("Stopping node...");
+    let mut spinner = term::spinner("Stopping node...");
     if node.shutdown().is_err() {
         spinner.error("node is not running");
     } else {
+        spinner.message("Node stopped");
         spinner.finish();
     }
     Ok(())
