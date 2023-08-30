@@ -26,6 +26,7 @@ Options
 };
 
 pub struct Options {
+    #[allow(dead_code)]
     verbose: bool,
     public: bool,
     private: bool,
@@ -70,26 +71,30 @@ impl Args for Options {
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
-    let mut table = term::Table::default();
+    let mut table = term::Table::new(term::TableOptions::bordered());
+    let repos = storage.repositories()?;
 
-    for RepositoryInfo { rid, head, doc } in storage.repositories()? {
+    if repos.is_empty() {
+        return Ok(());
+    }
+    table.push([
+        "Name".into(),
+        "RID".into(),
+        "Head".into(),
+        "Description".into(),
+    ]);
+    table.divider();
+
+    for RepositoryInfo { rid, head, doc } in repos {
         if doc.visibility.is_public() && options.private && !options.public {
             continue;
         }
         if !doc.visibility.is_public() && !options.private && options.public {
             continue;
         }
-
-        let proj = match doc.verified()?.project() {
-            Ok(proj) => proj,
-            Err(err) => {
-                if options.verbose {
-                    term::warning(&format!("failed to get local project '{rid}': {err}"));
-                }
-                continue;
-            }
-        };
+        let proj = doc.verified()?.project()?;
         let head = term::format::oid(head).into();
+
         table.push([
             term::format::bold(proj.name().to_owned()),
             term::format::tertiary(rid.urn()),

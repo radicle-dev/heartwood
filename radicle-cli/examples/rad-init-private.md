@@ -46,5 +46,9 @@ $ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
 ✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi..
 ✓ Fetched repository from 1 seed(s)
 $ rad ls --private
-heartwood rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu f2de534 radicle heartwood protocol & stack
+╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Name        RID                                 Head      Description                        │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ heartwood   rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu   f2de534   radicle heartwood protocol & stack │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
