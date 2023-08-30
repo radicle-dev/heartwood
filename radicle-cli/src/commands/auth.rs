@@ -132,14 +132,24 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     }
 
     term::success!(
-        "Your Radicle DID is {}. This identifies your device.",
-        term::format::highlight(profile.did())
+        "Your Radicle DID is {}. This identifies your device. Run {} to show it at all times.",
+        term::format::highlight(profile.did()),
+        term::format::command("rad self")
     );
-
+    term::success!("You're all set.");
     term::blank();
     term::info!(
-        "To create a radicle project, run {} from a git repository.",
+        "To create a radicle project, run {} from a Git repository.",
         term::format::command("rad init")
+    );
+    term::info!(
+        "To clone a project, run {}. For example, {} clones the Radicle 'heartwood' project.",
+        term::format::command("rad clone <rid>"),
+        term::format::command("rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5")
+    );
+    term::info!(
+        "To get a list of all commands, run {}.",
+        term::format::command("rad help"),
     );
 
     Ok(())

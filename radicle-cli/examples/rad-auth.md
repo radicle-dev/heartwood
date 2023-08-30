@@ -7,9 +7,12 @@ $ rad auth --alias "alice"
 Initializing your radicle 👾 identity
 
 ✓ Creating your Ed25519 keypair...
-✓ Your Radicle DID is did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi. This identifies your device.
+✓ Your Radicle DID is did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi. This identifies your device. Run `rad self` to show it at all times.
+✓ You're all set.
 
-To create a radicle project, run `rad init` from a git repository.
+To create a radicle project, run `rad init` from a Git repository.
+To clone a project, run `rad clone <rid>`. For example, `rad clone rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5` clones the Radicle 'heartwood' project.
+To get a list of all commands, run `rad help`.
 ```
 
 You can get the above information at all times using the `self` command:
