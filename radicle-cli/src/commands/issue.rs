@@ -689,7 +689,7 @@ fn show_issue(issue: &issue::Issue, id: &cob::ObjectId) -> anyhow::Result<()> {
         .children(if !description.is_empty() {
             vec![
                 term::Label::blank().boxed(),
-                term::textarea(term::format::dim(description)).boxed(),
+                term::textarea(description).boxed(),
             ]
         } else {
             vec![]

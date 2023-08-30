@@ -128,10 +128,7 @@ pub fn run(
         .border(Some(term::colors::FAINT))
         .child(attrs)
         .children(if !description.is_empty() {
-            vec![
-                term::Label::blank().boxed(),
-                textarea(term::format::dim(description)).boxed(),
-            ]
+            vec![term::Label::blank().boxed(), textarea(description).boxed()]
         } else {
             vec![]
         })

@@ -9,11 +9,11 @@ pub fn wrap<D: std::fmt::Display>(msg: D) -> Paint<D> {
 }
 
 pub fn negative<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::red(msg).bold()
+    Paint::red(msg)
 }
 
 pub fn positive<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::green(msg).bold()
+    Paint::green(msg)
 }
 
 pub fn primary<D: std::fmt::Display>(msg: D) -> Paint<D> {
@@ -21,15 +21,11 @@ pub fn primary<D: std::fmt::Display>(msg: D) -> Paint<D> {
 }
 
 pub fn secondary<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::blue(msg).bold()
+    Paint::blue(msg)
 }
 
 pub fn tertiary<D: std::fmt::Display>(msg: D) -> Paint<D> {
     Paint::cyan(msg)
-}
-
-pub fn tertiary_bold<D: std::fmt::Display>(msg: D) -> Paint<D> {
-    Paint::cyan(msg).bold()
 }
 
 pub fn yellow<D: std::fmt::Display>(msg: D) -> Paint<D> {
