@@ -24,6 +24,12 @@ $ rad clone rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK
 ✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
 ✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
 ✓ Repository successfully cloned under [..]/heartwood/
+╭────────────────────────────────────╮
+│ heartwood                          │
+│ radicle heartwood protocol & stack │
+│ 0 issues · 0 patches               │
+╰────────────────────────────────────╯
+Run `cd ./heartwood` to go to the project directory.
 ```
 
 We wait for Alice to sync our fork.

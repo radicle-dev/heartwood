@@ -7,6 +7,7 @@ use std::time;
 use anyhow::anyhow;
 use thiserror::Error;
 
+use radicle::cob;
 use radicle::git::raw;
 use radicle::identity::doc::{DocError, Id};
 use radicle::identity::{doc, IdentityError};
@@ -23,6 +24,7 @@ use crate::commands::rad_sync as sync;
 use crate::project;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::Element as _;
 
 pub const HELP: Help = Help {
     name: "clone",
@@ -113,7 +115,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         );
     }
 
-    let (working, doc, proj) = clone(
+    let (working, repo, doc, proj) = clone(
         options.id,
         options.announce,
         options.scope,
@@ -145,7 +147,28 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     term::success!(
         "Repository successfully cloned under {}",
-        term::format::highlight(Path::new(".").join(path).display())
+        term::format::dim(Path::new(".").join(path).display())
+    );
+
+    let mut info: term::Table<1, term::Line> = term::Table::new(term::TableOptions::bordered());
+    info.push([term::format::bold(proj.name()).into()]);
+    info.push([term::format::italic(proj.description()).into()]);
+
+    let issues = cob::issue::Issues::open(&repo)?.counts()?;
+    let patches = cob::patch::Patches::open(&repo)?.counts()?;
+
+    info.push([term::Line::spaced([
+        term::format::tertiary(issues.open).into(),
+        term::format::default("issues").into(),
+        term::format::dim("·").into(),
+        term::format::tertiary(patches.open).into(),
+        term::format::default("patches").into(),
+    ])]);
+    info.print();
+
+    term::info!(
+        "Run {} to go to the project directory.",
+        term::format::command(format!("cd ./{}", proj.name())),
     );
 
     Ok(())
@@ -180,7 +203,15 @@ pub fn clone<G: Signer>(
     node: &mut Node,
     signer: &G,
     storage: &Storage,
-) -> Result<(raw::Repository, Doc<Verified>, Project), CloneError> {
+) -> Result<
+    (
+        raw::Repository,
+        storage::git::Repository,
+        Doc<Verified>,
+        Project,
+    ),
+    CloneError,
+> {
     let me = *signer.public_key();
 
     // Track.
@@ -244,9 +275,9 @@ pub fn clone<G: Signer>(
         "Creating checkout in ./{}..",
         term::format::tertiary(path.display())
     ));
-    let repo = rad::checkout(id, &me, path, &storage)?;
+    let working = rad::checkout(id, &me, path, &storage)?;
 
     spinner.finish();
 
-    Ok((repo, doc, proj))
+    Ok((working, repository, doc, proj))
 }

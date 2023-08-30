@@ -22,7 +22,7 @@ pub use inquire::ui::Styled;
 pub use io::*;
 pub use label::{label, Label};
 pub use spinner::{spinner, spinner_to, Spinner};
-pub use table::Table;
+pub use table::{Table, TableOptions};
 pub use textarea::{textarea, TextArea};
 pub use vstack::{VStack, VStackOptions};
 

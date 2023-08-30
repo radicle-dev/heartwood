@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use super::{Element, Line, Paint};
 
+use unicode_segmentation::UnicodeSegmentation as _;
 use unicode_width::UnicodeWidthStr;
 
 /// Text that can be displayed on the terminal, measured, truncated and padded.
@@ -26,7 +27,7 @@ impl Cell for Paint<String> {
     type Padded = Self;
 
     fn width(&self) -> usize {
-        UnicodeWidthStr::width(self.content())
+        Cell::width(self.content())
     }
 
     fn truncate(&self, width: usize, delim: &str) -> Self {
@@ -110,12 +111,10 @@ impl Cell for str {
     type Padded = String;
 
     fn width(&self) -> usize {
-        UnicodeWidthStr::width(self)
+        self.graphemes(true).map(UnicodeWidthStr::width).sum()
     }
 
     fn truncate(&self, width: usize, delim: &str) -> String {
-        use unicode_segmentation::UnicodeSegmentation as _;
-
         if width < Cell::width(self) {
             let d = Cell::width(delim);
             if width < d {

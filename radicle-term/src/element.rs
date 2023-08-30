@@ -237,4 +237,12 @@ mod test {
         actual = actual.truncate(0, "…");
         assert_eq!(actual.to_string(), "");
     }
+
+    #[test]
+    fn test_width() {
+        let line = Line::new("Radicle Heartwood Protocol & Stack ❤️ 🪵");
+        assert_eq!(line.width(), 39, "{line}");
+        let line = Line::new("❤\u{fe0f}");
+        assert_eq!(line.width(), 1, "{line}");
+    }
 }

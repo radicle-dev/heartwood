@@ -10,6 +10,12 @@ $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope trusted
 ✓ Remote alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi added
 ✓ Remote-tracking branch alice@z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/master created for z6MknSL…StBU8Vi
 ✓ Repository successfully cloned under [..]/heartwood/
+╭────────────────────────────────────╮
+│ heartwood                          │
+│ Radicle Heartwood Protocol & Stack │
+│ 0 issues · 0 patches               │
+╰────────────────────────────────────╯
+Run `cd ./heartwood` to go to the project directory.
 ```
 
 We can now have a look at the new working copy that was created from the cloned
