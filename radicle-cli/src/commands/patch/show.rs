@@ -74,6 +74,8 @@ pub fn run(
         *revision.head(),
         *patch.target().head(stored)?,
     )?;
+    let author = patch.author();
+    let author = term::format::Author::new(author.id(), profile);
 
     let mut attrs = Table::<2, term::Line>::new(TableOptions {
         spacing: 2,
@@ -89,7 +91,7 @@ pub fn run(
     ]);
     attrs.push([
         term::format::tertiary("Author".to_owned()).into(),
-        term::format::default(patch.author().id().to_string()).into(),
+        author.line(),
     ]);
     attrs.push([
         term::format::tertiary("Head".to_owned()).into(),

@@ -37,7 +37,7 @@ $ rad patch show 69e881c
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title    Define power requirements                                           │
 │ Patch    69e881c606639691330051d7d8f013854f32fb87                            │
-│ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk            │
+│ Author   bob z6Mkt67…v4N1tRk                                                 │
 │ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                            │
 │ Commits  ahead 2, behind 0                                                   │
 │ Status   open                                                                │
@@ -47,7 +47,7 @@ $ rad patch show 69e881c
 │ 27857ec Add README, just for the fun                                         │
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob (z6Mkt67…v4N1tRk) [   ...    ]                               │
+│ ● opened by bob z6Mkt67…v4N1tRk [   ...    ]                                 │
 │ ↑ updated to dcf3e6dd97c95cf8653cbb8ce47df20d28eb1821 (27857ec) [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -97,7 +97,7 @@ $ rad patch show 69e881c
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                          │
 │ Patch     69e881c606639691330051d7d8f013854f32fb87                           │
-│ Author    did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk           │
+│ Author    bob z6Mkt67…v4N1tRk                                                │
 │ Head      f567f695d25b4e8fb63b5f5ad2a584529826e908                           │
 │ Branches  master, patch/69e881c                                              │
 │ Commits   up to date                                                         │
@@ -109,7 +109,7 @@ $ rad patch show 69e881c
 │ 27857ec Add README, just for the fun                                         │
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob (z6Mkt67…v4N1tRk) [   ...    ]                               │
+│ ● opened by bob z6Mkt67…v4N1tRk [   ...    ]                                 │
 │ ↑ updated to dcf3e6dd97c95cf8653cbb8ce47df20d28eb1821 (27857ec) [   ...    ] │
 │ ↑ updated to ab05fcdca93cf4d5b22da8913e2fe0b6d8c79338 (f567f69) [   ...    ] │
 │ ✓ merged by alice (you) [   ...    ]                                         │

@@ -1,6 +1,5 @@
 use radicle::cob::patch;
 use radicle::cob::patch::{Patch, PatchId, Patches, Verdict};
-use radicle::node::AliasStore;
 use radicle::prelude::*;
 use radicle::profile::Profile;
 use radicle::storage::git::Repository;
@@ -48,7 +47,7 @@ pub fn run(
         term::format::bold(String::from("ID")).into(),
         term::format::bold(String::from("Title")).into(),
         term::format::bold(String::from("Author")).into(),
-        term::format::bold(String::new()).into(),
+        term::Line::blank(),
         term::format::bold(String::from("Head")).into(),
         term::format::bold(String::from("+")).into(),
         term::format::bold(String::from("-")).into(),
@@ -65,13 +64,9 @@ pub fn run(
         is_me.then(by_rev_time).then(by_id)
     });
 
-    let aliases = profile.aliases();
-
     let mut errors = Vec::new();
     for (id, patch) in &mut all {
-        let author_id = patch.author().id();
-        let alias = aliases.alias(author_id);
-        match row(profile, alias, id, patch, repository) {
+        match row(id, patch, repository, profile) {
             Ok(r) => table.push(r),
             Err(e) => errors.push((patch.title(), id, e.to_string())),
         }
@@ -92,18 +87,17 @@ pub fn run(
 
 /// Patch row.
 pub fn row(
-    profile: &Profile,
-    alias: Option<Alias>,
     id: &PatchId,
     patch: &Patch,
     repository: &Repository,
+    profile: &Profile,
 ) -> anyhow::Result<[term::Line; 9]> {
     let state = patch.state();
     let (_, revision) = patch.latest();
     let (from, to) = patch.range(repository)?;
     let stats = common::diff_stats(repository.raw(), &from, &to)?;
     let author = patch.author().id;
-    let display = Author::new(&author, alias, profile);
+    let (alias, did) = Author::new(&author, profile).labels();
 
     Ok([
         match state {
@@ -114,8 +108,8 @@ pub fn row(
         },
         term::format::tertiary(term::format::cob(id)).into(),
         term::format::default(patch.title().to_owned()).into(),
-        term::format::did(&author).dim().into(),
-        display.alias(),
+        alias.into(),
+        did.into(),
         term::format::secondary(term::format::oid(revision.head())).into(),
         term::format::positive(format!("+{}", stats.insertions())).into(),
         term::format::negative(format!("-{}", stats.deletions())).into(),
@@ -132,14 +126,12 @@ pub fn timeline(
     patch: &Patch,
     repository: &Repository,
 ) -> anyhow::Result<Vec<term::Line>> {
-    let aliases = profile.aliases();
-    let alias = aliases.alias(patch.author().id());
     let open = term::Line::spaced([
         term::format::positive("●").into(),
         term::format::default("opened by").into(),
     ])
     .space()
-    .extend(Author::new(patch.author().id(), alias, profile));
+    .extend(Author::new(patch.author().id(), profile).line());
 
     let mut timeline = vec![(patch.timestamp(), open)];
 
@@ -165,14 +157,13 @@ pub fn timeline(
 
         for (nid, merge) in patch.merges().filter(|(_, m)| m.revision == *revision_id) {
             let peer = repository.remote(nid)?;
-            let alias = aliases.alias(&peer.id);
             let line = term::Line::spaced([
                 term::format::primary("✓").bold().into(),
                 term::format::default("merged").into(),
                 term::format::default("by").into(),
             ])
             .space()
-            .extend(Author::new(&peer.id, alias, profile));
+            .extend(Author::new(&peer.id, profile).line());
 
             timeline.push((merge.timestamp, line));
         }
@@ -189,14 +180,13 @@ pub fn timeline(
                 None => term::format::default("reviewed"),
             };
             let peer = repository.remote(reviewer)?;
-            let alias = aliases.alias(&peer.id);
             let line = term::Line::spaced([
                 verdict_symbol.into(),
                 verdict_verb.into(),
                 term::format::default("by").into(),
             ])
             .space()
-            .extend(Author::new(&peer.id, alias, profile));
+            .extend(Author::new(&peer.id, profile).line());
 
             timeline.push((review.timestamp(), line));
         }

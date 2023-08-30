@@ -66,12 +66,12 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 ```
 ```
 $ rad patch --merged
-╭────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title          Author                        Head     +   -   Updated      │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ ✔  143bb0c  First change   z6MknSL…StBU8Vi  alice (you)  20aa5dd  +0  -0  [   ...    ] │
-│ ✔  5d0e608  Second change  z6MknSL…StBU8Vi  alice (you)  daf349f  +0  -0  [   ...    ] │
-╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title          Author         Head     +   -   Updated      │
+├─────────────────────────────────────────────────────────────────────────┤
+│ ✔  143bb0c  First change   alice   (you)  20aa5dd  +0  -0  [    ...   ] │
+│ ✔  5d0e608  Second change  alice   (you)  daf349f  +0  -0  [    ...   ] │
+╰─────────────────────────────────────────────────────────────────────────╯
 ```
 
 We can verify that the remote tracking branches were also deleted:

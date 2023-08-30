@@ -8,6 +8,7 @@ $ rad issue open --title "flux capacitor underpowered" --description "Flux capac
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   42028af21fabc09bfac2f25490f119f7c7e11542        │
+│ Author  z6MknSL…StBU8Vi (you)                           │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
@@ -32,6 +33,7 @@ $ rad issue show 42028af
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   42028af21fabc09bfac2f25490f119f7c7e11542        │
+│ Author  z6MknSL…StBU8Vi (you)                           │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │

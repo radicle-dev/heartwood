@@ -13,19 +13,19 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 
 ```
 $ rad patch show ea6fa6c274c55d0f4fdf203a192cbf1330b51221
-╭────────────────────────────────────────────────────────────────────╮
-│ Title     Not a real change                                        │
-│ Patch     ea6fa6c274c55d0f4fdf203a192cbf1330b51221                 │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
-│ Head      51b2f0f77b9849bfaa3e9d3ff68ee2f57771d20c                 │
-│ Branches  feature/1                                                │
-│ Commits   ahead 1, behind 0                                        │
-│ Status    open                                                     │
-├────────────────────────────────────────────────────────────────────┤
-│ 51b2f0f Not a real change                                          │
-├────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) [           ...              ]                   │
-╰────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Not a real change                        │
+│ Patch     ea6fa6c274c55d0f4fdf203a192cbf1330b51221 │
+│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Head      51b2f0f77b9849bfaa3e9d3ff68ee2f57771d20c │
+│ Branches  feature/1                                │
+│ Commits   ahead 1, behind 0                        │
+│ Status    open                                     │
+├────────────────────────────────────────────────────┤
+│ 51b2f0f Not a real change                          │
+├────────────────────────────────────────────────────┤
+│ ● opened by z6MknSL…StBU8Vi (you) [      ...     ] │
+╰────────────────────────────────────────────────────╯
 ```
 
 We can make some changes to the repository:
@@ -57,7 +57,7 @@ $ rad patch show ea6fa6c274c55d0f4fdf203a192cbf1330b51221
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Not a real change                                                  │
 │ Patch     ea6fa6c274c55d0f4fdf203a192cbf1330b51221                           │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
+│ Author    z6MknSL…StBU8Vi (you)                                              │
 │ Head      4d272148458a17620541555b1f0905c01658aa9f                           │
 │ Branches  feature/1                                                          │
 │ Commits   ahead 2, behind 0                                                  │
@@ -66,7 +66,7 @@ $ rad patch show ea6fa6c274c55d0f4fdf203a192cbf1330b51221
 │ 4d27214 Rename readme file                                                   │
 │ 51b2f0f Not a real change                                                    │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) [                                ...   ]                   │
+│ ● opened by z6MknSL…StBU8Vi (you) [     ...     ]                            │
 │ ↑ updated to 59bbb5c5d3c9f18a686113e6354b1372eebafda4 (4d27214) [    ...   ] │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```

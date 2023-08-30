@@ -12,12 +12,12 @@ use radicle_term::element::Line;
 use crate::terminal as term;
 
 /// Format a node id to be more compact.
-pub fn node(node: &NodeId) -> String {
+pub fn node(node: &NodeId) -> Paint<String> {
     let node = node.to_human();
     let start = node.chars().take(7).collect::<String>();
     let end = node.chars().skip(node.len() - 7).collect::<String>();
 
-    format!("{start}…{end}")
+    Paint::new(format!("{start}…{end}"))
 }
 
 /// Format a git Oid.
@@ -120,7 +120,7 @@ impl<'a> fmt::Display for Identity<'a> {
         let nid = self.profile.id();
         let alias = self.profile.aliases().alias(nid);
         let node_id = match self.short {
-            true => self::node(nid),
+            true => self::node(nid).to_string(),
             false => nid.to_human(),
         };
 
@@ -140,88 +140,45 @@ impl<'a> fmt::Display for Identity<'a> {
 }
 
 /// This enum renders (nid, alias) in terminal depending on user variant.
-pub enum Author<'a> {
-    Author {
-        nid: &'a NodeId,
-        alias: Option<Alias>,
-    },
-    Me {
-        alias: Option<Alias>,
-    },
+pub struct Author<'a> {
+    nid: &'a NodeId,
+    alias: Option<Alias>,
+    you: bool,
 }
 
 impl<'a> Author<'a> {
-    pub fn new(nid: &'a NodeId, alias: Option<Alias>, me: &Profile) -> Author<'a> {
-        if nid == me.id() {
-            Self::Me { alias }
+    pub fn new(nid: &'a NodeId, profile: &Profile) -> Author<'a> {
+        let alias = profile.aliases().alias(nid);
+
+        Self {
+            nid,
+            alias,
+            you: nid == profile.id(),
+        }
+    }
+
+    pub fn labels(self) -> (term::Label, term::Label) {
+        let alias = match &self.alias {
+            Some(alias) => term::format::primary(alias).into(),
+            None => term::format::primary(term::format::node(self.nid))
+                .dim()
+                .into(),
+        };
+        if self.you {
+            (alias, term::format::primary("(you)").dim().italic().into())
         } else {
-            Self::Author { nid, alias }
+            (
+                alias,
+                term::format::primary(term::format::node(self.nid))
+                    .dim()
+                    .into(),
+            )
         }
     }
 
-    /// Author: `<alias>` || ``
-    /// Me    : `<alias> (you)` || `(you)`
-    pub fn alias(&self) -> Line {
-        match self {
-            Self::Me { alias } => {
-                if let Some(alias) = alias {
-                    term::Line::spaced([
-                        term::format::primary(alias).into(),
-                        term::format::primary("(you)").dim().into(),
-                    ])
-                } else {
-                    term::format::primary("(you)").into()
-                }
-            }
-
-            Self::Author { alias, .. } => {
-                if let Some(alias) = alias {
-                    term::format::primary(alias).into()
-                } else {
-                    term::format::default(String::new()).into()
-                }
-            }
-        }
-    }
-}
-
-impl<'a> IntoIterator for Author<'a> {
-    type Item = term::Label;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    /// Author : `<alias> (<compact-nid>)` || `<nid>`
-    /// Me     : `<alias> (you)` || `(you)`
-    fn into_iter(self) -> Self::IntoIter {
-        let mut line = Vec::new();
-
-        match self {
-            Self::Me { alias } => {
-                if let Some(alias) = alias {
-                    line.push(term::format::primary(alias).into());
-                    line.push(term::Label::space());
-                    line.push(term::format::primary("(you)").dim().into());
-                } else {
-                    line.push(term::format::primary("(you)").into());
-                }
-            }
-
-            Self::Author { nid, alias } => {
-                if let Some(alias) = alias {
-                    line.push(term::format::primary(alias).into());
-                    line.push(term::Label::space());
-                    line.push(
-                        term::format::tertiary(term::format::parens(
-                            term::format::node(nid).into(),
-                        ))
-                        .into(),
-                    );
-                } else {
-                    line.push(term::format::tertiary(nid).into());
-                }
-            }
-        }
-
-        line.into_iter()
+    pub fn line(self) -> Line {
+        let (first, second) = self.labels();
+        Line::spaced([first, second])
     }
 }
 

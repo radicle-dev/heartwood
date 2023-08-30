@@ -88,7 +88,7 @@ $ rad patch show 26e3e56
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title    Bob's patch                                                         │
 │ Patch    26e3e563ddc7df8dd0c9f81274c0b3cb1b764568                            │
-│ Author   did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk            │
+│ Author   bob z6Mkt67…v4N1tRk                                                 │
 │ Head     cad2666a8a2250e4dee175ed5044be2c251ff08b                            │
 │ Commits  ahead 2, behind 0                                                   │
 │ Status   open                                                                │
@@ -96,7 +96,7 @@ $ rad patch show 26e3e56
 │ cad2666 Bob's commit #2                                                      │
 │ bdcdb30 Bob's commit #1                                                      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob (z6Mkt67…v4N1tRk) [   ...    ]                               │
+│ ● opened by bob z6Mkt67…v4N1tRk [   ...    ]                                 │
 │ ↑ updated to c04ef81bad734c65a7d5834cefcdd60c4f0484f7 (cad2666) [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 $ git ls-remote rad

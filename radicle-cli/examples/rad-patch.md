@@ -43,21 +43,21 @@ $ rad patch
 ```
 ```
 $ rad patch show 73b73f376e93e09e0419664766ac9e433bf7d389 -p
-╭────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                │
-│ Patch     73b73f376e93e09e0419664766ac9e433bf7d389                 │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
-│ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33                 │
-│ Branches  flux-capacitor-power                                     │
-│ Commits   ahead 1, behind 0                                        │
-│ Status    open                                                     │
-│                                                                    │
-│ See details.                                                       │
-├────────────────────────────────────────────────────────────────────┤
-│ 3e674d1 Define power requirements                                  │
-├────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) [    ...    ]                                    │
-╰────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Define power requirements                │
+│ Patch     73b73f376e93e09e0419664766ac9e433bf7d389 │
+│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Head      3e674d1a1df90807e934f9ae5da2591dd6848a33 │
+│ Branches  flux-capacitor-power                     │
+│ Commits   ahead 1, behind 0                        │
+│ Status    open                                     │
+│                                                    │
+│ See details.                                       │
+├────────────────────────────────────────────────────┤
+│ 3e674d1 Define power requirements                  │
+├────────────────────────────────────────────────────┤
+│ ● opened by z6MknSL…StBU8Vi (you) [    ...    ]    │
+╰────────────────────────────────────────────────────╯
 
 commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
 Author: radicle <radicle@localhost>
@@ -126,7 +126,7 @@ $ rad patch show 73b73f3
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                          │
 │ Patch     73b73f376e93e09e0419664766ac9e433bf7d389                           │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
+│ Author    z6MknSL…StBU8Vi (you)                                              │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                           │
 │ Branches  flux-capacitor-power, patch/73b73f3                                │
 │ Commits   ahead 2, behind 0                                                  │
@@ -137,9 +137,9 @@ $ rad patch show 73b73f3
 │ 27857ec Add README, just for the fun                                         │
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) [   ...    ]                                               │
+│ ● opened by z6MknSL…StBU8Vi (you) [   ...    ]                               │
 │ ↑ updated to 5605784ae81dad91ba47ea55e19dd16f6280d44b (27857ec) [   ...    ] │
-│ ✓ accepted by (you) [   ...    ]                                             │
+│ ✓ accepted by z6MknSL…StBU8Vi (you) [   ...    ]                             │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -151,7 +151,7 @@ $ rad patch show 73b73f3
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                                          │
 │ Patch     73b73f376e93e09e0419664766ac9e433bf7d389                           │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
+│ Author    z6MknSL…StBU8Vi (you)                                              │
 │ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                           │
 │ Branches  flux-capacitor-power, patch/73b73f3                                │
 │ Commits   ahead 2, behind 0                                                  │
@@ -162,8 +162,8 @@ $ rad patch show 73b73f3
 │ 27857ec Add README, just for the fun                                         │
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) [   ...    ]                                               │
+│ ● opened by z6MknSL…StBU8Vi (you) [   ...    ]                               │
 │ ↑ updated to 5605784ae81dad91ba47ea55e19dd16f6280d44b (27857ec) [   ...    ] │
-│ ✓ accepted by (you) [   ...    ]                                             │
+│ ✓ accepted by z6MknSL…StBU8Vi (you) [   ...    ]                             │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```

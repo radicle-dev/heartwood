@@ -10,14 +10,15 @@ use radicle::cob::issue;
 use radicle::cob::issue::{CloseReason, Issues, State};
 use radicle::cob::thread;
 use radicle::crypto::Signer;
-use radicle::node::{AliasStore, Handle};
+use radicle::node::Handle;
 use radicle::prelude::Did;
 use radicle::profile;
 use radicle::storage;
 use radicle::storage::{WriteRepository, WriteStorage};
+use radicle::Profile;
 use radicle::{cob, Node};
 use radicle_term::table::TableOptions;
-use radicle_term::{Paint, Table, VStack};
+use radicle_term::{Table, VStack};
 
 use crate::git::Rev;
 use crate::terminal as term;
@@ -288,7 +289,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             title,
             description,
         } => {
-            edit(&mut issues, &signer, &repo, id, title, description)?;
+            edit(
+                &mut issues,
+                &signer,
+                &repo,
+                id,
+                title,
+                description,
+                &profile,
+            )?;
         }
         Operation::Open {
             title: Some(title),
@@ -297,7 +306,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let issue = issues.create(title, description, labels.as_slice(), &[], [], &signer)?;
             if !options.quiet {
-                show_issue(&issue, issue.id())?;
+                show_issue(&issue, issue.id(), &profile)?;
             }
         }
         Operation::Show { id } => {
@@ -305,7 +314,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let issue = issues
                 .get(&id)?
                 .context("No issue with the given ID exists")?;
-            show_issue(&issue, &id)?;
+            show_issue(&issue, &id, &profile)?;
         }
         Operation::State { id, state } => {
             let id = id.resolve(&repo.backend)?;
@@ -338,6 +347,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 &options,
                 &mut issues,
                 &signer,
+                &profile,
             )?;
         }
         Operation::List { assigned, state } => {
@@ -412,24 +422,20 @@ fn list<R: WriteRepository + cob::Store>(
         term::format::bold(String::from("ID")).into(),
         term::format::bold(String::from("Title")).into(),
         term::format::bold(String::from("Author")).into(),
-        term::format::bold(String::new()).into(),
+        term::Line::blank(),
         term::format::bold(String::from("Labels")).into(),
         term::format::bold(String::from("Assignees")).into(),
         term::format::bold(String::from("Opened")).into(),
     ]);
     table.divider();
 
-    let aliases = profile.aliases();
-
     for (id, issue) in all {
         let assigned: String = issue
             .assigned()
-            .map(|p| {
-                if let Some(alias) = aliases.alias(p) {
-                    format!("{alias} ({})", term::format::did(p))
-                } else {
-                    term::format::did(p).to_string()
-                }
+            .map(|did| {
+                let (alias, _) = Author::new(did.as_key(), profile).labels();
+
+                alias.content().to_owned()
             })
             .collect::<Vec<_>>()
             .join(", ");
@@ -438,8 +444,7 @@ fn list<R: WriteRepository + cob::Store>(
         labels.sort();
 
         let author = issue.author().id;
-        let alias = aliases.alias(&author);
-        let display = Author::new(&author, alias, profile);
+        let (alias, did) = Author::new(&author, profile).labels();
 
         table.push([
             match issue.state() {
@@ -450,13 +455,13 @@ fn list<R: WriteRepository + cob::Store>(
                 .to_owned()
                 .into(),
             term::format::default(issue.title().to_owned()).into(),
-            term::format::did(&issue.author().id).dim().into(),
-            display.alias(),
+            alias.into(),
+            did.into(),
             term::format::secondary(labels.join(", ")).into(),
             if assigned.is_empty() {
                 term::format::dim(String::default()).into()
             } else {
-                term::format::default(assigned.to_string()).into()
+                term::format::primary(assigned.to_string()).dim().into()
             },
             term::format::timestamp(&issue.timestamp())
                 .dim()
@@ -554,6 +559,7 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
     options: &Options,
     issues: &mut Issues<R>,
     signer: &G,
+    profile: &Profile,
 ) -> anyhow::Result<()> {
     let Some((meta, description)) = prompt_issue(
         &title.unwrap_or_default(),
@@ -573,7 +579,7 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
         signer,
     )?;
     if !options.quiet {
-        show_issue(&issue, issue.id())?;
+        show_issue(&issue, issue.id(), profile)?;
     }
 
     Ok(())
@@ -586,6 +592,7 @@ fn edit<R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
     id: Rev,
     title: Option<String>,
     description: Option<String>,
+    profile: &Profile,
 ) -> anyhow::Result<()> {
     let id = id.resolve(&repo.backend)?;
     let mut issue = issues.get_mut(&id)?;
@@ -629,56 +636,65 @@ fn edit<R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
         Ok(())
     })?;
 
-    show_issue(&issue, &id)?;
+    show_issue(&issue, &id, profile)?;
 
     Ok(())
 }
 
-fn show_issue(issue: &issue::Issue, id: &cob::ObjectId) -> anyhow::Result<()> {
+fn show_issue(issue: &issue::Issue, id: &cob::ObjectId, profile: &Profile) -> anyhow::Result<()> {
     let labels: Vec<String> = issue.labels().cloned().map(|t| t.into()).collect();
     let assignees: Vec<String> = issue
         .assigned()
         .map(|a| term::format::did(a).to_string())
         .collect();
+    let author = issue.author();
+    let did = author.id();
+    let author = Author::new(did, profile);
 
-    let mut attrs = Table::<2, Paint<String>>::new(TableOptions {
+    let mut attrs = Table::<2, term::Line>::new(TableOptions {
         spacing: 2,
         ..TableOptions::default()
     });
 
     attrs.push([
-        term::format::tertiary("Title".to_owned()),
-        term::format::bold(issue.title().to_owned()),
+        term::format::tertiary("Title".to_owned()).into(),
+        term::format::bold(issue.title().to_owned()).into(),
     ]);
 
     attrs.push([
-        term::format::tertiary("Issue".to_owned()),
-        term::format::bold(id.to_string()),
+        term::format::tertiary("Issue".to_owned()).into(),
+        term::format::bold(id.to_string()).into(),
+    ]);
+
+    attrs.push([
+        term::format::tertiary("Author".to_owned()).into(),
+        author.line(),
     ]);
 
     if !labels.is_empty() {
         attrs.push([
-            term::format::tertiary("Labels".to_owned()),
-            term::format::secondary(labels.join(", ")),
+            term::format::tertiary("Labels".to_owned()).into(),
+            term::format::secondary(labels.join(", ")).into(),
         ]);
     }
 
     if !assignees.is_empty() {
         attrs.push([
-            term::format::tertiary("Assignees".to_owned()),
-            term::format::dim(assignees.join(", ")),
+            term::format::tertiary("Assignees".to_owned()).into(),
+            term::format::dim(assignees.join(", ")).into(),
         ]);
     }
 
     attrs.push([
-        term::format::tertiary("Status".to_owned()),
+        term::format::tertiary("Status".to_owned()).into(),
         match issue.state() {
-            issue::State::Open => term::format::positive("open".to_owned()),
+            issue::State::Open => term::format::positive("open".to_owned()).into(),
             issue::State::Closed { reason } => term::format::default(format!(
                 "{} {}",
                 term::format::negative("closed"),
                 term::format::default(format!("as {reason}"))
-            )),
+            ))
+            .into(),
         },
     ]);
 

@@ -17,21 +17,21 @@ We can see a patch was created:
 
 ```
 $ rad patch show 90c77f2
-╭────────────────────────────────────────────────────────────────────╮
-│ Title     Add things #1                                            │
-│ Patch     90c77f2c33b7e472e058de4a586156f8a7fec7d6                 │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
-│ Head      42d894a83c9c356552a57af09ccdbd5587a99045                 │
-│ Branches  feature/1                                                │
-│ Commits   ahead 1, behind 0                                        │
-│ Status    open                                                     │
-│                                                                    │
-│ See commits for details.                                           │
-├────────────────────────────────────────────────────────────────────┤
-│ 42d894a Add things                                                 │
-├────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) [   ...    ]                                     │
-╰────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────╮
+│ Title     Add things #1                            │
+│ Patch     90c77f2c33b7e472e058de4a586156f8a7fec7d6 │
+│ Author    z6MknSL…StBU8Vi (you)                    │
+│ Head      42d894a83c9c356552a57af09ccdbd5587a99045 │
+│ Branches  feature/1                                │
+│ Commits   ahead 1, behind 0                        │
+│ Status    open                                     │
+│                                                    │
+│ See commits for details.                           │
+├────────────────────────────────────────────────────┤
+│ 42d894a Add things                                 │
+├────────────────────────────────────────────────────┤
+│ ● opened by z6MknSL…StBU8Vi (you) [   ...    ]     │
+╰────────────────────────────────────────────────────╯
 ```
 
 If we check our local branch, we can see its upstream is set to track a remote
@@ -132,7 +132,7 @@ $ rad patch show fedf0e4
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Add more things                                                    │
 │ Patch     fedf0e4dcb74ff6db1d5e30a6a254b77f02ff60b                           │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
+│ Author    z6MknSL…StBU8Vi (you)                                              │
 │ Head      02bef3fac41b2f98bb3c02b868a53ddfecb55b5f                           │
 │ Branches  feature/2                                                          │
 │ Commits   ahead 2, behind 0                                                  │
@@ -141,7 +141,7 @@ $ rad patch show fedf0e4
 │ 02bef3f Improve code                                                         │
 │ 8b0ea80 Add more things                                                      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) [   ...    ]                                               │
+│ ● opened by z6MknSL…StBU8Vi (you) [   ...    ]                               │
 │ ↑ updated to d0018fcc21d87c91a1ff9155aed6b4e57535566b (02bef3f) [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -208,7 +208,7 @@ $ rad patch show fedf0e4
 ╭──────────────────────────────────────────────────────────────────────────────╮
 │ Title     Add more things                                                    │
 │ Patch     fedf0e4dcb74ff6db1d5e30a6a254b77f02ff60b                           │
-│ Author    did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi           │
+│ Author    z6MknSL…StBU8Vi (you)                                              │
 │ Head      9304dbc445925187994a7a93222a3f8bde73b785                           │
 │ Branches  feature/2                                                          │
 │ Commits   ahead 2, behind 0                                                  │
@@ -217,7 +217,7 @@ $ rad patch show fedf0e4
 │ 9304dbc Amended commit                                                       │
 │ 8b0ea80 Add more things                                                      │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by (you) [   ...    ]                                               │
+│ ● opened by z6MknSL…StBU8Vi (you) [   ...    ]                               │
 │ ↑ updated to d0018fcc21d87c91a1ff9155aed6b4e57535566b (02bef3f) [   ...    ] │
 │ ↑ updated to 31ecf28817c44d90686b5c3c624c1f4a534b6478 (9304dbc) [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────╯

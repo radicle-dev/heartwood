@@ -36,7 +36,7 @@ fn print_table(entries: impl IntoIterator<Item = (Id, NodeId)>) {
     for (rid, nid) in entries {
         t.push([
             term::format::highlight(rid.to_string()),
-            term::format::default(term::format::node(&nid)),
+            term::format::node(&nid),
         ]);
     }
     t.print();

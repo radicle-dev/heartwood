@@ -92,6 +92,11 @@ impl Line {
         }
     }
 
+    /// Create a blank line.
+    pub fn blank() -> Self {
+        Self { items: vec![] }
+    }
+
     pub fn spaced(items: impl IntoIterator<Item = Label>) -> Self {
         let mut line = Self::default();
         for item in items.into_iter() {

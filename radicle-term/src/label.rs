@@ -17,6 +17,11 @@ impl Label {
         Self(Paint::default())
     }
 
+    /// Get unstyled content.
+    pub fn content(&self) -> &str {
+        self.0.content()
+    }
+
     /// Create a single space label
     pub fn space() -> Self {
         Self(Paint::new(" ".to_owned()))

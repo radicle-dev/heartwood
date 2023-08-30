@@ -8,6 +8,7 @@ $ rad issue open --title "flux capacitor underpowered" --description "Flux capac
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   2f6eb49efac492327f71437b6bfc01b49afa0981        │
+│ Author  bob (you)                                       │
 │ Status  open                                            │
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
@@ -18,11 +19,11 @@ The issue is now listed under our project.
 
 ```
 $ rad issue list
-╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title                         Author                        Labels   Assignees   Opened       │
-├─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   2f6eb49   flux capacitor underpowered   z6Mkt67…v4N1tRk   bob (you)                        [    ..    ] │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title                         Author           Labels   Assignees   Opened       │
+├────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   2f6eb49   flux capacitor underpowered   bob      (you)                        [    ..    ] │
+╰────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Great! Now we've documented the issue for ourselves and others.
@@ -40,11 +41,11 @@ It will now show in the list of issues assigned to us.
 
 ```
 $ rad issue list --assigned
-╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title                         Author                        Labels   Assignees               Opened       │
-├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   2f6eb49   flux capacitor underpowered   z6Mkt67…v4N1tRk   bob (you)            bob (z6Mkt67…v4N1tRk)   [    ..    ] │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title                         Author           Labels   Assignees   Opened       │
+├────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   2f6eb49   flux capacitor underpowered   bob      (you)            bob         [    ..    ] │
+╰────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 In addition, you can see that when you run `rad issue show` you are listed under the `Assignees`.
@@ -54,6 +55,7 @@ $ rad issue show 2f6eb49
 ╭─────────────────────────────────────────────────────────╮
 │ Title      flux capacitor underpowered                  │
 │ Issue      2f6eb49efac492327f71437b6bfc01b49afa0981     │
+│ Author     bob (you)                                    │
 │ Assignees  z6Mkt67…v4N1tRk                              │
 │ Status     open                                         │
 │                                                         │

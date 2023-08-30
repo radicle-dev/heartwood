@@ -12,6 +12,7 @@ $ rad issue show 42028af21fabc09bfac2f25490f119f7c7e11542
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   42028af21fabc09bfac2f25490f119f7c7e11542        │
+│ Author  z6MknSL…StBU8Vi (you)                           │
 │ Labels  bug, good-first-issue                           │
 │ Status  open                                            │
 │                                                         │
@@ -32,6 +33,7 @@ $ rad issue show 42028af21fabc09bfac2f25490f119f7c7e11542
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   42028af21fabc09bfac2f25490f119f7c7e11542        │
+│ Author  z6MknSL…StBU8Vi (you)                           │
 │ Labels  bug                                             │
 │ Status  open                                            │
 │                                                         │
