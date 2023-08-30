@@ -182,6 +182,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
     };
     let mut node = radicle::Node::new(profile.socket());
+    if !node.is_running() {
+        anyhow::bail!(
+            "to sync a repository, your node must be running. To start it, run `rad node start`"
+        );
+    }
     let mode = options.sync.mode;
 
     if [SyncDirection::Fetch, SyncDirection::Both].contains(&options.sync.direction) {

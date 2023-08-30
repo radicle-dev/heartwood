@@ -3,6 +3,7 @@ use std::time;
 
 use anyhow::anyhow;
 
+use radicle::node;
 use radicle::node::tracking::{Alias, Scope};
 use radicle::node::{Handle, NodeId};
 use radicle::{prelude::*, Node};
@@ -118,10 +119,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.op {
         Operation::TrackNode { nid, alias } => {
-            track_node(nid, alias, &mut node)?;
+            if let Err(node::Error::Connect(_)) = track_node(nid, alias, &mut node) {
+                anyhow::bail!("to track another node, your node must be running. To start it, run `rad node start`");
+            }
         }
         Operation::TrackRepo { rid, scope } => {
-            track_repo(rid, scope, &mut node)?;
+            if let Err(node::Error::Connect(_)) = track_repo(rid, scope, &mut node) {
+                anyhow::bail!("to track a repository, your node must be running. To start it, run `rad node start`");
+            }
 
             if options.fetch {
                 sync::fetch(
@@ -136,7 +141,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn track_repo(rid: Id, scope: Scope, node: &mut Node) -> anyhow::Result<()> {
+pub fn track_repo(rid: Id, scope: Scope, node: &mut Node) -> Result<(), node::Error> {
     let tracked = node.track_repo(rid, scope)?;
     let outcome = if tracked { "updated" } else { "exists" };
 
@@ -148,7 +153,7 @@ pub fn track_repo(rid: Id, scope: Scope, node: &mut Node) -> anyhow::Result<()> 
     Ok(())
 }
 
-pub fn track_node(nid: NodeId, alias: Option<Alias>, node: &mut Node) -> anyhow::Result<()> {
+pub fn track_node(nid: NodeId, alias: Option<Alias>, node: &mut Node) -> Result<(), node::Error> {
     let tracked = node.track_node(nid, alias.clone())?;
     let outcome = if tracked { "updated" } else { "exists" };
 

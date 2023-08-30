@@ -588,6 +588,37 @@ fn rad_clone_connect() {
 }
 
 #[test]
+fn rad_sync_without_node() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let mut eve = environment.node(Config::test(Alias::new("eve")));
+
+    let rid = Id::from_urn("rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5").unwrap();
+    eve.tracking.track_repo(&rid, Scope::All).unwrap();
+
+    formula(&environment.tmp(), "examples/rad-sync-without-node.md")
+        .unwrap()
+        .home(
+            "alice",
+            alice.home.path(),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            bob.home.path(),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .home(
+            "eve",
+            eve.home.path(),
+            [("RAD_HOME", eve.home.path().display())],
+        )
+        .run()
+        .unwrap();
+}
+
+#[test]
 fn rad_self() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));

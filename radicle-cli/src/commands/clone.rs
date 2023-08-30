@@ -106,6 +106,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let signer = term::signer(&profile)?;
     let mut node = radicle::Node::new(profile.socket());
+
+    if !node.is_running() {
+        anyhow::bail!(
+            "to clone a repository, your node must be running. To start it, run `rad node start`"
+        );
+    }
+
     let (working, doc, proj) = clone(
         options.id,
         options.announce,
