@@ -12,7 +12,16 @@ rad-patch - Manage radicle patches.
 
 == Synopsis
 
-*rad patch* *
+*rad patch* [<option>...] +
+*rad patch* _list_ [--all|--merged|--open|--archived|--draft] [<option>...] +
+*rad patch* _show_ <patch-id> [<option>...] +
+*rad patch* _archive_ <patch-id> [<option>...] +
+*rad patch* _update_ <patch-id> [<option>...] +
+*rad patch* _checkout_ <patch-id> [<option>...] +
+*rad patch* _delete_ <patch-id> [<option>...] +
+*rad patch* _redact_ <revision-id> [<option>...] +
+*rad patch* _ready_ <patch-id> [--undo] [<option>...] +
+*rad patch* _edit_ <patch-id> [<option>...] +
 
 == Description
 
@@ -20,12 +29,63 @@ The Radicle *patch* command is used for managing changesets inside of Radicle
 repositories.
 
 Though many actions can be performed using *rad patch*, certain patch-related
-actions require using *git* directly. For example, opening a patch is typically
+actions use *git* directly. For example, opening a patch is typically
 done using *git push*, while merging a patch is done with a combination of
 *git merge* and *git push*.
 
 To make this possible, Radicle ships with a helper program, *git-remote-rad*
 which is invoked by *git* on push and fetch to and from Radicle remotes.
+
+== Commands
+
+With no arguments, *rad patch* defaults to the _list_ command, showing the list of
+open patches for the current repository.
+
+=== show
+
+Shows information on the given patch.
+
+*<patch-id>*::                       The patch to show
+*--patch*, *-p*::                    Show the patch changes in git patch format
+*--verbose*, *-v*::                  Show additional information about the patch
+
+=== edit
+
+Edits a patch revision comment. To edit the patch title or description, pass
+in the *<patch-id>*. To edit a revision comment, pass that revision's
+*<revision-id>*.
+
+*<revision-id>*::
+The revision to edit.
+
+*--message*, *-m [<string>]*::
+Comment message to the patch or revision. If omitted, Radicle will prompt for
+a comment string via *$EDITOR*.
+
+=== list
+
+List patches in the current repository. The default is *--open*.
+
+*--all*::                  List all patches, including merged and archived patches
+*--archived*::             List only archived patches
+*--merged*::               List only merged patches
+*--open*::                 List only open patches
+*--draft*::                List only draft patches
+
+=== ready
+
+Mark a patch as ready to review. This changes the state of a patch from *draft*
+to *open*.
+
+*--undo*::                 Change a patch back to *draft*
+
+=== update
+
+Updates a patch to the current repository *HEAD*. This is a low-level command
+that should only be used when using *git push rad* is not possible.
+
+*--message*, *-m [<string>]*::   Provide a comment message to the revision
+*--no-message*::                 Leave the revision comment message blank
 
 == Opening a patch
 
@@ -148,7 +208,3 @@ our master branch. Then we pushed to our *rad* remote.
 To list patches, run *rad patch*. By default, this will only show open patches.
 To list all patches, including ones that have been merged or archived, add the
 *--all* option.
-
-== Other patch commands
-
-For a full list of patch sub-commands, run *rad patch --help*.

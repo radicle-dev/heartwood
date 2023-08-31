@@ -1,5 +1,5 @@
 use std::ffi::OsStr;
-use std::{env, fmt};
+use std::{env, fmt, io, process};
 
 use inquire::ui::{ErrorMessageRenderConfig, StyleSheet, Styled};
 use inquire::InquireError;
@@ -121,6 +121,14 @@ pub fn prefixed(prefix: &str, text: &str) -> String {
 
 pub fn help(name: &str, version: &str, description: &str, usage: &str) {
     println!("rad-{name} {version}\n{description}\n{usage}");
+}
+
+pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
+    let mut child = process::Command::new("man")
+        .arg(format!("rad-{name}"))
+        .spawn()?;
+
+    child.wait()
 }
 
 pub fn usage(name: &str, usage: &str) {

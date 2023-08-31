@@ -15,6 +15,9 @@ pub enum Error {
     /// If this error is returned from argument parsing, help is displayed.
     #[error("help invoked")]
     Help,
+    /// If this error is returned from argument parsing, the manual page is displayed.
+    #[error("help manual invoked")]
+    HelpManual,
     /// If this error is returned from argument parsing, usage is displayed.
     #[error("usage invoked")]
     Usage,

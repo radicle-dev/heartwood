@@ -76,28 +76,30 @@ where
             opts
         }
         Err(err) => {
-            match err.downcast_ref::<Error>() {
+            let hint = match err.downcast_ref::<Error>() {
                 Some(Error::Help) => {
                     term::help(help.name, help.version, help.description, help.usage);
                     process::exit(0);
+                }
+                Some(Error::HelpManual) => {
+                    let Ok(status) = term::manual(help.name) else {
+                        perror(help.name, "failed to load manual page");
+                        process::exit(1);
+                    };
+                    process::exit(status.code().unwrap_or(0));
                 }
                 Some(Error::Usage) => {
                     term::usage(help.name, help.usage);
                     process::exit(1);
                 }
-                _ => {}
+                Some(Error::WithHint { hint, .. }) => Some(hint),
+                None => None,
             };
-            eprintln!(
-                "{} {} rad {}: {err}",
-                Paint::red(ERROR_PREFIX),
-                Paint::red("Error:"),
-                help.name,
-            );
+            perror(help.name, &err);
 
-            if let Some(Error::WithHint { hint, .. }) = err.downcast_ref::<Error>() {
+            if let Some(hint) = hint {
                 eprintln!("{}", Paint::yellow(hint));
             }
-
             process::exit(1);
         }
     };
@@ -121,6 +123,15 @@ pub fn profile() -> Result<Profile, anyhow::Error> {
         }
         .into()),
     }
+}
+
+pub fn perror(name: &str, err: impl std::fmt::Display) {
+    eprintln!(
+        "{} {} rad {}: {err}",
+        Paint::red(ERROR_PREFIX),
+        Paint::red("Error:"),
+        name,
+    );
 }
 
 pub fn fail(header: &str, error: &anyhow::Error) {

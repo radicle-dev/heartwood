@@ -242,7 +242,10 @@ impl Args for Options {
                 Long("verbose") | Short('v') => {
                     verbose = true;
                 }
-                Long("help") | Short('h') => {
+                Long("help") => {
+                    return Err(Error::HelpManual.into());
+                }
+                Short('h') => {
                     return Err(Error::Help.into());
                 }
 
