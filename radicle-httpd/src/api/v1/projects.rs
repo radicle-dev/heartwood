@@ -420,7 +420,7 @@ async fn readme_handler(
 ) -> impl IntoResponse {
     let storage = &ctx.profile.storage;
     let repo = Repository::open(paths::repository(storage, &project))?;
-    let paths = &[
+    let paths = [
         "README",
         "README.md",
         "README.markdown",
@@ -429,9 +429,13 @@ async fn readme_handler(
         "Readme.md",
     ];
 
-    for path in paths {
-        if let Ok(blob) = repo.blob(sha, path) {
-            let response = api::json::blob(&blob, path);
+    for path in paths
+        .iter()
+        .map(ToString::to_string)
+        .chain(paths.iter().map(|p| p.to_lowercase()))
+    {
+        if let Ok(blob) = repo.blob(sha, &path) {
+            let response = api::json::blob(&blob, &path);
             return Ok::<_, Error>(Json(response));
         }
     }
