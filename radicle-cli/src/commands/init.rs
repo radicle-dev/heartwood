@@ -213,18 +213,28 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         .head()
         .ok()
         .and_then(|head| head.shorthand().map(|h| h.to_owned()))
-        .ok_or_else(|| anyhow!("error: repository head does not point to any commits"))?;
+        .ok_or_else(|| anyhow!("error: repository head must point to a commit"))?;
 
     let name = options.name.unwrap_or_else(|| {
         let default = path.file_name().map(|f| f.to_string_lossy().to_string());
-        term::input("Name", default, None).unwrap()
+        term::input(
+            "Name",
+            default,
+            Some("The name of your repository, eg. 'acme'"),
+        )
+        .unwrap()
     });
-    let description = options
-        .description
-        .unwrap_or_else(|| term::input("Description", None, None).unwrap());
+    let description = options.description.unwrap_or_else(|| {
+        term::input("Description", None, Some("You may leave this blank")).unwrap()
+    });
     let branch = options.branch.unwrap_or_else(|| {
         if interactive.yes() {
-            term::input("Default branch", Some(head), None).unwrap()
+            term::input(
+                "Default branch",
+                Some(head),
+                Some("Please specify an existing branch"),
+            )
+            .unwrap()
         } else {
             head
         }
