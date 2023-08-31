@@ -185,9 +185,9 @@ $ git push
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  ! [rejected]        feature/2 -> patches/fedf0e4dcb74ff6db1d5e30a6a254b77f02ff60b (non-fast-forward)
 error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
-hint: Updates were rejected because a pushed branch tip is behind its remote
-hint: counterpart. Check out this branch and integrate the remote changes
-hint: (e.g. 'git pull ...') before pushing again.
+hint: [..]
+hint: [..]
+hint: [..]
 hint: See the 'Note about fast-forwards' in 'git push --help' for details.
 ```
 

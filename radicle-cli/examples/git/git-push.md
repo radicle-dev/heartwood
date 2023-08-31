@@ -20,9 +20,9 @@ $ git push rad HEAD:alice/1
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  ! [rejected]        HEAD -> alice/1 (non-fast-forward)
 error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
-hint: Updates were rejected because the tip of your current branch is behind
-hint: its remote counterpart. Integrate the remote changes (e.g.
-hint: 'git pull ...') before pushing again.
+hint: [..]
+hint: [..]
+hint: [..]
 hint: See the 'Note about fast-forwards' in 'git push --help' for details.
 ```
 
