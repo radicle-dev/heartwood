@@ -128,6 +128,21 @@ fn rad_init() {
 }
 
 #[test]
+fn rad_init_no_git() {
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let working = tempfile::tempdir().unwrap();
+
+    test(
+        "examples/rad-init-no-git.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_inspect() {
     let mut environment = Environment::new();
     let profile = environment.profile("alice");

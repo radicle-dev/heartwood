@@ -180,6 +180,13 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     let path = options.path.unwrap_or_else(|| cwd.clone());
     let path = path.as_path().canonicalize()?;
     let interactive = options.interactive;
+    let repo = match git::Repository::open(&path) {
+        Ok(r) => r,
+        Err(e) if radicle::git::ext::is_not_found_err(&e) => {
+            anyhow::bail!("a Git repository was not found at the current path")
+        }
+        Err(e) => return Err(e.into()),
+    };
 
     term::headline(format!(
         "Initializing{}radicle 👾 project in {}",
@@ -195,7 +202,6 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         }
     ));
 
-    let repo = git::Repository::open(&path)?;
     if let Ok((remote, _)) = git::rad_remote(&repo) {
         if let Some(remote) = remote.url() {
             bail!("repository is already initialized with remote {remote}");
