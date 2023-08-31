@@ -364,6 +364,46 @@ impl<V> Deref for SignedRefs<V> {
     }
 }
 
+/// Verified [`SignedRefs`] that keeps track of their content address
+/// [`Oid`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedRefsAt {
+    pub sigrefs: SignedRefs<Verified>,
+    pub at: Oid,
+}
+
+impl SignedRefsAt {
+    /// Load the [`SignedRefs`] found under `remote`'s [`SIGREFS_BRANCH`].
+    ///
+    /// This will return `None` if the branch was not found, all other
+    /// errors are returned.
+    pub fn load<S>(remote: RemoteId, repo: &S) -> Result<Option<Self>, Error>
+    where
+        S: ReadRepository,
+    {
+        let at = repo.reference_oid(&remote, &SIGREFS_BRANCH)?;
+        Self::load_at(at, remote, repo).map(Some)
+    }
+
+    pub fn load_at<S>(at: Oid, remote: RemoteId, repo: &S) -> Result<Self, Error>
+    where
+        S: storage::ReadRepository,
+    {
+        Ok(Self {
+            sigrefs: SignedRefs::load_at(at, remote, repo)?,
+            at,
+        })
+    }
+}
+
+impl Deref for SignedRefsAt {
+    type Target = SignedRefs<Verified>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sigrefs
+    }
+}
+
 pub mod canonical {
     use super::*;
 
