@@ -2,11 +2,13 @@ use std::ffi::OsString;
 use std::io::IsTerminal;
 use std::io::Write;
 use std::os::fd::{AsRawFd, FromRawFd};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 use std::{env, fs, io};
 
 pub const COMMENT_FILE: &str = "RAD_COMMENT";
+/// Some common paths where system-installed binaries are found.
+pub const PATHS: &[&str] = &["/usr/local/bin", "/usr/bin", "/bin"];
 
 /// Allows for text input in the configured editor.
 pub struct Editor {
@@ -101,6 +103,7 @@ impl Editor {
 
 /// Get the default editor command.
 pub fn default_editor() -> Option<OsString> {
+    // First check the standard environment variables.
     if let Ok(visual) = env::var("VISUAL") {
         if !visual.is_empty() {
             return Some(visual.into());
@@ -111,5 +114,31 @@ pub fn default_editor() -> Option<OsString> {
             return Some(editor.into());
         }
     }
+    // Check Git. The user might have configured their editor there.
+    #[cfg(feature = "git2")]
+    if let Ok(path) = git2::Config::open_default().and_then(|cfg| cfg.get_path("core.editor")) {
+        return Some(path.into_os_string());
+    }
+    // On macOS, `nano` is installed by default and it's what most users are used to
+    // in the terminal.
+    if cfg!(target_os = "macos") && exists("nano") {
+        return Some("nano".into());
+    }
+    // If all else fails, we try `vi`. It's usually installed on most unix-based systems.
+    if exists("vi") {
+        return Some("vi".into());
+    }
     None
+}
+
+/// Check whether a binary can be found in the most common paths.
+/// We don't bother checking the $PATH variable, as we're only looking for very standard tools
+/// and prefer not to make this too complex.
+fn exists(cmd: &str) -> bool {
+    for dir in PATHS {
+        if Path::new(dir).join(cmd).exists() {
+            return true;
+        }
+    }
+    false
 }

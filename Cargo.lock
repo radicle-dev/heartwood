@@ -2040,6 +2040,7 @@ version = "0.1.0"
 dependencies = [
  "anstyle-query",
  "anyhow",
+ "git2",
  "inquire",
  "libc",
  "once_cell",
