@@ -50,21 +50,26 @@ pub fn start(
             .create(true)
             .open(profile.home.node().join("node.log"))?;
 
-        process::Command::new("radicle-node")
+        let child = process::Command::new("radicle-node")
             .args(options)
             .envs(envs)
             .stdin(process::Stdio::null())
             .stdout(process::Stdio::from(log))
             .stderr(process::Stdio::null())
             .spawn()?;
+        let pid = term::format::parens(term::format::dim(child.id()));
 
         if verbose {
             logs(0, Some(time::Duration::from_secs(1)), profile)?;
         } else {
             let started = time::Instant::now();
+            let mut spinner = term::spinner(format!("Node starting.. {pid}"));
+
             loop {
                 if node.is_running() {
-                    term::success!("Node started");
+                    spinner.message(format!("Node started {pid}"));
+                    spinner.finish();
+
                     term::print(term::format::dim(
                         "To stay in sync with the network, leave the node running in the background.",
                     ));
@@ -74,7 +79,6 @@ pub fn start(
                         term::format::command("rad node --help"),
                         term::format::dim("."),
                     );
-
                     break;
                 } else if started.elapsed() >= NODE_START_TIMEOUT {
                     anyhow::bail!("node failed to start. Try running in verbose mode with `rad node start --verbose`");
