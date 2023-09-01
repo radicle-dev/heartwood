@@ -203,13 +203,9 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     term::headline(format!(
         "Initializing{}radicle 👾 project in {}",
         if let Some(visibility) = &options.visibility {
-            if !visibility.is_public() {
-                term::format::yellow(" private ")
-            } else {
-                term::format::positive(" public ")
-            }
+            term::format::spaced(term::format::visibility(visibility))
         } else {
-            term::format::default(" ")
+            term::format::default(" ").into()
         },
         if path == cwd {
             term::format::tertiary(".").to_string()

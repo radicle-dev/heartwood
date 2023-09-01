@@ -80,6 +80,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     table.push([
         "Name".into(),
         "RID".into(),
+        "Visibility".into(),
         "Head".into(),
         "Description".into(),
     ]);
@@ -92,12 +93,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         if !doc.visibility.is_public() && !options.private && options.public {
             continue;
         }
-        let proj = doc.verified()?.project()?;
+        let doc = doc.verified()?;
+        let proj = doc.project()?;
         let head = term::format::oid(head).into();
 
         table.push([
             term::format::bold(proj.name().to_owned()),
             term::format::tertiary(rid.urn()),
+            term::format::visibility(&doc.visibility).into(),
             term::format::secondary(head),
             term::format::italic(proj.description().to_owned()),
         ]);

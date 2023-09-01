@@ -4,6 +4,7 @@ pub use radicle_term::format::*;
 pub use radicle_term::{style, Paint};
 
 use radicle::cob::{ObjectId, Timestamp};
+use radicle::identity::Visibility;
 use radicle::node::{Alias, AliasStore, NodeId};
 use radicle::prelude::Did;
 use radicle::profile::Profile;
@@ -30,6 +31,11 @@ pub fn parens<D: fmt::Display>(input: Paint<D>) -> Paint<String> {
     Paint::new(format!("({})", input.item)).with_style(input.style)
 }
 
+/// Wrap spaces around styled input, eg. `"input"` -> `" input "`.
+pub fn spaced<D: fmt::Display>(input: Paint<D>) -> Paint<String> {
+    Paint::new(format!(" {} ", input.item)).with_style(input.style)
+}
+
 /// Format a command suggestion, eg. `rad init`.
 pub fn command<D: fmt::Display>(cmd: D) -> Paint<String> {
     primary(format!("`{cmd}`"))
@@ -44,6 +50,14 @@ pub fn cob(id: &ObjectId) -> String {
 pub fn did(did: &Did) -> Paint<String> {
     let nid = did.as_key().to_human();
     Paint::new(format!("{}…{}", &nid[..7], &nid[nid.len() - 7..]))
+}
+
+/// Format a Visibility.
+pub fn visibility(v: &Visibility) -> Paint<&str> {
+    match v {
+        Visibility::Public => term::format::positive("public"),
+        Visibility::Private { .. } => term::format::secondary("private"),
+    }
 }
 
 /// Remove html style comments from a string.
