@@ -1,3 +1,5 @@
+use std::process::ExitStatus;
+
 use axum::http;
 use axum::response::{IntoResponse, Response};
 
@@ -21,8 +23,12 @@ pub enum GitError {
     Id(#[from] radicle::identity::IdError),
 
     /// Git backend error.
-    #[error("backend error")]
-    Backend,
+    #[error("git-http-backend: exited with code {0}")]
+    BackendExited(ExitStatus),
+
+    /// Git backend error.
+    #[error("git-http-backend: invalid header returned: {0:?}")]
+    BackendHeader(String),
 
     /// HeaderName error.
     #[error(transparent)]

@@ -168,7 +168,7 @@ async fn git_http_backend(
                         .or_insert_with(Vec::new)
                         .push(value.to_string());
                 } else {
-                    return Err(Error::Backend);
+                    return Err(Error::BackendHeader(line));
                 }
             }
 
@@ -191,12 +191,10 @@ async fn git_http_backend(
             Ok((status, headers, body))
         }
         Ok(output) => {
-            tracing::error!("git-http-backend: exited with code {}", output.status);
-
             if let Ok(output) = std::str::from_utf8(&output.stderr) {
                 tracing::error!("git-http-backend: stderr: {}", output.trim_end());
             }
-            Err(Error::Backend)
+            Err(Error::BackendExited(output.status))
         }
         Err(err) => {
             panic!("failed to wait for git-http-backend: {err}");
