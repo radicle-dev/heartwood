@@ -711,7 +711,8 @@ async fn patch_update_handler(
             patch.review(revision, verdict, summary, labels, &signer)?;
         }
         patch::Action::Merge { revision, commit } => {
-            patch.merge(revision, commit, &signer)?;
+            // TODO: We should cleanup the stored copy at least.
+            let _ = patch.merge(revision, commit, &signer)?;
         }
         patch::Action::RevisionComment {
             revision,
