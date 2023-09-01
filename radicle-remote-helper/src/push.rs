@@ -403,7 +403,7 @@ fn patch_update<G: Signer>(
     // and pushed, but the patch hasn't yet been updated. On push to the patch branch,
     // it'll seem like the patch is "empty", because the changes are already in the base branch.
     if base == head && patch.is_open() {
-        patch_merge(patch, revision, head, working, stored, signer)?;
+        patch_merge(patch, revision, head, working, signer)?;
     }
 
     Ok(())
@@ -470,7 +470,7 @@ fn patch_merge_all<G: Signer>(
             let revision_id = *revision_id;
             let patch = patch::PatchMut::new(id, patch, &mut patches);
 
-            patch_merge(patch, revision_id, new, working, stored, signer)?;
+            patch_merge(patch, revision_id, new, working, signer)?;
         }
     }
     Ok(())
@@ -481,33 +481,20 @@ fn patch_merge<G: Signer>(
     revision: patch::RevisionId,
     commit: git::Oid,
     working: &git::raw::Repository,
-    stored: &storage::git::Repository,
     signer: &G,
 ) -> Result<(), Error> {
-    patch.merge(revision, commit, signer)?;
+    let merged = patch.merge(revision, commit, signer)?;
 
     eprintln!(
         "{} Patch {} merged",
         cli::format::positive("✓"),
-        cli::format::tertiary(patch.id)
+        cli::format::tertiary(merged.patch)
     );
 
     // Delete patch references that were created when the patch was opened.
     // Note that we don't return an error if we can't delete the refs, since it's
     // not critical.
-    let nid = signer.public_key();
-    let stored_ref = git::refs::storage::patch(&patch.id).with_namespace(nid.into());
-    let working_ref = git::refs::workdir::patch_upstream(&patch.id);
-
-    stored
-        .raw()
-        .find_reference(&stored_ref)
-        .and_then(|mut r| r.delete())
-        .ok();
-    working
-        .find_reference(&working_ref)
-        .and_then(|mut r| r.delete())
-        .ok();
+    merged.cleanup(working, signer).ok();
 
     Ok(())
 }

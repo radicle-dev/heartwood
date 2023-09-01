@@ -25,6 +25,7 @@ use crate::identity;
 use crate::identity::doc::DocError;
 use crate::identity::PayloadError;
 use crate::prelude::*;
+use crate::storage;
 
 /// Type name of a patch.
 pub static TYPENAME: Lazy<TypeName> =
@@ -232,6 +233,46 @@ impl HistoryAction for Action {
             }
             _ => vec![],
         }
+    }
+}
+
+/// Output of a merge.
+#[derive(Debug)]
+#[must_use]
+pub struct Merged<'a, R> {
+    pub patch: PatchId,
+    pub entry: EntryId,
+
+    stored: &'a R,
+}
+
+impl<'a, R: WriteRepository> Merged<'a, R> {
+    /// Cleanup after merging a patch.
+    ///
+    /// This removes Git refs relating to the patch, both in the working copy,
+    /// and the stored copy; and updates `rad/sigrefs`.
+    pub fn cleanup<G: Signer>(
+        self,
+        working: &git::raw::Repository,
+        signer: &G,
+    ) -> Result<(), storage::Error> {
+        let nid = signer.public_key();
+        let stored_ref = git::refs::storage::patch(&self.patch).with_namespace(nid.into());
+        let working_ref = git::refs::workdir::patch_upstream(&self.patch);
+
+        working
+            .find_reference(&working_ref)
+            .and_then(|mut r| r.delete())
+            .ok();
+
+        self.stored
+            .raw()
+            .find_reference(&stored_ref)
+            .and_then(|mut r| r.delete())
+            .ok();
+        self.stored.sign_refs(signer)?;
+
+        Ok(())
     }
 }
 
@@ -1501,9 +1542,15 @@ where
         revision: RevisionId,
         commit: git::Oid,
         signer: &G,
-    ) -> Result<EntryId, Error> {
+    ) -> Result<Merged<R>, Error> {
         // TODO: Don't allow merging the same revision twice?
-        self.transaction("Merge revision", signer, |tx| tx.merge(revision, commit))
+        let entry = self.transaction("Merge revision", signer, |tx| tx.merge(revision, commit))?;
+
+        Ok(Merged {
+            entry,
+            patch: self.id,
+            stored: self.store.as_ref(),
+        })
     }
 
     /// Update a patch with a new revision.

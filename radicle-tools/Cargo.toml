@@ -28,6 +28,10 @@ name = "rad-self"
 path = "src/rad-self.rs"
 
 [[bin]]
+name = "rad-merge"
+path = "src/rad-merge.rs"
+
+[[bin]]
 name = "rad-set-canonical-refs"
 path = "src/rad-set-canonical-refs.rs"
 
