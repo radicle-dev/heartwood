@@ -23,7 +23,7 @@ $ rad ls
 ``` ~bob (fail)
 $ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --timeout 1
 ✗ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi.. error: connection reset
-✗ Sync failed: repository fetch from 1 seed(s) failed
+✗ Error: repository fetch from 1 seed(s) failed
 ```
 
 She allows Bob to view the repository. And when she syncs, one node (Bob) gets

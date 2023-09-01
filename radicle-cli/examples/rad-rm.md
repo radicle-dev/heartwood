@@ -29,5 +29,5 @@ Attempting to remove a repository that doesn't exist gives us an error message:
 
 ``` (fail)
 $ rad rm rad:z2Jk1mNqyX7AjT4K83jJW9vQoHn4f
-✗ Remove failed: repository rad:z2Jk1mNqyX7AjT4K83jJW9vQoHn4f was not found
+✗ Error: repository rad:z2Jk1mNqyX7AjT4K83jJW9vQoHn4f was not found
 ```

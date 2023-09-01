@@ -242,7 +242,7 @@ $ rad id commit 2bf3a85e209d10b11a65e7ed8a8085f6f18ac6bf --no-confirm
 ! Warning: Revision is out of date
 ! Warning: d96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f
 * Consider using 'rad id rebase' to update the proposal to the latest identity
-✗ Id failed: the identity hashes do not match for revision 2bf3a85e209d10b11a65e7ed8a8085f6f18ac6bf (d96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f)
+✗ Error: the identity hashes do not match for revision 2bf3a85e209d10b11a65e7ed8a8085f6f18ac6bf (d96f425412c9f8ad5d9a9a05c9831d0728e2338d =/= 475cdfbc8662853dd132ec564e4f5eb0f152dd7f)
 ```
 
 So, let's fix this by running a rebase on the proposal's revision:

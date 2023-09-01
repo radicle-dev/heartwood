@@ -23,7 +23,7 @@ $ rad sync --announce --timeout 1
 ✗ Syncing with 2 node(s)..
 ! Seed z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk timed out..
 ! Seed z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z timed out..
-✗ Sync failed: all seeds timed out
+✗ Error: all seeds timed out
 ```
 
 We can also use the `--fetch` option to only fetch objects:
@@ -45,7 +45,7 @@ $ rad sync --fetch --announce --timeout 1
 ✗ Syncing with 2 node(s)..
 ! Seed z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk timed out..
 ! Seed z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z timed out..
-✗ Sync failed: all seeds timed out
+✗ Error: all seeds timed out
 ```
 
 It's also possible to use the `--seed` flag to only sync with a specific node:

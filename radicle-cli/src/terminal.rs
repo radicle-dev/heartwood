@@ -50,17 +50,17 @@ where
     }
 }
 
-pub fn run_command<A, C>(help: Help, action: &str, cmd: C) -> !
+pub fn run_command<A, C>(help: Help, cmd: C) -> !
 where
     A: Args,
     C: Command<A, fn() -> anyhow::Result<Profile>>,
 {
     let args = std::env::args_os().skip(1).collect();
 
-    run_command_args(help, action, cmd, args)
+    run_command_args(help, cmd, args)
 }
 
-pub fn run_command_args<A, C>(help: Help, action: &str, cmd: C, args: Vec<OsString>) -> !
+pub fn run_command_args<A, C>(help: Help, cmd: C, args: Vec<OsString>) -> !
 where
     A: Args,
     C: Command<A, fn() -> anyhow::Result<Profile>>,
@@ -107,7 +107,7 @@ where
     match cmd.run(options, self::profile) {
         Ok(()) => process::exit(0),
         Err(err) => {
-            terminal::fail(&format!("{action} failed"), &err);
+            terminal::fail(help.name, &err);
             process::exit(1);
         }
     }
@@ -127,26 +127,21 @@ pub fn profile() -> Result<Profile, anyhow::Error> {
 
 pub fn perror(name: &str, err: impl std::fmt::Display) {
     eprintln!(
-        "{} {} rad {}: {err}",
-        Paint::red(ERROR_PREFIX),
+        "{ERROR_PREFIX} {} rad {}: {err}",
         Paint::red("Error:"),
         name,
     );
 }
 
-pub fn fail(header: &str, error: &anyhow::Error) {
+pub fn fail(_name: &str, error: &anyhow::Error) {
     let err = error.to_string();
     let err = err.trim_end();
-    let separator = if err.contains('\n') { ":\n" } else { ": " };
 
-    println!(
-        "{ERROR_PREFIX} {}{}{error}",
-        Paint::red(header).bold(),
-        Paint::red(separator),
-    );
+    for line in err.lines() {
+        println!("{ERROR_PREFIX} {} {line}", Paint::red("Error:"));
+    }
 
     if let Some(Error::WithHint { hint, .. }) = error.downcast_ref::<Error>() {
-        println!("{} {}", ERROR_HINT_PREFIX, Paint::yellow(hint));
-        blank();
+        println!("{ERROR_HINT_PREFIX} {}", Paint::yellow(hint));
     }
 }

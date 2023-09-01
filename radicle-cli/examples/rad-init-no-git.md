@@ -3,5 +3,5 @@ it will fail:
 
 ``` (fail)
 $ rad init
-✗ Initialization failed: a Git repository was not found at the current path
+✗ Error: a Git repository was not found at the current path
 ```
