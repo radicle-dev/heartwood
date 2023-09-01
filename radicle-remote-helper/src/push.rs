@@ -460,7 +460,10 @@ fn patch_merge_all<G: Signer>(
 
     let mut patches = patch::Patches::open(stored)?;
     for patch in patches.all()? {
-        let (id, patch) = patch?;
+        let Ok((id, patch)) = patch else {
+            // Skip patches that failed to load.
+            continue;
+        };
         let (revision_id, revision) = patch.latest();
 
         if patch.is_open() && commits.contains(&revision.head()) {
