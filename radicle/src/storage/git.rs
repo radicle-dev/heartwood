@@ -37,6 +37,17 @@ pub static CANONICAL_IDENTITY: Lazy<git::Qualified> = Lazy::new(|| {
     )
 });
 
+/// Basic repository information.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepositoryInfo<V> {
+    /// Repository identifier.
+    pub rid: Id,
+    /// Head of default branch.
+    pub head: Oid,
+    /// Identity document.
+    pub doc: Doc<V>,
+}
+
 /// A parsed Git reference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ref {
@@ -109,8 +120,8 @@ impl ReadStorage for Storage {
 
         Ok(repos
             .into_iter()
-            .filter(|(_, _, doc)| doc.visibility.is_public())
-            .map(|(rid, _, _)| rid)
+            .filter(|r| r.doc.visibility.is_public())
+            .map(|r| r.rid)
             .collect())
     }
 
@@ -149,7 +160,7 @@ impl Storage {
         self.path.as_path()
     }
 
-    pub fn repositories(&self) -> Result<Vec<(Id, Oid, Doc<Unverified>)>, Error> {
+    pub fn repositories(&self) -> Result<Vec<RepositoryInfo<Unverified>>, Error> {
         let mut repos = Vec::new();
 
         for result in fs::read_dir(&self.path)? {
@@ -189,13 +200,14 @@ impl Storage {
                     continue;
                 }
             };
-            repos.push((rid, head, doc));
+            repos.push(RepositoryInfo { rid, head, doc });
         }
         Ok(repos)
     }
 
     pub fn inspect(&self) -> Result<(), Error> {
-        for (rid, _, _) in self.repositories()? {
+        for r in self.repositories()? {
+            let rid = r.rid;
             let repo = self.repository(rid)?;
 
             for r in repo.raw().references()? {

@@ -1,5 +1,7 @@
 use std::ffi::OsString;
 
+use radicle::storage::git::RepositoryInfo;
+
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
@@ -70,7 +72,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let mut table = term::Table::default();
 
-    for (id, head, doc) in storage.repositories()? {
+    for RepositoryInfo { rid, head, doc } in storage.repositories()? {
         if doc.visibility.is_public() && options.private && !options.public {
             continue;
         }
@@ -82,7 +84,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             Ok(proj) => proj,
             Err(err) => {
                 if options.verbose {
-                    term::warning(&format!("failed to get local project '{id}': {err}"));
+                    term::warning(&format!("failed to get local project '{rid}': {err}"));
                 }
                 continue;
             }
@@ -90,7 +92,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         let head = term::format::oid(head).into();
         table.push([
             term::format::bold(proj.name().to_owned()),
-            term::format::tertiary(id.urn()),
+            term::format::tertiary(rid.urn()),
             term::format::secondary(head),
             term::format::italic(proj.description().to_owned()),
         ]);
