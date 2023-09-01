@@ -5,3 +5,18 @@ it will fail:
 $ rad init
 ✗ Error: a Git repository was not found at the current path
 ```
+
+Ok so let's initialize one.
+
+```
+$ git init -q
+```
+
+Now we try again.
+
+``` (fail)
+$ rad init
+✗ Error: repository head must point to a commit
+```
+
+Looks like we need a commit.

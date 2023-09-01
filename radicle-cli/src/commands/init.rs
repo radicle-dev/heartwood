@@ -188,6 +188,18 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         Err(e) => return Err(e.into()),
     };
 
+    if let Ok((remote, _)) = git::rad_remote(&repo) {
+        if let Some(remote) = remote.url() {
+            bail!("repository is already initialized with remote {remote}");
+        }
+    }
+
+    let head: String = repo
+        .head()
+        .ok()
+        .and_then(|head| head.shorthand().map(|h| h.to_owned()))
+        .ok_or_else(|| anyhow!("repository head must point to a commit"))?;
+
     term::headline(format!(
         "Initializing{}radicle 👾 project in {}",
         if let Some(visibility) = &options.visibility {
@@ -205,21 +217,6 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             term::format::tertiary(path.display()).to_string()
         }
     ));
-
-    // TODO: Move up.
-    if let Ok((remote, _)) = git::rad_remote(&repo) {
-        if let Some(remote) = remote.url() {
-            bail!("repository is already initialized with remote {remote}");
-        }
-    }
-
-    // TODO: Move up.
-    let signer = term::signer(profile)?;
-    let head: String = repo
-        .head()
-        .ok()
-        .and_then(|head| head.shorthand().map(|h| h.to_owned()))
-        .ok_or_else(|| anyhow!("error: repository head must point to a commit"))?;
 
     let name = options.name.unwrap_or_else(|| {
         let default = path.file_name().map(|f| f.to_string_lossy().to_string());
@@ -258,6 +255,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         Visibility::from_str(selected)?
     };
 
+    let signer = term::signer(profile)?;
     let mut node = radicle::Node::new(profile.socket());
     let mut spinner = term::spinner("Initializing...");
     let mut push_cmd = String::from("git push");
@@ -333,9 +331,6 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         Err(err) => {
             spinner.failed();
             anyhow::bail!(err);
-
-            // TODO: Handle error: "this repository is already initialized with remote {}"
-            // TODO: Handle error: "the `{}` branch was either not found, or has no commits"
         }
     }
 

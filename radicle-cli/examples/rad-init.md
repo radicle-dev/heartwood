@@ -22,6 +22,13 @@ You can start your node with `rad node start`.
 To push changes, run `git push`.
 ```
 
+If we try to initialize it again, we get an error:
+
+``` (fail)
+$ rad init
+✗ Error: repository is already initialized with remote rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+```
+
 Projects can be listed with the `ls` command:
 
 ```
