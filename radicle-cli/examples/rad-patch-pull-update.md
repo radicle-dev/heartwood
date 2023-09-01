@@ -3,16 +3,19 @@ Let's look at how patch updates work.
 Alice creates a project and Bob clones it.
 
 ``` ~alice
-$ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --announce
+$ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --public
 
-Initializing radicle 👾 project in .
+Initializing public radicle 👾 project in .
 
-✓ Project heartwood created
-✓ Syncing inventory..
-✓ Announcing inventory..
+✓ Project heartwood created.
 
 Your project's Repository ID (RID) is rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK.
-You can show it any time by running `rad .`
+You can show it any time by running `rad .` from this directory.
+
+✓ Project successfully announced.
+
+Your project has been announced to the network and is now discoverable by peers.
+To push changes, run `git push`.
 ```
 
 ``` ~bob

@@ -1,16 +1,18 @@
 Alice initializes a *private* repo.
 
 ``` ~alice
-$ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --announce --private
+$ rad init --name heartwood --description "radicle heartwood protocol & stack" --no-confirm --private
 
 Initializing private radicle 👾 project in .
 
-✓ Project heartwood created
-✓ Syncing inventory..
-✓ Announcing inventory..
+✓ Project heartwood created.
 
 Your project's Repository ID (RID) is rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu.
-You can show it any time by running `rad .`
+You can show it any time by running `rad .` from this directory.
+
+You have created a private repository.
+This repository will only be visible to you, and to peers you explicitly allow.
+To push changes, run `git push`.
 ```
 
 Bob tries to clone it, and even though he's connected to Alice, it fails.

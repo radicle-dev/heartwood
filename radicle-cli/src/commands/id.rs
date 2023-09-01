@@ -522,7 +522,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 fn warn_out_of_date(revision: &Revision, previous: &Identity<Oid>) {
     if revision.current != previous.current {
         term::warning("Revision is out of date");
-        term::warning(&format!("{} =/= {}", revision.current, previous.current));
+        term::warning(format!("{} =/= {}", revision.current, previous.current));
         term::tip!("Consider using 'rad id rebase' to update the proposal to the latest identity");
     }
 }

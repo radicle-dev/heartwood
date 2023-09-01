@@ -101,7 +101,7 @@ fn untrack(rid: &Id, profile: &Profile) -> anyhow::Result<()> {
     };
 
     if let Err(e) = result {
-        term::warning(&format!("Failed to untrack repository: {e}"));
+        term::warning(format!("Failed to untrack repository: {e}"));
         term::warning("Make sure to untrack this repository when your node is running");
     } else {
         term::success!("Untracked {rid}")
@@ -116,7 +116,7 @@ fn remove_remote(rid: &Id) -> anyhow::Result<()> {
         .map_err(|err| err.into())
         .and_then(|repo| git::remove_remote(&repo, rid))
     {
-        term::warning(&format!(
+        term::warning(format!(
             "Attempted to remove 'rad' remote from working copy: {e}"
         ));
         term::warning("In case a working copy exists, make sure to `git remote remove rad`");

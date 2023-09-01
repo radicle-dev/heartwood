@@ -1,18 +1,21 @@
 #![allow(clippy::or_fun_call)]
+#![allow(clippy::collapsible_else_if)]
 use std::convert::TryFrom;
 use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use anyhow::{anyhow, bail, Context as _};
 use serde_json as json;
 
-use radicle::crypto::ssh;
+use radicle::crypto::{ssh, Verified};
 use radicle::git::RefString;
 use radicle::identity::Visibility;
 use radicle::node::tracking::Scope;
 use radicle::node::{Handle, NodeId};
-use radicle::profile;
+use radicle::prelude::Doc;
+use radicle::{profile, Node};
 
 use crate::git;
 use crate::terminal as term;
@@ -34,10 +37,10 @@ Options
         --description <string>     Description of the project
         --default-branch <name>    The default branch of the project
         --scope <scope>            Tracking scope (default: all)
-        --private                  Set repository visibility to *private* (default: public)
+        --private                  Set repository visibility to *private*
+        --public                   Set repository visibility to *public*
     -u, --set-upstream             Setup the upstream of the default branch
         --setup-signing            Setup the radicle key as a signing key for this repository
-        --announce                 Announce the new project to the network
         --no-confirm               Don't ask for confirmation during setup
     -v, --verbose                  Verbose mode
         --help                     Print help
@@ -51,11 +54,10 @@ pub struct Options {
     pub description: Option<String>,
     pub branch: Option<String>,
     pub interactive: Interactive,
-    pub visibility: Visibility,
+    pub visibility: Option<Visibility>,
     pub setup_signing: bool,
     pub scope: Scope,
     pub set_upstream: bool,
-    pub announce: bool,
     pub verbose: bool,
     pub track: bool,
 }
@@ -73,11 +75,10 @@ impl Args for Options {
         let mut interactive = Interactive::Yes;
         let mut set_upstream = false;
         let mut setup_signing = false;
-        let mut announce = false;
         let mut scope = Scope::All;
         let mut track = true;
         let mut verbose = false;
-        let mut visibility = Visibility::default();
+        let mut visibility = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -124,9 +125,6 @@ impl Args for Options {
                 Long("setup-signing") => {
                     setup_signing = true;
                 }
-                Long("announce") => {
-                    announce = true;
-                }
                 Long("no-confirm") => {
                     interactive = Interactive::No;
                 }
@@ -134,7 +132,10 @@ impl Args for Options {
                     track = false;
                 }
                 Long("private") => {
-                    visibility = Visibility::private([]);
+                    visibility = Some(Visibility::private([]));
+                }
+                Long("public") => {
+                    visibility = Some(Visibility::Public);
                 }
                 Long("verbose") | Short('v') => {
                     verbose = true;
@@ -159,7 +160,6 @@ impl Args for Options {
                 interactive,
                 set_upstream,
                 setup_signing,
-                announce,
                 track,
                 visibility,
                 verbose,
@@ -190,24 +190,30 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
 
     term::headline(format!(
         "Initializing{}radicle 👾 project in {}",
-        if !options.visibility.is_public() {
-            term::format::yellow(" private ")
+        if let Some(visibility) = &options.visibility {
+            if !visibility.is_public() {
+                term::format::yellow(" private ")
+            } else {
+                term::format::positive(" public ")
+            }
         } else {
             term::format::default(" ")
         },
         if path == cwd {
-            term::format::highlight(".").to_string()
+            term::format::tertiary(".").to_string()
         } else {
-            term::format::highlight(path.display()).to_string()
+            term::format::tertiary(path.display()).to_string()
         }
     ));
 
+    // TODO: Move up.
     if let Ok((remote, _)) = git::rad_remote(&repo) {
         if let Some(remote) = remote.url() {
             bail!("repository is already initialized with remote {remote}");
         }
     }
 
+    // TODO: Move up.
     let signer = term::signer(profile)?;
     let head: String = repo
         .head()
@@ -241,6 +247,16 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     });
     let branch = RefString::try_from(branch.clone())
         .map_err(|e| anyhow!("invalid branch name {:?}: {}", branch, e))?;
+    let visibility = if let Some(v) = options.visibility {
+        v
+    } else {
+        let selected = term::select(
+            "Visibility",
+            &["public", "private"],
+            "Public repositories are accessible by anyone on the network after initialization",
+        )?;
+        Visibility::from_str(selected)?
+    };
 
     let mut node = radicle::Node::new(profile.socket());
     let mut spinner = term::spinner("Initializing...");
@@ -251,7 +267,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         &name,
         &description,
         branch,
-        options.visibility,
+        visibility,
         &signer,
         &profile.storage,
     ) {
@@ -265,7 +281,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             }
 
             spinner.message(format!(
-                "Project {} created",
+                "Project {} created.",
                 term::format::highlight(proj.name())
             ));
             spinner.finish();
@@ -291,24 +307,6 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 self::setup_signing(profile.id(), &repo, interactive)?;
             }
 
-            if node.is_running() {
-                let spinner = term::spinner("Syncing inventory..");
-                if let Err(e) = node.sync_inventory() {
-                    spinner.error(e);
-                } else {
-                    spinner.finish();
-                }
-            }
-
-            if options.announce {
-                let spinner = term::spinner("Announcing inventory..");
-                if let Err(e) = node.announce_inventory() {
-                    spinner.error(e);
-                } else {
-                    spinner.finish();
-                }
-            }
-
             term::blank();
             term::info!(
                 "Your project's Repository ID {} is {}.",
@@ -316,17 +314,21 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
                 term::format::highlight(id.urn())
             );
             term::info!(
-                "You can show it any time by running {}",
+                "You can show it any time by running {} from this directory.",
                 term::format::command("rad .")
             );
+            term::blank();
 
-            if !options.announce {
+            // Announce inventory to network.
+            if let Err(e) = announce(doc, &mut node) {
                 term::blank();
-                term::info!(
-                    "To publish your project to the network, run {}",
-                    term::format::command(push_cmd)
-                );
+                term::warning(format!(
+                    "There was an error announcing your project to the network: {e}"
+                ));
+                term::warning("Try again with `rad sync --announce`, or check your logs with `rad node logs`.");
+                term::blank();
             }
+            term::info!("To push changes, run {}.", term::format::command(push_cmd));
         }
         Err(err) => {
             spinner.failed();
@@ -335,6 +337,44 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             // TODO: Handle error: "this repository is already initialized with remote {}"
             // TODO: Handle error: "the `{}` branch was either not found, or has no commits"
         }
+    }
+
+    Ok(())
+}
+
+pub fn announce(doc: Doc<Verified>, node: &mut Node) -> anyhow::Result<()> {
+    if doc.visibility.is_public() {
+        if node.is_running() {
+            let mut spinner = term::spinner("Updating inventory..");
+
+            node.sync_inventory()?;
+            spinner.message("Announcing..");
+            node.announce_inventory()?;
+            spinner.message("Project successfully announced.");
+            spinner.finish();
+
+            term::blank();
+            term::info!(
+                "Your project has been announced to the network and is \
+                now discoverable by peers.",
+            );
+        } else {
+            term::info!("Your project will be announced to the network when you start your node.");
+            term::info!(
+                "You can start your node with {}.",
+                term::format::command("rad node start")
+            );
+        }
+    } else {
+        // TODO: Tell users how to make the project public.
+        term::info!(
+            "You have created a {} repository.",
+            term::format::yellow("private")
+        );
+        term::info!(
+            "This repository will only be visible to you, \
+            and to peers you explicitly allow.",
+        );
     }
 
     Ok(())

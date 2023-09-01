@@ -132,7 +132,7 @@ impl Args for Options {
         let mut rid: Option<Id> = None;
         let mut json: bool = false;
         let mut addr: Option<PeerAddr<NodeId, Address>> = None;
-        let mut lines: usize = 10;
+        let mut lines: usize = 60;
         let mut count: usize = usize::MAX;
         let mut timeout = time::Duration::MAX;
         let mut verbose = false;

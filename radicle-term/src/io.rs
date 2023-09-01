@@ -28,7 +28,9 @@ pub static CONFIG: Lazy<RenderConfig> = Lazy::new(|| RenderConfig {
     prompt_prefix: Styled::new("?").with_fg(Color::LightBlue),
     answered_prompt_prefix: Styled::new("✓").with_fg(Color::LightGreen),
     answer: StyleSheet::new(),
-    highlighted_option_prefix: Styled::new("*").with_fg(Color::LightYellow),
+    highlighted_option_prefix: Styled::new("✓").with_fg(Color::LightYellow),
+    selected_option: Some(StyleSheet::new().with_fg(Color::LightYellow)),
+    option: StyleSheet::new(),
     help_message: StyleSheet::new().with_fg(Color::DarkGrey),
     default_value: StyleSheet::new().with_fg(Color::LightBlue),
     error_message: ErrorMessageRenderConfig::default_colored()
@@ -152,7 +154,7 @@ pub fn subcommand(msg: impl fmt::Display) {
     println!("{}", style(format!("Running `{msg}`...")).dim());
 }
 
-pub fn warning(warning: &str) {
+pub fn warning(warning: impl fmt::Display) {
     println!(
         "{} {} {warning}",
         WARNING_PREFIX,
@@ -237,23 +239,16 @@ pub fn passphrase_stdin() -> Result<Passphrase, anyhow::Error> {
     Ok(Passphrase::from(input.trim_end().to_owned()))
 }
 
-pub fn select<'a, T>(
-    prompt: &str,
-    options: &'a [T],
-    active: &'a T,
-) -> Result<Option<&'a T>, InquireError>
+pub fn select<'a, T>(prompt: &str, options: &'a [T], help: &str) -> Result<&'a T, InquireError>
 where
     T: fmt::Display + Eq + PartialEq,
 {
-    let active = options.iter().position(|o| o == active);
-    let selection =
-        Select::new(prompt, options.iter().collect::<Vec<_>>()).with_render_config(*CONFIG);
+    let selection = Select::new(prompt, options.iter().collect::<Vec<_>>())
+        .with_vim_mode(true)
+        .with_help_message(help)
+        .with_render_config(*CONFIG);
 
-    if let Some(active) = active {
-        selection.with_starting_cursor(active).prompt_skippable()
-    } else {
-        selection.prompt_skippable()
-    }
+    selection.with_starting_cursor(0).prompt()
 }
 
 pub fn markdown(content: &str) {

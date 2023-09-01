@@ -84,7 +84,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
 
     if let Ok(version) = radicle::git::version() {
         if version < radicle::git::VERSION_REQUIRED {
-            term::warning(&format!(
+            term::warning(format!(
                 "Your git version is unsupported, please upgrade to {} or later",
                 radicle::git::VERSION_REQUIRED,
             ));

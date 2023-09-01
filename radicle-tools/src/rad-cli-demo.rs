@@ -13,16 +13,16 @@ fn main() -> anyhow::Result<()> {
             "editor",
             "prompt",
         ],
-        &"spinner",
+        "Choose wisely!",
     )?;
 
-    match demo {
-        Some(&"confirm") => {
+    match *demo {
+        "confirm" => {
             if terminal::confirm("Would you like to proceed?") {
                 terminal::success!("You said 'yes'");
             }
         }
-        Some(&"editor") => {
+        "editor" => {
             let output = terminal::editor::Editor::new()
                 .extension("rs")
                 .edit("// Enter code here.");
@@ -40,7 +40,7 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Some(&"spinner") => {
+        "spinner" => {
             let mut spinner = terminal::spinner("Spinning turbines..");
             thread::sleep(time::Duration::from_secs(1));
             spinner.message("Still spinning..");
@@ -51,27 +51,22 @@ fn main() -> anyhow::Result<()> {
 
             spinner.finish();
         }
-        Some(&"spinner-drop") => {
+        "spinner-drop" => {
             let _spinner = terminal::spinner("Spinning turbines..");
             thread::sleep(time::Duration::from_secs(3));
         }
-        Some(&"spinner-error") => {
+        "spinner-error" => {
             let spinner = terminal::spinner("Spinning turbines..");
             thread::sleep(time::Duration::from_secs(3));
             spinner.error("broken turbine");
         }
-        Some(&"prompt") => {
+        "prompt" => {
             let fruit = terminal::io::select(
                 "Enter your favorite fruit:",
                 &["apple", "pear", "banana", "strawberry"],
-                &"apple",
+                "Choose wisely!",
             )?;
-
-            if let Some(fruit) = fruit {
-                terminal::success!("You have chosen '{fruit}'");
-            } else {
-                terminal::info!("Ok, bye.");
-            }
+            terminal::success!("You have chosen '{fruit}'");
         }
         _ => {}
     }
