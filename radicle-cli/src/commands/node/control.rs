@@ -3,7 +3,6 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::{process, thread, time};
 
-use anyhow::Context as _;
 use localtime::LocalTime;
 
 use radicle::node;
@@ -30,10 +29,10 @@ pub fn start(
     }
     let envs = if profile.keystore.is_encrypted()? {
         // Ask passphrase here, otherwise it'll be a fatal error when running the daemon
-        // without `RAD_PASSPHRASE`. To keep things consistent, we also use this in foreground mode.
-        let passphrase = term::io::passphrase(profile::env::RAD_PASSPHRASE)
-            .context(format!("`{}` must be set", profile::env::RAD_PASSPHRASE))?;
-
+        // without `RAD_PASSPHRASE`.
+        let Ok(passphrase) = term::io::passphrase(profile::env::RAD_PASSPHRASE) else {
+            anyhow::bail!("your radicle passphrase is required to start your node");
+        };
         Some((profile::env::RAD_PASSPHRASE, passphrase))
     } else {
         None

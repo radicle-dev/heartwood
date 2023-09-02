@@ -178,10 +178,10 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
             );
 
             let passphrase = if options.stdin {
-                term::passphrase_stdin()
+                term::passphrase_stdin()?
             } else {
-                term::passphrase(RAD_PASSPHRASE)
-            }?;
+                term::passphrase(RAD_PASSPHRASE)?
+            };
             register(&mut agent, profile, passphrase)?;
 
             term::success!("Radicle key added to {}", term::format::dim("ssh-agent"));

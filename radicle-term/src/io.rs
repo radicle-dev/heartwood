@@ -199,7 +199,7 @@ where
     Ok(value)
 }
 
-pub fn passphrase<K: AsRef<OsStr>>(var: K) -> Result<Passphrase, anyhow::Error> {
+pub fn passphrase<K: AsRef<OsStr>>(var: K) -> Result<Passphrase, inquire::InquireError> {
     if let Ok(p) = env::var(var) {
         Ok(Passphrase::from(p))
     } else {
