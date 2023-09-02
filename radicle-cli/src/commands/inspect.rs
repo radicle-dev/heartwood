@@ -1,7 +1,7 @@
 #![allow(clippy::or_fun_call)]
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
@@ -34,7 +34,7 @@ Usage
 
 Options
 
-    --id        Return the repository identifier (RID)
+    --rid       Return the repository identifier (RID)
     --payload   Inspect the repository's identity payload
     --refs      Inspect the repository's refs on the local device
     --identity  Inspect the identity document
@@ -54,12 +54,12 @@ pub enum Target {
     Policy,
     History,
     #[default]
-    Id,
+    RepoId,
 }
 
 #[derive(Default, Debug, Eq, PartialEq)]
 pub struct Options {
-    pub id: Option<Id>,
+    pub rid: Option<Id>,
     pub target: Target,
 }
 
@@ -68,7 +68,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut id: Option<Id> = None;
+        let mut rid: Option<Id> = None;
         let mut target = Target::default();
 
         while let Some(arg) = parser.next()? {
@@ -94,16 +94,16 @@ impl Args for Options {
                 Long("identity") => {
                     target = Target::Identity;
                 }
-                Long("id") => {
-                    target = Target::Id;
+                Long("rid") => {
+                    target = Target::RepoId;
                 }
-                Value(val) if id.is_none() => {
+                Value(val) if rid.is_none() => {
                     let val = val.to_string_lossy();
 
                     if let Ok(val) = Id::from_str(&val) {
-                        id = Some(val);
+                        rid = Some(val);
                     } else if let Ok(val) = PathBuf::from_str(&val) {
-                        id = radicle::rad::repo(val)
+                        rid = radicle::rad::repo(val)
                             .map(|(_, id)| Some(id))
                             .context("Supplied argument is not a valid path")?;
                     } else {
@@ -114,23 +114,20 @@ impl Args for Options {
             }
         }
 
-        Ok((Options { id, target }, vec![]))
+        Ok((Options { rid, target }, vec![]))
     }
 }
 
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
-    let id = match options.id {
-        Some(id) => id,
-        None => {
-            let (_, id) = radicle::rad::repo(Path::new("."))
-                .context("Current directory is not a radicle project")?;
-
-            id
-        }
+    let rid = match options.rid {
+        Some(rid) => rid,
+        None => radicle::rad::cwd()
+            .map(|(_, rid)| rid)
+            .context("Current directory is not a radicle project")?,
     };
 
-    if options.target == Target::Id {
-        term::info!("{}", term::format::highlight(id.urn()));
+    if options.target == Target::RepoId {
+        term::info!("{}", term::format::highlight(rid.urn()));
         return Ok(());
     }
 
@@ -138,7 +135,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let storage = &profile.storage;
     let signer = term::signer(&profile)?;
     let repo = storage
-        .repository(id)
+        .repository(rid)
         .context("No project with the given RID exists")?;
     let project = Doc::<Verified>::canonical(&repo)?;
 
@@ -160,20 +157,20 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Target::Policy => {
             let tracking = profile.tracking()?;
-            if let Some(repo) = tracking.repo_policy(&id)? {
+            if let Some(repo) = tracking.repo_policy(&rid)? {
                 let tracking = match repo.policy {
                     Policy::Track => term::format::positive("tracked"),
                     Policy::Block => term::format::negative("blocked"),
                 };
                 println!(
                     "Repository {} is {} with scope {}",
-                    term::format::tertiary(&id),
+                    term::format::tertiary(&rid),
                     tracking,
                     term::format::dim(format!("`{}`", repo.scope))
                 );
             } else {
                 term::print(term::format::italic(format!(
-                    "No tracking policy found for {id}"
+                    "No tracking policy found for {rid}"
                 )));
             }
         }
@@ -246,7 +243,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 println!();
             }
         }
-        Target::Id => {
+        Target::RepoId => {
             // Handled above.
         }
     }
