@@ -177,10 +177,11 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
                 term::format::Identity::new(profile).styled()
             );
 
+            let validator = term::io::PassphraseValidator::new(profile.keystore.clone());
             let passphrase = if options.stdin {
                 term::passphrase_stdin()?
             } else {
-                term::passphrase(RAD_PASSPHRASE)?
+                term::passphrase(RAD_PASSPHRASE, validator)?
             };
             register(&mut agent, profile, passphrase)?;
 

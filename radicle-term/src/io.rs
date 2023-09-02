@@ -2,6 +2,7 @@ use std::ffi::OsStr;
 use std::{env, fmt, io, process};
 
 use inquire::ui::{ErrorMessageRenderConfig, StyleSheet, Styled};
+use inquire::validator;
 use inquire::InquireError;
 use inquire::{ui::Color, ui::RenderConfig, Confirm, CustomType, Password};
 use once_cell::sync::Lazy;
@@ -11,7 +12,7 @@ use crate::command;
 use crate::format;
 use crate::{style, Paint};
 
-// TODO: Try not to export this.
+pub use inquire;
 pub use inquire::Select;
 
 pub const ERROR_PREFIX: Paint<&str> = Paint::red("✗");
@@ -199,7 +200,10 @@ where
     Ok(value)
 }
 
-pub fn passphrase<K: AsRef<OsStr>>(var: K) -> Result<Passphrase, inquire::InquireError> {
+pub fn passphrase<K: AsRef<OsStr>, V: validator::StringValidator + 'static>(
+    var: K,
+    validate: V,
+) -> Result<Passphrase, inquire::InquireError> {
     if let Ok(p) = env::var(var) {
         Ok(Passphrase::from(p))
     } else {
@@ -208,6 +212,7 @@ pub fn passphrase<K: AsRef<OsStr>>(var: K) -> Result<Passphrase, inquire::Inquir
                 .with_render_config(*CONFIG)
                 .with_display_mode(inquire::PasswordDisplayMode::Masked)
                 .without_confirmation()
+                .with_validator(validate)
                 .prompt()?,
         ))
     }

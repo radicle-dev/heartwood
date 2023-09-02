@@ -138,6 +138,19 @@ impl Keystore {
         }
     }
 
+    /// Check that the passphrase is valid.
+    pub fn is_valid_passphrase(&self, passphrase: &Passphrase) -> Result<bool, Error> {
+        let path = self.path.join("radicle");
+        if !path.exists() {
+            return Err(Error::Io(io::ErrorKind::NotFound.into()));
+        }
+
+        let secret = ssh_key::PrivateKey::read_openssh_file(&path)?;
+        let valid = secret.decrypt(passphrase).is_ok();
+
+        Ok(valid)
+    }
+
     /// Check whether the secret key is encrypted.
     pub fn is_encrypted(&self) -> Result<bool, Error> {
         let path = self.path.join("radicle");

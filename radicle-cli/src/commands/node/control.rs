@@ -30,7 +30,8 @@ pub fn start(
     let envs = if profile.keystore.is_encrypted()? {
         // Ask passphrase here, otherwise it'll be a fatal error when running the daemon
         // without `RAD_PASSPHRASE`.
-        let Ok(passphrase) = term::io::passphrase(profile::env::RAD_PASSPHRASE) else {
+        let validator = term::io::PassphraseValidator::new(profile.keystore.clone());
+        let Ok(passphrase) = term::io::passphrase(profile::env::RAD_PASSPHRASE, validator) else {
             anyhow::bail!("your radicle passphrase is required to start your node");
         };
         Some((profile::env::RAD_PASSPHRASE, passphrase))
