@@ -71,7 +71,10 @@ pub fn for_push<R: ReadRepository>(profile: &Profile, stored: &R) -> Result<(), 
 fn patch_refs<R: ReadRepository + cob::Store>(stored: &R) -> Result<(), Error> {
     let patches = radicle::cob::patch::Patches::open(stored)?;
     for patch in patches.all()? {
-        let (id, patch) = patch?;
+        let Ok((id, patch)) = patch else {
+            // Ignore patches that fail to decode.
+            continue;
+        };
         let head = patch.head();
 
         if patch.is_open() && stored.commit(*head).is_ok() {
