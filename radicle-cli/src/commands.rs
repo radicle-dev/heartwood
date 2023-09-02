@@ -36,6 +36,8 @@ pub mod rad_node;
 pub mod rad_patch;
 #[path = "commands/path.rs"]
 pub mod rad_path;
+#[path = "commands/publish.rs"]
+pub mod rad_publish;
 #[path = "commands/remote.rs"]
 pub mod rad_remote;
 #[path = "commands/review.rs"]

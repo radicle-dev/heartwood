@@ -215,6 +215,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "publish" => {
+            term::run_command_args::<rad_publish::Options, _>(
+                rad_publish::HELP,
+                rad_publish::run,
+                args.to_vec(),
+            );
+        }
         "review" => {
             term::run_command_args::<rad_review::Options, _>(
                 rad_review::HELP,
