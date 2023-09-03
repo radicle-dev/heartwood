@@ -324,6 +324,7 @@ pub fn setup_patch_upstream<'a>(
     patch: &ObjectId,
     patch_head: git::Oid,
     working: &'a git::raw::Repository,
+    force: bool,
 ) -> Result<Option<git::raw::Branch<'a>>, git::ext::Error> {
     let head = working.head()?;
 
@@ -347,7 +348,7 @@ pub fn setup_patch_upstream<'a>(
     assert!(remote_branch.is_remote());
 
     if let Some(name) = name {
-        if branch.upstream().is_err() {
+        if force || branch.upstream().is_err() {
             git::set_upstream(
                 working,
                 &*REMOTE_NAME,

@@ -50,6 +50,7 @@ Usage
     rad patch redact <revision-id> [<option>...]
     rad patch ready <patch-id> [--undo] [<option>...]
     rad patch edit <patch-id> [<option>...]
+    rad patch set <patch-id> [<option>...]
 
 Show options
 
@@ -95,6 +96,7 @@ pub enum OperationName {
     List,
     Edit,
     Redact,
+    Set,
 }
 
 pub struct Filter(fn(&patch::State) -> bool);
@@ -151,6 +153,9 @@ pub enum Operation {
     },
     Redact {
         revision_id: Rev,
+    },
+    Set {
+        patch_id: Rev,
     },
 }
 
@@ -259,6 +264,7 @@ impl Args for Options {
                     "y" | "ready" => op = Some(OperationName::Ready),
                     "e" | "edit" => op = Some(OperationName::Edit),
                     "r" | "redact" => op = Some(OperationName::Redact),
+                    "set" => op = Some(OperationName::Set),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val) if op == Some(OperationName::Redact) => {
@@ -275,6 +281,7 @@ impl Args for Options {
                             Some(OperationName::Ready),
                             Some(OperationName::Checkout),
                             Some(OperationName::Edit),
+                            Some(OperationName::Set),
                         ]
                         .contains(&op) =>
                 {
@@ -315,6 +322,9 @@ impl Args for Options {
             },
             OperationName::Redact => Operation::Redact {
                 revision_id: revision_id.ok_or_else(|| anyhow!("a revision must be provided"))?,
+            },
+            OperationName::Set => Operation::Set {
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
             },
         };
 
@@ -380,6 +390,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Operation::Redact { revision_id } => {
             redact::run(&revision_id, &profile, &repository)?;
+        }
+        Operation::Set { patch_id } => {
+            let patches = radicle::cob::patch::Patches::open(&repository)?;
+            let patch_id = patch_id.resolve(&repository.backend)?;
+            let patch = patches
+                .get(&patch_id)?
+                .ok_or_else(|| anyhow!("patch {patch_id} not found"))?;
+
+            radicle::rad::setup_patch_upstream(&patch_id, *patch.head(), &workdir, true)?;
         }
     }
     Ok(())

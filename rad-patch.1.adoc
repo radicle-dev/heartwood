@@ -22,6 +22,7 @@ rad-patch - Manage radicle patches.
 *rad patch* _redact_ <revision-id> [<option>...] +
 *rad patch* _ready_ <patch-id> [--undo] [<option>...] +
 *rad patch* _edit_ <patch-id> [<option>...] +
+*rad patch* _set_ <patch-id> [<option>...] +
 
 == Description
 
@@ -78,6 +79,13 @@ Mark a patch as ready to review. This changes the state of a patch from *draft*
 to *open*.
 
 *--undo*::                 Change a patch back to *draft*
+
+=== set
+
+Set the current branch upstream to a patch reference. This configures your
+branch such that pushing will update the specified patch.
+
+*<patch-id>*::             The patch to set this branch's upstream to
 
 === update
 
@@ -165,6 +173,9 @@ This happens automatically when a patch is opened from a branch without an
 upstream set. In the above example, we used the *--force* option, since the
 commit was amended. This is common practice when a patch has been reworked
 after receiving a review.
+
+If the branch upstream is not set to the patch reference, ie. *rad/patches/<id>*,
+you can do so using `rad patch set <id>`.
 
 As with opening a patch, you will be asked to enter a reason for updating the
 patch, via your editor. Simply save and exit when you're done; or leave it

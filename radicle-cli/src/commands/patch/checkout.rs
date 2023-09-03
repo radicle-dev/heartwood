@@ -36,7 +36,7 @@ pub fn run(
     ));
     spinner.finish();
 
-    if let Some(branch) = rad::setup_patch_upstream(patch_id, *patch.head(), working)? {
+    if let Some(branch) = rad::setup_patch_upstream(patch_id, *patch.head(), working, false)? {
         let tracking = branch
             .name()?
             .ok_or_else(|| anyhow!("failed to create tracking branch: invalid name"))?;

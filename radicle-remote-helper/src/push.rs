@@ -327,7 +327,7 @@ fn patch_open<G: Signer>(
             )?;
 
             // Setup current branch so that pushing updates the patch.
-            rad::setup_patch_upstream(&patch, commit.id().into(), working)?;
+            rad::setup_patch_upstream(&patch, commit.id().into(), working, false)?;
 
             Ok(())
         }
