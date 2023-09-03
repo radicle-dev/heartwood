@@ -12,6 +12,8 @@ You can show it any time by running `rad .` from this directory.
 
 You have created a private repository.
 This repository will only be visible to you, and to peers you explicitly allow.
+
+To make it public, run `rad publish`.
 To push changes, run `git push`.
 ```
 

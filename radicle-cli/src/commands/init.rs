@@ -357,14 +357,18 @@ pub fn announce(doc: Doc<Verified>, node: &mut Node) -> anyhow::Result<()> {
             );
         }
     } else {
-        // TODO: Tell users how to make the project public.
         term::info!(
             "You have created a {} repository.",
-            term::format::yellow("private")
+            term::format::visibility(&doc.visibility)
         );
         term::info!(
             "This repository will only be visible to you, \
             and to peers you explicitly allow.",
+        );
+        term::blank();
+        term::info!(
+            "To make it public, run {}.",
+            term::format::command("rad publish")
         );
     }
 
