@@ -34,14 +34,15 @@ Usage
 
 Options
 
-    --rid       Return the repository identifier (RID)
-    --payload   Inspect the repository's identity payload
-    --refs      Inspect the repository's refs on the local device
-    --identity  Inspect the identity document
-    --delegates Inspect the repository's delegates
-    --policy    Inspect the repository's tracking policy
-    --history   Show the history of the repository identity document
-    --help      Print help
+    --rid        Return the repository identifier (RID)
+    --payload    Inspect the repository's identity payload
+    --refs       Inspect the repository's refs on the local device
+    --identity   Inspect the identity document
+    --visibility Inspect the repository's visibility
+    --delegates  Inspect the repository's delegates
+    --policy     Inspect the repository's tracking policy
+    --history    Show the history of the repository identity document
+    --help       Print help
 "#,
 };
 
@@ -51,6 +52,7 @@ pub enum Target {
     Payload,
     Delegates,
     Identity,
+    Visibility,
     Policy,
     History,
     #[default]
@@ -96,6 +98,9 @@ impl Args for Options {
                 }
                 Long("rid") => {
                     target = Target::RepoId;
+                }
+                Long("visibility") => {
+                    target = Target::Visibility;
                 }
                 Value(val) if rid.is_none() => {
                     let val = val.to_string_lossy();
@@ -175,9 +180,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             }
         }
         Target::Delegates => {
-            let (doc, _) = Doc::<_>::load(signer.public_key(), &repo)?;
             let aliases = profile.aliases();
-            for did in doc.delegates {
+            for did in project.doc.delegates {
                 if let Some(alias) = aliases.alias(&did) {
                     println!(
                         "{} {}",
@@ -188,6 +192,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     println!("{}", term::format::tertiary(&did));
                 }
             }
+        }
+        Target::Visibility => {
+            println!("{}", term::format::visibility(&project.doc.visibility));
         }
         Target::History => {
             let head = Doc::<Untrusted>::head(signer.public_key(), &repo)?;

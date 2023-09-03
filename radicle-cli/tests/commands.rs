@@ -1207,6 +1207,23 @@ fn rad_patch_pull_update() {
 
 #[test]
 fn rad_init_private() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init-private.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_init_private_clone() {
     logger::init(log::Level::Debug);
 
     let mut environment = Environment::new();
@@ -1219,9 +1236,17 @@ fn rad_init_private() {
     let alice = alice.spawn();
     let mut bob = bob.spawn();
 
+    test(
+        "examples/rad-init-private.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
     bob.connect(&alice).converge([&alice]);
 
-    formula(&environment.tmp(), "examples/rad-init-private.md")
+    formula(&environment.tmp(), "examples/rad-init-private-clone.md")
         .unwrap()
         .home(
             "alice",
@@ -1235,6 +1260,31 @@ fn rad_init_private() {
         )
         .run()
         .unwrap();
+}
+
+#[test]
+fn rad_publish() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init-private.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    test(
+        "examples/rad-publish.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
 }
 
 #[test]
