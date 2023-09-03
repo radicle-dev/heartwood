@@ -80,7 +80,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut doc = doc.verified()?;
 
     if doc.visibility.is_public() {
-        // TODO: We need to sync inventory too if it's not in the routing table.
         return Err(Error::WithHint {
             err: anyhow!("repository is already public"),
             hint: "to announce the repository to the network, run `rad sync --inventory`",
