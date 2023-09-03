@@ -351,8 +351,8 @@ fn fetch_all(
         for ka in seed.addrs {
             let spinner = term::spinner(format!(
                 "Connecting to {}@{}..",
-                term::format::tertiary(&seed.nid),
-                term::format::tertiary(&ka.addr)
+                term::format::tertiary(term::format::node(&seed.nid)),
+                &ka.addr
             ));
             let cr = node.connect(
                 seed.nid,
