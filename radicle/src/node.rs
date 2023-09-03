@@ -406,6 +406,13 @@ pub struct Session {
     pub state: State,
 }
 
+impl Session {
+    /// Calls [`State::is_connected`] on the session state.
+    pub fn is_connected(&self) -> bool {
+        self.state.is_connected()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Seed {

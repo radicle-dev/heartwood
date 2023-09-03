@@ -19,9 +19,8 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad sync [<rid>] [<option>...]
-    rad sync [<rid>] [--fetch] [<rid>] [<option>...]
-    rad sync [<rid>] [--announce] [<rid>] [<option>...]
+    rad sync [--fetch | --announce] [<rid>] [<option>...]
+    rad sync --inventory [<option>...]
 
     By default, the current repository is synchronized both ways.
     If an <rid> is specified, that repository is synced instead.
@@ -39,10 +38,14 @@ Usage
     When `--fetch` or `--announce` are specified on their own, this command
     will only fetch or announce.
 
+    If `--inventory` is specified, the node's inventory is announced to
+    the network. This mode does not take an `<rid>`.
+
 Options
 
     --fetch, -f               Turn on fetching (default: true)
-    --announce, -a            Turn on announcing (default: true)
+    --announce, -a            Turn on ref announcing (default: true)
+    --inventory, -i           Turn on inventory announcing (default: false)
     --timeout <secs>          How many seconds to wait while syncing
     --seed <nid>              Sync with the given node (may be specified multiple times)
     --replicas, -r <count>    Sync with a specific number of seeds
@@ -51,25 +54,40 @@ Options
 "#,
 };
 
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct SyncOptions {
-    mode: SyncMode,
-    direction: SyncDirection,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SyncMode {
-    Replicas(usize),
-    Seeds(Vec<NodeId>),
+    Repo {
+        mode: RepoSync,
+        direction: SyncDirection,
+    },
+    Inventory,
 }
 
 impl Default for SyncMode {
+    fn default() -> Self {
+        Self::Repo {
+            mode: RepoSync::default(),
+            direction: SyncDirection::default(),
+        }
+    }
+}
+
+/// Repository sync mode.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RepoSync {
+    /// Sync with N replicas.
+    Replicas(usize),
+    /// Sync with the given list of seeds.
+    Seeds(Vec<NodeId>),
+}
+
+impl Default for RepoSync {
     fn default() -> Self {
         Self::Replicas(3)
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub enum SyncDirection {
     Fetch,
     Announce,
@@ -82,7 +100,7 @@ pub struct Options {
     pub rid: Option<Id>,
     pub verbose: bool,
     pub timeout: time::Duration,
-    pub sync: SyncOptions,
+    pub sync: SyncMode,
 }
 
 impl Args for Options {
@@ -93,7 +111,11 @@ impl Args for Options {
         let mut verbose = false;
         let mut timeout = time::Duration::from_secs(9);
         let mut rid = None;
-        let mut sync = SyncOptions::default();
+        let mut fetch = false;
+        let mut announce = false;
+        let mut inventory = false;
+        let mut replicas = None;
+        let mut seeds = Vec::new();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -101,38 +123,28 @@ impl Args for Options {
                     verbose = true;
                 }
                 Long("fetch") | Short('f') => {
-                    sync.direction = match sync.direction {
-                        SyncDirection::Both => SyncDirection::Fetch,
-                        SyncDirection::Announce => SyncDirection::Both,
-                        SyncDirection::Fetch => SyncDirection::Fetch,
-                    };
+                    fetch = true;
                 }
                 Long("replicas") | Short('r') => {
                     let val = parser.value()?;
                     let count = term::args::number(&val)?;
 
-                    if let SyncMode::Replicas(ref mut r) = sync.mode {
-                        *r = count;
-                    } else {
-                        anyhow::bail!("`--replicas` (-r) cannot be specified with `--seed`");
+                    if count == 0 {
+                        anyhow::bail!("value for `--replicas` must be greater than zero");
                     }
+                    replicas = Some(count);
                 }
                 Long("seed") => {
                     let val = parser.value()?;
                     let nid = term::args::nid(&val)?;
 
-                    if let SyncMode::Seeds(ref mut seeds) = sync.mode {
-                        seeds.push(nid);
-                    } else {
-                        sync.mode = SyncMode::Seeds(vec![nid]);
-                    }
+                    seeds.push(nid);
                 }
                 Long("announce") | Short('a') => {
-                    sync.direction = match sync.direction {
-                        SyncDirection::Both => SyncDirection::Announce,
-                        SyncDirection::Announce => SyncDirection::Announce,
-                        SyncDirection::Fetch => SyncDirection::Both,
-                    };
+                    announce = true;
+                }
+                Long("inventory") | Short('i') => {
+                    inventory = true;
                 }
                 Long("timeout") | Short('t') => {
                     let value = parser.value()?;
@@ -152,11 +164,32 @@ impl Args for Options {
             }
         }
 
-        if sync.direction == SyncDirection::Announce {
-            if let SyncMode::Seeds(_) = sync.mode {
-                anyhow::bail!("`--seed` is only supported when fetching.");
+        let sync = if inventory && (fetch || announce) {
+            anyhow::bail!("`--inventory` cannot be used with `--fetch` or `--announce`");
+        } else if inventory {
+            SyncMode::Inventory
+        } else {
+            let direction = match (fetch, announce) {
+                (true, true) | (false, false) => SyncDirection::Both,
+                (true, false) => SyncDirection::Fetch,
+                (false, true) => SyncDirection::Announce,
+            };
+            let mode = match (seeds, replicas) {
+                (seeds, Some(replicas)) => {
+                    if seeds.is_empty() {
+                        RepoSync::Replicas(replicas)
+                    } else {
+                        anyhow::bail!("`--replicas` cannot be specified with `--seed`");
+                    }
+                }
+                (seeds, None) if !seeds.is_empty() => RepoSync::Seeds(seeds),
+                (_, None) => RepoSync::default(),
+            };
+            if direction == SyncDirection::Announce && matches!(mode, RepoSync::Seeds(_)) {
+                anyhow::bail!("`--seed` is only supported when fetching");
             }
-        }
+            SyncMode::Repo { mode, direction }
+        };
 
         Ok((
             Options {
@@ -187,31 +220,37 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             "to sync a repository, your node must be running. To start it, run `rad node start`"
         );
     }
-    let mode = options.sync.mode;
 
-    if [SyncDirection::Fetch, SyncDirection::Both].contains(&options.sync.direction) {
-        if !profile.tracking()?.is_repo_tracked(&rid)? {
-            anyhow::bail!("repository {rid} is not tracked");
-        }
-        let results = fetch(rid, mode.clone(), options.timeout, &mut node)?;
-        let success = results.success().count();
-        let failed = results.failed().count();
+    match options.sync {
+        SyncMode::Repo { mode, direction } => {
+            if [SyncDirection::Fetch, SyncDirection::Both].contains(&direction) {
+                if !profile.tracking()?.is_repo_tracked(&rid)? {
+                    anyhow::bail!("repository {rid} is not tracked");
+                }
+                let results = fetch(rid, mode.clone(), options.timeout, &mut node)?;
+                let success = results.success().count();
+                let failed = results.failed().count();
 
-        if success == 0 {
-            anyhow::bail!("repository fetch from {failed} seed(s) failed");
-        } else {
-            term::success!("Fetched repository from {success} seed(s)");
+                if success == 0 {
+                    anyhow::bail!("repository fetch from {failed} seed(s) failed");
+                } else {
+                    term::success!("Fetched repository from {success} seed(s)");
+                }
+            }
+            if [SyncDirection::Announce, SyncDirection::Both].contains(&direction) {
+                announce_refs(rid, mode, options.timeout, node, &profile)?;
+            }
         }
-    }
-    if [SyncDirection::Announce, SyncDirection::Both].contains(&options.sync.direction) {
-        announce(rid, mode, options.timeout, node, &profile)?;
+        SyncMode::Inventory => {
+            announce_inventory(node)?;
+        }
     }
     Ok(())
 }
 
-fn announce(
+fn announce_refs(
     rid: Id,
-    _mode: SyncMode,
+    _mode: RepoSync,
     timeout: time::Duration,
     mut node: Node,
     profile: &Profile,
@@ -257,14 +296,24 @@ fn announce(
     Ok(())
 }
 
+pub fn announce_inventory(mut node: Node) -> anyhow::Result<()> {
+    let peers = node.sessions()?.iter().filter(|s| s.is_connected()).count();
+    let spinner = term::spinner(format!("Announcing inventory to {peers} peers.."));
+
+    node.announce_inventory()?;
+    spinner.finish();
+
+    Ok(())
+}
+
 pub fn fetch(
     rid: Id,
-    mode: SyncMode,
+    mode: RepoSync,
     timeout: time::Duration,
     node: &mut Node,
 ) -> Result<FetchResults, node::Error> {
     match mode {
-        SyncMode::Seeds(seeds) => {
+        RepoSync::Seeds(seeds) => {
             let mut results = FetchResults::default();
             for seed in seeds {
                 let result = fetch_from(rid, &seed, timeout, node)?;
@@ -272,7 +321,7 @@ pub fn fetch(
             }
             Ok(results)
         }
-        SyncMode::Replicas(count) => fetch_all(rid, count, timeout, node),
+        RepoSync::Replicas(count) => fetch_all(rid, count, timeout, node),
     }
 }
 

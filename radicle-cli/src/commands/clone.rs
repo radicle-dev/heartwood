@@ -224,7 +224,7 @@ pub fn clone<G: Signer>(
 
     let results = sync::fetch(
         id,
-        sync::SyncMode::default(),
+        sync::RepoSync::default(),
         time::Duration::from_secs(9),
         node,
     )?;

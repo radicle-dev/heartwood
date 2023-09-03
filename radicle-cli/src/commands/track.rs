@@ -131,7 +131,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             if options.fetch {
                 sync::fetch(
                     rid,
-                    sync::SyncMode::default(),
+                    sync::RepoSync::default(),
                     time::Duration::from_secs(6),
                     &mut node,
                 )?;
