@@ -173,20 +173,20 @@ impl cob::object::Storage for Repository {
 // This storage backend for COBs stores changes in a `draft/cobs/*` namespace,
 // which allows for some of the features needed for code review. For
 // example, users can draft comments and later decide to publish them.
-pub struct DraftStore<'a> {
+pub struct DraftStore<'a, R> {
     remote: RemoteId,
-    repo: &'a Repository,
+    repo: &'a R,
 }
 
-impl<'a> DraftStore<'a> {
-    pub fn new(remote: RemoteId, repo: &'a Repository) -> Self {
+impl<'a, R> DraftStore<'a, R> {
+    pub fn new(remote: RemoteId, repo: &'a R) -> Self {
         Self { remote, repo }
     }
 }
 
-impl<'a> cob::Store for DraftStore<'a> {}
+impl<'a, R: storage::WriteRepository> cob::Store for DraftStore<'a, R> {}
 
-impl<'a> change::Storage for DraftStore<'a> {
+impl<'a, R: storage::WriteRepository> change::Storage for DraftStore<'a, R> {
     type StoreError = <git2::Repository as change::Storage>::StoreError;
     type LoadError = <git2::Repository as change::Storage>::LoadError;
 
@@ -204,15 +204,15 @@ impl<'a> change::Storage for DraftStore<'a> {
     where
         Signer: crypto::Signer,
     {
-        self.repo.backend.store(authority, parents, signer, spec)
+        self.repo.raw().store(authority, parents, signer, spec)
     }
 
     fn load(&self, id: Self::ObjectId) -> Result<cob::Entry, Self::LoadError> {
-        self.repo.backend.load(id)
+        self.repo.raw().load(id)
     }
 
     fn parents_of(&self, id: &Oid) -> Result<Vec<Oid>, Self::LoadError> {
-        self.repo.backend.parents_of(id)
+        self.repo.raw().parents_of(id)
     }
 }
 
@@ -225,7 +225,7 @@ impl<'a> SignRepository for DraftStore<'a> {
     }
 }
 
-impl<'a> ReadRepository for DraftStore<'a> {
+impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
     fn id(&self) -> identity::Id {
         self.repo.id()
     }
@@ -338,7 +338,7 @@ impl<'a> ReadRepository for DraftStore<'a> {
     }
 }
 
-impl<'a> cob::object::Storage for DraftStore<'a> {
+impl<'a, R: storage::WriteRepository> cob::object::Storage for DraftStore<'a, R> {
     type ObjectsError = ObjectsError;
     type TypesError = git::ext::Error;
     type UpdateError = git2::Error;
@@ -352,7 +352,7 @@ impl<'a> cob::object::Storage for DraftStore<'a> {
         object_id: &cob::ObjectId,
     ) -> Result<cob::object::Objects, Self::ObjectsError> {
         // Nb. There can only be one draft per COB, per remote.
-        let Ok(r) = self.repo.backend.find_reference(
+        let Ok(r) = self.repo.raw().find_reference(
             git::refs::storage::draft::cob(&self.remote, typename, object_id).as_str(),
         ) else {
             return Ok(Objects::default());
@@ -387,7 +387,7 @@ impl<'a> cob::object::Storage for DraftStore<'a> {
         object_id: &cob::ObjectId,
         entry: &cob::history::EntryId,
     ) -> Result<(), Self::UpdateError> {
-        self.repo.backend.reference(
+        self.repo.raw().reference(
             git::refs::storage::draft::cob(identifier, typename, object_id).as_str(),
             (*entry).into(),
             true,
@@ -406,7 +406,7 @@ impl<'a> cob::object::Storage for DraftStore<'a> {
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {
-        let mut reference = self.repo.backend.find_reference(
+        let mut reference = self.repo.raw().find_reference(
             git::refs::storage::draft::cob(identifier, typename, object_id).as_str(),
         )?;
 
