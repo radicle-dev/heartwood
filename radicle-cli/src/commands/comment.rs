@@ -122,8 +122,8 @@ fn comment(
     let mut patches = Patches::open(repo)?;
     match patches.get_mut(&id) {
         Ok(mut patch) => {
-            let (revision_id, _) = patch.revisions().last().expect("patch has a revision");
-            let comment_id = patch.comment(*revision_id, message, options.reply_to, &signer)?;
+            let (revision_id, _) = patch.latest();
+            let comment_id = patch.comment(revision_id, message, options.reply_to, &signer)?;
 
             term::print(comment_id);
             return Ok(());

@@ -122,7 +122,6 @@ pub fn row(
 
 pub fn timeline(
     profile: &Profile,
-    patch_id: &PatchId,
     patch: &Patch,
     repository: &Repository,
 ) -> anyhow::Result<Vec<term::Line>> {
@@ -134,10 +133,11 @@ pub fn timeline(
     .extend(Author::new(patch.author().id(), profile).line());
 
     let mut timeline = vec![(patch.timestamp(), open)];
+    let (root, _) = patch.root();
 
     for (revision_id, revision) in patch.revisions() {
         // Don't show an "update" line for the first revision.
-        if *revision_id != **patch_id {
+        if revision_id != root {
             timeline.push((
                 revision.timestamp(),
                 term::Line::spaced(
@@ -155,7 +155,7 @@ pub fn timeline(
             ));
         }
 
-        for (nid, merge) in patch.merges().filter(|(_, m)| m.revision == *revision_id) {
+        for (nid, merge) in patch.merges().filter(|(_, m)| m.revision == revision_id) {
             let peer = repository.remote(nid)?;
             let line = term::Line::spaced([
                 term::format::primary("✓").bold().into(),

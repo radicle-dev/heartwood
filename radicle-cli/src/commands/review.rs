@@ -5,7 +5,7 @@ use std::ffi::OsString;
 
 use anyhow::{anyhow, Context};
 
-use radicle::cob::patch::{PatchId, Patches, RevisionId, Verdict};
+use radicle::cob::patch::{PatchId, Patches, Verdict};
 use radicle::prelude::*;
 use radicle::{git, rad};
 
@@ -209,11 +209,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut patches = Patches::open(&repository)?;
 
     let (patch_id, revision) = if options.revision {
-        let id = options.id.resolve::<RevisionId>(&repository.backend)?;
-        let (patch_id, _, rev) = patches
-            .find_by_revision(&id)?
+        let id = options.id.resolve(&repository.backend)?;
+        let (patch_id, _, rev_id, rev) = patches
+            .find_by_revision(id)?
             .ok_or_else(|| anyhow!("revision {} does not exist", id))?;
-        (patch_id, Some((id, rev)))
+
+        (patch_id, Some((rev_id, rev)))
     } else {
         let id = options.id.resolve::<PatchId>(&repository.backend)?;
         (id, None)
@@ -227,7 +228,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         v
     } else {
         let (id, r) = patch.latest();
-        (*id, r.clone())
+        (id, r.clone())
     };
 
     let patch_id_pretty = term::format::tertiary(term::format::cob(&patch_id));

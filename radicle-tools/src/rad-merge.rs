@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<()> {
     let signer = term::signer(&profile)?;
 
     patch
-        .merge(*revision, head, &signer)?
+        .merge(revision, head, &signer)?
         .cleanup(&working, &signer)?;
 
     println!("✓ Patch {pid} merged at commit {head}");

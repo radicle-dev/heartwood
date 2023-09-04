@@ -6,6 +6,7 @@ use std::ops::Range;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use amplify::Wrapper;
 use once_cell::sync::Lazy;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
@@ -38,7 +39,44 @@ pub type Op = cob::Op<Action>;
 pub type PatchId = ObjectId;
 
 /// Unique identifier for a patch revision.
-pub type RevisionId = EntryId;
+#[derive(
+    Wrapper,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    From,
+    Display,
+)]
+#[display(inner)]
+#[wrap(Deref)]
+pub struct RevisionId(EntryId);
+
+/// Unique identifier for a patch review.
+#[derive(
+    Wrapper,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    From,
+    Display,
+)]
+#[display(inner)]
+#[wrapper(Deref)]
+pub struct ReviewId(EntryId);
 
 /// Index of a revision in the revisions list.
 pub type RevisionIx = usize;
@@ -117,7 +155,7 @@ pub enum Action {
     },
     #[serde(rename = "review.edit")]
     ReviewEdit {
-        review: EntryId,
+        review: ReviewId,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         summary: Option<String>,
     },
@@ -125,7 +163,7 @@ pub enum Action {
     ReviewRedact { review: EntryId },
     #[serde(rename = "review.comment")]
     ReviewComment {
-        review: EntryId,
+        review: ReviewId,
         body: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         location: Option<CodeLocation>,
@@ -137,23 +175,23 @@ pub enum Action {
     },
     #[serde(rename = "review.comment.edit")]
     ReviewCommentEdit {
-        review: EntryId,
+        review: ReviewId,
         comment: EntryId,
         body: String,
     },
     #[serde(rename = "review.comment.redact")]
-    ReviewCommentRedact { review: EntryId, comment: EntryId },
+    ReviewCommentRedact { review: ReviewId, comment: EntryId },
     #[serde(rename = "review.comment.react")]
     ReviewCommentReact {
-        review: EntryId,
+        review: ReviewId,
         comment: EntryId,
         reaction: Reaction,
         active: bool,
     },
     #[serde(rename = "review.comment.resolve")]
-    ReviewCommentResolve { review: EntryId, comment: EntryId },
+    ReviewCommentResolve { review: ReviewId, comment: EntryId },
     #[serde(rename = "review.comment.unresolve")]
-    ReviewCommentUnresolve { review: EntryId, comment: EntryId },
+    ReviewCommentUnresolve { review: ReviewId, comment: EntryId },
 
     //
     // Revision actions
@@ -330,7 +368,7 @@ pub struct Patch {
     /// Timeline of operations.
     pub(super) timeline: Vec<EntryId>,
     /// Reviews index. Keeps track of reviews for better performance.
-    pub(super) reviews: BTreeMap<EntryId, Option<(EntryId, ActorId)>>,
+    pub(super) reviews: BTreeMap<ReviewId, Option<(RevisionId, ActorId)>>,
 }
 
 impl Patch {
@@ -365,7 +403,8 @@ impl Patch {
 
     /// Patch description.
     pub fn description(&self) -> &str {
-        self.root().description()
+        let (_, r) = self.root();
+        r.description()
     }
 
     /// Author of the first revision of the patch.
@@ -387,12 +426,12 @@ impl Patch {
 
     /// List of patch revisions. The initial changeset is part of the
     /// first revision.
-    pub fn revisions(&self) -> impl DoubleEndedIterator<Item = (&RevisionId, &Revision)> {
+    pub fn revisions(&self) -> impl DoubleEndedIterator<Item = (RevisionId, &Revision)> {
         self.timeline.iter().filter_map(|id| {
             self.revisions
                 .get(id)
                 .and_then(|o| o.as_ref())
-                .map(|rev| (id, rev))
+                .map(|rev| (RevisionId(*id), rev))
         })
     }
 
@@ -445,15 +484,14 @@ impl Patch {
     /// Root revision.
     ///
     /// This is the revision that was created with the patch.
-    pub fn root(&self) -> &Revision {
+    pub fn root(&self) -> (RevisionId, &Revision) {
         self.revisions()
             .next()
-            .map(|(_, r)| r)
             .expect("Patch::root: there is always a root revision")
     }
 
     /// Latest revision.
-    pub fn latest(&self) -> (&RevisionId, &Revision) {
+    pub fn latest(&self) -> (RevisionId, &Revision) {
         self.revisions()
             .next_back()
             .expect("Patch::latest: there is always at least one revision")
@@ -544,22 +582,22 @@ impl store::FromHistory for Patch {
                             revision.description = description;
                         }
                     } else {
-                        return Err(Error::Missing(revision));
+                        return Err(Error::Missing(revision.into_inner()));
                     }
                 }
                 Action::ReviewEdit { review, summary } => {
                     let Some(Some((revision, author))) =
                         self.reviews.get(&review) else {
-                            return Err(Error::Missing(review));
+                            return Err(Error::Missing(review.into_inner()));
                     };
                     let Some(rev) = self.revisions.get_mut(revision) else {
-                        return Err(Error::Missing(*revision));
+                        return Err(Error::Missing(revision.into_inner()));
                     };
                     // If the revision was redacted concurrently, there's nothing to do.
                     // Likewise, if the review was redacted concurrently, there's nothing to do.
                     if let Some(rev) = rev {
                         let Some(review) = rev.reviews.get_mut(author) else {
-                            return Err(Error::Missing(review));
+                            return Err(Error::Missing(review.into_inner()));
                         };
                         if let Some(review) = review {
                             review.summary = summary;
@@ -575,7 +613,7 @@ impl store::FromHistory for Patch {
                     debug_assert!(!self.revisions.contains_key(&op.id));
 
                     self.revisions.insert(
-                        op.id,
+                        RevisionId(op.id),
                         Some(Revision::new(
                             author.clone(),
                             description,
@@ -599,7 +637,7 @@ impl store::FromHistory for Patch {
                         }
                         *r = None;
                     } else {
-                        return Err(Error::Missing(revision));
+                        return Err(Error::Missing(revision.into_inner()));
                     }
                 }
                 Action::Review {
@@ -609,7 +647,7 @@ impl store::FromHistory for Patch {
                     labels,
                 } => {
                     let Some(rev) = self.revisions.get_mut(&revision) else {
-                        return Err(Error::Missing(revision));
+                        return Err(Error::Missing(revision.into_inner()));
                     };
                     if let Some(rev) = rev {
                         // Nb. Applying two reviews by the same author is not allowed and
@@ -619,7 +657,8 @@ impl store::FromHistory for Patch {
                             Some(Review::new(verdict, summary.to_owned(), labels, timestamp)),
                         );
                         // Update reviews index.
-                        self.reviews.insert(op.id, Some((revision, op.author)));
+                        self.reviews
+                            .insert(ReviewId(op.id), Some((revision, op.author)));
                     }
                 }
                 Action::ReviewCommentReact {
@@ -831,20 +870,20 @@ mod lookup {
             // Redacted.
             Some(None) => Ok(None),
             // Missing. Causal error.
-            None => Err(Error::Missing(*revision)),
+            None => Err(Error::Missing(revision.into_inner())),
         }
     }
 
     pub fn review<'a>(
         patch: &'a mut Patch,
-        review: &EntryId,
+        review: &ReviewId,
     ) -> Result<Option<&'a mut Review>, Error> {
         match patch.reviews.get(review) {
             Some(Some((revision, author))) => {
                 match patch.revisions.get_mut(revision) {
                     Some(Some(r)) => {
                         let Some(review) = r.reviews.get_mut(author) else {
-                        return Err(Error::Missing(*review));
+                        return Err(Error::Missing(review.into_inner()));
                     };
                         Ok(review.as_mut())
                     }
@@ -853,14 +892,14 @@ mod lookup {
                         // Likewise, if the review was redacted concurrently, there's nothing to do.
                         Ok(None)
                     }
-                    None => Err(Error::Missing(*revision)),
+                    None => Err(Error::Missing(revision.into_inner())),
                 }
             }
             Some(None) => {
                 // Redacted.
                 Ok(None)
             }
-            None => Err(Error::Missing(*review)),
+            None => Err(Error::Missing(review.into_inner())),
         }
     }
 }
@@ -1144,7 +1183,7 @@ impl store::Transaction<Patch> {
 
     pub fn edit_review(
         &mut self,
-        review: EntryId,
+        review: ReviewId,
         summary: Option<String>,
     ) -> Result<(), store::Error> {
         self.push(Action::ReviewEdit { review, summary })
@@ -1226,7 +1265,7 @@ impl store::Transaction<Patch> {
     /// Comment on a review.
     pub fn review_comment<S: ToString>(
         &mut self,
-        review: EntryId,
+        review: ReviewId,
         body: S,
         location: Option<CodeLocation>,
         reply_to: Option<CommentId>,
@@ -1242,7 +1281,7 @@ impl store::Transaction<Patch> {
     /// Edit review comment.
     pub fn edit_review_comment<S: ToString>(
         &mut self,
-        review: EntryId,
+        review: ReviewId,
         comment: EntryId,
         body: S,
     ) -> Result<(), store::Error> {
@@ -1256,7 +1295,7 @@ impl store::Transaction<Patch> {
     /// React to a review comment.
     pub fn react_review_comment(
         &mut self,
-        review: EntryId,
+        review: ReviewId,
         comment: EntryId,
         reaction: Reaction,
         active: bool,
@@ -1272,7 +1311,7 @@ impl store::Transaction<Patch> {
     /// Redact a review comment.
     pub fn redact_review_comment(
         &mut self,
-        review: EntryId,
+        review: ReviewId,
         comment: EntryId,
     ) -> Result<(), store::Error> {
         self.push(Action::ReviewCommentRedact { review, comment })
@@ -1390,7 +1429,7 @@ where
     /// Edit review.
     pub fn edit_review<G: Signer>(
         &mut self,
-        review: EntryId,
+        review: ReviewId,
         summary: Option<String>,
         signer: &G,
     ) -> Result<EntryId, Error> {
@@ -1403,7 +1442,7 @@ where
         revision: RevisionId,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        if revision == RevisionId::from(*self.id) {
+        if revision.0 == *self.id {
             return Err(Error::RootRevision(revision));
         }
         self.transaction("Redact revision", signer, |tx| tx.redact(revision))
@@ -1472,7 +1511,7 @@ where
     /// Comment on a line of code as part of a review.
     pub fn review_comment<G: Signer, S: ToString>(
         &mut self,
-        review: EntryId,
+        review: ReviewId,
         body: S,
         location: Option<CodeLocation>,
         reply_to: Option<CommentId>,
@@ -1486,7 +1525,7 @@ where
     /// Edit review comment.
     pub fn edit_review_comment<G: Signer, S: ToString>(
         &mut self,
-        review: EntryId,
+        review: ReviewId,
         comment: EntryId,
         body: S,
         signer: &G,
@@ -1499,7 +1538,7 @@ where
     /// React to a review comment.
     pub fn react_review_comment<G: Signer>(
         &mut self,
-        review: EntryId,
+        review: ReviewId,
         comment: EntryId,
         reaction: Reaction,
         active: bool,
@@ -1513,7 +1552,7 @@ where
     /// React to a review comment.
     pub fn redact_review_comment<G: Signer>(
         &mut self,
-        review: EntryId,
+        review: ReviewId,
         comment: EntryId,
         signer: &G,
     ) -> Result<EntryId, Error> {
@@ -1530,10 +1569,11 @@ where
         comment: Option<String>,
         labels: Vec<Label>,
         signer: &G,
-    ) -> Result<EntryId, Error> {
+    ) -> Result<ReviewId, Error> {
         self.transaction("Review", signer, |tx| {
             tx.review(revision, verdict, comment, labels)
         })
+        .map(ReviewId)
     }
 
     /// Merge a patch revision.
@@ -1560,10 +1600,11 @@ where
         base: impl Into<git::Oid>,
         oid: impl Into<git::Oid>,
         signer: &G,
-    ) -> Result<EntryId, Error> {
+    ) -> Result<RevisionId, Error> {
         self.transaction("Add revision", signer, |tx| {
             tx.revision(description, base, oid)
         })
+        .map(RevisionId)
     }
 
     /// Lifecycle a patch.
@@ -1668,18 +1709,24 @@ where
     /// Find the `Patch` containing the given `Revision`.
     pub fn find_by_revision(
         &self,
-        id: &RevisionId,
-    ) -> Result<Option<(PatchId, Patch, Revision)>, Error> {
+        id: EntryId,
+    ) -> Result<Option<(PatchId, Patch, RevisionId, Revision)>, Error> {
         // Revision may be the patch's first, making it have the same ID.
         let p_id = ObjectId::from(id);
+        let revision = RevisionId(id);
         if let Some(p) = self.get(&p_id)? {
-            return Ok(p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
+            return Ok(p
+                .revision(&revision)
+                .map(|r| (p_id, p.clone(), revision, r.clone())));
         }
 
         let result = self
             .all()?
             .filter_map(|result| result.ok())
-            .find_map(|(p_id, p)| p.revision(id).map(|r| (p_id, p.clone(), r.clone())));
+            .find_map(|(p_id, p)| {
+                p.revision(&revision)
+                    .map(|r| (p_id, p.clone(), revision, r.clone()))
+            });
         Ok(result)
     }
 
@@ -1863,7 +1910,10 @@ mod test {
         assert_eq!(revision.oid, branch.oid);
         assert_eq!(revision.base, branch.base);
 
-        let (id, _, _) = patches.find_by_revision(rev_id).unwrap().unwrap();
+        let (id, _, _, _) = patches
+            .find_by_revision(rev_id.into_inner())
+            .unwrap()
+            .unwrap();
         assert_eq!(id, patch_id);
     }
 
@@ -1890,7 +1940,7 @@ mod test {
         let (revision_id, _) = patch.revisions().last().unwrap();
         assert!(
             patch
-                .comment(*revision_id, "patch comment", None, &alice.signer)
+                .comment(revision_id, "patch comment", None, &alice.signer)
                 .is_ok(),
             "can comment on patch"
         );
@@ -1920,8 +1970,7 @@ mod test {
 
         let id = patch.id;
         let (rid, _) = patch.revisions().next().unwrap();
-        let _merge = patch.merge(*rid, branch.base, &alice.signer).unwrap();
-
+        let _merge = patch.merge(rid, branch.base, &alice.signer).unwrap();
         let patch = patches.get(&id).unwrap().unwrap();
 
         let merges = patch.merges.iter().collect::<Vec<_>>();
@@ -1953,7 +2002,7 @@ mod test {
         let (rid, _) = patch.latest();
         patch
             .review(
-                *rid,
+                rid,
                 Some(Verdict::Accept),
                 Some("LGTM".to_owned()),
                 vec![],
@@ -1985,15 +2034,17 @@ mod test {
             oid,
             resolves: Default::default(),
         });
-        let a2 = alice.op::<Patch>(Action::RevisionRedact { revision: a1.id() });
+        let a2 = alice.op::<Patch>(Action::RevisionRedact {
+            revision: RevisionId(a1.id()),
+        });
         let a3 = alice.op::<Patch>(Action::Review {
-            revision: a1.id(),
+            revision: RevisionId(a1.id()),
             summary: None,
             verdict: Some(Verdict::Accept),
             labels: vec![],
         });
         let a4 = alice.op::<Patch>(Action::Merge {
-            revision: a1.id(),
+            revision: RevisionId(a1.id()),
             commit: oid,
         });
 
@@ -2036,7 +2087,7 @@ mod test {
         let mut h1 = h0.clone();
         h1.commit(
             &Action::RevisionRedact {
-                revision: *h0.root().id(),
+                revision: RevisionId(*h0.root().id()),
             },
             &alice,
         );
@@ -2044,7 +2095,7 @@ mod test {
         let mut h2 = h0.clone();
         h2.commit(
             &Action::RevisionEdit {
-                revision: *h0.root().id(),
+                revision: RevisionId(*h0.root().id()),
                 description: String::from("Edited"),
             },
             &bob,
@@ -2076,8 +2127,6 @@ mod test {
             .unwrap();
 
         let (rid, _) = patch.latest();
-        let rid = *rid;
-
         let review = patch
             .review(
                 rid,
@@ -2116,7 +2165,6 @@ mod test {
             .unwrap();
 
         let (rid, _) = patch.latest();
-        let rid = *rid;
         let location = CodeLocation {
             path: PathBuf::from_str("README").unwrap(),
             old: None,
@@ -2162,7 +2210,6 @@ mod test {
             .unwrap();
 
         let (rid, _) = patch.latest();
-        let rid = *rid;
         let review = patch
             .review(rid, None, Some("Nah".to_owned()), vec![], &alice.signer)
             .unwrap();
@@ -2253,11 +2300,11 @@ mod test {
         assert_eq!(patch.revisions().count(), 2);
 
         patch.redact(revision_id, &alice.signer).unwrap();
-        assert_eq!(patch.latest().0, &RevisionId::from(*patch_id));
+        assert_eq!(patch.latest().0, RevisionId(*patch_id));
         assert_eq!(patch.revisions().count(), 1);
 
         // The patch's root must always exist.
-        assert!(patch.redact(*patch.latest().0, &alice.signer).is_err());
+        assert!(patch.redact(patch.latest().0, &alice.signer).is_err());
     }
 
     #[test]
@@ -2275,7 +2322,7 @@ mod test {
             })
         );
 
-        let revision = arbitrary::entry_id();
+        let revision = RevisionId(arbitrary::entry_id());
         assert_eq!(
             serde_json::to_value(Action::Review {
                 revision,

@@ -14,8 +14,8 @@ pub fn run(
     let signer = &term::signer(profile)?;
     let mut patches = patch::Patches::open(repository)?;
 
-    let revision_id = revision_id.resolve::<patch::RevisionId>(&repository.backend)?;
-    let Some((patch_id, _, _)) = patches.find_by_revision(&revision_id)? else {
+    let revision_id = revision_id.resolve(&repository.backend)?;
+    let Some((patch_id, _, revision_id, _)) = patches.find_by_revision(revision_id)? else {
         anyhow::bail!("patch revision `{revision_id}` not found");
     };
     let Ok(mut patch) = patches.get_mut(&patch_id) else {
