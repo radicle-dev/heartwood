@@ -139,17 +139,15 @@ impl cob::object::Storage for Repository {
         identifier: &Self::Identifier,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
-        change: &cob::Entry,
+        entry: &cob::EntryId,
     ) -> Result<(), Self::UpdateError> {
         self.backend.reference(
             git::refs::storage::cob(identifier, typename, object_id).as_str(),
-            (*change.id()).into(),
+            (*entry).into(),
             true,
             &format!(
-                "Updating collaborative object '{}/{}' with new change {}",
-                typename,
-                object_id,
-                change.id()
+                "Updating collaborative object '{}/{}' with new entry {}",
+                typename, object_id, entry,
             ),
         )?;
 
@@ -387,17 +385,15 @@ impl<'a> cob::object::Storage for DraftStore<'a> {
         identifier: &Self::Identifier,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
-        change: &cob::Entry,
+        entry: &cob::history::EntryId,
     ) -> Result<(), Self::UpdateError> {
         self.repo.backend.reference(
             git::refs::storage::draft::cob(identifier, typename, object_id).as_str(),
-            (*change.id()).into(),
+            (*entry).into(),
             true,
             &format!(
-                "Updating draft collaborative object '{}/{}' with new change {}",
-                typename,
-                object_id,
-                change.id()
+                "Updating draft collaborative object '{}/{}' with new entry {}",
+                typename, object_id, entry,
             ),
         )?;
 

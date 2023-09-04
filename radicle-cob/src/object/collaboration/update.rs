@@ -96,7 +96,7 @@ where
     )?;
 
     storage
-        .update(identifier, typename, &object_id, &change)
+        .update(identifier, typename, &object_id, &change.id)
         .map_err(|err| error::Update::Refs { err: Box::new(err) })?;
 
     let parents = change.parents.to_vec();

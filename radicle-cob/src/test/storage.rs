@@ -154,7 +154,7 @@ impl object::Storage for Storage {
         identifier: &Self::Identifier,
         typename: &crate::TypeName,
         object_id: &ObjectId,
-        change: &change::Entry,
+        entry: &change::EntryId,
     ) -> Result<(), Self::UpdateError> {
         let name = format!(
             "refs/rad/{}/cobs/{}/{}",
@@ -162,8 +162,8 @@ impl object::Storage for Storage {
             typename,
             object_id
         );
-        let id = *change.id();
-        self.raw.reference(&name, id.into(), true, "new change")?;
+        self.raw
+            .reference(&name, (*entry).into(), true, "new change")?;
         Ok(())
     }
 

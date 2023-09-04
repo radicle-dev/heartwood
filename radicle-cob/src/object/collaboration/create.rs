@@ -71,7 +71,7 @@ where
     let object_id = init_change.id().into();
 
     storage
-        .update(identifier, &type_name, &object_id, &init_change)
+        .update(identifier, &type_name, &object_id, &init_change.id)
         .map_err(|err| error::Create::Refs { err: Box::new(err) })?;
 
     let history = History::new_from_root(init_change);
