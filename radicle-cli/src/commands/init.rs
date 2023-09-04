@@ -214,30 +214,30 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         }
     ));
 
-    let name = options.name.unwrap_or_else(|| {
-        let default = path.file_name().map(|f| f.to_string_lossy().to_string());
-        term::input(
-            "Name",
-            default,
-            Some("The name of your repository, eg. 'acme'"),
-        )
-        .unwrap()
-    });
-    let description = options.description.unwrap_or_else(|| {
-        term::input("Description", None, Some("You may leave this blank")).unwrap()
-    });
-    let branch = options.branch.unwrap_or_else(|| {
-        if interactive.yes() {
+    let name = match options.name {
+        Some(name) => name,
+        None => {
+            let default = path.file_name().map(|f| f.to_string_lossy().to_string());
             term::input(
-                "Default branch",
-                Some(head),
-                Some("Please specify an existing branch"),
-            )
-            .unwrap()
-        } else {
-            head
+                "Name",
+                default,
+                Some("The name of your repository, eg. 'acme'"),
+            )?
         }
-    });
+    };
+    let description = match options.description {
+        Some(desc) => desc,
+        None => term::input("Description", None, Some("You may leave this blank"))?,
+    };
+    let branch = match options.branch {
+        Some(branch) => branch,
+        None if interactive.yes() => term::input(
+            "Default branch",
+            Some(head),
+            Some("Please specify an existing branch"),
+        )?,
+        None => head,
+    };
     let branch = RefString::try_from(branch.clone())
         .map_err(|e| anyhow!("invalid branch name {:?}: {}", branch, e))?;
     let visibility = if let Some(v) = options.visibility {
