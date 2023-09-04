@@ -687,8 +687,12 @@ async fn patch_update_handler(
         } => {
             patch.edit_revision(revision, description, &signer)?;
         }
-        patch::Action::ReviewEdit { review, summary } => {
-            patch.edit_review(review, summary, &signer)?;
+        patch::Action::ReviewEdit {
+            review,
+            summary,
+            verdict,
+        } => {
+            patch.edit_review(review, summary, verdict, &signer)?;
         }
         patch::Action::ReviewComment {
             review,

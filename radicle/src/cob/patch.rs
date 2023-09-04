@@ -157,6 +157,8 @@ pub enum Action {
     ReviewEdit {
         review: ReviewId,
         #[serde(default, skip_serializing_if = "Option::is_none")]
+        verdict: Option<Verdict>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         summary: Option<String>,
     },
     #[serde(rename = "review.redact")]
@@ -585,7 +587,11 @@ impl store::FromHistory for Patch {
                         return Err(Error::Missing(revision.into_inner()));
                     }
                 }
-                Action::ReviewEdit { review, summary } => {
+                Action::ReviewEdit {
+                    review,
+                    summary,
+                    verdict,
+                } => {
                     let Some(Some((revision, author))) =
                         self.reviews.get(&review) else {
                             return Err(Error::Missing(review.into_inner()));
@@ -601,6 +607,7 @@ impl store::FromHistory for Patch {
                         };
                         if let Some(review) = review {
                             review.summary = summary;
+                            review.verdict = verdict;
                         }
                     }
                 }
@@ -1185,8 +1192,13 @@ impl store::Transaction<Patch> {
         &mut self,
         review: ReviewId,
         summary: Option<String>,
+        verdict: Option<Verdict>,
     ) -> Result<(), store::Error> {
-        self.push(Action::ReviewEdit { review, summary })
+        self.push(Action::ReviewEdit {
+            review,
+            summary,
+            verdict,
+        })
     }
 
     /// Redact the revision.
@@ -1431,9 +1443,12 @@ where
         &mut self,
         review: ReviewId,
         summary: Option<String>,
+        verdict: Option<Verdict>,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Edit review", signer, |tx| tx.edit_review(review, summary))
+        self.transaction("Edit review", signer, |tx| {
+            tx.edit_review(review, summary, verdict)
+        })
     }
 
     /// Redact a revision.
@@ -2137,12 +2152,17 @@ mod test {
             )
             .unwrap();
         patch
-            .edit_review(review, Some("Whoops!".to_owned()), &alice.signer)
+            .edit_review(
+                review,
+                Some("Whoops!".to_owned()),
+                Some(Verdict::Reject),
+                &alice.signer,
+            )
             .unwrap(); // Overwrite the comment.
                        //
         let (_, revision) = patch.latest();
         let review = revision.review(alice.signer.public_key()).unwrap();
-        assert_eq!(review.verdict(), Some(Verdict::Accept));
+        assert_eq!(review.verdict(), Some(Verdict::Reject));
         assert_eq!(review.summary(), Some("Whoops!"));
     }
 
@@ -2213,7 +2233,9 @@ mod test {
         let review = patch
             .review(rid, None, Some("Nah".to_owned()), vec![], &alice.signer)
             .unwrap();
-        patch.edit_review(review, None, &alice.signer).unwrap();
+        patch
+            .edit_review(review, None, None, &alice.signer)
+            .unwrap();
 
         let id = patch.id;
         let patch = patches.get_mut(&id).unwrap();
