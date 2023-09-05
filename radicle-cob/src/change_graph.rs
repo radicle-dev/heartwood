@@ -7,8 +7,8 @@ use git_ext::Oid;
 use radicle_dag::Dag;
 
 use crate::{
-    change, history::EntryId, object, signatures::ExtendedSignature, CollaborativeObject, Entry,
-    History, ObjectId, TypeName,
+    change, object, signatures::ExtendedSignature, CollaborativeObject, Entry, History, ObjectId,
+    TypeName,
 };
 
 /// The graph of changes for a particular collaborative object
@@ -102,10 +102,10 @@ impl ChangeGraph {
                 graph.node(id, entry);
 
                 for k in &change.dependents {
-                    graph.dependency(EntryId::from(*k), id);
+                    graph.dependency(*k, id);
                 }
                 for k in &change.dependencies {
-                    graph.dependency(id, EntryId::from(*k));
+                    graph.dependency(id, *k);
                 }
                 ControlFlow::Continue(graph)
             });

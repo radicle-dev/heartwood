@@ -367,7 +367,7 @@ impl<T: FromHistory> Transaction<T> {
             object,
             parents,
         } = store.update(id, msg, actions.clone(), self.embeds, signer)?;
-        let id = EntryId::from(head);
+        let id = head;
         let author = self.actor;
         let timestamp = Timestamp::from_secs(object.history().timestamp());
         let identity = store.identity;
