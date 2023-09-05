@@ -492,7 +492,6 @@ impl ReadRepository for Repository {
             let oid = e.target().ok_or(Error::InvalidRef)?;
             let (_, category, _, _) = refname.non_empty_components();
 
-            // Only sign known ref categories.
             if [
                 git::name::HEADS,
                 git::name::TAGS,

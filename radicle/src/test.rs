@@ -155,6 +155,12 @@ pub mod setup {
         }
     }
 
+    impl std::ops::DerefMut for NodeRepo {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.repo
+        }
+    }
+
     /// A repository checkout.
     pub struct NodeRepoCheckout {
         checkout: git::raw::Repository,

@@ -1,11 +1,12 @@
 // Copyright © 2022 The Radicle Link Contributors
-
-use std::collections::BTreeSet;
+use std::convert::Infallible;
+use std::fmt::Debug;
 
 use git_ext::Oid;
+use nonempty::NonEmpty;
 
 use crate::change::store::{Manifest, Version};
-use crate::{change, History, ObjectId, TypeName};
+use crate::{change, Entry, History, ObjectId, TypeName};
 
 pub mod error;
 
@@ -28,16 +29,22 @@ pub use update::{update, Update, Updated};
 
 /// A collaborative object
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CollaborativeObject {
+pub struct CollaborativeObject<T> {
     /// The manifest of this object
-    pub(crate) manifest: Manifest,
-    /// The CRDT history we know about for this object
-    pub(crate) history: History,
+    pub manifest: Manifest,
+    /// The materialized object resulting from traversing the history.
+    pub object: T,
+    /// The history DAG.
+    pub history: History,
     /// The id of the object
-    pub(crate) id: ObjectId,
+    pub id: ObjectId,
 }
 
-impl CollaborativeObject {
+impl<T> CollaborativeObject<T> {
+    pub fn object(&self) -> &T {
+        &self.object
+    }
+
     pub fn history(&self) -> &History {
         &self.history
     }
@@ -53,9 +60,30 @@ impl CollaborativeObject {
     pub fn manifest(&self) -> &Manifest {
         &self.manifest
     }
+}
 
-    fn tips(&self) -> BTreeSet<Oid> {
-        self.history.tips().into_iter().map(Oid::from).collect()
+/// An object that can be built by evaluating a history.
+pub trait Evaluate<R>: Sized + Debug + 'static {
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    /// Initialize the object with the first (root) history entry.
+    fn init(entry: &Entry, store: &R) -> Result<Self, Self::Error>;
+
+    /// Apply a history entry to the evaluated state.
+    fn apply(&mut self, entry: &Entry, store: &R) -> Result<(), Self::Error>;
+}
+
+impl<R> Evaluate<R> for NonEmpty<Entry> {
+    type Error = Infallible;
+
+    fn init(entry: &Entry, _store: &R) -> Result<Self, Self::Error> {
+        Ok(Self::new(entry.clone()))
+    }
+
+    fn apply(&mut self, entry: &Entry, _store: &R) -> Result<(), Self::Error> {
+        self.push(entry.clone());
+
+        Ok(())
     }
 }
 

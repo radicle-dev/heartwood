@@ -59,7 +59,7 @@ pub type Timestamp = u64;
 /// A unique identifier for a history entry.
 pub type EntryId = Oid;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry<Resource, Id, Signature> {
     /// The content address of the `Change` itself.
     pub id: Id,

@@ -15,7 +15,7 @@ use crate::storage::{
 };
 use crate::{
     git, identity,
-    identity::{doc::DocError, IdentityError},
+    identity::{doc::DocError, IdentityError, PublicKey},
 };
 
 use super::{RemoteId, Repository};
@@ -80,8 +80,6 @@ impl cob::object::Storage for Repository {
     type UpdateError = git2::Error;
     type RemoveError = git2::Error;
 
-    type Identifier = RemoteId;
-
     fn objects(
         &self,
         typename: &cob::TypeName,
@@ -136,7 +134,7 @@ impl cob::object::Storage for Repository {
 
     fn update(
         &self,
-        identifier: &Self::Identifier,
+        identifier: &PublicKey,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
         entry: &cob::EntryId,
@@ -156,7 +154,7 @@ impl cob::object::Storage for Repository {
 
     fn remove(
         &self,
-        identifier: &Self::Identifier,
+        identifier: &PublicKey,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {
@@ -216,12 +214,16 @@ impl<'a, R: storage::WriteRepository> change::Storage for DraftStore<'a, R> {
     }
 }
 
-impl<'a> SignRepository for DraftStore<'a> {
+impl<'a, R: storage::ReadRepository> SignRepository for DraftStore<'a, R> {
     fn sign_refs<G: crypto::Signer>(
         &self,
         signer: &G,
     ) -> Result<storage::refs::SignedRefs<Verified>, Error> {
-        self.repo.sign_refs(signer)
+        // Since this is a draft store, we do not actually want to sign the refs.
+        // Instead, we just return the existing signed refs.
+        let remote = self.repo.remote(signer.public_key())?;
+
+        Ok(remote.refs)
     }
 }
 
@@ -344,8 +346,6 @@ impl<'a, R: storage::WriteRepository> cob::object::Storage for DraftStore<'a, R>
     type UpdateError = git2::Error;
     type RemoveError = git2::Error;
 
-    type Identifier = RemoteId;
-
     fn objects(
         &self,
         typename: &cob::TypeName,
@@ -382,7 +382,7 @@ impl<'a, R: storage::WriteRepository> cob::object::Storage for DraftStore<'a, R>
 
     fn update(
         &self,
-        identifier: &Self::Identifier,
+        identifier: &PublicKey,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
         entry: &cob::history::EntryId,
@@ -402,7 +402,7 @@ impl<'a, R: storage::WriteRepository> cob::object::Storage for DraftStore<'a, R>
 
     fn remove(
         &self,
-        identifier: &Self::Identifier,
+        identifier: &PublicKey,
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {

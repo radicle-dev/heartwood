@@ -7,9 +7,17 @@ use git_ext::Oid;
 use radicle_dag::Dag;
 
 use crate::{
-    change, object, signatures::ExtendedSignature, CollaborativeObject, Entry, History, ObjectId,
-    TypeName,
+    change, object, object::collaboration::Evaluate, signatures::ExtendedSignature,
+    CollaborativeObject, Entry, EntryId, History, ObjectId, TypeName,
 };
+
+#[derive(Debug, thiserror::Error)]
+pub enum EvaluateError {
+    #[error("unable to initialize object: {0}")]
+    Init(Box<dyn std::error::Error + Sync + Send + 'static>),
+    #[error("invalid signature for entry '{0}'")]
+    Signature(EntryId),
+}
 
 /// The graph of changes for a particular collaborative object
 pub(super) struct ChangeGraph {
@@ -30,6 +38,7 @@ impl ChangeGraph {
         S: change::Storage<ObjectId = Oid, Parent = Oid, Signatures = ExtendedSignature>,
     {
         log::info!("loading object '{}' '{}'", typename, oid);
+
         let mut builder = GraphBuilder::default();
         let mut edges_to_process: Vec<(Oid, Oid)> = Vec::new();
 
@@ -81,40 +90,45 @@ impl ChangeGraph {
 
     /// Given a graph evaluate it to produce a collaborative object. This will
     /// filter out branches of the graph which do not have valid signatures.
-    pub(crate) fn evaluate(self) -> CollaborativeObject {
+    pub(crate) fn evaluate<S, T: Evaluate<S>>(
+        mut self,
+        store: &S,
+    ) -> Result<CollaborativeObject<T>, EvaluateError> {
         let root = *self.object_id;
-        let root_node = self
+        let root = self
             .graph
             .get(&root)
             .expect("ChangeGraph::evaluate: root must be part of change graph");
 
-        let manifest = root_node.manifest.clone();
-        let graph = self
-            .graph
-            .fold(&[root], Dag::new(), |mut graph, _, change| {
-                // Check the change signatures are valid.
-                if !change.valid_signatures() {
-                    return ControlFlow::Break(graph);
-                }
-                let entry = change.value.clone();
-                let id = *entry.id();
-
-                graph.node(id, entry);
-
-                for k in &change.dependents {
-                    graph.dependency(*k, id);
-                }
-                for k in &change.dependencies {
-                    graph.dependency(id, *k);
-                }
-                ControlFlow::Continue(graph)
-            });
-
-        CollaborativeObject {
-            manifest,
-            history: History::new((*root).into(), graph),
-            id: self.object_id,
+        if !root.valid_signatures() {
+            return Err(EvaluateError::Signature(root.id));
         }
+        // Evaluate the root separately, since we can't have a COB without a valid root.
+        // Then, traverse the graph starting from the root's dependents.
+        let mut object =
+            T::init(&root.value, store).map_err(|e| EvaluateError::Init(Box::new(e)))?;
+        let children = Vec::from_iter(root.dependents.iter().cloned());
+        let manifest = root.manifest.clone();
+        let root = root.id;
+
+        self.graph.prune(&children, |_, entry| {
+            // Check the entry signatures are valid.
+            if !entry.valid_signatures() {
+                return ControlFlow::Break(());
+            }
+            // Apply the entry to the state, and if there's an error, prune that branch.
+            if object.apply(entry, store).is_err() {
+                return ControlFlow::Break(());
+            }
+            ControlFlow::Continue(())
+        });
+
+        Ok(CollaborativeObject {
+            manifest,
+            object,
+            history: History::new(root, self.graph),
+            id: self.object_id,
+        })
     }
 
     /// Get the tips of the collaborative object

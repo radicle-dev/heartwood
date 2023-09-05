@@ -1,13 +1,13 @@
 use std::ops::ControlFlow;
 
 use crypto::test::signer::MockSigner;
+use crypto::{PublicKey, Signer};
 use git_ext::ref_format::{refname, Component, RefString};
-use nonempty::nonempty;
+use nonempty::{nonempty, NonEmpty};
 use qcheck::Arbitrary;
-use radicle_crypto::Signer;
 
 use crate::{
-    create, get, list, object, test::arbitrary::Invalid, update, Create, ObjectId, TypeName,
+    create, get, list, object, test::arbitrary::Invalid, update, Create, Entry, ObjectId, TypeName,
     Update, Updated, Version,
 };
 
@@ -24,12 +24,12 @@ fn roundtrip() {
         person: terry,
     };
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-    let cob = create(
+    let cob = create::<NonEmpty<Entry>, _, _>(
         &storage,
         &signer,
         proj.project.content_id,
         vec![],
-        &proj.identifier(),
+        signer.public_key(),
         Create {
             contents: nonempty!(Vec::new()),
             type_name: typename.clone(),
@@ -58,12 +58,12 @@ fn list_cobs() {
         person: terry,
     };
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-    let issue_1 = create(
+    let issue_1 = create::<NonEmpty<Entry>, _, _>(
         &storage,
         &signer,
         proj.project.content_id,
         vec![],
-        &proj.identifier(),
+        signer.public_key(),
         Create {
             contents: nonempty!(b"issue 1".to_vec()),
             type_name: typename.clone(),
@@ -79,7 +79,7 @@ fn list_cobs() {
         &signer,
         proj.project.content_id,
         vec![],
-        &proj.identifier(),
+        signer.public_key(),
         Create {
             contents: nonempty!(b"issue 2".to_vec()),
             type_name: typename.clone(),
@@ -110,12 +110,12 @@ fn update_cob() {
         person: terry,
     };
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-    let cob = create(
+    let cob = create::<NonEmpty<Entry>, _, _>(
         &storage,
         &signer,
         proj.project.content_id,
         vec![],
-        &proj.identifier(),
+        signer.public_key(),
         Create {
             contents: nonempty!(Vec::new()),
             type_name: typename.clone(),
@@ -126,7 +126,7 @@ fn update_cob() {
     )
     .unwrap();
 
-    let not_expected = get(&storage, &typename, cob.id())
+    let not_expected = get::<NonEmpty<Entry>, _>(&storage, &typename, cob.id())
         .unwrap()
         .expect("BUG: cob was missing");
 
@@ -135,7 +135,7 @@ fn update_cob() {
         &signer,
         proj.project.content_id,
         vec![],
-        &proj.identifier(),
+        signer.public_key(),
         Update {
             changes: nonempty!(b"issue 1".to_vec()),
             object_id: *cob.id(),
@@ -151,7 +151,7 @@ fn update_cob() {
         .expect("BUG: cob was missing");
 
     assert_ne!(object, not_expected);
-    assert_eq!(object, expected);
+    assert_eq!(object, expected, "{object:#?} {expected:#?}");
 }
 
 #[test]
@@ -171,12 +171,12 @@ fn traverse_cobs() {
         person: neil,
     };
     let typename = "xyz.rad.issue".parse::<TypeName>().unwrap();
-    let cob = create(
+    let cob = create::<NonEmpty<Entry>, _, _>(
         &storage,
         &terry_signer,
         terry_proj.project.content_id,
         vec![],
-        &terry_proj.identifier(),
+        terry_signer.public_key(),
         Create {
             contents: nonempty!(b"issue 1".to_vec()),
             type_name: typename.clone(),
@@ -188,19 +188,19 @@ fn traverse_cobs() {
     .unwrap();
     copy_to(
         storage.as_raw(),
-        &terry_proj,
+        terry_signer.public_key(),
         &neil_proj,
         &typename,
         *cob.id(),
     )
     .unwrap();
 
-    let Updated { object, .. } = update(
+    let Updated { object, .. } = update::<NonEmpty<Entry>, _, _>(
         &storage,
         &neil_signer,
         neil_proj.project.content_id,
         vec![],
-        &neil_proj.identifier(),
+        neil_signer.public_key(),
         Update {
             changes: nonempty!(b"issue 2".to_vec()),
             object_id: *cob.id(),
@@ -306,18 +306,13 @@ fn gen<T: Arbitrary>(size: usize) -> T {
 
 fn copy_to(
     repo: &git2::Repository,
-    from: &test::RemoteProject,
+    from: &PublicKey,
     to: &test::RemoteProject,
     typename: &TypeName,
     object: ObjectId,
 ) -> Result<(), git2::Error> {
     let original = {
-        let name = format!(
-            "refs/rad/{}/cobs/{}/{}",
-            from.identifier().to_path(),
-            typename,
-            object
-        );
+        let name = format!("refs/rad/{}/cobs/{}/{}", from, typename, object);
         let r = repo.find_reference(&name)?;
         r.target().unwrap()
     };

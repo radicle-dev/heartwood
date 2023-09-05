@@ -11,8 +11,8 @@ use thiserror::Error;
 
 use crate::{
     cob::{
-        self,
-        store::{self, FromHistory as _, HistoryAction, Transaction},
+        self, op,
+        store::{self, Cob, CobAction, Transaction},
         Reaction, Timestamp,
     },
     identity::{doc::DocError, Did, Identity, IdentityError},
@@ -102,7 +102,7 @@ pub enum Action {
     },
 }
 
-impl HistoryAction for Action {}
+impl CobAction for Action {}
 
 /// Error applying an operation onto a state.
 #[derive(Error, Debug)]
@@ -160,6 +160,8 @@ pub enum Error {
     Apply(#[from] ApplyError),
     #[error("store: {0}")]
     Store(#[from] store::Error),
+    #[error("op decoding failed: {0}")]
+    Op(#[from] op::OpEncodingError),
 }
 
 /// Propose a new [`Doc`] for an [`Identity`]. The proposal can be
@@ -315,7 +317,7 @@ impl Proposal {
     }
 }
 
-impl store::FromHistory for Proposal {
+impl store::Cob for Proposal {
     type Action = Action;
     type Error = ApplyError;
 
@@ -323,13 +325,13 @@ impl store::FromHistory for Proposal {
         &TYPENAME
     }
 
-    fn init<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
+    fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
         let mut identity = Self::default();
-        identity.apply(op, repo)?;
+        identity.op(op, repo)?;
         Ok(identity)
     }
 
-    fn apply<R: ReadRepository>(&mut self, op: Op, _repo: &R) -> Result<(), Self::Error> {
+    fn op<R: ReadRepository>(&mut self, op: Op, _repo: &R) -> Result<(), ApplyError> {
         let id = op.id;
         let author = Author::new(op.author);
         let timestamp = op.timestamp;
@@ -435,6 +437,23 @@ impl store::FromHistory for Proposal {
         }
 
         Ok(())
+    }
+}
+
+impl<R: ReadRepository> cob::Evaluate<R> for Proposal {
+    type Error = Error;
+
+    fn init(entry: &cob::Entry, repo: &R) -> Result<Self, Self::Error> {
+        let op = Op::try_from(entry)?;
+        let object = Proposal::from_root(op, repo)?;
+
+        Ok(object)
+    }
+
+    fn apply(&mut self, entry: &cob::Entry, repo: &R) -> Result<(), Self::Error> {
+        let op = Op::try_from(entry)?;
+
+        self.op(op, repo).map_err(Error::Apply)
     }
 }
 
@@ -550,7 +569,7 @@ impl Revision {
     }
 }
 
-impl store::Transaction<Proposal> {
+impl<R: ReadRepository> store::Transaction<Proposal, R> {
     pub fn accept(
         &mut self,
         revision: RevisionId,
@@ -640,13 +659,13 @@ where
     ) -> Result<EntryId, Error>
     where
         G: Signer,
-        F: FnOnce(&mut Transaction<Proposal>) -> Result<(), store::Error>,
+        F: FnOnce(&mut Transaction<Proposal, R>) -> Result<(), store::Error>,
     {
-        let mut tx = Transaction::new(*signer.public_key());
+        let mut tx = Transaction::default();
         operations(&mut tx)?;
-        let (ops, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
-        self.proposal.apply(ops, self.store.as_ref())?;
+        let (proposal, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        self.proposal = proposal;
 
         Ok(commit)
     }

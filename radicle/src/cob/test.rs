@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -20,7 +21,7 @@ use crate::prelude::Did;
 use crate::storage::ReadRepository;
 use crate::test::arbitrary;
 
-use super::store::FromHistory;
+use super::store::Cob;
 use super::thread;
 
 /// Convenience type for building histories.
@@ -53,7 +54,7 @@ impl HistoryBuilder<thread::Thread> {
     }
 }
 
-impl<T: FromHistory> HistoryBuilder<T>
+impl<T: Cob> HistoryBuilder<T>
 where
     T::Action: for<'de> Deserialize<'de> + Serialize + Eq + 'static,
 {
@@ -129,7 +130,7 @@ impl<A> Deref for HistoryBuilder<A> {
 }
 
 /// Create a new test history.
-pub fn history<T: FromHistory, G: Signer>(
+pub fn history<T: Cob, G: Signer>(
     actions: &[T::Action],
     time: Timestamp,
     signer: &G,
@@ -159,7 +160,7 @@ impl<G> Actor<G> {
 
 impl<G: Signer> Actor<G> {
     /// Create a new operation.
-    pub fn op_with<T: FromHistory>(
+    pub fn op_with<T: Cob>(
         &mut self,
         actions: impl IntoIterator<Item = T::Action>,
         identity: Oid,
@@ -193,10 +194,7 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Create a new operation.
-    pub fn op<T: FromHistory>(
-        &mut self,
-        actions: impl IntoIterator<Item = T::Action>,
-    ) -> Op<T::Action>
+    pub fn op<T: Cob>(&mut self, actions: impl IntoIterator<Item = T::Action>) -> Op<T::Action>
     where
         T::Action: Clone + Serialize,
     {
@@ -222,7 +220,7 @@ impl<G: Signer> Actor<G> {
         oid: git::Oid,
         repo: &R,
     ) -> Result<Patch, patch::Error> {
-        Patch::init(
+        Patch::from_root(
             self.op::<Patch>([
                 patch::Action::Revision {
                     description: description.to_string(),
@@ -244,7 +242,7 @@ impl<G: Signer> Actor<G> {
 ///
 /// Doesn't encode in the same way as we do in production, but attempts to include the same data
 /// that feeds into the hash entropy, so that changing any input will change the resulting oid.
-pub fn encoded<T: FromHistory, G: Signer>(
+pub fn encoded<T: Cob, G: Signer>(
     action: &T::Action,
     timestamp: Timestamp,
     parents: impl IntoIterator<Item = Oid>,

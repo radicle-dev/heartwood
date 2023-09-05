@@ -1,8 +1,10 @@
 // Copyright © 2022 The Radicle Link Contributors
 
 use nonempty::NonEmpty;
+use radicle_crypto::PublicKey;
 
 use crate::Embed;
+use crate::Evaluate;
 use crate::Store;
 
 use super::*;
@@ -51,16 +53,17 @@ impl Create {
 ///
 /// The `args` are the metadata for this [`CollaborativeObject`]. See
 /// [`Create`] for further information.
-pub fn create<S, I, G>(
+pub fn create<T, S, G>(
     storage: &S,
     signer: &G,
     resource: Oid,
     parents: Vec<Oid>,
-    identifier: &S::Identifier,
+    identifier: &PublicKey,
     args: Create,
-) -> Result<CollaborativeObject, error::Create>
+) -> Result<CollaborativeObject<T>, error::Create>
 where
-    S: Store<I>,
+    T: Evaluate<S>,
+    S: Store,
     G: crypto::Signer,
 {
     let type_name = args.type_name.clone();
@@ -69,9 +72,10 @@ where
         .store(resource, parents, signer, args.template())
         .map_err(error::Create::from)?;
     let object_id = init_change.id().into();
+    let object = T::init(&init_change, storage).map_err(error::Create::evaluate)?;
 
     storage
-        .update(identifier, &type_name, &object_id, &init_change.id)
+        .update(identifier, &type_name, &object_id, &object_id)
         .map_err(|err| error::Create::Refs { err: Box::new(err) })?;
 
     let history = History::new_from_root(init_change);
@@ -79,6 +83,7 @@ where
     Ok(CollaborativeObject {
         manifest: Manifest::new(type_name, version),
         history,
+        object,
         id: object_id,
     })
 }

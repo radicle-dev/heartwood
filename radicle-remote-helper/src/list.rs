@@ -23,7 +23,10 @@ pub enum Error {
 }
 
 /// List refs for fetching (`git fetch` and `git ls-remote`).
-pub fn for_fetch<R: ReadRepository + cob::Store>(url: &Url, stored: &R) -> Result<(), Error> {
+pub fn for_fetch<R: ReadRepository + cob::Store + 'static>(
+    url: &Url,
+    stored: &R,
+) -> Result<(), Error> {
     if let Some(namespace) = url.namespace {
         // Listing namespaced refs.
         for (name, oid) in stored.references_of(&namespace)? {
@@ -68,7 +71,7 @@ pub fn for_push<R: ReadRepository>(profile: &Profile, stored: &R) -> Result<(), 
 }
 
 /// List canonical patch references. These are magic refs that can be used to pull patch updates.
-fn patch_refs<R: ReadRepository + cob::Store>(stored: &R) -> Result<(), Error> {
+fn patch_refs<R: ReadRepository + cob::Store + 'static>(stored: &R) -> Result<(), Error> {
     let patches = radicle::cob::patch::Patches::open(stored)?;
     for patch in patches.all()? {
         let Ok((id, patch)) = patch else {

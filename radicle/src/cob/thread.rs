@@ -8,7 +8,8 @@ use thiserror::Error;
 
 use crate::cob;
 use crate::cob::common::{Reaction, Timestamp, Uri};
-use crate::cob::{ActorId, Embed, EntryId, Op};
+use crate::cob::store::Cob;
+use crate::cob::{op, ActorId, Embed, EntryId, Op};
 use crate::git;
 use crate::prelude::ReadRepository;
 
@@ -38,6 +39,8 @@ pub enum Error {
     /// Object initialization failed.
     #[error("initialization failed: {0}")]
     Init(&'static str),
+    #[error("op decoding failed: {0}")]
+    Op(#[from] op::OpEncodingError),
 }
 
 /// Identifies a comment.
@@ -229,7 +232,7 @@ pub enum Action {
     },
 }
 
-impl cob::store::HistoryAction for Action {}
+impl cob::store::CobAction for Action {}
 
 impl From<Action> for nonempty::NonEmpty<Action> {
     fn from(action: Action) -> Self {
@@ -241,9 +244,9 @@ impl From<Action> for nonempty::NonEmpty<Action> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Thread<T = Comment<()>> {
     /// The comments under the thread.
-    comments: BTreeMap<CommentId, Option<T>>,
+    pub(crate) comments: BTreeMap<CommentId, Option<T>>,
     /// Comment timeline.
-    timeline: Vec<CommentId>,
+    pub(crate) timeline: Vec<CommentId>,
 }
 
 impl<T> Default for Thread<T> {
@@ -299,6 +302,10 @@ impl<T> Thread<T> {
                 .map(|comment| (id, comment))
         })
     }
+
+    pub fn timeline(&self) -> impl DoubleEndedIterator<Item = &EntryId> + '_ {
+        self.timeline.iter()
+    }
 }
 
 impl Thread {
@@ -350,7 +357,7 @@ impl<L> Thread<Comment<L>> {
     }
 }
 
-impl cob::store::FromHistory for Thread {
+impl cob::store::Cob for Thread {
     type Action = Action;
     type Error = Error;
 
@@ -358,7 +365,7 @@ impl cob::store::FromHistory for Thread {
         &TYPENAME
     }
 
-    fn init<R: ReadRepository>(op: Op<Action>, repo: &R) -> Result<Self, Self::Error> {
+    fn from_root<R: ReadRepository>(op: Op<Action>, repo: &R) -> Result<Self, Self::Error> {
         let author = op.author;
         let entry = op.id;
         let timestamp = op.timestamp;
@@ -385,11 +392,28 @@ impl cob::store::FromHistory for Thread {
         Ok(thread)
     }
 
-    fn apply<R: ReadRepository>(&mut self, op: Op<Action>, repo: &R) -> Result<(), Error> {
+    fn op<R: ReadRepository>(&mut self, op: Op<Action>, repo: &R) -> Result<(), Error> {
         for action in op.actions {
             self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
         }
         Ok(())
+    }
+}
+
+impl<R: ReadRepository> cob::Evaluate<R> for Thread {
+    type Error = Error;
+
+    fn init(entry: &cob::Entry, repo: &R) -> Result<Self, Self::Error> {
+        let op = Op::try_from(entry)?;
+        let object = <Thread as Cob>::from_root(op, repo)?;
+
+        Ok(object)
+    }
+
+    fn apply(&mut self, entry: &cob::Entry, repo: &R) -> Result<(), Self::Error> {
+        let op = Op::try_from(entry)?;
+
+        self.op(op, repo)
     }
 }
 
@@ -405,6 +429,11 @@ pub fn comment<L>(
 ) -> Result<(), Error> {
     if body.is_empty() {
         return Err(Error::Comment(id));
+    }
+    if let Some(id) = reply_to {
+        if !thread.comments.contains_key(&id) {
+            return Err(Error::Missing(id));
+        }
     }
     debug_assert!(!thread.timeline.contains(&id));
     thread.timeline.push(id);
@@ -522,6 +551,7 @@ pub fn unresolve<T>(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use std::ops::{Deref, DerefMut};
 
@@ -530,7 +560,7 @@ mod tests {
 
     use super::*;
     use crate as radicle;
-    use crate::cob::store::FromHistory;
+    use crate::cob::store::Cob;
     use crate::cob::test;
     use crate::crypto::test::signer::MockSigner;
     use crate::crypto::Signer;
@@ -609,7 +639,7 @@ mod tests {
 
         // Redact the second comment.
         let a3 = alice.redact(a1.id());
-        thread.apply(a3, &repo).unwrap();
+        thread.op(a3, &repo).unwrap();
 
         let (_, comment0) = thread.comments().nth(0).unwrap();
         let (_, comment1) = thread.comments().nth(1).unwrap();
@@ -806,7 +836,7 @@ mod tests {
         let mut t = Thread::default();
         let id = arbitrary::entry_id();
 
-        t.apply(alice.redact(id), &repo).unwrap_err();
+        t.op(alice.redact(id), &repo).unwrap_err();
     }
 
     #[test]
@@ -816,7 +846,7 @@ mod tests {
         let mut t = Thread::default();
         let id = arbitrary::entry_id();
 
-        t.apply(alice.edit(id, "Edited"), &repo).unwrap_err();
+        t.op(alice.edit(id, "Edited"), &repo).unwrap_err();
     }
 
     #[test]

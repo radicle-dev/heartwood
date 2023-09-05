@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::iter;
 use std::path::PathBuf;
 
 use git_ext::author::Author;
@@ -95,7 +96,7 @@ impl change::Storage for git2::Repository {
     fn store<Signer>(
         &self,
         resource: Self::Parent,
-        parents: Vec<Self::Parent>,
+        mut parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: store::Template<Self::ObjectId>,
     ) -> Result<Entry, Self::StoreError>
@@ -118,11 +119,19 @@ impl change::Storage for git2::Repository {
             ExtendedSignature::new(*key, sig)
         };
 
+        // Make sure there are no duplicates in the parents list.
+        parents.dedup();
+        parents.sort();
+
         let (id, timestamp) = write_commit(
             self,
-            resource,
-            parents.clone(),
-            tips,
+            *resource,
+            // Commit to tips, extra parents and resource.
+            tips.iter()
+                .cloned()
+                .chain(parents.clone())
+                .chain(iter::once(resource))
+                .map(git2::Oid::from),
             message,
             signature.clone(),
             tree,
@@ -133,7 +142,7 @@ impl change::Storage for git2::Repository {
             revision: revision.into(),
             signature,
             resource,
-            parents,
+            parents: tips.into_iter().chain(parents).collect(),
             manifest,
             contents,
             timestamp,
@@ -242,31 +251,14 @@ fn load_contents(repo: &git2::Repository, tree: &git2::Tree) -> Result<Contents,
     NonEmpty::collect(ops.into_values()).ok_or_else(|| error::Load::NoChange(tree.id().into()))
 }
 
-fn write_commit<O>(
+fn write_commit(
     repo: &git2::Repository,
-    resource: O,
-    parents: Vec<O>,
-    tips: Vec<O>,
+    resource: git2::Oid,
+    parents: impl IntoIterator<Item = git2::Oid>,
     message: String,
     signature: ExtendedSignature,
     tree: git2::Tree,
-) -> Result<(Oid, Timestamp), error::Create>
-where
-    O: AsRef<git2::Oid>,
-{
-    let resource = *resource.as_ref();
-    // Add extra parents ensuring there are no duplicates.
-    let mut parents = parents.iter().map(|o| *o.as_ref()).collect::<Vec<_>>();
-    parents.sort();
-    parents.dedup();
-
-    let parents = tips
-        .iter()
-        .map(|o| *o.as_ref())
-        .chain(parents.into_iter())
-        .chain(std::iter::once(resource))
-        .collect::<Vec<_>>();
-
+) -> Result<(Oid, Timestamp), error::Create> {
     let trailers: Vec<OwnedTrailer> = vec![trailers::ResourceCommitTrailer::from(resource).into()];
     let author = repo.signature()?;
     let timestamp = author.when().seconds();

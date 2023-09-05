@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, convert::TryFrom as _};
 
+use radicle_crypto::PublicKey;
 use tempfile::TempDir;
 
 use crate::{
@@ -7,8 +8,6 @@ use crate::{
     object::{self, Reference},
     ObjectId, Store,
 };
-
-use super::identity::Urn;
 
 pub mod error {
     use thiserror::Error;
@@ -56,7 +55,7 @@ impl Storage {
     }
 }
 
-impl Store<Urn> for Storage {}
+impl Store for Storage {}
 
 impl change::Storage for Storage {
     type StoreError = <git2::Repository as change::Storage>::StoreError;
@@ -106,8 +105,6 @@ impl object::Storage for Storage {
     type UpdateError = git2::Error;
     type RemoveError = git2::Error;
 
-    type Identifier = Urn;
-
     fn objects(
         &self,
         typename: &crate::TypeName,
@@ -151,17 +148,12 @@ impl object::Storage for Storage {
 
     fn update(
         &self,
-        identifier: &Self::Identifier,
+        identifier: &PublicKey,
         typename: &crate::TypeName,
         object_id: &ObjectId,
         entry: &change::EntryId,
     ) -> Result<(), Self::UpdateError> {
-        let name = format!(
-            "refs/rad/{}/cobs/{}/{}",
-            identifier.to_path(),
-            typename,
-            object_id
-        );
+        let name = format!("refs/rad/{}/cobs/{}/{}", identifier, typename, object_id);
         self.raw
             .reference(&name, (*entry).into(), true, "new change")?;
         Ok(())
@@ -169,16 +161,11 @@ impl object::Storage for Storage {
 
     fn remove(
         &self,
-        identifier: &Self::Identifier,
+        identifier: &PublicKey,
         typename: &crate::TypeName,
         object_id: &ObjectId,
     ) -> Result<(), Self::RemoveError> {
-        let name = format!(
-            "refs/rad/{}/cobs/{}/{}",
-            identifier.to_path(),
-            typename,
-            object_id
-        );
+        let name = format!("refs/rad/{}/cobs/{}/{}", identifier, typename, object_id);
         self.raw.find_reference(&name)?.delete()?;
 
         Ok(())

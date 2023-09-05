@@ -9,10 +9,10 @@ use thiserror::Error;
 use crate::cob;
 use crate::cob::common::{Author, Authorization, Label, Reaction, Timestamp, Uri};
 use crate::cob::store::Transaction;
-use crate::cob::store::{FromHistory as _, HistoryAction};
+use crate::cob::store::{Cob, CobAction};
 use crate::cob::thread;
 use crate::cob::thread::{Comment, CommentId, Thread};
-use crate::cob::{store, ActorId, Embed, EntryId, ObjectId, TypeName};
+use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
 use crate::git;
 use crate::identity::doc::{Doc, DocError};
@@ -35,20 +35,22 @@ pub enum Error {
     /// Error loading the identity document.
     #[error("identity doc failed to load: {0}")]
     Doc(#[from] DocError),
-    #[error("description missing")]
-    DescriptionMissing,
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::Error),
     #[error("store: {0}")]
     Store(#[from] store::Error),
-    #[error("history: {0}")]
-    History(Box<dyn std::error::Error + Sync + Send + 'static>),
     /// Action not authorized.
     #[error("{0} not authorized to apply {1:?}")]
     NotAuthorized(ActorId, Action),
+    /// Action not allowed.
+    #[error("action is not allowed: {0}")]
+    NotAllowed(EntryId),
     /// General error initializing an issue.
     #[error("initialization failed: {0}")]
     Init(&'static str),
+    /// Error decoding an operation.
+    #[error("op decoding failed: {0}")]
+    Op(#[from] op::OpEncodingError),
 }
 
 /// Reason why an issue was closed.
@@ -113,7 +115,7 @@ pub struct Issue {
     pub(super) thread: Thread,
 }
 
-impl store::FromHistory for Issue {
+impl store::Cob for Issue {
     type Action = Action;
     type Error = Error;
 
@@ -121,7 +123,7 @@ impl store::FromHistory for Issue {
         &TYPENAME
     }
 
-    fn init<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
+    fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
         let mut actions = op.actions.into_iter();
         let Some(Action::Comment { body, reply_to: None, embeds }) = actions.next() else {
             return Err(Error::Init("the first action must be of type `comment`"));
@@ -136,10 +138,10 @@ impl store::FromHistory for Issue {
         Ok(issue)
     }
 
-    fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
+    fn op<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
         let doc = repo.identity_doc_at(op.identity)?.verified()?;
         for action in op.actions {
-            match self.authorization(&action, &op.author, &doc) {
+            match self.authorization(&action, &op.author, &doc)? {
                 Authorization::Allow => {
                     self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
                 }
@@ -152,6 +154,23 @@ impl store::FromHistory for Issue {
             }
         }
         Ok(())
+    }
+}
+
+impl<R: ReadRepository> cob::Evaluate<R> for Issue {
+    type Error = Error;
+
+    fn init(entry: &cob::Entry, repo: &R) -> Result<Self, Self::Error> {
+        let op = Op::try_from(entry)?;
+        let object = Issue::from_root(op, repo)?;
+
+        Ok(object)
+    }
+
+    fn apply(&mut self, entry: &cob::Entry, repo: &R) -> Result<(), Self::Error> {
+        let op = Op::try_from(entry)?;
+
+        self.op(op, repo)
     }
 }
 
@@ -222,14 +241,13 @@ impl Issue {
         action: &Action,
         actor: &ActorId,
         doc: &Doc<Verified>,
-    ) -> Authorization {
+    ) -> Result<Authorization, Error> {
         if doc.is_delegate(actor) {
             // A delegate is authorized to do all actions.
-            return Authorization::Allow;
+            return Ok(Authorization::Allow);
         }
         let author: ActorId = *self.author().id().as_key();
-
-        match action {
+        let outcome = match action {
             // Only delegate can assign someone to an issue.
             Action::Assign { .. } => Authorization::Deny,
             // Issue authors can edit their own issues.
@@ -245,15 +263,20 @@ impl Issue {
             Action::Comment { .. } => Authorization::Allow,
             // All roles can edit or redact their own comments.
             Action::CommentEdit { id, .. } | Action::CommentRedact { id, .. } => {
-                if let Some(comment) = self.comment(id) {
-                    Authorization::from(*actor == comment.author())
+                if let Some(comment) = self.thread.comments.get(id) {
+                    if let Some(comment) = comment {
+                        Authorization::from(*actor == comment.author())
+                    } else {
+                        Authorization::Unknown
+                    }
                 } else {
-                    Authorization::Unknown
+                    return Err(Error::Thread(thread::Error::Missing(*id)));
                 }
             }
             // All roles can react to a comment on an issue.
             Action::CommentReact { .. } => Authorization::Allow,
-        }
+        };
+        Ok(outcome)
     }
 }
 
@@ -301,6 +324,10 @@ impl Issue {
                 thread::edit(&mut self.thread, entry, id, timestamp, body, embeds)?;
             }
             Action::CommentRedact { id } => {
+                let (root, _) = self.root();
+                if id == *root {
+                    return Err(Error::NotAllowed(entry));
+                }
                 thread::redact(&mut self.thread, entry, id)?;
             }
             Action::CommentReact {
@@ -323,7 +350,7 @@ impl Deref for Issue {
     }
 }
 
-impl store::Transaction<Issue> {
+impl<R: ReadRepository> store::Transaction<Issue, R> {
     /// Assign DIDs to the issue.
     pub fn assign(&mut self, assignees: impl IntoIterator<Item = Did>) -> Result<(), store::Error> {
         self.push(Action::Assign {
@@ -353,6 +380,11 @@ impl store::Transaction<Issue> {
         self.push(Action::Edit {
             title: title.to_string(),
         })
+    }
+
+    /// Redact a comment.
+    pub fn redact_comment(&mut self, id: CommentId) -> Result<(), store::Error> {
+        self.push(Action::CommentRedact { id })
     }
 
     /// Lifecycle an issue.
@@ -473,9 +505,7 @@ where
         embeds: impl IntoIterator<Item = Embed>,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        let Some((id, _)) = self.thread.comments().next() else {
-            return Err(Error::DescriptionMissing);
-        };
+        let (id, _) = self.root();
         let id = *id;
         self.transaction("Edit description", signer, |tx| {
             tx.edit_comment(id, description, embeds.into_iter().collect())
@@ -495,13 +525,18 @@ where
         embeds: impl IntoIterator<Item = Embed>,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        assert!(
-            self.thread.comment(&reply_to).is_some(),
-            "Comment {reply_to} not found"
-        );
         self.transaction("Comment", signer, |tx| {
             tx.comment(body, reply_to, embeds.into_iter().collect())
         })
+    }
+
+    /// Redact a comment.
+    pub fn redact_comment<G: Signer>(
+        &mut self,
+        id: CommentId,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Redact comment", signer, |tx| tx.redact_comment(id))
     }
 
     /// Label an issue.
@@ -532,13 +567,13 @@ where
     ) -> Result<EntryId, Error>
     where
         G: Signer,
-        F: FnOnce(&mut Transaction<Issue>) -> Result<(), store::Error>,
+        F: FnOnce(&mut Transaction<Issue, R>) -> Result<(), store::Error>,
     {
-        let mut tx = Transaction::new(*signer.public_key());
+        let mut tx = Transaction::default();
         operations(&mut tx)?;
-        let (ops, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
-        self.issue.apply(ops, self.store.as_ref())?;
+        let (issue, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        self.issue = issue;
 
         Ok(commit)
     }
@@ -710,9 +745,10 @@ pub enum Action {
     },
 }
 
-impl HistoryAction for Action {}
+impl CobAction for Action {}
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use pretty_assertions::assert_eq;
 
@@ -1187,6 +1223,38 @@ mod test {
     }
 
     #[test]
+    fn test_issue_comment_redact() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issue = issues
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
+            .unwrap();
+
+        // The root thread op id is always the same.
+        let (c0, _) = issue.root();
+        let c0 = *c0;
+
+        let comment = issue
+            .comment("Ho ho ho.", c0, vec![], &node.signer)
+            .unwrap();
+        issue.reload().unwrap();
+        assert_eq!(issue.comments().count(), 2);
+
+        issue.redact_comment(comment, &node.signer).unwrap();
+        assert_eq!(issue.comments().count(), 1);
+
+        // Can't redact root comment.
+        issue.redact_comment(*issue.id, &node.signer).unwrap_err();
+    }
+
+    #[test]
     fn test_issue_state_serde() {
         assert_eq!(
             serde_json::to_value(State::Open).unwrap(),
@@ -1357,5 +1425,176 @@ mod test {
 
         assert_eq!(e1.content, Uri::from(embed1_edited.oid()));
         assert_eq!(b1.content(), &embed1_edited.content);
+    }
+
+    #[test]
+    fn test_invalid_actions() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issue = issues
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
+            .unwrap();
+        let missing = arbitrary::oid();
+
+        issue
+            .comment("Invalid", missing, [], &node.signer)
+            .unwrap_err();
+        assert_eq!(issue.comments().count(), 1);
+        issue.reload().unwrap();
+        assert_eq!(issue.comments().count(), 1);
+
+        let cob = cob::get::<Issue, _>(&*repo, Issue::type_name(), issue.id())
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(cob.history().len(), 1);
+        assert_eq!(
+            cob.history().tips().into_iter().collect::<Vec<_>>(),
+            vec![*issue.id]
+        );
+    }
+
+    #[test]
+    fn test_invalid_tx() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issue = issues
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
+            .unwrap();
+        let missing = arbitrary::oid();
+
+        // An invalid comment which points to a missing parent.
+        // Even creating it via a transaction will trigger an error.
+        let mut tx = Transaction::<Issue, _>::default();
+        tx.comment("Invalid comment", missing, vec![]).unwrap();
+        tx.commit("Add comment", issue.id, &mut issue.store.raw, &node.signer)
+            .unwrap_err();
+
+        issue.reload().unwrap();
+        assert_eq!(issue.comments().count(), 1);
+    }
+
+    #[test]
+    fn test_invalid_cob() {
+        use crate::crypto::test::signer::MockSigner;
+        use cob::change::Storage as _;
+        use cob::object::Storage as _;
+        use nonempty::NonEmpty;
+
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let eve = MockSigner::default();
+        let identity = repo.identity().unwrap().head;
+        let missing = arbitrary::oid();
+        let type_name = Issue::type_name().clone();
+        let mut issues = Issues::open(&*repo).unwrap();
+        let mut issue = issues
+            .create(
+                "My first issue",
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+                &node.signer,
+            )
+            .unwrap();
+
+        // Initially, there is one node in the DAG.
+        let cob = cob::get::<NonEmpty<cob::Entry>, _>(&*repo, &type_name, issue.id())
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(cob.history.len(), 1);
+        assert_eq!(cob.object.len(), 1);
+
+        // We have a valid issue. Now we're going to add an invalid action to it, by bypassing
+        // the COB API. We do this using a different key, so that valid actions by
+        // our issue author don't overwrite the invalid action, since there is
+        // only one ref per COB per user.
+        let action = Action::CommentRedact { id: missing };
+        let action = cob::store::encoding::encode(action).unwrap();
+        let contents = NonEmpty::new(action);
+        let invalid = repo
+            .store(
+                identity,
+                vec![],
+                &eve,
+                cob::change::Template {
+                    tips: vec![*issue.id],
+                    embeds: vec![],
+                    contents: contents.clone(),
+                    type_name: type_name.clone(),
+                    message: String::from("Add invalid operation"),
+                },
+            )
+            .unwrap();
+
+        repo.update(eve.public_key(), &type_name, &issue.id, &invalid.id)
+            .unwrap();
+
+        // If we fetch the COB with its history, *without* trying to interpret it as an issue,
+        // we'll see that all entries, including the invalid one are there.
+        let cob = cob::get::<NonEmpty<cob::Entry>, _>(&*repo, &type_name, issue.id())
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(cob.history.len(), 2);
+        assert_eq!(cob.object.len(), 2);
+        assert_eq!(cob.object.last().contents(), &contents);
+
+        // However, if we try to fetch it as an *issue*, the invalid comment is pruned.
+        let cob = cob::get::<Issue, _>(&*repo, &type_name, issue.id())
+            .unwrap()
+            .unwrap();
+        assert_eq!(cob.history.len(), 1);
+        assert_eq!(cob.object.comments().count(), 1);
+        assert!(cob.object.comment(&issue.id).is_some());
+
+        // Additionally, when adding a *valid* comment, it does not build upon the bad operation.
+        issue.reload().unwrap();
+        issue
+            .comment("Valid comment", *issue.id, vec![], &node.signer)
+            .unwrap();
+        issue.reload().unwrap();
+        assert_eq!(issue.comments().count(), 2);
+        assert_eq!(issue.thread.timeline().count(), 2);
+        assert_eq!(issue.comments().last().unwrap().1.body(), "Valid comment");
+
+        // The actual DAG contains 3 nodes, but only 2 were loaded as an issue.
+        let cob = cob::get::<NonEmpty<cob::Entry>, _>(&*repo, &type_name, issue.id())
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(cob.history.len(), 3);
+        assert_eq!(cob.object.len(), 3);
+
+        // If Eve now writes a valid comment via the `Issue` type, it will overwrite her invalid
+        // one, since it won't be loaded as a tip.
+        issue
+            .comment("Eve's comment", *issue.id, vec![], &eve)
+            .unwrap();
+
+        let cob = cob::get::<NonEmpty<cob::Entry>, _>(&*repo, &type_name, issue.id())
+            .unwrap()
+            .unwrap();
+
+        // There are three nodes still, but they are all valid comments.
+        // The invalid comment of Eve was replaced with a valid one.
+        assert_eq!(issue.comments().count(), 3);
+        assert_eq!(cob.history.len(), 3);
+        assert_eq!(cob.object.len(), 3);
     }
 }

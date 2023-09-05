@@ -91,7 +91,8 @@ pub use type_name::TypeName;
 
 pub mod object;
 pub use object::{
-    create, get, info, list, remove, update, CollaborativeObject, Create, ObjectId, Update, Updated,
+    create, get, info, list, remove, update, CollaborativeObject, Create, Evaluate, ObjectId,
+    Update, Updated,
 };
 
 #[cfg(test)]
@@ -116,9 +117,9 @@ mod tests;
 /// [`git2::Repository`]. It is expected that the underlying storage
 /// for `object::Storage` will also be `git2::Repository`, but if not
 /// please open an issue to change the definition of `Store` :)
-pub trait Store<I = crypto::PublicKey>
+pub trait Store
 where
-    Self: object::Storage<Identifier = I>
+    Self: object::Storage
         + change::Storage<
             StoreError = git::change::error::Create,
             LoadError = git::change::error::Load,

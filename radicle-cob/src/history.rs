@@ -39,16 +39,6 @@ impl History {
         Self::new(id, Dag::root(id, root))
     }
 
-    /// Get the current history timestamp.
-    /// This is the latest timestamp of any tip.
-    pub fn timestamp(&self) -> Timestamp {
-        self.graph
-            .tips()
-            .map(|(_, n)| n.timestamp)
-            .max()
-            .unwrap_or_default()
-    }
-
     /// Get all the tips of the graph.
     pub fn tips(&self) -> BTreeSet<Oid> {
         self.graph.tips().map(|(_, entry)| *entry.id()).collect()

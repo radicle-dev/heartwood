@@ -1,6 +1,6 @@
 // Copyright © 2022 The Radicle Link Contributors
 
-use crate::{change_graph::ChangeGraph, CollaborativeObject, Store, TypeName};
+use crate::{change_graph::ChangeGraph, CollaborativeObject, Evaluate, Store, TypeName};
 
 use super::error;
 
@@ -11,12 +11,13 @@ use super::error;
 /// [`Store`] for further information.
 ///
 /// The `typename` is the type of objects to be listed.
-pub fn list<S, I>(
+pub fn list<T, S>(
     storage: &S,
     typename: &TypeName,
-) -> Result<Vec<CollaborativeObject>, error::Retrieve>
+) -> Result<Vec<CollaborativeObject<T>>, error::Retrieve>
 where
-    S: Store<I>,
+    T: Evaluate<S>,
+    S: Store,
 {
     let references = storage
         .types(typename)
@@ -24,17 +25,20 @@ where
     log::trace!("loaded {} references", references.len());
     let mut result = Vec::new();
     for (oid, tip_refs) in references {
-        log::trace!("loading object '{}'", oid);
+        log::trace!("loading object '{oid}'");
         let loaded = ChangeGraph::load(storage, tip_refs.iter(), typename, &oid)
-            .map(|graph| graph.evaluate());
+            .map(|graph| graph.evaluate(storage).map_err(error::Retrieve::evaluate));
 
         match loaded {
-            Some(obj) => {
-                log::trace!("object '{}' found", oid);
+            Some(Ok(obj)) => {
+                log::trace!("object '{oid}' found");
                 result.push(obj);
             }
+            Some(Err(e)) => {
+                log::trace!("object '{oid}' failed to load: {e}")
+            }
             None => {
-                log::trace!("object '{}' not found", oid);
+                log::trace!("object '{oid}' not found");
             }
         }
     }

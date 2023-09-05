@@ -186,6 +186,37 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     /// Fold over the graph in topological order, pruning branches along the way.
     ///
     /// To continue traversing a branch, return [`ControlFlow::Continue`] from the
+    /// filter function. To stop traversal of a branch and prune it,
+    /// return [`ControlFlow::Break`].
+    pub fn prune<F>(&mut self, roots: &[K], mut filter: F)
+    where
+        F: for<'r> FnMut(&'r K, &'r Node<K, V>) -> ControlFlow<()>,
+    {
+        let mut visited = BTreeSet::new();
+        let mut queue = VecDeque::<K>::from_iter(roots.iter().cloned());
+
+        while let Some(next) = queue.pop_front() {
+            if !visited.insert(next) {
+                continue;
+            }
+            if let Some(node) = self.graph.get(&next) {
+                match filter(&next, node) {
+                    ControlFlow::Continue(()) => {
+                        queue.extend(node.dependents.iter().cloned());
+                    }
+                    ControlFlow::Break(()) => {
+                        // When pruning a node, we remove all transitive dependents on
+                        // that node.
+                        self.remove(&next);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Fold over the graph in topological order, skipping certain branches.
+    ///
+    /// To continue traversing a branch, return [`ControlFlow::Continue`] from the
     /// filter function. To stop traversal of a branch, return [`ControlFlow::Break`].
     pub fn fold<A, F>(&self, roots: &[K], mut acc: A, mut filter: F) -> A
     where
@@ -208,12 +239,37 @@ impl<K: Ord + Copy, V> Dag<K, V> {
                         // When filtering out a node, we filter out all transitive dependents on
                         // that node by adding them to the already visited list.
                         visited.extend(self.descendants_of(node));
+
                         acc = a;
                     }
                 }
             }
         }
         acc
+    }
+
+    /// Remove a node from the graph, and all its dependents.
+    pub fn remove(&mut self, key: &K) -> Option<Node<K, V>> {
+        if let Some(node) = self.graph.remove(key) {
+            self.tips.remove(key);
+            self.roots.remove(key);
+
+            for k in &node.dependencies {
+                if let Some(dependency) = self.graph.get_mut(k) {
+                    dependency.dependents.remove(key);
+
+                    if dependency.dependents.is_empty() {
+                        self.tips.insert(*k);
+                    }
+                }
+            }
+            for k in &node.dependents {
+                self.remove(k);
+            }
+            Some(node)
+        } else {
+            None
+        }
     }
 
     fn descendants_of(&self, from: &Node<K, V>) -> Vec<K> {
@@ -534,5 +590,79 @@ mod tests {
             }
         });
         assert_eq!(acc, vec!["R", "A2"]);
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut dag = Dag::new();
+
+        dag.node("R", ());
+        dag.node("A1", ());
+        dag.node("A2", ());
+        dag.node("A3", ());
+        dag.node("B1", ());
+        dag.node("C1", ());
+        dag.node("D1", ());
+
+        dag.dependency("A1", "R");
+        dag.dependency("A2", "R");
+        dag.dependency("A3", "A2");
+        dag.dependency("B1", "A1");
+        dag.dependency("B1", "A2");
+        dag.dependency("C1", "B1");
+        dag.dependency("C1", "A3");
+        dag.dependency("D1", "C1");
+        dag.dependency("D1", "A2");
+
+        dag.remove(&"C1");
+        assert!(dag.get(&"C1").is_none());
+        assert!(dag.get(&"D1").is_none());
+        assert!(!dag.tips.contains(&"D1"));
+        assert_eq!(dag.tips.iter().collect::<Vec<_>>(), vec![&"A3", &"B1"]);
+
+        dag.remove(&"A3");
+        assert_eq!(dag.tips.iter().collect::<Vec<_>>(), vec![&"B1"]);
+
+        dag.remove(&"A1");
+        assert!(dag.get(&"A1").is_none());
+        assert!(dag.get(&"B1").is_none());
+        assert!(dag.get(&"A2").is_some());
+        assert_eq!(dag.tips.iter().collect::<Vec<_>>(), vec![&"A2"]);
+
+        dag.remove(&"R");
+        assert!(dag.is_empty());
+        assert!(dag.tips.is_empty());
+        assert!(dag.roots.is_empty());
+    }
+
+    #[test]
+    fn test_prune() {
+        let mut dag = Dag::new();
+
+        dag.node("R", ());
+        dag.node("A1", ());
+        dag.node("A2", ());
+        dag.node("B1", ());
+        dag.node("C1", ());
+        dag.node("D1", ());
+
+        dag.dependency("A1", "R");
+        dag.dependency("A2", "R");
+        dag.dependency("B1", "A1");
+        dag.dependency("C1", "B1");
+        dag.dependency("D1", "C1");
+        dag.dependency("D1", "A2");
+
+        let a1 = dag.get(&"A1").unwrap();
+        assert_eq!(dag.descendants_of(a1), vec!["B1", "C1", "D1"]);
+
+        dag.prune(&["R"], |key, _| {
+            if key == &"B1" {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        });
+        assert_eq!(dag.sorted(|a, b| a.cmp(b)), vec!["R", "A1", "A2"]);
     }
 }

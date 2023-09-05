@@ -15,11 +15,11 @@ use thiserror::Error;
 use crate::cob;
 use crate::cob::common::{Author, Authorization, Label, Reaction, Timestamp};
 use crate::cob::store::Transaction;
-use crate::cob::store::{FromHistory as _, HistoryAction};
+use crate::cob::store::{Cob, CobAction};
 use crate::cob::thread;
 use crate::cob::thread::Thread;
 use crate::cob::thread::{Comment, CommentId, Reactions};
-use crate::cob::{store, ActorId, EntryId, ObjectId, TypeName};
+use crate::cob::{op, store, ActorId, EntryId, ObjectId, TypeName};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
 use crate::identity;
@@ -84,9 +84,6 @@ pub type RevisionIx = usize;
 /// Error applying an operation onto a state.
 #[derive(Debug, Error)]
 pub enum Error {
-    /// Error trying to delete the protected root revision.
-    #[error("refusing to delete root revision: {0}")]
-    RootRevision(RevisionId),
     /// Causal dependency missing.
     ///
     /// This error indicates that the operations are not being applied
@@ -111,11 +108,14 @@ pub enum Error {
     /// Store error.
     #[error("store: {0}")]
     Store(#[from] store::Error),
-    #[error("history error: {0}")]
-    History(Box<dyn std::error::Error + Sync + Send + 'static>),
+    #[error("op decoding failed: {0}")]
+    Op(#[from] op::OpEncodingError),
     /// Action not authorized by the author
     #[error("{0} not authorized to apply {1:?}")]
     NotAuthorized(ActorId, Action),
+    /// An illegal action.
+    #[error("action is not allowed: {0}")]
+    NotAllowed(EntryId),
     /// Initialization failed.
     #[error("initialization failed: {0}")]
     Init(&'static str),
@@ -264,7 +264,7 @@ pub enum Action {
     },
 }
 
-impl HistoryAction for Action {
+impl CobAction for Action {
     fn parents(&self) -> Vec<git::Oid> {
         match self {
             Self::Revision { base, oid, .. } => {
@@ -376,24 +376,21 @@ pub struct Patch {
 }
 
 impl Patch {
-    /// Create a valid patch
-    pub fn new(
-        title: String,
-        target: MergeTarget,
-        (revision_id, revision): (RevisionId, Revision),
-    ) -> Self {
+    /// Construct a new patch object from a revision.
+    pub fn new(title: String, target: MergeTarget, (id, revision): (RevisionId, Revision)) -> Self {
         Self {
             title,
             state: State::default(),
             target,
             labels: BTreeSet::default(),
             merges: BTreeMap::default(),
-            revisions: BTreeMap::from([(revision_id, Some(revision))]),
+            revisions: BTreeMap::from_iter([(id, Some(revision))]),
             assignees: BTreeSet::default(),
-            timeline: vec![revision_id.into_inner()],
+            timeline: vec![id.into_inner()],
             reviews: BTreeMap::default(),
         }
     }
+
     /// Title of the patch.
     pub fn title(&self) -> &str {
         self.title.as_str()
@@ -764,6 +761,11 @@ impl Patch {
                 }
             }
             Action::RevisionRedact { revision } => {
+                // Not allowed to delete the root revision.
+                let (root, _) = self.root();
+                if revision == root {
+                    return Err(Error::NotAllowed(entry));
+                }
                 // Redactions must have observed a revision to be valid.
                 if let Some(r) = self.revisions.get_mut(&revision) {
                     // If the revision has already been merged, ignore the redaction. We
@@ -1020,7 +1022,7 @@ impl Patch {
     }
 }
 
-impl store::FromHistory for Patch {
+impl store::Cob for Patch {
     type Action = Action;
     type Error = Error;
 
@@ -1028,7 +1030,7 @@ impl store::FromHistory for Patch {
         &TYPENAME
     }
 
-    fn init<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
+    fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
         let mut actions = op.actions.into_iter();
         let Some(Action::Revision { description, base, oid, resolves }) = actions.next() else {
             return Err(Error::Init("the first action must be of type `revision`"));
@@ -1053,7 +1055,7 @@ impl store::FromHistory for Patch {
         Ok(patch)
     }
 
-    fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
+    fn op<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
         debug_assert!(!self.timeline.contains(&op.id));
         self.timeline.push(op.id);
 
@@ -1077,6 +1079,23 @@ impl store::FromHistory for Patch {
             }
         }
         Ok(())
+    }
+}
+
+impl<R: ReadRepository> cob::Evaluate<R> for Patch {
+    type Error = Error;
+
+    fn init(entry: &cob::Entry, repo: &R) -> Result<Self, Self::Error> {
+        let op = Op::try_from(entry)?;
+        let object = Patch::from_root(op, repo)?;
+
+        Ok(object)
+    }
+
+    fn apply(&mut self, entry: &cob::Entry, repo: &R) -> Result<(), Self::Error> {
+        let op = Op::try_from(entry)?;
+
+        self.op(op, repo)
     }
 }
 
@@ -1462,7 +1481,7 @@ impl Review {
     }
 }
 
-impl store::Transaction<Patch> {
+impl<R: ReadRepository> store::Transaction<Patch, R> {
     pub fn edit(&mut self, title: impl ToString, target: MergeTarget) -> Result<(), store::Error> {
         self.push(Action::Edit {
             title: title.to_string(),
@@ -1685,7 +1704,7 @@ pub struct PatchMut<'a, 'g, R> {
 
 impl<'a, 'g, R> PatchMut<'a, 'g, R>
 where
-    R: ReadRepository + SignRepository + cob::Store,
+    R: ReadRepository + SignRepository + cob::Store + 'static,
 {
     pub fn new(id: ObjectId, patch: Patch, store: &'g mut Patches<'a, R>) -> Self {
         Self { id, patch, store }
@@ -1713,13 +1732,13 @@ where
     ) -> Result<EntryId, Error>
     where
         G: Signer,
-        F: FnOnce(&mut Transaction<Patch>) -> Result<(), store::Error>,
+        F: FnOnce(&mut Transaction<Patch, R>) -> Result<(), store::Error>,
     {
-        let mut tx = Transaction::new(*signer.public_key());
+        let mut tx = Transaction::default();
         operations(&mut tx)?;
-        let (op, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
 
-        self.patch.apply(op, self.store.as_ref())?;
+        let (patch, commit) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        self.patch = patch;
 
         Ok(commit)
     }
@@ -1765,9 +1784,6 @@ where
         revision: RevisionId,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        if revision.0 == *self.id {
-            return Err(Error::RootRevision(revision));
-        }
         self.transaction("Redact revision", signer, |tx| tx.redact(revision))
     }
 
@@ -2011,7 +2027,7 @@ impl<'a, R> Deref for Patches<'a, R> {
 
 impl<'a, R> Patches<'a, R>
 where
-    R: ReadRepository + cob::Store,
+    R: ReadRepository + cob::Store + 'static,
 {
     /// Open an patches store.
     pub fn open(repository: &'a R) -> Result<Self, store::Error> {
@@ -2090,7 +2106,7 @@ where
 
 impl<'a, R> Patches<'a, R>
 where
-    R: ReadRepository + SignRepository + cob::Store,
+    R: ReadRepository + SignRepository + cob::Store + 'static,
 {
     /// Open a new patch.
     pub fn create<'g, G: Signer>(
@@ -2180,6 +2196,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use std::str::FromStr;
 
@@ -2447,11 +2464,11 @@ mod test {
         let mut patch = Patch::from_ops([a1, a2], &repo).unwrap();
         assert_eq!(patch.revisions().count(), 2);
 
-        patch.apply(a3, &repo).unwrap();
+        patch.op(a3, &repo).unwrap();
         assert_eq!(patch.revisions().count(), 1);
 
-        patch.apply(a4, &repo).unwrap();
-        patch.apply(a5, &repo).unwrap();
+        patch.op(a4, &repo).unwrap();
+        patch.op(a5, &repo).unwrap();
     }
 
     #[test]
@@ -2478,7 +2495,7 @@ mod test {
             time,
             &alice,
         );
-        h0.commit(
+        let r1 = h0.commit(
             &Action::Revision {
                 description: String::from("New"),
                 base,
@@ -2493,7 +2510,7 @@ mod test {
         let mut h1 = h0.clone();
         h1.commit(
             &Action::RevisionRedact {
-                revision: RevisionId(*h0.root().id()),
+                revision: RevisionId(r1),
             },
             &alice,
         );
@@ -2755,6 +2772,7 @@ mod test {
         assert_eq!(patch.revisions().count(), 1);
 
         // The patch's root must always exist.
+        assert_eq!(patch.latest(), patch.root());
         assert!(patch.redact(patch.latest().0, &alice.signer).is_err());
     }
 
