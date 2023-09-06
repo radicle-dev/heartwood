@@ -12,8 +12,9 @@ use crate::cob::store::Transaction;
 use crate::cob::store::{FromHistory as _, HistoryAction};
 use crate::cob::thread;
 use crate::cob::thread::{CommentId, Thread};
-use crate::cob::{store, Embed, EntryId, ObjectId, TypeName};
+use crate::cob::{store, ActorId, Embed, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
+use crate::git;
 use crate::prelude::{Did, ReadRepository};
 use crate::storage::WriteRepository;
 
@@ -139,51 +140,9 @@ impl store::FromHistory for Issue {
         }
     }
 
-    fn apply<R: ReadRepository>(&mut self, op: Op, _repo: &R) -> Result<(), Error> {
+    fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
         for action in op.actions {
-            match action {
-                Action::Assign { assignees } => {
-                    self.assignees = BTreeSet::from_iter(assignees);
-                }
-                Action::Edit { title } => {
-                    self.title = title;
-                }
-                Action::Lifecycle { state } => {
-                    self.state = state;
-                }
-                Action::Label { labels } => {
-                    self.labels = BTreeSet::from_iter(labels);
-                }
-                Action::Comment {
-                    body,
-                    reply_to,
-                    embeds,
-                } => {
-                    thread::comment(
-                        &mut self.thread,
-                        op.id,
-                        op.author,
-                        op.timestamp,
-                        body,
-                        reply_to,
-                        None,
-                        embeds,
-                    )?;
-                }
-                Action::CommentEdit { id, body, embeds } => {
-                    thread::edit(&mut self.thread, op.id, id, op.timestamp, body, embeds)?;
-                }
-                Action::CommentRedact { id } => {
-                    thread::redact(&mut self.thread, op.id, id)?;
-                }
-                Action::CommentReact {
-                    id,
-                    reaction,
-                    active,
-                } => {
-                    thread::react(&mut self.thread, op.id, op.author, id, reaction, active)?;
-                }
-            }
+            self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
         }
         Ok(())
     }
@@ -237,6 +196,64 @@ impl Issue {
 
     pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment)> {
         self.thread.comments()
+    }
+}
+
+impl Issue {
+    /// Apply a single action to the issue.
+    fn action<R: ReadRepository>(
+        &mut self,
+        action: Action,
+        entry: EntryId,
+        author: ActorId,
+        timestamp: Timestamp,
+        _identity: git::Oid,
+        _repo: &R,
+    ) -> Result<(), Error> {
+        match action {
+            Action::Assign { assignees } => {
+                self.assignees = BTreeSet::from_iter(assignees);
+            }
+            Action::Edit { title } => {
+                self.title = title;
+            }
+            Action::Lifecycle { state } => {
+                self.state = state;
+            }
+            Action::Label { labels } => {
+                self.labels = BTreeSet::from_iter(labels);
+            }
+            Action::Comment {
+                body,
+                reply_to,
+                embeds,
+            } => {
+                thread::comment(
+                    &mut self.thread,
+                    entry,
+                    author,
+                    timestamp,
+                    body,
+                    reply_to,
+                    None,
+                    embeds,
+                )?;
+            }
+            Action::CommentEdit { id, body, embeds } => {
+                thread::edit(&mut self.thread, entry, id, timestamp, body, embeds)?;
+            }
+            Action::CommentRedact { id } => {
+                thread::redact(&mut self.thread, entry, id)?;
+            }
+            Action::CommentReact {
+                id,
+                reaction,
+                active,
+            } => {
+                thread::react(&mut self.thread, entry, author, id, reaction, active)?;
+            }
+        }
+        Ok(())
     }
 }
 

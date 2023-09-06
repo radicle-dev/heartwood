@@ -525,6 +525,369 @@ impl Patch {
     }
 }
 
+impl Patch {
+    /// Apply a single action to the patch.
+    fn action<R: ReadRepository>(
+        &mut self,
+        action: Action,
+        entry: EntryId,
+        author: ActorId,
+        timestamp: Timestamp,
+        identity: git::Oid,
+        repo: &R,
+    ) -> Result<(), Error> {
+        match action {
+            Action::Edit { title, target } => {
+                self.title = title;
+                self.target = target;
+            }
+            Action::Lifecycle { state } => match state {
+                Lifecycle::Open => {
+                    self.state = State::Open { conflicts: vec![] };
+                }
+                Lifecycle::Draft => {
+                    self.state = State::Draft;
+                }
+                Lifecycle::Archived => {
+                    self.state = State::Archived;
+                }
+            },
+            Action::Label { labels } => {
+                self.labels = BTreeSet::from_iter(labels);
+            }
+            Action::Assign { assignees } => {
+                self.assignees = BTreeSet::from_iter(assignees.into_iter().map(ActorId::from));
+            }
+            Action::RevisionEdit {
+                revision,
+                description,
+            } => {
+                if let Some(redactable) = self.revisions.get_mut(&revision) {
+                    // If the revision was redacted concurrently, there's nothing to do.
+                    if let Some(revision) = redactable {
+                        revision.description = description;
+                    }
+                } else {
+                    return Err(Error::Missing(revision.into_inner()));
+                }
+            }
+            Action::ReviewEdit {
+                review,
+                summary,
+                verdict,
+            } => {
+                let Some(Some((revision, author))) =
+                        self.reviews.get(&review) else {
+                            return Err(Error::Missing(review.into_inner()));
+                    };
+                let Some(rev) = self.revisions.get_mut(revision) else {
+                        return Err(Error::Missing(revision.into_inner()));
+                    };
+                // If the revision was redacted concurrently, there's nothing to do.
+                // Likewise, if the review was redacted concurrently, there's nothing to do.
+                if let Some(rev) = rev {
+                    let Some(review) = rev.reviews.get_mut(author) else {
+                            return Err(Error::Missing(review.into_inner()));
+                        };
+                    if let Some(review) = review {
+                        review.summary = summary;
+                        review.verdict = verdict;
+                    }
+                }
+            }
+            Action::Revision {
+                description,
+                base,
+                oid,
+                resolves,
+            } => {
+                debug_assert!(!self.revisions.contains_key(&entry));
+
+                self.revisions.insert(
+                    RevisionId(entry),
+                    Some(Revision::new(
+                        author.into(),
+                        description,
+                        base,
+                        oid,
+                        timestamp,
+                        resolves,
+                    )),
+                );
+            }
+            Action::RevisionReact {
+                revision,
+                reaction,
+                active,
+                location,
+            } => {
+                if let Some(revision) = lookup::revision(self, &revision)? {
+                    let key = (author, reaction);
+                    let reactions = revision.reactions.entry(location).or_default();
+
+                    if active {
+                        reactions.insert(key);
+                    } else {
+                        reactions.remove(&key);
+                    }
+                }
+            }
+            Action::RevisionRedact { revision } => {
+                // Redactions must have observed a revision to be valid.
+                if let Some(r) = self.revisions.get_mut(&revision) {
+                    // If the revision has already been merged, ignore the redaction. We
+                    // don't want to redact merged revisions.
+                    if self.merges.values().any(|m| m.revision == revision) {
+                        return Ok(());
+                    }
+                    *r = None;
+                } else {
+                    return Err(Error::Missing(revision.into_inner()));
+                }
+            }
+            Action::Review {
+                revision,
+                ref summary,
+                verdict,
+                labels,
+            } => {
+                let Some(rev) = self.revisions.get_mut(&revision) else {
+                        return Err(Error::Missing(revision.into_inner()));
+                    };
+                if let Some(rev) = rev {
+                    // Nb. Applying two reviews by the same author is not allowed and
+                    // results in the review being redacted.
+                    rev.reviews.insert(
+                        author,
+                        Some(Review::new(verdict, summary.to_owned(), labels, timestamp)),
+                    );
+                    // Update reviews index.
+                    self.reviews
+                        .insert(ReviewId(entry), Some((revision, author)));
+                }
+            }
+            Action::ReviewCommentReact {
+                review,
+                comment,
+                reaction,
+                active,
+            } => {
+                if let Some(review) = lookup::review(self, &review)? {
+                    thread::react(
+                        &mut review.comments,
+                        entry,
+                        author,
+                        comment,
+                        reaction,
+                        active,
+                    )?;
+                }
+            }
+            Action::ReviewCommentRedact { review, comment } => {
+                if let Some(review) = lookup::review(self, &review)? {
+                    thread::redact(&mut review.comments, entry, comment)?;
+                }
+            }
+            Action::ReviewCommentEdit {
+                review,
+                comment,
+                body,
+            } => {
+                if let Some(review) = lookup::review(self, &review)? {
+                    thread::edit(
+                        &mut review.comments,
+                        entry,
+                        comment,
+                        timestamp,
+                        body,
+                        vec![],
+                    )?;
+                }
+            }
+            Action::ReviewCommentResolve { review, comment } => {
+                if let Some(review) = lookup::review(self, &review)? {
+                    thread::resolve(&mut review.comments, entry, comment)?;
+                }
+            }
+            Action::ReviewCommentUnresolve { review, comment } => {
+                if let Some(review) = lookup::review(self, &review)? {
+                    thread::unresolve(&mut review.comments, entry, comment)?;
+                }
+            }
+            Action::ReviewComment {
+                review,
+                body,
+                location,
+                reply_to,
+            } => {
+                if let Some(review) = lookup::review(self, &review)? {
+                    thread::comment(
+                        &mut review.comments,
+                        entry,
+                        author,
+                        timestamp,
+                        body,
+                        reply_to,
+                        location,
+                        vec![],
+                    )?;
+                }
+            }
+            Action::ReviewRedact { review } => {
+                // Redactions must have observed a review to be valid.
+                let Some(locator) = self.reviews.get_mut(&review) else {
+                        return Err(Error::Missing(review.into_inner()));
+                    };
+                // If the review is already redacted, do nothing.
+                let Some((revision, reviewer)) = locator else {
+                        return Ok(());
+                    };
+                // The revision must have existed at some point.
+                let Some(redactable) = self.revisions.get_mut(revision) else {
+                        return Err(Error::Missing(revision.into_inner()));
+                    };
+                // But it could be redacted.
+                let Some(revision) = redactable else {
+                        return Ok(());
+                    };
+                // The review must have existed as well.
+                let Some(review) = revision.reviews.get_mut(reviewer) else {
+                        return Err(Error::Missing(review.into_inner()));
+                    };
+                // Set both the review and the locator in the review index to redacted.
+                *review = None;
+                *locator = None;
+            }
+            Action::Merge { revision, commit } => {
+                // If the revision was redacted before the merge, ignore the merge.
+                if lookup::revision(self, &revision)?.is_none() {
+                    return Ok(());
+                };
+                let doc = repo.identity_doc_at(identity)?.verified()?;
+
+                match self.target() {
+                    MergeTarget::Delegates => {
+                        if !doc.is_delegate(&author) {
+                            return Err(Error::InvalidMerge(entry));
+                        }
+                        let proj = doc.project()?;
+                        let branch = git::refs::branch(proj.default_branch());
+
+                        // Nb. We don't return an error in case the merge commit is not an
+                        // ancestor of the default branch. The default branch can change
+                        // *after* the merge action is created, which is out of the control
+                        // of the merge author. We simply skip it, which allows archiving in
+                        // case of a rebase off the master branch, or a redaction of the
+                        // merge.
+                        let Ok(head) = repo.reference_oid(&author, &branch) else {
+                            return Ok(());
+                        };
+                        if commit != head && !repo.is_ancestor_of(commit, head)? {
+                            return Ok(());
+                        }
+                    }
+                }
+                self.merges.insert(
+                    author,
+                    Merge {
+                        revision,
+                        commit,
+                        timestamp,
+                    },
+                );
+
+                let mut merges = self.merges.iter().fold(
+                    HashMap::<(RevisionId, git::Oid), usize>::new(),
+                    |mut acc, (_, merge)| {
+                        *acc.entry((merge.revision, merge.commit)).or_default() += 1;
+                        acc
+                    },
+                );
+                // Discard revisions that weren't merged by a threshold of delegates.
+                merges.retain(|_, count| *count >= doc.threshold);
+
+                match merges.into_keys().collect::<Vec<_>>().as_slice() {
+                    [] => {
+                        // None of the revisions met the quorum.
+                    }
+                    [(revision, commit)] => {
+                        // Patch is merged.
+                        self.state = State::Merged {
+                            revision: *revision,
+                            commit: *commit,
+                        };
+                    }
+                    revisions => {
+                        // More than one revision met the quorum.
+                        self.state = State::Open {
+                            conflicts: revisions.to_vec(),
+                        };
+                    }
+                }
+            }
+
+            Action::RevisionComment {
+                revision,
+                body,
+                reply_to,
+                ..
+            } => {
+                if let Some(revision) = lookup::revision(self, &revision)? {
+                    thread::comment(
+                        &mut revision.discussion,
+                        entry,
+                        author,
+                        timestamp,
+                        body,
+                        reply_to,
+                        None,
+                        vec![],
+                    )?;
+                }
+            }
+            Action::RevisionCommentEdit {
+                revision,
+                comment,
+                body,
+            } => {
+                if let Some(revision) = lookup::revision(self, &revision)? {
+                    thread::edit(
+                        &mut revision.discussion,
+                        entry,
+                        comment,
+                        timestamp,
+                        body,
+                        vec![],
+                    )?;
+                }
+            }
+            Action::RevisionCommentRedact { revision, comment } => {
+                if let Some(revision) = lookup::revision(self, &revision)? {
+                    thread::redact(&mut revision.discussion, entry, comment)?;
+                }
+            }
+            Action::RevisionCommentReact {
+                revision,
+                comment,
+                reaction,
+                active,
+            } => {
+                if let Some(revision) = lookup::revision(self, &revision)? {
+                    thread::react(
+                        &mut revision.discussion,
+                        entry,
+                        author,
+                        comment,
+                        reaction,
+                        active,
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 impl store::FromHistory for Patch {
     type Action = Action;
     type Error = Error;
@@ -544,362 +907,11 @@ impl store::FromHistory for Patch {
     }
 
     fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
-        let author = Author::new(op.author);
-        let timestamp = op.timestamp;
-
         debug_assert!(!self.timeline.contains(&op.id));
-
         self.timeline.push(op.id);
 
         for action in op.actions {
-            match action {
-                Action::Edit { title, target } => {
-                    self.title = title;
-                    self.target = target;
-                }
-                Action::Lifecycle { state } => match state {
-                    Lifecycle::Open => {
-                        self.state = State::Open { conflicts: vec![] };
-                    }
-                    Lifecycle::Draft => {
-                        self.state = State::Draft;
-                    }
-                    Lifecycle::Archived => {
-                        self.state = State::Archived;
-                    }
-                },
-                Action::Label { labels } => {
-                    self.labels = BTreeSet::from_iter(labels);
-                }
-                Action::Assign { assignees } => {
-                    self.assignees = BTreeSet::from_iter(assignees.into_iter().map(ActorId::from));
-                }
-                Action::RevisionEdit {
-                    revision,
-                    description,
-                } => {
-                    if let Some(redactable) = self.revisions.get_mut(&revision) {
-                        // If the revision was redacted concurrently, there's nothing to do.
-                        if let Some(revision) = redactable {
-                            revision.description = description;
-                        }
-                    } else {
-                        return Err(Error::Missing(revision.into_inner()));
-                    }
-                }
-                Action::ReviewEdit {
-                    review,
-                    summary,
-                    verdict,
-                } => {
-                    let Some(Some((revision, author))) =
-                        self.reviews.get(&review) else {
-                            return Err(Error::Missing(review.into_inner()));
-                    };
-                    let Some(rev) = self.revisions.get_mut(revision) else {
-                        return Err(Error::Missing(revision.into_inner()));
-                    };
-                    // If the revision was redacted concurrently, there's nothing to do.
-                    // Likewise, if the review was redacted concurrently, there's nothing to do.
-                    if let Some(rev) = rev {
-                        let Some(review) = rev.reviews.get_mut(author) else {
-                            return Err(Error::Missing(review.into_inner()));
-                        };
-                        if let Some(review) = review {
-                            review.summary = summary;
-                            review.verdict = verdict;
-                        }
-                    }
-                }
-                Action::Revision {
-                    description,
-                    base,
-                    oid,
-                    resolves,
-                } => {
-                    debug_assert!(!self.revisions.contains_key(&op.id));
-
-                    self.revisions.insert(
-                        RevisionId(op.id),
-                        Some(Revision::new(
-                            author.clone(),
-                            description,
-                            base,
-                            oid,
-                            timestamp,
-                            resolves,
-                        )),
-                    );
-                }
-                Action::RevisionReact {
-                    revision,
-                    reaction,
-                    active,
-                    location,
-                } => {
-                    if let Some(revision) = lookup::revision(self, &revision)? {
-                        let key = (op.author, reaction);
-                        let reactions = revision.reactions.entry(location).or_default();
-
-                        if active {
-                            reactions.insert(key);
-                        } else {
-                            reactions.remove(&key);
-                        }
-                    }
-                }
-                Action::RevisionRedact { revision } => {
-                    // Redactions must have observed a revision to be valid.
-                    if let Some(r) = self.revisions.get_mut(&revision) {
-                        // If the revision has already been merged, ignore the redaction. We
-                        // don't want to redact merged revisions.
-                        if self.merges.values().any(|m| m.revision == revision) {
-                            return Ok(());
-                        }
-                        *r = None;
-                    } else {
-                        return Err(Error::Missing(revision.into_inner()));
-                    }
-                }
-                Action::Review {
-                    revision,
-                    ref summary,
-                    verdict,
-                    labels,
-                } => {
-                    let Some(rev) = self.revisions.get_mut(&revision) else {
-                        return Err(Error::Missing(revision.into_inner()));
-                    };
-                    if let Some(rev) = rev {
-                        // Nb. Applying two reviews by the same author is not allowed and
-                        // results in the review being redacted.
-                        rev.reviews.insert(
-                            op.author,
-                            Some(Review::new(verdict, summary.to_owned(), labels, timestamp)),
-                        );
-                        // Update reviews index.
-                        self.reviews
-                            .insert(ReviewId(op.id), Some((revision, op.author)));
-                    }
-                }
-                Action::ReviewCommentReact {
-                    review,
-                    comment,
-                    reaction,
-                    active,
-                } => {
-                    if let Some(review) = lookup::review(self, &review)? {
-                        thread::react(
-                            &mut review.comments,
-                            op.id,
-                            author.id.into(),
-                            comment,
-                            reaction,
-                            active,
-                        )?;
-                    }
-                }
-                Action::ReviewCommentRedact { review, comment } => {
-                    if let Some(review) = lookup::review(self, &review)? {
-                        thread::redact(&mut review.comments, op.id, comment)?;
-                    }
-                }
-                Action::ReviewCommentEdit {
-                    review,
-                    comment,
-                    body,
-                } => {
-                    if let Some(review) = lookup::review(self, &review)? {
-                        thread::edit(
-                            &mut review.comments,
-                            op.id,
-                            comment,
-                            timestamp,
-                            body,
-                            vec![],
-                        )?;
-                    }
-                }
-                Action::ReviewCommentResolve { review, comment } => {
-                    if let Some(review) = lookup::review(self, &review)? {
-                        thread::resolve(&mut review.comments, op.id, comment)?;
-                    }
-                }
-                Action::ReviewCommentUnresolve { review, comment } => {
-                    if let Some(review) = lookup::review(self, &review)? {
-                        thread::unresolve(&mut review.comments, op.id, comment)?;
-                    }
-                }
-                Action::ReviewComment {
-                    review,
-                    body,
-                    location,
-                    reply_to,
-                } => {
-                    if let Some(review) = lookup::review(self, &review)? {
-                        thread::comment(
-                            &mut review.comments,
-                            op.id,
-                            author.id.into(),
-                            timestamp,
-                            body,
-                            reply_to,
-                            location,
-                            vec![],
-                        )?;
-                    }
-                }
-                Action::ReviewRedact { review } => {
-                    // Redactions must have observed a review to be valid.
-                    let Some(locator) = self.reviews.get_mut(&review) else {
-                        return Err(Error::Missing(review.into_inner()));
-                    };
-                    // If the review is already redacted, do nothing.
-                    let Some((revision, reviewer)) = locator else {
-                        return Ok(());
-                    };
-                    // The revision must have existed at some point.
-                    let Some(redactable) = self.revisions.get_mut(revision) else {
-                        return Err(Error::Missing(revision.into_inner()));
-                    };
-                    // But it could be redacted.
-                    let Some(revision) = redactable else {
-                        return Ok(());
-                    };
-                    // The review must have existed as well.
-                    let Some(review) = revision.reviews.get_mut(reviewer) else {
-                        return Err(Error::Missing(review.into_inner()));
-                    };
-                    // Set both the review and the locator in the review index to redacted.
-                    *review = None;
-                    *locator = None;
-                }
-                Action::Merge { revision, commit } => {
-                    // If the revision was redacted before the merge, ignore the merge.
-                    if lookup::revision(self, &revision)?.is_none() {
-                        return Ok(());
-                    };
-                    let doc = repo.identity_doc_at(op.identity)?.verified()?;
-
-                    match self.target() {
-                        MergeTarget::Delegates => {
-                            if !doc.is_delegate(&op.author) {
-                                return Err(Error::InvalidMerge(op.id));
-                            }
-                            let proj = doc.project()?;
-                            let branch = git::refs::branch(proj.default_branch());
-
-                            // Nb. We don't return an error in case the merge commit is not an
-                            // ancestor of the default branch. The default branch can change
-                            // *after* the merge action is created, which is out of the control
-                            // of the merge author. We simply skip it, which allows archiving in
-                            // case of a rebase off the master branch, or a redaction of the
-                            // merge.
-                            let Ok(head) = repo.reference_oid(&op.author, &branch) else {
-                                continue;
-                            };
-                            if commit != head && !repo.is_ancestor_of(commit, head)? {
-                                continue;
-                            }
-                        }
-                    }
-                    self.merges.insert(
-                        op.author,
-                        Merge {
-                            revision,
-                            commit,
-                            timestamp,
-                        },
-                    );
-
-                    let mut merges = self.merges.iter().fold(
-                        HashMap::<(RevisionId, git::Oid), usize>::new(),
-                        |mut acc, (_, merge)| {
-                            *acc.entry((merge.revision, merge.commit)).or_default() += 1;
-                            acc
-                        },
-                    );
-                    // Discard revisions that weren't merged by a threshold of delegates.
-                    merges.retain(|_, count| *count >= doc.threshold);
-
-                    match merges.into_keys().collect::<Vec<_>>().as_slice() {
-                        [] => {
-                            // None of the revisions met the quorum.
-                        }
-                        [(revision, commit)] => {
-                            // Patch is merged.
-                            self.state = State::Merged {
-                                revision: *revision,
-                                commit: *commit,
-                            };
-                        }
-                        revisions => {
-                            // More than one revision met the quorum.
-                            self.state = State::Open {
-                                conflicts: revisions.to_vec(),
-                            };
-                        }
-                    }
-                }
-
-                Action::RevisionComment {
-                    revision,
-                    body,
-                    reply_to,
-                    ..
-                } => {
-                    if let Some(revision) = lookup::revision(self, &revision)? {
-                        thread::comment(
-                            &mut revision.discussion,
-                            op.id,
-                            op.author,
-                            op.timestamp,
-                            body,
-                            reply_to,
-                            None,
-                            vec![],
-                        )?;
-                    }
-                }
-                Action::RevisionCommentEdit {
-                    revision,
-                    comment,
-                    body,
-                } => {
-                    if let Some(revision) = lookup::revision(self, &revision)? {
-                        thread::edit(
-                            &mut revision.discussion,
-                            op.id,
-                            comment,
-                            op.timestamp,
-                            body,
-                            vec![],
-                        )?;
-                    }
-                }
-                Action::RevisionCommentRedact { revision, comment } => {
-                    if let Some(revision) = lookup::revision(self, &revision)? {
-                        thread::redact(&mut revision.discussion, op.id, comment)?;
-                    }
-                }
-                Action::RevisionCommentReact {
-                    revision,
-                    comment,
-                    reaction,
-                    active,
-                } => {
-                    if let Some(revision) = lookup::revision(self, &revision)? {
-                        thread::react(
-                            &mut revision.discussion,
-                            op.id,
-                            op.author,
-                            comment,
-                            reaction,
-                            active,
-                        )?;
-                    }
-                }
-            }
+            self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
         }
         Ok(())
     }
