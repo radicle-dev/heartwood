@@ -123,23 +123,6 @@ impl store::FromHistory for Issue {
         Ok(())
     }
 
-    fn from_history<R: ReadRepository>(
-        history: &radicle_cob::History,
-        repo: &R,
-    ) -> Result<Self, Self::Error> {
-        let root = history.root();
-
-        // Deprecated. Remove when we drop legacy support.
-        if root.manifest.is_legacy() {
-            let legacy = super::legacy::issue::Issue::from_history(history, repo)?;
-            let issue = legacy.into();
-
-            Ok(issue)
-        } else {
-            store::from_history::<R, Self>(history, repo)
-        }
-    }
-
     fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
         for action in op.actions {
             self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;

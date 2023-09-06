@@ -157,11 +157,6 @@ impl Manifest {
             _history_type: None,
         }
     }
-
-    /// Whether this is an old COB. Remove this function when support for legacy COBs is over.
-    pub fn is_legacy(&self) -> bool {
-        self._history_type.is_some()
-    }
 }
 
 /// COB version.

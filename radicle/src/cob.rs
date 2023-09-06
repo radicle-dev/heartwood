@@ -1,7 +1,6 @@
 pub mod common;
 pub mod identity;
 pub mod issue;
-pub mod legacy;
 pub mod op;
 pub mod patch;
 pub mod store;
