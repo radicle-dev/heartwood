@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 
 use crate::collections::RandomMap;
 use crate::crypto::PublicKey;
+use crate::node::Alias;
 use crate::storage;
 use crate::storage::refs::Refs;
 use crate::storage::RemoteId;
@@ -664,6 +665,29 @@ pub mod env {
         ("GIT_CONFIG_GLOBAL", "/dev/null"),
         ("GIT_CONFIG_NOSYSTEM", "1"),
     ];
+}
+
+/// The user information used for signing commits and configuring the
+/// `name` and `email` fields in the Git config.
+#[derive(Debug, Clone)]
+pub struct UserInfo {
+    /// Alias of the local peer.
+    pub alias: Alias,
+    /// [`PublicKey`] of the local peer.
+    pub key: PublicKey,
+}
+
+impl UserInfo {
+    /// The name of the user, i.e. the `alias`.
+    pub fn name(&self) -> Alias {
+        self.alias.clone()
+    }
+
+    /// The "email" of the user, which is in the form
+    /// `<alias>@<public key>`.
+    pub fn email(&self) -> String {
+        format!("{}@{}", self.alias, self.key)
+    }
 }
 
 #[cfg(test)]

@@ -637,6 +637,13 @@ impl WriteRepository for Repository {
         Ok(())
     }
 
+    fn set_user(&self, info: &UserInfo) -> Result<(), Error> {
+        let mut config = self.backend.config()?;
+        config.set_str("user.name", &info.name())?;
+        config.set_str("user.email", &info.email())?;
+        Ok(())
+    }
+
     fn raw(&self) -> &git2::Repository {
         &self.backend
     }

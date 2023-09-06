@@ -263,6 +263,10 @@ impl WriteRepository for MockRepository {
     fn set_identity_head_to(&self, _commit: Oid) -> Result<(), RepositoryError> {
         todo!()
     }
+
+    fn set_user(&self, _info: &git::UserInfo) -> Result<(), Error> {
+        todo!()
+    }
 }
 
 impl SignRepository for MockRepository {

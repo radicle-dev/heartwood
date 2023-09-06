@@ -24,6 +24,7 @@ use crate::identity::{Id, Identity};
 use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
 
+use self::git::UserInfo;
 use self::refs::SignedRefs;
 
 pub type BranchName = git::RefString;
@@ -507,6 +508,8 @@ pub trait WriteRepository: ReadRepository + SignRepository {
     }
     /// Set the repository 'rad/id' to the given commit.
     fn set_identity_head_to(&self, commit: Oid) -> Result<(), RepositoryError>;
+    /// Set the user info of the Git repository.
+    fn set_user(&self, info: &UserInfo) -> Result<(), Error>;
     /// Get the underlying git repository.
     fn raw(&self) -> &git2::Repository;
 }
