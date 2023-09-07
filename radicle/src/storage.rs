@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crypto::{PublicKey, Signer, Unverified, Verified};
-pub use git::VerifyError;
+pub use git::{Validation, Validations};
 pub use radicle_git_ext::Oid;
 
 use crate::cob;
@@ -131,10 +131,10 @@ pub enum FetchError {
     Io(#[from] io::Error),
     #[error(transparent)]
     Refs(#[from] refs::Error),
-    #[error("verify: {0}")]
-    Verify(#[from] git::VerifyError),
     #[error(transparent)]
     Storage(#[from] Error),
+    #[error("failed to validate remote layouts in storage")]
+    Validation { validations: Validations },
     #[error("repository head: {0}")]
     SetHead(#[from] DocError),
     #[error("repository: {0}")]
@@ -362,18 +362,19 @@ pub trait ReadRepository: Sized {
     fn blob(&self, oid: Oid) -> Result<git2::Blob, git_ext::Error>;
 
     /// Validate all remotes with [`ReadRepository::validate_remote`].
-    fn validate(&self) -> Result<(), VerifyError> {
+    fn validate(&self) -> Result<Validations, Error> {
+        let mut failures = Validations::default();
         for (_, remote) in self.remotes()? {
-            self.validate_remote(&remote)?;
+            failures.append(&mut self.validate_remote(&remote)?);
         }
-        Ok(())
+        Ok(failures)
     }
 
     /// Validates a remote's signed refs and identity.
     ///
     /// Returns any ref found under that remote that isn't signed.
     /// If a signed ref is missing from the repository, an error is returned.
-    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Vec<RefString>, VerifyError>;
+    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Validations, Error>;
 
     /// Get the head of this repository.
     ///

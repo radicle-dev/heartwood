@@ -141,11 +141,8 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn validate_remote(
-        &self,
-        _remote: &Remote<Verified>,
-    ) -> Result<Vec<fmt::RefString>, VerifyError> {
-        Ok(vec![])
+    fn validate_remote(&self, _remote: &Remote<Verified>) -> Result<Validations, Error> {
+        Ok(Validations::default())
     }
 
     fn path(&self) -> &std::path::Path {

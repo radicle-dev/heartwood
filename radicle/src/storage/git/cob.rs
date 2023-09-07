@@ -12,7 +12,7 @@ use crate::git::*;
 use crate::storage;
 use crate::storage::Error;
 use crate::storage::{
-    git::{Remote, Remotes, VerifyError},
+    git::{Remote, Remotes, Validations},
     ReadRepository, Verified,
 };
 use crate::{
@@ -248,10 +248,7 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
         self.repo.canonical_head()
     }
 
-    fn validate_remote(
-        &self,
-        remote: &Remote<Verified>,
-    ) -> Result<Vec<fmt::RefString>, VerifyError> {
+    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Validations, Error> {
         self.repo.validate_remote(remote)
     }
 

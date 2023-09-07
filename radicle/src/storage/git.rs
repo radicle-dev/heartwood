@@ -3,6 +3,7 @@ pub mod cob;
 pub mod transport;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
@@ -216,16 +217,60 @@ pub struct Repository {
     pub backend: git2::Repository,
 }
 
+/// A set of [`Validation`] errors that a caller **must use**.
+#[must_use]
+#[derive(Debug, Default)]
+pub struct Validations(pub Vec<Validation>);
+
+impl Validations {
+    pub fn append(&mut self, vs: &mut Self) {
+        self.0.append(&mut vs.0)
+    }
+}
+
+impl IntoIterator for Validations {
+    type Item = Validation;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl Deref for Validations {
+    type Target = Vec<Validation>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Validations {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+/// Validation errors that can occur when verifying the layout of the
+/// storage. These errors include checking the validity of the
+/// `rad/sigrefs` contents and the identity of the repository.
 #[derive(Debug, Error)]
-pub enum VerifyError {
-    #[error("invalid target `{2}` for reference `{1}` of remote `{0}`")]
-    InvalidRefTarget(RemoteId, RefString, git2::Oid),
-    #[error("refs error: {0}")]
-    Refs(#[from] refs::Error),
-    #[error("missing reference `{1}` in remote `{0}`")]
-    MissingRef(RemoteId, git::RefString),
-    #[error(transparent)]
-    Storage(#[from] Error),
+pub enum Validation {
+    #[error("found unsigned ref `{0}`")]
+    UnsignedRef(RefString),
+    #[error("{refname}: expected {expected}, but found {actual}")]
+    MismatchedRef {
+        expected: Oid,
+        actual: Oid,
+        refname: RefString,
+    },
+    #[error("missing `refs/namespaces/{remote}/{refname}`")]
+    MissingRef {
+        remote: RemoteId,
+        refname: RefString,
+    },
+    #[error("missing `refs/namespaces/{0}/refs/rad/sigrefs`")]
+    MissingRadSigRefs(RemoteId),
 }
 
 impl Repository {
@@ -380,35 +425,49 @@ impl ReadRepository for Repository {
         self.backend.find_blob(oid.into()).map_err(git::Error::from)
     }
 
-    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Vec<RefString>, VerifyError> {
+    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Validations, Error> {
         // Contains a copy of the signed refs of this remote.
         let mut signed = BTreeMap::from((*remote.refs).clone());
-        let mut unsigned = Vec::new();
+        let mut failures = Validations::default();
+        let mut has_sigrefs = false;
 
         // Check all repository references, making sure they are present in the signed refs map.
         for (refname, oid) in self.references_of(&remote.id)? {
             // Skip validation of the signed refs branch, as it is not part of `Remote`.
             if refname == refs::SIGREFS_BRANCH.to_ref_string() {
+                has_sigrefs = true;
                 continue;
             }
             if let Some(signed_oid) = signed.remove(&refname) {
                 if oid != signed_oid {
-                    return Err(VerifyError::InvalidRefTarget(remote.id, refname, *oid));
+                    failures.push(Validation::MismatchedRef {
+                        refname,
+                        expected: signed_oid,
+                        actual: oid,
+                    });
                 }
             } else {
-                unsigned.push(refname);
+                failures.push(Validation::UnsignedRef(refname));
             }
+        }
+
+        if !has_sigrefs {
+            failures.push(Validation::MissingRadSigRefs(remote.id));
         }
 
         // The refs that are left in the map, are ones that were signed, but are not
         // in the repository. If any are left, bail.
         if let Some((name, _)) = signed.into_iter().next() {
-            return Err(VerifyError::MissingRef(remote.id, name));
+            failures.push(Validation::MissingRef {
+                refname: name,
+                remote: remote.id,
+            });
         }
+
         // Nb. As it stands, it doesn't make sense to verify a single remote's identity branch,
         // since it is a COB.
 
-        Ok(unsigned)
+        Ok(failures)
     }
 
     fn reference(

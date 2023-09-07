@@ -12,7 +12,7 @@ use radicle::git::{url, Namespaced};
 use radicle::prelude::{Doc, Id, NodeId};
 use radicle::storage::git::Repository;
 use radicle::storage::refs::IDENTITY_BRANCH;
-use radicle::storage::{Namespaces, RefUpdate, Remote, RemoteId};
+use radicle::storage::{Namespaces, RefUpdate, Remote, RemoteId, Validation, Validations};
 use radicle::storage::{ReadRepository, ReadStorage, WriteRepository, WriteStorage};
 use radicle::{git, Storage};
 
@@ -119,8 +119,8 @@ enum VerifiedRemote {
         // Nb. unused but we want to ensure that we verify the identity
         _doc: Doc<Verified>,
         remote: Remote<Verified>,
-        /// Unsigned refs.
-        unsigned: Vec<git::RefString>,
+        /// Validation errors
+        validations: Validations,
     },
     UpToDate,
 }
@@ -332,12 +332,20 @@ impl<'a> StagingPhaseFinal<'a> {
                         vec![]
                     }
                     VerifiedRemote::Success {
-                        remote, unsigned, ..
+                        remote,
+                        validations,
+                        ..
                     } => {
                         let ns = remote.id.to_namespace();
                         let mut refspecs = vec![];
 
+                        let mut unsigned = Vec::new();
                         // Unsigned refs should be deleted.
+                        for validation in validations {
+                            if let Validation::UnsignedRef(name) = validation {
+                                unsigned.push(name);
+                            }
+                        }
                         delete.insert((remote.id, unsigned));
 
                         //  First add the standard git refs.
@@ -438,7 +446,7 @@ impl<'a> StagingPhaseFinal<'a> {
         // foot with storage inconsistencies.
         radicle::debug_assert_matches!(
             production.validate(),
-            Ok(()),
+            Ok(validations) if validations.is_empty(),
             "repository {} is not valid",
             production.id,
         );
@@ -522,10 +530,10 @@ impl<'a> StagingPhaseFinal<'a> {
                 // Nb. We aren't verifying this specific remote's identity branch.
                 let verification = match self.repo.identity_doc() {
                     Ok(doc) => match self.repo.validate_remote(&remote) {
-                        Ok(unsigned) => VerifiedRemote::Success {
+                        Ok(validations) => VerifiedRemote::Success {
                             _doc: doc.into(),
                             remote,
-                            unsigned,
+                            validations,
                         },
                         Err(e) => VerifiedRemote::Failed {
                             reason: e.to_string(),

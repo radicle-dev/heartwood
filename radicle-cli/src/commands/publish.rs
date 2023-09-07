@@ -106,7 +106,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     identity.update("Publish repository", "", &doc, &signer)?;
     repo.sign_refs(&signer)?;
     repo.set_identity_head()?;
-    repo.validate()?;
+    let validations = repo.validate()?;
+
+    if !validations.is_empty() {
+        for err in validations {
+            term::error(format!("Error: validation error {err}"));
+        }
+        anyhow::bail!("fatal error: repository storage is corrupt");
+    }
 
     term::success!(
         "Repository is now {}",
