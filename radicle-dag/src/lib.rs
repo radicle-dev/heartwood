@@ -187,21 +187,21 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     ///
     /// To continue traversing a branch, return [`ControlFlow::Continue`] from the
     /// filter function. To stop traversal of a branch, return [`ControlFlow::Break`].
-    pub fn fold<A, F>(&self, root: &K, mut acc: A, mut filter: F) -> A
+    pub fn fold<A, F>(&self, roots: &[K], mut acc: A, mut filter: F) -> A
     where
-        F: for<'r> FnMut(A, &'r K, &'r Node<K, V>, usize) -> ControlFlow<A, A>,
+        F: for<'r> FnMut(A, &'r K, &'r Node<K, V>) -> ControlFlow<A, A>,
     {
         let mut visited = BTreeSet::new();
-        let mut queue = VecDeque::<(K, usize)>::from([(*root, 0)]);
+        let mut queue = VecDeque::<K>::from_iter(roots.iter().cloned());
 
-        while let Some((next, depth)) = queue.pop_front() {
+        while let Some(next) = queue.pop_front() {
             if !visited.insert(next) {
                 continue;
             }
             if let Some(node) = self.graph.get(&next) {
-                match filter(acc, &next, node, depth) {
+                match filter(acc, &next, node) {
                     ControlFlow::Continue(a) => {
-                        queue.extend(node.dependents.iter().map(|k| (*k, depth + 1)));
+                        queue.extend(node.dependents.iter().cloned());
                         acc = a;
                     }
                     ControlFlow::Break(a) => {
@@ -497,57 +497,11 @@ mod tests {
         dag.dependency("C1", "B2");
         dag.dependency("C1", "B3");
 
-        let acc = dag.fold(&"R", Vec::new(), |mut acc, key, _, _| {
+        let acc = dag.fold(&["R"], Vec::new(), |mut acc, key, _| {
             acc.push(*key);
             ControlFlow::Continue(acc)
         });
         assert_eq!(acc, vec!["R", "A1", "A2", "A3", "B1", "B2", "B3", "C1"]);
-    }
-
-    #[test]
-    fn test_fold_depth() {
-        let mut dag = Dag::new();
-
-        dag.node("R", ());
-        dag.node("A1", ());
-        dag.node("A2", ());
-        dag.node("A3", ());
-        dag.node("B1", ());
-        dag.node("B2", ());
-        dag.node("B3", ());
-        dag.node("C1", ());
-
-        dag.dependency("A1", "R");
-        dag.dependency("A2", "R");
-        dag.dependency("A3", "R");
-
-        dag.dependency("B1", "A1");
-        dag.dependency("B2", "A1");
-        dag.dependency("B3", "A2");
-        dag.dependency("B3", "A3");
-
-        dag.dependency("C1", "B1");
-        dag.dependency("C1", "B2");
-        dag.dependency("C1", "B3");
-
-        let acc = dag.fold(&"R", Vec::new(), |mut acc, key, _, depth| {
-            acc.push((*key, depth));
-            ControlFlow::Continue(acc)
-        });
-
-        assert_eq!(
-            acc,
-            vec![
-                ("R", 0),
-                ("A1", 1),
-                ("A2", 1),
-                ("A3", 1),
-                ("B1", 2),
-                ("B2", 2),
-                ("B3", 2),
-                ("C1", 3)
-            ]
-        );
     }
 
     #[test]
@@ -571,7 +525,7 @@ mod tests {
         let a1 = dag.get(&"A1").unwrap();
         assert_eq!(dag.descendants_of(a1), vec!["B1", "C1", "D1"]);
 
-        let acc = dag.fold(&"R", Vec::new(), |mut acc, key, accept, _| {
+        let acc = dag.fold(&["R"], Vec::new(), |mut acc, key, accept| {
             if !accept.value {
                 ControlFlow::Break(acc)
             } else {

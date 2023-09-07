@@ -65,7 +65,7 @@ impl History {
         F: for<'r> FnMut(A, &'r EntryId, &'r Entry) -> ControlFlow<A, A>,
     {
         self.graph
-            .fold(&self.root, init, |acc, k, v, _| f(acc, k, v))
+            .fold(&[self.root], init, |acc, k, v| f(acc, k, v))
     }
 
     /// Return a topologically-sorted list of history entries.

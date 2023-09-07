@@ -91,7 +91,7 @@ impl ChangeGraph {
         let manifest = root_node.manifest.clone();
         let graph = self
             .graph
-            .fold(&root, Dag::new(), |mut graph, _, change, _| {
+            .fold(&[root], Dag::new(), |mut graph, _, change| {
                 // Check the change signatures are valid.
                 if !change.valid_signatures() {
                     return ControlFlow::Break(graph);
