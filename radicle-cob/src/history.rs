@@ -60,12 +60,11 @@ impl History {
     /// accumulator value of type `A`. However, unlike `fold` the function `f`
     /// may prune branches from the dependency graph by returning
     /// `ControlFlow::Break`.
-    pub fn traverse<F, A>(&self, init: A, mut f: F) -> A
+    pub fn traverse<F, A>(&self, init: A, roots: &[EntryId], mut f: F) -> A
     where
         F: for<'r> FnMut(A, &'r EntryId, &'r Entry) -> ControlFlow<A, A>,
     {
-        self.graph
-            .fold(&[self.root], init, |acc, k, v| f(acc, k, v))
+        self.graph.fold(roots, init, |acc, k, v| f(acc, k, v))
     }
 
     /// Return a topologically-sorted list of history entries.
@@ -113,5 +112,13 @@ impl History {
         self.graph
             .get(&self.root)
             .expect("History::root: the root entry must be present in the graph")
+    }
+
+    /// Get the children of the given entry.
+    pub fn children_of(&self, id: &EntryId) -> Vec<EntryId> {
+        self.graph
+            .get(id)
+            .map(|n| n.dependents.iter().cloned().collect())
+            .unwrap_or_default()
     }
 }

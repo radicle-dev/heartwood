@@ -211,21 +211,26 @@ fn traverse_cobs() {
     )
     .unwrap();
 
+    let root = object.history.root().id;
     // traverse over the history and filter by changes that were only authorized by terry
-    let contents = object.history().traverse(Vec::new(), |mut acc, _, entry| {
-        if entry.author() == terry_signer.public_key() {
-            acc.push(entry.contents().head.clone());
-        }
-        ControlFlow::Continue(acc)
-    });
+    let contents = object
+        .history()
+        .traverse(Vec::new(), &[root], |mut acc, _, entry| {
+            if entry.author() == terry_signer.public_key() {
+                acc.push(entry.contents().head.clone());
+            }
+            ControlFlow::Continue(acc)
+        });
 
     assert_eq!(contents, vec![b"issue 1".to_vec()]);
 
     // traverse over the history and filter by changes that were only authorized by neil
-    let contents = object.history().traverse(Vec::new(), |mut acc, _, entry| {
-        acc.push(entry.contents().head.clone());
-        ControlFlow::Continue(acc)
-    });
+    let contents = object
+        .history()
+        .traverse(Vec::new(), &[root], |mut acc, _, entry| {
+            acc.push(entry.contents().head.clone());
+            ControlFlow::Continue(acc)
+        });
 
     assert_eq!(contents, vec![b"issue 1".to_vec(), b"issue 2".to_vec()]);
 }

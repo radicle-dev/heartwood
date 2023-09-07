@@ -57,18 +57,23 @@ impl<T: FromHistory> HistoryBuilder<T>
 where
     T::Action: for<'de> Deserialize<'de> + Serialize + Eq + 'static,
 {
-    pub fn new<G: Signer>(action: &T::Action, time: Timestamp, signer: &G) -> HistoryBuilder<T> {
+    pub fn new<G: Signer>(actions: &[T::Action], time: Timestamp, signer: &G) -> HistoryBuilder<T> {
         let resource = arbitrary::oid();
         let revision = arbitrary::oid();
-        let (data, root) = encoded::<T, _>(action, time, [], signer);
+        let (contents, oids): (Vec<Vec<u8>>, Vec<Oid>) = actions
+            .iter()
+            .map(|a| encoded::<T, _>(a, time, [], signer))
+            .unzip();
+        let contents = NonEmpty::from_vec(contents).unwrap();
+        let root = oids.first().unwrap();
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
-        let signature = signer.sign(data.as_slice());
+        let signature = signer.sign(&[0]);
         let signature = ExtendedSignature::new(*signer.public_key(), signature);
         let change = Entry {
-            id: root,
+            id: *root,
             signature,
             resource,
-            contents: NonEmpty::new(data),
+            contents,
             timestamp: time.as_secs(),
             revision,
             parents: vec![],
@@ -125,14 +130,14 @@ impl<A> Deref for HistoryBuilder<A> {
 
 /// Create a new test history.
 pub fn history<T: FromHistory, G: Signer>(
-    action: &T::Action,
+    actions: &[T::Action],
     time: Timestamp,
     signer: &G,
 ) -> HistoryBuilder<T>
 where
     T::Action: Serialize + Eq + 'static,
 {
-    HistoryBuilder::new(action, time, signer)
+    HistoryBuilder::new(actions, time, signer)
 }
 
 /// An object that can be used to create and sign operations.
@@ -156,22 +161,23 @@ impl<G: Signer> Actor<G> {
     /// Create a new operation.
     pub fn op_with<T: FromHistory>(
         &mut self,
-        action: T::Action,
+        actions: impl IntoIterator<Item = T::Action>,
         identity: Oid,
         timestamp: Timestamp,
     ) -> Op<T::Action>
     where
         T::Action: Clone + Serialize,
     {
+        let actions = actions.into_iter().collect::<Vec<_>>();
         let data = encoding::encode(serde_json::json!({
-            "action": action,
+            "action": actions,
             "nonce": fastrand::u64(..),
         }))
         .unwrap();
         let oid = git::raw::Oid::hash_object(git::raw::ObjectType::Blob, &data).unwrap();
         let id = oid.into();
         let author = *self.signer.public_key();
-        let actions = NonEmpty::new(action);
+        let actions = NonEmpty::from_vec(actions).unwrap();
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
         let parents = vec![];
 
@@ -187,14 +193,17 @@ impl<G: Signer> Actor<G> {
     }
 
     /// Create a new operation.
-    pub fn op<T: FromHistory>(&mut self, action: T::Action) -> Op<T::Action>
+    pub fn op<T: FromHistory>(
+        &mut self,
+        actions: impl IntoIterator<Item = T::Action>,
+    ) -> Op<T::Action>
     where
         T::Action: Clone + Serialize,
     {
         let identity = arbitrary::oid();
         let timestamp = Timestamp::now();
 
-        self.op_with::<T>(action, identity, timestamp)
+        self.op_with::<T>(actions, identity, timestamp)
     }
 
     /// Get the actor's DID.
@@ -213,19 +222,19 @@ impl<G: Signer> Actor<G> {
         oid: git::Oid,
         repo: &R,
     ) -> Result<Patch, patch::Error> {
-        Patch::from_ops(
-            [
-                self.op::<Patch>(patch::Action::Revision {
+        Patch::init(
+            self.op::<Patch>([
+                patch::Action::Revision {
                     description: description.to_string(),
                     base,
                     oid,
                     resolves: Default::default(),
-                }),
-                self.op::<Patch>(patch::Action::Edit {
+                },
+                patch::Action::Edit {
                     title: title.to_string(),
                     target: patch::MergeTarget::default(),
-                }),
-            ],
+                },
+            ]),
             repo,
         )
     }

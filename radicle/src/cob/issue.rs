@@ -7,15 +7,16 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::cob;
-use crate::cob::common::{Author, Label, Reaction, Timestamp, Uri};
+use crate::cob::common::{Author, Authorization, Label, Reaction, Timestamp, Uri};
 use crate::cob::store::Transaction;
 use crate::cob::store::{FromHistory as _, HistoryAction};
 use crate::cob::thread;
-use crate::cob::thread::{CommentId, Thread};
+use crate::cob::thread::{Comment, CommentId, Thread};
 use crate::cob::{store, ActorId, Embed, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
 use crate::git;
-use crate::prelude::{Did, ReadRepository};
+use crate::identity::doc::{Doc, DocError};
+use crate::prelude::{Did, ReadRepository, Verified};
 use crate::storage::WriteRepository;
 
 /// Issue operation.
@@ -31,16 +32,23 @@ pub type IssueId = ObjectId;
 /// Error updating or creating issues.
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("apply failed")]
-    Apply,
-    #[error("validation failed: {0}")]
-    Validate(&'static str),
+    /// Error loading the identity document.
+    #[error("identity doc failed to load: {0}")]
+    Doc(#[from] DocError),
     #[error("description missing")]
     DescriptionMissing,
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::Error),
     #[error("store: {0}")]
     Store(#[from] store::Error),
+    #[error("history: {0}")]
+    History(Box<dyn std::error::Error + Sync + Send + 'static>),
+    /// Action not authorized.
+    #[error("{0} not authorized to apply {1:?}")]
+    NotAuthorized(ActorId, Action),
+    /// General error initializing an issue.
+    #[error("initialization failed: {0}")]
+    Init(&'static str),
 }
 
 /// Reason why an issue was closed.
@@ -91,7 +99,7 @@ impl State {
 }
 
 /// Issue state. Accumulates [`Action`].
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Issue {
     /// Actors assigned to this issue.
     pub(super) assignees: BTreeSet<Did>,
@@ -113,25 +121,52 @@ impl store::FromHistory for Issue {
         &TYPENAME
     }
 
-    fn validate(&self) -> Result<(), Self::Error> {
-        if self.title.is_empty() {
-            return Err(Error::Validate("title is empty"));
+    fn init<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
+        let mut actions = op.actions.into_iter();
+        let Some(Action::Comment { body, reply_to: None, embeds }) = actions.next() else {
+            return Err(Error::Init("the first action must be of type `comment`"));
+        };
+        let comment = Comment::new(op.author, body, None, None, embeds, op.timestamp);
+        let thread = Thread::new(op.id, comment);
+        let mut issue = Issue::new(thread);
+
+        for action in actions {
+            issue.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
         }
-        if self.thread.validate().is_err() {
-            return Err(Error::Validate("invalid thread"));
-        }
-        Ok(())
+        Ok(issue)
     }
 
     fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
+        let doc = repo.identity_doc_at(op.identity)?.verified()?;
         for action in op.actions {
-            self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
+            match self.authorization(&action, &op.author, &doc) {
+                Authorization::Allow => {
+                    self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
+                }
+                Authorization::Deny => {
+                    return Err(Error::NotAuthorized(op.author, action));
+                }
+                Authorization::Unknown => {
+                    continue;
+                }
+            }
         }
         Ok(())
     }
 }
 
 impl Issue {
+    /// Construct a new issue.
+    pub fn new(thread: Thread) -> Self {
+        Self {
+            assignees: BTreeSet::default(),
+            title: String::default(),
+            state: State::default(),
+            labels: BTreeSet::default(),
+            thread,
+        }
+    }
+
     pub fn assigned(&self) -> impl Iterator<Item = &Did> + '_ {
         self.assignees.iter()
     }
@@ -179,6 +214,46 @@ impl Issue {
 
     pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment)> {
         self.thread.comments()
+    }
+
+    /// Apply authorization rules on issue actions.
+    pub fn authorization(
+        &self,
+        action: &Action,
+        actor: &ActorId,
+        doc: &Doc<Verified>,
+    ) -> Authorization {
+        if doc.is_delegate(actor) {
+            // A delegate is authorized to do all actions.
+            return Authorization::Allow;
+        }
+        let author: ActorId = *self.author().id().as_key();
+
+        match action {
+            // Only delegate can assign someone to an issue.
+            Action::Assign { .. } => Authorization::Deny,
+            // Issue authors can edit their own issues.
+            Action::Edit { .. } => Authorization::from(*actor == author),
+            // Issue authors can close or re-open their own issue.
+            Action::Lifecycle { state } => Authorization::from(match state {
+                State::Closed { .. } => *actor == author,
+                State::Open => *actor == author,
+            }),
+            // Only delegate can label an issue.
+            Action::Label { .. } => Authorization::Deny,
+            // All roles can comment on an issues
+            Action::Comment { .. } => Authorization::Allow,
+            // All roles can edit or redact their own comments.
+            Action::CommentEdit { id, .. } | Action::CommentRedact { id, .. } => {
+                if let Some(comment) = self.comment(id) {
+                    Authorization::from(*actor == comment.author())
+                } else {
+                    Authorization::Unknown
+                }
+            }
+            // All roles can react to a comment on an issue.
+            Action::CommentReact { .. } => Authorization::Allow,
+        }
     }
 }
 

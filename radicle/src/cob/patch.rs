@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::cob;
-use crate::cob::common::{Author, Label, Reaction, Timestamp};
+use crate::cob::common::{Author, Authorization, Label, Reaction, Timestamp};
 use crate::cob::store::Transaction;
 use crate::cob::store::{FromHistory as _, HistoryAction};
 use crate::cob::thread;
@@ -105,18 +105,20 @@ pub enum Error {
     /// Error loading the document payload.
     #[error("payload failed to load: {0}")]
     Payload(#[from] PayloadError),
-    /// The merge operation is invalid.
-    #[error("invalid merge operation in {0}")]
-    InvalidMerge(EntryId),
     /// Git error.
     #[error("git: {0}")]
     Git(#[from] git::ext::Error),
-    /// Validation error.
-    #[error("validation failed: {0}")]
-    Validate(&'static str),
     /// Store error.
     #[error("store: {0}")]
     Store(#[from] store::Error),
+    #[error("history error: {0}")]
+    History(Box<dyn std::error::Error + Sync + Send + 'static>),
+    /// Action not authorized by the author
+    #[error("{0} not authorized to apply {1:?}")]
+    NotAuthorized(ActorId, Action),
+    /// Initialization failed.
+    #[error("initialization failed: {0}")]
+    Init(&'static str),
 }
 
 /// Patch operation.
@@ -341,7 +343,7 @@ impl MergeTarget {
 }
 
 /// Patch state.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Patch {
     /// Title of the patch.
     pub(super) title: String,
@@ -374,6 +376,24 @@ pub struct Patch {
 }
 
 impl Patch {
+    /// Create a valid patch
+    pub fn new(
+        title: String,
+        target: MergeTarget,
+        (revision_id, revision): (RevisionId, Revision),
+    ) -> Self {
+        Self {
+            title,
+            state: State::default(),
+            target,
+            labels: BTreeSet::default(),
+            merges: BTreeMap::default(),
+            revisions: BTreeMap::from([(revision_id, Some(revision))]),
+            assignees: BTreeSet::default(),
+            timeline: vec![revision_id.into_inner()],
+            reviews: BTreeMap::default(),
+        }
+    }
     /// Title of the patch.
     pub fn title(&self) -> &str {
         self.title.as_str()
@@ -523,6 +543,118 @@ impl Patch {
     pub fn is_draft(&self) -> bool {
         matches!(self.state(), State::Draft)
     }
+
+    /// Apply authorization rules on patch actions.
+    pub fn authorization(
+        &self,
+        action: &Action,
+        actor: &ActorId,
+        doc: &Doc<Verified>,
+    ) -> Result<Authorization, Error> {
+        if doc.is_delegate(actor) {
+            // A delegate is authorized to do all actions.
+            return Ok(Authorization::Allow);
+        }
+        let author = self.author().id().as_key();
+        let outcome = match action {
+            // The patch author can edit the patch and change its state.
+            Action::Edit { .. } => Authorization::from(actor == author),
+            Action::Lifecycle { state } => Authorization::from(match state {
+                Lifecycle::Open { .. } => actor == author,
+                Lifecycle::Draft { .. } => actor == author,
+                Lifecycle::Archived { .. } => actor == author,
+            }),
+            // Only delegates can carry out these actions.
+            Action::Label { .. } => Authorization::Deny,
+            Action::Assign { .. } => Authorization::Deny,
+            Action::Merge { .. } => match self.target() {
+                MergeTarget::Delegates => Authorization::Deny,
+            },
+            // Anyone can submit a review.
+            Action::Review { .. } => Authorization::Allow,
+            // The review author can edit a review.
+            Action::ReviewEdit { review, .. } => {
+                if let Some((_, review)) = lookup::review(self, review)? {
+                    Authorization::from(actor == review.author.public_key())
+                } else {
+                    // Redacted.
+                    Authorization::Unknown
+                }
+            }
+            Action::ReviewRedact { review, .. } => {
+                if let Some((_, review)) = lookup::review(self, review)? {
+                    Authorization::from(actor == review.author.public_key())
+                } else {
+                    // Redacted.
+                    Authorization::Unknown
+                }
+            }
+            // Anyone can comment on a review.
+            Action::ReviewComment { .. } => Authorization::Allow,
+            // The comment author can edit and redact their own comment.
+            Action::ReviewCommentEdit {
+                review, comment, ..
+            }
+            | Action::ReviewCommentRedact { review, comment } => {
+                if let Some((_, review)) = lookup::review(self, review)? {
+                    if let Some(comment) = review.comments.comment(comment) {
+                        return Ok(Authorization::from(*actor == comment.author()));
+                    }
+                }
+                // Redacted.
+                Authorization::Unknown
+            }
+            // Anyone can react to a review comment.
+            Action::ReviewCommentReact { .. } => Authorization::Allow,
+            // The reviewer, commenter or revision author can resolve and unresolve review comments.
+            Action::ReviewCommentResolve { review, comment }
+            | Action::ReviewCommentUnresolve { review, comment } => {
+                if let Some((revision, review)) = lookup::review(self, review)? {
+                    if let Some(comment) = review.comments.comment(comment) {
+                        return Ok(Authorization::from(
+                            actor == &comment.author()
+                                || actor == review.author.public_key()
+                                || actor == revision.author.public_key(),
+                        ));
+                    }
+                }
+                // Redacted.
+                Authorization::Unknown
+            }
+            // Only patch authors can propose revisions.
+            Action::Revision { .. } => Authorization::from(actor == author),
+            // Only the revision author can edit or redact their revision.
+            Action::RevisionEdit { revision, .. } | Action::RevisionRedact { revision, .. } => {
+                if let Some(revision) = lookup::revision(self, revision)? {
+                    Authorization::from(actor == revision.author.public_key())
+                } else {
+                    // Redacted.
+                    Authorization::Unknown
+                }
+            }
+            // Anyone can react to or comment on a revision.
+            Action::RevisionReact { .. } => Authorization::Allow,
+            Action::RevisionComment { .. } => Authorization::Allow,
+            // Only the comment author can edit or redact their comment.
+            Action::RevisionCommentEdit {
+                revision, comment, ..
+            }
+            | Action::RevisionCommentRedact {
+                revision, comment, ..
+            } => {
+                if let Some(revision) = lookup::revision(self, revision)? {
+                    if let Some(comment) = revision.discussion.comment(comment) {
+                        return Ok(Authorization::from(actor == &comment.author()));
+                    }
+                }
+                // Redacted.
+                Authorization::Unknown
+            }
+            // Anyone can react to a revision.
+            Action::RevisionCommentReact { .. } => Authorization::Allow,
+        };
+        Ok(outcome)
+    }
 }
 
 impl Patch {
@@ -533,7 +665,7 @@ impl Patch {
         entry: EntryId,
         author: ActorId,
         timestamp: Timestamp,
-        identity: git::Oid,
+        identity: &Doc<Verified>,
         repo: &R,
     ) -> Result<(), Error> {
         match action {
@@ -576,19 +708,18 @@ impl Patch {
                 summary,
                 verdict,
             } => {
-                let Some(Some((revision, author))) =
-                        self.reviews.get(&review) else {
-                            return Err(Error::Missing(review.into_inner()));
-                    };
+                let Some(Some((revision, author))) = self.reviews.get(&review) else {
+                    return Err(Error::Missing(review.into_inner()));
+                };
                 let Some(rev) = self.revisions.get_mut(revision) else {
-                        return Err(Error::Missing(revision.into_inner()));
-                    };
+                    return Err(Error::Missing(revision.into_inner()));
+                };
                 // If the revision was redacted concurrently, there's nothing to do.
                 // Likewise, if the review was redacted concurrently, there's nothing to do.
                 if let Some(rev) = rev {
                     let Some(review) = rev.reviews.get_mut(author) else {
-                            return Err(Error::Missing(review.into_inner()));
-                        };
+                        return Err(Error::Missing(review.into_inner()));
+                    };
                     if let Some(review) = review {
                         review.summary = summary;
                         review.verdict = verdict;
@@ -621,7 +752,7 @@ impl Patch {
                 active,
                 location,
             } => {
-                if let Some(revision) = lookup::revision(self, &revision)? {
+                if let Some(revision) = lookup::revision_mut(self, &revision)? {
                     let key = (author, reaction);
                     let reactions = revision.reactions.entry(location).or_default();
 
@@ -652,14 +783,20 @@ impl Patch {
                 labels,
             } => {
                 let Some(rev) = self.revisions.get_mut(&revision) else {
-                        return Err(Error::Missing(revision.into_inner()));
-                    };
+                    return Err(Error::Missing(revision.into_inner()));
+                };
                 if let Some(rev) = rev {
                     // Nb. Applying two reviews by the same author is not allowed and
                     // results in the review being redacted.
                     rev.reviews.insert(
                         author,
-                        Some(Review::new(verdict, summary.to_owned(), labels, timestamp)),
+                        Some(Review::new(
+                            Author::new(author),
+                            verdict,
+                            summary.to_owned(),
+                            labels,
+                            timestamp,
+                        )),
                     );
                     // Update reviews index.
                     self.reviews
@@ -672,7 +809,7 @@ impl Patch {
                 reaction,
                 active,
             } => {
-                if let Some(review) = lookup::review(self, &review)? {
+                if let Some(review) = lookup::review_mut(self, &review)? {
                     thread::react(
                         &mut review.comments,
                         entry,
@@ -684,7 +821,7 @@ impl Patch {
                 }
             }
             Action::ReviewCommentRedact { review, comment } => {
-                if let Some(review) = lookup::review(self, &review)? {
+                if let Some(review) = lookup::review_mut(self, &review)? {
                     thread::redact(&mut review.comments, entry, comment)?;
                 }
             }
@@ -693,7 +830,7 @@ impl Patch {
                 comment,
                 body,
             } => {
-                if let Some(review) = lookup::review(self, &review)? {
+                if let Some(review) = lookup::review_mut(self, &review)? {
                     thread::edit(
                         &mut review.comments,
                         entry,
@@ -705,12 +842,12 @@ impl Patch {
                 }
             }
             Action::ReviewCommentResolve { review, comment } => {
-                if let Some(review) = lookup::review(self, &review)? {
+                if let Some(review) = lookup::review_mut(self, &review)? {
                     thread::resolve(&mut review.comments, entry, comment)?;
                 }
             }
             Action::ReviewCommentUnresolve { review, comment } => {
-                if let Some(review) = lookup::review(self, &review)? {
+                if let Some(review) = lookup::review_mut(self, &review)? {
                     thread::unresolve(&mut review.comments, entry, comment)?;
                 }
             }
@@ -720,7 +857,7 @@ impl Patch {
                 location,
                 reply_to,
             } => {
-                if let Some(review) = lookup::review(self, &review)? {
+                if let Some(review) = lookup::review_mut(self, &review)? {
                     thread::comment(
                         &mut review.comments,
                         entry,
@@ -736,41 +873,36 @@ impl Patch {
             Action::ReviewRedact { review } => {
                 // Redactions must have observed a review to be valid.
                 let Some(locator) = self.reviews.get_mut(&review) else {
-                        return Err(Error::Missing(review.into_inner()));
-                    };
+                    return Err(Error::Missing(review.into_inner()));
+                };
                 // If the review is already redacted, do nothing.
                 let Some((revision, reviewer)) = locator else {
-                        return Ok(());
-                    };
+                    return Ok(());
+                };
                 // The revision must have existed at some point.
                 let Some(redactable) = self.revisions.get_mut(revision) else {
-                        return Err(Error::Missing(revision.into_inner()));
-                    };
+                    return Err(Error::Missing(revision.into_inner()));
+                };
                 // But it could be redacted.
                 let Some(revision) = redactable else {
-                        return Ok(());
-                    };
+                    return Ok(());
+                };
                 // The review must have existed as well.
                 let Some(review) = revision.reviews.get_mut(reviewer) else {
-                        return Err(Error::Missing(review.into_inner()));
-                    };
+                    return Err(Error::Missing(review.into_inner()));
+                };
                 // Set both the review and the locator in the review index to redacted.
                 *review = None;
                 *locator = None;
             }
             Action::Merge { revision, commit } => {
                 // If the revision was redacted before the merge, ignore the merge.
-                if lookup::revision(self, &revision)?.is_none() {
+                if lookup::revision_mut(self, &revision)?.is_none() {
                     return Ok(());
                 };
-                let doc = repo.identity_doc_at(identity)?.verified()?;
-
                 match self.target() {
                     MergeTarget::Delegates => {
-                        if !doc.is_delegate(&author) {
-                            return Err(Error::InvalidMerge(entry));
-                        }
-                        let proj = doc.project()?;
+                        let proj = identity.project()?;
                         let branch = git::refs::branch(proj.default_branch());
 
                         // Nb. We don't return an error in case the merge commit is not an
@@ -804,7 +936,7 @@ impl Patch {
                     },
                 );
                 // Discard revisions that weren't merged by a threshold of delegates.
-                merges.retain(|_, count| *count >= doc.threshold);
+                merges.retain(|_, count| *count >= identity.threshold);
 
                 match merges.into_keys().collect::<Vec<_>>().as_slice() {
                     [] => {
@@ -832,7 +964,7 @@ impl Patch {
                 reply_to,
                 ..
             } => {
-                if let Some(revision) = lookup::revision(self, &revision)? {
+                if let Some(revision) = lookup::revision_mut(self, &revision)? {
                     thread::comment(
                         &mut revision.discussion,
                         entry,
@@ -850,7 +982,7 @@ impl Patch {
                 comment,
                 body,
             } => {
-                if let Some(revision) = lookup::revision(self, &revision)? {
+                if let Some(revision) = lookup::revision_mut(self, &revision)? {
                     thread::edit(
                         &mut revision.discussion,
                         entry,
@@ -862,7 +994,7 @@ impl Patch {
                 }
             }
             Action::RevisionCommentRedact { revision, comment } => {
-                if let Some(revision) = lookup::revision(self, &revision)? {
+                if let Some(revision) = lookup::revision_mut(self, &revision)? {
                     thread::redact(&mut revision.discussion, entry, comment)?;
                 }
             }
@@ -872,7 +1004,7 @@ impl Patch {
                 reaction,
                 active,
             } => {
-                if let Some(revision) = lookup::revision(self, &revision)? {
+                if let Some(revision) = lookup::revision_mut(self, &revision)? {
                     thread::react(
                         &mut revision.discussion,
                         entry,
@@ -896,22 +1028,53 @@ impl store::FromHistory for Patch {
         &TYPENAME
     }
 
-    fn validate(&self) -> Result<(), Self::Error> {
-        if self.revisions.is_empty() {
-            return Err(Error::Validate("no revisions found"));
+    fn init<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
+        let mut actions = op.actions.into_iter();
+        let Some(Action::Revision { description, base, oid, resolves }) = actions.next() else {
+            return Err(Error::Init("the first action must be of type `revision`"));
+        };
+        let Some(Action::Edit { title, target }) = actions.next() else {
+            return Err(Error::Init("the second action must be of type `edit`"));
+        };
+        let revision = Revision::new(
+            op.author.into(),
+            description,
+            base,
+            oid,
+            op.timestamp,
+            resolves,
+        );
+        let mut patch = Patch::new(title, target, (RevisionId(op.id), revision));
+        let doc = repo.identity_doc_at(op.identity)?.verified()?;
+
+        for action in actions {
+            patch.action(action, op.id, op.author, op.timestamp, &doc, repo)?;
         }
-        if self.title().is_empty() {
-            return Err(Error::Validate("empty title"));
-        }
-        Ok(())
+        Ok(patch)
     }
 
     fn apply<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
         debug_assert!(!self.timeline.contains(&op.id));
         self.timeline.push(op.id);
 
+        let doc = repo.identity_doc_at(op.identity)?.verified()?;
+
         for action in op.actions {
-            self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
+            match self.authorization(&action, &op.author, &doc)? {
+                Authorization::Allow => {
+                    self.action(action, op.id, op.author, op.timestamp, &doc, repo)?;
+                }
+                Authorization::Deny => {
+                    return Err(Error::NotAuthorized(op.author, action));
+                }
+                Authorization::Unknown => {
+                    // In this case, since there is not enough information to determine
+                    // whether the action is authorized or not, we simply ignore it.
+                    // It's likely that the target object was redacted, and we can't
+                    // verify whether the action would have been allowed or not.
+                    continue;
+                }
+            }
         }
         Ok(())
     }
@@ -921,6 +1084,19 @@ mod lookup {
     use super::*;
 
     pub fn revision<'a>(
+        patch: &'a Patch,
+        revision: &RevisionId,
+    ) -> Result<Option<&'a Revision>, Error> {
+        match patch.revisions.get(revision) {
+            Some(Some(revision)) => Ok(Some(revision)),
+            // Redacted.
+            Some(None) => Ok(None),
+            // Missing. Causal error.
+            None => Err(Error::Missing(revision.into_inner())),
+        }
+    }
+
+    pub fn revision_mut<'a>(
         patch: &'a mut Patch,
         revision: &RevisionId,
     ) -> Result<Option<&'a mut Revision>, Error> {
@@ -934,6 +1110,35 @@ mod lookup {
     }
 
     pub fn review<'a>(
+        patch: &'a Patch,
+        review: &ReviewId,
+    ) -> Result<Option<(&'a Revision, &'a Review)>, Error> {
+        match patch.reviews.get(review) {
+            Some(Some((revision, author))) => {
+                match patch.revisions.get(revision) {
+                    Some(Some(r)) => {
+                        let Some(review) = r.reviews.get(author) else {
+                            return Err(Error::Missing(review.into_inner()));
+                        };
+                        Ok(review.as_ref().map(|review| (r, review)))
+                    }
+                    Some(None) => {
+                        // If the revision was redacted concurrently, there's nothing to do.
+                        // Likewise, if the review was redacted concurrently, there's nothing to do.
+                        Ok(None)
+                    }
+                    None => Err(Error::Missing(revision.into_inner())),
+                }
+            }
+            Some(None) => {
+                // Redacted.
+                Ok(None)
+            }
+            None => Err(Error::Missing(review.into_inner())),
+        }
+    }
+
+    pub fn review_mut<'a>(
         patch: &'a mut Patch,
         review: &ReviewId,
     ) -> Result<Option<&'a mut Review>, Error> {
@@ -942,8 +1147,8 @@ mod lookup {
                 match patch.revisions.get_mut(revision) {
                     Some(Some(r)) => {
                         let Some(review) = r.reviews.get_mut(author) else {
-                        return Err(Error::Missing(review.into_inner()));
-                    };
+                            return Err(Error::Missing(review.into_inner()));
+                        };
                         Ok(review.as_mut())
                     }
                     Some(None) => {
@@ -1180,8 +1385,10 @@ pub struct CodeLocation {
 }
 
 /// A patch review on a revision.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Review {
+    /// Review author.
+    pub(super) author: Author,
     /// Review verdict.
     ///
     /// The verdict cannot be changed, since revisions are immutable.
@@ -1218,12 +1425,14 @@ impl Serialize for Review {
 
 impl Review {
     pub fn new(
+        author: Author,
         verdict: Option<Verdict>,
         summary: Option<String>,
         labels: Vec<Label>,
         timestamp: Timestamp,
     ) -> Self {
         Self {
+            author,
             verdict,
             summary,
             comments: Thread::default(),
@@ -2192,37 +2401,57 @@ mod test {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let mut alice = Actor::new(MockSigner::default());
-        let mut patch = Patch::default();
-        let repo = gen::<MockRepository>(1);
+        let rid = gen::<Id>(1);
+        let doc = Doc::new(
+            gen::<Project>(1),
+            nonempty::NonEmpty::new(alice.did()),
+            1,
+            identity::Visibility::Public,
+        )
+        .verified()
+        .unwrap();
+        let repo = MockRepository::new(rid, doc);
 
-        let a1 = alice.op::<Patch>(Action::Revision {
-            description: String::new(),
+        let a1 = alice.op::<Patch>([
+            Action::Revision {
+                description: String::new(),
+                base,
+                oid,
+                resolves: Default::default(),
+            },
+            Action::Edit {
+                title: String::from("My patch"),
+                target: MergeTarget::Delegates,
+            },
+        ]);
+        let a2 = alice.op::<Patch>([Action::Revision {
+            description: String::from("Second revision"),
             base,
             oid,
             resolves: Default::default(),
-        });
-        let a2 = alice.op::<Patch>(Action::RevisionRedact {
-            revision: RevisionId(a1.id()),
-        });
-        let a3 = alice.op::<Patch>(Action::Review {
-            revision: RevisionId(a1.id()),
+        }]);
+        let a3 = alice.op::<Patch>([Action::RevisionRedact {
+            revision: RevisionId(a2.id()),
+        }]);
+        let a4 = alice.op::<Patch>([Action::Review {
+            revision: RevisionId(a2.id()),
             summary: None,
             verdict: Some(Verdict::Accept),
             labels: vec![],
-        });
-        let a4 = alice.op::<Patch>(Action::Merge {
-            revision: RevisionId(a1.id()),
+        }]);
+        let a5 = alice.op::<Patch>([Action::Merge {
+            revision: RevisionId(a2.id()),
             commit: oid,
-        });
+        }]);
 
-        patch.apply(a1, &repo).unwrap();
-        assert!(patch.revisions().next().is_some());
-
-        patch.apply(a2, &repo).unwrap();
-        assert!(patch.revisions().next().is_none());
+        let mut patch = Patch::from_ops([a1, a2], &repo).unwrap();
+        assert_eq!(patch.revisions().count(), 2);
 
         patch.apply(a3, &repo).unwrap();
+        assert_eq!(patch.revisions().count(), 1);
+
         patch.apply(a4, &repo).unwrap();
+        patch.apply(a5, &repo).unwrap();
     }
 
     #[test]
@@ -2234,22 +2463,32 @@ mod test {
         let alice = MockSigner::default();
         let bob = MockSigner::default();
         let mut h0: cob::test::HistoryBuilder<Patch> = cob::test::history(
-            &Action::Revision {
-                description: String::from("Original"),
-                base,
-                oid,
-                resolves: Default::default(),
-            },
+            &[
+                Action::Revision {
+                    description: String::from("Original"),
+                    base,
+                    oid,
+                    resolves: Default::default(),
+                },
+                Action::Edit {
+                    title: String::from("Some patch"),
+                    target: MergeTarget::Delegates,
+                },
+            ],
             time,
             &alice,
         );
         h0.commit(
-            &Action::Edit {
-                title: String::from("Some patch"),
-                target: MergeTarget::Delegates,
+            &Action::Revision {
+                description: String::from("New"),
+                base,
+                oid,
+                resolves: Default::default(),
             },
             &alice,
         );
+        let patch = Patch::from_history(&h0, &repo).unwrap();
+        assert_eq!(patch.revisions().count(), 2);
 
         let mut h1 = h0.clone();
         h1.commit(
@@ -2272,7 +2511,7 @@ mod test {
         h0.merge(h2);
 
         let patch = Patch::from_history(&h0, &repo).unwrap();
-        assert_eq!(patch.revisions().count(), 0);
+        assert_eq!(patch.revisions().count(), 1);
     }
 
     #[test]
@@ -2283,18 +2522,24 @@ mod test {
         let repo = gen::<MockRepository>(1);
         let reaction = Reaction::new('👍').expect("failed to create a reaction");
 
-        let a1 = alice.op::<Patch>(Action::Revision {
-            description: String::new(),
-            base,
-            oid,
-            resolves: Default::default(),
-        });
-        let a2 = alice.op::<Patch>(Action::RevisionReact {
+        let a1 = alice.op::<Patch>([
+            Action::Revision {
+                description: String::new(),
+                base,
+                oid,
+                resolves: Default::default(),
+            },
+            Action::Edit {
+                title: String::from("My patch"),
+                target: MergeTarget::Delegates,
+            },
+        ]);
+        let a2 = alice.op::<Patch>([Action::RevisionReact {
             revision: RevisionId(a1.id()),
             location: None,
             reaction,
             active: true,
-        });
+        }]);
         let patch = Patch::from_ops([a1, a2], &repo).unwrap();
 
         let (_, r1) = patch.revisions().next().unwrap();

@@ -24,6 +24,10 @@ impl Author {
     pub fn id(&self) -> &Did {
         &self.id
     }
+
+    pub fn public_key(&self) -> &PublicKey {
+        self.id.as_key()
+    }
 }
 
 impl From<PublicKey> for Author {
@@ -275,6 +279,27 @@ impl std::str::FromStr for Uri {
             return Err(s.to_owned());
         }
         Ok(Self(s.to_owned()))
+    }
+}
+
+/// The result of an authorization check on an COB action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Authorization {
+    /// Action is allowed.
+    Allow,
+    /// Action is denied.
+    Deny,
+    /// Authorization cannot be determined due to missing object, eg. due to redaction.
+    Unknown,
+}
+
+impl From<bool> for Authorization {
+    fn from(value: bool) -> Self {
+        if value {
+            Self::Allow
+        } else {
+            Self::Deny
+        }
     }
 }
 

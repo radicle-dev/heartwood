@@ -1,9 +1,9 @@
 //! Generic COB storage.
 #![allow(clippy::large_enum_variant)]
 #![allow(clippy::type_complexity)]
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::ControlFlow;
-use std::sync::Arc;
 
 use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,15 @@ use crate::storage::git as storage;
 use crate::storage::SignRepository;
 use crate::{cob, identity};
 
-pub trait HistoryAction: std::fmt::Debug {
+#[derive(Debug, thiserror::Error)]
+pub enum HistoryError<T: FromHistory> {
+    #[error("apply: {0}")]
+    Apply(T::Error),
+    #[error("operation decoding failed: {0}")]
+    Op(#[from] cob::op::OpEncodingError),
+}
+
+pub trait HistoryAction: Debug {
     /// Parent objects this action depends on. For example, patch revisions
     /// have the commit objects as their parent.
     fn parents(&self) -> Vec<git::Oid> {
@@ -29,7 +37,7 @@ pub trait HistoryAction: std::fmt::Debug {
 
 /// A type that can be materialized from an event history.
 /// All collaborative objects implement this trait.
-pub trait FromHistory: Sized + Default + PartialEq {
+pub trait FromHistory: Sized + PartialEq + Debug {
     /// The underlying action composing each operation.
     type Action: HistoryAction + for<'de> Deserialize<'de> + Serialize;
     /// Error returned by `apply` function.
@@ -38,6 +46,9 @@ pub trait FromHistory: Sized + Default + PartialEq {
     /// The object type name.
     fn type_name() -> &'static TypeName;
 
+    /// Initialize a collarorative object
+    fn init<R: ReadRepository>(op: Op<Self::Action>, repo: &R) -> Result<Self, Self::Error>;
+
     /// Apply a list of operations to the state.
     fn apply<R: ReadRepository>(
         &mut self,
@@ -45,21 +56,26 @@ pub trait FromHistory: Sized + Default + PartialEq {
         repo: &R,
     ) -> Result<(), Self::Error>;
 
-    /// Validate the object. Returns an error if the object is invalid.
-    fn validate(&self) -> Result<(), Self::Error>;
-
     /// Create an object from a history.
-    fn from_history<R: ReadRepository>(history: &History, repo: &R) -> Result<Self, Self::Error> {
+    fn from_history<R: ReadRepository>(
+        history: &History,
+        repo: &R,
+    ) -> Result<Self, HistoryError<Self>> {
         self::from_history::<R, Self>(history, repo)
     }
 
+    #[cfg(test)]
     /// Create an object from individual operations.
     /// Returns an error if any of the operations fails to apply.
     fn from_ops<R: ReadRepository>(
         ops: impl IntoIterator<Item = Op<Self::Action>>,
         repo: &R,
     ) -> Result<Self, Self::Error> {
-        let mut state = Self::default();
+        let mut ops = ops.into_iter();
+        let Some(init) = ops.next() else {
+            panic!("FromHistory::from_ops: operations list is empty");
+        };
+        let mut state = Self::init(init, repo)?;
         for op in ops {
             state.apply(op, repo)?;
         }
@@ -72,8 +88,12 @@ pub trait FromHistory: Sized + Default + PartialEq {
 pub fn from_history<R: ReadRepository, T: FromHistory>(
     history: &History,
     repo: &R,
-) -> Result<T, T::Error> {
-    let obj = history.traverse(T::default(), |mut acc, _, entry| {
+) -> Result<T, HistoryError<T>> {
+    let root = history.root();
+    let children = history.children_of(root.id());
+    let op = Op::try_from(root)?;
+    let initial = T::init(op, repo).map_err(HistoryError::Apply)?;
+    let obj = history.traverse(initial, &children, |mut acc, _, entry| {
         match Op::try_from(entry) {
             Ok(op) => {
                 if let Err(err) = acc.apply(op, repo) {
@@ -88,8 +108,6 @@ pub fn from_history<R: ReadRepository, T: FromHistory>(
         }
         ControlFlow::Continue(acc)
     });
-
-    obj.validate()?;
 
     Ok(obj)
 }
@@ -111,8 +129,6 @@ pub enum Error {
     Serialize(#[from] serde_json::Error),
     #[error("object `{1}` of type `{0}` was not found")]
     NotFound(TypeName, ObjectId),
-    #[error("apply: {0}")]
-    Apply(Arc<dyn std::error::Error + Sync + Send + 'static>),
     #[error("signed refs: {0}")]
     SignRefs(#[from] storage::Error),
     #[error("failed to find reference '{name}': {err}")]
@@ -121,11 +137,13 @@ pub enum Error {
         #[source]
         err: git::Error,
     },
+    #[error("history: {0}")]
+    History(Box<dyn std::error::Error + Sync + Send + 'static>),
 }
 
 impl Error {
-    fn apply(e: impl std::error::Error + Sync + Send + 'static) -> Self {
-        Self::Apply(Arc::new(e))
+    fn history(e: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Self::History(Box::new(e))
     }
 }
 
@@ -158,7 +176,7 @@ impl<'a, T, R: ReadRepository> Store<'a, T, R> {
 impl<'a, T, R> Store<'a, T, R>
 where
     R: ReadRepository + SignRepository + cob::Store,
-    T: FromHistory,
+    T: FromHistory + 'static,
     T::Action: Serialize,
 {
     /// Update an object.
@@ -218,7 +236,7 @@ where
                 contents,
             },
         )?;
-        let object = T::from_history(cob.history(), self.repo).map_err(Error::apply)?;
+        let object = T::from_history(cob.history(), self.repo).map_err(Error::history)?;
 
         self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
 
@@ -250,7 +268,7 @@ where
 impl<'a, T, R> Store<'a, T, R>
 where
     R: ReadRepository + cob::Store,
-    T: FromHistory,
+    T: FromHistory + 'static,
     T::Action: Serialize,
 {
     /// Get an object.
@@ -258,7 +276,7 @@ where
         let cob = cob::get(self.repo, T::type_name(), id)?;
 
         if let Some(cob) = cob {
-            let obj = T::from_history(cob.history(), self.repo).map_err(Error::apply)?;
+            let obj = T::from_history(cob.history(), self.repo).map_err(Error::history)?;
 
             Ok(Some(obj))
         } else {
@@ -271,7 +289,7 @@ where
         let raw = cob::list(self.repo, T::type_name())?;
 
         Ok(raw.into_iter().map(|o| {
-            let obj = T::from_history(o.history(), self.repo).map_err(Error::apply)?;
+            let obj = T::from_history(o.history(), self.repo).map_err(Error::history)?;
             Ok((*o.id(), obj))
         }))
     }
@@ -297,7 +315,7 @@ pub struct Transaction<T: FromHistory> {
     embeds: Vec<Embed>,
 }
 
-impl<T: FromHistory> Transaction<T> {
+impl<T: FromHistory + 'static> Transaction<T> {
     /// Create a new transaction.
     pub fn new(actor: ActorId) -> Self {
         Self {
@@ -395,10 +413,13 @@ pub fn ops<R: cob::Store>(
     let cob = cob::get(repo, type_name, id)?;
 
     if let Some(cob) = cob {
-        let ops = cob.history().traverse(Vec::new(), |mut ops, _, entry| {
-            ops.push(Op::from(entry.clone()));
-            ControlFlow::Continue(ops)
-        });
+        let root = cob.history().root();
+        let ops = cob
+            .history()
+            .traverse(Vec::new(), &[root.id], |mut ops, _, entry| {
+                ops.push(Op::from(entry.clone()));
+                ControlFlow::Continue(ops)
+            });
         Ok(ops)
     } else {
         Err(Error::NotFound(type_name.clone(), *id))

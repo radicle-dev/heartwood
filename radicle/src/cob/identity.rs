@@ -323,11 +323,10 @@ impl store::FromHistory for Proposal {
         &TYPENAME
     }
 
-    fn validate(&self) -> Result<(), Self::Error> {
-        if self.revisions.is_empty() {
-            return Err(ApplyError::Validate("no revisions found"));
-        }
-        Ok(())
+    fn init<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
+        let mut identity = Self::default();
+        identity.apply(op, repo)?;
+        Ok(identity)
     }
 
     fn apply<R: ReadRepository>(&mut self, op: Op, _repo: &R) -> Result<(), Self::Error> {

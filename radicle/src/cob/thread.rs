@@ -9,6 +9,7 @@ use thiserror::Error;
 use crate::cob;
 use crate::cob::common::{Reaction, Timestamp, Uri};
 use crate::cob::{ActorId, Embed, EntryId, Op};
+use crate::git;
 use crate::prelude::ReadRepository;
 
 /// Type name of a thread, as well as the domain for all thread operations.
@@ -28,15 +29,15 @@ pub enum Error {
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
     Missing(EntryId),
-    /// Validation error.
-    #[error("validation failed: {0}")]
-    Validate(&'static str),
     /// Error with comment operation.
     #[error("comment {0} is invalid")]
     Comment(EntryId),
     /// Error with edit operation.
     #[error("edit {0} is invalid")]
     Edit(EntryId),
+    /// Object initialization failed.
+    #[error("initialization failed: {0}")]
+    Init(&'static str),
 }
 
 /// Identifies a comment.
@@ -258,7 +259,7 @@ impl<T> Thread<T> {
     pub fn new(id: CommentId, comment: T) -> Self {
         Self {
             comments: BTreeMap::from_iter([(id, Some(comment))]),
-            timeline: Vec::default(),
+            timeline: vec![id],
         }
     }
 
@@ -300,6 +301,39 @@ impl<T> Thread<T> {
     }
 }
 
+impl Thread {
+    /// Apply a single action to the thread.
+    fn action<R: ReadRepository>(
+        &mut self,
+        action: Action,
+        entry: EntryId,
+        author: ActorId,
+        timestamp: Timestamp,
+        _identity: git::Oid,
+        _repo: &R,
+    ) -> Result<(), Error> {
+        match action {
+            Action::Comment { body, reply_to } => {
+                comment(self, entry, author, timestamp, body, reply_to, None, vec![])?;
+            }
+            Action::Edit { id, body } => {
+                edit(self, entry, id, timestamp, body, vec![])?;
+            }
+            Action::Redact { id } => {
+                redact(self, entry, id)?;
+            }
+            Action::React {
+                to,
+                reaction,
+                active,
+            } => {
+                react(self, entry, author, to, reaction, active)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 impl<L> Thread<Comment<L>> {
     pub fn replies<'a>(
         &'a self,
@@ -324,37 +358,36 @@ impl cob::store::FromHistory for Thread {
         &TYPENAME
     }
 
-    fn validate(&self) -> Result<(), Self::Error> {
-        if self.comments.is_empty() {
-            return Err(Error::Validate("no comments found"));
+    fn init<R: ReadRepository>(op: Op<Action>, repo: &R) -> Result<Self, Self::Error> {
+        let author = op.author;
+        let entry = op.id;
+        let timestamp = op.timestamp;
+        let mut actions = op.actions.into_iter();
+        let Some(Action::Comment { body, reply_to: None }) = actions.next() else {
+            return Err(Error::Init("missing initial comment"));
+        };
+
+        let mut thread = Thread::default();
+        comment(
+            &mut thread,
+            entry,
+            author,
+            timestamp,
+            body,
+            None,
+            None,
+            vec![],
+        )?;
+
+        for action in actions {
+            thread.action(action, entry, author, timestamp, op.identity, repo)?;
         }
-        Ok(())
+        Ok(thread)
     }
 
-    fn apply<R: ReadRepository>(&mut self, op: Op<Action>, _repo: &R) -> Result<(), Error> {
-        let id = op.id;
-        let author = op.author;
-        let timestamp = op.timestamp;
-
+    fn apply<R: ReadRepository>(&mut self, op: Op<Action>, repo: &R) -> Result<(), Error> {
         for action in op.actions {
-            match action {
-                Action::Comment { body, reply_to } => {
-                    comment(self, id, author, timestamp, body, reply_to, None, vec![])?;
-                }
-                Action::Edit { id, body } => {
-                    edit(self, op.id, id, timestamp, body, vec![])?;
-                }
-                Action::Redact { id } => {
-                    redact(self, op.id, id)?;
-                }
-                Action::React {
-                    to,
-                    reaction,
-                    active,
-                } => {
-                    react(self, op.id, author, to, reaction, active)?;
-                }
-            }
+            self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
         }
         Ok(())
     }
@@ -527,23 +560,23 @@ mod tests {
 
         /// Create a new comment.
         pub fn comment(&mut self, body: &str, reply_to: Option<CommentId>) -> Op<Action> {
-            self.op::<Thread>(Action::Comment {
+            self.op::<Thread>([Action::Comment {
                 body: String::from(body),
                 reply_to,
-            })
+            }])
         }
 
         /// Create a new redaction.
         pub fn redact(&mut self, id: CommentId) -> Op<Action> {
-            self.op::<Thread>(Action::Redact { id })
+            self.op::<Thread>([Action::Redact { id }])
         }
 
         /// Edit a comment.
         pub fn edit(&mut self, id: CommentId, body: &str) -> Op<Action> {
-            self.op::<Thread>(Action::Edit {
+            self.op::<Thread>([Action::Edit {
                 id,
                 body: body.to_owned(),
-            })
+            }])
         }
     }
 
@@ -615,10 +648,10 @@ mod tests {
         let time = Timestamp::now();
 
         let mut a = test::history::<Thread, _>(
-            &Action::Comment {
+            &[Action::Comment {
                 body: "Thread root".to_owned(),
                 reply_to: None,
-            },
+            }],
             time,
             &alice,
         );
@@ -682,10 +715,10 @@ mod tests {
         let time = Timestamp::now();
 
         let mut a = test::history::<Thread, _>(
-            &Action::Comment {
+            &[Action::Comment {
                 body: "Thread root".to_owned(),
                 reply_to: None,
-            },
+            }],
             time,
             &alice,
         );
@@ -715,10 +748,10 @@ mod tests {
         let timestamp = Timestamp::from_secs(timestamp);
 
         let h0 = test::history::<Thread, _>(
-            &Action::Comment {
+            &[Action::Comment {
                 body: "Thread root".to_owned(),
                 reply_to: None,
-            },
+            }],
             timestamp,
             &alice,
         );
