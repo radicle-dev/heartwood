@@ -48,9 +48,9 @@ pub fn project<P: AsRef<Path>, G: Signer>(
 ) -> Result<(Id, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
     transport::local::register(storage.clone());
 
-    let (repo, head) = repository(path);
+    let (working, head) = repository(path);
     let (id, _, refs) = rad::init(
-        &repo,
+        &working,
         "acme",
         "Acme's repository",
         git::refname!("master"),
@@ -59,7 +59,7 @@ pub fn project<P: AsRef<Path>, G: Signer>(
         storage,
     )?;
 
-    Ok((id, refs, repo, head))
+    Ok((id, refs, working, head))
 }
 
 /// Creates a regular repository at the given path with a couple of commits.
@@ -93,6 +93,27 @@ pub fn repository<P: AsRef<Path>>(path: P) -> (git2::Repository, git2::Oid) {
     drop(head);
 
     (repo, oid)
+}
+
+/// Create an empty commit on the current branch.
+pub fn commit(msg: &str, parents: &[git2::Oid], repo: &git2::Repository) -> git::Oid {
+    let head = repo.head().unwrap();
+    let sig = git2::Signature::new(
+        "anonymous",
+        "anonymous@radicle.xyz",
+        &git2::Time::new(RADICLE_EPOCH, 0),
+    )
+    .unwrap();
+    let tree = head.peel_to_commit().unwrap().tree().unwrap();
+    let parents = parents
+        .iter()
+        .map(|p| repo.find_commit(*p).unwrap())
+        .collect::<Vec<_>>();
+    let parents = parents.iter().collect::<Vec<_>>(); // Get references.
+
+    repo.commit(None, &sig, &sig, msg, &tree, &parents)
+        .unwrap()
+        .into()
 }
 
 /// Populate a repository with commits, branches and blobs.

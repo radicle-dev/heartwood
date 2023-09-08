@@ -1,7 +1,7 @@
 pub mod cob;
 pub mod transport;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
@@ -556,21 +556,16 @@ impl ReadRepository for Repository {
         let project = doc.project()?;
         let branch_ref = Qualified::from(lit::refs_heads(&project.default_branch()));
         let raw = self.raw();
-
         let mut heads = Vec::new();
+
         for delegate in doc.delegates.iter() {
-            let r = self.reference_oid(delegate, &branch_ref)?.into();
+            let r = self.reference_oid(delegate, &branch_ref)?;
 
-            heads.push(r);
+            heads.push(*r);
         }
+        let quorum = self::quorum(&heads, doc.threshold, raw)?;
 
-        let oid = match heads.as_slice() {
-            [head] => Ok(*head),
-            // FIXME: This branch is not tested.
-            heads => raw.merge_base_many(heads),
-        }?;
-
-        Ok((branch_ref, oid.into()))
+        Ok((branch_ref, quorum))
     }
 
     fn identity_head(&self) -> Result<Oid, IdentityError> {
@@ -684,6 +679,112 @@ impl SignRepository for Repository {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum QuorumError {
+    #[error("no quorum was found")]
+    NoQuorum,
+    #[error(transparent)]
+    Git(#[from] git2::Error),
+}
+
+/// Computes the quorum or "canonical" head based on the given heads and the
+/// threshold. This can be described as the latest commit that is included in
+/// at least `threshold` histories. In case there are multiple heads passing
+/// the threshold, and they are divergent, their merge base is taken.
+///
+/// Returns an error if `heads` is empty or `threshold` cannot be satisified with
+/// the number of heads given.
+pub fn quorum(
+    heads: &[git::raw::Oid],
+    threshold: usize,
+    repo: &git::raw::Repository,
+) -> Result<Oid, QuorumError> {
+    let mut direct: HashMap<git::raw::Oid, HashSet<usize>> = HashMap::new();
+    let mut indirect: HashMap<git::raw::Oid, HashSet<usize>> = HashMap::new();
+
+    let Some(init) = heads.first() else {
+        return Err(QuorumError::NoQuorum);
+    };
+    // Nb. The merge base chosen for two merge commits is arbitrary.
+    let base = heads
+        .iter()
+        .try_fold(*init, |base, h| repo.merge_base(base, *h))?;
+
+    // Score every commit in the graph with the number of heads
+    // pointing to it.
+    // To make sure the votes are not counted twice, we use
+    // the index in the `heads` slice as the vote identifier.
+    // Note that it's perfectly legal to have multiple heads
+    // with the same value.
+    for (i, head) in heads.iter().enumerate() {
+        direct.entry(*head).or_default().insert(i);
+
+        let mut revwalk = repo.revwalk()?;
+        revwalk.push(*head)?;
+
+        for rev in revwalk {
+            let rev = rev?;
+            indirect.entry(rev).or_default().insert(i);
+
+            if rev == base {
+                break;
+            }
+        }
+    }
+
+    {
+        let matches = direct
+            .iter()
+            .filter(|(_, tips)| tips.len() >= threshold)
+            .map(|(h, _)| *h)
+            .collect::<Vec<_>>();
+
+        match matches.as_slice() {
+            [] => {
+                // Check indirect votes.
+            }
+            [head] => return Ok((*head).into()),
+            [head, ref rest @ ..] => {
+                let oid = rest
+                    .iter()
+                    .try_fold(*head, |base, h| repo.merge_base(base, *h))?;
+
+                if !direct.contains_key(&oid) {
+                    return Ok(oid.into());
+                }
+            }
+        }
+    }
+
+    let mut combined: HashMap<git::raw::Oid, HashSet<usize>> = HashMap::new();
+    for (k, v) in direct.into_iter().chain(indirect) {
+        combined.entry(k).or_default().extend(v);
+    }
+
+    let minimum = combined
+        .iter()
+        .filter(|(_, tips)| tips.len() >= threshold)
+        .map(|(_, tips)| tips.len())
+        .min()
+        .ok_or(QuorumError::NoQuorum)?;
+
+    let candidates = combined
+        .iter()
+        .filter(|(_, v)| v.len() == minimum)
+        .map(|(h, _)| *h)
+        .collect::<Vec<_>>();
+
+    let oid = match candidates.as_slice() {
+        [] => return Err(QuorumError::NoQuorum),
+        [head] => *head,
+        [head, ref rest @ ..] => rest
+            .iter()
+            .try_fold(*head, |base, h| repo.merge_base(base, *h))?,
+    };
+
+    Ok(oid.into())
+}
+
 pub mod trailers {
     use std::str::FromStr;
 
@@ -742,11 +843,185 @@ mod tests {
     use crypto::test::signer::MockSigner;
 
     use super::*;
+    use crate::assert_matches;
     use crate::git;
     use crate::storage::refs::SIGREFS_BRANCH;
     use crate::storage::{ReadRepository, ReadStorage};
     use crate::test::arbitrary;
     use crate::test::fixtures;
+
+    #[test]
+    fn test_quorum_properties() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (repo, c0) = fixtures::repository(tmp.path());
+        let c0: git::Oid = c0.into();
+        let a1 = fixtures::commit("A1", &[*c0], &repo);
+        let a2 = fixtures::commit("A2", &[*a1], &repo);
+        let d1 = fixtures::commit("D1", &[*c0], &repo);
+        let c1 = fixtures::commit("C1", &[*c0], &repo);
+        let c2 = fixtures::commit("C2", &[*c1], &repo);
+        let b2 = fixtures::commit("B2", &[*c1], &repo);
+        let a1 = fixtures::commit("A1", &[*c0], &repo);
+        let m1 = fixtures::commit("M1", &[*c2, *b2], &repo);
+        let m2 = fixtures::commit("M2", &[*a1, *b2], &repo);
+        let mut rng = fastrand::Rng::new();
+        let choices = vec![*c0, *c1, *c2, *b2, *a1, *a2, *d1, *m1, *m2];
+
+        for _ in 0..100 {
+            let count = rng.usize(1..=choices.len());
+            let threshold = rng.usize(1..=count);
+            let mut heads = Vec::new();
+
+            for _ in 0..count {
+                let ix = rng.usize(0..choices.len());
+                heads.push(choices[ix]);
+            }
+            rng.shuffle(&mut heads);
+
+            match quorum(&heads, threshold, &repo) {
+                Ok(canonical) => {
+                    let mut matches = 0;
+                    for h in &heads {
+                        if *canonical == *h || repo.graph_descendant_of(*h, *canonical).unwrap() {
+                            matches += 1;
+                        }
+                    }
+                    assert!(
+                        matches >= threshold,
+                        "test failed: heads={heads:?} threshold={threshold} canonical={canonical}"
+                    );
+                }
+                Err(e) => panic!("{e} for heads={heads:?} threshold={threshold}"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_quorum() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (repo, c0) = fixtures::repository(tmp.path());
+        let c0: git::Oid = c0.into();
+        let c1 = fixtures::commit("C1", &[*c0], &repo);
+        let c2 = fixtures::commit("C2", &[*c1], &repo);
+        let b2 = fixtures::commit("B2", &[*c1], &repo);
+        let a1 = fixtures::commit("A1", &[*c0], &repo);
+        let m1 = fixtures::commit("M1", &[*c2, *b2], &repo);
+        let m2 = fixtures::commit("M2", &[*a1, *b2], &repo);
+
+        eprintln!("C0: {c0}");
+        eprintln!("C1: {c1}");
+        eprintln!("C2: {c2}");
+        eprintln!("B2: {b2}");
+        eprintln!("A1: {a1}");
+        eprintln!("M1: {m1}");
+        eprintln!("M2: {m2}");
+
+        assert_eq!(quorum(&[*c0], 1, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c0], 0, &repo).unwrap(), c0);
+        assert_matches!(quorum(&[], 0, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*c0], 2, &repo), Err(QuorumError::NoQuorum));
+
+        //  C1
+        //  |
+        // C0
+        assert_eq!(quorum(&[*c1], 1, &repo).unwrap(), c1);
+
+        //   C2
+        //   |
+        //  C1
+        //  |
+        // C0
+        assert_eq!(quorum(&[*c1, *c2], 1, &repo).unwrap(), c2);
+        assert_eq!(quorum(&[*c1, *c2], 2, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c0, *c1, *c2], 3, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c1, *c1, *c2], 2, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c1, *c1, *c2], 1, &repo).unwrap(), c2);
+        assert_eq!(quorum(&[*c2, *c2, *c1], 1, &repo).unwrap(), c2);
+
+        // B2 C2
+        //   \|
+        //   C1
+        //   |
+        //  C0
+        assert_eq!(quorum(&[*c1, *c2, *b2], 1, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c2, *b2], 1, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*b2, *c2], 1, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c2, *b2], 2, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*b2, *c2], 2, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c1, *c2, *b2], 2, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c1, *c2, *b2], 3, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*b2, *b2, *c2], 2, &repo).unwrap(), b2);
+        assert_eq!(quorum(&[*b2, *c2, *c2], 2, &repo).unwrap(), c2);
+        assert_eq!(quorum(&[*b2, *b2, *c2, *c2], 1, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*b2, *c2, *c2], 1, &repo).unwrap(), c1);
+
+        //  B2 C2
+        //    \|
+        // A1 C1
+        //   \|
+        //   C0
+        assert_eq!(quorum(&[*c2, *b2, *a1], 1, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c2, *b2, *a1], 2, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c2, *b2, *a1], 3, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c1, *c2, *b2, *a1], 4, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 2, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 3, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c0, *c2, *b2, *a1], 3, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 4, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*a1, *a1, *c2, *c2, *c1], 2, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*a1, *a1, *c2, *c2, *c1], 1, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*a1, *a1, *c2], 1, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*b2, *b2, *c2, *c2], 1, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*b2, *b2, *c2, *c2, *a1], 1, &repo).unwrap(), c0);
+
+        //    M2  M1
+        //    /\  /\
+        //    \ B2 C2
+        //     \  \|
+        //     A1 C1
+        //       \|
+        //       C0
+        assert_eq!(quorum(&[*m1], 1, &repo).unwrap(), m1);
+        assert_eq!(quorum(&[*m1, *m2], 1, &repo).unwrap(), b2);
+        assert_eq!(quorum(&[*m2, *m1], 1, &repo).unwrap(), b2);
+        assert_eq!(quorum(&[*m1, *m2], 2, &repo).unwrap(), b2);
+        assert_eq!(quorum(&[*m1, *m2, *c2], 1, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*m1, *a1], 1, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*m1, *a1], 2, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*m1, *m1, *b2], 2, &repo).unwrap(), m1);
+        assert_eq!(quorum(&[*c2, *m1, *m2], 3, &repo).unwrap(), c1);
+    }
+
+    #[test]
+    #[ignore = "failing"]
+    fn test_quorum_merges() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (repo, c0) = fixtures::repository(tmp.path());
+        let c0: git::Oid = c0.into();
+        let c1 = fixtures::commit("C1", &[*c0], &repo);
+        let c2 = fixtures::commit("C2", &[*c0], &repo);
+        let c3 = fixtures::commit("C3", &[*c0], &repo);
+
+        let m1 = fixtures::commit("M1", &[*c1, *c2], &repo);
+        let m2 = fixtures::commit("M2", &[*c2, *c3], &repo);
+
+        eprintln!("C0: {c0}");
+        eprintln!("C1: {c1}");
+        eprintln!("C2: {c2}");
+        eprintln!("C3: {c3}");
+        eprintln!("M1: {m1}");
+        eprintln!("M2: {m2}");
+
+        assert_eq!(quorum(&[*m1, *m2], 1, &repo).unwrap(), c2);
+        assert_eq!(quorum(&[*m1, *m2], 2, &repo).unwrap(), c2);
+
+        let m3 = fixtures::commit("M3", &[*c2, *c1], &repo);
+
+        assert_eq!(quorum(&[*m1, *m3], 1, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*m1, *m3], 2, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*m3, *m1], 1, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*m3, *m1], 2, &repo).unwrap(), c0);
+    }
 
     #[test]
     fn test_remote_refs() {

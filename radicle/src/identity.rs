@@ -11,6 +11,7 @@ use crate::crypto;
 use crate::crypto::{Signature, Verified};
 use crate::git;
 use crate::storage;
+use crate::storage::git::QuorumError;
 use crate::storage::{refs, ReadRepository, RemoteId};
 
 pub use crypto::PublicKey;
@@ -41,6 +42,8 @@ pub enum IdentityError {
     MissingRoot,
     #[error("root commit is missing one or more delegate signatures")]
     MissingRootSignatures,
+    #[error("quorum failed: {0}")]
+    Quorum(#[from] QuorumError),
     #[error(transparent)]
     Payload(#[from] PayloadError),
     #[error("commit signature for {0} is invalid: {1}")]
