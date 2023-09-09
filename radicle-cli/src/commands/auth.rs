@@ -139,7 +139,7 @@ pub fn init(options: Options) -> anyhow::Result<()> {
     term::success!("You're all set.");
     term::blank();
     term::info!(
-        "To create a radicle project, run {} from a Git repository.",
+        "To create a radicle project, run {} from a Git repository with at least one commit.",
         term::format::command("rad init")
     );
     term::info!(
@@ -171,11 +171,6 @@ pub fn authenticate(options: Options, profile: &Profile) -> anyhow::Result<()> {
                 term::success!("Radicle key already in ssh-agent");
                 return Ok(());
             }
-
-            term::info!(
-                "Authenticating as 👾 {}",
-                term::format::Identity::new(profile).styled()
-            );
 
             let validator = term::io::PassphraseValidator::new(profile.keystore.clone());
             let passphrase = if options.stdin {
