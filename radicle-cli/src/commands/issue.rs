@@ -45,6 +45,7 @@ Usage
 Options
 
     --no-announce     Don't announce issue to peers
+    --header          Show only the issue header, hiding the comments
     --quiet, -q       Don't print anything
     --help            Print help
 "#,
@@ -77,6 +78,14 @@ pub enum Assigned {
     Peer(Did),
 }
 
+/// Display format.
+#[derive(Default, Debug, PartialEq, Eq)]
+pub enum Format {
+    #[default]
+    Full,
+    Header,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Operation {
     Edit {
@@ -91,6 +100,7 @@ pub enum Operation {
     },
     Show {
         id: Rev,
+        format: Format,
     },
     State {
         id: Rev,
@@ -131,6 +141,7 @@ impl Args for Options {
         let mut description: Option<String> = None;
         let mut state: Option<State> = Some(State::Open);
         let mut labels = Vec::new();
+        let mut format = Format::default();
         let mut announce = true;
         let mut quiet = false;
 
@@ -199,6 +210,16 @@ impl Args for Options {
                         assigned = Some(Assigned::Me);
                     }
                 }
+                Long("format") if op == Some(OperationName::Show) => {
+                    let val = parser.value()?;
+                    let val = term::args::string(&val);
+
+                    match val.as_str() {
+                        "header" => format = Format::Header,
+                        "full" => format = Format::Full,
+                        _ => anyhow::bail!("unknown format '{val}'"),
+                    }
+                }
                 Long("no-announce") => {
                     announce = false;
                 }
@@ -239,6 +260,7 @@ impl Args for Options {
             },
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
+                format,
             },
             OperationName::State => Operation::State {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
@@ -306,15 +328,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let issue = issues.create(title, description, labels.as_slice(), &[], [], &signer)?;
             if !options.quiet {
-                show_issue(&issue, issue.id(), &profile)?;
+                show_issue(&issue, issue.id(), Format::Header, &profile)?;
             }
         }
-        Operation::Show { id } => {
+        Operation::Show { id, format } => {
             let id = id.resolve(&repo.backend)?;
             let issue = issues
                 .get(&id)?
                 .context("No issue with the given ID exists")?;
-            show_issue(&issue, &id, &profile)?;
+            show_issue(&issue, &id, format, &profile)?;
         }
         Operation::State { id, state } => {
             let id = id.resolve(&repo.backend)?;
@@ -579,7 +601,7 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
         signer,
     )?;
     if !options.quiet {
-        show_issue(&issue, issue.id(), profile)?;
+        show_issue(&issue, issue.id(), Format::Header, profile)?;
     }
 
     Ok(())
@@ -636,12 +658,17 @@ fn edit<R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
         Ok(())
     })?;
 
-    show_issue(&issue, &id, profile)?;
+    show_issue(&issue, &id, Format::Header, profile)?;
 
     Ok(())
 }
 
-fn show_issue(issue: &issue::Issue, id: &cob::ObjectId, profile: &Profile) -> anyhow::Result<()> {
+fn show_issue(
+    issue: &issue::Issue,
+    id: &cob::ObjectId,
+    format: Format,
+    profile: &Profile,
+) -> anyhow::Result<()> {
     let labels: Vec<String> = issue.labels().cloned().map(|t| t.into()).collect();
     let assignees: Vec<String> = issue
         .assigned()
@@ -689,28 +716,52 @@ fn show_issue(issue: &issue::Issue, id: &cob::ObjectId, profile: &Profile) -> an
         term::format::tertiary("Status".to_owned()).into(),
         match issue.state() {
             issue::State::Open => term::format::positive("open".to_owned()).into(),
-            issue::State::Closed { reason } => term::format::default(format!(
-                "{} {}",
-                term::format::negative("closed"),
-                term::format::default(format!("as {reason}"))
-            ))
-            .into(),
+            issue::State::Closed {
+                reason: CloseReason::Solved,
+            } => term::Line::spaced([
+                term::format::negative("closed").into(),
+                term::format::negative("(solved)").italic().dim().into(),
+            ]),
+            issue::State::Closed {
+                reason: CloseReason::Other,
+            } => term::Line::spaced([term::format::negative("closed").into()]),
         },
     ]);
 
     let (_, description) = issue.description();
-    let widget = VStack::default()
+    let mut widget = VStack::default()
         .border(Some(term::colors::FAINT))
         .child(attrs)
         .children(if !description.is_empty() {
             vec![
                 term::Label::blank().boxed(),
-                term::textarea(description).boxed(),
+                term::textarea(description.trim()).wrap(60).boxed(),
             ]
         } else {
             vec![]
         });
 
+    if format == Format::Full {
+        for (id, comment) in issue.comments().skip(1) {
+            let author = comment.author();
+            let author = Author::new(&author, profile);
+            let (alias, nid) = author.labels();
+            let hstack = term::hstack::HStack::default()
+                .child(term::Line::spaced([
+                    alias,
+                    nid,
+                    term::format::timestamp(&comment.timestamp()).dim().into(),
+                ]))
+                .child(term::Line::new(term::Label::space()))
+                .child(term::Line::spaced([term::format::oid(*id)
+                    .fg(term::Color::Cyan)
+                    .into()]));
+
+            widget = widget.divider();
+            widget.push(hstack);
+            widget.push(term::textarea(comment.body()).wrap(60));
+        }
+    }
     widget.print();
 
     Ok(())

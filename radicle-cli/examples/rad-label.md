@@ -8,7 +8,7 @@ $ rad label 42028af21fabc09bfac2f25490f119f7c7e11542 bug good-first-issue
 We can now show the issue to check whether those labels were added:
 
 ```
-$ rad issue show 42028af21fabc09bfac2f25490f119f7c7e11542
+$ rad issue show 42028af21fabc09bfac2f25490f119f7c7e11542 --format header
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   42028af21fabc09bfac2f25490f119f7c7e11542        │
@@ -29,7 +29,7 @@ $ rad unlabel 42028af21fabc09bfac2f25490f119f7c7e11542 good-first-issue
 Notice that the `good-first-issue` label has disappeared:
 
 ```
-$ rad issue show 42028af21fabc09bfac2f25490f119f7c7e11542
+$ rad issue show 42028af21fabc09bfac2f25490f119f7c7e11542 --format header
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   42028af21fabc09bfac2f25490f119f7c7e11542        │

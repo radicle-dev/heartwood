@@ -80,3 +80,23 @@ $ rad comment 42028af21fabc09bfac2f25490f119f7c7e11542 --message 'The flux capac
 $ rad comment 42028af21fabc09bfac2f25490f119f7c7e11542 --reply-to 84492237dc0908b1e5b728d1a4e5f1343b6ffe9b --message 'More power!'
 dd679552a15e2db73bbedf3084f5f7c62bb0d724
 ```
+
+We can see our comments by showing the issue:
+
+```
+$ rad issue show 42028af21fabc09bfac2f25490f119f7c7e11542
+╭─────────────────────────────────────────────────────────╮
+│ Title   flux capacitor underpowered                     │
+│ Issue   42028af21fabc09bfac2f25490f119f7c7e11542        │
+│ Author  z6MknSL…StBU8Vi (you)                           │
+│ Status  open                                            │
+│                                                         │
+│ Flux capacitor power requirements exceed current supply │
+├─────────────────────────────────────────────────────────┤
+│ z6MknSL…StBU8Vi (you) [   ...    ] 8449223              │
+│ The flux capacitor needs 1.21 Gigawatts                 │
+├─────────────────────────────────────────────────────────┤
+│ z6MknSL…StBU8Vi (you) [   ...    ] dd67955              │
+│ More power!                                             │
+╰─────────────────────────────────────────────────────────╯
+```
