@@ -51,12 +51,16 @@ Options
 "#,
 };
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
-pub struct Metadata {
-    title: String,
-    labels: Vec<Label>,
-    assignees: Vec<Did>,
-}
+pub const OPEN_MSG: &str = r#"
+<!--
+Please enter an issue title and description.
+
+The first line is the issue title. The issue description
+follows, and must be separated by a blank line, just
+like a commit message. Markdown is supported in the title
+and description.
+-->
+"#;
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub enum OperationName {
@@ -97,6 +101,7 @@ pub enum Operation {
         title: Option<String>,
         description: Option<String>,
         labels: Vec<Label>,
+        assignees: Vec<Did>,
     },
     Show {
         id: Rev,
@@ -141,6 +146,7 @@ impl Args for Options {
         let mut description: Option<String> = None;
         let mut state: Option<State> = Some(State::Open);
         let mut labels = Vec::new();
+        let mut assignees = Vec::new();
         let mut format = Format::default();
         let mut announce = true;
         let mut quiet = false;
@@ -175,6 +181,12 @@ impl Args for Options {
                     let label = Label::new(name)?;
 
                     labels.push(label);
+                }
+                Long("assign") if op == Some(OperationName::Open) => {
+                    let val = parser.value()?;
+                    let did = term::args::did(&val)?;
+
+                    assignees.push(did);
                 }
                 Long("closed") if op == Some(OperationName::State) => {
                     state = Some(State::Closed {
@@ -257,6 +269,7 @@ impl Args for Options {
                 title,
                 description,
                 labels,
+                assignees,
             },
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
@@ -311,22 +324,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             title,
             description,
         } => {
-            edit(
-                &mut issues,
-                &signer,
-                &repo,
-                id,
-                title,
-                description,
-                &profile,
-            )?;
+            let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
+            if !options.quiet {
+                show_issue(&issue, issue.id(), Format::Header, &profile)?;
+            }
         }
         Operation::Open {
             title: Some(title),
             description: Some(description),
             labels,
+            assignees,
         } => {
-            let issue = issues.create(title, description, labels.as_slice(), &[], [], &signer)?;
+            let issue = issues.create(title, description, &labels, &assignees, [], &signer)?;
             if !options.quiet {
                 show_issue(&issue, issue.id(), Format::Header, &profile)?;
             }
@@ -361,11 +370,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             ref title,
             ref description,
             ref labels,
+            ref assignees,
         } => {
             open(
                 title.clone(),
                 description.clone(),
                 labels.to_vec(),
+                assignees.to_vec(),
                 &options,
                 &mut issues,
                 &signer,
@@ -384,9 +395,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     if announce {
         match node.announce_refs(rid) {
             Ok(()) => {}
-            Err(e) if e.is_connection_err() => {
-                term::warning("Could not announce issue refs: node is not running");
-            }
+            Err(e) if e.is_connection_err() => {}
             Err(e) => return Err(e.into()),
         }
     }
@@ -496,171 +505,111 @@ fn list<R: WriteRepository + cob::Store>(
     Ok(())
 }
 
-/// Get Issue meta-data and description from the user through the editor.
-fn prompt_issue(
-    title: &str,
-    description: &str,
-    labels: &[Label],
-    assignees: &[Did],
-) -> anyhow::Result<Option<(Metadata, String)>> {
-    let title = if title.is_empty() {
-        "Enter a title"
-    } else {
-        title
-    };
-    let description = if description.is_empty() {
-        "<!--\n\
-        Enter a description...\n\
-        -->"
-    } else {
-        description
-    };
-
-    let meta = Metadata {
-        title: title.to_string(),
-        labels: labels.to_vec(),
-        assignees: assignees.to_vec(),
-    };
-    let yaml = serde_yaml::to_string(&meta)?;
-    let doc = format!("{yaml}---\n\n{description}");
-
-    let Some(text) = term::Editor::new().edit(&doc)? else {
-        return Ok(None);
-    };
-
-    let mut meta = String::new();
-    let mut frontmatter = false;
-    let mut lines = text.lines();
-
-    while let Some(line) = lines.by_ref().next() {
-        if line.trim() == "---" {
-            if frontmatter {
-                break;
-            } else {
-                frontmatter = true;
-                continue;
-            }
-        }
-        if frontmatter {
-            meta.push_str(line);
-            meta.push('\n');
-        }
-    }
-
-    let mut meta: Metadata =
-        serde_yaml::from_str(&meta).context("failed to parse yaml front-matter")?;
-
-    meta.title = meta.title.trim().to_string();
-    if meta.title.is_empty() || meta.title == "~" || meta.title == "null" {
-        // '~' and 'null' are YAML's string values for null and unexpectedly replace empty fields
-        // for String.
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "an issue title must be provided and may not be '~' or 'null'",
-        )
-        .into());
-    }
-
-    let description: String = lines.collect::<Vec<&str>>().join("\n");
-    let description = term::format::strip_comments(&description);
-    if description.is_empty() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "an issue description must be provided",
-        )
-        .into());
-    }
-
-    Ok(Some((meta, description)))
-}
-
 fn open<R: WriteRepository + cob::Store, G: Signer>(
     title: Option<String>,
     description: Option<String>,
     labels: Vec<Label>,
+    assignees: Vec<Did>,
     options: &Options,
     issues: &mut Issues<R>,
     signer: &G,
     profile: &Profile,
 ) -> anyhow::Result<()> {
-    let Some((meta, description)) = prompt_issue(
-        &title.unwrap_or_default(),
-        &description.unwrap_or_default(),
-        &labels,
-        &[],
-    )? else {
-        return Ok(());
+    let (title, description) = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
+        (t.to_owned(), d.to_owned())
+    } else if let Some((t, d)) = get_title_description(title, description)? {
+        (t, d)
+    } else {
+        anyhow::bail!("aborting issue creation due to empty title or description");
     };
-
     let issue = issues.create(
-        &meta.title,
-        description.trim(),
-        meta.labels.as_slice(),
-        meta.assignees.as_slice(),
+        &title,
+        description,
+        labels.as_slice(),
+        assignees.as_slice(),
         [],
         signer,
     )?;
+
     if !options.quiet {
         show_issue(&issue, issue.id(), Format::Header, profile)?;
     }
-
     Ok(())
 }
 
-fn edit<R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
-    issues: &mut issue::Issues<R>,
-    signer: &G,
+fn edit<'a, 'g, R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
+    issues: &'a mut issue::Issues<'a, R>,
     repo: &storage::git::Repository,
     id: Rev,
     title: Option<String>,
     description: Option<String>,
-    profile: &Profile,
-) -> anyhow::Result<()> {
+    signer: &G,
+) -> anyhow::Result<issue::IssueMut<'a, 'g, R>> {
     let id = id.resolve(&repo.backend)?;
     let mut issue = issues.get_mut(&id)?;
-    let (desc_id, issue_desc) = issue.description();
-    let desc_id = *desc_id;
+    let (root, _) = issue.root();
+    let root = *root;
 
     if title.is_some() || description.is_some() {
-        // Editing by command line arguments
+        // Editing by command line arguments.
         issue.transaction("Edit", signer, |tx| {
             if let Some(t) = title {
                 tx.edit(t)?;
             }
             if let Some(d) = description {
-                tx.edit_comment(desc_id, d, vec![])?;
+                tx.edit_comment(root, d, vec![])?;
             }
-
             Ok(())
         })?;
-        return Ok(());
+        return Ok(issue);
     }
 
-    // Editing by editor
-    let labels: Vec<_> = issue.labels().cloned().collect();
-    let assigned: Vec<_> = issue.assigned().cloned().collect();
-
-    let Some((edited, description)) = prompt_issue(
-        issue.title(),
-        issue_desc,
-        &labels,
-        &assigned,
-    )? else {
-        return Ok(());
-    };
+    // Editing via the editor.
+    let Some((title, description)) =
+        get_title_description(
+            Some(title.unwrap_or(issue.title().to_owned())),
+            Some(description.unwrap_or(issue.description().to_owned())),
+        )? else {
+            return Ok(issue);
+        };
 
     issue.transaction("Edit", signer, |tx| {
-        tx.edit(edited.title)?;
-        tx.edit_comment(desc_id, description, vec![])?;
-        tx.label(edited.labels)?;
-        tx.assign(edited.assignees)?;
+        tx.edit(title)?;
+        tx.edit_comment(root, description, vec![])?;
 
         Ok(())
     })?;
 
-    show_issue(&issue, &id, Format::Header, profile)?;
+    Ok(issue)
+}
 
-    Ok(())
+fn get_title_description(
+    title: Option<String>,
+    description: Option<String>,
+) -> io::Result<Option<(String, String)>> {
+    let mut placeholder = String::new();
+
+    if let Some(title) = title {
+        placeholder.push_str(title.trim());
+        placeholder.push('\n');
+    }
+    if let Some(description) = description {
+        placeholder.push('\n');
+        placeholder.push_str(description.trim());
+        placeholder.push('\n');
+    }
+    placeholder.push_str(OPEN_MSG);
+
+    let output = term::patch::Message::Edit.get(&placeholder)?;
+    let Some((title, description)) = output.split_once("\n\n") else {
+        return Ok(None);
+    };
+    let (title, description) = (title.trim(), description.trim());
+
+    if title.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some((title.to_owned(), description.to_owned())))
 }
 
 fn show_issue(
@@ -728,7 +677,7 @@ fn show_issue(
         },
     ]);
 
-    let (_, description) = issue.description();
+    let description = issue.description();
     let mut widget = VStack::default()
         .border(Some(term::colors::FAINT))
         .child(attrs)

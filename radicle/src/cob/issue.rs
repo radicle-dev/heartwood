@@ -45,6 +45,9 @@ pub enum Error {
     /// Action not allowed.
     #[error("action is not allowed: {0}")]
     NotAllowed(EntryId),
+    /// Title is invalid.
+    #[error("invalid title: {0:?}")]
+    InvalidTitle(String),
     /// General error initializing an issue.
     #[error("initialization failed: {0}")]
     Init(&'static str),
@@ -219,11 +222,11 @@ impl Issue {
             .expect("Issue::author: at least one comment is present")
     }
 
-    pub fn description(&self) -> (&CommentId, &str) {
+    pub fn description(&self) -> &str {
         self.thread
             .comments()
             .next()
-            .map(|(id, c)| (id, c.body()))
+            .map(|(_, c)| c.body())
             .expect("Issue::description: at least one comment is present")
     }
 
@@ -296,6 +299,9 @@ impl Issue {
                 self.assignees = BTreeSet::from_iter(assignees);
             }
             Action::Edit { title } => {
+                if title.contains('\n') || title.contains('\r') {
+                    return Err(Error::InvalidTitle(title));
+                }
                 self.title = title;
             }
             Action::Lifecycle { state } => {
@@ -339,6 +345,12 @@ impl Issue {
             }
         }
         Ok(())
+    }
+}
+
+impl<'a, 'g, R> From<IssueMut<'a, 'g, R>> for (IssueId, Issue) {
+    fn from(value: IssueMut<'a, 'g, R>) -> Self {
+        (value.id, value.issue)
     }
 }
 
@@ -940,7 +952,7 @@ mod test {
         assert_eq!(created, issue);
         assert_eq!(issue.title(), "My first issue");
         assert_eq!(issue.author().id, Did::from(node.signer.public_key()));
-        assert_eq!(issue.description().1, "Blah blah blah.");
+        assert_eq!(issue.description(), "Blah blah blah.");
         assert_eq!(issue.comments().count(), 1);
         assert_eq!(issue.state(), &State::Open);
     }
@@ -1058,7 +1070,7 @@ mod test {
 
         let id = issue.id;
         let issue = issues.get(&id).unwrap().unwrap();
-        let (_, desc) = issue.description();
+        let desc = issue.description();
 
         assert_eq!(desc, "Bob Loblaw law blog");
     }
@@ -1320,7 +1332,7 @@ mod test {
         assert_eq!(created, issue);
         assert_eq!(issue.title(), "My first issue");
         assert_eq!(issue.author().id, Did::from(node.signer.public_key()));
-        assert_eq!(issue.description().1, "Blah blah blah.\nYah yah yah");
+        assert_eq!(issue.description(), "Blah blah blah.\nYah yah yah");
         assert_eq!(issue.comments().count(), 1);
         assert_eq!(issue.state(), &State::Open);
     }
