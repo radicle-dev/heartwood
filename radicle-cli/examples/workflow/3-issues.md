@@ -31,6 +31,6 @@ found an important detail about the car's power requirements. It will help
 whoever works on a fix.
 
 ```
-$ rad comment 2f6eb49efac492327f71437b6bfc01b49afa0981 --message 'The flux capacitor needs 1.21 Gigawatts'
+$ rad issue comment 2f6eb49efac492327f71437b6bfc01b49afa0981 --message 'The flux capacitor needs 1.21 Gigawatts' -q
 d2b50873009b93680698aef4f57f43f7e850b651
 ```

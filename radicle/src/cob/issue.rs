@@ -222,6 +222,13 @@ impl Issue {
             .expect("Issue::author: at least one comment is present")
     }
 
+    pub fn root(&self) -> (&CommentId, &Comment) {
+        self.thread
+            .comments()
+            .next()
+            .expect("Issue::root: at least one comment is present")
+    }
+
     pub fn description(&self) -> &str {
         self.thread
             .comments()
@@ -236,6 +243,20 @@ impl Issue {
 
     pub fn comments(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment)> {
         self.thread.comments()
+    }
+
+    /// Get replies to a specific comment.
+    pub fn replies_to<'a>(
+        &'a self,
+        to: &'a CommentId,
+    ) -> impl Iterator<Item = (&CommentId, &thread::Comment)> {
+        self.thread.replies(to)
+    }
+
+    /// Iterate over all top-level replies. Does not include the top-level root comment.
+    /// Use [`Issue::comments`] to get all comments including the "root" comment.
+    pub fn replies(&self) -> impl Iterator<Item = (&CommentId, &thread::Comment)> {
+        self.comments().skip(1)
     }
 
     /// Apply authorization rules on issue actions.
@@ -1130,8 +1151,8 @@ mod test {
 
         let id = issue.id;
         let mut issue = issues.get_mut(&id).unwrap();
-        let (_, reply1) = &issue.replies(&root).nth(0).unwrap();
-        let (_, reply2) = &issue.replies(&root).nth(1).unwrap();
+        let (_, reply1) = &issue.replies_to(&root).nth(0).unwrap();
+        let (_, reply2) = &issue.replies_to(&root).nth(1).unwrap();
 
         assert_eq!(reply1.body(), "Hi hi hi.");
         assert_eq!(reply2.body(), "Ha ha ha.");
@@ -1147,11 +1168,14 @@ mod test {
 
         let issue = issues.get(&id).unwrap().unwrap();
 
-        assert_eq!(issue.replies(&c1).nth(0).unwrap().1.body(), "Re: Hi.");
-        assert_eq!(issue.replies(&c2).nth(0).unwrap().1.body(), "Re: Ha.");
-        assert_eq!(issue.replies(&c2).nth(1).unwrap().1.body(), "Re: Ha. Ha.");
+        assert_eq!(issue.replies_to(&c1).nth(0).unwrap().1.body(), "Re: Hi.");
+        assert_eq!(issue.replies_to(&c2).nth(0).unwrap().1.body(), "Re: Ha.");
         assert_eq!(
-            issue.replies(&c2).nth(2).unwrap().1.body(),
+            issue.replies_to(&c2).nth(1).unwrap().1.body(),
+            "Re: Ha. Ha."
+        );
+        assert_eq!(
+            issue.replies_to(&c2).nth(2).unwrap().1.body(),
             "Re: Ha. Ha. Ha."
         );
     }

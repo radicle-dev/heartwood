@@ -8,8 +8,6 @@ pub mod rad_checkout;
 pub mod rad_clone;
 #[path = "commands/cob.rs"]
 pub mod rad_cob;
-#[path = "commands/comment.rs"]
-pub mod rad_comment;
 #[path = "commands/delegate.rs"]
 pub mod rad_delegate;
 #[path = "commands/edit.rs"]

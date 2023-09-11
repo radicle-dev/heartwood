@@ -50,7 +50,7 @@ impl Message {
             Message::Text(c) => Some(c),
         };
         let comment = comment.unwrap_or_default();
-        let comment = term::format::strip_comments(&comment);
+        let comment = term::format::html::strip_comments(&comment);
         let comment = comment.trim();
 
         Ok(comment.to_owned())

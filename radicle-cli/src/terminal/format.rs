@@ -60,35 +60,6 @@ pub fn visibility(v: &Visibility) -> Paint<&str> {
     }
 }
 
-/// Remove html style comments from a string.
-///
-/// The html comments must start at the beginning of a line and stop at the end.
-pub fn strip_comments(s: &str) -> String {
-    let ends_with_newline = s.ends_with('\n');
-    let mut is_comment = false;
-    let mut w = String::new();
-
-    for line in s.lines() {
-        if is_comment {
-            if line.ends_with("-->") {
-                is_comment = false;
-            }
-            continue;
-        } else if line.starts_with("<!--") {
-            is_comment = true;
-            continue;
-        }
-
-        w.push_str(line);
-        w.push('\n');
-    }
-    if !ends_with_newline {
-        w.pop();
-    }
-
-    w.to_string()
-}
-
 /// Format a timestamp.
 pub fn timestamp(time: &Timestamp) -> Paint<String> {
     let fmt = timeago::Formatter::new();
@@ -196,9 +167,47 @@ impl<'a> Author<'a> {
     }
 }
 
+/// HTML-related formatting.
+pub mod html {
+    /// Comment a string with HTML comments.
+    pub fn commented(s: &str) -> String {
+        format!("<!--\n{s}\n-->")
+    }
+
+    /// Remove html style comments from a string.
+    ///
+    /// The HTML comments must start at the beginning of a line and stop at the end.
+    pub fn strip_comments(s: &str) -> String {
+        let ends_with_newline = s.ends_with('\n');
+        let mut is_comment = false;
+        let mut w = String::new();
+
+        for line in s.lines() {
+            if is_comment {
+                if line.ends_with("-->") {
+                    is_comment = false;
+                }
+                continue;
+            } else if line.starts_with("<!--") {
+                is_comment = true;
+                continue;
+            }
+
+            w.push_str(line);
+            w.push('\n');
+        }
+        if !ends_with_newline {
+            w.pop();
+        }
+
+        w.to_string()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use html::strip_comments;
 
     #[test]
     fn test_strip_comments() {

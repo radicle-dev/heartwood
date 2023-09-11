@@ -282,8 +282,8 @@ impl<T> Thread<T> {
         self.comments.get(id).and_then(|o| o.as_ref())
     }
 
-    pub fn root(&self) -> (&CommentId, &T) {
-        self.first().expect("Thread::root: thread is empty")
+    pub fn root(&self) -> Option<(&CommentId, &T)> {
+        self.first()
     }
 
     pub fn first(&self) -> Option<(&CommentId, &T)> {

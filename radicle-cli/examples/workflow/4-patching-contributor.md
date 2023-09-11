@@ -85,6 +85,6 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqV
 And let's leave a quick comment for our team:
 
 ```
-$ rad comment 69e881c606639691330051d7d8f013854f32fb87 --message 'I cannot wait to get back to the 90s!'
-f95ef6c0fb97a5dd05db49f7012010f0c49d59bc
+$ rad patch comment 69e881c606639691330051d7d8f013854f32fb87 --message 'I cannot wait to get back to the 90s!' -q
+c758bd868bb7d6c8509ee9168b3876082a8e377c
 ```

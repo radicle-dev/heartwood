@@ -23,6 +23,7 @@ rad-patch - Manage radicle patches.
 *rad patch* _ready_ <patch-id> [--undo] [<option>...] +
 *rad patch* _edit_ <patch-id> [<option>...] +
 *rad patch* _set_ <patch-id> [<option>...] +
+*rad patch* _comment_ <revision-id> [<option>...] +
 
 == Description
 
@@ -94,6 +95,22 @@ that should only be used when using *git push rad* is not possible.
 
 *--message*, *-m [<string>]*::   Provide a comment message to the revision
 *--no-message*::                 Leave the revision comment message blank
+
+=== comment
+
+Comment on a patch revision, optionally replying to an existing comment.
+
+*<revision-id>*::
+The patch revision to comment on. Since all Patch IDs are also Revision IDs,
+a Patch ID is also accepted.
+
+*--message*, *-m <string>*::
+Comment message. If omitted, Radicle will prompt for a comment string via
+*$EDITOR*. Multiple messages will be concatinated with a blank line in between.
+
+*--reply-to <comment-id>*::
+Optional comment to reply to. If ommitted, the comment is a top-level comment
+on the given revision.
 
 == Opening a patch
 

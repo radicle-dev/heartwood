@@ -1,6 +1,5 @@
 #![allow(clippy::or_fun_call)]
 use std::ffi::OsString;
-use std::io;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
@@ -17,13 +16,13 @@ use radicle::storage;
 use radicle::storage::{WriteRepository, WriteStorage};
 use radicle::Profile;
 use radicle::{cob, Node};
-use radicle_term::table::TableOptions;
-use radicle_term::{Table, VStack};
 
 use crate::git::Rev;
 use crate::terminal as term;
-use crate::terminal::args::{string, Args, Error, Help};
+use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::format::Author;
+use crate::terminal::issue::Format;
+use crate::terminal::patch::Message;
 use crate::terminal::Element;
 
 pub const HELP: Help = Help {
@@ -39,6 +38,7 @@ Usage
     rad issue list [--assigned <did>] [--all | --closed | --open | --solved] [<option>...]
     rad issue open [--title <title>] [--description <text>] [--label <label>] [<option>...]
     rad issue react <issue-id> [--emoji <char>] [--to <comment>] [<option>...]
+    rad issue comment <issue-id> [--message <message>] [--reply-to <comment-id>] [<option>...]
     rad issue show <issue-id> [<option>...]
     rad issue state <issue-id> [--closed | --open | --solved] [<option>...]
 
@@ -51,21 +51,11 @@ Options
 "#,
 };
 
-pub const OPEN_MSG: &str = r#"
-<!--
-Please enter an issue title and description.
-
-The first line is the issue title. The issue description
-follows, and must be separated by a blank line, just
-like a commit message. Markdown is supported in the title
-and description.
--->
-"#;
-
 #[derive(Default, Debug, PartialEq, Eq)]
 pub enum OperationName {
     Edit,
     Open,
+    Comment,
     Delete,
     #[default]
     List,
@@ -80,14 +70,6 @@ pub enum Assigned {
     #[default]
     Me,
     Peer(Did),
-}
-
-/// Display format.
-#[derive(Default, Debug, PartialEq, Eq)]
-pub enum Format {
-    #[default]
-    Full,
-    Header,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -106,6 +88,11 @@ pub enum Operation {
     Show {
         id: Rev,
         format: Format,
+    },
+    Comment {
+        id: Rev,
+        message: Message,
+        reply_to: Option<Rev>,
     },
     State {
         id: Rev,
@@ -148,6 +135,8 @@ impl Args for Options {
         let mut labels = Vec::new();
         let mut assignees = Vec::new();
         let mut format = Format::default();
+        let mut message = Message::default();
+        let mut reply_to = None;
         let mut announce = true;
         let mut quiet = false;
 
@@ -232,6 +221,18 @@ impl Args for Options {
                         _ => anyhow::bail!("unknown format '{val}'"),
                     }
                 }
+                Long("message") | Short('m') if op == Some(OperationName::Comment) => {
+                    let val = parser.value()?;
+                    let txt = term::args::string(&val);
+
+                    message.append(&txt);
+                }
+                Long("reply-to") if op == Some(OperationName::Comment) => {
+                    let val = parser.value()?;
+                    let rev = term::args::rev(&val)?;
+
+                    reply_to = Some(rev);
+                }
                 Long("no-announce") => {
                     announce = false;
                 }
@@ -239,7 +240,8 @@ impl Args for Options {
                     quiet = true;
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "c" | "show" => op = Some(OperationName::Show),
+                    "c" | "comment" => op = Some(OperationName::Comment),
+                    "w" | "show" => op = Some(OperationName::Show),
                     "d" | "delete" => op = Some(OperationName::Delete),
                     "e" | "edit" => op = Some(OperationName::Edit),
                     "l" | "list" => op = Some(OperationName::List),
@@ -250,8 +252,8 @@ impl Args for Options {
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 Value(val) if op.is_some() => {
-                    let val = string(&val);
-                    id = Some(Rev::from(val));
+                    let val = term::args::rev(&val)?;
+                    id = Some(val);
                 }
                 _ => {
                     return Err(anyhow!(arg.unexpected()));
@@ -270,6 +272,11 @@ impl Args for Options {
                 description,
                 labels,
                 assignees,
+            },
+            OperationName::Comment => Operation::Comment {
+                id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
+                message,
+                reply_to,
             },
             OperationName::Show => Operation::Show {
                 id: id.ok_or_else(|| anyhow!("an issue must be provided"))?,
@@ -326,7 +333,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let issue = edit(&mut issues, &repo, id, title, description, &signer)?;
             if !options.quiet {
-                show_issue(&issue, issue.id(), Format::Header, &profile)?;
+                term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
             }
         }
         Operation::Open {
@@ -337,7 +344,24 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         } => {
             let issue = issues.create(title, description, &labels, &assignees, [], &signer)?;
             if !options.quiet {
-                show_issue(&issue, issue.id(), Format::Header, &profile)?;
+                term::issue::show(&issue, issue.id(), Format::Header, &profile)?;
+            }
+        }
+        Operation::Comment {
+            id,
+            message,
+            reply_to,
+        } => {
+            let issue_id = id.resolve::<cob::ObjectId>(&repo.backend)?;
+            let mut issue = issues.get_mut(&issue_id)?;
+            let (body, reply_to) = prompt_comment(message, reply_to, &issue, &repo)?;
+            let comment_id = issue.comment(body, reply_to, vec![], &signer)?;
+
+            if options.quiet {
+                term::print(comment_id);
+            } else {
+                let comment = issue.thread().comment(&comment_id).unwrap();
+                term::comment::widget(&comment_id, comment, &profile).print();
             }
         }
         Operation::Show { id, format } => {
@@ -345,7 +369,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let issue = issues
                 .get(&id)?
                 .context("No issue with the given ID exists")?;
-            show_issue(&issue, &id, format, &profile)?;
+            term::issue::show(&issue, &id, format, &profile)?;
         }
         Operation::State { id, state } => {
             let id = id.resolve(&repo.backend)?;
@@ -517,7 +541,7 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
 ) -> anyhow::Result<()> {
     let (title, description) = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
         (t.to_owned(), d.to_owned())
-    } else if let Some((t, d)) = get_title_description(title, description)? {
+    } else if let Some((t, d)) = term::issue::get_title_description(title, description)? {
         (t, d)
     } else {
         anyhow::bail!("aborting issue creation due to empty title or description");
@@ -532,7 +556,7 @@ fn open<R: WriteRepository + cob::Store, G: Signer>(
     )?;
 
     if !options.quiet {
-        show_issue(&issue, issue.id(), Format::Header, profile)?;
+        term::issue::show(&issue, issue.id(), Format::Header, profile)?;
     }
     Ok(())
 }
@@ -566,7 +590,7 @@ fn edit<'a, 'g, R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
 
     // Editing via the editor.
     let Some((title, description)) =
-        get_title_description(
+        term::issue::get_title_description(
             Some(title.unwrap_or(issue.title().to_owned())),
             Some(description.unwrap_or(issue.description().to_owned())),
         )? else {
@@ -583,135 +607,30 @@ fn edit<'a, 'g, R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
     Ok(issue)
 }
 
-fn get_title_description(
-    title: Option<String>,
-    description: Option<String>,
-) -> io::Result<Option<(String, String)>> {
-    let mut placeholder = String::new();
-
-    if let Some(title) = title {
-        placeholder.push_str(title.trim());
-        placeholder.push('\n');
-    }
-    if let Some(description) = description {
-        placeholder.push('\n');
-        placeholder.push_str(description.trim());
-        placeholder.push('\n');
-    }
-    placeholder.push_str(OPEN_MSG);
-
-    let output = term::patch::Message::Edit.get(&placeholder)?;
-    let Some((title, description)) = output.split_once("\n\n") else {
-        return Ok(None);
-    };
-    let (title, description) = (title.trim(), description.trim());
-
-    if title.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some((title.to_owned(), description.to_owned())))
-}
-
-fn show_issue(
+/// Get a comment from the user, by prompting.
+pub fn prompt_comment<R: WriteRepository + radicle::cob::Store>(
+    message: Message,
+    reply_to: Option<Rev>,
     issue: &issue::Issue,
-    id: &cob::ObjectId,
-    format: Format,
-    profile: &Profile,
-) -> anyhow::Result<()> {
-    let labels: Vec<String> = issue.labels().cloned().map(|t| t.into()).collect();
-    let assignees: Vec<String> = issue
-        .assigned()
-        .map(|a| term::format::did(a).to_string())
-        .collect();
-    let author = issue.author();
-    let did = author.id();
-    let author = Author::new(did, profile);
+    repo: &R,
+) -> anyhow::Result<(String, thread::CommentId)> {
+    let (root, r) = issue.root();
+    let (reply_to, help) = if let Some(rev) = reply_to {
+        let id = rev.resolve::<radicle::git::Oid>(repo.raw())?;
+        let parent = issue
+            .thread()
+            .comment(&id)
+            .ok_or(anyhow::anyhow!("comment '{rev}' not found"))?;
 
-    let mut attrs = Table::<2, term::Line>::new(TableOptions {
-        spacing: 2,
-        ..TableOptions::default()
-    });
+        (id, parent.body().trim())
+    } else {
+        (*root, r.body().trim())
+    };
+    let help = format!("\n{}\n", term::format::html::commented(help));
+    let body = message.get(&help)?;
 
-    attrs.push([
-        term::format::tertiary("Title".to_owned()).into(),
-        term::format::bold(issue.title().to_owned()).into(),
-    ]);
-
-    attrs.push([
-        term::format::tertiary("Issue".to_owned()).into(),
-        term::format::bold(id.to_string()).into(),
-    ]);
-
-    attrs.push([
-        term::format::tertiary("Author".to_owned()).into(),
-        author.line(),
-    ]);
-
-    if !labels.is_empty() {
-        attrs.push([
-            term::format::tertiary("Labels".to_owned()).into(),
-            term::format::secondary(labels.join(", ")).into(),
-        ]);
+    if body.is_empty() {
+        anyhow::bail!("aborting operation due to empty comment");
     }
-
-    if !assignees.is_empty() {
-        attrs.push([
-            term::format::tertiary("Assignees".to_owned()).into(),
-            term::format::dim(assignees.join(", ")).into(),
-        ]);
-    }
-
-    attrs.push([
-        term::format::tertiary("Status".to_owned()).into(),
-        match issue.state() {
-            issue::State::Open => term::format::positive("open".to_owned()).into(),
-            issue::State::Closed {
-                reason: CloseReason::Solved,
-            } => term::Line::spaced([
-                term::format::negative("closed").into(),
-                term::format::negative("(solved)").italic().dim().into(),
-            ]),
-            issue::State::Closed {
-                reason: CloseReason::Other,
-            } => term::Line::spaced([term::format::negative("closed").into()]),
-        },
-    ]);
-
-    let description = issue.description();
-    let mut widget = VStack::default()
-        .border(Some(term::colors::FAINT))
-        .child(attrs)
-        .children(if !description.is_empty() {
-            vec![
-                term::Label::blank().boxed(),
-                term::textarea(description.trim()).wrap(60).boxed(),
-            ]
-        } else {
-            vec![]
-        });
-
-    if format == Format::Full {
-        for (id, comment) in issue.comments().skip(1) {
-            let author = comment.author();
-            let author = Author::new(&author, profile);
-            let (alias, nid) = author.labels();
-            let hstack = term::hstack::HStack::default()
-                .child(term::Line::spaced([
-                    alias,
-                    nid,
-                    term::format::timestamp(&comment.timestamp()).dim().into(),
-                ]))
-                .child(term::Line::new(term::Label::space()))
-                .child(term::Line::spaced([term::format::oid(*id)
-                    .fg(term::Color::Cyan)
-                    .into()]));
-
-            widget = widget.divider();
-            widget.push(hstack);
-            widget.push(term::textarea(comment.body()).wrap(60));
-        }
-    }
-    widget.print();
-
-    Ok(())
+    Ok((body, reply_to))
 }

@@ -69,7 +69,7 @@ $ git commit -m "Use markdown for requirements"
 ```
 ``` (stderr)
 $ git push rad -o no-sync -o patch.message="Use markdown for requirements"
-✓ Patch 69e881c updated to ab05fcdca93cf4d5b22da8913e2fe0b6d8c79338
+✓ Patch 69e881c updated to 70dd9a31882d184a9fe8f1f590471f5543c4d85b
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new branch]      patch/69e881c -> patches/69e881c606639691330051d7d8f013854f32fb87
 ```
@@ -111,7 +111,7 @@ $ rad patch show 69e881c
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ ● opened by bob z6Mkt67…v4N1tRk [   ...    ]                                 │
 │ ↑ updated to dcf3e6dd97c95cf8653cbb8ce47df20d28eb1821 (27857ec) [   ...    ] │
-│ ↑ updated to ab05fcdca93cf4d5b22da8913e2fe0b6d8c79338 (f567f69) [   ...    ] │
+│ ↑ updated to 70dd9a31882d184a9fe8f1f590471f5543c4d85b (f567f69) [   ...    ] │
 │ ✓ merged by alice (you) [   ...    ]                                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```

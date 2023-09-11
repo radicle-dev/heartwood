@@ -1,3 +1,4 @@
+use crate::colors;
 use crate::{Color, Element, Label, Line, Paint, Size};
 
 /// Options for [`VStack`].
@@ -131,4 +132,9 @@ impl<'a> Element for VStack<'a> {
         }
         lines.into_iter().flat_map(|h| h.render()).collect()
     }
+}
+
+/// Simple bordered vstack.
+pub fn bordered<'a>(child: impl Element + 'a) -> VStack<'a> {
+    VStack::default().border(Some(colors::FAINT)).child(child)
 }

@@ -2,6 +2,8 @@
 mod archive;
 #[path = "patch/checkout.rs"]
 mod checkout;
+#[path = "patch/comment.rs"]
+mod comment;
 #[path = "patch/common.rs"]
 mod common;
 #[path = "patch/delete.rs"]
@@ -51,11 +53,16 @@ Usage
     rad patch ready <patch-id> [--undo] [<option>...]
     rad patch edit <patch-id> [<option>...]
     rad patch set <patch-id> [<option>...]
+    rad patch comment <patch-id | revision-id> [<option>...]
 
 Show options
 
     -p, --patch                Show the actual patch diff
     -v, --verbose              Show additional information about the patch
+
+Comment options
+
+    -m, --message <string>     Provide a comment message via the command-line
 
 Edit options
 
@@ -80,6 +87,7 @@ Ready options
 
 Other options
 
+    -q, --quiet                Quiet output
         --help                 Print help
 "#,
 };
@@ -91,6 +99,7 @@ pub enum OperationName {
     Archive,
     Delete,
     Checkout,
+    Comment,
     Ready,
     #[default]
     List,
@@ -125,7 +134,6 @@ pub enum Operation {
     Show {
         patch_id: Rev,
         diff: bool,
-        verbose: bool,
     },
     Update {
         patch_id: Rev,
@@ -143,6 +151,11 @@ pub enum Operation {
     },
     Checkout {
         patch_id: Rev,
+    },
+    Comment {
+        revision_id: Rev,
+        message: Message,
+        reply_to: Option<Rev>,
     },
     List {
         filter: Filter,
@@ -165,6 +178,7 @@ pub struct Options {
     pub announce: bool,
     pub push: bool,
     pub verbose: bool,
+    pub quiet: bool,
 }
 
 impl Args for Options {
@@ -174,6 +188,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut verbose = false;
+        let mut quiet = false;
         let mut announce = false;
         let mut patch_id = None;
         let mut revision_id = None;
@@ -182,6 +197,7 @@ impl Args for Options {
         let mut filter = Filter::default();
         let mut diff = false;
         let mut undo = false;
+        let mut reply_to: Option<Rev> = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -219,11 +235,20 @@ impl Args for Options {
                     undo = true;
                 }
 
-                // Update options
+                // Update options.
                 Long("revision") if op == Some(OperationName::Update) => {
                     let val = parser.value()?;
-                    let val = string(&val);
-                    revision_id = Some(Rev::from(val));
+                    let rev = term::args::rev(&val)?;
+
+                    revision_id = Some(rev);
+                }
+
+                // Comment options.
+                Long("reply-to") if op == Some(OperationName::Comment) => {
+                    let val = parser.value()?;
+                    let rev = term::args::rev(&val)?;
+
+                    reply_to = Some(rev);
                 }
 
                 // List options.
@@ -247,6 +272,9 @@ impl Args for Options {
                 Long("verbose") | Short('v') => {
                     verbose = true;
                 }
+                Long("quiet") | Short('q') => {
+                    quiet = true;
+                }
                 Long("help") => {
                     return Err(Error::HelpManual.into());
                 }
@@ -264,6 +292,7 @@ impl Args for Options {
                     "y" | "ready" => op = Some(OperationName::Ready),
                     "e" | "edit" => op = Some(OperationName::Edit),
                     "r" | "redact" => op = Some(OperationName::Redact),
+                    "comment" => op = Some(OperationName::Comment),
                     "set" => op = Some(OperationName::Set),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
@@ -280,6 +309,7 @@ impl Args for Options {
                             Some(OperationName::Archive),
                             Some(OperationName::Ready),
                             Some(OperationName::Checkout),
+                            Some(OperationName::Comment),
                             Some(OperationName::Edit),
                             Some(OperationName::Set),
                         ]
@@ -296,7 +326,6 @@ impl Args for Options {
             OperationName::List => Operation::List { filter },
             OperationName::Show => Operation::Show {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                verbose,
                 diff,
             },
             OperationName::Delete => Operation::Delete {
@@ -311,6 +340,12 @@ impl Args for Options {
             },
             OperationName::Checkout => Operation::Checkout {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+            },
+            OperationName::Comment => Operation::Comment {
+                revision_id: patch_id
+                    .ok_or_else(|| anyhow!("a patch or revision must be provided"))?,
+                message,
+                reply_to,
             },
             OperationName::Ready => Operation::Ready {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
@@ -333,6 +368,7 @@ impl Args for Options {
                 op,
                 push,
                 verbose,
+                quiet,
                 announce,
             },
             vec![],
@@ -353,13 +389,16 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::List { filter: Filter(f) } => {
             list::run(f, &repository, &profile)?;
         }
-        Operation::Show {
-            patch_id,
-            diff,
-            verbose,
-        } => {
+        Operation::Show { patch_id, diff } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
-            show::run(&patch_id, diff, verbose, &profile, &repository, &workdir)?;
+            show::run(
+                &patch_id,
+                diff,
+                options.verbose,
+                &profile,
+                &repository,
+                &workdir,
+            )?;
         }
         Operation::Update {
             ref patch_id,
@@ -383,6 +422,20 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Checkout { patch_id } => {
             let patch_id = patch_id.resolve(&repository.backend)?;
             checkout::run(&patch_id, &repository, &workdir)?;
+        }
+        Operation::Comment {
+            revision_id,
+            message,
+            reply_to,
+        } => {
+            comment::run(
+                revision_id,
+                message,
+                reply_to,
+                options.quiet,
+                &repository,
+                &profile,
+            )?;
         }
         Operation::Edit { patch_id, message } => {
             let patch_id = patch_id.resolve(&repository.backend)?;

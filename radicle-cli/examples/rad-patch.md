@@ -98,10 +98,13 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 And let's leave a quick comment for our team:
 
 ```
-$ rad comment 73b73f376e93e09e0419664766ac9e433bf7d389 --message 'I cannot wait to get back to the 90s!'
-de198e9b1613d827ce294a5b36cecdb8e65abcf1
-$ rad comment 73b73f376e93e09e0419664766ac9e433bf7d389 --message 'I cannot wait to get back to the 90s!' --reply-to de198e9b1613d827ce294a5b36cecdb8e65abcf1
-bd53b38140cf8249ef31c7464d35a4c960258e3f
+$ rad patch comment 73b73f376e93e09e0419664766ac9e433bf7d389 --message 'I cannot wait to get back to the 90s!'
+╭───────────────────────────────────────────────╮
+│ z6MknSL…StBU8Vi (you) [   ...    ] 5c418a5    │
+│ I cannot wait to get back to the 90s!         │
+╰───────────────────────────────────────────────╯
+$ rad patch comment 73b73f376e93e09e0419664766ac9e433bf7d389 --message 'My favorite decade!' --reply-to 5c418a5 -q
+729cdf63ce4793ab3cabffbe0dce24db16e45549
 ```
 
 Now, let's checkout the patch that we just created:

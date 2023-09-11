@@ -3,6 +3,8 @@ pub use args::{Args, Error, Help};
 pub mod format;
 pub mod io;
 pub use io::{proposal, signer};
+pub mod comment;
+pub mod issue;
 pub mod patch;
 
 use std::ffi::OsString;

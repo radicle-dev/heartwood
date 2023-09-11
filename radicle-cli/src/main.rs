@@ -132,13 +132,6 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
-        "comment" => {
-            term::run_command_args::<rad_comment::Options, _>(
-                rad_comment::HELP,
-                rad_comment::run,
-                args.to_vec(),
-            );
-        }
         "delegate" => {
             term::run_command_args::<rad_delegate::Options, _>(
                 rad_delegate::HELP,

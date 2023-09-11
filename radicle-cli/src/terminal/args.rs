@@ -10,6 +10,8 @@ use radicle::git::RefString;
 use radicle::node::{Address, Alias};
 use radicle::prelude::{Did, Id, NodeId};
 
+use crate::git::Rev;
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// If this error is returned from argument parsing, help is displayed.
@@ -145,6 +147,13 @@ pub fn seconds(val: &OsString) -> anyhow::Result<time::Duration> {
 
 pub fn string(val: &OsString) -> String {
     val.to_string_lossy().to_string()
+}
+
+pub fn rev(val: &OsString) -> anyhow::Result<Rev> {
+    let s = string(val);
+    let _ = radicle::git::Oid::from_str(&s).map_err(|_| anyhow!("invalid git rev '{s}'"))?;
+
+    Ok(Rev::from(s))
 }
 
 pub fn alias(val: &OsString) -> anyhow::Result<Alias> {
