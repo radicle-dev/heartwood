@@ -10,7 +10,7 @@ use radicle::node::Handle as _;
 use radicle::node::{Alias, DEFAULT_TIMEOUT};
 use radicle::prelude::Id;
 use radicle::profile::Home;
-use radicle::storage::{ReadRepository, ReadStorage};
+use radicle::storage::{ReadStorage, RemoteRepository};
 use radicle::test::fixtures;
 
 use radicle_cli_test::TestFormula;

@@ -5,8 +5,10 @@ use std::path::Path;
 use cob::object::Objects;
 use radicle_cob as cob;
 use radicle_cob::change;
+use storage::RemoteRepository;
 use storage::RepositoryError;
 use storage::SignRepository;
+use storage::ValidateRepository;
 
 use crate::git::*;
 use crate::storage;
@@ -231,6 +233,22 @@ impl<'a, R: storage::ReadRepository> SignRepository for DraftStore<'a, R> {
     }
 }
 
+impl<'a, R: storage::RemoteRepository> RemoteRepository for DraftStore<'a, R> {
+    fn remote(&self, id: &RemoteId) -> Result<Remote<Verified>, storage::refs::Error> {
+        self.repo.remote(id)
+    }
+
+    fn remotes(&self) -> Result<Remotes<Verified>, storage::refs::Error> {
+        RemoteRepository::remotes(self.repo)
+    }
+}
+
+impl<'a, R: storage::ValidateRepository> ValidateRepository for DraftStore<'a, R> {
+    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Validations, Error> {
+        self.repo.validate_remote(remote)
+    }
+}
+
 impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
     fn id(&self) -> identity::Id {
         self.repo.id()
@@ -248,20 +266,8 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
         self.repo.canonical_head()
     }
 
-    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Validations, Error> {
-        self.repo.validate_remote(remote)
-    }
-
     fn path(&self) -> &std::path::Path {
         self.repo.path()
-    }
-
-    fn remote(&self, id: &RemoteId) -> Result<Remote<Verified>, storage::refs::Error> {
-        self.repo.remote(id)
-    }
-
-    fn remotes(&self) -> Result<Remotes<Verified>, storage::refs::Error> {
-        ReadRepository::remotes(self.repo)
     }
 
     fn commit(&self, oid: Oid) -> Result<git2::Commit, git_ext::Error> {

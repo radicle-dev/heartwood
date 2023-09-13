@@ -19,7 +19,7 @@ use radicle::node::routing::Store;
 use radicle::node::AliasStore;
 use radicle::node::NodeId;
 use radicle::storage::git::paths;
-use radicle::storage::{ReadRepository, ReadStorage, WriteRepository};
+use radicle::storage::{ReadRepository, ReadStorage, RemoteRepository, WriteRepository};
 use radicle_surf::{diff, Glob, Oid, Repository};
 
 use crate::api::error::Error;

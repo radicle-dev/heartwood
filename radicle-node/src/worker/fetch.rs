@@ -13,7 +13,10 @@ use radicle::prelude::{Doc, Id, NodeId};
 use radicle::storage::git::Repository;
 use radicle::storage::refs::IDENTITY_BRANCH;
 use radicle::storage::{Namespaces, RefUpdate, Remote, RemoteId, Validation, Validations};
-use radicle::storage::{ReadRepository, ReadStorage, WriteRepository, WriteStorage};
+use radicle::storage::{
+    ReadRepository, ReadStorage, RemoteRepository, ValidateRepository, WriteRepository,
+    WriteStorage,
+};
 use radicle::{git, Storage};
 
 pub type Refspec = refspec::Refspec<git::PatternString, git::PatternString>;

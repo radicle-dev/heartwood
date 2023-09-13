@@ -17,7 +17,7 @@ use radicle::cob::{ActorId, Author, Embed, Reaction, Timestamp, Uri};
 use radicle::git::RefString;
 use radicle::node::{Alias, AliasStore};
 use radicle::prelude::NodeId;
-use radicle::storage::{git, refs, ReadRepository};
+use radicle::storage::{git, refs, RemoteRepository};
 use radicle_surf::blob::Blob;
 use radicle_surf::tree::Tree;
 use radicle_surf::{Commit, Oid, Stats};

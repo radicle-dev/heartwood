@@ -11,7 +11,7 @@ use netservices::Direction as Link;
 use radicle::identity::Visibility;
 use radicle::node::routing::Store as _;
 use radicle::node::{ConnectOptions, DEFAULT_TIMEOUT};
-use radicle::storage::ReadRepository;
+use radicle::storage::RemoteRepository as _;
 
 use crate::collections::{RandomMap, RandomSet};
 use crate::crypto::test::signer::MockSigner;

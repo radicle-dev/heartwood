@@ -3,6 +3,7 @@ use radicle::cob::patch::{Patch, PatchId, Patches, Verdict};
 use radicle::prelude::*;
 use radicle::profile::Profile;
 use radicle::storage::git::Repository;
+use radicle::storage::RemoteRepository as _;
 
 use crate::terminal as term;
 use term::format::Author;

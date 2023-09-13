@@ -3,7 +3,10 @@ use std::{collections::HashSet, thread, time};
 use radicle::crypto::{test::signer::MockSigner, Signer};
 use radicle::git;
 use radicle::node::{Alias, FetchResult, Handle as _, DEFAULT_TIMEOUT};
-use radicle::storage::{ReadRepository, ReadStorage, WriteRepository, WriteStorage};
+use radicle::storage::{
+    ReadRepository, ReadStorage, RemoteRepository, ValidateRepository, WriteRepository,
+    WriteStorage,
+};
 use radicle::test::fixtures;
 use radicle::{assert_matches, rad};
 

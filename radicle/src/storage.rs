@@ -345,7 +345,7 @@ pub trait WriteStorage: ReadStorage {
 }
 
 /// Allows read-only access to a repository.
-pub trait ReadRepository: Sized {
+pub trait ReadRepository: Sized + ValidateRepository {
     /// Return the repository id.
     fn id(&self) -> Id;
 
@@ -360,21 +360,6 @@ pub trait ReadRepository: Sized {
 
     /// Get a blob in this repository, given its id.
     fn blob(&self, oid: Oid) -> Result<git2::Blob, git_ext::Error>;
-
-    /// Validate all remotes with [`ReadRepository::validate_remote`].
-    fn validate(&self) -> Result<Validations, Error> {
-        let mut failures = Validations::default();
-        for (_, remote) in self.remotes()? {
-            failures.append(&mut self.validate_remote(&remote)?);
-        }
-        Ok(failures)
-    }
-
-    /// Validates a remote's signed refs and identity.
-    ///
-    /// Returns any ref found under that remote that isn't signed.
-    /// If a signed ref is missing from the repository, an error is returned.
-    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Validations, Error>;
 
     /// Get the head of this repository.
     ///
@@ -467,12 +452,6 @@ pub trait ReadRepository: Sized {
         pattern: &git::PatternStr,
     ) -> Result<Vec<(Qualified, Oid)>, git::ext::Error>;
 
-    /// Get the given remote.
-    fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error>;
-
-    /// Get all remotes.
-    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;
-
     /// Get repository delegates.
     fn delegates(&self) -> Result<NonEmpty<Did>, RepositoryError> {
         let doc: Doc<_> = self.identity_doc()?.into();
@@ -493,6 +472,35 @@ pub trait ReadRepository: Sized {
 
     /// Get the merge base of two commits.
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, git::ext::Error>;
+}
+
+/// Access the remotes of a repository.
+pub trait RemoteRepository {
+    /// Get the given remote.
+    fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error>;
+
+    /// Get all remotes.
+    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;
+}
+
+pub trait ValidateRepository
+where
+    Self: RemoteRepository,
+{
+    /// Validate all remotes with [`ValidateRepository::validate_remote`].
+    fn validate(&self) -> Result<Validations, Error> {
+        let mut failures = Validations::default();
+        for (_, remote) in self.remotes()? {
+            failures.append(&mut self.validate_remote(&remote)?);
+        }
+        Ok(failures)
+    }
+
+    /// Validates a remote's signed refs and identity.
+    ///
+    /// Returns any ref found under that remote that isn't signed.
+    /// If a signed ref is missing from the repository, an error is returned.
+    fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Validations, Error>;
 }
 
 /// Allows read-write access to a repository.

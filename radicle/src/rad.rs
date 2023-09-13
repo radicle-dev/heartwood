@@ -351,7 +351,7 @@ mod tests {
     use crate::identity::Did;
     use crate::storage::git::transport;
     use crate::storage::git::Storage;
-    use crate::storage::ReadStorage;
+    use crate::storage::{ReadStorage, RemoteRepository as _};
     use crate::test::fixtures;
 
     use super::*;

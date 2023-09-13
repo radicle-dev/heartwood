@@ -39,7 +39,7 @@ use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::tracking::{store::Write, Scope};
 use crate::storage;
 use crate::storage::{Namespaces, ReadStorage};
-use crate::storage::{ReadRepository, RefUpdate};
+use crate::storage::{ReadRepository, RefUpdate, RemoteRepository as _};
 use crate::worker::FetchError;
 use crate::Link;
 

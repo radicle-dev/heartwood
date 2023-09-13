@@ -5,7 +5,7 @@ use anyhow::{anyhow, Context as _};
 use radicle::identity::{Identity, Visibility};
 use radicle::node::Handle as _;
 use radicle::prelude::Id;
-use radicle::storage::{ReadRepository, SignRepository, WriteRepository, WriteStorage};
+use radicle::storage::{SignRepository, ValidateRepository, WriteRepository, WriteStorage};
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};

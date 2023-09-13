@@ -124,6 +124,29 @@ impl MockRepository {
     }
 }
 
+impl RemoteRepository for MockRepository {
+    fn remote(&self, id: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
+        self.remotes
+            .get(id)
+            .map(|refs| Remote { refs: refs.clone() })
+            .ok_or(refs::Error::InvalidRef)
+    }
+
+    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
+        Ok(self
+            .remotes
+            .iter()
+            .map(|(id, refs)| (*id, Remote { refs: refs.clone() }))
+            .collect())
+    }
+}
+
+impl ValidateRepository for MockRepository {
+    fn validate_remote(&self, _remote: &Remote<Verified>) -> Result<Validations, Error> {
+        Ok(Validations::default())
+    }
+}
+
 impl ReadRepository for MockRepository {
     fn id(&self) -> Id {
         self.id
@@ -141,27 +164,8 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn validate_remote(&self, _remote: &Remote<Verified>) -> Result<Validations, Error> {
-        Ok(Validations::default())
-    }
-
     fn path(&self) -> &std::path::Path {
         todo!()
-    }
-
-    fn remote(&self, id: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
-        self.remotes
-            .get(id)
-            .map(|refs| Remote { refs: refs.clone() })
-            .ok_or(refs::Error::InvalidRef)
-    }
-
-    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
-        Ok(self
-            .remotes
-            .iter()
-            .map(|(id, refs)| (*id, Remote { refs: refs.clone() }))
-            .collect())
     }
 
     fn commit(&self, _oid: Oid) -> Result<git2::Commit, git_ext::Error> {

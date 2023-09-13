@@ -10,7 +10,7 @@ use radicle::identity::Visibility;
 use radicle::node::address::Store;
 use radicle::node::{address, Alias, ConnectOptions};
 use radicle::rad;
-use radicle::storage::ReadRepository;
+use radicle::storage::{ReadRepository, RemoteRepository};
 use radicle::Storage;
 
 use crate::crypto::test::signer::MockSigner;

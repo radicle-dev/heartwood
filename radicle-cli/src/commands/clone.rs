@@ -18,6 +18,7 @@ use radicle::prelude::*;
 use radicle::rad;
 use radicle::storage;
 use radicle::storage::git::Storage;
+use radicle::storage::RemoteRepository as _;
 use radicle::storage::RepositoryError;
 
 use crate::commands::rad_checkout as checkout;

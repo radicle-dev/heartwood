@@ -10,7 +10,7 @@ use crate::service::filter::Filter;
 use crate::service::{Link, NodeId, Timestamp};
 use crate::storage;
 use crate::storage::refs::SignedRefs;
-use crate::storage::{ReadRepository, ReadStorage};
+use crate::storage::{ReadStorage, RemoteRepository as _};
 use crate::wire;
 
 /// Maximum number of addresses which can be announced to other nodes.

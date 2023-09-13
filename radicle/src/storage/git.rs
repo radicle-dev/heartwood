@@ -25,7 +25,7 @@ use crate::storage::{
 pub use crate::git::*;
 pub use crate::storage::Error;
 
-use super::RemoteId;
+use super::{RemoteId, RemoteRepository, ValidateRepository};
 
 pub static NAMESPACES_GLOB: Lazy<git::refspec::PatternString> =
     Lazy::new(|| git::refspec::pattern!("refs/namespaces/*"));
@@ -394,37 +394,22 @@ impl Repository {
     }
 }
 
-impl ReadRepository for Repository {
-    fn id(&self) -> Id {
-        self.id
+impl RemoteRepository for Repository {
+    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
+        let mut remotes = Vec::new();
+        for remote in Repository::remotes(self)? {
+            remotes.push(remote?);
+        }
+        Ok(Remotes::from_iter(remotes))
     }
 
-    fn is_empty(&self) -> Result<bool, git2::Error> {
-        Ok(self.remotes()?.next().is_none())
+    fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
+        let refs = SignedRefs::load(*remote, self)?;
+        Ok(Remote::<Verified>::new(refs))
     }
+}
 
-    fn path(&self) -> &Path {
-        self.backend.path()
-    }
-
-    fn blob_at<P: AsRef<Path>>(&self, commit: Oid, path: P) -> Result<git2::Blob, git::Error> {
-        let commit = self.backend.find_commit(*commit)?;
-        let tree = commit.tree()?;
-        let entry = tree.get_path(path.as_ref())?;
-        let obj = entry.to_object(&self.backend)?;
-        let blob = obj.into_blob().map_err(|_| {
-            git::Error::NotFound(git::NotFound::NoSuchBlob(
-                path.as_ref().display().to_string(),
-            ))
-        })?;
-
-        Ok(blob)
-    }
-
-    fn blob(&self, oid: Oid) -> Result<git2::Blob, git::Error> {
-        self.backend.find_blob(oid.into()).map_err(git::Error::from)
-    }
-
+impl ValidateRepository for Repository {
     fn validate_remote(&self, remote: &Remote<Verified>) -> Result<Validations, Error> {
         // Contains a copy of the signed refs of this remote.
         let mut signed = BTreeMap::from((*remote.refs).clone());
@@ -469,6 +454,38 @@ impl ReadRepository for Repository {
 
         Ok(failures)
     }
+}
+
+impl ReadRepository for Repository {
+    fn id(&self) -> Id {
+        self.id
+    }
+
+    fn is_empty(&self) -> Result<bool, git2::Error> {
+        Ok(self.remotes()?.next().is_none())
+    }
+
+    fn path(&self) -> &Path {
+        self.backend.path()
+    }
+
+    fn blob_at<P: AsRef<Path>>(&self, commit: Oid, path: P) -> Result<git2::Blob, git::Error> {
+        let commit = self.backend.find_commit(*commit)?;
+        let tree = commit.tree()?;
+        let entry = tree.get_path(path.as_ref())?;
+        let obj = entry.to_object(&self.backend)?;
+        let blob = obj.into_blob().map_err(|_| {
+            git::Error::NotFound(git::NotFound::NoSuchBlob(
+                path.as_ref().display().to_string(),
+            ))
+        })?;
+
+        Ok(blob)
+    }
+
+    fn blob(&self, oid: Oid) -> Result<git2::Blob, git::Error> {
+        self.backend.find_blob(oid.into()).map_err(git::Error::from)
+    }
 
     fn reference(
         &self,
@@ -507,11 +524,6 @@ impl ReadRepository for Repository {
         self.backend
             .graph_descendant_of(head.into(), ancestor.into())
             .map_err(git::Error::from)
-    }
-
-    fn remote(&self, remote: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
-        let refs = SignedRefs::load(*remote, self)?;
-        Ok(Remote::<Verified>::new(refs))
     }
 
     fn references_of(&self, remote: &RemoteId) -> Result<Refs, Error> {
@@ -561,14 +573,6 @@ impl ReadRepository for Repository {
             }
         }
         Ok(refs)
-    }
-
-    fn remotes(&self) -> Result<Remotes<Verified>, refs::Error> {
-        let mut remotes = Vec::new();
-        for remote in Repository::remotes(self)? {
-            remotes.push(remote?);
-        }
-        Ok(Remotes::from_iter(remotes))
     }
 
     fn identity_doc_at(&self, head: Oid) -> Result<DocAt, DocError> {
