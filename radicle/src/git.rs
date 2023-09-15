@@ -185,6 +185,40 @@ pub mod refs {
             Qualified::from_components(name::component!("rad"), name::component!("sigrefs"), None)
         });
 
+        /// The set of special references used in the Heartwood protocol.
+        #[derive(Clone, Copy, Debug)]
+        pub enum Special {
+            /// `rad/id`
+            Id,
+            /// `rad/sigrefs`
+            SignedRefs,
+        }
+
+        impl From<Special> for Qualified<'_> {
+            fn from(s: Special) -> Self {
+                match s {
+                    Special::Id => (*IDENTITY_BRANCH).clone(),
+                    Special::SignedRefs => (*SIGREFS_BRANCH).clone(),
+                }
+            }
+        }
+
+        impl Special {
+            pub fn namespaced<'a>(&self, remote: &PublicKey) -> Namespaced<'a> {
+                Qualified::from(*self).with_namespace(Component::from(remote))
+            }
+
+            pub fn from_qualified(refname: &Qualified) -> Option<Self> {
+                if refname == &*IDENTITY_BRANCH {
+                    Some(Special::Id)
+                } else if refname == &*SIGREFS_BRANCH {
+                    Some(Special::SignedRefs)
+                } else {
+                    None
+                }
+            }
+        }
+
         /// Create the [`Namespaced`] `branch` under the `remote` namespace, i.e.
         ///
         /// `refs/namespaces/<remote>/refs/heads/<branch>`
