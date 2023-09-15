@@ -3,6 +3,7 @@ use time::serde::timestamp;
 use time::{Duration, OffsetDateTime};
 
 use radicle::crypto::PublicKey;
+use radicle::node::Alias;
 
 use crate::api::error::Error;
 use crate::api::Context;
@@ -22,6 +23,7 @@ pub enum AuthState {
 pub struct Session {
     pub status: AuthState,
     pub public_key: PublicKey,
+    pub alias: Alias,
     #[serde(with = "timestamp")]
     pub issued_at: OffsetDateTime,
     #[serde(with = "timestamp")]

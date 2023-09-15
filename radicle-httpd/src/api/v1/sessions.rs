@@ -45,6 +45,7 @@ async fn session_create_handler(State(ctx): State<Context>) -> impl IntoResponse
     let session = Session {
         status: AuthState::Unauthorized,
         public_key: *signer.public_key(),
+        alias: ctx.profile.config.node.alias.clone(),
         issued_at: OffsetDateTime::now_utc(),
         expires_at: OffsetDateTime::now_utc()
             .checked_add(auth::UNAUTHORIZED_SESSIONS_EXPIRATION)

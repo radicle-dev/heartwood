@@ -48,6 +48,7 @@ pub(crate) fn session(session_id: String, session: &Session) -> Value {
       "sessionId": session_id,
       "status": session.status,
       "publicKey": session.public_key,
+      "alias": session.alias,
       "issuedAt": session.issued_at.unix_timestamp(),
       "expiresAt": session.expires_at.unix_timestamp()
     })

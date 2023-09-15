@@ -236,6 +236,7 @@ pub async fn create_session(ctx: Context) {
         auth::Session {
             status: auth::AuthState::Authorized,
             public_key: ctx.profile().public_key,
+            alias: ctx.profile().config.node.alias.clone(),
             issued_at,
             expires_at: issued_at
                 .checked_add(auth::AUTHORIZED_SESSIONS_EXPIRATION)
