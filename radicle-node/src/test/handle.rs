@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::{io, time};
 
 use crate::identity::Id;
-use crate::node::{Alias, ConnectOptions, ConnectResult, Event, FetchResult, Seeds};
+use crate::node::{Alias, Config, ConnectOptions, ConnectResult, Event, FetchResult, Seeds};
 use crate::runtime::HandleError;
 use crate::service::tracking;
 use crate::service::NodeId;
@@ -26,6 +26,10 @@ impl radicle::node::Handle for Handle {
 
     fn is_running(&self) -> bool {
         true
+    }
+
+    fn config(&self) -> Result<Config, Self::Error> {
+        Ok(Config::new(Alias::new("acme")))
     }
 
     fn connect(

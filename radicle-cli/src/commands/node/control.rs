@@ -250,3 +250,12 @@ pub fn sessions(node: &Node) -> Result<Option<term::Table<4, term::Label>>, node
     }
     Ok(Some(table))
 }
+
+pub fn config(node: &Node) -> anyhow::Result<()> {
+    let cfg = node.config()?;
+    let cfg = serde_json::to_string_pretty(&cfg)?;
+
+    println!("{cfg}");
+
+    Ok(())
+}

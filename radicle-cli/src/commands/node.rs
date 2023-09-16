@@ -34,6 +34,7 @@ Usage
     rad node routing [--rid <rid>] [--nid <nid>] [--json] [<option>...]
     rad node tracking [--repos | --nodes] [<option>...]
     rad node events [--timeout <secs>] [-n <count>] [<option>...]
+    rad node config
 
     For `<node-option>` see `radicle-node --help`.
 
@@ -73,6 +74,7 @@ pub enum Operation {
         addr: PeerAddr<NodeId, Address>,
         timeout: time::Duration,
     },
+    Config,
     Events {
         timeout: time::Duration,
         count: usize,
@@ -108,6 +110,7 @@ pub enum TrackingMode {
 #[derive(Default, PartialEq, Eq)]
 pub enum OperationName {
     Connect,
+    Config,
     Events,
     Routing,
     Logs,
@@ -146,6 +149,7 @@ impl Args for Options {
                     "connect" => op = Some(OperationName::Connect),
                     "events" => op = Some(OperationName::Events),
                     "logs" => op = Some(OperationName::Logs),
+                    "config" => op = Some(OperationName::Config),
                     "routing" => op = Some(OperationName::Routing),
                     "start" => op = Some(OperationName::Start),
                     "status" => op = Some(OperationName::Status),
@@ -206,6 +210,7 @@ impl Args for Options {
                 })?,
                 timeout,
             },
+            OperationName::Config => Operation::Config,
             OperationName::Events => Operation::Events { timeout, count },
             OperationName::Routing => Operation::Routing { rid, nid, json },
             OperationName::Logs => Operation::Logs { lines },
@@ -233,6 +238,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Connect { addr, timeout } => {
             control::connect(&mut node, addr.id, addr.addr, timeout)?
         }
+        Operation::Config => control::config(&node)?,
         Operation::Sessions => {
             let sessions = control::sessions(&node)?;
             if let Some(table) = sessions {

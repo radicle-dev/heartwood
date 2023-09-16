@@ -339,6 +339,9 @@ pub enum Command {
     /// Sync local inventory with node.
     SyncInventory,
 
+    /// Get the current node condiguration.
+    Config,
+
     /// Connect to node with the given address.
     #[serde(rename_all = "camelCase")]
     Connect {
@@ -653,6 +656,8 @@ pub trait Handle: Clone + Sync + Send {
     fn nid(&self) -> Result<NodeId, Self::Error>;
     /// Check if the node is running. to a peer.
     fn is_running(&self) -> bool;
+    /// Get the current node configuration.
+    fn config(&self) -> Result<config::Config, Self::Error>;
     /// Connect to a peer.
     fn connect(
         &mut self,
@@ -808,6 +813,13 @@ impl Handle for Node {
             return false;
         };
         matches!(result, CommandResult::Okay { .. })
+    }
+
+    fn config(&self) -> Result<config::Config, Error> {
+        self.call::<config::Config>(Command::Config, DEFAULT_TIMEOUT)?
+            .next()
+            .ok_or(Error::EmptyResponse)?
+            .map_err(Error::from)
     }
 
     fn connect(

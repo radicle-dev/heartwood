@@ -105,6 +105,11 @@ where
         Command::Fetch { rid, nid, timeout } => {
             fetch(rid, nid, timeout, writer, &mut handle)?;
         }
+        Command::Config => {
+            let config = handle.config()?;
+
+            json::to_writer(writer, &config)?;
+        }
         Command::Seeds { rid } => {
             let seeds = handle.seeds(rid)?;
 

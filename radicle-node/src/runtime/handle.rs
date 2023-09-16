@@ -15,7 +15,7 @@ use crate::runtime::Emitter;
 use crate::service;
 use crate::service::tracking;
 use crate::service::NodeId;
-use crate::service::{CommandError, QueryState};
+use crate::service::{CommandError, Config, QueryState};
 use crate::service::{Event, Events};
 use crate::wire;
 use crate::wire::StreamId;
@@ -180,6 +180,12 @@ impl radicle::node::Handle for Handle {
     fn seeds(&mut self, id: Id) -> Result<Seeds, Self::Error> {
         let (sender, receiver) = chan::bounded(1);
         self.command(service::Command::Seeds(id, sender))?;
+        receiver.recv().map_err(Error::from)
+    }
+
+    fn config(&self) -> Result<Config, Self::Error> {
+        let (sender, receiver) = chan::bounded(1);
+        self.command(service::Command::Config(sender))?;
         receiver.recv().map_err(Error::from)
     }
 

@@ -138,6 +138,8 @@ pub enum Command {
     Connect(NodeId, Address, ConnectOptions),
     /// Disconnect from node.
     Disconnect(NodeId),
+    /// Get the node configuration.
+    Config(chan::Sender<Config>),
     /// Lookup seeds for the given repository in the routing table.
     Seeds(Id, chan::Sender<Seeds>),
     /// Fetch the given repository from the network.
@@ -162,6 +164,7 @@ impl fmt::Debug for Command {
             Self::SyncInventory(_) => write!(f, "SyncInventory(..)"),
             Self::Connect(id, addr, opts) => write!(f, "Connect({id}, {addr}, {opts:?})"),
             Self::Disconnect(id) => write!(f, "Disconnect({id})"),
+            Self::Config(_) => write!(f, "Config"),
             Self::Seeds(id, _) => write!(f, "Seeds({id})"),
             Self::Fetch(id, node, _, _) => write!(f, "Fetch({id}, {node})"),
             Self::TrackRepo(id, scope, _) => write!(f, "TrackRepo({id}, {scope})"),
@@ -517,6 +520,9 @@ where
             }
             Command::Disconnect(nid) => {
                 self.outbox.disconnect(nid, DisconnectReason::Command);
+            }
+            Command::Config(resp) => {
+                resp.send(self.config.clone()).ok();
             }
             Command::Seeds(rid, resp) => match self.seeds(&rid) {
                 Ok(seeds) => {
