@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use localtime::LocalTime;
-use radicle::node::HostName;
+use radicle::node::{config, HostName};
 
 /// Peer rate limitter.
 ///
@@ -38,19 +38,13 @@ pub trait AsTokens {
     fn rate(&self) -> f64;
 }
 
-impl AsTokens for crate::Link {
+impl AsTokens for config::RateLimit {
     fn rate(&self) -> f64 {
-        match self {
-            Self::Inbound => 0.1,
-            Self::Outbound => 1.0,
-        }
+        self.fill_rate
     }
 
     fn capacity(&self) -> usize {
-        match self {
-            Self::Inbound => 16,
-            Self::Outbound => 64,
-        }
+        self.capacity
     }
 }
 

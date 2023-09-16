@@ -738,7 +738,10 @@ where
         }
         let host: HostName = addr.into();
 
-        if self.limiter.limit(host.clone(), &Link::Inbound, self.clock) {
+        if self
+            .limiter
+            .limit(host.clone(), &self.config.limits.rate.inbound, self.clock)
+        {
             trace!(target: "service", "Rate limitting inbound connection from {host}..");
             return false;
         }
@@ -1132,9 +1135,13 @@ where
             warn!(target: "service", "Session not found for {remote}");
             return Ok(());
         };
+        let limit = match peer.link {
+            Link::Outbound => &self.config.limits.rate.outbound,
+            Link::Inbound => &self.config.limits.rate.inbound,
+        };
         if self
             .limiter
-            .limit(peer.addr.clone().into(), &peer.link, self.clock)
+            .limit(peer.addr.clone().into(), limit, self.clock)
         {
             trace!(target: "service", "Rate limiting message from {remote} ({})", peer.addr);
             return Ok(());

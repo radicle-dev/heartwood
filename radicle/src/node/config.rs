@@ -57,6 +57,9 @@ pub struct Limits {
     pub routing_max_age: LocalDuration,
     /// Maximum number of concurrent fetches per per connection.
     pub fetch_concurrency: usize,
+    /// Rate limitter settings.
+    #[serde(default)]
+    pub rate: RateLimits,
 }
 
 impl Default for Limits {
@@ -65,6 +68,38 @@ impl Default for Limits {
             routing_max_size: 1000,
             routing_max_age: LocalDuration::from_mins(7 * 24 * 60),
             fetch_concurrency: 1,
+            rate: RateLimits::default(),
+        }
+    }
+}
+
+/// Rate limts for a single connection.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RateLimit {
+    pub fill_rate: f64,
+    pub capacity: usize,
+}
+
+/// Rate limits for inbound and outbound connections.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RateLimits {
+    pub inbound: RateLimit,
+    pub outbound: RateLimit,
+}
+
+impl Default for RateLimits {
+    fn default() -> Self {
+        Self {
+            inbound: RateLimit {
+                fill_rate: 0.1,
+                capacity: 16,
+            },
+            outbound: RateLimit {
+                fill_rate: 1.0,
+                capacity: 64,
+            },
         }
     }
 }
