@@ -93,8 +93,8 @@ impl Default for RateLimits {
     fn default() -> Self {
         Self {
             inbound: RateLimit {
-                fill_rate: 0.1,
-                capacity: 16,
+                fill_rate: 0.2,
+                capacity: 32,
             },
             outbound: RateLimit {
                 fill_rate: 1.0,
