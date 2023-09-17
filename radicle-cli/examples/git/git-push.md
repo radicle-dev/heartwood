@@ -61,3 +61,11 @@ f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
 $ rad sync --announce
 ✓ Synced with 1 node(s)
 ```
+
+Note that it is forbidden to delete the default/canonical branch:
+
+``` (fail) (stderr)
+$ git push rad :master
+error: refusing to delete default branch ref 'refs/heads/master'
+error: failed to push some refs to 'rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi'
+```

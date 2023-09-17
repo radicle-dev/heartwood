@@ -37,6 +37,9 @@ pub enum Error {
     /// Head being pushed diverges from canonical head.
     #[error("refusing to update branch to commit that is not a descendant of canonical head")]
     HeadsDiverge(git::Oid, git::Oid),
+    /// User tried to delete the canonical branch.
+    #[error("refusing to delete default branch ref '{0}'")]
+    DeleteForbidden(git::RefString),
     /// Identity document error.
     #[error("doc: {0}")]
     Doc(#[from] radicle::identity::doc::DocError),
@@ -184,6 +187,11 @@ pub fn run(
             Command::Delete(dst) => {
                 // Delete refs.
                 let refname = nid.to_namespace().join(dst);
+                let (canonical_ref, _) = &canonical;
+
+                if *dst == canonical_ref.to_ref_string() && delegates.contains(&Did::from(nid)) {
+                    return Err(Error::DeleteForbidden(dst.clone()));
+                }
                 stored
                     .raw()
                     .find_reference(&refname)
