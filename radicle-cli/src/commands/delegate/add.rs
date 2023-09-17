@@ -2,7 +2,7 @@ use anyhow::Context as _;
 
 use radicle::{
     prelude::{Did, Id},
-    storage::{WriteRepository as _, WriteStorage},
+    storage::{SignRepository, WriteRepository as _, WriteStorage},
     Profile,
 };
 use radicle_crypto::PublicKey;
@@ -42,6 +42,8 @@ where
                 repo.raw(),
             )
         })?;
+        repo.sign_refs(&signer)?;
+        repo.set_identity_head()?;
         term::info!("Added delegate '{}'", Did::from(key));
         term::success!("Update successful!");
         Ok(())
