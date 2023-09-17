@@ -12,7 +12,7 @@ fn main() {
 
     if args.nth(1).as_deref() == Some("--version") {
         if let Err(e) = version::print(std::io::stdout(), NAME, VERSION, GIT_HEAD) {
-            eprintln!("fatal: {e}");
+            eprintln!("error: {e}");
             process::exit(1);
         };
         process::exit(0);
@@ -21,13 +21,13 @@ fn main() {
     let profile = match radicle::Profile::load() {
         Ok(profile) => profile,
         Err(err) => {
-            eprintln!("fatal: couldn't load profile: {err}");
+            eprintln!("error: couldn't load profile: {err}");
             process::exit(1);
         }
     };
 
     if let Err(err) = radicle_remote_helper::run(profile) {
-        eprintln!("fatal: {err}");
+        eprintln!("error: {err}");
         process::exit(1);
     }
 }
