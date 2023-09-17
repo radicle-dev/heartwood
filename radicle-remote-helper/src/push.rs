@@ -9,7 +9,8 @@ use thiserror::Error;
 
 use radicle::cob::object::ParseObjectId;
 use radicle::cob::patch;
-use radicle::crypto::{PublicKey, Signer};
+use radicle::crypto::Signer;
+use radicle::identity::Did;
 use radicle::node;
 use radicle::node::{Handle, NodeId};
 use radicle::prelude::Id;
@@ -28,11 +29,20 @@ const DEFAULT_SYNC_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 #[derive(Debug, Error)]
 pub enum Error {
     /// Public key doesn't match the remote namespace we're pushing to.
-    #[error("public key `{0}` does not match remote namespace")]
-    KeyMismatch(PublicKey),
+    #[error("cannot push to remote namespace owned by {0}")]
+    KeyMismatch(Did),
     /// No public key is given
     #[error("no public key given as a remote namespace, perhaps you are attempting to push to restricted refs")]
     NoKey,
+    /// Head being pushed diverges from canonical head.
+    #[error("refusing to update branch to commit that is not a descendant of canonical head")]
+    HeadsDiverge(git::Oid, git::Oid),
+    /// Identity document error.
+    #[error("doc: {0}")]
+    Doc(#[from] radicle::identity::doc::DocError),
+    /// Identity payload error.
+    #[error("payload: {0}")]
+    Payload(#[from] radicle::identity::doc::PayloadError),
     /// Invalid command received.
     #[error("invalid command `{0}`")]
     InvalidCommand(String),
@@ -141,7 +151,7 @@ pub fn run(
     let nid = url.namespace.ok_or(Error::NoKey).and_then(|ns| {
         (profile.public_key == ns)
             .then_some(ns)
-            .ok_or(Error::KeyMismatch(profile.public_key))
+            .ok_or(Error::KeyMismatch(profile.public_key.into()))
     })?;
     let signer = profile.signer()?;
     let mut line = String::new();
@@ -162,6 +172,8 @@ pub fn run(
             _ => return Err(Error::InvalidCommand(line.trim().to_owned())),
         }
     }
+    let canonical = stored.head()?;
+    let delegates = stored.delegates()?;
 
     // For each refspec, push a ref or delete a ref.
     for spec in specs {
@@ -202,6 +214,26 @@ pub fn run(
                             opts.clone(),
                         )
                     } else {
+                        let (canonical_ref, canonical_oid) = &canonical;
+
+                        // If we're trying to update the canonical head, make sure
+                        // we don't diverge from the current head.
+                        if dst == *canonical_ref && delegates.contains(&Did::from(nid)) {
+                            let head = working.find_reference(src.as_str())?;
+                            let head = head.peel_to_commit()?.id();
+
+                            if !working.graph_descendant_of(head, **canonical_oid)? {
+                                eprintln!(
+                                    "hint: you are attempting to push a commit that would \
+                                    cause your upstream to diverge from the canonical head"
+                                );
+                                eprintln!(
+                                    "hint: to integrate the remote changes, run `git pull --rebase` \
+                                    and try again"
+                                );
+                                return Err(Error::HeadsDiverge(head.into(), *canonical_oid));
+                            }
+                        }
                         push(src, &dst, *force, &nid, &working, stored, &signer)
                     }
                 }

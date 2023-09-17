@@ -1312,6 +1312,54 @@ fn framework_home() {
 }
 
 #[test]
+fn git_push_diverge() {
+    logger::init(log::Level::Debug);
+
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let working = environment.tmp().join("working");
+
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/rad-clone.md",
+        working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+
+    formula(&environment.tmp(), "examples/git/git-push-diverge.md")
+        .unwrap()
+        .home(
+            "alice",
+            working.join("alice"),
+            [("RAD_HOME", alice.home.path().display())],
+        )
+        .home(
+            "bob",
+            working.join("bob").join("heartwood"),
+            [("RAD_HOME", bob.home.path().display())],
+        )
+        .run()
+        .unwrap();
+}
+
+#[test]
 fn git_push_and_pull() {
     logger::init(log::Level::Debug);
 
