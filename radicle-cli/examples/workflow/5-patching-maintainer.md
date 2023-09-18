@@ -1,13 +1,11 @@
 Back to being the project maintainer.
 
-Changes have been proposed by another person (or peer) via a radicle patch.  To follow changes by another, we must 'track' them.
+Changes have been proposed by another person (or peer) via a radicle patch.  To
+follow changes by another, we must 'track' them.
 
 ```
 $ rad track did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --alias bob
 ✓ Tracking policy updated for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
-$ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
-✓ Fetched repository from 1 seed(s)
 ```
 
 Additionally, we need to add a new 'git remote' to our working copy for the
@@ -21,6 +19,7 @@ $ rad remote add z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --name bob
 
 ``` (stderr)
 $ git fetch bob
+✓ Synced with 1 peer(s)
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new branch]      master     -> bob/master
  * [new branch]      patches/69e881c606639691330051d7d8f013854f32fb87 -> bob/patches/69e881c606639691330051d7d8f013854f32fb87

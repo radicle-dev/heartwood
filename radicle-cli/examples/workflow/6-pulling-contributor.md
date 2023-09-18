@@ -19,7 +19,7 @@ Now let's checkout `master` and pull the maintainer's changes:
 $ git checkout master
 Your branch is up to date with 'rad/master'.
 ```
-``` (stderr)
+``` (stderr) RAD_SOCKET=/dev/null
 $ git pull --all --ff
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
    f2de534..f567f69  master     -> rad/master

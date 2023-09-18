@@ -20,7 +20,7 @@ remote of the project.
 
 For the remote-tracking branch to work, we fetch bob:
 
-``` (stderr)
+``` RAD_SOCKET=/dev/null (stderr)
 $ git fetch bob
 From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
  * [new branch]      master     -> bob/master

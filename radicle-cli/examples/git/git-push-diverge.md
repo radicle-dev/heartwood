@@ -33,9 +33,6 @@ As Alice, we fetch that code, but commit on top of our own master, which is no
 longer canonical, since Bob pushed a more recent commit, and the threshold is 1:
 
 ``` ~alice
-$ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
-✓ Fetched repository from 1 seed(s)
 $ git fetch bob@z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 $ git branch -arv
   bob@z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk/master 319a7dc Third commit

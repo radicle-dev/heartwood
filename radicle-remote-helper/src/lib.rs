@@ -7,13 +7,18 @@ mod fetch;
 mod list;
 mod push;
 
+use std::io::IsTerminal as _;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time;
 use std::{env, io};
 
 use thiserror::Error;
 
 use radicle::git;
+use radicle::node::FetchResults;
+use radicle::node::Handle as _;
+use radicle::prelude::Id;
 use radicle::storage::git::transport::local::{Url, UrlError};
 use radicle::storage::{ReadRepository, WriteStorage};
 use radicle_cli::terminal as cli;
@@ -100,6 +105,7 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
     let stdin = io::stdin();
     let mut line = String::new();
     let mut opts = Options::default();
+    let mut sync = SyncState::new(url.repo);
 
     loop {
         let tokens = read_line(&stdin, &mut line)?;
@@ -158,6 +164,8 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 let oid = git::Oid::from_str(oid)?;
                 let refstr = git::RefString::try_from(*refstr)?;
 
+                sync.run(&opts, &profile).ok();
+
                 return fetch::run(vec![(oid, refstr)], &working, url, stored, &stdin)
                     .map_err(Error::from);
             }
@@ -174,6 +182,8 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 .map_err(Error::from);
             }
             ["list"] => {
+                sync.run(&opts, &profile).ok();
+
                 list::for_fetch(&url, &stored)?;
             }
             ["list", "for-push"] => {
@@ -201,4 +211,78 @@ pub(crate) fn read_line<'a>(stdin: &io::Stdin, line: &'a mut String) -> io::Resu
     let tokens = line.split(' ').filter(|t| !t.is_empty()).collect();
 
     Ok(tokens)
+}
+
+/// Keeps track of sync state.
+struct SyncState {
+    /// Whether we tried to fetch already.
+    fetched: bool,
+    /// The repo id.
+    rid: Id,
+}
+
+impl SyncState {
+    fn new(rid: Id) -> Self {
+        Self {
+            fetched: false,
+            rid,
+        }
+    }
+
+    /// Connect to local node and try to fetch refs from the network.
+    /// If our node is not running, or the "no-sync" option is enabled,
+    /// we simply do nothing.
+    fn run(
+        &mut self,
+        opts: &Options,
+        profile: &radicle::Profile,
+    ) -> Result<(), radicle::node::Error> {
+        if opts.no_sync || self.fetched {
+            return Ok(());
+        }
+        let mut node = radicle::Node::new(profile.socket());
+        if !node.is_running() {
+            return Ok(());
+        }
+
+        let target = 3;
+        let timeout = time::Duration::from_secs(6);
+        let seeds = node.seeds(self.rid)?;
+        let connected = seeds.connected().map(|s| s.nid).collect::<Vec<_>>();
+
+        if connected.is_empty() {
+            return Ok(());
+        }
+        let message = format!("Syncing with {} node(s)..", connected.len().min(target));
+        let mut spinner = if io::stderr().is_terminal() {
+            cli::spinner_to(message, io::stderr(), io::stderr())
+        } else {
+            cli::spinner_to(message, io::stderr(), io::sink())
+        };
+
+        // Fetch from connected seeds.
+        let mut results = FetchResults::default();
+        for seed in connected.into_iter() {
+            spinner.message(format!("Syncing with {seed}.."));
+
+            let result = node.fetch(self.rid, seed, timeout)?;
+            results.push(seed, result);
+
+            if results.success().count() >= target {
+                break;
+            }
+        }
+
+        let success = results.success().count();
+        if success > 0 {
+            spinner.message(format!("Synced with {success} peer(s)"));
+            spinner.finish();
+        } else {
+            spinner.failed();
+        }
+        // Make sure we don't try to fetch again while this program is running.
+        self.fetched = true;
+
+        Ok(())
+    }
 }
