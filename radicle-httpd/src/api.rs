@@ -10,13 +10,14 @@ use axum::http::Method;
 use axum::response::{IntoResponse, Json};
 use axum::routing::get;
 use axum::Router;
+use base64::prelude::{Engine, BASE64_STANDARD};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
 use tower_http::cors::{self, CorsLayer};
 
-use radicle::cob::issue;
 use radicle::cob::patch;
+use radicle::cob::{issue, Uri};
 use radicle::identity::Id;
 use radicle::node::routing::Store;
 use radicle::storage::{ReadRepository, ReadStorage};
@@ -202,5 +203,31 @@ mod project {
         pub issues: cob::issue::IssueCounts,
         pub id: Id,
         pub trackings: usize,
+    }
+}
+
+/// A `data:` URI.
+#[derive(Debug, Clone)]
+pub struct DataUri(Vec<u8>);
+
+impl From<DataUri> for Vec<u8> {
+    fn from(value: DataUri) -> Self {
+        value.0
+    }
+}
+
+impl TryFrom<&Uri> for DataUri {
+    type Error = Uri;
+
+    fn try_from(value: &Uri) -> Result<Self, Self::Error> {
+        if let Some(data_uri) = value.as_str().strip_prefix("data:") {
+            let (_, uri_data) = data_uri.split_once(',').ok_or(value.clone())?;
+            let uri_data = BASE64_STANDARD
+                .decode(uri_data)
+                .map_err(|_| value.clone())?;
+
+            return Ok(DataUri(uri_data));
+        }
+        Err(value.clone())
     }
 }

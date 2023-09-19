@@ -7,7 +7,6 @@ use axum::response::IntoResponse;
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use axum_auth::AuthBearer;
-use base64::prelude::{Engine, BASE64_STANDARD};
 use hyper::StatusCode;
 use radicle_surf::blob::{Blob, BlobRef};
 use serde::{Deserialize, Serialize};
@@ -25,7 +24,7 @@ use radicle_surf::{diff, Glob, Oid, Repository};
 
 use crate::api::error::Error;
 use crate::api::project::Info;
-use crate::api::{self, CobsQuery, Context, PaginationQuery};
+use crate::api::{self, CobsQuery, Context, DataUri, PaginationQuery};
 use crate::axum_extra::{Path, Query};
 
 const CACHE_1_HOUR: &str = "public, max-age=3600, must-revalidate";
@@ -534,18 +533,11 @@ async fn issue_create_handler(
         .embeds
         .into_iter()
         .filter_map(|embed| {
-            if let Some(content) = embed
-                .content
-                .as_str()
-                .strip_prefix("data:content/type;base64,")
-            {
-                return BASE64_STANDARD.decode(content).ok().map(|content| Embed {
-                    name: embed.name,
-                    content,
-                });
-            }
-
-            None
+            let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
+            Some(Embed {
+                name: embed.name,
+                content: content.into(),
+            })
         })
         .collect();
 
@@ -604,18 +596,11 @@ async fn issue_update_handler(
             let embeds: Vec<Embed> = embeds
                 .into_iter()
                 .filter_map(|embed| {
-                    if let Some(content) = embed
-                        .content
-                        .as_str()
-                        .strip_prefix("data:content/type;base64,")
-                    {
-                        return BASE64_STANDARD.decode(content).ok().map(|content| Embed {
-                            name: embed.name,
-                            content,
-                        });
-                    }
-
-                    None
+                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
+                    Some(Embed {
+                        name: embed.name,
+                        content: content.into(),
+                    })
                 })
                 .collect();
             if let Some(to) = reply_to {
@@ -1848,7 +1833,7 @@ mod routes {
             "embeds": [
               {
                 "name": "example.html",
-                "content": "data:content/type;base64,PGh0bWw+SGVsbG8gV29ybGQhPC9odG1sPg=="
+                "content": "data:image/png;base64,PGh0bWw+SGVsbG8gV29ybGQhPC9odG1sPg=="
               }
             ],
             "assignees": [],
@@ -1924,7 +1909,7 @@ mod routes {
           "embeds": [
             {
               "name": "image.jpg",
-              "content": "data:content/type;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
+              "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
             }
           ],
           "replyTo": CONTRIBUTOR_ISSUE_ID,
