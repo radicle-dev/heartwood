@@ -150,7 +150,7 @@ pub enum Operation {
         patch_id: Rev,
     },
     Checkout {
-        patch_id: Rev,
+        revision_id: Rev,
     },
     Comment {
         revision_id: Rev,
@@ -339,7 +339,7 @@ impl Args for Options {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
             },
             OperationName::Checkout => Operation::Checkout {
-                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                revision_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
             },
             OperationName::Comment => Operation::Comment {
                 revision_id: patch_id
@@ -419,9 +419,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
             delete::run(&patch_id, &profile, &repository)?;
         }
-        Operation::Checkout { patch_id } => {
-            let patch_id = patch_id.resolve(&repository.backend)?;
-            checkout::run(&patch_id, &repository, &workdir)?;
+        Operation::Checkout { revision_id } => {
+            let revision_id = revision_id.resolve::<radicle::git::Oid>(&repository.backend)?;
+            checkout::run(&patch::RevisionId::from(revision_id), &repository, &workdir)?;
         }
         Operation::Comment {
             revision_id,

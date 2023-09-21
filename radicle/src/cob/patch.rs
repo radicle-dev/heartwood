@@ -2082,24 +2082,23 @@ where
     /// Find the `Patch` containing the given `Revision`.
     pub fn find_by_revision(
         &self,
-        id: EntryId,
+        revision: &RevisionId,
     ) -> Result<Option<(PatchId, Patch, RevisionId, Revision)>, Error> {
         // Revision may be the patch's first, making it have the same ID.
-        let p_id = ObjectId::from(id);
-        let revision = RevisionId(id);
+        let p_id = ObjectId::from(revision.into_inner());
         if let Some(p) = self.get(&p_id)? {
             return Ok(p
-                .revision(&revision)
-                .map(|r| (p_id, p.clone(), revision, r.clone())));
+                .revision(revision)
+                .map(|r| (p_id, p.clone(), *revision, r.clone())));
         }
-
         let result = self
             .all()?
             .filter_map(|result| result.ok())
             .find_map(|(p_id, p)| {
-                p.revision(&revision)
-                    .map(|r| (p_id, p.clone(), revision, r.clone()))
+                p.revision(revision)
+                    .map(|r| (p_id, p.clone(), *revision, r.clone()))
             });
+
         Ok(result)
     }
 
@@ -2284,10 +2283,7 @@ mod test {
         assert_eq!(revision.oid, branch.oid);
         assert_eq!(revision.base, branch.base);
 
-        let (id, _, _, _) = patches
-            .find_by_revision(rev_id.into_inner())
-            .unwrap()
-            .unwrap();
+        let (id, _, _, _) = patches.find_by_revision(&rev_id).unwrap().unwrap();
         assert_eq!(id, patch_id);
     }
 

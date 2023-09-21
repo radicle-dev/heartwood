@@ -22,9 +22,9 @@ pub fn run(
     let mut patches = patch::Patches::open(repo)?;
 
     let revision_id = revision_id.resolve::<cob::EntryId>(&repo.backend)?;
-    let Some((patch_id, patch, revision_id, revision)) = patches.find_by_revision(revision_id)? else {
-        anyhow::bail!("patch revision `{revision_id}` not found");
-    };
+    let (patch_id, patch, revision_id, revision) = patches
+        .find_by_revision(&patch::RevisionId::from(revision_id))?
+        .ok_or_else(|| anyhow!("Patch revision `{revision_id}` not found"))?;
     let mut patch = patch::PatchMut::new(patch_id, patch, &mut patches);
     let (body, reply_to) = prompt(message, reply_to, &revision, repo)?;
     let comment_id = patch.comment(revision_id, body, reply_to, &signer)?;
