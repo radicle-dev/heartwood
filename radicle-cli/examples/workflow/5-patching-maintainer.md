@@ -87,7 +87,13 @@ Fast-forward
  2 files changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 README.md
  create mode 100644 REQUIREMENTS.md
+```
+``` (stderr)
 $ git push rad master
+✓ Patch 69e881c606639691330051d7d8f013854f32fb87 merged at revision 70dd9a3
+✓ Synced with 1 node(s)
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+   f2de534..f567f69  master -> master
 ```
 
 The patch is now merged and closed :).
@@ -95,24 +101,22 @@ The patch is now merged and closed :).
 ```
 $ rad patch show 69e881c
 ╭──────────────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                          │
-│ Patch     69e881c606639691330051d7d8f013854f32fb87                           │
-│ Author    bob z6Mkt67…v4N1tRk                                                │
-│ Head      f567f695d25b4e8fb63b5f5ad2a584529826e908                           │
-│ Branches  master, patch/69e881c                                              │
-│ Commits   up to date                                                         │
-│ Status    merged                                                             │
+│ Title    Define power requirements                                           │
+│ Patch    69e881c606639691330051d7d8f013854f32fb87                            │
+│ Author   bob z6Mkt67…v4N1tRk                                                 │
+│ Head     27857ec9eb04c69cacab516e8bf4b5fd36090f66                            │
+│ Commits  ahead 0, behind 1                                                   │
+│ Status   merged                                                              │
 │                                                                              │
 │ See details.                                                                 │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ f567f69 Use markdown for requirements                                        │
 │ 27857ec Add README, just for the fun                                         │
 │ 3e674d1 Define power requirements                                            │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob z6Mkt67…v4N1tRk [   ...    ]                                 │
+│ ● opened by bob z6Mkt67…v4N1tRk [     ...    ]                               │
 │ ↑ updated to dcf3e6dd97c95cf8653cbb8ce47df20d28eb1821 (27857ec) [   ...    ] │
-│ ↑ updated to 70dd9a31882d184a9fe8f1f590471f5543c4d85b (f567f69) [   ...    ] │
-│ ✓ merged by alice (you) [   ...    ]                                         │
+│ * revised by alice (you) in 70dd9a3 (f567f69) [   ...    ]                   │
+│ ✓ merged by alice (you) at revision 70dd9a3 (f567f69) [    ...    ]          │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 

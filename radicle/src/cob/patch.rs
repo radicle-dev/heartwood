@@ -347,6 +347,8 @@ impl MergeTarget {
 pub struct Patch {
     /// Title of the patch.
     pub(super) title: String,
+    /// Patch author.
+    pub(super) author: Author,
     /// Current state of the patch.
     pub(super) state: State,
     /// Target this patch is meant to be merged in.
@@ -380,6 +382,7 @@ impl Patch {
     pub fn new(title: String, target: MergeTarget, (id, revision): (RevisionId, Revision)) -> Self {
         Self {
             title,
+            author: revision.author.clone(),
             state: State::default(),
             target,
             labels: BTreeSet::default(),
@@ -408,7 +411,7 @@ impl Patch {
 
     /// Timestamp of the first revision of the patch.
     pub fn timestamp(&self) -> Timestamp {
-        self.revisions()
+        self.updates()
             .next()
             .map(|(_, r)| r)
             .expect("Patch::timestamp: at least one revision is present")
@@ -428,12 +431,16 @@ impl Patch {
 
     /// Author of the first revision of the patch.
     pub fn author(&self) -> &Author {
-        &self
-            .revisions()
-            .next()
-            .map(|(_, r)| r)
-            .expect("Patch::author: at least one revision is present")
-            .author
+        &self.author
+    }
+
+    /// All revision authors.
+    pub fn authors(&self) -> BTreeSet<&Author> {
+        self.revisions
+            .values()
+            .filter_map(|r| r.as_ref())
+            .map(|r| &r.author)
+            .collect()
     }
 
     /// Get the `Revision` by its `RevisionId`.
@@ -443,15 +450,29 @@ impl Patch {
         self.revisions.get(id).and_then(|o| o.as_ref())
     }
 
-    /// List of patch revisions. The initial changeset is part of the
+    /// List of patch revisions by the patch author. The initial changeset is part of the
     /// first revision.
+    pub fn updates(&self) -> impl DoubleEndedIterator<Item = (RevisionId, &Revision)> {
+        self.revisions_by(self.author().public_key())
+    }
+
+    /// List of all patch revisions by all authors.
     pub fn revisions(&self) -> impl DoubleEndedIterator<Item = (RevisionId, &Revision)> {
-        self.timeline.iter().filter_map(|id| {
+        self.timeline.iter().filter_map(move |id| {
             self.revisions
                 .get(id)
                 .and_then(|o| o.as_ref())
                 .map(|rev| (RevisionId(*id), rev))
         })
+    }
+
+    /// List of patch revisions by the given author.
+    pub fn revisions_by<'a>(
+        &'a self,
+        author: &'a PublicKey,
+    ) -> impl DoubleEndedIterator<Item = (RevisionId, &Revision)> {
+        self.revisions()
+            .filter(move |(_, r)| (r.author.public_key() == author))
     }
 
     /// List of patch assignees.
@@ -504,16 +525,20 @@ impl Patch {
     ///
     /// This is the revision that was created with the patch.
     pub fn root(&self) -> (RevisionId, &Revision) {
-        self.revisions()
+        self.updates()
             .next()
             .expect("Patch::root: there is always a root revision")
     }
 
-    /// Latest revision.
+    /// Latest revision by the patch author.
     pub fn latest(&self) -> (RevisionId, &Revision) {
-        self.revisions()
-            .next_back()
+        self.latest_by(self.author().public_key())
             .expect("Patch::latest: there is always at least one revision")
+    }
+
+    /// Latest revision by the given author.
+    pub fn latest_by<'a>(&'a self, author: &'a PublicKey) -> Option<(RevisionId, &Revision)> {
+        self.revisions_by(author).next_back()
     }
 
     /// Time of last update.
@@ -618,8 +643,8 @@ impl Patch {
                 // Redacted.
                 Authorization::Unknown
             }
-            // Only patch authors can propose revisions.
-            Action::Revision { .. } => Authorization::from(actor == author),
+            // Anyone can propose revisions.
+            Action::Revision { .. } => Authorization::Allow,
             // Only the revision author can edit or redact their revision.
             Action::RevisionEdit { revision, .. } | Action::RevisionRedact { revision, .. } => {
                 if let Some(revision) = lookup::revision(self, revision)? {

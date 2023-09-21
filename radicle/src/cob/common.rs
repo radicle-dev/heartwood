@@ -11,7 +11,7 @@ use crate::prelude::*;
 pub type Timestamp = LocalTime;
 
 /// Author.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Author {
     pub id: Did,
 }

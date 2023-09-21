@@ -138,33 +138,59 @@ pub fn timeline(
     for (revision_id, revision) in patch.revisions() {
         // Don't show an "update" line for the first revision.
         if revision_id != root {
-            timeline.push((
-                revision.timestamp(),
-                term::Line::spaced(
-                    [
-                        term::format::tertiary("↑").into(),
-                        term::format::default("updated to").into(),
-                        term::format::dim(revision_id).into(),
-                        term::format::parens(term::format::secondary(term::format::oid(
-                            revision.head(),
-                        )))
-                        .into(),
-                    ]
-                    .into_iter(),
-                ),
-            ));
+            if revision.author() == patch.author() {
+                timeline.push((
+                    revision.timestamp(),
+                    term::Line::spaced(
+                        [
+                            term::format::tertiary("↑").into(),
+                            term::format::default("updated to").into(),
+                            term::format::dim(revision_id).into(),
+                            term::format::parens(term::format::secondary(term::format::oid(
+                                revision.head(),
+                            )))
+                            .into(),
+                        ]
+                        .into_iter(),
+                    ),
+                ));
+            } else {
+                let (alias, nid) = Author::new(revision.author().id(), profile).labels();
+
+                timeline.push((
+                    revision.timestamp(),
+                    term::Line::spaced(
+                        [
+                            term::format::tertiary("*").into(),
+                            term::format::default("revised by").into(),
+                            alias.clone(),
+                            nid.clone(),
+                            term::format::default("in").into(),
+                            term::format::dim(term::format::oid(revision_id)).into(),
+                            term::format::parens(term::format::secondary(term::format::oid(
+                                revision.head(),
+                            )))
+                            .into(),
+                        ]
+                        .into_iter(),
+                    ),
+                ));
+            }
         }
 
         for (nid, merge) in patch.merges().filter(|(_, m)| m.revision == revision_id) {
             let peer = repository.remote(nid)?;
+            let (alias, nid) = Author::new(&peer.id, profile).labels();
             let line = term::Line::spaced([
                 term::format::primary("✓").bold().into(),
-                term::format::default("merged").into(),
-                term::format::default("by").into(),
-            ])
-            .space()
-            .extend(Author::new(&peer.id, profile).line());
-
+                term::format::default("merged by").into(),
+                alias,
+                nid,
+                term::format::default("at revision").into(),
+                term::format::dim(term::format::oid(merge.revision)).into(),
+                term::format::parens(term::format::secondary(term::format::oid(merge.commit)))
+                    .into(),
+            ]);
             timeline.push((merge.timestamp, line));
         }
         for (reviewer, review) in revision.reviews() {

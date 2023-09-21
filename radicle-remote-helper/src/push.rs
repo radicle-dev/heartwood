@@ -454,9 +454,10 @@ fn patch_merge_all<G: Signer>(
     let mut revwalk = working.revwalk()?;
     revwalk.push_range(&format!("{old}..{new}"))?;
 
+    // These commits are ordered by children first and then parents.
     let commits = revwalk
         .map(|r| r.map(git::Oid::from))
-        .collect::<Result<HashSet<git::Oid>, _>>()?;
+        .collect::<Result<Vec<git::Oid>, _>>()?;
 
     let mut patches = patch::Patches::open(stored)?;
     for patch in patches.all()? {
@@ -464,12 +465,26 @@ fn patch_merge_all<G: Signer>(
             // Skip patches that failed to load.
             continue;
         };
-        let (revision_id, revision) = patch.latest();
+        if !patch.is_open() {
+            continue;
+        }
+        // Later revisions are more likely to be merged, so we build the list backwards.
+        let revisions = patch
+            .revisions()
+            .rev()
+            .map(|(id, r)| (id, r.head()))
+            .collect::<Vec<_>>();
 
-        if patch.is_open() && commits.contains(&revision.head()) {
-            let patch = patch::PatchMut::new(id, patch, &mut patches);
+        // Try to find a revision to merge. Favor revisions that match the more recent commits.
+        // It's possible for more than one revision to be merged by this push, so we pick the
+        // revision that is closest to the tip of the commit chain we're pushing.
+        for commit in &commits {
+            if let Some((revision_id, _)) = revisions.iter().find(|(_, head)| commit == head) {
+                let patch = patch::PatchMut::new(id, patch, &mut patches);
+                patch_merge(patch, *revision_id, new, working, signer)?;
 
-            patch_merge(patch, revision_id, new, working, signer)?;
+                break;
+            }
         }
     }
     Ok(())
@@ -482,13 +497,23 @@ fn patch_merge<G: Signer>(
     working: &git::raw::Repository,
     signer: &G,
 ) -> Result<(), Error> {
+    let (latest, _) = patch.latest();
     let merged = patch.merge(revision, commit, signer)?;
 
-    eprintln!(
-        "{} Patch {} merged",
-        cli::format::positive("✓"),
-        cli::format::tertiary(merged.patch)
-    );
+    if revision == latest {
+        eprintln!(
+            "{} Patch {} merged",
+            cli::format::positive("✓"),
+            cli::format::tertiary(merged.patch)
+        );
+    } else {
+        eprintln!(
+            "{} Patch {} merged at revision {}",
+            cli::format::positive("✓"),
+            cli::format::tertiary(merged.patch),
+            cli::format::oid(revision),
+        );
+    }
 
     // Delete patch references that were created when the patch was opened.
     // Note that we don't return an error if we can't delete the refs, since it's
