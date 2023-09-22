@@ -10,7 +10,7 @@ use axum_auth::AuthBearer;
 use hyper::StatusCode;
 use radicle_surf::blob::{Blob, BlobRef};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use radicle::cob::{issue, patch, Embed, Label, Uri};
@@ -233,9 +233,106 @@ async fn commit_handler(
         .map(|b| b.refname().to_string())
         .collect();
 
+    let mut files: HashMap<Oid, Value> = HashMap::new();
+    diff.files().for_each(|file_diff| match file_diff {
+        diff::FileDiff::Added(added) => {
+            if let Ok(blob) = repo.blob(commit.id, &added.path) {
+                files.insert(
+                    blob.object_id(),
+                    json!({
+                      "binary": blob.is_binary(),
+                      "content": api::json::blob_content(&blob)
+                    }),
+                );
+            }
+        }
+        diff::FileDiff::Deleted(deleted) => {
+            commit
+                .parents
+                .iter()
+                .filter_map(|oid| repo.blob(oid, &deleted.path).ok())
+                .for_each(|blob| {
+                    files.insert(
+                        blob.object_id(),
+                        json!({
+                          "binary": blob.is_binary(),
+                          "content": api::json::blob_content(&blob)
+                        }),
+                    );
+                });
+        }
+        diff::FileDiff::Modified(modified) => {
+            if let Ok(new_blob) = repo.blob(commit.id, &modified.path) {
+                files.insert(
+                    new_blob.object_id(),
+                    json!({
+                      "binary": new_blob.is_binary(),
+                      "content": api::json::blob_content(&new_blob)
+                    }),
+                );
+            }
+            commit
+                .parents
+                .iter()
+                .filter_map(|oid| repo.blob(oid, &modified.path).ok())
+                .for_each(|blob| {
+                    files.insert(
+                        blob.object_id(),
+                        json!({
+                          "binary": blob.is_binary(),
+                          "content": api::json::blob_content(&blob)
+                        }),
+                    );
+                });
+        }
+        diff::FileDiff::Moved(moved) => {
+            if let (Ok(old_blob), Ok(new_blob)) = (
+                repo.blob(moved.old.oid, &moved.old_path),
+                repo.blob(moved.new.oid, &moved.new_path),
+            ) {
+                files.insert(
+                    old_blob.object_id(),
+                    json!({
+                      "binary": old_blob.is_binary(),
+                      "content": api::json::blob_content(&old_blob)
+                    }),
+                );
+                files.insert(
+                    new_blob.object_id(),
+                    json!({
+                      "binary": new_blob.is_binary(),
+                      "content": api::json::blob_content(&new_blob)
+                    }),
+                );
+            }
+        }
+        diff::FileDiff::Copied(copied) => {
+            if let (Ok(old_blob), Ok(new_blob)) = (
+                repo.blob(copied.old.oid, &copied.old_path),
+                repo.blob(copied.new.oid, &copied.new_path),
+            ) {
+                files.insert(
+                    old_blob.object_id(),
+                    json!({
+                      "binary": old_blob.is_binary(),
+                      "content": api::json::blob_content(&old_blob)
+                    }),
+                );
+                files.insert(
+                    new_blob.object_id(),
+                    json!({
+                      "binary": new_blob.is_binary(),
+                      "content": api::json::blob_content(&new_blob)
+                    }),
+                );
+            }
+        }
+    });
+
     let response = json!({
       "commit": api::json::commit(&commit),
       "diff": diff,
+      "files": files,
       "branches": branches
     });
     Ok::<_, Error>(Json(response))
@@ -256,24 +353,41 @@ async fn diff_handler(
     diff.files().for_each(|file_diff| match file_diff {
         diff::FileDiff::Added(added) => {
             if let Ok(blob) = repo.blob(commit.id, &added.path) {
-                files.insert(added.new.oid, blob);
+                files.insert(blob.object_id(), blob);
             }
         }
         diff::FileDiff::Deleted(deleted) => {
-            if let Ok(blob) = repo.blob(commit.id, &deleted.path) {
-                files.insert(deleted.old.oid, blob);
+            if let Ok(old_blob) = repo.blob(base.id, &deleted.path) {
+                files.insert(old_blob.object_id(), old_blob);
             }
         }
         diff::FileDiff::Modified(modified) => {
-            if let (Ok(old_blob), Ok(new_blob)) = (
-                repo.blob(commit.parents[0], &modified.path),
+            if let (Ok(new_blob), Ok(old_blob)) = (
                 repo.blob(commit.id, &modified.path),
+                repo.blob(base.id, &modified.path),
             ) {
-                files.insert(modified.old.oid, old_blob);
-                files.insert(modified.new.oid, new_blob);
+                files.insert(new_blob.object_id(), new_blob);
+                files.insert(old_blob.object_id(), old_blob);
             }
         }
-        _ => (),
+        diff::FileDiff::Moved(moved) => {
+            if let (Ok(new_blob), Ok(old_blob)) = (
+                repo.blob(moved.new.oid, &moved.new_path),
+                repo.blob(moved.old.oid, &moved.old_path),
+            ) {
+                files.insert(new_blob.object_id(), new_blob);
+                files.insert(old_blob.object_id(), old_blob);
+            }
+        }
+        diff::FileDiff::Copied(copied) => {
+            if let (Ok(new_blob), Ok(old_blob)) = (
+                repo.blob(copied.new.oid, &copied.new_path),
+                repo.blob(copied.old.oid, &copied.old_path),
+            ) {
+                files.insert(new_blob.object_id(), new_blob);
+                files.insert(old_blob.object_id(), old_blob);
+            }
+        }
     });
 
     let commits = repo
@@ -1394,6 +1508,20 @@ mod routes {
                   "insertions": 2,
                   "deletions": 1
                 }
+              },
+              "files": {
+                "980a0d5f19a64b4b30a87d4206aade58726b60e3": {
+                  "binary": false,
+                  "content": "Hello World!\n",
+                },
+                "1dd5654ca2d2cf9f33b14c92b5ca9e1d21a91ae1": {
+                  "binary": false,
+                  "content": "Hello World from dir1!\n",
+                },
+                "82eb77880c693655bce074e3dbbd9fa711dc018b": {
+                  "binary": false,
+                  "content": "Thank you very much!\n",
+                },
               },
               "branches": [
                 "refs/heads/master"

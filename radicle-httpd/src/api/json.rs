@@ -3,6 +3,7 @@
 use std::path::Path;
 use std::str;
 
+use base64::prelude::{Engine, BASE64_STANDARD};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -56,21 +57,21 @@ pub(crate) fn session(session_id: String, session: &Session) -> Value {
 
 /// Returns JSON for a blob with a given `path`.
 pub(crate) fn blob<T: AsRef<[u8]>>(blob: &Blob<T>, path: &str) -> Value {
-    let mut response = json!({
+    json!({
         "binary": blob.is_binary(),
         "name": name_in_path(path),
+        "content": blob_content(blob),
         "path": path,
         "lastCommit": commit(blob.commit())
-    });
+    })
+}
 
-    if !blob.is_binary() {
-        match str::from_utf8(blob.content()) {
-            Ok(content) => response["content"] = content.into(),
-            Err(err) => return json!({ "error": err.to_string() }),
-        }
+/// Returns a string for the blob content, encoded in base64 if binary.
+pub fn blob_content<T: AsRef<[u8]>>(blob: &Blob<T>) -> String {
+    match str::from_utf8(blob.content()) {
+        Ok(s) => s.to_owned(),
+        Err(_) => BASE64_STANDARD.encode(blob.content()),
     }
-
-    response
 }
 
 /// Returns JSON for a tree with a given `path` and `stats`.
