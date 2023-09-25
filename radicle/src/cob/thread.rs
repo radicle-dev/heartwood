@@ -83,7 +83,7 @@ impl<T: Serialize> Serialize for Comment<T> {
     where
         S: serde::ser::Serializer,
     {
-        let mut state = serializer.serialize_struct("Comment", 6)?;
+        let mut state = serializer.serialize_struct("Comment", 8)?;
         state.serialize_field("author", &self.author())?;
         if let Some(loc) = &self.location {
             state.serialize_field("location", loc)?;
@@ -92,7 +92,11 @@ impl<T: Serialize> Serialize for Comment<T> {
             state.serialize_field("replyTo", &to)?;
         }
         state.serialize_field("reactions", &self.reactions)?;
+        state.serialize_field("resolved", &self.resolved)?;
         state.serialize_field("body", self.body())?;
+        if let Some(location) = self.location() {
+            state.serialize_field("location", &location)?;
+        }
 
         let embeds = self.embeds();
         if !embeds.is_empty() {
@@ -177,6 +181,11 @@ impl<L> Comment<L> {
     /// Get comment location, if any.
     pub fn location(&self) -> Option<&L> {
         self.location.as_ref()
+    }
+
+    /// Get comment resolution status.
+    pub fn resolved(&self) -> bool {
+        self.resolved
     }
 
     /// Return the embedded media.

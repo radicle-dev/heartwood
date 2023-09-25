@@ -1,5 +1,6 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
+#![recursion_limit = "256"]
 pub mod error;
 
 use std::collections::HashMap;

@@ -563,6 +563,19 @@ where
         })
     }
 
+    /// Edit a comment.
+    pub fn edit_comment<G: Signer, S: ToString>(
+        &mut self,
+        id: CommentId,
+        body: S,
+        embeds: impl IntoIterator<Item = Embed>,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Edit comment", signer, |tx| {
+            tx.edit_comment(id, body, embeds.into_iter().collect())
+        })
+    }
+
     /// Redact a comment.
     pub fn redact_comment<G: Signer>(
         &mut self,

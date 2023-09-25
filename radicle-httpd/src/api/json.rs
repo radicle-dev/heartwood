@@ -247,6 +247,7 @@ struct Comment<'a> {
     #[serde(with = "radicle::serde_ext::localtime::time")]
     timestamp: Timestamp,
     reply_to: Option<CommentId>,
+    resolved: bool,
 }
 
 impl<'a> Comment<'a> {
@@ -260,6 +261,7 @@ impl<'a> Comment<'a> {
             reactions: comment.reactions().collect::<Vec<_>>(),
             timestamp: comment.timestamp(),
             reply_to: comment.reply_to(),
+            resolved: comment.resolved(),
         }
     }
 }

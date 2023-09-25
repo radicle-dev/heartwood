@@ -45,9 +45,9 @@ pub const CONTRIBUTOR_NID: &str = "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJm
 pub const CONTRIBUTOR_ISSUE_ID: &str = "7466975f0bef37b459887824a9655f3e78262522";
 pub const CONTRIBUTOR_PATCH_ID: &str = "e651ae5869a2c1ac8ad4f6deae4cc835656ffa25";
 pub const CONTRIBUTOR_PATCH_REVIEW: &str = "ee3eeba95f4ec418b3d0714e18e0d1ff605dc0e6";
-pub const CONTRIBUTOR_COMMENT_1: &str = "d0bb75b2c72ab8b5486d39f6cf5f41f104b63cb1";
-pub const CONTRIBUTOR_COMMENT_2: &str = "227947fa41420e363752357b2edd54d3ccadf7b3";
-pub const CONTRIBUTOR_COMMENT_3: &str = "dd9743bb964ba22399548c86a3c1765020d58f48";
+pub const CONTRIBUTOR_COMMENT_1: &str = "d8ff07edbc8d2229e54e70f2f5bc31614287f0dc";
+pub const CONTRIBUTOR_COMMENT_2: &str = "f3fca0add53f85bc51a85198efed3273fe13b88e";
+pub const CONTRIBUTOR_COMMENT_3: &str = "06990ff59faa12463f693dae7a98eb33d75afd2e";
 
 /// Create a new profile.
 pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {

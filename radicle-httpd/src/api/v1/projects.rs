@@ -732,11 +732,21 @@ async fn issue_update_handler(
         } => {
             issue.react(id, reaction, active, &signer)?;
         }
-        issue::Action::CommentEdit { .. } => {
-            todo!();
+        issue::Action::CommentEdit { id, body, embeds } => {
+            let embeds: Vec<Embed> = embeds
+                .into_iter()
+                .filter_map(|embed| {
+                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
+                    Some(Embed {
+                        name: embed.name,
+                        content: content.into(),
+                    })
+                })
+                .collect();
+            issue.edit_comment(id, body, embeds, &signer)?;
         }
-        issue::Action::CommentRedact { .. } => {
-            todo!();
+        issue::Action::CommentRedact { id } => {
+            issue.redact_comment(id, &signer)?;
         }
     };
 
@@ -824,11 +834,26 @@ async fn patch_update_handler(
         patch::Action::Edit { title, target } => {
             patch.edit(title, target, &signer)?;
         }
-        patch::Action::RevisionEdit {
+        patch::Action::Label { labels } => {
+            patch.label(labels, &signer)?;
+        }
+        patch::Action::Lifecycle { state } => {
+            patch.lifecycle(state, &signer)?;
+        }
+        patch::Action::Assign { assignees } => {
+            patch.assign(assignees, &signer)?;
+        }
+        patch::Action::Merge { revision, commit } => {
+            // TODO: We should cleanup the stored copy at least.
+            let _ = patch.merge(revision, commit, &signer)?;
+        }
+        patch::Action::Review {
             revision,
-            description,
+            summary,
+            verdict,
+            labels,
         } => {
-            patch.edit_revision(revision, description, &signer)?;
+            patch.review(revision, verdict, summary, labels, &signer)?;
         }
         patch::Action::ReviewEdit {
             review,
@@ -837,20 +862,45 @@ async fn patch_update_handler(
         } => {
             patch.edit_review(review, summary, verdict, &signer)?;
         }
+        patch::Action::ReviewRedact { review } => {
+            patch.redact_review(review, &signer)?;
+        }
         patch::Action::ReviewComment {
             review,
             body,
             reply_to,
-            ..
+            location,
+            embeds,
         } => {
-            patch.review_comment(review, body, None, reply_to, &signer)?;
+            let embeds: Vec<Embed> = embeds
+                .into_iter()
+                .filter_map(|embed| {
+                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
+                    Some(Embed {
+                        name: embed.name,
+                        content: content.into(),
+                    })
+                })
+                .collect();
+            patch.review_comment(review, body, location, reply_to, embeds, &signer)?;
         }
         patch::Action::ReviewCommentEdit {
             review,
             comment,
             body,
+            embeds,
         } => {
-            patch.edit_review_comment(review, comment, body, &signer)?;
+            let embeds: Vec<Embed> = embeds
+                .into_iter()
+                .filter_map(|embed| {
+                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
+                    Some(Embed {
+                        name: embed.name,
+                        content: content.into(),
+                    })
+                })
+                .collect();
+            patch.edit_review_comment(review, comment, body, embeds, &signer)?;
         }
         patch::Action::ReviewCommentReact {
             review,
@@ -863,8 +913,11 @@ async fn patch_update_handler(
         patch::Action::ReviewCommentRedact { review, comment } => {
             patch.redact_review_comment(review, comment, &signer)?;
         }
-        patch::Action::Label { labels } => {
-            patch.label(labels, &signer)?;
+        patch::Action::ReviewCommentResolve { review, comment } => {
+            patch.resolve_review_comment(review, comment, &signer)?;
+        }
+        patch::Action::ReviewCommentUnresolve { review, comment } => {
+            patch.unresolve_review_comment(review, comment, &signer)?;
         }
         patch::Action::Revision {
             description,
@@ -874,35 +927,51 @@ async fn patch_update_handler(
         } => {
             patch.update(description, base, oid, &signer)?;
         }
-        patch::Action::Lifecycle { state } => {
-            patch.lifecycle(state, &signer)?;
-        }
-        patch::Action::Review {
+        patch::Action::RevisionEdit {
             revision,
-            summary,
-            verdict,
-            labels,
+            description,
         } => {
-            patch.review(revision, verdict, summary, labels, &signer)?;
+            patch.edit_revision(revision, description, &signer)?;
         }
-        patch::Action::Merge { revision, commit } => {
-            // TODO: We should cleanup the stored copy at least.
-            let _ = patch.merge(revision, commit, &signer)?;
+        patch::Action::RevisionRedact { revision } => {
+            patch.redact(revision, &signer)?;
         }
         patch::Action::RevisionComment {
             revision,
             body,
             reply_to,
-            ..
+            location,
+            embeds,
         } => {
-            patch.comment(revision, body, reply_to, &signer)?;
+            let embeds: Vec<Embed> = embeds
+                .into_iter()
+                .filter_map(|embed| {
+                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
+                    Some(Embed {
+                        name: embed.name,
+                        content: content.into(),
+                    })
+                })
+                .collect();
+            patch.comment(revision, body, reply_to, location, embeds, &signer)?;
         }
         patch::Action::RevisionCommentEdit {
             revision,
             comment,
             body,
+            embeds,
         } => {
-            patch.comment_edit(revision, comment, body, &signer)?;
+            let embeds: Vec<Embed> = embeds
+                .into_iter()
+                .filter_map(|embed| {
+                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
+                    Some(Embed {
+                        name: embed.name,
+                        content: content.into(),
+                    })
+                })
+                .collect();
+            patch.comment_edit(revision, comment, body, embeds, &signer)?;
         }
         patch::Action::RevisionCommentReact {
             revision,
@@ -1937,7 +2006,8 @@ mod routes {
                     "embeds": [],
                     "reactions": [],
                     "timestamp": TIMESTAMP,
-                    "replyTo": null
+                    "replyTo": null,
+                    "resolved": false,
                   }
                 ],
                 "labels": []
@@ -2017,6 +2087,7 @@ mod routes {
                 "reactions": [],
                 "timestamp": TIMESTAMP,
                 "replyTo": null,
+                "resolved": false,
               }],
               "labels": [
                   "bug",
@@ -2059,7 +2130,7 @@ mod routes {
 
         let body = serde_json::to_vec(&json!({
           "type": "comment.react",
-          "id": "6fe9fdec2ec9f6436f2875dbcbedb95dd215b863",
+          "id": ISSUE_DISCUSSION_ID,
           "reaction": "🚀",
           "active": true,
         }))
@@ -2071,6 +2142,40 @@ mod routes {
             Some(SESSION_ID.to_string()),
         )
         .await;
+
+        let body = serde_json::to_vec(&json!({
+          "type": "comment.edit",
+          "id": ISSUE_DISCUSSION_ID,
+          "body": "EDIT: Change 'hello world' to 'hello anyone'",
+          "embeds": []
+        }))
+        .unwrap();
+
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.json().await, json!({ "success": true }));
+
+        let body = serde_json::to_vec(&json!({
+          "type": "comment.redact",
+          "id": "6fe9fdec2ec9f6436f2875dbcbedb95dd215b863",
+        }))
+        .unwrap();
+
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/issues/{CONTRIBUTOR_ISSUE_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.json().await, json!({ "success": true }));
 
         let response = get(
             &app,
@@ -2096,32 +2201,17 @@ mod routes {
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
-                  "body": "Change 'hello world' to 'hello everyone'",
+                  "body": "EDIT: Change 'hello world' to 'hello anyone'",
                   "embeds": [],
-                  "reactions": [],
-                  "timestamp": TIMESTAMP,
-                  "replyTo": null,
-                },
-                {
-                  "id": "6fe9fdec2ec9f6436f2875dbcbedb95dd215b863",
-                  "author": {
-                    "id": CONTRIBUTOR_DID,
-                  },
-                  "body": "This is first-level comment",
-                  "embeds": [
-                    {
-                      "name": "image.jpg",
-                      "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
-                    },
-                  ],
                   "reactions": [
                     [
-                      "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
-                      "🚀",
+                    "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                    "🚀",
                     ],
                   ],
                   "timestamp": TIMESTAMP,
-                  "replyTo": CONTRIBUTOR_ISSUE_ID,
+                  "replyTo": null,
+                  "resolved": false,
                 },
               ],
               "labels": [],
@@ -2185,6 +2275,7 @@ mod routes {
                   "reactions": [],
                   "timestamp": TIMESTAMP,
                   "replyTo": null,
+                  "resolved": false,
                 },
                 {
                   "id": ISSUE_COMMENT_ID,
@@ -2196,6 +2287,7 @@ mod routes {
                   "reactions": [],
                   "timestamp": TIMESTAMP,
                   "replyTo": ISSUE_DISCUSSION_ID,
+                  "resolved": false,
                 },
               ],
               "labels": [],
@@ -2371,7 +2463,68 @@ mod routes {
     }
 
     #[tokio::test]
-    async fn test_projects_patches_tag() {
+    async fn test_projects_patches_assign() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = contributor(tmp.path());
+        let app = super::router(ctx.to_owned());
+        create_session(ctx).await;
+        let body = serde_json::to_vec(&json!({
+          "type": "assign",
+          "assignees": [CONTRIBUTOR_DID]
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": CONTRIBUTOR_PATCH_ID,
+              "author": {
+                "id": CONTRIBUTOR_DID,
+              },
+              "title": "A new `hello world`",
+              "state": { "status": "open" },
+              "target": "delegates",
+              "labels": [],
+              "merges": [],
+              "assignees": [CONTRIBUTOR_DID],
+              "revisions": [
+                {
+                  "id": CONTRIBUTOR_PATCH_ID,
+                  "author": {
+                    "id": CONTRIBUTOR_DID,
+                  },
+                  "description": "change `hello world` in README to something else",
+                  "base": PARENT,
+                  "oid": HEAD,
+                  "refs": [
+                    "refs/heads/master",
+                  ],
+                  "discussions": [],
+                  "timestamp": TIMESTAMP,
+                  "reviews": [],
+                },
+              ],
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn test_projects_patches_label() {
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
         let app = super::router(ctx.to_owned());
@@ -2576,6 +2729,68 @@ mod routes {
     }
 
     #[tokio::test]
+    async fn test_projects_patches_revisions_edit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ctx = contributor(tmp.path());
+        let app = super::router(ctx.to_owned());
+        create_session(ctx).await;
+        let body = serde_json::to_vec(&json!({
+          "type": "revision.edit",
+          "revision": CONTRIBUTOR_PATCH_ID,
+          "description": "Let's change the description a bit",
+        }))
+        .unwrap();
+        let response = patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = get(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+        )
+        .await;
+
+        assert_eq!(
+            response.json().await,
+            json!({
+              "id": CONTRIBUTOR_PATCH_ID,
+              "author": {
+                "id": CONTRIBUTOR_DID,
+              },
+              "title": "A new `hello world`",
+              "state": { "status": "open" },
+              "target": "delegates",
+              "labels": [],
+              "merges": [],
+              "assignees": [],
+              "revisions": [
+                {
+                  "id": CONTRIBUTOR_PATCH_ID,
+                  "author": {
+                    "id": CONTRIBUTOR_DID,
+                  },
+                  "description": "Let's change the description a bit",
+                  "base": PARENT,
+                  "oid": HEAD,
+                  "refs": [
+                    "refs/heads/master",
+                  ],
+                  "discussions": [],
+                  "timestamp": TIMESTAMP,
+                  "reviews": [],
+                },
+              ],
+            })
+        );
+    }
+
+    #[tokio::test]
     async fn test_projects_patches_discussions() {
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -2584,7 +2799,13 @@ mod routes {
         let thread_body = serde_json::to_vec(&json!({
           "type": "revision.comment",
           "revision": CONTRIBUTOR_PATCH_ID,
-          "body": "This is a root level comment"
+          "body": "This is a root level comment",
+          "embeds": [
+            {
+              "name": "image.jpg",
+              "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
+            }
+          ],
         }))
         .unwrap();
         let response = patch(
@@ -2616,7 +2837,13 @@ mod routes {
           "type": "revision.comment.edit",
           "revision": CONTRIBUTOR_PATCH_ID,
           "comment": CONTRIBUTOR_COMMENT_1,
-          "body": "EDIT: This is a root level comment"
+          "body": "EDIT: This is a root level comment",
+          "embeds": [
+            {
+              "name": "image.jpg",
+              "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
+            }
+          ],
         }))
         .unwrap();
         let response = patch(
@@ -2633,6 +2860,7 @@ mod routes {
           "revision": CONTRIBUTOR_PATCH_ID,
           "body": "This is a root level comment",
           "replyTo": CONTRIBUTOR_COMMENT_1,
+          "embeds": [],
         }))
         .unwrap();
         let response = patch(
@@ -2683,10 +2911,16 @@ mod routes {
                         "id": CONTRIBUTOR_DID,
                       },
                       "body": "EDIT: This is a root level comment",
-                      "embeds": [],
+                      "embeds": [
+                        {
+                          "name": "image.jpg",
+                          "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                        }
+                      ],
                       "reactions": [["z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8","🚀"]],
                       "timestamp": TIMESTAMP,
                       "replyTo": null,
+                      "resolved": false,
                     },
                     {
                       "id": CONTRIBUTOR_COMMENT_2,
@@ -2698,6 +2932,7 @@ mod routes {
                       "reactions": [],
                       "timestamp": TIMESTAMP,
                       "replyTo": CONTRIBUTOR_COMMENT_1,
+                      "resolved": false,
                     },
                   ],
                   "timestamp": TIMESTAMP,
@@ -2734,7 +2969,18 @@ mod routes {
         let review_comment_body = serde_json::to_vec(&json!({
           "type": "review.comment",
           "review": CONTRIBUTOR_PATCH_REVIEW,
-          "body": "This is a comment on a review"
+          "body": "This is a comment on a review",
+          "embeds": [],
+          "location": {
+            "path": "README.md",
+            "new": {
+              "type": "lines",
+              "range": {
+                "start": 2,
+                "end": 4
+              }
+            }
+          }
         }))
         .unwrap();
         patch(
@@ -2749,7 +2995,8 @@ mod routes {
           "type": "review.comment.edit",
           "review": CONTRIBUTOR_PATCH_REVIEW,
           "comment": CONTRIBUTOR_COMMENT_3,
-          "body": "EDIT: This is a comment on a review"
+          "embeds": [],
+          "body": "EDIT: This is a comment on a review",
         }))
         .unwrap();
         patch(
@@ -2772,6 +3019,20 @@ mod routes {
             &app,
             format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
             Some(Body::from(review_react_body)),
+            Some(SESSION_ID.to_string()),
+        )
+        .await;
+
+        let review_resolve_body = serde_json::to_vec(&json!({
+          "type": "review.comment.resolve",
+          "review": CONTRIBUTOR_PATCH_REVIEW,
+          "comment": CONTRIBUTOR_COMMENT_3,
+        }))
+        .unwrap();
+        patch(
+            &app,
+            format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
+            Some(Body::from(review_resolve_body)),
             Some(SESSION_ID.to_string()),
         )
         .await;
@@ -2817,15 +3078,27 @@ mod routes {
                       "verdict": "accept",
                       "summary": "A small review",
                       "comments": [[
-                        "dd9743bb964ba22399548c86a3c1765020d58f48",
+                        CONTRIBUTOR_COMMENT_3,
                         {
-                          "author": "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
+                          "author": CONTRIBUTOR_NID,
+                          "location": {
+                            "path": "README.md",
+                            "old": null,
+                            "new": {
+                              "type": "lines",
+                              "range": {
+                                "start": 2,
+                                "end": 4,
+                              }
+                            }
+                          },
                           "reactions": [
                             [
                               "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
                               "🚀",
                             ],
                           ],
+                          "resolved": true,
                           "body": "EDIT: This is a comment on a review",
                         },
                       ]],

@@ -19,7 +19,7 @@ use crate::cob::store::{Cob, CobAction};
 use crate::cob::thread;
 use crate::cob::thread::Thread;
 use crate::cob::thread::{Comment, CommentId, Reactions};
-use crate::cob::{op, store, ActorId, EntryId, ObjectId, TypeName};
+use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName, Uri};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
 use crate::identity;
@@ -176,12 +176,16 @@ pub enum Action {
         /// Should be [`Some`] otherwise.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reply_to: Option<CommentId>,
+        /// Embeded content.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        embeds: Vec<Embed<Uri>>,
     },
     #[serde(rename = "review.comment.edit")]
     ReviewCommentEdit {
         review: ReviewId,
         comment: EntryId,
         body: String,
+        embeds: Vec<Embed<Uri>>,
     },
     #[serde(rename = "review.comment.redact")]
     ReviewCommentRedact { review: ReviewId, comment: EntryId },
@@ -240,6 +244,9 @@ pub enum Action {
         /// Should be the root [`CommentId`] if it's a top-level comment.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reply_to: Option<CommentId>,
+        /// Embeded content.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        embeds: Vec<Embed<Uri>>,
     },
     /// Edit a revision comment.
     #[serde(rename = "revision.comment.edit")]
@@ -247,6 +254,7 @@ pub enum Action {
         revision: RevisionId,
         comment: CommentId,
         body: String,
+        embeds: Vec<Embed<Uri>>,
     },
     /// Redact a revision comment.
     #[serde(rename = "revision.comment.redact")]
@@ -856,6 +864,7 @@ impl Patch {
                 review,
                 comment,
                 body,
+                embeds,
             } => {
                 if let Some(review) = lookup::review_mut(self, &review)? {
                     thread::edit(
@@ -864,7 +873,7 @@ impl Patch {
                         comment,
                         timestamp,
                         body,
-                        vec![],
+                        embeds,
                     )?;
                 }
             }
@@ -883,6 +892,7 @@ impl Patch {
                 body,
                 location,
                 reply_to,
+                embeds,
             } => {
                 if let Some(review) = lookup::review_mut(self, &review)? {
                     thread::comment(
@@ -893,7 +903,7 @@ impl Patch {
                         body,
                         reply_to,
                         location,
-                        vec![],
+                        embeds,
                     )?;
                 }
             }
@@ -1008,6 +1018,7 @@ impl Patch {
                 revision,
                 comment,
                 body,
+                embeds,
             } => {
                 if let Some(revision) = lookup::revision_mut(self, &revision)? {
                     thread::edit(
@@ -1016,7 +1027,7 @@ impl Patch {
                         comment,
                         timestamp,
                         body,
-                        vec![],
+                        embeds,
                     )?;
                 }
             }
@@ -1554,6 +1565,7 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
             body: body.to_string(),
             reply_to: None,
             location: None,
+            embeds: vec![],
         })
     }
 
@@ -1563,12 +1575,18 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         revision: RevisionId,
         body: S,
         reply_to: Option<CommentId>,
+        location: Option<CodeLocation>,
+        embeds: Vec<Embed>,
     ) -> Result<(), store::Error> {
+        let hashed = embeds.iter().map(|e| e.hashed()).collect();
+
+        self.embed(embeds)?;
         self.push(Action::RevisionComment {
             revision,
             body: body.to_string(),
             reply_to,
-            location: None,
+            location,
+            embeds: hashed,
         })
     }
 
@@ -1578,11 +1596,16 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         revision: RevisionId,
         comment: CommentId,
         body: S,
+        embeds: Vec<Embed>,
     ) -> Result<(), store::Error> {
+        let hashed = embeds.iter().map(|e| e.hashed()).collect();
+
+        self.embed(embeds)?;
         self.push(Action::RevisionCommentEdit {
             revision,
             comment,
             body: body.to_string(),
+            embeds: hashed,
         })
     }
 
@@ -1618,13 +1641,36 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         body: S,
         location: Option<CodeLocation>,
         reply_to: Option<CommentId>,
+        embeds: Vec<Embed>,
     ) -> Result<(), store::Error> {
+        let hashed = embeds.iter().map(|e| e.hashed()).collect();
+        self.embed(embeds)?;
+
         self.push(Action::ReviewComment {
             review,
             body: body.to_string(),
             location,
             reply_to,
+            embeds: hashed,
         })
+    }
+
+    /// Resolve a review comment.
+    pub fn review_comment_resolve(
+        &mut self,
+        review: ReviewId,
+        comment: CommentId,
+    ) -> Result<(), store::Error> {
+        self.push(Action::ReviewCommentResolve { review, comment })
+    }
+
+    /// Unresolve a review comment.
+    pub fn review_comment_unresolve(
+        &mut self,
+        review: ReviewId,
+        comment: CommentId,
+    ) -> Result<(), store::Error> {
+        self.push(Action::ReviewCommentUnresolve { review, comment })
     }
 
     /// Edit review comment.
@@ -1633,11 +1679,16 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
         review: ReviewId,
         comment: EntryId,
         body: S,
+        embeds: Vec<Embed>,
     ) -> Result<(), store::Error> {
+        let hashed = embeds.iter().map(|e| e.hashed()).collect();
+
+        self.embed(embeds)?;
         self.push(Action::ReviewCommentEdit {
             review,
             comment,
             body: body.to_string(),
+            embeds: hashed,
         })
     }
 
@@ -1710,6 +1761,11 @@ impl<R: ReadRepository> store::Transaction<Patch, R> {
     /// Lifecycle a patch.
     pub fn lifecycle(&mut self, state: Lifecycle) -> Result<(), store::Error> {
         self.push(Action::Lifecycle { state })
+    }
+
+    /// Assign a patch.
+    pub fn assign(&mut self, assignees: BTreeSet<Did>) -> Result<(), store::Error> {
+        self.push(Action::Assign { assignees })
     }
 
     /// Label a patch.
@@ -1828,9 +1884,19 @@ where
         revision: RevisionId,
         body: S,
         reply_to: Option<CommentId>,
+        location: Option<CodeLocation>,
+        embeds: impl IntoIterator<Item = Embed>,
         signer: &G,
     ) -> Result<EntryId, Error> {
-        self.transaction("Comment", signer, |tx| tx.comment(revision, body, reply_to))
+        self.transaction("Comment", signer, |tx| {
+            tx.comment(
+                revision,
+                body,
+                reply_to,
+                location,
+                embeds.into_iter().collect(),
+            )
+        })
     }
 
     /// Edit a comment on a patch revision.
@@ -1839,10 +1905,11 @@ where
         revision: RevisionId,
         comment: CommentId,
         body: S,
+        embeds: impl IntoIterator<Item = Embed>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Edit comment", signer, |tx| {
-            tx.comment_edit(revision, comment, body)
+            tx.comment_edit(revision, comment, body, embeds.into_iter().collect())
         })
     }
 
@@ -1879,10 +1946,17 @@ where
         body: S,
         location: Option<CodeLocation>,
         reply_to: Option<CommentId>,
+        embeds: impl IntoIterator<Item = Embed>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Review comment", signer, |tx| {
-            tx.review_comment(review, body, location, reply_to)
+            tx.review_comment(
+                review,
+                body,
+                location,
+                reply_to,
+                embeds.into_iter().collect(),
+            )
         })
     }
 
@@ -1892,10 +1966,11 @@ where
         review: ReviewId,
         comment: EntryId,
         body: S,
+        embeds: impl IntoIterator<Item = Embed>,
         signer: &G,
     ) -> Result<EntryId, Error> {
         self.transaction("Edit review comment", signer, |tx| {
-            tx.edit_review_comment(review, comment, body)
+            tx.edit_review_comment(review, comment, body, embeds.into_iter().collect())
         })
     }
 
@@ -1949,6 +2024,30 @@ where
         self.transaction("Redact review", signer, |tx| tx.redact_review(review))
     }
 
+    /// Resolve a patch review comment.
+    pub fn resolve_review_comment<G: Signer>(
+        &mut self,
+        review: ReviewId,
+        comment: CommentId,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Resolve review comment", signer, |tx| {
+            tx.review_comment_resolve(review, comment)
+        })
+    }
+
+    /// Unresolve a patch review comment.
+    pub fn unresolve_review_comment<G: Signer>(
+        &mut self,
+        review: ReviewId,
+        comment: CommentId,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Unresolve review comment", signer, |tx| {
+            tx.review_comment_unresolve(review, comment)
+        })
+    }
+
     /// Merge a patch revision.
     pub fn merge<G: Signer>(
         &mut self,
@@ -1983,6 +2082,15 @@ where
     /// Lifecycle a patch.
     pub fn lifecycle<G: Signer>(&mut self, state: Lifecycle, signer: &G) -> Result<EntryId, Error> {
         self.transaction("Lifecycle", signer, |tx| tx.lifecycle(state))
+    }
+
+    /// Assign a patch.
+    pub fn assign<G: Signer>(
+        &mut self,
+        assignees: BTreeSet<Did>,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Assign", signer, |tx| tx.assign(assignees))
     }
 
     /// Archive a patch.
@@ -2223,6 +2331,7 @@ where
 #[allow(clippy::unwrap_used)]
 mod test {
     use std::str::FromStr;
+    use std::vec;
 
     use pretty_assertions::assert_eq;
 
@@ -2310,7 +2419,7 @@ mod test {
         let (revision_id, _) = patch.revisions().last().unwrap();
         assert!(
             patch
-                .comment(revision_id, "patch comment", None, &alice.signer)
+                .comment(revision_id, "patch comment", None, None, [], &alice.signer)
                 .is_ok(),
             "can comment on patch"
         );
@@ -2666,6 +2775,7 @@ mod test {
                 "I like these lines of code",
                 Some(location.clone()),
                 None,
+                [],
                 &alice.signer,
             )
             .unwrap();
