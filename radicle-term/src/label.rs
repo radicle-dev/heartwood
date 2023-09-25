@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{cell::Cell, Element, Line, Paint, Size};
+use crate::{cell::Cell, Color, Constraint, Element, Filled, Line, Paint, Size, Style};
 
 /// A styled string that does not contain any `'\n'` and implements [`Element`] and [`Cell`].
 #[derive(Clone, Default, Debug)]
@@ -31,14 +31,44 @@ impl Label {
     pub fn boxed(self) -> Box<dyn Element> {
         Box::new(self)
     }
+
+    /// Color the label's foreground.
+    pub fn fg(self, color: Color) -> Self {
+        Self(self.0.fg(color))
+    }
+
+    /// Color the label's background.
+    pub fn bg(self, color: Color) -> Self {
+        Self(self.0.bg(color))
+    }
+
+    /// Style a label.
+    pub fn style(self, style: Style) -> Self {
+        Self(self.0.with_style(style))
+    }
+
+    /// Get inner paint object.
+    pub fn paint(&self) -> &Paint<String> {
+        &self.0
+    }
+
+    /// Return a filled cell from this label.
+    pub fn filled(self, color: Color) -> Filled<Self> {
+        Filled { item: self, color }
+    }
+
+    /// Wrap into a line.
+    pub fn to_line(self) -> Line {
+        Line::from(self)
+    }
 }
 
 impl Element for Label {
-    fn size(&self) -> Size {
+    fn size(&self, _parent: Constraint) -> Size {
         Size::new(self.0.width(), 1)
     }
 
-    fn render(&self) -> Vec<Line> {
+    fn render(&self, _parent: Constraint) -> Vec<Line> {
         vec![Line::new(self.clone())]
     }
 }
@@ -52,6 +82,10 @@ impl fmt::Display for Label {
 impl Cell for Label {
     type Padded = Self;
     type Truncated = Self;
+
+    fn background(&self) -> Color {
+        self.paint().style.background
+    }
 
     fn pad(&self, width: usize) -> Self::Padded {
         Self(self.0.pad(width))
@@ -89,7 +123,7 @@ impl From<&str> for Label {
 
 /// Create a new label from a [`Paint`] object.
 pub fn label(s: impl Into<Paint<String>>) -> Label {
-    Label(s.into())
+    Label::from(s.into())
 }
 
 /// Cleanup the input string for display as a label.

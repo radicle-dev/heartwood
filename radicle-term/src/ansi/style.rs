@@ -135,6 +135,19 @@ impl Style {
         self
     }
 
+    /// Merge styles with other. This is an additive process, so colors will only
+    /// be changed if they aren't set on the receiver object.
+    pub fn merge(mut self, other: Style) -> Style {
+        if self.foreground == Color::Unset {
+            self.foreground = other.foreground;
+        }
+        if self.background == Color::Unset {
+            self.background = other.background;
+        }
+        self.properties.set(other.properties);
+        self
+    }
+
     /// Sets `self` to be wrapping.
     ///
     /// A wrapping `Style` converts all color resets written out by the internal

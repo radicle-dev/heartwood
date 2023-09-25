@@ -3,6 +3,7 @@ use std::sync;
 use std::sync::atomic::AtomicBool;
 use std::{fmt, io};
 
+use once_cell::sync::Lazy;
 use unicode_width::UnicodeWidthStr;
 
 use super::color::Color;
@@ -282,6 +283,12 @@ impl Paint<()> {
             || anstyle_query::clicolor_force()
     }
 
+    /// Check 24-bit RGB color support.
+    pub fn truecolor() -> bool {
+        static TRUECOLOR: Lazy<bool> = Lazy::new(anstyle_query::term_supports_color);
+        *TRUECOLOR
+    }
+
     /// Enable paint styling.
     pub fn enable() {
         ENABLED.store(true, sync::atomic::Ordering::SeqCst);
@@ -296,6 +303,19 @@ impl Paint<()> {
     /// Disable paint styling.
     pub fn disable() {
         ENABLED.store(false, sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// An object filled with a background color.
+#[derive(Debug, Clone)]
+pub struct Filled<T> {
+    pub item: T,
+    pub color: Color,
+}
+
+impl<T: fmt::Display> fmt::Display for Filled<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", Paint::wrapping(&self.item).bg(self.color))
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{cell::Cell, Element, Line, Paint, Size};
+use crate::{cell::Cell, Constraint, Element, Line, Paint, Size};
 
 /// Default text wrap width.
 pub const DEFAULT_WRAP: usize = 80;
@@ -65,14 +65,14 @@ impl TextArea {
 }
 
 impl Element for TextArea {
-    fn size(&self) -> Size {
+    fn size(&self, _parent: Constraint) -> Size {
         let cols = self.lines().map(|l| l.width()).max().unwrap_or(0);
         let rows = self.lines().count();
 
         Size::new(cols, rows)
     }
 
-    fn render(&self) -> Vec<Line> {
+    fn render(&self, _parent: Constraint) -> Vec<Line> {
         self.lines()
             .map(|l| Line::new(Paint::new(l).with_style(self.body.style)))
             .collect()

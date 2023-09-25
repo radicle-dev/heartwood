@@ -1,41 +1,114 @@
 use std::fmt;
+use std::io::IsTerminal;
 use std::ops::Deref;
-use std::vec;
+use std::{io, vec};
 
 use crate::cell::Cell;
-use crate::Label;
+use crate::{viewport, Color, Filled, Label, Style};
+
+/// Rendering constraint.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Constraint {
+    /// Minimum space the element can take.
+    pub min: Size,
+    /// Maximum space the element can take.
+    pub max: Size,
+}
+
+impl Default for Constraint {
+    fn default() -> Self {
+        Self::UNBOUNDED
+    }
+}
+
+impl Constraint {
+    /// Can satisfy any size of object.
+    pub const UNBOUNDED: Self = Self {
+        min: Size::MIN,
+        max: Size::MAX,
+    };
+
+    /// Create a new constraint.
+    pub fn new(min: Size, max: Size) -> Self {
+        assert!(min.cols <= max.cols && min.rows <= max.rows);
+
+        Self { min, max }
+    }
+
+    /// A constraint with only a maximum size.
+    pub fn max(max: Size) -> Self {
+        Self {
+            min: Size::MIN,
+            max,
+        }
+    }
+
+    /// A constraint that can only be satisfied by a single size.
+    pub fn tight(size: Size) -> Self {
+        Self {
+            min: size,
+            max: size,
+        }
+    }
+
+    /// Return a new constraint that forces objects to the maximum size.
+    pub fn maximize(self) -> Self {
+        Self {
+            min: self.max,
+            max: self.max,
+        }
+    }
+
+    /// Create a constraint from the terminal environment.
+    ///
+    /// If standard out isn't a terminal, returns an unbounded constraint.
+    pub fn from_env() -> Self {
+        if io::stdout().is_terminal() {
+            Self::max(viewport().unwrap_or(Size::MAX))
+        } else {
+            Self::UNBOUNDED
+        }
+    }
+}
 
 /// A text element that has a size and can be rendered to the terminal.
 pub trait Element: fmt::Debug {
     /// Get the size of the element, in rows and columns.
-    fn size(&self) -> Size;
+    fn size(&self, parent: Constraint) -> Size;
 
     #[must_use]
     /// Render the element as lines of text that can be printed.
-    fn render(&self) -> Vec<Line>;
+    fn render(&self, parent: Constraint) -> Vec<Line>;
 
     /// Get the number of columns occupied by this element.
-    fn columns(&self) -> usize {
-        self.size().cols
+    fn columns(&self, parent: Constraint) -> usize {
+        self.size(parent).cols
     }
 
     /// Get the number of rows occupied by this element.
-    fn rows(&self) -> usize {
-        self.size().rows
+    fn rows(&self, parent: Constraint) -> usize {
+        self.size(parent).rows
     }
 
     /// Print this element to stdout.
     fn print(&self) {
-        for line in self.render() {
-            println!("{line}");
+        for line in self.render(Constraint::from_env()) {
+            println!("{}", line.to_string().trim_end());
+        }
+    }
+
+    /// Write to a writer.
+    fn write(&self, constraints: Constraint) {
+        for line in self.render(constraints) {
+            println!("{}", line.to_string().trim_end());
         }
     }
 
     #[must_use]
     /// Return a string representation of this element.
-    fn display(&self) -> String {
+    fn display(&self, constraints: Constraint) -> String {
         let mut out = String::new();
-        for line in self.render() {
+        for line in self.render(constraints) {
             out.extend(line.into_iter().map(|l| l.to_string()));
             out.push('\n');
         }
@@ -44,12 +117,12 @@ pub trait Element: fmt::Debug {
 }
 
 impl<'a> Element for Box<dyn Element + 'a> {
-    fn size(&self) -> Size {
-        self.deref().size()
+    fn size(&self, parent: Constraint) -> Size {
+        self.deref().size(parent)
     }
 
-    fn render(&self) -> Vec<Line> {
-        self.deref().render()
+    fn render(&self, parent: Constraint) -> Vec<Line> {
+        self.deref().render(parent)
     }
 
     fn print(&self) {
@@ -58,24 +131,17 @@ impl<'a> Element for Box<dyn Element + 'a> {
 }
 
 impl<T: Element> Element for &T {
-    fn size(&self) -> Size {
-        (*self).size()
+    fn size(&self, parent: Constraint) -> Size {
+        (*self).size(parent)
     }
 
-    fn render(&self) -> Vec<Line> {
-        (*self).render()
+    fn render(&self, parent: Constraint) -> Vec<Line> {
+        (*self).render(parent)
     }
 
     fn print(&self) {
         (*self).print()
     }
-}
-
-/// Used to specify maximum width or height.
-#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
-pub struct Max {
-    pub width: Option<usize>,
-    pub height: Option<usize>,
 }
 
 /// A line of text that has styling and can be displayed.
@@ -97,6 +163,21 @@ impl Line {
         Self { items: vec![] }
     }
 
+    /// Return a styled line by styling all its labels.
+    pub fn style(self, style: Style) -> Line {
+        Self {
+            items: self
+                .items
+                .into_iter()
+                .map(|l| {
+                    let style = l.paint().style().merge(style);
+                    l.style(style)
+                })
+                .collect(),
+        }
+    }
+
+    /// Return a line with a single space between the given labels.
     pub fn spaced(items: impl IntoIterator<Item = Label>) -> Self {
         let mut line = Self::default();
         for item in items.into_iter() {
@@ -126,18 +207,23 @@ impl Line {
 
     /// Pad this line to occupy the given width.
     pub fn pad(&mut self, width: usize) {
-        let w = self.columns();
+        let w = self.width();
 
         if width > w {
             let pad = width - w;
-            self.items.push(Label::new(" ".repeat(pad).as_str()));
+            let bg = if let Some(last) = self.items.last() {
+                last.background()
+            } else {
+                Color::Unset
+            };
+            self.items.push(Label::new(" ".repeat(pad).as_str()).bg(bg));
         }
     }
 
     /// Truncate this line to the given width.
     pub fn truncate(&mut self, width: usize, delim: &str) {
-        while self.columns() > width {
-            let total = self.columns();
+        while self.width() > width {
+            let total = self.width();
 
             if total - self.items.last().map_or(0, Cell::width) > width {
                 self.items.pop();
@@ -147,22 +233,34 @@ impl Line {
         }
     }
 
+    /// Get the actual column width of this line.
+    pub fn width(&self) -> usize {
+        self.items.iter().map(Cell::width).sum()
+    }
+
+    /// Create a line that contains a single space.
     pub fn space(mut self) -> Self {
         self.items.push(Label::space());
         self
     }
 
+    /// Box this line as an [`Element`].
     pub fn boxed(self) -> Box<dyn Element> {
         Box::new(self)
+    }
+
+    /// Return a filled line.
+    pub fn filled(self, color: Color) -> Filled<Self> {
+        Filled { item: self, color }
     }
 }
 
 impl IntoIterator for Line {
     type Item = Label;
-    type IntoIter = vec::IntoIter<Label>;
+    type IntoIter = Box<dyn Iterator<Item = Label>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.items.into_iter()
+        Box::new(self.items.into_iter())
     }
 }
 
@@ -172,12 +270,18 @@ impl<T: Into<Label>> From<T> for Line {
     }
 }
 
+impl From<Vec<Label>> for Line {
+    fn from(items: Vec<Label>) -> Self {
+        Self { items }
+    }
+}
+
 impl Element for Line {
-    fn size(&self) -> Size {
+    fn size(&self, _parent: Constraint) -> Size {
         Size::new(self.items.iter().map(Cell::width).sum(), 1)
     }
 
-    fn render(&self) -> Vec<Line> {
+    fn render(&self, _parent: Constraint) -> Vec<Line> {
         vec![self.clone()]
     }
 }
@@ -201,20 +305,28 @@ pub struct Size {
 }
 
 impl Size {
+    /// Minimum size.
+    pub const MIN: Self = Self {
+        cols: usize::MIN,
+        rows: usize::MIN,
+    };
+    /// Maximum size.
+    pub const MAX: Self = Self {
+        cols: usize::MAX,
+        rows: usize::MAX,
+    };
+
     /// Create a new [`Size`].
     pub fn new(cols: usize, rows: usize) -> Self {
         Self { cols, rows }
     }
 
-    /// Limit size.
-    pub fn limit(mut self, lim: Max) -> Self {
-        if let Some(w) = lim.width {
-            self.cols = self.cols.min(w);
+    /// Constrain size.
+    pub fn constrain(self, c: Constraint) -> Self {
+        Self {
+            cols: self.cols.clamp(c.min.cols, c.max.cols),
+            rows: self.rows.clamp(c.min.rows, c.max.rows),
         }
-        if let Some(h) = lim.height {
-            self.rows = self.rows.min(h);
-        }
-        self
     }
 }
 

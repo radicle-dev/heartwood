@@ -1,11 +1,9 @@
-use crate::{Element, Line, Size};
+use crate::{Constraint, Element, Line, Size};
 
 /// Horizontal stack of [`Element`] objects that implements [`Element`].
 #[derive(Default, Debug)]
 pub struct HStack<'a> {
     elems: Vec<Box<dyn Element + 'a>>,
-    width: usize,
-    height: usize,
 }
 
 impl<'a> HStack<'a> {
@@ -16,18 +14,19 @@ impl<'a> HStack<'a> {
     }
 
     pub fn push(&mut self, child: impl Element + 'a) {
-        self.width += child.columns() + 1;
-        self.height = self.height.max(child.rows());
         self.elems.push(Box::new(child));
     }
 }
 
 impl<'a> Element for HStack<'a> {
-    fn size(&self) -> Size {
-        Size::new(self.width, self.height)
+    fn size(&self, parent: Constraint) -> Size {
+        let width = self.elems.iter().map(|c| c.columns(parent)).sum();
+        let height = self.elems.iter().map(|c| c.rows(parent)).max().unwrap_or(0);
+
+        Size::new(width, height)
     }
 
-    fn render(&self) -> Vec<Line> {
+    fn render(&self, parent: Constraint) -> Vec<Line> {
         fn rearrange(input: Vec<Vec<Line>>) -> Vec<Line> {
             let max_len = input.iter().map(|v| v.len()).max().unwrap_or(0);
 
@@ -37,11 +36,11 @@ impl<'a> Element for HStack<'a> {
                         input
                             .iter()
                             .filter_map(move |v| v.get(i))
-                            .flat_map(|l| l.clone().into_iter()),
+                            .flat_map(|l| l.clone()),
                     )
                 })
                 .collect()
         }
-        rearrange(self.elems.iter().map(|e| e.render()).collect())
+        rearrange(self.elems.iter().map(|e| e.render(parent)).collect())
     }
 }

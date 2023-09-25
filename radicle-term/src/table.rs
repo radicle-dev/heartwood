@@ -18,9 +18,9 @@
 //! ```
 use std::fmt;
 
-use crate as term;
 use crate::cell::Cell;
-use crate::{Color, Line, Max, Paint, Size};
+use crate::{self as term, Style};
+use crate::{Color, Constraint, Line, Paint, Size};
 
 pub use crate::Element;
 
@@ -28,8 +28,6 @@ pub use crate::Element;
 pub struct TableOptions {
     /// Whether the table should be allowed to overflow.
     pub overflow: bool,
-    /// The maximum width and height.
-    pub max: Max,
     /// Horizontal spacing between table cells.
     pub spacing: usize,
     /// Table border.
@@ -40,7 +38,6 @@ impl Default for TableOptions {
     fn default() -> Self {
         Self {
             overflow: false,
-            max: Max::default(),
             spacing: 1,
             border: None,
         }
@@ -84,16 +81,14 @@ impl<const W: usize, T: Cell + fmt::Debug> Element for Table<W, T>
 where
     T::Padded: Into<Line>,
 {
-    fn size(&self) -> Size {
-        Table::size(self)
+    fn size(&self, parent: Constraint) -> Size {
+        Table::size(self, parent)
     }
 
-    fn render(&self) -> Vec<Line> {
+    fn render(&self, parent: Constraint) -> Vec<Line> {
         let mut lines = Vec::new();
-        let limits = self.limits();
-        let width = limits.width;
         let border = self.opts.border;
-        let inner = self.inner().limit(limits);
+        let inner = self.inner(parent);
         let cols = inner.cols;
 
         if let Some(color) = border {
@@ -115,20 +110,19 @@ where
                     }
                     for (i, cell) in cells.iter().enumerate() {
                         let pad = if i == cells.len() - 1 {
-                            if border.is_some() {
-                                self.widths[i]
-                            } else {
-                                0
-                            }
+                            0
                         } else {
                             self.widths[i] + self.opts.spacing
                         };
-                        line = line.extend(cell.pad(pad).into());
+                        line = line.extend(
+                            cell.pad(pad)
+                                .into()
+                                .style(Style::default().bg(cell.background())),
+                        );
                     }
+                    Line::pad(&mut line, cols);
+                    Line::truncate(&mut line, cols, "…");
 
-                    if let Some(width) = width {
-                        line = line.truncate(width, "…");
-                    }
                     if let Some(color) = border {
                         line.push(Paint::new(" │").fg(color));
                     }
@@ -169,26 +163,12 @@ impl<const W: usize, T: Cell> Table<W, T> {
         }
     }
 
-    pub fn size(&self) -> Size {
-        self.outer()
+    pub fn size(&self, parent: Constraint) -> Size {
+        self.outer(parent)
     }
 
     pub fn divider(&mut self) {
         self.rows.push(Row::Divider);
-    }
-
-    pub fn limits(&self) -> Max {
-        let width = self.opts.max.width.or_else(term::columns).map(|w| {
-            if self.opts.border.is_some() {
-                w - 2
-            } else {
-                w
-            }
-        });
-        Max {
-            width,
-            height: None,
-        }
     }
 
     pub fn push(&mut self, row: [T; W]) {
@@ -198,27 +178,27 @@ impl<const W: usize, T: Cell> Table<W, T> {
         self.rows.push(Row::Data(row));
     }
 
-    fn inner(&self) -> Size {
-        let mut cols = self.widths.iter().sum::<usize>() + (W - 1) * self.opts.spacing;
-        let rows = self.rows.len();
-        let limits = self.limits();
+    fn inner(&self, c: Constraint) -> Size {
+        let mut outer = self.outer(c);
 
-        // Account for inner spacing.
         if self.opts.border.is_some() {
-            cols += 2;
+            outer.cols -= 2;
+            outer.rows -= 2;
         }
-        Size::new(cols, rows).limit(limits)
+        outer
     }
 
-    fn outer(&self) -> Size {
-        let mut inner = self.inner();
+    fn outer(&self, c: Constraint) -> Size {
+        let mut cols = self.widths.iter().sum::<usize>() + (W - 1) * self.opts.spacing;
+        let mut rows = self.rows.len();
+        let padding = 2;
 
         // Account for outer borders.
         if self.opts.border.is_some() {
-            inner.cols += 2;
-            inner.rows += 2;
+            cols += 2 + padding;
+            rows += 2;
         }
-        inner
+        Size::new(cols, rows).constrain(c)
     }
 }
 
@@ -251,10 +231,10 @@ mod test {
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(),
+            t.display(Constraint::UNBOUNDED),
             [
                 "pineapple rosemary\n",
-                "apples    pears\n"
+                "apples    pears   \n"
             ].join("")
         );
     }
@@ -273,16 +253,16 @@ mod test {
         t.push(["Switzerland", "7M", "CH"]);
         t.push(["Germany", "80M", "DE"]);
 
-        let inner = t.inner();
+        let inner = t.inner(Constraint::UNBOUNDED);
         assert_eq!(inner.cols, 33);
         assert_eq!(inner.rows, 5);
 
-        let outer = t.outer();
+        let outer = t.outer(Constraint::UNBOUNDED);
         assert_eq!(outer.cols, 35);
         assert_eq!(outer.rows, 7);
 
         assert_eq!(
-            t.display(),
+            t.display(Constraint::UNBOUNDED),
             r#"
 ╭─────────────────────────────────╮
 │ Country       Population   Code │
@@ -301,10 +281,6 @@ mod test {
         let mut t = Table::new(TableOptions {
             border: Some(Color::Unset),
             spacing: 3,
-            max: Max {
-                width: Some(19),
-                height: None,
-            },
             ..TableOptions::default()
         });
 
@@ -314,16 +290,20 @@ mod test {
         t.push(["CH", "Switzerland"]);
         t.push(["DE", "Germany"]);
 
-        let inner = t.inner();
-        assert_eq!(inner.cols, 17);
-        assert_eq!(inner.rows, 5);
-
-        let outer = t.outer();
+        let constrain = Constraint::max(Size {
+            cols: 19,
+            rows: usize::MAX,
+        });
+        let outer = t.outer(constrain);
         assert_eq!(outer.cols, 19);
         assert_eq!(outer.rows, 7);
 
+        let inner = t.inner(constrain);
+        assert_eq!(inner.cols, 17);
+        assert_eq!(inner.rows, 5);
+
         assert_eq!(
-            t.display(),
+            t.display(constrain),
             r#"
 ╭─────────────────╮
 │ Code   Name     │
@@ -338,24 +318,69 @@ mod test {
     }
 
     #[test]
-    fn test_table_truncate() {
+    fn test_table_border_maximized() {
         let mut t = Table::new(TableOptions {
-            max: Max {
-                width: Some(16),
-                height: None,
-            },
+            border: Some(Color::Unset),
+            spacing: 3,
             ..TableOptions::default()
         });
+
+        t.push(["Code", "Name"]);
+        t.divider();
+        t.push(["FR", "France"]);
+        t.push(["CH", "Switzerland"]);
+        t.push(["DE", "Germany"]);
+
+        let constrain = Constraint::new(
+            Size { cols: 26, rows: 0 },
+            Size {
+                cols: 26,
+                rows: usize::MAX,
+            },
+        );
+        let outer = t.outer(constrain);
+        assert_eq!(outer.cols, 26);
+        assert_eq!(outer.rows, 7);
+
+        let inner = t.inner(constrain);
+        assert_eq!(inner.cols, 24);
+        assert_eq!(inner.rows, 5);
+
+        assert_eq!(
+            t.display(constrain),
+            r#"
+╭────────────────────────╮
+│ Code   Name            │
+├────────────────────────┤
+│ FR     France          │
+│ CH     Switzerland     │
+│ DE     Germany         │
+╰────────────────────────╯
+"#
+            .trim_start()
+        );
+    }
+
+    #[test]
+    fn test_table_truncate() {
+        let mut t = Table::default();
+        let constrain = Constraint::new(
+            Size::MIN,
+            Size {
+                cols: 16,
+                rows: usize::MAX,
+            },
+        );
 
         t.push(["pineapple", "rosemary"]);
         t.push(["apples", "pears"]);
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(),
+            t.display(constrain),
             [
                 "pineapple rosem…\n",
-                "apples    pears\n"
+                "apples    pears \n"
             ].join("")
         );
     }
@@ -369,9 +394,9 @@ mod test {
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(),
+            t.display(Constraint::UNBOUNDED),
             [
-                "🍍pineapple __rosemary __sage\n",
+                "🍍pineapple __rosemary __sage   \n",
                 "__pears     🍎apples   🍌bananas\n"
             ].join("")
         );
@@ -380,19 +405,18 @@ mod test {
     #[test]
     fn test_table_unicode_truncate() {
         let mut t = Table::new(TableOptions {
-            max: Max {
-                width: Some(16),
-                height: None,
-            },
             ..TableOptions::default()
         });
-
+        let constrain = Constraint::max(Size {
+            cols: 16,
+            rows: usize::MAX,
+        });
         t.push(["🍍pineapple", "__rosemary"]);
         t.push(["__pears", "🍎apples"]);
 
         #[rustfmt::skip]
         assert_eq!(
-            t.display(),
+            t.display(constrain),
             [
                 "🍍pineapple __r…\n",
                 "__pears     🍎a…\n"

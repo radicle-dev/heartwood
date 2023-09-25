@@ -1,12 +1,12 @@
-use std::fmt::Display;
+use std::fmt;
 
-use super::{Element, Line, Paint};
+use super::{Color, Filled, Line, Paint};
 
 use unicode_segmentation::UnicodeSegmentation as _;
 use unicode_width::UnicodeWidthStr;
 
 /// Text that can be displayed on the terminal, measured, truncated and padded.
-pub trait Cell: Display {
+pub trait Cell: fmt::Display {
     /// Type after truncation.
     type Truncated: Cell;
     /// Type after padding.
@@ -14,6 +14,10 @@ pub trait Cell: Display {
 
     /// Cell display width in number of terminal columns.
     fn width(&self) -> usize;
+    /// Background color of cell.
+    fn background(&self) -> Color {
+        Color::Unset
+    }
     /// Truncate cell if longer than given width. Shows the delimiter if truncated.
     #[must_use]
     fn truncate(&self, width: usize, delim: &str) -> Self::Truncated;
@@ -28,6 +32,10 @@ impl Cell for Paint<String> {
 
     fn width(&self) -> usize {
         Cell::width(self.content())
+    }
+
+    fn background(&self) -> Color {
+        self.style.background
     }
 
     fn truncate(&self, width: usize, delim: &str) -> Self {
@@ -50,7 +58,7 @@ impl Cell for Line {
     type Padded = Line;
 
     fn width(&self) -> usize {
-        <Self as Element>::size(self).cols
+        Line::width(self)
     }
 
     fn pad(&self, width: usize) -> Self::Padded {
@@ -72,6 +80,10 @@ impl Cell for Paint<&str> {
 
     fn width(&self) -> usize {
         Cell::width(self.item)
+    }
+
+    fn background(&self) -> Color {
+        self.style.background
     }
 
     fn truncate(&self, width: usize, delim: &str) -> Paint<String> {
@@ -169,5 +181,26 @@ impl<T: Cell + ?Sized> Cell for &T {
 
     fn pad(&self, width: usize) -> Self::Padded {
         T::pad(self, width)
+    }
+}
+
+impl<T: Cell + fmt::Display> Cell for Filled<T> {
+    type Truncated = T::Truncated;
+    type Padded = T::Padded;
+
+    fn width(&self) -> usize {
+        T::width(&self.item)
+    }
+
+    fn background(&self) -> Color {
+        self.color
+    }
+
+    fn truncate(&self, width: usize, delim: &str) -> Self::Truncated {
+        T::truncate(&self.item, width, delim)
+    }
+
+    fn pad(&self, width: usize) -> Self::Padded {
+        T::pad(&self.item, width)
     }
 }

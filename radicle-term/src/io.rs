@@ -10,7 +10,7 @@ use zeroize::Zeroizing;
 
 use crate::command;
 use crate::format;
-use crate::{style, Paint};
+use crate::{style, Paint, Size};
 
 pub use inquire;
 pub use inquire::Select;
@@ -90,6 +90,12 @@ pub fn notice_args(args: fmt::Arguments) {
 
 pub fn columns() -> Option<usize> {
     termion::terminal_size().map(|(cols, _)| cols as usize).ok()
+}
+
+pub fn viewport() -> Option<Size> {
+    termion::terminal_size()
+        .map(|(cols, rows)| Size::new(cols as usize, rows as usize))
+        .ok()
 }
 
 pub fn headline(headline: impl fmt::Display) {

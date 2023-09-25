@@ -99,10 +99,10 @@ And let's leave a quick comment for our team:
 
 ```
 $ rad patch comment 73b73f376e93e09e0419664766ac9e433bf7d389 --message 'I cannot wait to get back to the 90s!'
-╭───────────────────────────────────────────────╮
-│ z6MknSL…StBU8Vi (you) [   ...    ] 5c418a5    │
-│ I cannot wait to get back to the 90s!         │
-╰───────────────────────────────────────────────╯
+╭────────────────────────────────────────────╮
+│ z6MknSL…StBU8Vi (you) [   ...    ] 5c418a5 │
+│ I cannot wait to get back to the 90s!      │
+╰────────────────────────────────────────────╯
 $ rad patch comment 73b73f376e93e09e0419664766ac9e433bf7d389 --message 'My favorite decade!' --reply-to 5c418a5 -q
 729cdf63ce4793ab3cabffbe0dce24db16e45549
 ```

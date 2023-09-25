@@ -14,9 +14,9 @@ pub mod textarea;
 pub mod vstack;
 
 pub use ansi::Color;
-pub use ansi::{paint, Paint, Style};
+pub use ansi::{paint, Filled, Paint, Style};
 pub use editor::Editor;
-pub use element::{Element, Line, Max, Size};
+pub use element::{Constraint, Element, Line, Size};
 pub use hstack::HStack;
 pub use inquire::ui::Styled;
 pub use io::*;

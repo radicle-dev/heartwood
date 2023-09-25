@@ -1,10 +1,20 @@
 use crate::colors;
-use crate::{Color, Element, Label, Line, Paint, Size};
+use crate::{Color, Constraint, Element, Label, Line, Paint, Size};
 
 /// Options for [`VStack`].
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct VStackOptions {
     border: Option<Color>,
+    padding: usize,
+}
+
+impl Default for VStackOptions {
+    fn default() -> Self {
+        Self {
+            border: None,
+            padding: 1,
+        }
+    }
 }
 
 /// A vertical stack row.
@@ -14,13 +24,21 @@ enum Row<'a> {
     #[default]
     Dividier,
 }
+
+impl<'a> Row<'a> {
+    fn width(&self, c: Constraint) -> usize {
+        match self {
+            Self::Element(e) => e.columns(c),
+            Self::Dividier => c.min.cols,
+        }
+    }
+}
+
 /// Vertical stack of [`Element`] objects that implements [`Element`].
 #[derive(Default, Debug)]
 pub struct VStack<'a> {
     rows: Vec<Row<'a>>,
     opts: VStackOptions,
-    width: usize,
-    height: usize,
 }
 
 impl<'a> VStack<'a> {
@@ -38,7 +56,6 @@ impl<'a> VStack<'a> {
     /// Add a horizontal divider.
     pub fn divider(mut self) -> Self {
         self.rows.push(Row::Dividier);
-        self.height += 1;
         self
     }
 
@@ -61,31 +78,67 @@ impl<'a> VStack<'a> {
         self
     }
 
+    /// Set horizontal padding.
+    pub fn padding(mut self, cols: usize) -> Self {
+        self.opts.padding = cols;
+        self
+    }
+
     /// Add an element to the stack.
     pub fn push(&mut self, child: impl Element + 'a) {
-        self.width = self.width.max(child.columns());
-        self.height += child.rows();
         self.rows.push(Row::Element(Box::new(child)));
+    }
+
+    /// Box this element.
+    pub fn boxed(self) -> Box<dyn Element + 'a> {
+        Box::new(self)
+    }
+
+    /// Inner size.
+    fn inner(&self, c: Constraint) -> Size {
+        let mut outer = self.outer(c);
+
+        if self.opts.border.is_some() {
+            outer.cols -= 2;
+            outer.rows -= 2;
+        }
+        outer
+    }
+
+    /// Outer size (includes borders).
+    fn outer(&self, c: Constraint) -> Size {
+        let padding = self.opts.padding * 2;
+        let mut cols = self.rows.iter().map(|r| r.width(c)).max().unwrap_or(0) + padding;
+        let mut rows = self.rows.len();
+
+        // Account for outer borders.
+        if self.opts.border.is_some() {
+            cols += 2;
+            rows += 2;
+        }
+        Size::new(cols, rows).constrain(c)
     }
 }
 
 impl<'a> Element for VStack<'a> {
-    fn size(&self) -> Size {
-        if self.opts.border.is_some() {
-            Size::new(self.width + 4, self.height + 2)
-        } else {
-            Size::new(self.width, self.height)
-        }
+    fn size(&self, parent: Constraint) -> Size {
+        self.outer(parent)
     }
 
-    fn render(&self) -> Vec<Line> {
+    fn render(&self, parent: Constraint) -> Vec<Line> {
         let mut lines = Vec::new();
+        let padding = self.opts.padding;
+        let inner = self.inner(parent);
+        let child = Constraint::tight(Size {
+            cols: inner.cols - padding * 2,
+            rows: usize::MAX,
+        });
 
         if let Some(color) = self.opts.border {
             lines.push(
                 Line::default()
                     .item(Paint::new("╭").fg(color))
-                    .item(Paint::new("─".repeat(self.width + 2)).fg(color))
+                    .item(Paint::new("─".repeat(inner.cols)).fg(color))
                     .item(Paint::new("╮").fg(color)),
             );
         }
@@ -93,14 +146,17 @@ impl<'a> Element for VStack<'a> {
         for row in &self.rows {
             match row {
                 Row::Element(elem) => {
-                    for mut line in elem.render() {
+                    for mut line in elem.render(child) {
+                        line.pad(child.max.cols);
+
                         if let Some(color) = self.opts.border {
-                            line.pad(self.width);
                             lines.push(
                                 Line::default()
-                                    .item(Paint::new("│ ").fg(color))
+                                    .item(Paint::new(format!("│{}", " ".repeat(padding))).fg(color))
                                     .extend(line)
-                                    .item(Paint::new(" │").fg(color)),
+                                    .item(
+                                        Paint::new(format!("{}│", " ".repeat(padding))).fg(color),
+                                    ),
                             );
                         } else {
                             lines.push(line);
@@ -112,7 +168,7 @@ impl<'a> Element for VStack<'a> {
                         lines.push(
                             Line::default()
                                 .item(Paint::new("├").fg(color))
-                                .item(Paint::new("─".repeat(self.width + 2)).fg(color))
+                                .item(Paint::new("─".repeat(inner.cols)).fg(color))
                                 .item(Paint::new("┤").fg(color)),
                         );
                     } else {
@@ -126,15 +182,84 @@ impl<'a> Element for VStack<'a> {
             lines.push(
                 Line::default()
                     .item(Paint::new("╰").fg(color))
-                    .item(Paint::new("─".repeat(self.width + 2)).fg(color))
+                    .item(Paint::new("─".repeat(inner.cols)).fg(color))
                     .item(Paint::new("╯").fg(color)),
             );
         }
-        lines.into_iter().flat_map(|h| h.render()).collect()
+        lines.into_iter().flat_map(|h| h.render(child)).collect()
     }
 }
 
 /// Simple bordered vstack.
 pub fn bordered<'a>(child: impl Element + 'a) -> VStack<'a> {
     VStack::default().border(Some(colors::FAINT)).child(child)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_vstack() {
+        let mut v = VStack::default().border(Some(Color::Unset)).padding(1);
+
+        v.push(Line::new("banana"));
+        v.push(Line::new("apple"));
+        v.push(Line::new("abricot"));
+
+        let constraint = Constraint::default();
+        let outer = v.outer(constraint);
+        assert_eq!(outer.cols, 11);
+        assert_eq!(outer.rows, 5);
+
+        let inner = v.inner(constraint);
+        assert_eq!(inner.cols, 9);
+        assert_eq!(inner.rows, 3);
+
+        assert_eq!(
+            v.display(constraint),
+            r#"
+╭─────────╮
+│ banana  │
+│ apple   │
+│ abricot │
+╰─────────╯
+"#
+            .trim_start()
+        );
+    }
+
+    #[test]
+    fn test_vstack_maximize() {
+        let mut v = VStack::default().border(Some(Color::Unset)).padding(1);
+
+        v.push(Line::new("banana"));
+        v.push(Line::new("apple"));
+        v.push(Line::new("abricot"));
+
+        let constraint = Constraint {
+            min: Size::new(14, 0),
+            max: Size::new(14, usize::MAX),
+        };
+        let outer = v.outer(constraint);
+        assert_eq!(outer.cols, 14);
+        assert_eq!(outer.rows, 5);
+
+        let inner = v.inner(constraint);
+        assert_eq!(inner.cols, 12);
+        assert_eq!(inner.rows, 3);
+
+        assert_eq!(
+            v.display(constraint),
+            r#"
+╭────────────╮
+│ banana     │
+│ apple      │
+│ abricot    │
+╰────────────╯
+"#
+            .trim_start()
+        );
+    }
 }
