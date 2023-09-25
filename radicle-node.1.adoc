@@ -1,0 +1,25 @@
+= radicle-node(1)
+The Radicle Team <team@radicle.xyz>
+:doctype: manpage
+:revnumber: 0.8.0
+:revdate: 2023-10-12
+:mansource: rad {revnumber}
+:manmanual: Radicle CLI Manual
+
+== Name
+
+radicle-node - Radicle node
+
+== Synopsis
+
+*radicle-node* --help
+
+== Description
+
+A Radicle node synchronizes its Git repositories with other nodes.
+This manual page is a placeholder to point you at the *--help**
+option.
+
+== SEE ALSO ==
+
+*rad*(1)

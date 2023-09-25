@@ -1,0 +1,34 @@
+#!/bin/bash
+
+set -euo pipefail
+
+rm -f ../radicle*_*
+git clean -fdx
+
+# Get name and version of source package.
+name="$(dpkg-parsechangelog -SSource)"
+version="$(dpkg-parsechangelog -SVersion)"
+
+# Get upstream version: everything before the last dash.
+uv="$(echo "$version" | sed 's/-[^-]*$//')"
+orig="${name}_${uv}.orig.tar.xz"
+
+# Create a tar ball without the Debian packaging.
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+git archive HEAD | tar -C "$tmp" -xf -
+rm -rf "$tmp/debian"
+tar -C "$tmp" -cf - . | xz >"../$orig"
+
+# Actually build the package, without signing the .changes file.
+dpkg-buildpackage -us -uc
+
+# Dump some information to make it easier to visually verify
+# everything looks OK. Also, test the package with the lintian tool.
+arch="$(dpkg --print-architecture)"
+deb="../${name}_${version}_${arch}.deb"
+changes="../${name}_${version}_${arch}.changes"
+
+ls -l "$deb"
+dpkg -c "$deb"
+lintian -i "$changes"

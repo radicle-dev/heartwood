@@ -1,0 +1,10 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: heartwood
+Upstream-Contact: https://radicle.xyz/
+Source: https://app.radicle.xyz/seeds/seed.radicle.xyz
+
+Files: *
+Copyright: 2019-2021, The Radicle Foundation
+License: Apache-2 or Expat
+  License texts omitted, see LICENSE-APACHE and LICENSE-MIT in the
+  source tree.

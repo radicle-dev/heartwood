@@ -1,0 +1,18 @@
+Source: radicle
+Maintainer: The Radicle Team <team@radicle.xyz>
+Uploaders: Lars Wirzenius <liw@liw.fi>
+Section: vcs
+Priority: optional
+Standards-Version: 4.6.2
+Build-Depends: debhelper (>= 10~),
+  dh-cargo,
+  asciidoctor
+Homepage: https://radicle.xyz/
+
+Package: radicle
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}, git
+Description: peer-to-peer, distributed git hosting
+ Radicle is a secure, decentralized and powerful alternative to code
+ forges such as GitHub and GitLab that preserves user sovereignty and
+ freedom.

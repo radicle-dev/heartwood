@@ -1,0 +1,26 @@
+= git-remote-rad(1)
+The Radicle Team <team@radicle.xyz>
+:doctype: manpage
+:revnumber: 0.8.0
+:revdate: 2023-10-12
+:mansource: rad {revnumber}
+:manmanual: Radicle CLI Manual
+
+== Name
+
+git-remote-rad - Git remote helper for Radicle
+
+== Synopsis
+
+*git-remote-rad* *
+
+== Description
+
+**git-remote-rad** is a **git**(1) remote helper program to allow git
+to interact with the local Radicle storage. git will use this program
+automatically, when using a remote repository with the "rad" protocol.
+It is never invoked directly.
+
+== SEE ALSO ==
+
+*git-remote-helpers*(1), *rad*(1)
