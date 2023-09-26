@@ -29,6 +29,19 @@ serde_yaml = { version = "0.8" }
 similar = { version = "2.2.1" }
 thiserror = { version = "1" }
 timeago = { version = "0.3", default-features = false }
+tree-sitter = { version = "0.20.0" }
+tree-sitter-highlight = { version = "0.20" }
+tree-sitter-rust = { version = "0.20" }
+tree-sitter-typescript = { version = "0.20" }
+tree-sitter-html = { version = "0.19" }
+tree-sitter-css = { version = "0.19" }
+tree-sitter-toml = { version = "0.20" }
+tree-sitter-c = { version = "0.20" }
+tree-sitter-python = { version = "0.20" }
+tree-sitter-ruby = { version = "0.20" }
+tree-sitter-bash = { version = "0.20" }
+tree-sitter-go = { version = "0.20.0" }
+tree-sitter-md = { version = "0.1.5" }
 ureq = { version = "2.6.1", default-features = false, features = ["json"] }
 zeroize = { version = "1.1" }
 

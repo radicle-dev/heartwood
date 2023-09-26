@@ -148,7 +148,12 @@ pub trait Decode: Sized {
 
     /// Decode from a string input.
     fn parse(s: &str) -> Result<Self, Error> {
-        let mut r = io::BufReader::new(s.as_bytes());
+        Self::from_bytes(s.as_bytes())
+    }
+
+    /// Decode from a string input.
+    fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let mut r = io::BufReader::new(bytes);
         Self::decode(&mut r)
     }
 }

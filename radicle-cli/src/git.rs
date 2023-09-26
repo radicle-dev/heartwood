@@ -1,7 +1,7 @@
 //! Git-related functions and types.
 
 pub mod ddiff;
-#[path = "git/unified_diff.rs"]
+pub mod pretty_diff;
 pub mod unified_diff;
 
 use std::collections::HashSet;

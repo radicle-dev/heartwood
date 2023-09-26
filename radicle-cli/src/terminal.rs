@@ -4,6 +4,7 @@ pub mod format;
 pub mod io;
 pub use io::{proposal, signer};
 pub mod comment;
+pub mod highlight;
 pub mod issue;
 pub mod patch;
 
