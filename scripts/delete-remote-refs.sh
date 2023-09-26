@@ -11,7 +11,7 @@ RAD_HOME=${RAD_HOME:-"$HOME/.radicle"}
 REPO=$(echo "$1" | sed 's/rad://')
 REMOTE=$2
 
-if [ "$REMOTE" == "$(rad self --nid)" ]; then
+if [ "$REMOTE" = "$(rad self --nid)" ]; then
   echo "Error: refusing to delete your own remote"
   exit 1
 fi
