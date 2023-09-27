@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use axum::extract::State;
+use axum::extract::{DefaultBodyLimit, State};
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
 use axum::response::IntoResponse;
@@ -28,6 +28,7 @@ use crate::api::{self, CobsQuery, Context, DataUri, PaginationQuery};
 use crate::axum_extra::{Path, Query};
 
 const CACHE_1_HOUR: &str = "public, max-age=3600, must-revalidate";
+const MAX_BODY_LIMIT: usize = 4_194_304;
 
 pub fn router(ctx: Context) -> Router {
     Router::new()
@@ -68,6 +69,7 @@ pub fn router(ctx: Context) -> Router {
             patch(patch_update_handler).get(patch_handler),
         )
         .with_state(ctx)
+        .layer(DefaultBodyLimit::max(MAX_BODY_LIMIT))
 }
 
 /// List all projects.
