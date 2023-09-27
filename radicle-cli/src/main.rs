@@ -139,6 +139,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "diff" => {
+            term::run_command_args::<rad_diff::Options, _>(
+                rad_diff::HELP,
+                rad_diff::run,
+                args.to_vec(),
+            );
+        }
         "edit" => {
             term::run_command_args::<rad_edit::Options, _>(
                 rad_edit::HELP,

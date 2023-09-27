@@ -10,6 +10,8 @@ pub mod rad_clone;
 pub mod rad_cob;
 #[path = "commands/delegate.rs"]
 pub mod rad_delegate;
+#[path = "commands/diff.rs"]
+pub mod rad_diff;
 #[path = "commands/edit.rs"]
 pub mod rad_edit;
 #[path = "commands/fork.rs"]
