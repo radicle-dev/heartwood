@@ -160,10 +160,10 @@ impl ToPretty for DiffContent {
                 Some((f.old.oid, f.path.clone())),
                 Some((f.new.oid, f.path.clone())),
             ),
-            FileDiff::Copied(_) => {
-                // This is due to not having `oid`s for copied files yet.
-                unimplemented!("DiffContent::pretty: copied files are not supported in diffs")
-            }
+            FileDiff::Copied(f) => (
+                Some((f.old.oid, f.old_path.clone())),
+                Some((f.old.oid, f.new_path.clone())),
+            ),
         };
 
         let mut header = header.pretty(hi, &(), repo);

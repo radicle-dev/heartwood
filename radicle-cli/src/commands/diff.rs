@@ -104,7 +104,6 @@ pub fn run(options: Options, _ctx: impl term::Context) -> anyhow::Result<()> {
     let mut find_opts = git::raw::DiffFindOptions::new();
     find_opts.exact_match_only(true);
     find_opts.all(true);
-    find_opts.copies(false); // We don't support finding copies at the moment.
 
     let mut diff = match oids.as_slice() {
         [] => {
