@@ -1,3 +1,6 @@
+use std::fs;
+use std::path::Path;
+
 use radicle::git;
 use radicle_surf::diff;
 use radicle_surf::diff::{Diff, DiffContent, FileDiff, Hunk, Modification};
@@ -9,15 +12,44 @@ use crate::terminal::highlight::{Highlighter, Theme};
 
 use super::unified_diff::{Decode, HunkHeader};
 
+/// Blob returned by the [`Repo`] trait.
+pub enum Blob {
+    Binary,
+    Plain(Vec<u8>),
+}
+
 /// A repository of Git blobs.
 pub trait Repo {
     /// Lookup a blob from the repo.
-    fn blob(&self, oid: git::Oid) -> Result<git::raw::Blob, git::raw::Error>;
+    fn blob(&self, oid: git::Oid) -> Result<Blob, git::raw::Error>;
+    /// Lookup a file in the workdir.
+    fn file(&self, path: &Path) -> Option<Blob>;
 }
 
 impl Repo for git::raw::Repository {
-    fn blob(&self, oid: git::Oid) -> Result<git::raw::Blob, git::raw::Error> {
-        self.find_blob(*oid)
+    fn blob(&self, oid: git::Oid) -> Result<Blob, git::raw::Error> {
+        let blob = self.find_blob(*oid)?;
+
+        if blob.is_binary() {
+            Ok(Blob::Binary)
+        } else {
+            Ok(Blob::Plain(blob.content().to_vec()))
+        }
+    }
+
+    fn file(&self, path: &Path) -> Option<Blob> {
+        self.workdir()
+            .and_then(|dir| fs::read(dir.join(path)).ok())
+            .map(|content| {
+                // A file is considered binary if there is a zero byte in the first 8 kilobytes
+                // of the file. This is the same heuristic Git uses.
+                let binary = content.iter().take(8192).any(|b| *b == 0);
+                if binary {
+                    Blob::Binary
+                } else {
+                    Blob::Plain(content)
+                }
+            })
     }
 }
 
@@ -118,10 +150,16 @@ impl ToPretty for DiffContent {
         let theme = Theme::default();
 
         let (old, new) = match context {
-            FileDiff::Added(f) => (None, Some(f.new.oid)),
-            FileDiff::Moved(f) => (Some(f.old.oid), Some(f.new.oid)),
-            FileDiff::Deleted(f) => (Some(f.old.oid), None),
-            FileDiff::Modified(f) => (Some(f.old.oid), Some(f.new.oid)),
+            FileDiff::Added(f) => (None, Some((f.new.oid, f.path.clone()))),
+            FileDiff::Moved(f) => (
+                Some((f.old.oid, f.old_path.clone())),
+                Some((f.new.oid, f.new_path.clone())),
+            ),
+            FileDiff::Deleted(f) => (Some((f.old.oid, f.path.clone())), None),
+            FileDiff::Modified(f) => (
+                Some((f.old.oid, f.path.clone())),
+                Some((f.new.oid, f.path.clone())),
+            ),
             FileDiff::Copied(_) => {
                 // This is due to not having `oid`s for copied files yet.
                 unimplemented!("DiffContent::pretty: copied files are not supported in diffs")
@@ -154,19 +192,15 @@ impl ToPretty for DiffContent {
             header.push(term::label(format!(" +{additions}")).fg(theme.color("positive.light")));
         }
 
-        let old = old.and_then(|oid| repo.blob(oid).ok());
-        let new = new.and_then(|oid| repo.blob(oid).ok());
+        let old = old.and_then(|(oid, path)| repo.blob(oid).ok().or_else(|| repo.file(&path)));
+        let new = new.and_then(|(oid, path)| repo.blob(oid).ok().or_else(|| repo.file(&path)));
         let mut blobs = Blobs::default();
 
-        if let Some(blob) = old {
-            if !blob.is_binary() {
-                blobs.old = hi.highlight(context.path(), blob.content()).ok().flatten();
-            }
+        if let Some(Blob::Plain(content)) = old {
+            blobs.old = hi.highlight(context.path(), &content).ok().flatten();
         }
-        if let Some(blob) = new {
-            if !blob.is_binary() {
-                blobs.new = hi.highlight(context.path(), blob.content()).ok().flatten();
-            }
+        if let Some(Blob::Plain(content)) = new {
+            blobs.new = hi.highlight(context.path(), &content).ok().flatten();
         }
         let mut vstack = term::VStack::default()
             .border(Some(term::colors::FAINT))
