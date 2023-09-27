@@ -29,6 +29,7 @@ Usage
 Options
 
     --staged        View staged changes
+    --color         Force color output
     --help          Print help
 "#,
 };
@@ -37,6 +38,7 @@ pub struct Options {
     pub commits: Vec<Rev>,
     pub staged: bool,
     pub unified: usize,
+    pub color: bool,
 }
 
 impl Args for Options {
@@ -47,6 +49,7 @@ impl Args for Options {
         let mut commits = Vec::new();
         let mut staged = false;
         let mut unified = 5;
+        let mut color = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -55,6 +58,7 @@ impl Args for Options {
                     unified = term::args::number(&val)?;
                 }
                 Long("staged") | Long("cached") => staged = true,
+                Long("color") => color = true,
                 Long("help") | Short('h') => return Err(Error::Help.into()),
                 Value(val) => {
                     let rev = term::args::rev(&val)?;
@@ -70,6 +74,7 @@ impl Args for Options {
                 commits,
                 staged,
                 unified,
+                color,
             },
             vec![],
         ))
@@ -134,6 +139,8 @@ pub fn run(options: Options, _ctx: impl term::Context) -> anyhow::Result<()> {
         }
     }?;
     diff.find_similar(Some(&mut find_opts))?;
+
+    term::Paint::force(options.color);
 
     let diff = surf::diff::Diff::try_from(diff)?;
     let mut hi = Highlighter::default();
