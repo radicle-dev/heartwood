@@ -60,13 +60,12 @@ impl Constraint {
     }
 
     /// Create a constraint from the terminal environment.
-    ///
-    /// If standard out isn't a terminal, returns an unbounded constraint.
-    pub fn from_env() -> Self {
+    /// Returns [`None`] if the output device is not a terminal.
+    pub fn from_env() -> Option<Self> {
         if io::stdout().is_terminal() {
-            Self::max(viewport().unwrap_or(Size::MAX))
+            Some(Self::max(viewport().unwrap_or(Size::MAX)))
         } else {
-            Self::UNBOUNDED
+            None
         }
     }
 }
@@ -92,7 +91,7 @@ pub trait Element: fmt::Debug {
 
     /// Print this element to stdout.
     fn print(&self) {
-        for line in self.render(Constraint::from_env()) {
+        for line in self.render(Constraint::from_env().unwrap_or_default()) {
             println!("{}", line.to_string().trim_end());
         }
     }

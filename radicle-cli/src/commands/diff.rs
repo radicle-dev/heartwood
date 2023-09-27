@@ -146,7 +146,7 @@ pub fn run(options: Options, _ctx: impl term::Context) -> anyhow::Result<()> {
     let mut hi = Highlighter::default();
     let pretty = diff.pretty(&mut hi, &(), &repo);
 
-    pretty.write(Constraint::from_env().maximize());
+    pretty.write(Constraint::from_env().unwrap_or_default());
 
     Ok(())
 }
