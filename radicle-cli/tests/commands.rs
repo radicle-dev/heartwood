@@ -95,6 +95,20 @@ fn rad_issue() {
 }
 
 #[test]
+fn rad_cob() {
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let home = &profile.home;
+    let working = environment.tmp().join("working");
+
+    // Setup a test repository.
+    fixtures::repository(&working);
+
+    test("examples/rad-init.md", &working, Some(home), []).unwrap();
+    test("examples/rad-cob.md", &working, Some(home), []).unwrap();
+}
+
+#[test]
 fn rad_label() {
     let mut environment = Environment::new();
     let profile = environment.profile("alice");

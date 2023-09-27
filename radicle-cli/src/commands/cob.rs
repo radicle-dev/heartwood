@@ -3,9 +3,11 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use chrono::prelude::*;
+use nonempty::NonEmpty;
 use radicle::cob;
 use radicle::prelude::Id;
 use radicle::storage::ReadStorage;
+use radicle_cob::object::collaboration::list;
 
 use crate::git::Rev;
 use crate::terminal as term;
@@ -19,10 +21,12 @@ pub const HELP: Help = Help {
 Usage
 
     rad cob <command> [<option>...]
+    rad cob list --repo <rid> --type <typename>
     rad cob show --repo <rid> --type <typename> --object <oid>
 
 Commands
 
+    list       List all COBs of a given type (--object is not needed)
     show       Show a COB as raw operations
 
 Options
@@ -31,15 +35,20 @@ Options
 "#,
 };
 
-enum Operation {
+enum OperationName {
+    List,
     Show,
+}
+
+enum Operation {
+    List,
+    Show(Rev),
 }
 
 pub struct Options {
     rid: Id,
     op: Operation,
     type_name: cob::TypeName,
-    oid: Rev,
 }
 
 impl Args for Options {
@@ -47,7 +56,7 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let mut op: Option<Operation> = None;
+        let mut op: Option<OperationName> = None;
         let mut type_name: Option<cob::TypeName> = None;
         let mut oid: Option<Rev> = None;
         let mut rid: Option<Id> = None;
@@ -55,7 +64,8 @@ impl Args for Options {
         while let Some(arg) = parser.next()? {
             match arg {
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "s" | "show" => op = Some(Operation::Show),
+                    "l" | "list" => op = Some(OperationName::List),
+                    "s" | "show" => op = Some(OperationName::Show),
                     unknown => anyhow::bail!("unknown operation '{unknown}'"),
                 },
                 Long("type") | Short('t') => {
@@ -86,9 +96,14 @@ impl Args for Options {
 
         Ok((
             Options {
-                op: op.ok_or_else(|| anyhow!("a command must be specified"))?,
-                oid: oid
-                    .ok_or_else(|| anyhow!("an object id must be specified with `--object`"))?,
+                op: {
+                    match op.ok_or_else(|| anyhow!("a command must be specified"))? {
+                        OperationName::List => Operation::List,
+                        OperationName::Show => Operation::Show(oid.ok_or_else(|| {
+                            anyhow!("an object id must be specified with `--object")
+                        })?),
+                    }
+                },
                 rid: rid
                     .ok_or_else(|| anyhow!("a repository id must be specified with `--repo`"))?,
                 type_name: type_name
@@ -105,8 +120,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repo = storage.repository(options.rid)?;
 
     match options.op {
-        Operation::Show => {
-            let oid = options.oid.resolve(&repo.backend)?;
+        Operation::List => {
+            let cobs = list::<NonEmpty<cob::Entry>, _>(&repo, &options.type_name)?;
+            for cob in cobs {
+                println!("{}", cob.id);
+            }
+        }
+        Operation::Show(oid) => {
+            let oid = oid.resolve(&repo.backend)?;
             let ops = cob::store::ops(&oid, &options.type_name, &repo)?;
 
             for op in ops.into_iter().rev() {
