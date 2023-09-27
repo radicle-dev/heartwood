@@ -150,8 +150,13 @@ pub fn string(val: &OsString) -> String {
 }
 
 pub fn rev(val: &OsString) -> anyhow::Result<Rev> {
+    let s = val.to_str().ok_or(anyhow!("invalid git rev {val:?}"))?;
+    Ok(Rev::from(s.to_owned()))
+}
+
+pub fn oid(val: &OsString) -> anyhow::Result<Rev> {
     let s = string(val);
-    let _ = radicle::git::Oid::from_str(&s).map_err(|_| anyhow!("invalid git rev '{s}'"))?;
+    let _ = radicle::git::Oid::from_str(&s).map_err(|_| anyhow!("invalid git oid '{s}'"))?;
 
     Ok(Rev::from(s))
 }
