@@ -6,7 +6,9 @@ use radicle_cob::history::{Entry, EntryId};
 use radicle_crypto::PublicKey;
 
 use crate::cob::Timestamp;
-use crate::git;
+use crate::identity::DocAt;
+use crate::storage::ReadRepository;
+use crate::{git, identity};
 
 /// The author of an [`Op`].
 pub type ActorId = PublicKey;
@@ -37,7 +39,7 @@ pub struct Op<A> {
     /// Parent operations.
     pub parents: Vec<EntryId>,
     /// Head of identity document committed to by this operation.
-    pub identity: git::Oid,
+    pub identity: Option<git::Oid>,
     /// Object manifest.
     pub manifest: Manifest,
 }
@@ -60,7 +62,7 @@ impl<A> Op<A> {
         actions: impl Into<NonEmpty<A>>,
         author: ActorId,
         timestamp: impl Into<Timestamp>,
-        identity: git::Oid,
+        identity: Option<git::Oid>,
         manifest: Manifest,
     ) -> Self {
         Self {
@@ -76,6 +78,16 @@ impl<A> Op<A> {
 
     pub fn id(&self) -> EntryId {
         self.id
+    }
+
+    pub fn identity_doc<R: ReadRepository>(
+        &self,
+        repo: &R,
+    ) -> Result<Option<DocAt>, identity::DocError> {
+        match self.identity {
+            None => Ok(None),
+            Some(head) => repo.identity_doc_at(head).map(Some),
+        }
     }
 }
 
@@ -101,7 +113,7 @@ where
 
     fn try_from(entry: &'a Entry) -> Result<Self, Self::Error> {
         let id = *entry.id();
-        let identity = *entry.resource();
+        let identity = entry.resource().copied();
         let actions: Vec<_> = entry
             .contents()
             .iter()

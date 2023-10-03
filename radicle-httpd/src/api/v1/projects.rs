@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use radicle::cob::{issue, patch, Embed, Label, Uri};
-use radicle::identity::{Did, Id};
+use radicle::identity::{Did, DocAt, Id};
 use radicle::node::routing::Store;
 use radicle::node::AliasStore;
 use radicle::node::NodeId;
@@ -89,8 +89,7 @@ async fn project_root_handler(
         .filter_map(|id| {
             let Ok(repo) = storage.repository(id) else { return None };
             let Ok((_, head)) = repo.head() else { return None };
-            let Ok((_, doc)) = repo.identity_doc() else { return None };
-            let Ok(doc) = doc.verified() else { return None };
+            let Ok(DocAt { doc, .. }) = repo.identity_doc() else { return None };
             let Ok(payload) = doc.project() else { return None };
             let Ok(issues) = issue::Issues::open(&repo) else { return None };
             let Ok(issues) = issues.counts() else { return None };
@@ -686,24 +685,16 @@ async fn issue_update_handler(
     api::auth::validate(&ctx, &token).await?;
 
     let storage = &ctx.profile.storage;
-    let signer = ctx.profile.signer().unwrap();
+    let signer = ctx.profile.signer()?;
     let repo = storage.repository(project)?;
     let mut issues = issue::Issues::open(&repo)?;
     let mut issue = issues.get_mut(&issue_id.into())?;
 
-    match action {
-        issue::Action::Assign { assignees } => {
-            issue.assign(assignees, &signer)?;
-        }
-        issue::Action::Lifecycle { state } => {
-            issue.lifecycle(state, &signer)?;
-        }
-        issue::Action::Label { labels } => {
-            issue.label(labels, &signer)?;
-        }
-        issue::Action::Edit { title } => {
-            issue.edit(title, &signer)?;
-        }
+    let id = match action {
+        issue::Action::Assign { assignees } => issue.assign(assignees, &signer)?,
+        issue::Action::Lifecycle { state } => issue.lifecycle(state, &signer)?,
+        issue::Action::Label { labels } => issue.label(labels, &signer)?,
+        issue::Action::Edit { title } => issue.edit(title, &signer)?,
         issue::Action::Comment {
             body,
             reply_to,
@@ -720,7 +711,7 @@ async fn issue_update_handler(
                 })
                 .collect();
             if let Some(to) = reply_to {
-                issue.comment(body, to, embeds, &signer)?;
+                issue.comment(body, to, embeds, &signer)?
             } else {
                 return Err(Error::BadRequest("`replyTo` missing".to_owned()));
             }
@@ -729,9 +720,7 @@ async fn issue_update_handler(
             id,
             reaction,
             active,
-        } => {
-            issue.react(id, reaction, active, &signer)?;
-        }
+        } => issue.react(id, reaction, active, &signer)?,
         issue::Action::CommentEdit { id, body, embeds } => {
             let embeds: Vec<Embed> = embeds
                 .into_iter()
@@ -743,14 +732,12 @@ async fn issue_update_handler(
                     })
                 })
                 .collect();
-            issue.edit_comment(id, body, embeds, &signer)?;
+            issue.edit_comment(id, body, embeds, &signer)?
         }
-        issue::Action::CommentRedact { id } => {
-            issue.redact_comment(id, &signer)?;
-        }
+        issue::Action::CommentRedact { id } => issue.redact_comment(id, &signer)?,
     };
 
-    Ok::<_, Error>(Json(json!({ "success": true })))
+    Ok::<_, Error>(Json(json!({ "success": true, "id": id })))
 }
 
 /// Get project issue.
@@ -830,41 +817,27 @@ async fn patch_update_handler(
     let repo = storage.repository(project)?;
     let mut patches = patch::Patches::open(&repo)?;
     let mut patch = patches.get_mut(&patch_id.into())?;
-    match action {
-        patch::Action::Edit { title, target } => {
-            patch.edit(title, target, &signer)?;
-        }
-        patch::Action::Label { labels } => {
-            patch.label(labels, &signer)?;
-        }
-        patch::Action::Lifecycle { state } => {
-            patch.lifecycle(state, &signer)?;
-        }
-        patch::Action::Assign { assignees } => {
-            patch.assign(assignees, &signer)?;
-        }
+    let id = match action {
+        patch::Action::Edit { title, target } => patch.edit(title, target, &signer)?,
+        patch::Action::Label { labels } => patch.label(labels, &signer)?,
+        patch::Action::Lifecycle { state } => patch.lifecycle(state, &signer)?,
+        patch::Action::Assign { assignees } => patch.assign(assignees, &signer)?,
         patch::Action::Merge { revision, commit } => {
             // TODO: We should cleanup the stored copy at least.
-            let _ = patch.merge(revision, commit, &signer)?;
+            patch.merge(revision, commit, &signer)?.entry
         }
         patch::Action::Review {
             revision,
             summary,
             verdict,
             labels,
-        } => {
-            patch.review(revision, verdict, summary, labels, &signer)?;
-        }
+        } => *patch.review(revision, verdict, summary, labels, &signer)?,
         patch::Action::ReviewEdit {
             review,
             summary,
             verdict,
-        } => {
-            patch.edit_review(review, summary, verdict, &signer)?;
-        }
-        patch::Action::ReviewRedact { review } => {
-            patch.redact_review(review, &signer)?;
-        }
+        } => patch.edit_review(review, summary, verdict, &signer)?,
+        patch::Action::ReviewRedact { review } => patch.redact_review(review, &signer)?,
         patch::Action::ReviewComment {
             review,
             body,
@@ -882,7 +855,7 @@ async fn patch_update_handler(
                     })
                 })
                 .collect();
-            patch.review_comment(review, body, location, reply_to, embeds, &signer)?;
+            patch.review_comment(review, body, location, reply_to, embeds, &signer)?
         }
         patch::Action::ReviewCommentEdit {
             review,
@@ -900,42 +873,34 @@ async fn patch_update_handler(
                     })
                 })
                 .collect();
-            patch.edit_review_comment(review, comment, body, embeds, &signer)?;
+            patch.edit_review_comment(review, comment, body, embeds, &signer)?
         }
         patch::Action::ReviewCommentReact {
             review,
             comment,
             reaction,
             active,
-        } => {
-            patch.react_review_comment(review, comment, reaction, active, &signer)?;
-        }
+        } => patch.react_review_comment(review, comment, reaction, active, &signer)?,
         patch::Action::ReviewCommentRedact { review, comment } => {
-            patch.redact_review_comment(review, comment, &signer)?;
+            patch.redact_review_comment(review, comment, &signer)?
         }
         patch::Action::ReviewCommentResolve { review, comment } => {
-            patch.resolve_review_comment(review, comment, &signer)?;
+            patch.resolve_review_comment(review, comment, &signer)?
         }
         patch::Action::ReviewCommentUnresolve { review, comment } => {
-            patch.unresolve_review_comment(review, comment, &signer)?;
+            patch.unresolve_review_comment(review, comment, &signer)?
         }
         patch::Action::Revision {
             description,
             base,
             oid,
             ..
-        } => {
-            patch.update(description, base, oid, &signer)?;
-        }
+        } => patch.update(description, base, oid, &signer)?.into(),
         patch::Action::RevisionEdit {
             revision,
             description,
-        } => {
-            patch.edit_revision(revision, description, &signer)?;
-        }
-        patch::Action::RevisionRedact { revision } => {
-            patch.redact(revision, &signer)?;
-        }
+        } => patch.edit_revision(revision, description, &signer)?,
+        patch::Action::RevisionRedact { revision } => patch.redact(revision, &signer)?,
         patch::Action::RevisionComment {
             revision,
             body,
@@ -953,7 +918,7 @@ async fn patch_update_handler(
                     })
                 })
                 .collect();
-            patch.comment(revision, body, reply_to, location, embeds, &signer)?;
+            patch.comment(revision, body, reply_to, location, embeds, &signer)?
         }
         patch::Action::RevisionCommentEdit {
             revision,
@@ -971,25 +936,23 @@ async fn patch_update_handler(
                     })
                 })
                 .collect();
-            patch.comment_edit(revision, comment, body, embeds, &signer)?;
+            patch.comment_edit(revision, comment, body, embeds, &signer)?
         }
         patch::Action::RevisionCommentReact {
             revision,
             comment,
             reaction,
             active,
-        } => {
-            patch.comment_react(revision, comment, reaction, active, &signer)?;
-        }
+        } => patch.comment_react(revision, comment, reaction, active, &signer)?,
         patch::Action::RevisionCommentRedact { revision, comment } => {
-            patch.comment_redact(revision, comment, &signer)?;
+            patch.comment_redact(revision, comment, &signer)?
         }
         _ => {
             todo!();
         }
     };
 
-    Ok::<_, Error>(Json(json!({ "success": true })))
+    Ok::<_, Error>(Json(json!({ "success": true, "id": id })))
 }
 
 /// Get project patches list.
@@ -2058,7 +2021,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_issues_create() {
-        const CREATED_ISSUE_ID: &str = "e712eb0b5874d5256022fb620f26caf847d96723";
+        const CREATED_ISSUE_ID: &str = "8b42657072f6192cba9e08561582576a975656cd";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -2166,7 +2129,7 @@ mod routes {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.json().await, json!({ "success": true }));
+        assert_eq!(response.success().await, true);
 
         let body = serde_json::to_vec(&json!({
           "type": "comment.react",
@@ -2199,11 +2162,11 @@ mod routes {
         )
         .await;
 
-        assert_eq!(response.json().await, json!({ "success": true }));
+        assert_eq!(response.success().await, true);
 
         let body = serde_json::to_vec(&json!({
           "type": "comment.redact",
-          "id": "6fe9fdec2ec9f6436f2875dbcbedb95dd215b863",
+          "id": "918fff44966e4305523c077c80ac93b1196f1a7e",
         }))
         .unwrap();
 
@@ -2215,7 +2178,7 @@ mod routes {
         )
         .await;
 
-        assert_eq!(response.json().await, json!({ "success": true }));
+        assert_eq!(response.success().await, true);
 
         let response = get(
             &app,
@@ -2284,7 +2247,7 @@ mod routes {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.json().await, json!({ "success": true }));
+        assert_eq!(response.success().await, true);
 
         let response = get(
             &app,
@@ -2423,7 +2386,7 @@ mod routes {
 
     #[tokio::test]
     async fn test_projects_create_patches() {
-        const CREATED_PATCH_ID: &str = "9cffd66099cceb0439a0f67c4aa99bde5e868eaa";
+        const CREATED_PATCH_ID: &str = "beaed2e1d3b9b01ef10326a9a1c951799ba5fb25";
 
         let tmp = tempfile::tempdir().unwrap();
         let ctx = contributor(tmp.path());
@@ -2686,7 +2649,7 @@ mod routes {
                   "reviews": [],
                 },
                 {
-                  "id": "b1f68feacb7040b089a77c1a0bff60a0411e6c1e",
+                  "id": "341ba93c6db54e5891fbd3be4a4f64f4715681fa",
                   "author": {
                     "id": CONTRIBUTOR_DID,
                   },
@@ -2857,10 +2820,12 @@ mod routes {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
+
+        let comment_id = response.id().await.to_string();
         let comment_react_body = serde_json::to_vec(&json!({
           "type": "revision.comment.react",
           "revision": CONTRIBUTOR_PATCH_ID,
-          "comment": CONTRIBUTOR_COMMENT_1,
+          "comment": comment_id,
           "reaction": "🚀",
           "active": true
         }))
@@ -2876,7 +2841,7 @@ mod routes {
         let comment_edit = serde_json::to_vec(&json!({
           "type": "revision.comment.edit",
           "revision": CONTRIBUTOR_PATCH_ID,
-          "comment": CONTRIBUTOR_COMMENT_1,
+          "comment": comment_id,
           "body": "EDIT: This is a root level comment",
           "embeds": [
             {
@@ -2899,7 +2864,7 @@ mod routes {
           "type": "revision.comment",
           "revision": CONTRIBUTOR_PATCH_ID,
           "body": "This is a root level comment",
-          "replyTo": CONTRIBUTOR_COMMENT_1,
+          "replyTo": comment_id,
           "embeds": [],
         }))
         .unwrap();
@@ -2912,6 +2877,7 @@ mod routes {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
+        let comment_id_2 = response.id().await.to_string();
 
         let response = get(
             &app,
@@ -2946,7 +2912,7 @@ mod routes {
                   ],
                   "discussions": [
                     {
-                      "id": CONTRIBUTOR_COMMENT_1,
+                      "id": comment_id,
                       "author": {
                         "id": CONTRIBUTOR_DID,
                       },
@@ -2963,7 +2929,7 @@ mod routes {
                       "resolved": false,
                     },
                     {
-                      "id": CONTRIBUTOR_COMMENT_2,
+                      "id": comment_id_2,
                       "author": {
                         "id": CONTRIBUTOR_DID,
                       },
@@ -2971,7 +2937,7 @@ mod routes {
                       "embeds": [],
                       "reactions": [],
                       "timestamp": TIMESTAMP,
-                      "replyTo": CONTRIBUTOR_COMMENT_1,
+                      "replyTo": comment_id,
                       "resolved": false,
                     },
                   ],
@@ -3006,9 +2972,10 @@ mod routes {
 
         assert_eq!(response.status(), StatusCode::OK);
 
+        let review_id = response.id().await.to_string();
         let review_comment_body = serde_json::to_vec(&json!({
           "type": "review.comment",
-          "review": CONTRIBUTOR_PATCH_REVIEW,
+          "review": review_id,
           "body": "This is a comment on a review",
           "embeds": [],
           "location": {
@@ -3023,7 +2990,7 @@ mod routes {
           }
         }))
         .unwrap();
-        patch(
+        let response = patch(
             &app,
             format!("/projects/{CONTRIBUTOR_RID}/patches/{CONTRIBUTOR_PATCH_ID}"),
             Some(Body::from(review_comment_body)),
@@ -3031,10 +2998,11 @@ mod routes {
         )
         .await;
 
+        let comment_id = response.id().await.to_string();
         let review_comment_edit_body = serde_json::to_vec(&json!({
           "type": "review.comment.edit",
-          "review": CONTRIBUTOR_PATCH_REVIEW,
-          "comment": CONTRIBUTOR_COMMENT_3,
+          "review": review_id,
+          "comment": comment_id,
           "embeds": [],
           "body": "EDIT: This is a comment on a review",
         }))
@@ -3049,8 +3017,8 @@ mod routes {
 
         let review_react_body = serde_json::to_vec(&json!({
           "type": "review.comment.react",
-          "review": CONTRIBUTOR_PATCH_REVIEW,
-          "comment": CONTRIBUTOR_COMMENT_3,
+          "review": review_id,
+          "comment": comment_id,
           "reaction": "🚀",
           "active": true
         }))
@@ -3065,8 +3033,8 @@ mod routes {
 
         let review_resolve_body = serde_json::to_vec(&json!({
           "type": "review.comment.resolve",
-          "review": CONTRIBUTOR_PATCH_REVIEW,
-          "comment": CONTRIBUTOR_COMMENT_3,
+          "review": review_id,
+          "comment": comment_id,
         }))
         .unwrap();
         patch(
@@ -3118,7 +3086,7 @@ mod routes {
                       "verdict": "accept",
                       "summary": "A small review",
                       "comments": [[
-                        CONTRIBUTOR_COMMENT_3,
+                        comment_id,
                         {
                           "author": CONTRIBUTOR_NID,
                           "location": {

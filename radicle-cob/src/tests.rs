@@ -27,7 +27,7 @@ fn roundtrip() {
     let cob = create::<NonEmpty<Entry>, _, _>(
         &storage,
         &signer,
-        proj.project.content_id,
+        Some(proj.project.content_id),
         vec![],
         signer.public_key(),
         Create {
@@ -61,7 +61,7 @@ fn list_cobs() {
     let issue_1 = create::<NonEmpty<Entry>, _, _>(
         &storage,
         &signer,
-        proj.project.content_id,
+        Some(proj.project.content_id),
         vec![],
         signer.public_key(),
         Create {
@@ -77,7 +77,7 @@ fn list_cobs() {
     let issue_2 = create(
         &storage,
         &signer,
-        proj.project.content_id,
+        Some(proj.project.content_id),
         vec![],
         signer.public_key(),
         Create {
@@ -113,7 +113,7 @@ fn update_cob() {
     let cob = create::<NonEmpty<Entry>, _, _>(
         &storage,
         &signer,
-        proj.project.content_id,
+        Some(proj.project.content_id),
         vec![],
         signer.public_key(),
         Create {
@@ -133,7 +133,7 @@ fn update_cob() {
     let Updated { object, .. } = update(
         &storage,
         &signer,
-        proj.project.content_id,
+        Some(proj.project.content_id),
         vec![],
         signer.public_key(),
         Update {
@@ -174,7 +174,7 @@ fn traverse_cobs() {
     let cob = create::<NonEmpty<Entry>, _, _>(
         &storage,
         &terry_signer,
-        terry_proj.project.content_id,
+        Some(terry_proj.project.content_id),
         vec![],
         terry_signer.public_key(),
         Create {
@@ -198,7 +198,7 @@ fn traverse_cobs() {
     let Updated { object, .. } = update::<NonEmpty<Entry>, _, _>(
         &storage,
         &neil_signer,
-        neil_proj.project.content_id,
+        Some(neil_proj.project.content_id),
         vec![],
         neil_signer.public_key(),
         Update {

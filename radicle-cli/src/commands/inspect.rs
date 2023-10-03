@@ -8,9 +8,8 @@ use anyhow::{anyhow, Context as _};
 use chrono::prelude::*;
 use json_color::{Color, Colorizer};
 
-use radicle::crypto::{Unverified, Verified};
-use radicle::identity::Untrusted;
-use radicle::identity::{Doc, Id};
+use radicle::identity::Id;
+use radicle::identity::Identity;
 use radicle::node::tracking::Policy;
 use radicle::node::AliasStore as _;
 use radicle::storage::{ReadRepository, ReadStorage};
@@ -142,7 +141,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let repo = storage
         .repository(rid)
         .context("No project with the given RID exists")?;
-    let project = Doc::<Verified>::canonical(&repo)?;
+    let project = repo.identity_doc()?;
 
     match options.target {
         Target::Refs => {
@@ -197,14 +196,21 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             println!("{}", term::format::visibility(&project.doc.visibility));
         }
         Target::History => {
-            let head = Doc::<Untrusted>::head(signer.public_key(), &repo)?;
+            let identity = Identity::load(&repo)?;
+            let head = repo.identity_head_of(signer.public_key())?;
             let history = repo.revwalk(head)?;
 
             for oid in history {
                 let oid = oid?.into();
                 let tip = repo.commit(oid)?;
-                let blob = Doc::<Unverified>::blob_at(oid, &repo)?;
-                let content: serde_json::Value = serde_json::from_slice(blob.content())?;
+
+                let Some(revision) = identity.revision(&tip.id().into()) else {
+                    continue;
+                };
+                if !revision.is_accepted() {
+                    continue;
+                }
+                let doc = &revision.doc;
                 let timezone = if tip.time().sign() == '+' {
                     #[allow(deprecated)]
                     FixedOffset::east(tip.time().offset_minutes() * 60)
@@ -227,7 +233,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 if let Ok(parent) = tip.parent_id(0) {
                     println!("parent {parent}");
                 }
-                println!("blob   {}", blob.id());
+                println!("blob   {}", revision.blob);
                 println!("date   {time}");
                 println!();
 
@@ -242,8 +248,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     term::blank();
                 }
 
-                let json =
-                    colorizer().colorize_json_str(&serde_json::to_string_pretty(&content)?)?;
+                let json = colorizer().colorize_json_str(&serde_json::to_string_pretty(&doc)?)?;
                 for line in json.lines() {
                     println!(" {line}");
                 }

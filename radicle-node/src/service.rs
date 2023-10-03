@@ -20,15 +20,14 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 use nonempty::NonEmpty;
 
-use radicle::identity;
 use radicle::node::address;
 use radicle::node::address::{AddressBook, KnownAddress};
 use radicle::node::config::PeerConfig;
 use radicle::node::ConnectOptions;
+use radicle::storage::RepositoryError;
 
 use crate::crypto;
 use crate::crypto::{Signer, Verified};
-use crate::identity::IdentityError;
 use crate::identity::{Doc, Id};
 use crate::node::routing;
 use crate::node::routing::InsertResult;
@@ -118,7 +117,7 @@ pub enum Error {
     #[error(transparent)]
     Tracking(#[from] tracking::Error),
     #[error(transparent)]
-    Identity(#[from] identity::IdentityError),
+    Repository(#[from] radicle::storage::RepositoryError),
     #[error("namespaces error: {0}")]
     Namespaces(#[from] NamespacesError),
 }
@@ -387,11 +386,11 @@ where
     }
 
     /// Lookup a project, both locally and in the routing table.
-    pub fn lookup(&self, id: Id) -> Result<Lookup, LookupError> {
-        let remote = self.routing.get(&id)?.iter().cloned().collect();
+    pub fn lookup(&self, rid: Id) -> Result<Lookup, LookupError> {
+        let remote = self.routing.get(&rid)?.iter().cloned().collect();
 
         Ok(Lookup {
-            local: self.storage.get(&self.node_id(), id)?,
+            local: self.storage.get(rid)?,
             remote,
         })
     }
@@ -1289,7 +1288,7 @@ where
         remotes: impl IntoIterator<Item = NodeId>,
     ) -> Result<(), Error> {
         let repo = self.storage.repository(rid)?;
-        let (_, doc) = repo.identity_doc()?;
+        let doc = repo.identity_doc()?;
         let peers = self.sessions.connected().map(|(_, p)| p);
         let timestamp = self.time();
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
@@ -1612,8 +1611,8 @@ pub trait ServiceState {
     fn nid(&self) -> &NodeId;
     /// Get the existing sessions.
     fn sessions(&self) -> &Sessions;
-    /// Get a repository from storage, using the local node's key.
-    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError>;
+    /// Get a repository from storage.
+    fn get(&self, rid: Id) -> Result<Option<Doc<Verified>>, RepositoryError>;
     /// Get the clock.
     fn clock(&self) -> &LocalTime;
     /// Get the clock mutably.
@@ -1636,8 +1635,8 @@ where
         &self.sessions
     }
 
-    fn get(&self, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError> {
-        self.storage.get(&self.node_id(), proj)
+    fn get(&self, rid: Id) -> Result<Option<Doc<Verified>>, RepositoryError> {
+        self.storage.get(rid)
     }
 
     fn clock(&self) -> &LocalTime {
@@ -1716,11 +1715,9 @@ pub struct Lookup {
 #[derive(thiserror::Error, Debug)]
 pub enum LookupError {
     #[error(transparent)]
-    Storage(#[from] storage::Error),
-    #[error(transparent)]
     Routing(#[from] routing::Error),
     #[error(transparent)]
-    Identity(#[from] IdentityError),
+    Repository(#[from] RepositoryError),
 }
 
 /// Keeps track of the most recent announcements of a node.

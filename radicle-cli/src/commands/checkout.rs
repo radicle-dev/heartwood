@@ -82,10 +82,11 @@ fn execute(options: Options, profile: &Profile) -> anyhow::Result<PathBuf> {
     let id = options.id;
     let storage = &profile.storage;
     let remote = options.remote.unwrap_or(profile.did());
-    let doc = storage
+    let doc: Doc<_> = storage
         .repository(id)?
-        .identity_doc_of(&remote)
-        .context("project could not be found in local storage")?;
+        .identity_doc()
+        .context("project could not be found in local storage")?
+        .into();
     let payload = doc.project()?;
     let path = PathBuf::from(payload.name());
 

@@ -611,8 +611,8 @@ fn test_large_fetch() {
         )
         .unwrap();
 
-    let (_, doc) = bob.storage.repository(rid).unwrap().identity_doc().unwrap();
-    let proj = doc.verified().unwrap().project().unwrap();
+    let doc = bob.storage.repository(rid).unwrap().identity_doc().unwrap();
+    let proj = doc.project().unwrap();
 
     assert_eq!(proj.name(), "acme");
 }
@@ -699,24 +699,24 @@ fn test_concurrent_fetches() {
     }
 
     for rid in &bob_repos {
-        let (_, doc) = alice
+        let doc = alice
             .storage
             .repository(*rid)
             .unwrap()
             .identity_doc()
             .unwrap();
-        let proj = doc.verified().unwrap().project().unwrap();
+        let proj = doc.project().unwrap();
 
         assert!(proj.name().starts_with("bob"));
     }
     for rid in &alice_repos {
-        let (_, doc) = bob
+        let doc = bob
             .storage
             .repository(*rid)
             .unwrap()
             .identity_doc()
             .unwrap();
-        let proj = doc.verified().unwrap().project().unwrap();
+        let proj = doc.project().unwrap();
 
         assert!(proj.name().starts_with("alice"));
     }

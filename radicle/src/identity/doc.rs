@@ -1,8 +1,7 @@
 mod id;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::fmt::Write as _;
 use std::marker::PhantomData;
 use std::ops::{Deref, Not};
 use std::path::Path;
@@ -10,18 +9,19 @@ use std::str::FromStr;
 
 use nonempty::NonEmpty;
 use once_cell::sync::Lazy;
+use radicle_cob::type_name::{TypeName, TypeNameParse};
 use radicle_git_ext::Oid;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::canonical::formatter::CanonicalFormatter;
+use crate::cob::identity;
 use crate::crypto;
 use crate::crypto::{Signature, Unverified, Verified};
 use crate::git;
 use crate::identity::{project::Project, Did};
 use crate::storage;
-use crate::storage::git::trailers;
-use crate::storage::{ReadRepository, RemoteId};
+use crate::storage::{ReadRepository, RepositoryError};
 
 pub use crypto::PublicKey;
 pub use id::*;
@@ -35,24 +35,18 @@ pub const MAX_DELEGATES: usize = 255;
 
 #[derive(Error, Debug)]
 pub enum DocError {
-    #[error("invalid commit: {0}")]
-    Commit(&'static str),
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
     #[error("invalid delegates: {0}")]
     Delegates(&'static str),
-    #[error("invalid signature for {0}: {1}")]
-    Signature(PublicKey, crypto::Error),
-    #[error("invalid commit trailers: {0}")]
-    Trailers(#[from] trailers::Error),
-    #[error("invalid version `{0}`")]
-    Version(u32),
     #[error("invalid threshold `{0}`: {1}")]
     Threshold(usize, &'static str),
     #[error("git: {0}")]
     GitExt(#[from] git::Error),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
+    #[error("missing identity document")]
+    Missing,
 }
 
 impl DocError {
@@ -70,8 +64,7 @@ impl DocError {
 /// Identifies an identity document payload type.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
-// TODO: Restrict values.
-pub struct PayloadId(String);
+pub struct PayloadId(TypeName);
 
 impl fmt::Display for PayloadId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -79,10 +72,22 @@ impl fmt::Display for PayloadId {
     }
 }
 
+impl FromStr for PayloadId {
+    type Err = TypeNameParse;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        TypeName::from_str(s).map(Self)
+    }
+}
+
 impl PayloadId {
     /// Project payload type.
     pub fn project() -> Self {
-        Self(String::from("xyz.radicle.project"))
+        Self(
+            // SAFETY: We know this is valid.
+            TypeName::from_str("xyz.radicle.project")
+                .expect("PayloadId::project: type name is valid"),
+        )
     }
 }
 
@@ -99,6 +104,15 @@ pub enum PayloadError {
 #[serde(transparent)]
 pub struct Payload {
     value: serde_json::Value,
+}
+
+impl Payload {
+    /// Get a mutable reference to the JSON map, or `None` if the payload is not a map.
+    pub fn as_object_mut(
+        &mut self,
+    ) -> Option<&mut serde_json::value::Map<String, serde_json::Value>> {
+        self.value.as_object_mut()
+    }
 }
 
 impl From<serde_json::Value> for Payload {
@@ -124,14 +138,24 @@ pub struct DocAt {
     pub blob: Oid,
     /// The parsed document.
     pub doc: Doc<Verified>,
-    /// The validated commit signatures.
-    pub sigs: HashMap<PublicKey, Signature>,
 }
 
 impl Deref for DocAt {
     type Target = Doc<Verified>;
 
     fn deref(&self) -> &Self::Target {
+        &self.doc
+    }
+}
+
+impl From<DocAt> for Doc<Verified> {
+    fn from(value: DocAt) -> Self {
+        value.doc
+    }
+}
+
+impl AsRef<Doc<Verified>> for DocAt {
+    fn as_ref(&self) -> &Doc<Verified> {
         &self.doc
     }
 }
@@ -209,21 +233,33 @@ impl<V> Doc<V> {
         }
     }
 
-    pub fn canonical_head(repo: &storage::git::Repository) -> Result<Oid, DocError> {
-        repo.backend
-            .refname_to_id(storage::git::CANONICAL_IDENTITY.as_str())
-            .map(Oid::from)
-            .map_err(DocError::from)
+    /// Validate signature using this document's delegates, against a given document blob.
+    pub fn verify_signature(
+        &self,
+        key: &PublicKey,
+        signature: &Signature,
+        blob: Oid,
+    ) -> Result<(), PublicKey> {
+        if !self.is_delegate(key) {
+            return Err(*key);
+        }
+        if key.verify(blob.as_bytes(), signature).is_err() {
+            return Err(*key);
+        }
+        Ok(())
     }
 
-    pub fn head<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<Oid, DocError> {
-        repo.reference_oid(remote, &git::refs::storage::IDENTITY_BRANCH)
-            .map_err(DocError::from)
+    pub fn is_majority(&self, votes: usize) -> bool {
+        votes >= self.majority()
+    }
+
+    pub fn majority(&self) -> usize {
+        self.delegates.len() / 2 + 1
     }
 
     pub fn blob_at<R: ReadRepository>(commit: Oid, repo: &R) -> Result<git2::Blob, DocError> {
-        repo.blob_at(commit, Path::new(&*PATH))
-            .map_err(DocError::from)
+        let path = Path::new("embeds").join(*PATH);
+        repo.blob_at(commit, path.as_path()).map_err(DocError::from)
     }
 
     pub fn is_delegate(&self, key: &crypto::PublicKey) -> bool {
@@ -282,112 +318,58 @@ impl Doc<Verified> {
         Ok(proj)
     }
 
-    pub fn sign<G: crypto::Signer>(&self, signer: &G) -> Result<(git::Oid, Signature), DocError> {
-        let (oid, _) = self.encode()?;
+    pub fn sign<G: crypto::Signer>(
+        &self,
+        signer: &G,
+    ) -> Result<(git::Oid, Vec<u8>, Signature), DocError> {
+        let (oid, bytes) = self.encode()?;
         let sig = signer.sign(oid.as_bytes());
 
-        Ok((oid, sig))
+        Ok((oid, bytes, sig))
     }
 
-    pub fn canonical(repo: &storage::git::Repository) -> Result<DocAt, DocError> {
-        let oid = Self::canonical_head(repo)?;
-        Self::load_at(oid, repo)
+    pub fn signature_of<G: crypto::Signer>(&self, signer: &G) -> Result<Signature, DocError> {
+        let (_, _, sig) = self.sign(signer)?;
+
+        Ok(sig)
     }
 
-    pub fn load_at<R: ReadRepository>(oid: Oid, repo: &R) -> Result<DocAt, DocError> {
-        let blob = Self::blob_at(oid, repo)?;
-        let doc = Doc::from_json(blob.content())?.verified()?;
-        let commit = repo.commit(oid)?;
-        let msg = commit
-            .message_raw()
-            .ok_or(DocError::Commit("commit message is not UTF-8"))?;
-        let sigs = trailers::parse_signatures(msg)?;
+    pub fn load_at<R: ReadRepository>(commit: Oid, repo: &R) -> Result<DocAt, DocError> {
+        let blob = Self::blob_at(commit, repo)?;
+        let doc = Doc::from_blob(&blob)?;
 
-        for (pk, sig) in &sigs {
-            if let Err(err) = pk.verify(blob.id().as_bytes(), sig) {
-                return Err(DocError::Signature(*pk, err));
-            }
-        }
         Ok(DocAt {
-            commit: oid,
+            commit,
             doc,
             blob: blob.id().into(),
-            sigs,
         })
     }
 
-    pub fn init(
-        doc: &[u8],
-        remote: &RemoteId,
-        signatures: &[(&PublicKey, Signature)],
-        repo: &git2::Repository,
-    ) -> Result<git::Oid, DocError> {
-        let tree = git::write_tree(*PATH, doc, repo)?;
-        let oid = Doc::commit(remote, &tree, "Initialize Radicle\n", &[], signatures, repo)?;
-
-        Ok(oid)
+    pub fn from_blob(blob: &git2::Blob) -> Result<Self, DocError> {
+        Doc::from_json(blob.content())?.verified()
     }
 
-    pub fn update(
+    pub fn init<G: crypto::Signer>(
         &self,
-        remote: &RemoteId,
-        msg: &str,
-        signatures: &[(&PublicKey, Signature)],
-        repo: &git2::Repository,
-    ) -> Result<git::Oid, DocError> {
-        let (_, doc) = self.encode()?;
-        let tree = git::write_tree(*PATH, doc.as_slice(), repo)?;
-        let id_ref = git::refs::storage::id(remote);
-        let head = repo.find_reference(&id_ref)?.peel_to_commit()?;
-        let oid = Doc::commit(remote, &tree, msg, &[&head], signatures, repo)?;
+        repo: &storage::git::Repository,
+        signer: &G,
+    ) -> Result<git::Oid, RepositoryError> {
+        let cob = identity::Identity::initialize(self, repo, signer)?;
+        let id_ref = git::refs::storage::id(signer.public_key());
+        let cob_ref = git::refs::storage::cob(
+            signer.public_key(),
+            &crate::cob::identity::TYPENAME,
+            &cob.id,
+        );
+        // Set `.../refs/rad/id` -> `.../refs/cobs/xyz.radicle.id/<id>`
+        repo.backend.reference_symbolic(
+            id_ref.as_str(),
+            cob_ref.as_str(),
+            false,
+            "Create `rad/id` reference to point to new identity COB",
+        )?;
 
-        Ok(oid)
-    }
-
-    fn commit(
-        remote: &RemoteId,
-        tree: &git2::Tree,
-        msg: &str,
-        parents: &[&git2::Commit],
-        signatures: &[(&PublicKey, Signature)],
-        repo: &git2::Repository,
-    ) -> Result<git::Oid, DocError> {
-        let sig = repo
-            .signature()
-            .or_else(|_| git2::Signature::now("radicle", remote.to_string().as_str()))?;
-
-        #[cfg(debug_assertions)]
-        let sig = if let Ok(s) = std::env::var("RAD_COMMIT_TIME") {
-            // SAFETY: Only used in test code.
-            #[allow(clippy::unwrap_used)]
-            let timestamp = s.trim().parse::<i64>().unwrap();
-            let time = git2::Time::new(timestamp, 0);
-            git2::Signature::new("radicle", remote.to_string().as_str(), &time)?
-        } else {
-            sig
-        };
-
-        let mut msg = format!("{}\n\n", msg.trim());
-        for (key, sig) in signatures {
-            writeln!(&mut msg, "{}: {key} {sig}", trailers::SIGNATURE_TRAILER)
-                .expect("in-memory writes don't fail");
-        }
-
-        let id_ref = git::refs::storage::id(remote);
-        let oid = repo.commit(Some(&id_ref), &sig, &sig, &msg, tree, parents)?;
-
-        Ok(oid.into())
-    }
-
-    #[cfg(any(test, feature = "test"))]
-    pub(crate) fn unverified(self) -> Doc<Unverified> {
-        Doc {
-            payload: self.payload,
-            delegates: self.delegates,
-            threshold: self.threshold,
-            visibility: self.visibility,
-            verified: PhantomData,
-        }
+        Ok(*cob.id)
     }
 }
 
@@ -446,22 +428,10 @@ impl Doc<Unverified> {
             verified: PhantomData,
         })
     }
-
-    pub fn load_at<R: ReadRepository>(commit: Oid, repo: &R) -> Result<(Self, Oid), DocError> {
-        let blob = Self::blob_at(commit, repo)?;
-        let doc = Doc::from_json(blob.content())?;
-
-        Ok((doc, blob.id().into()))
-    }
-
-    pub fn load<R: ReadRepository>(remote: &RemoteId, repo: &R) -> Result<(Self, Oid), DocError> {
-        let oid = Self::head(remote, repo)?;
-
-        Self::load_at(oid, repo)
-    }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use radicle_crypto::test::signer::MockSigner;
     use radicle_crypto::Signer as _;
@@ -469,7 +439,7 @@ mod test {
     use crate::rad;
     use crate::storage::git::transport;
     use crate::storage::git::Storage;
-    use crate::storage::{ReadStorage as _, WriteStorage as _};
+    use crate::storage::{ReadStorage as _, RemoteId, WriteStorage as _};
     use crate::test::arbitrary;
     use crate::test::fixtures;
 
@@ -516,10 +486,10 @@ mod test {
         let repo = storage.create(proj).unwrap();
         let oid = git2::Oid::from_str("2d52a53ce5e4f141148a5f770cfd3ead2d6a45b8").unwrap();
 
-        let err = Doc::<Unverified>::head(&remote, &repo).unwrap_err();
-        assert!(err.is_not_found());
+        let err = repo.identity_head_of(&remote).unwrap_err();
+        matches!(err, git::ext::Error::NotFound(_));
 
-        let err = Doc::<Unverified>::load_at(oid.into(), &repo).unwrap_err();
+        let err = Doc::<Verified>::load_at(oid.into(), &repo).unwrap_err();
         assert!(err.is_not_found());
     }
 
@@ -544,7 +514,7 @@ mod test {
         .unwrap();
         let repo = storage.repository(rid).unwrap();
 
-        assert_eq!(doc, Doc::canonical(&repo).unwrap().doc);
+        assert_eq!(doc, repo.identity_doc().unwrap().doc);
     }
 
     #[quickcheck]

@@ -103,6 +103,7 @@ impl FromStr for Url {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use super::*;
 

@@ -6,7 +6,7 @@ pub mod error;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::ops::Deref;
 
-use radicle::crypto::{PublicKey, Unverified, Verified};
+use radicle::crypto::{PublicKey, Verified};
 use radicle::git::refspec;
 use radicle::git::{url, Namespaced};
 use radicle::prelude::{Doc, Id, NodeId};
@@ -188,8 +188,7 @@ impl<'a> StagingPhaseInitial<'a> {
                 log::debug!(target: "worker", "Loading remotes for clone of {}", repo.id);
                 let oid = ReadRepository::identity_head(&repo)?;
                 log::trace!(target: "worker", "Loading 'rad/id' @ {oid}");
-                let (doc, _) = Doc::<Unverified>::load_at(oid, &repo)?;
-                let doc = doc.verified()?;
+                let doc = Doc::<Verified>::load_at(oid, &repo)?.doc;
                 let mut trusted = match self.namespaces.clone() {
                     Namespaces::All => HashSet::new(),
                     Namespaces::Trusted(trusted) => trusted,
@@ -520,10 +519,11 @@ impl<'a> StagingPhaseFinal<'a> {
                     }
                 }
 
-                let verification = match self.repo.identity_doc_of(&remote_id) {
+                // Nb. We aren't verifying this specific remote's identity branch.
+                let verification = match self.repo.identity_doc() {
                     Ok(doc) => match self.repo.validate_remote(&remote) {
                         Ok(unsigned) => VerifiedRemote::Success {
-                            _doc: doc,
+                            _doc: doc.into(),
                             remote,
                             unsigned,
                         },

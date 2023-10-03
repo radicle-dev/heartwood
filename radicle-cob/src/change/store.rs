@@ -21,7 +21,7 @@ pub trait Storage {
     #[allow(clippy::type_complexity)]
     fn store<G>(
         &self,
-        resource: Self::Parent,
+        resource: Option<Self::Parent>,
         parents: Vec<Self::Parent>,
         signer: &G,
         template: Template<Self::ObjectId>,
@@ -61,22 +61,22 @@ pub type EntryId = Oid;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry<Resource, Id, Signature> {
-    /// The content address of the `Change` itself.
+    /// The content address of the entry itself.
     pub id: Id,
-    /// The content address of the tree of the `Change`.
+    /// The content address of the tree of the entry.
     pub revision: Id,
     /// The cryptographic signature(s) and their public keys of the
     /// authors.
     pub signature: Signature,
     /// The parent resource that this change lives under. For example,
     /// this change could be for a patch of a project.
-    pub resource: Resource,
+    pub resource: Option<Resource>,
     /// Other parents this change depends on.
     pub parents: Vec<Resource>,
     /// The manifest describing the type of object as well as the type
-    /// of history for this `Change`.
+    /// of history for this entry.
     pub manifest: Manifest,
-    /// The contents that describe `Change`.
+    /// The contents that describe entry.
     pub contents: Contents,
     /// Timestamp of change.
     pub timestamp: Timestamp,
@@ -87,7 +87,7 @@ where
     Id: fmt::Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Change {{ id: {} }}", self.id)
+        write!(f, "Entry {{ id: {} }}", self.id)
     }
 }
 
@@ -104,8 +104,8 @@ impl<Resource, Id, Signatures> Entry<Resource, Id, Signatures> {
         &self.contents
     }
 
-    pub fn resource(&self) -> &Resource {
-        &self.resource
+    pub fn resource(&self) -> Option<&Resource> {
+        self.resource.as_ref()
     }
 }
 
@@ -142,20 +142,12 @@ pub struct Manifest {
     /// Version number.
     #[serde(default)]
     pub version: Version,
-
-    /// History type (deprecated).
-    #[serde(alias = "history_type")]
-    _history_type: Option<String>,
 }
 
 impl Manifest {
     /// Create a new manifest.
     pub fn new(type_name: TypeName, version: Version) -> Self {
-        Self {
-            type_name,
-            version,
-            _history_type: None,
-        }
+        Self { type_name, version }
     }
 }
 

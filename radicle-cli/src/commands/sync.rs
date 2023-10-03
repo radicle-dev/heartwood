@@ -256,7 +256,7 @@ fn announce_refs(
     profile: &Profile,
 ) -> anyhow::Result<()> {
     let repo = profile.storage.repository(rid)?;
-    let (_, doc) = repo.identity_doc()?;
+    let doc = repo.identity_doc()?;
     let connected: Vec<_> = if doc.visibility.is_public() {
         let seeds = node.seeds(rid)?;
         seeds.connected().map(|s| s.nid).collect()

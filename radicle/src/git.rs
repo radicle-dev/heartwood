@@ -110,12 +110,12 @@ pub fn version() -> Result<Version, VersionError> {
 pub enum RefError {
     #[error("ref name is not valid UTF-8")]
     InvalidName,
-    #[error("unexpected symbolic ref: {0}")]
-    Symbolic(RefString),
     #[error("unexpected unqualified ref: {0}")]
     Unqualified(RefString),
     #[error("invalid ref format: {0}")]
     Format(#[from] format::Error),
+    #[error("reference has no target")]
+    NoTarget,
     #[error("expected ref to begin with 'refs/namespaces' but found '{0}'")]
     MissingNamespace(format::RefString),
     #[error("ref name contains invalid namespace identifier '{name}'")]
@@ -124,6 +124,8 @@ pub enum RefError {
         #[source]
         err: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
+    #[error(transparent)]
+    Other(#[from] git2::Error),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -142,9 +144,7 @@ pub mod refs {
     pub fn qualified_from<'a>(r: &'a git2::Reference) -> Result<(Qualified<'a>, Oid), RefError> {
         let name = r.name().ok_or(RefError::InvalidName)?;
         let refstr = RefStr::try_from_str(name)?;
-        let target = r
-            .target()
-            .ok_or_else(|| RefError::Symbolic(refstr.to_owned()))?;
+        let target = r.resolve()?.target().ok_or(RefError::NoTarget)?;
         let qualified = Qualified::from_refstr(refstr)
             .ok_or_else(|| RefError::Unqualified(refstr.to_owned()))?;
 

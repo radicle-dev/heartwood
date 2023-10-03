@@ -73,9 +73,6 @@ pub enum Error {
     /// Profile error.
     #[error(transparent)]
     Profile(#[from] radicle::profile::Error),
-    /// Identity error.
-    #[error(transparent)]
-    Identity(#[from] radicle::identity::IdentityError),
     /// Parse error for object IDs.
     #[error(transparent)]
     ParseObjectId(#[from] ParseObjectId),
@@ -94,6 +91,9 @@ pub enum Error {
     /// COB store error.
     #[error(transparent)]
     Cob(#[from] radicle::cob::store::Error),
+    /// General repository error.
+    #[error(transparent)]
+    Repository(#[from] radicle::storage::RepositoryError),
 }
 
 enum Command {

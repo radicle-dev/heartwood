@@ -1,4 +1,5 @@
-use std::fmt::{self, Display};
+use std::fmt;
+use std::fmt::Display;
 use std::str::FromStr;
 
 use localtime::LocalTime;
@@ -27,6 +28,12 @@ impl Author {
 
     pub fn public_key(&self) -> &PublicKey {
         self.id.as_key()
+    }
+}
+
+impl Display for Author {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.id)
     }
 }
 

@@ -13,6 +13,9 @@ pub mod table;
 pub mod textarea;
 pub mod vstack;
 
+use std::fmt;
+use std::io::IsTerminal;
+
 pub use ansi::Color;
 pub use ansi::{paint, Filled, Paint, Style};
 pub use editor::Editor;
@@ -34,12 +37,24 @@ pub enum Interactive {
 }
 
 impl Interactive {
+    pub fn new(term: impl IsTerminal) -> Self {
+        Self::from(term.is_terminal())
+    }
+
     pub fn yes(&self) -> bool {
         (*self).into()
     }
 
     pub fn no(&self) -> bool {
         !self.yes()
+    }
+
+    pub fn confirm(&self, prompt: impl fmt::Display) -> bool {
+        if self.yes() {
+            confirm(prompt)
+        } else {
+            true
+        }
     }
 }
 

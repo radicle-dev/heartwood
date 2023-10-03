@@ -83,7 +83,7 @@ pub enum Error {
     #[error("remove error: {0}")]
     Remove(#[from] cob::error::Remove),
     #[error(transparent)]
-    Identity(#[from] identity::IdentityError),
+    Identity(#[from] identity::doc::DocError),
     #[error(transparent)]
     Serialize(#[from] serde_json::Error),
     #[error("object `{1}` of type `{0}` was not found")]
@@ -100,7 +100,7 @@ pub enum Error {
 
 /// Storage for collaborative objects of a specific type `T` in a single repository.
 pub struct Store<'a, T, R> {
-    identity: git::Oid,
+    identity: Option<git::Oid>,
     repo: &'a R,
     witness: PhantomData<T>,
 }
@@ -111,16 +111,23 @@ impl<'a, T, R> AsRef<R> for Store<'a, T, R> {
     }
 }
 
-impl<'a, T, R: ReadRepository> Store<'a, T, R> {
+impl<'a, T, R: ReadRepository + cob::Store> Store<'a, T, R> {
     /// Open a new generic store.
     pub fn open(repo: &'a R) -> Result<Self, Error> {
-        let identity = repo.identity()?;
-
         Ok(Self {
             repo,
-            identity: identity.head,
+            identity: None,
             witness: PhantomData,
         })
+    }
+
+    /// Return a new store with the attached identity.
+    pub fn identity(self, identity: git::Oid) -> Self {
+        Self {
+            repo: self.repo,
+            witness: self.witness,
+            identity: Some(identity),
+        }
     }
 }
 

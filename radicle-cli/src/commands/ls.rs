@@ -93,7 +93,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         if !doc.visibility.is_public() && !options.private && options.public {
             continue;
         }
-        let doc = doc.verified()?;
         let proj = doc.project()?;
         let head = term::format::oid(head).into();
 

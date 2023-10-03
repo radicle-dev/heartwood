@@ -163,7 +163,7 @@ impl GraphBuilder {
     where
         S: change::Storage<ObjectId = Oid, Parent = Oid, Signatures = ExtendedSignature>,
     {
-        let resource_commit = *change.resource();
+        let resource = change.resource().copied();
 
         if !self.graph.contains(&commit_id) {
             self.graph.node(commit_id, change);
@@ -173,7 +173,7 @@ impl GraphBuilder {
             .parents_of(&commit_id)?
             .into_iter()
             .filter_map(move |parent| {
-                if parent != resource_commit && !self.graph.has_dependency(&commit_id, &parent) {
+                if Some(parent) != resource && !self.graph.has_dependency(&commit_id, &parent) {
                     Some((parent, commit_id))
                 } else {
                     None

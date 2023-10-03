@@ -10,8 +10,6 @@ pub mod error {
     pub enum InvalidResourceTrailer {
         #[error("found wrong token for Rad-Resource tailer")]
         WrongToken,
-        #[error("no Rad-Resource")]
-        NoTrailer,
         #[error("no value for Rad-Resource")]
         NoValue,
         #[error("invalid git OID")]

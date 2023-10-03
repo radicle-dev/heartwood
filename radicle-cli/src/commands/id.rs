@@ -1,104 +1,80 @@
-use std::io::IsTerminal;
-use std::{ffi::OsString, io, str::FromStr as _};
+use std::{ffi::OsString, io};
 
-use anyhow::{anyhow, Context as _};
+use anyhow::{anyhow, Context};
 
-use radicle::cob::identity::{self, Proposal, Proposals, Revision, RevisionId};
-use radicle::git::Oid;
-use radicle::identity::{Identity, Visibility};
-use radicle::prelude::{Did, Doc};
-use radicle::storage::ReadStorage as _;
+use nonempty::NonEmpty;
+use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
+use radicle::identity::{doc, Identity, Visibility};
+use radicle::prelude::{Did, Doc, Id, Signer};
+use radicle::storage::{ReadStorage as _, WriteRepository};
+use radicle::{cob, Profile};
 use radicle_crypto::Verified;
+use radicle_surf::diff::Diff;
+use radicle_term::Element;
+use serde_json as json;
 
+use crate::git::unified_diff::Encode as _;
 use crate::git::Rev;
 use crate::terminal as term;
-use crate::terminal::args::{string, Args, Error, Help};
-use crate::terminal::Element;
+use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::patch::Message;
 use crate::terminal::Interactive;
 
 pub const HELP: Help = Help {
     name: "id",
-    description: "Manage identity documents",
+    description: "Manage repository identities",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
 
-    rad id (update|edit) [--title|-t] [--description|-d]
-                         [--delegates <did>] [--threshold <num>]
-                         [--visibility <private | public>]
-                         [--allow <did>] [--no-confirm] [<option>...]
     rad id list [<option>...]
-    rad id rebase <id> [--rev <revision-id>] [<option>...]
-    rad id show <id> [--rev <revision-id>] [--revisions] [<option>...]
-    rad id (accept|reject|close|commit) <id> [--rev <revision-id>] [--no-confirm] [<option>...]
+    rad id update [--title <string>] [--description <string>]
+                  [--delegate <did>] [--rescind <did>]
+                  [--threshold <num>] [--visibility <private | public>]
+                  [--allow <did>] [--no-confirm] [--payload <id> <key> <val>...]
+                  [<option>...]
+    rad id edit <revision-id> [--title <string>] [--description <string>] [<option>...]
+    rad id show <revision-id> [<option>...]
+    rad id <accept | reject | redact> <revision-id> [<option>...]
 
 Options
 
+    --repo <rid>           Repository (defaults to the current repository)
     --quiet, -q            Don't print anything
     --help                 Print help
 "#,
 };
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
-pub struct Metadata {
-    title: String,
-    description: String,
-    proposed: Doc<Verified>,
-}
-
-impl Metadata {
-    fn edit(self) -> anyhow::Result<Self> {
-        let yaml = serde_yaml::to_string(&self)?;
-        match term::Editor::new().edit(yaml)? {
-            Some(meta) => Ok(serde_yaml::from_str(&meta).context("failed to parse proposal meta")?),
-            None => Err(anyhow!("Operation aborted!")),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Default)]
 pub enum Operation {
-    Accept {
-        id: Rev,
-        rev: Option<RevisionId>,
-    },
-    Reject {
-        id: Rev,
-        rev: Option<RevisionId>,
-    },
-    Edit {
-        title: Option<String>,
-        description: Option<String>,
-        delegates: Vec<Did>,
-        visibility: Option<Visibility>,
-        threshold: Option<usize>,
-    },
     Update {
-        id: Rev,
-        rev: Option<RevisionId>,
         title: Option<String>,
         description: Option<String>,
-        delegates: Vec<Did>,
+        delegate: Vec<Did>,
+        rescind: Vec<Did>,
         threshold: Option<usize>,
+        visibility: Option<Visibility>,
+        payload: Vec<(doc::PayloadId, String, json::Value)>,
     },
-    Rebase {
-        id: Rev,
-        rev: Option<RevisionId>,
+    AcceptRevision {
+        revision: Rev,
     },
-    Show {
-        id: Rev,
-        rev: Option<RevisionId>,
-        show_revisions: bool,
+    RejectRevision {
+        revision: Rev,
+    },
+    EditRevision {
+        revision: Rev,
+        title: Option<String>,
+        description: Option<String>,
+    },
+    RedactRevision {
+        revision: Rev,
+    },
+    ShowRevision {
+        revision: Rev,
     },
     #[default]
-    List,
-    Commit {
-        id: Rev,
-        rev: Option<RevisionId>,
-    },
-    Close {
-        id: Rev,
-    },
+    ListRevisions,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -107,16 +83,15 @@ pub enum OperationName {
     Reject,
     Edit,
     Update,
-    Rebase,
     Show,
+    Redact,
     #[default]
     List,
-    Commit,
-    Close,
 }
 
 pub struct Options {
     pub op: Operation,
+    pub rid: Option<Id>,
     pub interactive: Interactive,
     pub quiet: bool,
 }
@@ -127,15 +102,16 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
-        let mut id: Option<Rev> = None;
-        let mut rev: Option<RevisionId> = None;
+        let mut revision: Option<Rev> = None;
+        let mut rid: Option<Id> = None;
         let mut title: Option<String> = None;
         let mut description: Option<String> = None;
-        let mut delegates: Vec<Did> = Vec::new();
+        let mut delegate: Vec<Did> = Vec::new();
+        let mut rescind: Vec<Did> = Vec::new();
         let mut visibility: Option<Visibility> = None;
         let mut threshold: Option<usize> = None;
-        let mut interactive = Interactive::from(io::stdout().is_terminal());
-        let mut show_revisions = false;
+        let mut interactive = Interactive::new(io::stdout());
+        let mut payload = Vec::new();
         let mut quiet = false;
 
         while let Some(arg) = parser.next()? {
@@ -143,10 +119,14 @@ impl Args for Options {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
-                Long("title") if op == Some(OperationName::Edit) => {
+                Long("title")
+                    if op == Some(OperationName::Edit) || op == Some(OperationName::Update) =>
+                {
                     title = Some(parser.value()?.to_string_lossy().into());
                 }
-                Long("description") if op == Some(OperationName::Edit) => {
+                Long("description")
+                    if op == Some(OperationName::Edit) || op == Some(OperationName::Update) =>
+                {
                     description = Some(parser.value()?.to_string_lossy().into());
                 }
                 Long("quiet") | Short('q') => {
@@ -158,26 +138,27 @@ impl Args for Options {
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "e" | "edit" => op = Some(OperationName::Edit),
                     "u" | "update" => op = Some(OperationName::Update),
-                    "rebase" => op = Some(OperationName::Rebase),
                     "l" | "list" => op = Some(OperationName::List),
                     "s" | "show" => op = Some(OperationName::Show),
                     "a" | "accept" => op = Some(OperationName::Accept),
                     "r" | "reject" => op = Some(OperationName::Reject),
-                    "commit" => op = Some(OperationName::Commit),
-                    "close" => op = Some(OperationName::Close),
+                    "d" | "redact" => op = Some(OperationName::Redact),
 
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
-                Long("rev") => {
-                    let val = String::from(parser.value()?.to_string_lossy());
-                    rev = Some(
-                        RevisionId::from_str(&val)
-                            .map_err(|_| anyhow!("invalid revision '{}'", val))?,
-                    );
+                Long("repo") => {
+                    let val = parser.value()?;
+                    let val = term::args::rid(&val)?;
+
+                    rid = Some(val);
                 }
-                Long("delegates") => {
+                Long("delegate") => {
                     let did = term::args::did(&parser.value()?)?;
-                    delegates.push(did);
+                    delegate.push(did);
+                }
+                Long("rescind") => {
+                    let did = term::args::did(&parser.value()?)?;
+                    rescind.push(did);
                 }
                 Long("allow") => {
                     let value = parser.value()?;
@@ -197,12 +178,28 @@ impl Args for Options {
                 Long("threshold") => {
                     threshold = Some(parser.value()?.to_string_lossy().parse()?);
                 }
-                Long("revisions") => {
-                    show_revisions = true;
+                Long("payload") => {
+                    let mut values = parser.values()?;
+                    let id = values
+                        .next()
+                        .ok_or(anyhow!("expected payload id, eg. `xyz.radicle.project`"))?;
+                    let id: doc::PayloadId = term::args::parse_value("payload", id)?;
+
+                    let key = values
+                        .next()
+                        .ok_or(anyhow!("expected payload key, eg. 'defaultBranch'"))?;
+                    let key = term::args::string(&key);
+
+                    let val = values
+                        .next()
+                        .ok_or(anyhow!("expected payload value, eg. '\"heartwood\"'"))?;
+                    let val = json::from_str(val.to_string_lossy().to_string().as_str())?;
+
+                    payload.push((id, key, val));
                 }
-                Value(val) if op.is_some() => {
-                    let val = string(&val);
-                    id = Some(Rev::from(val));
+                Value(val) => {
+                    let val = term::args::rev(&val)?;
+                    revision = Some(val);
                 }
                 _ => {
                     return Err(anyhow!(arg.unexpected()));
@@ -211,49 +208,37 @@ impl Args for Options {
         }
 
         let op = match op.unwrap_or_default() {
-            OperationName::Accept => Operation::Accept {
-                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
-                rev,
+            OperationName::Accept => Operation::AcceptRevision {
+                revision: revision.ok_or_else(|| anyhow!("a revision must be provided"))?,
             },
-            OperationName::Reject => Operation::Reject {
-                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
-                rev,
+            OperationName::Reject => Operation::RejectRevision {
+                revision: revision.ok_or_else(|| anyhow!("a revision must be provided"))?,
             },
-            OperationName::Edit => Operation::Edit {
+            OperationName::Edit => Operation::EditRevision {
                 title,
                 description,
-                delegates,
-                visibility,
-                threshold,
+                revision: revision.ok_or_else(|| anyhow!("a revision must be provided"))?,
+            },
+            OperationName::Show => Operation::ShowRevision {
+                revision: revision.ok_or_else(|| anyhow!("a revision must be provided"))?,
+            },
+            OperationName::List => Operation::ListRevisions,
+            OperationName::Redact => Operation::RedactRevision {
+                revision: revision.ok_or_else(|| anyhow!("a revision must be provided"))?,
             },
             OperationName::Update => Operation::Update {
-                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
-                rev,
                 title,
                 description,
-                delegates,
+                delegate,
+                rescind,
                 threshold,
-            },
-            OperationName::Rebase => Operation::Rebase {
-                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
-                rev,
-            },
-            OperationName::Show => Operation::Show {
-                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
-                rev,
-                show_revisions,
-            },
-            OperationName::List => Operation::List,
-            OperationName::Commit => Operation::Commit {
-                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
-                rev,
-            },
-            OperationName::Close => Operation::Close {
-                id: id.ok_or_else(|| anyhow!("a proposal must be provided"))?,
+                visibility,
+                payload,
             },
         };
         Ok((
             Options {
+                rid,
                 op,
                 interactive,
                 quiet,
@@ -267,432 +252,394 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let signer = term::signer(&profile)?;
     let storage = &profile.storage;
-    let (_, id) = radicle::rad::cwd()?;
-    let repo = storage.repository(id)?;
-    let mut proposals = Proposals::open(&repo)?;
-    let previous = Identity::load(signer.public_key(), &repo)?;
+    let rid = if let Some(rid) = options.rid {
+        rid
+    } else {
+        let (_, rid) = radicle::rad::cwd()?;
+        rid
+    };
+    let repo = storage
+        .repository(rid)
+        .context(anyhow!("repository `{rid}` not found in local storage"))?;
+    let mut identity = Identity::load_mut(&repo)?;
+    let current = identity.current().clone();
 
-    let interactive = &options.interactive;
     match options.op {
-        Operation::Accept { id, rev } => {
-            let id = id.resolve(&repo.backend)?;
-            let mut proposal = proposals.get_mut(&id)?;
-            let (rid, revision) = select(&proposal, rev, &previous, interactive)?;
-            warn_out_of_date(revision, &previous);
-            let yes = confirm(interactive, "Are you sure you want to accept?");
+        Operation::AcceptRevision { revision } => {
+            let revision = get(revision, &identity, &repo)?.clone();
+            let id = revision.id;
 
-            if yes {
-                let (_, signature) = revision.proposed.sign(&signer)?;
-                proposal.accept(rid, signature, &signer)?;
-
-                if !options.quiet {
-                    term::success!("Accepted proposal ✓");
-                    print(&proposal, &previous, None)?;
-                }
+            if !revision.is_active() {
+                anyhow::bail!("cannot vote on revision that is {}", revision.state);
             }
-        }
-        Operation::Reject { id, rev } => {
-            let id = id.resolve(&repo.backend)?;
-            let mut proposal = proposals.get_mut(&id)?;
-            let (rid, revision) = select(&proposal, rev, &previous, interactive)?;
-            warn_out_of_date(revision, &previous);
-            let yes = confirm(interactive, "Are you sure you want to reject?");
 
-            if yes {
-                proposal.reject(rid, &signer)?;
+            if options
+                .interactive
+                .confirm(format!("Accept revision {}?", term::format::tertiary(id)))
+            {
+                identity.accept(&revision, &signer)?;
 
-                if !options.quiet {
-                    term::success!("Rejected proposal 👎");
-                    print(&proposal, &previous, None)?;
-                }
-            }
-        }
-        Operation::Edit {
-            title,
-            description,
-            delegates,
-            visibility,
-            threshold,
-        } => {
-            let proposed = {
-                let mut proposed = previous.doc.clone();
-                proposed.threshold = threshold.unwrap_or(proposed.threshold);
-                proposed.delegates.extend(delegates);
-                proposed.visibility = visibility.unwrap_or(proposed.visibility);
-                proposed
-            };
+                if let Some(revision) = identity.revision(&id) {
+                    // Update the canonical head to point to the latest accepted revision.
+                    if revision.is_accepted() && revision.id == identity.current {
+                        repo.set_identity_head_to(revision.id)?;
+                    }
+                    // TODO: Different output if canonical changed?
 
-            let meta = Metadata {
-                title: title.unwrap_or("Enter a title".to_owned()),
-                description: description.unwrap_or("Enter a description".to_owned()),
-                proposed,
-            };
-            let create = if interactive.yes() {
-                meta.edit()?
-            } else {
-                meta
-            };
-            let proposal = proposals.create(
-                create.title,
-                create.description,
-                previous.current,
-                create.proposed,
-                &signer,
-            )?;
-            if options.quiet {
-                term::print(proposal.id);
-            } else {
-                term::success!(
-                    "Identity proposal '{}' created",
-                    term::format::highlight(proposal.id)
-                );
-                print(&proposal, &previous, None)?;
-            }
-        }
-        Operation::Update {
-            id,
-            rev,
-            title,
-            description,
-            delegates,
-            threshold,
-        } => {
-            let id = id.resolve(&repo.backend)?;
-            let mut proposal = proposals.get_mut(&id)?;
-            let (_, revision) = select(&proposal, rev, &previous, interactive)?;
-
-            let proposed = {
-                let mut proposed = revision.proposed.clone();
-                proposed.threshold = threshold.unwrap_or(revision.proposed.threshold);
-                proposed.delegates.extend(delegates);
-                proposed
-            };
-
-            let meta = Metadata {
-                title: title.unwrap_or(proposal.title().to_string()),
-                description: description.unwrap_or(
-                    proposal
-                        .description()
-                        .unwrap_or("Enter a description")
-                        .to_string(),
-                ),
-                proposed,
-            };
-
-            let update = if interactive.yes() {
-                meta.edit()?
-            } else {
-                meta
-            };
-            warn_out_of_date(revision, &previous);
-            let yes = confirm(interactive, "Are you sure you want to update?");
-            if yes {
-                proposal.edit(update.title, update.description, &signer)?;
-                let revision = proposal.update(previous.current, update.proposed, &signer)?;
-
-                if options.quiet {
-                    term::print(revision.to_string());
-                } else {
-                    term::success!(
-                        "Identity proposal '{}' updated",
-                        term::format::highlight(proposal.id)
-                    );
-                    term::success!(
-                        "Revision '{}'",
-                        term::format::highlight(revision.to_string())
-                    );
-                    print(&proposal, &previous, None)?;
-                }
-            }
-        }
-        Operation::Rebase { id, rev } => {
-            let id = id.resolve(&repo.backend)?;
-            // TODO: it would be nice if rebasing also handled fast-forwards nicely.
-            let mut proposal = proposals.get_mut(&id)?;
-            let (_, revision) = select(&proposal, rev, &previous, interactive)?;
-            let yes = confirm(interactive, "Are you sure you want to rebase?");
-            if yes {
-                let revision =
-                    proposal.update(previous.current, revision.proposed.clone(), &signer)?;
-
-                if options.quiet {
-                    term::print(revision.to_string());
-                } else {
-                    term::success!(
-                        "Identity proposal '{}' rebased",
-                        term::format::highlight(proposal.id)
-                    );
-                    term::success!(
-                        "Revision '{}'",
-                        term::format::highlight(revision.to_string())
-                    );
-                    print(&proposal, &previous, None)?;
-                }
-            }
-        }
-        Operation::List => {
-            let mut t = term::Table::new(term::table::TableOptions::default());
-            // Sort the list by the latest timestamped revisions (i.e. latest edits)
-            let mut timestamped = Vec::new();
-            let mut no_latest = Vec::new();
-            for result in proposals.all()? {
-                let (id, proposal) = result?;
-                match proposal.latest() {
-                    None => no_latest.push((id, proposal)),
-                    Some((_, revision)) => {
-                        timestamped.push(((revision.timestamp, id), id, proposal));
+                    if !options.quiet {
+                        term::success!("Revision {id} accepted");
+                        print_meta(revision, &current, &profile)?;
                     }
                 }
             }
-            timestamped
-                .sort_by(|((t1, id1), _, _), ((t2, id2), _, _)| t1.cmp(t2).then(id1.cmp(id2)));
-            for (id, proposal) in timestamped
-                .into_iter()
-                .map(|(_, id, p)| (id, p))
-                .chain(no_latest.into_iter())
-            {
-                let state = match proposal.state() {
-                    identity::State::Open => term::format::badge_primary("open"),
-                    identity::State::Closed => term::format::badge_negative("closed"),
-                    identity::State::Committed => term::format::badge_positive("committed"),
-                };
-                t.push([
-                    term::format::yellow(id.to_string()),
-                    term::format::italic(format!("{:?}", proposal.title())),
-                    state,
-                ]);
-            }
-            t.print();
         }
-        Operation::Commit { id, rev } => {
-            let id = id.resolve(&repo.backend)?;
-            let mut proposal = proposals.get_mut(&id)?;
-            let (rid, revision) = commit_select(&proposal, rev, &previous, interactive)?;
-            warn_out_of_date(revision, &previous);
-            let yes = confirm(interactive, "Are you sure you want to commit?");
+        Operation::RejectRevision { revision } => {
+            let revision = get(revision, &identity, &repo)?.clone();
 
-            if yes {
-                let id = Proposal::commit(&proposal, &rid, signer.public_key(), &repo, &signer)?;
-                proposal.commit(&signer)?;
-
-                if options.quiet {
-                    term::print(id.current);
-                } else {
-                    term::success!("Committed new identity '{}'", id.current);
-                    print(&proposal, &previous, None)?;
-                }
+            if !revision.is_active() {
+                anyhow::bail!("cannot vote on revision that is {}", revision.state);
             }
-        }
-        Operation::Close { id } => {
-            let id = id.resolve(&repo.backend)?;
-            let mut proposal = proposals.get_mut(&id)?;
-            let yes = confirm(interactive, "Are you sure you want to close?");
 
-            if yes {
-                proposal.close(&signer)?;
+            if options.interactive.confirm(format!(
+                "Reject revision {}?",
+                term::format::tertiary(revision.id)
+            )) {
+                identity.reject(revision.id, &signer)?;
 
                 if !options.quiet {
-                    term::success!("Closed identity proposal '{}'", id);
-                    print(&proposal, &previous, None)?;
+                    term::success!("Revision {} rejected", revision.id);
+                    print_meta(&revision, &current, &profile)?;
                 }
             }
         }
-        Operation::Show {
-            id,
-            rev,
-            show_revisions,
+        Operation::EditRevision {
+            revision,
+            title,
+            description,
         } => {
-            let id = id.resolve(&repo.backend)?;
-            let proposal = proposals
-                .get(&id)?
-                .context("No proposal with the given ID exists")?;
+            let revision = get(revision, &identity, &repo)?.clone();
 
-            print(&proposal, &previous, rev.as_ref())?;
-            if show_revisions {
-                term::header("Revisions");
-                for rid in proposal.revisions().map(|(id, _)| id) {
-                    println!("{rid}");
+            if !revision.is_active() {
+                anyhow::bail!("revision can no longer be edited");
+            }
+            let Some((title, description)) = edit_title_description(title, description)? else {
+                anyhow::bail!("revision title or description missing");
+            };
+            identity.edit(revision.id, title, description, &signer)?;
+
+            if !options.quiet {
+                term::success!("Revision {} edited", revision.id);
+            }
+        }
+        Operation::Update {
+            title,
+            description,
+            delegate: delegates,
+            rescind,
+            threshold,
+            visibility,
+            payload,
+        } => {
+            let proposal = {
+                let mut proposal = current.doc.clone();
+                proposal.threshold = threshold.unwrap_or(proposal.threshold);
+                proposal.visibility = visibility.unwrap_or(proposal.visibility);
+                proposal.delegates = NonEmpty::from_vec(
+                    proposal
+                        .delegates
+                        .into_iter()
+                        .chain(delegates)
+                        .filter(|d| !rescind.contains(d))
+                        .collect::<Vec<_>>(),
+                )
+                .ok_or(anyhow!(
+                    "at lease one delegate must be present for the identity to be valid"
+                ))?;
+
+                for (id, key, val) in payload {
+                    if let Some(ref mut payload) = proposal.payload.get_mut(&id) {
+                        if let Some(obj) = payload.as_object_mut() {
+                            obj.insert(key, val);
+                        } else {
+                            anyhow::bail!("payload `{id}` is not a map");
+                        }
+                    } else {
+                        anyhow::bail!("payload `{id}` not found in identity document");
+                    }
+                }
+                proposal
+            };
+            let revision = update(title, description, proposal, &mut identity, &signer)?;
+
+            if revision.is_accepted() && revision.parent == Some(current.id) {
+                // Update the canonical head to point to the latest accepted revision.
+                repo.set_identity_head_to(revision.id)?;
+            }
+            if options.quiet {
+                term::print(revision.id);
+            } else {
+                term::success!(
+                    "Identity revision {} created",
+                    term::format::tertiary(revision.id)
+                );
+                print(&revision, &current, &repo, &profile)?;
+            }
+        }
+        Operation::ListRevisions => {
+            let mut revisions =
+                term::Table::<7, term::Label>::new(term::table::TableOptions::bordered());
+
+            revisions.push([
+                term::format::dim(String::from("●")).into(),
+                term::format::bold(String::from("ID")).into(),
+                term::format::bold(String::from("Title")).into(),
+                term::format::bold(String::from("Author")).into(),
+                term::Label::blank(),
+                term::format::bold(String::from("Status")).into(),
+                term::format::bold(String::from("Created")).into(),
+            ]);
+            revisions.divider();
+
+            for r in identity.revisions().rev() {
+                let icon = match r.state {
+                    identity::State::Active => term::format::tertiary("●"),
+                    identity::State::Accepted => term::format::positive("●"),
+                    identity::State::Rejected => term::format::negative("●"),
+                    identity::State::Stale => term::format::dim("●"),
+                }
+                .into();
+                let state = r.state.to_string().into();
+                let id = term::format::oid(r.id).into();
+                let title = term::label(r.title.to_string());
+                let (alias, author) =
+                    term::format::Author::new(r.author.public_key(), &profile).labels();
+                let timestamp = term::format::timestamp(&r.timestamp).into();
+
+                revisions.push([icon, id, title, alias, author, state, timestamp]);
+            }
+            revisions.print();
+        }
+        Operation::RedactRevision { revision } => {
+            let revision = get(revision, &identity, &repo)?.clone();
+
+            if revision.is_accepted() {
+                anyhow::bail!("cannot redact accepted revision");
+            }
+            if options.interactive.confirm(format!(
+                "Redact revision {}?",
+                term::format::tertiary(revision.id)
+            )) {
+                identity.redact(revision.id, &signer)?;
+
+                if !options.quiet {
+                    term::success!("Revision {} redacted", revision.id);
                 }
             }
+        }
+        Operation::ShowRevision { revision } => {
+            let revision = get(revision, &identity, &repo)?;
+            print(revision, &current, &repo, &profile)?;
         }
     }
     Ok(())
 }
 
-fn warn_out_of_date(revision: &Revision, previous: &Identity<Oid>) {
-    if revision.current != previous.current {
-        term::warning("Revision is out of date");
-        term::warning(format!("{} =/= {}", revision.current, previous.current));
-        term::tip!("Consider using 'rad id rebase' to update the proposal to the latest identity");
-    }
+fn get<'a>(
+    revision: Rev,
+    identity: &'a Identity,
+    repo: &radicle::storage::git::Repository,
+) -> anyhow::Result<&'a Revision> {
+    let id = revision.resolve(&repo.backend)?;
+    let revision = identity
+        .revision(&id)
+        .ok_or(anyhow!("revision `{id}` not found"))?;
+
+    Ok(revision)
 }
 
-fn confirm(interactive: &Interactive, msg: &str) -> bool {
-    if interactive.yes() {
-        term::confirm(msg)
-    } else {
-        true
-    }
-}
+fn print_meta(
+    revision: &Revision,
+    previous: &Doc<Verified>,
+    profile: &Profile,
+) -> anyhow::Result<()> {
+    let mut attrs = term::Table::<2, term::Label>::new(Default::default());
 
-fn select<'a>(
-    proposal: &'a Proposal,
-    id: Option<RevisionId>,
-    previous: &Identity<Oid>,
-    interactive: &Interactive,
-) -> anyhow::Result<(RevisionId, &'a identity::Revision)> {
-    let (id, revision) = match (id, interactive) {
-        (None, Interactive::Yes) => {
-            let (id, revision) = term::proposal::revision_select(proposal).unwrap();
-            (*id, revision)
-        }
-        (None, Interactive::No) => {
-            let (id, revision) = proposal
-                .revisions()
-                .next()
-                .ok_or(anyhow!("No revisions found!"))?;
-            (*id, revision)
-        }
-        (Some(id), _) => {
-            let revision = proposal
-                .revision(&id)
-                .context(format!("No revision found for {id}"))?
-                .as_ref()
-                .context(format!("Revision {id} was redacted"))?;
-            (id, revision)
-        }
-    };
-    if interactive.yes() {
-        print_revision(revision, previous)?;
-    }
-    Ok((id, revision))
-}
-
-fn commit_select<'a>(
-    proposal: &'a Proposal,
-    id: Option<RevisionId>,
-    previous: &'a Identity<Oid>,
-    interactive: &Interactive,
-) -> anyhow::Result<(RevisionId, &'a identity::Revision)> {
-    let (id, revision) = match (id, interactive) {
-        (None, Interactive::Yes) => {
-            let (id, revision) =
-                term::proposal::revision_commit_select(proposal, previous).unwrap();
-            (*id, revision)
-        }
-        (None, Interactive::No) => {
-            let (id, revision) = proposal
-                .revisions()
-                .find(|(_, r)| r.is_quorum_reached(previous))
-                .ok_or(anyhow!("No revisions with quorum found"))?;
-            (*id, revision)
-        }
-        (Some(id), _) => {
-            let revision = proposal
-                .revision(&id)
-                .context(format!("No revision found for {id}"))?
-                .as_ref()
-                .context(format!("Revision {id} was redacted"))?;
-            (id, revision)
-        }
-    };
-    if interactive.yes() {
-        print_revision(revision, previous)?;
-    }
-    Ok((id, revision))
-}
-
-fn print_meta(title: &str, description: Option<&str>, state: &identity::State) {
-    term::info!("{}: {}", term::format::bold("title"), title);
-    term::info!(
-        "{}: {}",
-        term::format::bold("description"),
-        description.unwrap_or("No description provided")
-    );
-    term::info!(
-        "{}: {}",
-        term::format::bold("status"),
-        match state {
-            identity::State::Open => term::format::badge_primary("open"),
-            identity::State::Closed => term::format::badge_negative("closed"),
-            identity::State::Committed => term::format::badge_positive("committed"),
-        }
-    );
-}
-
-fn print_revision(revision: &identity::Revision, previous: &Identity<Oid>) -> anyhow::Result<()> {
-    term::info!("{}: {}", term::format::bold("author"), revision.author.id());
-
-    term::header("Document Diff");
-    print!("{}", term::proposal::diff(revision, previous)?);
-    term::blank();
-
-    {
-        term::header("Accepted");
-        let accepted = revision.accepted();
-        let total = accepted.len();
-        print!(
-            "{}",
-            term::format::positive(format!(
-                "{}: {}\n{}: {}",
-                "total",
-                total,
-                "keys",
-                serde_json::to_string_pretty(&accepted)?
-            ))
-        );
-        term::blank();
-    }
-
-    {
-        term::header("Rejected");
-        let rejected = revision.rejected();
-        let total = rejected.len();
-        print!(
-            "{}",
-            term::format::negative(format!(
-                "{}: {}\n{}: {}",
-                "total",
-                total,
-                "keys",
-                serde_json::to_string_pretty(&rejected)?
-            ))
-        );
-        term::blank();
-    }
-
-    term::header("Quorum Reached");
-    print!(
-        "{}",
-        if revision.is_quorum_reached(previous) {
-            term::format::positive("👍 yes")
+    attrs.push([
+        term::format::bold("Title").into(),
+        term::label(revision.title.to_owned()),
+    ]);
+    attrs.push([
+        term::format::bold("Revision").into(),
+        term::label(revision.id.to_string()),
+    ]);
+    attrs.push([
+        term::format::bold("Blob").into(),
+        term::label(revision.blob.to_string()),
+    ]);
+    attrs.push([
+        term::format::bold("Author").into(),
+        term::label(revision.author.to_string()),
+    ]);
+    attrs.push([
+        term::format::bold("State").into(),
+        term::label(revision.state.to_string()),
+    ]);
+    attrs.push([
+        term::format::bold("Quorum").into(),
+        if revision.is_accepted() {
+            term::format::positive("yes").into()
         } else {
-            term::format::negative("👎 no")
-        }
-    );
-    term::blank();
+            term::format::negative("no").into()
+        },
+    ]);
+
+    let mut meta = term::VStack::default()
+        .border(Some(term::colors::FAINT))
+        .child(attrs)
+        .children(if !revision.description.is_empty() {
+            vec![
+                term::Label::blank().boxed(),
+                term::textarea(revision.description.to_owned()).boxed(),
+            ]
+        } else {
+            vec![]
+        })
+        .divider();
+
+    let accepted = revision.accepted().collect::<Vec<_>>();
+    let rejected = revision.rejected().collect::<Vec<_>>();
+    let unknown = previous
+        .delegates
+        .iter()
+        .filter(|id| !accepted.contains(id) && !rejected.contains(id))
+        .collect::<Vec<_>>();
+    let mut signatures = term::Table::<4, _>::default();
+
+    for id in accepted {
+        let author = term::format::Author::new(&id, profile);
+        signatures.push([
+            term::format::positive("✓").into(),
+            id.to_string().into(),
+            author.alias().unwrap_or_default(),
+            author.you().unwrap_or_default(),
+        ]);
+    }
+    for id in rejected {
+        let author = term::format::Author::new(&id, profile);
+        signatures.push([
+            term::format::negative("✗").into(),
+            id.to_string().into(),
+            author.alias().unwrap_or_default(),
+            author.you().unwrap_or_default(),
+        ]);
+    }
+    for id in unknown {
+        let author = term::format::Author::new(id, profile);
+        signatures.push([
+            term::format::dim("?").into(),
+            id.to_string().into(),
+            author.alias().unwrap_or_default(),
+            author.you().unwrap_or_default(),
+        ]);
+    }
+    meta.push(signatures);
+    meta.print();
 
     Ok(())
 }
 
 fn print(
-    proposal: &identity::Proposal,
-    previous: &Identity<Oid>,
-    rid: Option<&RevisionId>,
+    revision: &identity::Revision,
+    previous: &identity::Revision,
+    repo: &radicle::storage::git::Repository,
+    profile: &Profile,
 ) -> anyhow::Result<()> {
-    let revision = match rid {
-        None => {
-            proposal
-                .latest()
-                .context("No latest proposal revision to show")?
-                .1
+    print_meta(revision, previous, profile)?;
+    println!();
+    print_diff(revision.parent.as_ref(), &revision.id, repo)?;
+
+    Ok(())
+}
+
+fn edit_title_description(
+    title: Option<String>,
+    description: Option<String>,
+) -> anyhow::Result<Option<(String, String)>> {
+    const HELP: &str = r#"<!--
+Please enter a patch message for your changes. An empty
+message aborts the patch proposal.
+
+The first line is the patch title. The patch description
+follows, and must be separated with a blank line, just
+like a commit message. Markdown is supported in the title
+and description.
+-->"#;
+
+    let result = if let (Some(t), Some(d)) = (title.as_ref(), description.as_ref()) {
+        Some((t.to_owned(), d.to_owned()))
+    } else {
+        let result = Message::edit_title_description(title, description, HELP)?;
+        if let Some((title, description)) = result {
+            Some((title, description))
+        } else {
+            None
         }
-        Some(rid) => proposal
-            .revision(rid)
-            .context(format!("No revision found for {rid}"))?
-            .as_ref()
-            .context(format!("Revision {rid} was redacted"))?,
     };
-    print_meta(proposal.title(), proposal.description(), proposal.state());
-    print_revision(revision, previous)
+    Ok(result)
+}
+
+fn update<R: WriteRepository + cob::Store, G: Signer>(
+    title: Option<String>,
+    description: Option<String>,
+    doc: Doc<Verified>,
+    current: &mut IdentityMut<R>,
+    signer: &G,
+) -> anyhow::Result<Revision> {
+    if let Some((title, description)) = edit_title_description(title, description)? {
+        let revision = current.update(title, description, &doc, signer)?;
+        Ok(revision)
+    } else {
+        Err(anyhow!("you must provide a revision title and description"))
+    }
+}
+
+fn print_diff(
+    previous: Option<&RevisionId>,
+    current: &RevisionId,
+    repo: &radicle::storage::git::Repository,
+) -> anyhow::Result<()> {
+    let previous = if let Some(previous) = previous {
+        let previous = Doc::<Verified>::load_at(*previous, repo)?;
+        let previous = serde_json::to_string_pretty(&previous.doc)?;
+
+        Some(previous)
+    } else {
+        None
+    };
+    let current = Doc::<Verified>::load_at(*current, repo)?;
+    let current = serde_json::to_string_pretty(&current.doc)?;
+
+    let tmp = tempfile::tempdir()?;
+    let repo = radicle::git::raw::Repository::init_bare(tmp.path())?;
+
+    let previous = if let Some(previous) = previous {
+        let tree = radicle::git::write_tree(&doc::PATH, previous.as_bytes(), &repo)?;
+        Some(tree)
+    } else {
+        None
+    };
+    let current = radicle::git::write_tree(&doc::PATH, current.as_bytes(), &repo)?;
+    let mut opts = radicle::git::raw::DiffOptions::new();
+    opts.context_lines(u32::MAX);
+
+    let diff = repo.diff_tree_to_tree(previous.as_ref(), Some(&current), Some(&mut opts))?;
+    let diff = Diff::try_from(diff)?;
+
+    if let Some(modified) = diff.modified().next() {
+        let diff = modified.diff.to_unified_string()?;
+        print!("{diff}");
+    } else {
+        term::print(term::format::italic("No changes."));
+    }
+    Ok(())
 }

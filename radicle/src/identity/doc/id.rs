@@ -136,6 +136,7 @@ impl From<&Id> for Component<'_> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use super::*;
     use qcheck_macros::quickcheck;

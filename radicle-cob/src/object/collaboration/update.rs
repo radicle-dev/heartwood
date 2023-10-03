@@ -58,7 +58,7 @@ pub struct Update {
 pub fn update<T, S, G>(
     storage: &S,
     signer: &G,
-    resource: Oid,
+    resource: Option<Oid>,
     parents: Vec<Oid>,
     identifier: &PublicKey,
     args: Update,

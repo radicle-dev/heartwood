@@ -2,7 +2,7 @@ use std::ffi::OsString;
 
 use anyhow::{anyhow, Context as _};
 
-use radicle::identity::Visibility;
+use radicle::identity::{Identity, Visibility};
 use radicle::node::Handle as _;
 use radicle::prelude::Id;
 use radicle::storage::{ReadRepository, SignRepository, WriteRepository, WriteStorage};
@@ -76,8 +76,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     };
 
     let repo = profile.storage.repository_mut(rid)?;
-    let (_, doc) = repo.identity_doc()?;
-    let mut doc = doc.verified()?;
+    let mut identity = Identity::load_mut(&repo)?;
+    let mut doc = identity.doc().clone();
 
     if doc.visibility.is_public() {
         return Err(Error::WithHint {
@@ -102,14 +102,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     // Update identity document.
     doc.visibility = Visibility::Public;
-    doc.sign(&signer).and_then(|(_, sig)| {
-        doc.update(
-            profile.id(),
-            "Publish repository",
-            &[(signer.public_key(), sig)],
-            repo.raw(),
-        )
-    })?;
+
+    identity.update("Publish repository", "", &doc, &signer)?;
     repo.sign_refs(&signer)?;
     repo.set_identity_head()?;
     repo.validate()?;

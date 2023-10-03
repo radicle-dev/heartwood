@@ -35,29 +35,7 @@ pub fn get_title_description(
     title: Option<String>,
     description: Option<String>,
 ) -> io::Result<Option<(String, String)>> {
-    let mut placeholder = String::new();
-
-    if let Some(title) = title {
-        placeholder.push_str(title.trim());
-        placeholder.push('\n');
-    }
-    if let Some(description) = description {
-        placeholder.push('\n');
-        placeholder.push_str(description.trim());
-        placeholder.push('\n');
-    }
-    placeholder.push_str(OPEN_MSG);
-
-    let output = term::patch::Message::Edit.get(&placeholder)?;
-    let Some((title, description)) = output.split_once("\n\n") else {
-        return Ok(None);
-    };
-    let (title, description) = (title.trim(), description.trim());
-
-    if title.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some((title.to_owned(), description.to_owned())))
+    term::patch::Message::edit_title_description(title, description, OPEN_MSG)
 }
 
 pub fn show(

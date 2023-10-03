@@ -42,9 +42,9 @@ pub enum Error {
     #[error(transparent)]
     CobStore(#[from] radicle::cob::store::Error),
 
-    /// Identity error.
+    /// Repository error.
     #[error(transparent)]
-    Identity(#[from] radicle::identity::IdentityError),
+    Repository(#[from] radicle::storage::RepositoryError),
 
     /// Project doc error.
     #[error(transparent)]
@@ -115,10 +115,7 @@ impl IntoResponse for Error {
                 tracing::error!("Error: {message}");
 
                 if cfg!(debug_assertions) {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Some(format!("{other:?}")),
-                    )
+                    (StatusCode::INTERNAL_SERVER_ERROR, Some(other.to_string()))
                 } else {
                     (StatusCode::INTERNAL_SERVER_ERROR, None)
                 }

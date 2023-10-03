@@ -10,6 +10,7 @@ use amplify::Wrapper;
 use once_cell::sync::Lazy;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
+use storage::RepositoryError;
 use thiserror::Error;
 
 use crate::cob;
@@ -22,7 +23,6 @@ use crate::cob::thread::{Comment, CommentId, Reactions};
 use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName, Uri};
 use crate::crypto::{PublicKey, Signer};
 use crate::git;
-use crate::identity;
 use crate::identity::doc::DocError;
 use crate::identity::PayloadError;
 use crate::prelude::*;
@@ -99,6 +99,9 @@ pub enum Error {
     /// Error loading the identity document committed to by an operation.
     #[error("identity doc failed to load: {0}")]
     Doc(#[from] DocError),
+    /// Identity document is missing.
+    #[error("missing identity docuemnt")]
+    MissingIdentity,
     /// Error loading the document payload.
     #[error("payload failed to load: {0}")]
     Payload(#[from] PayloadError),
@@ -340,7 +343,7 @@ pub enum MergeTarget {
 
 impl MergeTarget {
     /// Get the head of the target branch.
-    pub fn head<R: ReadRepository>(&self, repo: &R) -> Result<git::Oid, identity::IdentityError> {
+    pub fn head<R: ReadRepository>(&self, repo: &R) -> Result<git::Oid, RepositoryError> {
         match self {
             MergeTarget::Delegates => {
                 let (_, target) = repo.head()?;
@@ -1067,6 +1070,7 @@ impl store::Cob for Patch {
     }
 
     fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
+        let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
         let mut actions = op.actions.into_iter();
         let Some(Action::Revision { description, base, oid, resolves }) = actions.next() else {
             return Err(Error::Init("the first action must be of type `revision`"));
@@ -1083,7 +1087,6 @@ impl store::Cob for Patch {
             resolves,
         );
         let mut patch = Patch::new(title, target, (RevisionId(op.id), revision));
-        let doc = repo.identity_doc_at(op.identity)?.verified()?;
 
         for action in actions {
             patch.action(action, op.id, op.author, op.timestamp, &doc, repo)?;
@@ -1095,7 +1098,7 @@ impl store::Cob for Patch {
         debug_assert!(!self.timeline.contains(&op.id));
         self.timeline.push(op.id);
 
-        let doc = repo.identity_doc_at(op.identity)?.verified()?;
+        let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
 
         for action in op.actions {
             match self.authorization(&action, &op.author, &doc)? {
@@ -2162,9 +2165,10 @@ impl<'a, R> Patches<'a, R>
 where
     R: ReadRepository + cob::Store + 'static,
 {
-    /// Open an patches store.
-    pub fn open(repository: &'a R) -> Result<Self, store::Error> {
-        let raw = store::Store::open(repository)?;
+    /// Open a patches store.
+    pub fn open(repository: &'a R) -> Result<Self, RepositoryError> {
+        let identity = repository.identity_head()?;
+        let raw = store::Store::open(repository)?.identity(identity);
 
         Ok(Self { raw })
     }
@@ -2338,6 +2342,7 @@ mod test {
     use super::*;
     use crate::cob::test::Actor;
     use crate::crypto::test::signer::MockSigner;
+    use crate::identity;
     use crate::test;
     use crate::test::arbitrary;
     use crate::test::arbitrary::gen;

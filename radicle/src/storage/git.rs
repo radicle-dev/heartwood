@@ -1,3 +1,4 @@
+#![warn(clippy::unwrap_used)]
 pub mod cob;
 pub mod transport;
 
@@ -5,19 +6,19 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
-use crypto::{Signer, Unverified, Verified};
+use crypto::{Signer, Verified};
 use once_cell::sync::Lazy;
 
+use crate::crypto::Unverified;
 use crate::git;
-use crate::identity;
 use crate::identity::doc::DocError;
-use crate::identity::{Doc, Id};
-use crate::identity::{Identity, IdentityError, Project};
+use crate::identity::{doc::DocAt, Doc, Id};
+use crate::identity::{Identity, Project};
 use crate::storage::refs;
 use crate::storage::refs::{Refs, SignedRefs};
 use crate::storage::{
-    Inventory, ReadRepository, ReadStorage, Remote, Remotes, SignRepository, WriteRepository,
-    WriteStorage,
+    Inventory, ReadRepository, ReadStorage, Remote, Remotes, RepositoryError, SignRepository,
+    WriteRepository, WriteStorage,
 };
 
 pub use crate::git::*;
@@ -66,10 +67,8 @@ impl<'a> TryFrom<git2::Reference<'a>> for Ref {
             Err(RefError::MissingNamespace(refname)) => (None, refname),
             Err(err) => return Err(err),
         };
-        let Some(oid) = r.target() else {
-            // Ignore symbolic refs, eg. `HEAD`.
-            return Err(RefError::Symbolic(name));
-        };
+        let oid = r.resolve()?.target().ok_or(RefError::NoTarget)?;
+
         Ok(Self {
             namespace,
             name,
@@ -94,25 +93,12 @@ impl ReadStorage for Storage {
         paths::repository(&self, rid)
     }
 
-    fn contains(&self, rid: &Id) -> Result<bool, IdentityError> {
+    fn contains(&self, rid: &Id) -> Result<bool, RepositoryError> {
         if paths::repository(&self, rid).exists() {
             let _ = self.repository(*rid)?.head()?;
             return Ok(true);
         }
         Ok(false)
-    }
-
-    fn get(&self, remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError> {
-        let repo = match self.repository(proj) {
-            Ok(doc) => doc,
-            Err(e) if e.is_not_found() => return Ok(None),
-            Err(e) => return Err(e.into()),
-        };
-        match repo.identity_doc_of(remote) {
-            Ok(doc) => Ok(Some(doc)),
-            Err(e) if e.is_not_found() => Ok(None),
-            Err(e) => Err(e),
-        }
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
@@ -160,7 +146,7 @@ impl Storage {
         self.path.as_path()
     }
 
-    pub fn repositories(&self) -> Result<Vec<RepositoryInfo<Unverified>>, Error> {
+    pub fn repositories(&self) -> Result<Vec<RepositoryInfo<Verified>>, Error> {
         let mut repos = Vec::new();
 
         for result in fs::read_dir(&self.path)? {
@@ -185,7 +171,7 @@ impl Storage {
                 }
             };
             let doc = match repo.identity_doc() {
-                Ok((_, doc)) => doc,
+                Ok(doc) => doc.into(),
                 Err(e) => {
                     log::warn!(target: "storage", "Repository {rid} is invalid: looking up doc: {e}");
                     continue;
@@ -213,7 +199,7 @@ impl Storage {
             for r in repo.raw().references()? {
                 let r = r?;
                 let name = r.name().ok_or(Error::InvalidRef)?;
-                let oid = r.target().ok_or(Error::InvalidRef)?;
+                let oid = r.resolve()?.target().ok_or(Error::InvalidRef)?;
 
                 println!("{} {oid} {name}", rid.urn());
             }
@@ -222,25 +208,22 @@ impl Storage {
     }
 }
 
+/// Git implementation of [`WriteRepository`] using the `git2` crate.
 pub struct Repository {
+    /// The repository identifier (RID).
     pub id: Id,
+    /// The backing Git repository.
     pub backend: git2::Repository,
 }
 
 #[derive(Debug, Error)]
 pub enum VerifyError {
-    #[error("invalid remote `{0}`")]
-    InvalidRemote(RemoteId),
     #[error("invalid target `{2}` for reference `{1}` of remote `{0}`")]
     InvalidRefTarget(RemoteId, RefString, git2::Oid),
-    #[error("invalid identity: {0}")]
-    InvalidIdentity(#[from] IdentityError),
     #[error("refs error: {0}")]
     Refs(#[from] refs::Error),
     #[error("missing reference `{1}` in remote `{0}`")]
     MissingRef(RemoteId, git::RefString),
-    #[error("git: {0}")]
-    Git(#[from] git2::Error),
     #[error(transparent)]
     Storage(#[from] Error),
 }
@@ -274,28 +257,22 @@ impl Repository {
     /// Create the repository's identity branch.
     pub fn init<G: Signer, S: WriteStorage>(
         doc: &Doc<Verified>,
-        remote: &RemoteId,
         storage: S,
         signer: &G,
-    ) -> Result<(Self, git::Oid), Error> {
-        let (doc_oid, doc) = doc.encode()?;
+    ) -> Result<(Self, git::Oid), RepositoryError> {
+        let (doc_oid, _) = doc.encode()?;
         let id = Id::from(doc_oid);
         let repo = Self::create(paths::repository(&storage, &id), id)?;
-        let oid = Doc::init(
-            doc.as_slice(),
-            remote,
-            &[(signer.public_key(), signer.sign(doc_oid.as_bytes()))],
-            repo.raw(),
-        )?;
+        let commit = doc.init(&repo, signer)?;
 
-        Ok((repo, oid))
+        Ok((repo, commit))
     }
 
     pub fn inspect(&self) -> Result<(), Error> {
         for r in self.backend.references()? {
             let r = r?;
             let name = r.name().ok_or(Error::InvalidRef)?;
-            let oid = r.target().ok_or(Error::InvalidRef)?;
+            let oid = r.resolve()?.target().ok_or(Error::InvalidRef)?;
 
             println!("{oid} {name}");
         }
@@ -313,7 +290,6 @@ impl Repository {
                 let r = reference?;
 
                 match Ref::try_from(r) {
-                    Err(RefError::Symbolic(_)) => Ok(None),
                     Err(err) => Err(err.into()),
                     Ok(r) => Ok(Some(r)),
                 }
@@ -323,24 +299,18 @@ impl Repository {
         Ok(refs)
     }
 
-    pub fn identity_of(&self, remote: &RemoteId) -> Result<Identity<Oid>, IdentityError> {
-        Identity::load(remote, self)
-    }
-
     /// Get the canonical project information.
-    pub fn project(&self) -> Result<Project, IdentityError> {
+    pub fn project(&self) -> Result<Project, RepositoryError> {
         let head = self.identity_head()?;
         let doc = self.identity_doc_at(head)?;
-        let proj = doc.verified()?.project()?;
+        let proj = doc.project()?;
 
         Ok(proj)
     }
 
-    pub fn identity_doc_of(&self, remote: &RemoteId) -> Result<Doc<Verified>, IdentityError> {
-        let (doc, _) = identity::Doc::load(remote, self)?;
-        let verified = doc.verified()?;
-
-        Ok(verified)
+    pub fn identity_doc_of(&self, remote: &RemoteId) -> Result<Doc<Verified>, DocError> {
+        let oid = self.identity_head_of(remote)?;
+        Doc::load_at(oid, self).map(|d| d.into())
     }
 
     pub fn remote_ids(
@@ -392,12 +362,18 @@ impl ReadRepository for Repository {
         self.backend.path()
     }
 
-    fn blob_at<'a>(&'a self, commit: Oid, path: &'a Path) -> Result<git2::Blob<'a>, git::Error> {
-        git::ext::Blob::At {
-            object: commit.into(),
-            path,
-        }
-        .get(&self.backend)
+    fn blob_at<P: AsRef<Path>>(&self, commit: Oid, path: P) -> Result<git2::Blob, git::Error> {
+        let commit = self.backend.find_commit(*commit)?;
+        let tree = commit.tree()?;
+        let entry = tree.get_path(path.as_ref())?;
+        let obj = entry.to_object(&self.backend)?;
+        let blob = obj.into_blob().map_err(|_| {
+            git::Error::NotFound(git::NotFound::NoSuchBlob(
+                path.as_ref().display().to_string(),
+            ))
+        })?;
+
+        Ok(blob)
     }
 
     fn blob(&self, oid: Oid) -> Result<git2::Blob, git::Error> {
@@ -429,8 +405,8 @@ impl ReadRepository for Repository {
         if let Some((name, _)) = signed.into_iter().next() {
             return Err(VerifyError::MissingRef(remote.id, name));
         }
-        // Finally, verify the identity history of remote.
-        self.identity_of(&remote.id)?.verified(self.id)?;
+        // Nb. As it stands, it doesn't make sense to verify a single remote's identity branch,
+        // since it is a COB.
 
         Ok(unsigned)
     }
@@ -489,7 +465,7 @@ impl ReadRepository for Repository {
             let e = e?;
             let name = e.name().ok_or(Error::InvalidRef)?;
             let (_, refname) = git::parse_ref::<RemoteId>(name)?;
-            let oid = e.target().ok_or(Error::InvalidRef)?;
+            let oid = e.resolve()?.target().ok_or(Error::InvalidRef)?;
             let (_, category, _, _) = refname.non_empty_components();
 
             if [
@@ -536,11 +512,11 @@ impl ReadRepository for Repository {
         Ok(Remotes::from_iter(remotes))
     }
 
-    fn identity_doc_at(&self, head: Oid) -> Result<identity::Doc<Unverified>, DocError> {
-        Doc::<Unverified>::load_at(head, self).map(|(doc, _)| doc)
+    fn identity_doc_at(&self, head: Oid) -> Result<DocAt, DocError> {
+        Doc::<Verified>::load_at(head, self)
     }
 
-    fn head(&self) -> Result<(Qualified, Oid), IdentityError> {
+    fn head(&self) -> Result<(Qualified, Oid), RepositoryError> {
         // If `HEAD` is already set locally, just return that.
         if let Ok(head) = self.backend.head() {
             if let Ok((name, oid)) = git::refs::qualified_from(&head) {
@@ -550,9 +526,8 @@ impl ReadRepository for Repository {
         self.canonical_head()
     }
 
-    fn canonical_head(&self) -> Result<(Qualified, Oid), IdentityError> {
-        let (_, doc) = self.identity_doc()?;
-        let doc = doc.verified()?;
+    fn canonical_head(&self) -> Result<(Qualified, Oid), RepositoryError> {
+        let doc = self.identity_doc()?;
         let project = doc.project()?;
         let branch_ref = git::refs::branch(project.default_branch());
         let raw = self.raw();
@@ -568,60 +543,63 @@ impl ReadRepository for Repository {
         Ok((branch_ref, quorum))
     }
 
-    fn identity_head(&self) -> Result<Oid, IdentityError> {
-        match Doc::<Verified>::canonical_head(self) {
+    fn identity_head(&self) -> Result<Oid, RepositoryError> {
+        let result = self
+            .backend
+            .refname_to_id(CANONICAL_IDENTITY.as_str())
+            .map(Oid::from);
+
+        match result {
             Ok(oid) => Ok(oid),
-            Err(err) if err.is_not_found() => self.canonical_identity_head(),
+            Err(err) if git::ext::is_not_found_err(&err) => self.canonical_identity_head(),
             Err(err) => Err(err.into()),
         }
     }
 
-    fn canonical_identity_head(&self) -> Result<Oid, IdentityError> {
-        let mut heads = Vec::new();
+    fn identity_head_of(&self, remote: &RemoteId) -> Result<Oid, git::ext::Error> {
+        self.reference_oid(remote, &git::refs::storage::IDENTITY_BRANCH)
+    }
 
+    fn identity_root(&self) -> Result<Oid, RepositoryError> {
+        let oid = self.backend.refname_to_id(CANONICAL_IDENTITY.as_str())?;
+        let walk = self.revwalk(oid.into())?.collect::<Vec<_>>();
+        let root = walk
+            .into_iter()
+            .last()
+            .ok_or(RepositoryError::Doc(DocError::Missing))??;
+
+        Ok(root.into())
+    }
+
+    fn identity_root_of(&self, remote: &RemoteId) -> Result<Oid, RepositoryError> {
+        let oid = self.identity_head_of(remote)?;
+        let walk = self.revwalk(oid)?.collect::<Vec<_>>();
+        let root = walk
+            .into_iter()
+            .last()
+            .ok_or(RepositoryError::Doc(DocError::Missing))??;
+
+        Ok(root.into())
+    }
+
+    fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
         for remote in self.remote_ids()? {
             let remote = remote?;
-            let oid = Doc::<Unverified>::head(&remote, self)?;
+            // Nb. A remote may not have an identity document if the user has not contributed
+            // any changes to the identity COB.
+            let Ok(root) = self.identity_root_of(&remote) else {
+                continue;
+            };
+            let blob = Doc::<Unverified>::blob_at(root, self)?;
 
-            heads.push(oid.into());
-        }
-        // Keep track of the longest identity branch.
-        let mut longest = heads.pop().ok_or(IdentityError::MissingBranch)?;
+            // We've got an identity that goes back to the correct root.
+            if blob.id() == **self.id {
+                let identity = Identity::get(&root.into(), self)?;
 
-        for head in &heads {
-            let base = self.raw().merge_base(*head, longest)?;
-
-            if base == longest {
-                // `head` is a successor of `longest`. Update `longest`.
-                //
-                //   o head
-                //   |
-                //   o longest (base)
-                //   |
-                //
-                longest = *head;
-            } else if base == *head || *head == longest {
-                // `head` is an ancestor of `longest`, or equal to it. Do nothing.
-                //
-                //   o longest             o longest, head (base)
-                //   |                     |
-                //   o head (base)   OR    o
-                //   |                     |
-                //
-            } else {
-                // The merge base between `head` and `longest` (`base`)
-                // is neither `head` nor `longest`. Therefore, the branches have
-                // diverged.
-                //
-                //    longest   head
-                //           \ /
-                //            o (base)
-                //            |
-                //
-                return Err(IdentityError::BranchesDiverge);
+                return Ok(identity.head());
             }
         }
-        Ok(longest.into())
+        Err(DocError::Missing.into())
     }
 
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, ext::Error> {
@@ -633,7 +611,7 @@ impl ReadRepository for Repository {
 }
 
 impl WriteRepository for Repository {
-    fn set_head(&self) -> Result<Oid, IdentityError> {
+    fn set_head(&self) -> Result<Oid, RepositoryError> {
         let head_ref = refname!("HEAD");
         let (branch_ref, head) = self.canonical_head()?;
 
@@ -648,18 +626,15 @@ impl WriteRepository for Repository {
         Ok(head)
     }
 
-    fn set_identity_head(&self) -> Result<Oid, IdentityError> {
-        let head = self.canonical_identity_head()?;
-
-        log::debug!(target: "storage", "Setting ref: {} -> {}", *CANONICAL_IDENTITY, head);
+    fn set_identity_head_to(&self, commit: Oid) -> Result<(), RepositoryError> {
+        log::debug!(target: "storage", "Setting ref: {} -> {}", *CANONICAL_IDENTITY, commit);
         self.raw().reference(
             CANONICAL_IDENTITY.as_str(),
-            *head,
+            *commit,
             true,
             "set-local-branch (radicle)",
         )?;
-
-        Ok(head)
+        Ok(())
     }
 
     fn raw(&self) -> &git2::Repository {
@@ -670,7 +645,11 @@ impl WriteRepository for Repository {
 impl SignRepository for Repository {
     fn sign_refs<G: Signer>(&self, signer: &G) -> Result<SignedRefs<Verified>, Error> {
         let remote = signer.public_key();
-        let refs = self.references_of(remote)?;
+        let mut refs = self.references_of(remote)?;
+        // Don't sign the `rad/sigrefs` ref itself, and don't sign invalid OIDs.
+        refs.retain(|name, oid| {
+            name.as_refstr() != refs::SIGREFS_BRANCH.as_ref() && !oid.is_zero()
+        });
         let signed = refs.signed(signer)?;
 
         signed.save(self)?;
@@ -839,6 +818,7 @@ pub mod paths {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use crypto::test::signer::MockSigner;
 
@@ -1057,11 +1037,13 @@ mod tests {
 
         transport::local::register(storage.clone());
 
-        let (id, _, _, _) =
+        let (rid, _, _, _) =
             fixtures::project(tmp.path().join("project"), &storage, &signer).unwrap();
-        let proj = storage.repository(id).unwrap();
+        let repo = storage.repository(rid).unwrap();
+        let id = repo.identity().unwrap().head();
+        let cob = format!("refs/cobs/xyz.radicle.id/{id}");
 
-        let mut refs = proj
+        let mut refs = repo
             .references_of(signer.public_key())
             .unwrap()
             .iter()
@@ -1071,7 +1053,7 @@ mod tests {
 
         assert_eq!(
             refs,
-            vec!["refs/heads/master", "refs/rad/id", "refs/rad/sigrefs"]
+            vec![&cob, "refs/heads/master", "refs/rad/id", "refs/rad/sigrefs"]
         );
     }
 

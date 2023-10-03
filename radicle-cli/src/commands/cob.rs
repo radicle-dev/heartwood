@@ -137,7 +137,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 .to_rfc2822();
 
                 term::print(term::format::yellow(format!("commit {}", op.id)));
-                term::print(term::format::tertiary(format!("parent {}", op.identity)));
+                if let Some(oid) = op.identity {
+                    term::print(term::format::tertiary(format!("parent {oid}")));
+                }
                 for parent in op.parents {
                     term::print(format!("parent {}", parent));
                 }

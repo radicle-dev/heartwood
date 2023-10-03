@@ -67,7 +67,7 @@ impl change::Storage for Storage {
 
     fn store<Signer>(
         &self,
-        authority: Self::Parent,
+        authority: Option<Self::Parent>,
         parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: change::Template<Self::ObjectId>,

@@ -16,11 +16,8 @@ She allows Bob to view the repository. And when she syncs, one node (Bob) gets
 the refs.
 
 ``` ~alice
-$ rad id edit --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
-e98cd6a0a3e94837b382e59e02b3ea83991a8244
-$ rad id accept e98cd6a0a3e94837b382e59e02b3ea83991a8244 -q
-$ rad id commit e98cd6a0a3e94837b382e59e02b3ea83991a8244 -q
-c568f8aac97db40a5e63e1261872bfbd9a3a61e4
+$ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
+...
 $ rad sync --announce --timeout 3
 ✓ Synced with 1 node(s)
 ```

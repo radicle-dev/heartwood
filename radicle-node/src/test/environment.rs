@@ -250,7 +250,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
 
         loop {
             if let Ok(repo) = self.storage.repository(*rid) {
-                if repo.identity_of(nid).is_ok() && repo.remote(nid).is_ok() {
+                if repo.remote(nid).is_ok() {
                     break;
                 }
             }

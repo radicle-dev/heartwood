@@ -30,6 +30,9 @@ pub enum Error {
     /// that hasn't happened yet.
     #[error("causal dependency {0:?} missing")]
     Missing(EntryId),
+    /// The identity doc is missing.
+    #[error("identity document missing")]
+    MissingIdentity,
     /// Error with comment operation.
     #[error("comment {0} is invalid")]
     Comment(EntryId),
@@ -378,6 +381,7 @@ impl cob::store::Cob for Thread {
         let author = op.author;
         let entry = op.id;
         let timestamp = op.timestamp;
+        let identity = op.identity.ok_or(Error::MissingIdentity)?;
         let mut actions = op.actions.into_iter();
         let Some(Action::Comment { body, reply_to: None }) = actions.next() else {
             return Err(Error::Init("missing initial comment"));
@@ -396,14 +400,15 @@ impl cob::store::Cob for Thread {
         )?;
 
         for action in actions {
-            thread.action(action, entry, author, timestamp, op.identity, repo)?;
+            thread.action(action, entry, author, timestamp, identity, repo)?;
         }
         Ok(thread)
     }
 
     fn op<R: ReadRepository>(&mut self, op: Op<Action>, repo: &R) -> Result<(), Error> {
+        let identity = op.identity.ok_or(Error::MissingIdentity)?;
         for action in op.actions {
-            self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
+            self.action(action, op.id, op.author, op.timestamp, identity, repo)?;
         }
         Ok(())
     }

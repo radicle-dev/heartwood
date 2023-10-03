@@ -1,9 +1,11 @@
 //! COB storage Git backend.
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use cob::object::Objects;
 use radicle_cob as cob;
 use radicle_cob::change;
+use storage::RepositoryError;
 use storage::SignRepository;
 
 use crate::git::*;
@@ -15,10 +17,12 @@ use crate::storage::{
 };
 use crate::{
     git, identity,
-    identity::{doc::DocError, IdentityError, PublicKey},
+    identity::{doc::DocError, PublicKey},
 };
 
 use super::{RemoteId, Repository};
+
+pub use crate::cob::{store, ObjectId};
 
 #[derive(Error, Debug)]
 pub enum ObjectsError {
@@ -54,7 +58,7 @@ impl change::Storage for Repository {
 
     fn store<Signer>(
         &self,
-        authority: Self::Parent,
+        authority: Option<Self::Parent>,
         parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: change::Template<Self::ObjectId>,
@@ -194,7 +198,7 @@ impl<'a, R: storage::WriteRepository> change::Storage for DraftStore<'a, R> {
 
     fn store<Signer>(
         &self,
-        authority: Self::Parent,
+        authority: Option<Self::Parent>,
         parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: change::Template<Self::ObjectId>,
@@ -236,11 +240,11 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
         self.repo.is_empty()
     }
 
-    fn head(&self) -> Result<(fmt::Qualified, Oid), identity::IdentityError> {
+    fn head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
         self.repo.head()
     }
 
-    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), identity::IdentityError> {
+    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
         self.repo.canonical_head()
     }
 
@@ -275,11 +279,11 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
         self.repo.is_ancestor_of(ancestor, head)
     }
 
-    fn blob_at<'b>(
-        &'b self,
+    fn blob_at<P: AsRef<Path>>(
+        &self,
         oid: git_ext::Oid,
-        path: &'b std::path::Path,
-    ) -> Result<git2::Blob<'b>, git_ext::Error> {
+        path: P,
+    ) -> Result<git2::Blob, git_ext::Error> {
         self.repo.blob_at(oid, path)
     }
 
@@ -314,24 +318,31 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
         self.repo.references_glob(pattern)
     }
 
-    fn identity_doc(
-        &self,
-    ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), IdentityError> {
+    fn identity_doc(&self) -> Result<crate::identity::DocAt, RepositoryError> {
         self.repo.identity_doc()
     }
 
-    fn identity_doc_at(
-        &self,
-        head: Oid,
-    ) -> Result<crate::identity::Doc<crate::crypto::Unverified>, DocError> {
+    fn identity_doc_at(&self, head: Oid) -> Result<crate::identity::DocAt, DocError> {
         self.repo.identity_doc_at(head)
     }
 
-    fn identity_head(&self) -> Result<Oid, IdentityError> {
+    fn identity_head(&self) -> Result<Oid, RepositoryError> {
         self.repo.identity_head()
     }
 
-    fn canonical_identity_head(&self) -> Result<Oid, IdentityError> {
+    fn identity_head_of(&self, remote: &RemoteId) -> Result<Oid, super::ext::Error> {
+        self.repo.identity_head_of(remote)
+    }
+
+    fn identity_root(&self) -> Result<Oid, RepositoryError> {
+        self.repo.identity_root()
+    }
+
+    fn identity_root_of(&self, remote: &RemoteId) -> Result<Oid, RepositoryError> {
+        self.repo.identity_root_of(remote)
+    }
+
+    fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
         self.repo.canonical_identity_head()
     }
 

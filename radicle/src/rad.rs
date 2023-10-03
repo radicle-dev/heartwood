@@ -9,12 +9,13 @@ use thiserror::Error;
 use crate::cob::ObjectId;
 use crate::crypto::{Signer, Verified};
 use crate::git;
+use crate::identity::doc;
 use crate::identity::doc::{DocError, Id, Visibility};
 use crate::identity::project::Project;
-use crate::identity::{doc, IdentityError};
 use crate::storage::git::transport;
 use crate::storage::git::Repository;
 use crate::storage::refs::SignedRefs;
+use crate::storage::RepositoryError;
 use crate::storage::{BranchName, ReadRepository as _, RemoteId, SignRepository as _};
 use crate::storage::{WriteRepository, WriteStorage};
 use crate::{identity, storage};
@@ -30,8 +31,8 @@ pub static PATCHES_REFNAME: Lazy<git::RefString> = Lazy::new(|| git::refname!("r
 pub enum InitError {
     #[error("doc: {0}")]
     Doc(#[from] DocError),
-    #[error("project: {0}")]
-    Identity(#[from] IdentityError),
+    #[error("repository: {0}")]
+    Repository(#[from] RepositoryError),
     #[error("project payload: {0}")]
     ProjectPayload(String),
     #[error("git: {0}")]
@@ -40,12 +41,6 @@ pub enum InitError {
     Io(#[from] io::Error),
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
-    #[error("cannot initialize project inside a bare repository")]
-    BareRepo,
-    #[error("cannot initialize project from detached head state")]
-    DetachedHead,
-    #[error("HEAD reference is not valid UTF-8")]
-    InvalidHead,
 }
 
 /// Initialize a new radicle project from a git repository.
@@ -75,7 +70,7 @@ pub fn init<G: Signer, S: WriteStorage>(
         )
     })?;
     let doc = identity::Doc::initial(proj, delegate, visibility).verified()?;
-    let (project, _) = Repository::init(&doc, pk, storage, signer)?;
+    let (project, _) = Repository::init(&doc, storage, signer)?;
     let url = git::Url::from(project.id);
 
     git::configure_repository(repo)?;
@@ -88,33 +83,26 @@ pub fn init<G: Signer, S: WriteStorage>(
             &git::fmt::lit::refs_heads(&default_branch).into(),
         )],
     )?;
+
     let signed = project.sign_refs(signer)?;
-    let _head = project.set_head()?;
     let _head = project.set_identity_head()?;
+    let _head = project.set_head()?;
 
     Ok((project.id, doc, signed))
 }
 
 #[derive(Error, Debug)]
 pub enum ForkError {
-    #[error("ref string: {0}")]
-    RefString(#[from] git::fmt::Error),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
-    #[error("git: {0}")]
-    GitExt(#[from] git::Error),
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
     #[error("payload: {0}")]
     Payload(#[from] doc::PayloadError),
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
-    #[error("project identity error: {0}")]
-    InvalidIdentity(#[from] IdentityError),
-    #[error("project identity document error: {0}")]
-    Doc(#[from] DocError),
-    #[error("git: invalid reference")]
-    InvalidReference,
+    #[error("repository: {0}")]
+    Repository(#[from] RepositoryError),
 }
 
 /// Create a local tree for an existing project, from an existing remote.
@@ -129,14 +117,11 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
     // Creates or copies the following references:
     //
     // refs/namespaces/<pk>/refs/heads/master
-    // refs/namespaces/<pk>/refs/rad/id
     // refs/namespaces/<pk>/refs/rad/sigrefs
     // refs/namespaces/<pk>/refs/tags/*
 
     let me = signer.public_key();
-    let doc = storage
-        .get(remote, proj)?
-        .ok_or(ForkError::NotFound(proj))?;
+    let doc = storage.get(proj)?.ok_or(ForkError::NotFound(proj))?;
     let project = doc.project()?;
     let repository = storage.repository_mut(proj)?;
 
@@ -151,15 +136,6 @@ pub fn fork_remote<G: Signer, S: storage::WriteStorage>(
         false,
         &format!("creating default branch for {me}"),
     )?;
-
-    let remote_id = raw.refname_to_id(&git::refs::storage::id(remote))?;
-    raw.reference(
-        &git::refs::storage::id(me),
-        remote_id,
-        false,
-        &format!("creating identity branch for {me}"),
-    )?;
-
     repository.sign_refs(signer)?;
 
     Ok(())
@@ -172,7 +148,6 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
 ) -> Result<(), ForkError> {
     let me = signer.public_key();
     let repository = storage.repository_mut(rid)?;
-    let (canonical_id, _) = repository.identity_doc()?;
     let (canonical_branch, canonical_head) = repository.head()?;
     let raw = repository.raw();
 
@@ -181,12 +156,6 @@ pub fn fork<G: Signer, S: storage::WriteStorage>(
         *canonical_head,
         true,
         &format!("creating default branch for {me}"),
-    )?;
-    raw.reference(
-        &git::refs::storage::id(me),
-        canonical_id.into(),
-        true,
-        &format!("creating identity branch for {me}"),
     )?;
     repository.sign_refs(signer)?;
 
@@ -199,14 +168,12 @@ pub enum CheckoutError {
     Fetch(#[source] git2::Error),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
-    #[error("storage: {0}")]
-    Storage(#[from] storage::Error),
     #[error("payload: {0}")]
     Payload(#[from] doc::PayloadError),
     #[error("project `{0}` was not found in storage")]
     NotFound(Id),
-    #[error("project error: {0}")]
-    Identity(#[from] IdentityError),
+    #[error("repository: {0}")]
+    Repository(#[from] RepositoryError),
 }
 
 /// Checkout a project from storage as a working copy.
@@ -219,9 +186,7 @@ pub fn checkout<P: AsRef<Path>, S: storage::ReadStorage>(
 ) -> Result<git2::Repository, CheckoutError> {
     // TODO: Decide on whether we can use `clone_local`
     // TODO: Look into sharing object databases.
-    let doc = storage
-        .get(remote, proj)?
-        .ok_or(CheckoutError::NotFound(proj))?;
+    let doc = storage.get(proj)?.ok_or(CheckoutError::NotFound(proj))?;
     let project = doc.project()?;
 
     let mut opts = git2::RepositoryInitOptions::new();
@@ -364,6 +329,7 @@ pub fn setup_patch_upstream<'a>(
 mod tests {
     use std::collections::HashMap;
 
+    use pretty_assertions::assert_eq;
     use radicle_crypto::test::signer::MockSigner;
 
     use crate::git::{name::component, qualified};
@@ -396,7 +362,7 @@ mod tests {
         )
         .unwrap();
 
-        let doc = storage.get(&public_key, proj).unwrap().unwrap();
+        let doc = storage.get(proj).unwrap().unwrap();
         let project = doc.project().unwrap();
         let remotes: HashMap<_, _> = storage
             .repository(proj)

@@ -13,13 +13,16 @@ pub enum Error {
     Storage(#[from] radicle::storage::Error),
     /// Identity error.
     #[error(transparent)]
-    Identity(#[from] radicle::identity::IdentityError),
+    Identity(#[from] radicle::identity::DocError),
     /// Git error.
     #[error(transparent)]
     Git(#[from] radicle::git::ext::Error),
     /// COB store error.
     #[error(transparent)]
     CobStore(#[from] cob::store::Error),
+    /// General repository error.
+    #[error(transparent)]
+    Repository(#[from] radicle::storage::RepositoryError),
 }
 
 /// List refs for fetching (`git fetch` and `git ls-remote`).

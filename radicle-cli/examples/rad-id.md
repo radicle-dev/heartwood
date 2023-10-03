@@ -4,24 +4,32 @@ maintainer. This requires adding them as a `delegate` and possibly
 editing the `threshold` for passing new changes to the identity of the
 project.
 
-For cases where `threshold = 1`, it is enough to use the `rad
-delegate` command. For cases where `threshold > 1`, it is necessary to
-gather a quorum of signatures to update the Radicle identity. To do
-this, we use the `rad id` command.
+For cases where `threshold > 1`, it is necessary to gather a quorum of
+signatures to update the Radicle identity. To do this, we use the `rad id`
+command. For now, since we are the only delegate, and `treshold` is `1`, we
+can update the identity ourselves.
 
-Let's add Bob as a delegate using their DID
-`did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn`.
+Let's add Bob as a delegate using their DID,
+`did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn`, and update the
+threshold to `2`.
 
 ```
-$ rad id edit --title "Add Bob" --description "Add Bob as a delegate" --delegates did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --no-confirm
-✓ Identity proposal '662a8065f18db50d9ee952bb36eda5b605f161e9' created
-title: Add Bob
-description: Add Bob as a delegate
-status: ❲open❳
-author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --threshold 2
+✓ Identity revision d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f created
+╭───────────────────────────────────────────────────────────────────╮
+│ Title    Add Bob                                                  │
+│ Revision d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f                 │
+│ Blob     7109c1c201c223dd4e9fdb10f7330dc6f0310258                 │
+│ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
+│ State    accepted                                                 │
+│ Quorum   yes                                                      │
+│                                                                   │
+│ Add Bob as a delegate                                             │
+├───────────────────────────────────────────────────────────────────┤
+│ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi  (you) │
+╰───────────────────────────────────────────────────────────────────╯
 
-Document Diff
-
+@@ -1,13 +1,14 @@
  {
    "payload": {
      "xyz.radicle.project": {
@@ -35,367 +43,97 @@ Document Diff
 +    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
 +    "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
    ],
-   "threshold": 1
+-  "threshold": 1
++  "threshold": 2
  }
-
-
-Accepted
-
-total: 0
-keys: []
-
-Rejected
-
-total: 0
-keys: []
-
-Quorum Reached
-
-👎 no
 ```
 
 Before moving on, let's take a few notes on this output. The first
 thing we'll notice is that the difference between the current identity
 document and the proposed changes are shown. Specifically, we changed
-the delegates:
+the delegates and threshold:
 
-    "delegates": [
-    -    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-    +    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-    +    "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
-    ],
+      "delegates": [
+    -   "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+    +   "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+    +   "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
+      ],
+    ...
+    -  "threshold": 1
+    +  "threshold": 2
 
-Next we have the number of `Accepted` reviews from delegates, starting
-off with none:
+Next we have the number of signatures from delegates, which includes our own:
 
-    Accepted
-
-    total: 0
-    keys: []
-
-The same with `Rejected` reviews:
-
-    Rejected
-
-    total: 0
-    keys: []
+    ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
 Finally, we can see whether the `Quorum` was reached:
 
-    Quorum Reached
+    Quorum   yes
 
-    👎 no
-
-Let's see what happens when we reject the change:
-
-```
-$ rad id reject 662a8065f18db50d9ee952bb36eda5b605f161e9 --no-confirm
-✓ Rejected proposal 👎
-title: Add Bob
-description: Add Bob as a delegate
-status: ❲open❳
-author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-
-Document Diff
-
- {
-   "payload": {
-     "xyz.radicle.project": {
-       "defaultBranch": "master",
-       "description": "Radicle Heartwood Protocol & Stack",
-       "name": "heartwood"
-     }
-   },
-   "delegates": [
--    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-+    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-+    "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
-   ],
-   "threshold": 1
- }
-
-
-Accepted
-
-total: 0
-keys: []
-
-Rejected
-
-total: 1
-keys: [
-  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-]
-
-Quorum Reached
-
-👎 no
-```
-
-Our key was added to the `Rejected` set of `keys` and the `total`
-increased to `1`.
-
-    Rejected
-
-    total: 1
-    keys: [
-      "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-    ]
-
-Instead, let's accept the proposal:
+Since the threshold was previously `1`, this change is now in effect. We
+can verify that by listing the current identity document:
 
 ```
-$ rad id accept 662a8065f18db50d9ee952bb36eda5b605f161e9 --no-confirm
-✓ Accepted proposal ✓
-title: Add Bob
-description: Add Bob as a delegate
-status: ❲open❳
-author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-
-Document Diff
-
- {
-   "payload": {
-     "xyz.radicle.project": {
-       "defaultBranch": "master",
-       "description": "Radicle Heartwood Protocol & Stack",
-       "name": "heartwood"
-     }
-   },
-   "delegates": [
--    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-+    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-+    "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
-   ],
-   "threshold": 1
- }
-
-
-Accepted
-
-total: 1
-keys: [
-  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-]
-
-Rejected
-
-total: 0
-keys: []
-
-Quorum Reached
-
-👍 yes
+$ rad inspect --identity
+{
+  "payload": {
+    "xyz.radicle.project": {
+      "defaultBranch": "master",
+      "description": "Radicle Heartwood Protocol & Stack",
+      "name": "heartwood"
+    }
+  },
+  "delegates": [
+    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+    "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
+  ],
+  "threshold": 2
+}
 ```
 
-Our key has changed from the `Rejected` set to the `Accepted` set
-instead:
+We can also look at the document's COB directly:
+```
+$ rad cob show --object 2317f74de0494c489a233ca6f29f2b8bff6d4f15 --type xyz.radicle.id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+commit d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f
+parent 2317f74de0494c489a233ca6f29f2b8bff6d4f15
+author z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+date   Thu, 15 Dec 2022 17:28:04 +0000
 
-    Accepted
+    {
+      "blob": "7109c1c201c223dd4e9fdb10f7330dc6f0310258",
+      "description": "Add Bob as a delegate",
+      "parent": "2317f74de0494c489a233ca6f29f2b8bff6d4f15",
+      "signature": "z3sne3sdReZ4AtgxQmn7R1pQnz7E9ZEUoRfCJDJ8ytgnBMFW4DJqRHuBz2h1NK4QdGEy3QCpyVoJKfE95tNoivXwz",
+      "title": "Add Bob",
+      "type": "revision"
+    }
 
-    total: 1
-    keys: [
-      "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-    ]
+commit 2317f74de0494c489a233ca6f29f2b8bff6d4f15
+author z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+date   Thu, 15 Dec 2022 17:28:04 +0000
 
-As well as that, the `Quorum` has now been reached:
-
-    Quorum Reached
-
-    👍 yes
-
-At this point, we can commit the proposal and update the identity:
+    {
+      "blob": "d96f425412c9f8ad5d9a9a05c9831d0728e2338d",
+      "parent": null,
+      "signature": "z5nGqUvrmfiSyLjNCHWTWYvVMcPUZcvo9TxPKzEKXYBdSgUzbrqf1cYsmpGgbQvYunnsrLSsubEmxZaRdKM4quqQR",
+      "title": "Initial revision",
+      "type": "revision"
+    }
 
 ```
-$ rad id commit 662a8065f18db50d9ee952bb36eda5b605f161e9 --no-confirm
-✓ Committed new identity 'c96e764965aaeff1c6ea3e5b97e2b9828773c8b0'
-title: Add Bob
-description: Add Bob as a delegate
-status: ❲committed❳
-author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 
-Document Diff
+Note that once a revision is accepted, it can't be edited, redacted or otherwise
+acted upon:
 
- {
-   "payload": {
-     "xyz.radicle.project": {
-       "defaultBranch": "master",
-       "description": "Radicle Heartwood Protocol & Stack",
-       "name": "heartwood"
-     }
-   },
-   "delegates": [
--    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-+    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-+    "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
-   ],
-   "threshold": 1
- }
-
-
-Accepted
-
-total: 1
-keys: [
-  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-]
-
-Rejected
-
-total: 0
-keys: []
-
-Quorum Reached
-
-👍 yes
+``` (fail)
+$ rad id redact d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f
+✗ Error: [..]
 ```
-
-Let's say we decide to also change the `threshold`, we can do so using
-the `--threshold` option:
-
+``` (fail)
+$ rad id reject d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f
+✗ Error: [..]
 ```
-$ rad id edit --title "Update threshold" --description "Update to safer threshold" --threshold 2 --no-confirm
-✓ Identity proposal 'e6c04862ed0e59739f34232c8690cbad73840a93' created
-title: Update threshold
-description: Update to safer threshold
-status: ❲open❳
-author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-
-Document Diff
-
- {
-   "payload": {
-     "xyz.radicle.project": {
-       "defaultBranch": "master",
-       "description": "Radicle Heartwood Protocol & Stack",
-       "name": "heartwood"
-     }
-   },
-   "delegates": [
-     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-     "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
-   ],
--  "threshold": 1
-+  "threshold": 2
- }
-
-
-Accepted
-
-total: 0
-keys: []
-
-Rejected
-
-total: 0
-keys: []
-
-Quorum Reached
-
-👎 no
+``` (fail)
+$ rad id accept d067ffc7bf65d318dd68ca4b8c7adf61a369ea2f
+✗ Error: [..]
 ```
-
-But we change our minds and decide to close the proposal instead:
-
-```
-$ rad id close e6c04862ed0e59739f34232c8690cbad73840a93 --no-confirm
-✓ Closed identity proposal 'e6c04862ed0e59739f34232c8690cbad73840a93'
-title: Update threshold
-description: Update to safer threshold
-status: ❲closed❳
-author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-
-Document Diff
-
- {
-   "payload": {
-     "xyz.radicle.project": {
-       "defaultBranch": "master",
-       "description": "Radicle Heartwood Protocol & Stack",
-       "name": "heartwood"
-     }
-   },
-   "delegates": [
-     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-     "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
-   ],
--  "threshold": 1
-+  "threshold": 2
- }
-
-
-Accepted
-
-total: 0
-keys: []
-
-Rejected
-
-total: 0
-keys: []
-
-Quorum Reached
-
-👎 no
-```
-
-The proposal is now closed and cannot be committed. If at a later date
-we want to update the document with the same change we have to open a
-new proposal.
-
-If at any time we want to see what proposals have been made to this
-Radicle identity, then we can use the list command:
-
-```
-$ rad id list
-662a8065f18db50d9ee952bb36eda5b605f161e9 "Add Bob"          ❲committed❳
-e6c04862ed0e59739f34232c8690cbad73840a93 "Update threshold" ❲closed❳
-```
-
-And if we want to view the latest state of any proposal we can use the
-show command:
-
-```
-$ rad id show e6c04862ed0e59739f34232c8690cbad73840a93
-title: Update threshold
-description: Update to safer threshold
-status: ❲closed❳
-author: did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-
-Document Diff
-
- {
-   "payload": {
-     "xyz.radicle.project": {
-       "defaultBranch": "master",
-       "description": "Radicle Heartwood Protocol & Stack",
-       "name": "heartwood"
-     }
-   },
-   "delegates": [
-     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-     "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
-   ],
--  "threshold": 1
-+  "threshold": 2
- }
-
-
-Accepted
-
-total: 0
-keys: []
-
-Rejected
-
-total: 0
-keys: []
-
-Quorum Reached
-
-👎 no
-```
-
-On a final note, these examples used `--no-confirm`. The default mode
-for making proposals is to select and confirm any actions being
-performed on the proposal.

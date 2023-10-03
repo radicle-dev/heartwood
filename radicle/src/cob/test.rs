@@ -28,7 +28,7 @@ use super::thread;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistoryBuilder<T> {
     history: History,
-    resource: Oid,
+    resource: Option<Oid>,
     time: Timestamp,
     witness: PhantomData<T>,
 }
@@ -59,7 +59,7 @@ where
     T::Action: for<'de> Deserialize<'de> + Serialize + Eq + 'static,
 {
     pub fn new<G: Signer>(actions: &[T::Action], time: Timestamp, signer: &G) -> HistoryBuilder<T> {
-        let resource = arbitrary::oid();
+        let resource = Some(arbitrary::oid());
         let revision = arbitrary::oid();
         let (contents, oids): (Vec<Vec<u8>>, Vec<Oid>) = actions
             .iter()
@@ -163,7 +163,7 @@ impl<G: Signer> Actor<G> {
     pub fn op_with<T: Cob>(
         &mut self,
         actions: impl IntoIterator<Item = T::Action>,
-        identity: Oid,
+        identity: Option<Oid>,
         timestamp: Timestamp,
     ) -> Op<T::Action>
     where
@@ -201,7 +201,7 @@ impl<G: Signer> Actor<G> {
         let identity = arbitrary::oid();
         let timestamp = Timestamp::now();
 
-        self.op_with::<T>(actions, identity, timestamp)
+        self.op_with::<T>(actions, Some(identity), timestamp)
     }
 
     /// Get the actor's DID.

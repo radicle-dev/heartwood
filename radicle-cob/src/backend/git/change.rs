@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
-use std::iter;
 use std::path::PathBuf;
 
 use git_ext::author::Author;
@@ -95,7 +94,7 @@ impl change::Storage for git2::Repository {
 
     fn store<Signer>(
         &self,
-        resource: Self::Parent,
+        resource: Option<Self::Parent>,
         mut parents: Vec<Self::Parent>,
         signer: &Signer,
         spec: store::Template<Self::ObjectId>,
@@ -125,15 +124,16 @@ impl change::Storage for git2::Repository {
 
         let (id, timestamp) = write_commit(
             self,
-            *resource,
+            resource.map(|o| *o),
             // Commit to tips, extra parents and resource.
             tips.iter()
                 .cloned()
                 .chain(parents.clone())
-                .chain(iter::once(resource))
+                .chain(resource)
                 .map(git2::Oid::from),
             message,
             signature.clone(),
+            vec![],
             tree,
         )?;
 
@@ -164,7 +164,7 @@ impl change::Storage for git2::Repository {
         let parents = commit
             .parents()
             .map(Oid::from)
-            .filter(|p| *p != resource)
+            .filter(|p| Some(*p) != resource)
             .collect();
         let mut signatures = Signatures::try_from(&commit)?
             .into_iter()
@@ -195,19 +195,17 @@ impl change::Storage for git2::Repository {
 
 fn parse_resource_trailer<'a>(
     trailers: impl Iterator<Item = &'a OwnedTrailer>,
-) -> Result<Oid, error::Load> {
+) -> Result<Option<Oid>, error::Load> {
     for trailer in trailers {
         match trailers::ResourceCommitTrailer::try_from(trailer) {
             Err(trailers::error::InvalidResourceTrailer::WrongToken) => {
                 continue;
             }
             Err(err) => return Err(err.into()),
-            Ok(resource) => return Ok(resource.oid().into()),
+            Ok(resource) => return Ok(Some(resource.oid().into())),
         }
     }
-    Err(error::Load::from(
-        trailers::error::InvalidResourceTrailer::NoTrailer,
-    ))
+    Ok(None)
 }
 
 fn load_manifest(
@@ -253,13 +251,17 @@ fn load_contents(repo: &git2::Repository, tree: &git2::Tree) -> Result<Contents,
 
 fn write_commit(
     repo: &git2::Repository,
-    resource: git2::Oid,
+    resource: Option<git2::Oid>,
     parents: impl IntoIterator<Item = git2::Oid>,
     message: String,
     signature: ExtendedSignature,
+    trailers: impl IntoIterator<Item = OwnedTrailer>,
     tree: git2::Tree,
 ) -> Result<(Oid, Timestamp), error::Create> {
-    let trailers: Vec<OwnedTrailer> = vec![trailers::ResourceCommitTrailer::from(resource).into()];
+    let trailers: Vec<OwnedTrailer> = trailers
+        .into_iter()
+        .chain(resource.map(|r| trailers::ResourceCommitTrailer::from(r).into()))
+        .collect();
     let author = repo.signature()?;
     #[allow(unused_variables)]
     let timestamp = author.when().seconds();

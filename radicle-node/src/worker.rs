@@ -72,7 +72,9 @@ pub enum UploadError {
     #[error(transparent)]
     Storage(#[from] radicle::storage::Error),
     #[error(transparent)]
-    Identity(#[from] radicle::identity::IdentityError),
+    Identity(#[from] radicle::identity::DocError),
+    #[error(transparent)]
+    Repository(#[from] radicle::storage::RepositoryError),
 }
 
 impl UploadError {
@@ -323,7 +325,7 @@ impl Worker {
         log::debug!(target: "worker", "Received Git request pktline for {rid}..");
 
         let repo = self.storage.repository(rid)?;
-        let (_, doc) = repo.identity_doc()?;
+        let doc = repo.identity_doc()?;
 
         if !doc.is_visible_to(&remote) {
             return Err(UploadError::Unauthorized(remote, rid));

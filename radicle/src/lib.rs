@@ -23,6 +23,7 @@ pub mod storage;
 pub mod test;
 pub mod version;
 
+pub use cob::{issue, patch};
 pub use node::Node;
 pub use profile::Profile;
 pub use storage::git::Storage;

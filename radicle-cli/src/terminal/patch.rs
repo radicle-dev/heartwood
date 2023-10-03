@@ -56,6 +56,38 @@ impl Message {
         Ok(comment.to_owned())
     }
 
+    /// Open the editor with the given title and description (if any).
+    /// Returns the edited title and description, or nothing if it couldn't be parsed.
+    pub fn edit_title_description(
+        title: Option<String>,
+        description: Option<String>,
+        help: &str,
+    ) -> std::io::Result<Option<(String, String)>> {
+        let mut placeholder = String::new();
+
+        if let Some(title) = title {
+            placeholder.push_str(title.trim());
+            placeholder.push('\n');
+        }
+        if let Some(description) = description {
+            placeholder.push('\n');
+            placeholder.push_str(description.trim());
+            placeholder.push('\n');
+        }
+        placeholder.push_str(help);
+
+        let output = Self::Edit.get(&placeholder)?;
+        let Some((title, description)) = output.split_once("\n\n") else {
+            return Ok(None);
+        };
+        let (title, description) = (title.trim(), description.trim());
+
+        if title.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some((title.to_owned(), description.to_owned())))
+    }
+
     pub fn append(&mut self, arg: &str) {
         if let Message::Text(v) = self {
             v.extend(["\n\n", arg]);

@@ -6,8 +6,7 @@ use log::error;
 use thiserror::Error;
 
 use radicle::crypto::PublicKey;
-use radicle::identity::IdentityError;
-use radicle::storage::{Namespaces, ReadRepository as _, ReadStorage};
+use radicle::storage::{Namespaces, ReadRepository as _, ReadStorage, RepositoryError};
 
 use crate::prelude::Id;
 use crate::service::NodeId;
@@ -37,7 +36,7 @@ pub enum NamespacesError {
     FailedDelegates {
         rid: Id,
         #[source]
-        err: IdentityError,
+        err: RepositoryError,
     },
     #[error("Could not find any trusted nodes for {rid}")]
     NoTrusted { rid: Id },

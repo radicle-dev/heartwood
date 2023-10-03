@@ -6,8 +6,7 @@ use std::str::FromStr;
 use git_ext::ref_format as fmt;
 
 use crate::crypto::{Signer, Verified};
-use crate::identity::doc::{Doc, DocError, Id};
-use crate::identity::IdentityError;
+use crate::identity::doc::{Doc, DocAt, DocError, Id};
 use crate::node::NodeId;
 
 pub use crate::storage::*;
@@ -15,7 +14,7 @@ pub use crate::storage::*;
 #[derive(Clone, Debug)]
 pub struct MockStorage {
     pub path: PathBuf,
-    pub inventory: HashMap<Id, Doc<Verified>>,
+    pub inventory: HashMap<Id, DocAt>,
 
     /// All refs keyed by RID.
     /// Each value is a map of refs keyed by node Id (public key).
@@ -23,7 +22,7 @@ pub struct MockStorage {
 }
 
 impl MockStorage {
-    pub fn new(inventory: Vec<(Id, Doc<Verified>)>) -> Self {
+    pub fn new(inventory: Vec<(Id, DocAt)>) -> Self {
         Self {
             path: PathBuf::default(),
             inventory: inventory.into_iter().collect(),
@@ -64,12 +63,8 @@ impl ReadStorage for MockStorage {
         self.path().join(rid.canonical())
     }
 
-    fn contains(&self, rid: &Id) -> Result<bool, IdentityError> {
+    fn contains(&self, rid: &Id) -> Result<bool, RepositoryError> {
         Ok(self.inventory.contains_key(rid))
-    }
-
-    fn get(&self, _remote: &RemoteId, proj: Id) -> Result<Option<Doc<Verified>>, IdentityError> {
-        Ok(self.inventory.get(&proj).cloned())
     }
 
     fn inventory(&self) -> Result<Inventory, Error> {
@@ -109,15 +104,21 @@ impl WriteStorage for MockStorage {
 #[derive(Clone, Debug)]
 pub struct MockRepository {
     id: Id,
-    doc: Doc<Verified>,
+    doc: DocAt,
     remotes: HashMap<NodeId, refs::SignedRefs<Verified>>,
 }
 
 impl MockRepository {
     pub fn new(id: Id, doc: Doc<Verified>) -> Self {
+        let (blob, _) = doc.encode().unwrap();
+
         Self {
             id,
-            doc,
+            doc: DocAt {
+                commit: Oid::from_str("ffffffffffffffffffffffffffffffffffffffff").unwrap(),
+                blob,
+                doc,
+            },
             remotes: HashMap::default(),
         }
     }
@@ -132,11 +133,11 @@ impl ReadRepository for MockRepository {
         Ok(self.remotes.is_empty())
     }
 
-    fn head(&self) -> Result<(fmt::Qualified, Oid), IdentityError> {
+    fn head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
         todo!()
     }
 
-    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), IdentityError> {
+    fn canonical_head(&self) -> Result<(fmt::Qualified, Oid), RepositoryError> {
         todo!()
     }
 
@@ -182,11 +183,11 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn blob_at<'a>(
-        &'a self,
+    fn blob_at<P: AsRef<std::path::Path>>(
+        &self,
         _oid: git_ext::Oid,
-        _path: &'a std::path::Path,
-    ) -> Result<git2::Blob<'a>, git_ext::Error> {
+        _path: P,
+    ) -> Result<git2::Blob, git_ext::Error> {
         todo!()
     }
 
@@ -217,24 +218,31 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn identity_doc(
-        &self,
-    ) -> Result<(Oid, crate::identity::Doc<crate::crypto::Unverified>), IdentityError> {
-        Ok((git2::Oid::zero().into(), self.doc.clone().unverified()))
+    fn identity_doc(&self) -> Result<crate::identity::DocAt, RepositoryError> {
+        Ok(self.doc.clone())
     }
 
-    fn identity_doc_at(
-        &self,
-        _head: Oid,
-    ) -> Result<crate::identity::Doc<crate::crypto::Unverified>, DocError> {
-        Ok(self.doc.clone().unverified())
+    fn identity_doc_at(&self, _head: Oid) -> Result<crate::identity::DocAt, DocError> {
+        Ok(self.doc.clone())
     }
 
-    fn identity_head(&self) -> Result<Oid, IdentityError> {
+    fn identity_head(&self) -> Result<Oid, RepositoryError> {
         self.canonical_identity_head()
     }
 
-    fn canonical_identity_head(&self) -> Result<Oid, IdentityError> {
+    fn identity_head_of(&self, _remote: &RemoteId) -> Result<Oid, git::ext::Error> {
+        todo!()
+    }
+
+    fn identity_root(&self) -> Result<Oid, RepositoryError> {
+        todo!()
+    }
+
+    fn identity_root_of(&self, _remote: &RemoteId) -> Result<Oid, RepositoryError> {
+        todo!()
+    }
+
+    fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
         Ok(Oid::from_str("cccccccccccccccccccccccccccccccccccccccc").unwrap())
     }
 
@@ -248,11 +256,11 @@ impl WriteRepository for MockRepository {
         todo!()
     }
 
-    fn set_head(&self) -> Result<Oid, IdentityError> {
+    fn set_head(&self) -> Result<Oid, RepositoryError> {
         todo!()
     }
 
-    fn set_identity_head(&self) -> Result<Oid, IdentityError> {
+    fn set_identity_head_to(&self, _commit: Oid) -> Result<(), RepositoryError> {
         todo!()
     }
 }

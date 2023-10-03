@@ -19,6 +19,9 @@ It's also possible to display all of the repository's git references:
 $ rad inspect --refs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 └── refs
+    ├── cobs
+    │   └── xyz.radicle.id
+    │       └── 2317f74de0494c489a233ca6f29f2b8bff6d4f15
     ├── heads
     │   └── master
     └── rad
@@ -46,18 +49,13 @@ history:
 
 ```
 $ rad inspect --history
-commit 175267b8910895ba87760313af254c2900743912
+commit 2317f74de0494c489a233ca6f29f2b8bff6d4f15
 blob   d96f425412c9f8ad5d9a9a05c9831d0728e2338d
 date   Thu, 15 Dec 2022 17:28:04 +0000
 
-    Initialize Radicle
-
-    Rad-Signature: z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi z5nGqUvrmfiSyLjNCHWTWYvVMcPUZcvo9TxPKzEKXYBdSgUzbrqf1cYsmpGgbQvYunnsrLSsubEmxZaRdKM4quqQR
+    Initialize identity
 
  {
-   "delegates": [
-     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
-   ],
    "payload": {
      "xyz.radicle.project": {
        "defaultBranch": "master",
@@ -65,6 +63,9 @@ date   Thu, 15 Dec 2022 17:28:04 +0000
        "name": "heartwood"
      }
    },
+   "delegates": [
+     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
+   ],
    "threshold": 1
  }
 

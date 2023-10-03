@@ -103,6 +103,7 @@ impl Deref for Did {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use super::*;
 

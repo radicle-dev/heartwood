@@ -9,8 +9,8 @@ use thiserror::Error;
 
 use radicle::cob;
 use radicle::git::raw;
+use radicle::identity::doc;
 use radicle::identity::doc::{DocError, Id};
-use radicle::identity::{doc, IdentityError};
 use radicle::node;
 use radicle::node::tracking::Scope;
 use radicle::node::{Handle as _, Node};
@@ -18,6 +18,7 @@ use radicle::prelude::*;
 use radicle::rad;
 use radicle::storage;
 use radicle::storage::git::Storage;
+use radicle::storage::RepositoryError;
 
 use crate::commands::rad_checkout as checkout;
 use crate::commands::rad_sync as sync;
@@ -188,8 +189,8 @@ pub enum CloneError {
     Doc(#[from] DocError),
     #[error("payload: {0}")]
     Payload(#[from] doc::PayloadError),
-    #[error("project error: {0}")]
-    Identity(#[from] IdentityError),
+    #[error(transparent)]
+    Repository(#[from] RepositoryError),
     #[error("repository {0} not found")]
     NotFound(Id),
     #[error("no seeds found for {0}")]
@@ -258,7 +259,7 @@ pub fn clone<G: Signer>(
         }
     }
 
-    let doc = repository.identity_doc_of(&me)?;
+    let doc = repository.identity_doc()?;
     let proj = doc.project()?;
     let path = Path::new(proj.name());
 
@@ -279,5 +280,5 @@ pub fn clone<G: Signer>(
 
     spinner.finish();
 
-    Ok((working, repository, doc, proj))
+    Ok((working, repository, doc.into(), proj))
 }

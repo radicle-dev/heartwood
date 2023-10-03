@@ -142,6 +142,18 @@ impl<'a> Author<'a> {
         }
     }
 
+    pub fn alias(&self) -> Option<term::Label> {
+        self.alias.as_ref().map(|a| a.to_string().into())
+    }
+
+    pub fn you(&self) -> Option<term::Label> {
+        if self.you {
+            Some(term::format::primary("(you)").dim().italic().into())
+        } else {
+            None
+        }
+    }
+
     pub fn labels(self) -> (term::Label, term::Label) {
         let alias = match &self.alias {
             Some(alias) => term::format::primary(alias).into(),
@@ -149,8 +161,8 @@ impl<'a> Author<'a> {
                 .dim()
                 .into(),
         };
-        if self.you {
-            (alias, term::format::primary("(you)").dim().italic().into())
+        if let Some(you) = self.you() {
+            (alias, you)
         } else {
             (
                 alias,

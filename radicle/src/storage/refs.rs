@@ -139,11 +139,8 @@ impl Refs {
 
     pub fn canonical(&self) -> Vec<u8> {
         let mut buf = String::new();
-        let refs = self
-            .iter()
-            .filter(|(name, oid)| name.as_refstr() != SIGREFS_BRANCH.as_ref() && !oid.is_zero());
 
-        for (name, oid) in refs {
+        for (name, oid) in self.iter() {
             buf.push_str(&oid.to_string());
             buf.push(' ');
             buf.push_str(name);

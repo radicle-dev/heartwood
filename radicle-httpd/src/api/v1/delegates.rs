@@ -5,7 +5,7 @@ use axum::{Json, Router};
 
 use radicle::cob::issue::Issues;
 use radicle::cob::patch::Patches;
-use radicle::identity::Did;
+use radicle::identity::{Did, DocAt};
 use radicle::node::routing::Store;
 use radicle::storage::{ReadRepository, ReadStorage};
 
@@ -42,12 +42,10 @@ async fn delegates_projects_handler(
         .filter_map(|id| {
             let Ok(repo) = storage.repository(id) else { return None };
             let Ok((_, head)) = repo.head() else { return None };
-            let Ok((_, doc)) = repo.identity_doc() else { return None };
-            let Ok(doc) = doc.verified() else { return None };
+            let Ok(DocAt { doc, .. }) = repo.identity_doc() else { return None };
             let Ok(payload) = doc.project() else { return None };
 
-            let delegates = doc.delegates;
-            if !delegates.iter().any(|d| *d == delegate) {
+            if !doc.delegates.iter().any(|d| *d == delegate) {
                 return None;
             }
 
@@ -56,6 +54,7 @@ async fn delegates_projects_handler(
             let Ok(patches) = Patches::open(&repo) else { return None };
             let Ok(patches) = patches.counts() else { return None };
 
+            let delegates = doc.delegates;
             let trackings = routing.count(&id).unwrap_or_default();
 
             Some(Info {

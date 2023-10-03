@@ -12,7 +12,7 @@ use qcheck::Arbitrary;
 use crate::collections::RandomMap;
 use crate::identity::doc::Visibility;
 use crate::identity::{
-    doc::{Doc, Id},
+    doc::{Doc, DocAt, Id},
     project::Project,
     Did,
 };
@@ -68,9 +68,7 @@ pub fn vec<T: Eq + Arbitrary>(size: usize) -> Vec<T> {
 pub fn nonempty_storage(size: usize) -> MockStorage {
     let mut storage = gen::<MockStorage>(size);
     for _ in 0..size {
-        storage
-            .inventory
-            .insert(gen::<Id>(1), gen::<Doc<Verified>>(1));
+        storage.inventory.insert(gen::<Id>(1), gen::<DocAt>(1));
     }
     storage
 }
@@ -152,6 +150,18 @@ impl Arbitrary for Doc<Verified> {
         let doc: Doc<Unverified> = Doc::new(project, delegates, threshold, visibility);
 
         doc.verified().unwrap()
+    }
+}
+
+impl Arbitrary for DocAt {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        let doc = Doc::<Verified>::arbitrary(g);
+
+        DocAt {
+            commit: self::oid(),
+            blob: self::oid(),
+            doc,
+        }
     }
 }
 

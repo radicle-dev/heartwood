@@ -6,7 +6,7 @@ First create an issue.
 $ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
-│ Issue   42028af21fabc09bfac2f25490f119f7c7e11542        │
+│ Issue   9bf82c141d5a9c54bb1d6b4517eb3bb7da8fb30d        │
 │ Author  z6MknSL…StBU8Vi (you)                           │
 │ Status  open                                            │
 │                                                         │
@@ -21,7 +21,7 @@ $ rad issue list
 ╭─────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title                         Author                    Labels   Assignees   Opened       │
 ├─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   42028af   flux capacitor underpowered   z6MknSL…StBU8Vi   (you)                        [    ..    ] │
+│ ●   9bf82c1   flux capacitor underpowered   z6MknSL…StBU8Vi   (you)                        [    ..    ] │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -45,7 +45,7 @@ $ rad patch
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title                      Author                  Head     +   -   Updated      │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  73b73f3  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  [   ...    ] │
+│ ●  a892664  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  [   ...    ] │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -53,17 +53,17 @@ Both issue and patch COBs can be listed.
 
 ```
 $ rad cob list --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue
-42028af21fabc09bfac2f25490f119f7c7e11542
+9bf82c141d5a9c54bb1d6b4517eb3bb7da8fb30d
 $ rad cob list --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch
-73b73f376e93e09e0419664766ac9e433bf7d389
+a8926643a8f6a65bc386b0131621994000485d4d
 ```
 
 We can look at the issue COB.
 
 ```
-$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue --object 42028af21fabc09bfac2f25490f119f7c7e11542
-commit 42028af21fabc09bfac2f25490f119f7c7e11542
-parent 175267b8910895ba87760313af254c2900743912
+$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue --object 9bf82c141d5a9c54bb1d6b4517eb3bb7da8fb30d
+commit 9bf82c141d5a9c54bb1d6b4517eb3bb7da8fb30d
+parent 2317f74de0494c489a233ca6f29f2b8bff6d4f15
 author z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 date   Thu, 15 Dec 2022 17:28:04 +0000
 
@@ -92,9 +92,9 @@ date   Thu, 15 Dec 2022 17:28:04 +0000
 We can look at the patch COB too.
 
 ```
-$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object 73b73f376e93e09e0419664766ac9e433bf7d389
-commit 73b73f376e93e09e0419664766ac9e433bf7d389
-parent 175267b8910895ba87760313af254c2900743912
+$ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object a8926643a8f6a65bc386b0131621994000485d4d
+commit a8926643a8f6a65bc386b0131621994000485d4d
+parent 2317f74de0494c489a233ca6f29f2b8bff6d4f15
 parent 3e674d1a1df90807e934f9ae5da2591dd6848a33
 parent f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354
 author z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi

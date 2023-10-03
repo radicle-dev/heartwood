@@ -14,10 +14,9 @@ use crate::cob::thread;
 use crate::cob::thread::{Comment, CommentId, Thread};
 use crate::cob::{op, store, ActorId, Embed, EntryId, ObjectId, TypeName};
 use crate::crypto::Signer;
-use crate::git;
 use crate::identity::doc::{Doc, DocError};
 use crate::prelude::{Did, ReadRepository, Verified};
-use crate::storage::WriteRepository;
+use crate::storage::{RepositoryError, WriteRepository};
 
 /// Issue operation.
 pub type Op = cob::Op<Action>;
@@ -48,6 +47,9 @@ pub enum Error {
     /// Title is invalid.
     #[error("invalid title: {0:?}")]
     InvalidTitle(String),
+    /// The identity doc is missing.
+    #[error("identity document missing")]
+    MissingIdentity,
     /// General error initializing an issue.
     #[error("initialization failed: {0}")]
     Init(&'static str),
@@ -127,6 +129,7 @@ impl store::Cob for Issue {
     }
 
     fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
+        let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
         let mut actions = op.actions.into_iter();
         let Some(Action::Comment { body, reply_to: None, embeds }) = actions.next() else {
             return Err(Error::Init("the first action must be of type `comment`"));
@@ -136,17 +139,17 @@ impl store::Cob for Issue {
         let mut issue = Issue::new(thread);
 
         for action in actions {
-            issue.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
+            issue.action(action, op.id, op.author, op.timestamp, &doc, repo)?;
         }
         Ok(issue)
     }
 
     fn op<R: ReadRepository>(&mut self, op: Op, repo: &R) -> Result<(), Error> {
-        let doc = repo.identity_doc_at(op.identity)?.verified()?;
+        let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
         for action in op.actions {
             match self.authorization(&action, &op.author, &doc)? {
                 Authorization::Allow => {
-                    self.action(action, op.id, op.author, op.timestamp, op.identity, repo)?;
+                    self.action(action, op.id, op.author, op.timestamp, &doc, repo)?;
                 }
                 Authorization::Deny => {
                     return Err(Error::NotAuthorized(op.author, action));
@@ -312,7 +315,7 @@ impl Issue {
         entry: EntryId,
         author: ActorId,
         timestamp: Timestamp,
-        _identity: git::Oid,
+        _doc: &Doc<Verified>,
         _repo: &R,
     ) -> Result<(), Error> {
         match action {
@@ -658,8 +661,9 @@ where
     R: ReadRepository + cob::Store,
 {
     /// Open an issues store.
-    pub fn open(repository: &'a R) -> Result<Self, store::Error> {
-        let raw = store::Store::open(repository)?;
+    pub fn open(repository: &'a R) -> Result<Self, RepositoryError> {
+        let identity = repository.identity_head()?;
+        let raw = store::Store::open(repository)?.identity(identity);
 
         Ok(Self { raw })
     }
@@ -1546,7 +1550,7 @@ mod test {
 
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let eve = MockSigner::default();
-        let identity = repo.identity().unwrap().head;
+        let identity = repo.identity().unwrap().head();
         let missing = arbitrary::oid();
         let type_name = Issue::type_name().clone();
         let mut issues = Issues::open(&*repo).unwrap();
@@ -1578,7 +1582,7 @@ mod test {
         let contents = NonEmpty::new(action);
         let invalid = repo
             .store(
-                identity,
+                Some(identity),
                 vec![],
                 &eve,
                 cob::change::Template {

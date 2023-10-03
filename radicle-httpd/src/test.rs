@@ -34,20 +34,16 @@ pub const HEAD: &str = "e8c676b9e3b42308dc9d218b70faa5408f8e58ca";
 pub const PARENT: &str = "ee8d6a29304623a78ebfa5eeed5af674d0e58f83";
 pub const INITIAL_COMMIT: &str = "f604ce9fd5b7cc77b7609beda45ea8760bee78f7";
 pub const DID: &str = "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi";
-pub const ISSUE_ID: &str = "0b0b8ca3b75e109971f87d92c1a6c930e87484c6";
-pub const ISSUE_DISCUSSION_ID: &str = "7466975f0bef37b459887824a9655f3e78262522";
-pub const ISSUE_COMMENT_ID: &str = "24ee306c508cd731a8427612dbdd826209096f99";
+pub const ISSUE_ID: &str = "4f98396a1ac987af59ec069de9b80d9917b27050";
+pub const ISSUE_DISCUSSION_ID: &str = "ceafc6629ec8dc0a17644fb5a66726aaafc3ed1c";
+pub const ISSUE_COMMENT_ID: &str = "59d35e164a21502bc91ad3391ce49baa32ea6a74";
 pub const SESSION_ID: &str = "u9MGAkkfkMOv0uDDB2WeUHBT7HbsO2Dy";
 pub const TIMESTAMP: u64 = 1671125284;
 pub const CONTRIBUTOR_RID: &str = "rad:z4XaCmN3jLSeiMvW15YTDpNbDHFhG";
 pub const CONTRIBUTOR_DID: &str = "did:key:z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
 pub const CONTRIBUTOR_NID: &str = "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8";
-pub const CONTRIBUTOR_ISSUE_ID: &str = "7466975f0bef37b459887824a9655f3e78262522";
-pub const CONTRIBUTOR_PATCH_ID: &str = "e651ae5869a2c1ac8ad4f6deae4cc835656ffa25";
-pub const CONTRIBUTOR_PATCH_REVIEW: &str = "ee3eeba95f4ec418b3d0714e18e0d1ff605dc0e6";
-pub const CONTRIBUTOR_COMMENT_1: &str = "d8ff07edbc8d2229e54e70f2f5bc31614287f0dc";
-pub const CONTRIBUTOR_COMMENT_2: &str = "f3fca0add53f85bc51a85198efed3273fe13b88e";
-pub const CONTRIBUTOR_COMMENT_3: &str = "06990ff59faa12463f693dae7a98eb33d75afd2e";
+pub const CONTRIBUTOR_ISSUE_ID: &str = "ceafc6629ec8dc0a17644fb5a66726aaafc3ed1c";
+pub const CONTRIBUTOR_PATCH_ID: &str = "4ff2ec53a2d165da7f54705023e847d4f9230bc3";
 
 /// Create a new profile.
 pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
@@ -95,6 +91,8 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let tracking_db = dir.join("radicle").join("node").join("tracking.db");
     let routing_db = dir.join("radicle").join("node").join("routing.db");
     let addresses_db = dir.join("radicle").join("node").join("addresses.db");
+
+    crate::logger::init().ok();
 
     TrackingStore::Config::open(tracking_db).unwrap();
     RoutingStore::Table::open(routing_db).unwrap();
@@ -191,7 +189,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let storage = &profile.storage;
     let repo = storage.repository(id).unwrap();
     let mut issues = Issues::open(&repo).unwrap();
-    let _ = issues
+    let issue = issues
         .create(
             "Issue #1".to_string(),
             "Change 'hello world' to 'hello everyone'".to_string(),
@@ -201,12 +199,13 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
             signer,
         )
         .unwrap();
+    tracing::debug!(target: "test", "Contributor issue: {}", issue.id());
 
     // eq. rad patch open
     let mut patches = Patches::open(&repo).unwrap();
     let oid = radicle::git::Oid::from_str(HEAD).unwrap();
     let base = radicle::git::Oid::from_str(PARENT).unwrap();
-    let _ = patches
+    let patch = patches
         .create(
             "A new `hello world`",
             "change `hello world` in README to something else",
@@ -217,6 +216,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
             signer,
         )
         .unwrap();
+    tracing::debug!(target: "test", "Contributor patch: {}", patch.id());
 
     let options = crate::Options {
         aliases: std::collections::HashMap::new(),
@@ -318,8 +318,22 @@ pub struct Response(axum::response::Response);
 
 impl Response {
     pub async fn json(self) -> Value {
-        let body = hyper::body::to_bytes(self.0.into_body()).await.unwrap();
+        let body = self.body().await;
         serde_json::from_slice(&body).unwrap()
+    }
+
+    pub async fn id(self) -> radicle::git::Oid {
+        let json = self.json().await;
+        let string = json["id"].as_str().unwrap();
+
+        radicle::git::Oid::from_str(string).unwrap()
+    }
+
+    pub async fn success(self) -> bool {
+        let json = self.json().await;
+        let success = json["success"].as_bool();
+
+        success.unwrap_or(false)
     }
 
     pub fn status(&self) -> axum::http::StatusCode {

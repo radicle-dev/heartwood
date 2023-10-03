@@ -1289,22 +1289,6 @@ fn test_push_and_pull() {
     )
     .unwrap();
 
-    // Bob tracks Alice's project.
-    let (sender, _) = chan::bounded(1);
-    bob.command(service::Command::TrackRepo(
-        proj_id,
-        tracking::Scope::default(),
-        sender,
-    ));
-
-    // Eve tracks Alice's project.
-    let (sender, _) = chan::bounded(1);
-    eve.command(service::Command::TrackRepo(
-        proj_id,
-        tracking::Scope::default(),
-        sender,
-    ));
-
     let mut sim = Simulation::new(
         LocalTime::now(),
         alice.rng.clone(),
@@ -1314,12 +1298,24 @@ fn test_push_and_pull() {
 
     let bob_events = bob.events();
 
-    // Here we expect Alice to connect to Eve.
-    sim.run_while([&mut alice, &mut bob, &mut eve], |s| !s.is_settled());
-
     // Neither Eve nor Bob have Alice's project for now.
     assert!(eve.get(proj_id).unwrap().is_none());
     assert!(bob.get(proj_id).unwrap().is_none());
+
+    // Bob tracks Alice's project.
+    let (sender, _) = chan::bounded(1);
+    bob.command(service::Command::TrackRepo(
+        proj_id,
+        tracking::Scope::default(),
+        sender,
+    ));
+    // Eve tracks Alice's project.
+    let (sender, _) = chan::bounded(1);
+    eve.command(service::Command::TrackRepo(
+        proj_id,
+        tracking::Scope::default(),
+        sender,
+    ));
 
     let (send, _) = chan::bounded(1);
     // Alice announces her inventory.
@@ -1332,16 +1328,8 @@ fn test_push_and_pull() {
 
     // TODO: Refs should be compared between the two peers.
 
-    assert!(eve
-        .storage()
-        .get(&alice.node_id(), proj_id)
-        .unwrap()
-        .is_some());
-    assert!(bob
-        .storage()
-        .get(&alice.node_id(), proj_id)
-        .unwrap()
-        .is_some());
+    assert!(eve.storage().get(proj_id).unwrap().is_some());
+    assert!(bob.storage().get(proj_id).unwrap().is_some());
 
     bob_events
         .iter()

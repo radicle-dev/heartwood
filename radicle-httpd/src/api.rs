@@ -17,7 +17,7 @@ use tower_http::cors::{self, CorsLayer};
 
 use radicle::cob::patch;
 use radicle::cob::{issue, Uri};
-use radicle::identity::Id;
+use radicle::identity::{DocAt, Id};
 use radicle::node::routing::Store;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::Profile;
@@ -54,7 +54,7 @@ impl Context {
         let storage = &self.profile.storage;
         let repo = storage.repository(id)?;
         let (_, head) = repo.head()?;
-        let doc = repo.identity_doc()?.1.verified()?;
+        let DocAt { doc, .. } = repo.identity_doc()?;
         let payload = doc.project()?;
         let delegates = doc.delegates;
         let issues = issue::Issues::open(&repo)?.counts()?;

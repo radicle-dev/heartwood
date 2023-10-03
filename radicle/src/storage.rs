@@ -14,13 +14,13 @@ use crypto::{PublicKey, Signer, Unverified, Verified};
 pub use git::VerifyError;
 pub use radicle_git_ext::Oid;
 
+use crate::cob;
 use crate::collections::RandomMap;
 use crate::git::ext as git_ext;
 use crate::git::{refspec::Refspec, PatternString, Qualified, RefError, RefString};
-use crate::identity;
-use crate::identity::doc::DocError;
-use crate::identity::Did;
-use crate::identity::{Id, Identity, IdentityError};
+use crate::identity::{Did, PayloadError};
+use crate::identity::{Doc, DocAt, DocError};
+use crate::identity::{Id, Identity};
 use crate::storage::git::NAMESPACES_GLOB;
 use crate::storage::refs::Refs;
 
@@ -68,6 +68,27 @@ impl FromIterator<PublicKey> for Namespaces {
     }
 }
 
+/// Repository error.
+#[derive(Error, Debug)]
+pub enum RepositoryError {
+    #[error(transparent)]
+    Storage(#[from] Error),
+    #[error(transparent)]
+    Store(#[from] cob::store::Error),
+    #[error(transparent)]
+    Doc(#[from] DocError),
+    #[error(transparent)]
+    Payload(#[from] PayloadError),
+    #[error(transparent)]
+    Git(#[from] git::raw::Error),
+    #[error(transparent)]
+    GitExt(#[from] git_ext::Error),
+    #[error(transparent)]
+    Quorum(#[from] git::QuorumError),
+    #[error(transparent)]
+    Refs(#[from] refs::Error),
+}
+
 /// Storage error.
 #[derive(Error, Debug)]
 pub enum Error {
@@ -113,9 +134,10 @@ pub enum FetchError {
     Verify(#[from] git::VerifyError),
     #[error(transparent)]
     Storage(#[from] Error),
-    // TODO: This should wrap a more specific error.
     #[error("repository head: {0}")]
-    SetHead(#[from] IdentityError),
+    SetHead(#[from] DocError),
+    #[error("repository: {0}")]
+    Repository(#[from] RepositoryError),
 }
 
 pub type RemoteId = PublicKey;
@@ -294,19 +316,21 @@ pub trait ReadStorage {
     fn path(&self) -> &Path;
     /// Get a repository's path.
     fn path_of(&self, rid: &Id) -> PathBuf;
-    /// Get an identity document of a repository under a given remote.
-    fn get(
-        &self,
-        remote: &RemoteId,
-        rid: Id,
-    ) -> Result<Option<identity::Doc<Verified>>, IdentityError>;
     /// Check whether storage contains a repository.
-    fn contains(&self, rid: &Id) -> Result<bool, IdentityError>;
+    fn contains(&self, rid: &Id) -> Result<bool, RepositoryError>;
     /// Get the inventory of repositories hosted under this storage.
     /// This function should typically only return public repositories.
     fn inventory(&self) -> Result<Inventory, Error>;
     /// Open or create a read-only repository.
     fn repository(&self, rid: Id) -> Result<Self::Repository, Error>;
+    /// Get a repository's identity if it exists.
+    fn get(&self, rid: Id) -> Result<Option<Doc<Verified>>, RepositoryError> {
+        match self.repository(rid) {
+            Ok(repo) => Ok(Some(repo.identity_doc()?.into())),
+            Err(e) if e.is_not_found() => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
 }
 
 /// Allows access to individual storage repositories.
@@ -331,8 +355,7 @@ pub trait ReadRepository: Sized {
     fn path(&self) -> &Path;
 
     /// Get a blob in this repository at the given commit and path.
-    fn blob_at<'a>(&'a self, commit: Oid, path: &'a Path)
-        -> Result<git2::Blob<'a>, git_ext::Error>;
+    fn blob_at<P: AsRef<Path>>(&self, commit: Oid, path: P) -> Result<git2::Blob, git_ext::Error>;
 
     /// Get a blob in this repository, given its id.
     fn blob(&self, oid: Oid) -> Result<git2::Blob, git_ext::Error>;
@@ -357,32 +380,50 @@ pub trait ReadRepository: Sized {
     /// head using [`ReadRepository::canonical_head`].
     ///
     /// Returns the [`Oid`] as well as the qualified reference name.
-    fn head(&self) -> Result<(Qualified, Oid), IdentityError>;
+    fn head(&self) -> Result<(Qualified, Oid), RepositoryError>;
 
     /// Compute the canonical head of this repository.
     ///
     /// Ignores any existing `HEAD` reference.
     ///
     /// Returns the [`Oid`] as well as the qualified reference name.
-    fn canonical_head(&self) -> Result<(Qualified, Oid), IdentityError>;
+    fn canonical_head(&self) -> Result<(Qualified, Oid), RepositoryError>;
 
     /// Get the head of the `rad/id` reference in this repository.
     ///
     /// Returns the reference pointed to by `rad/id` if it is set. Otherwise, computes the canonical
     /// `rad/id` using [`ReadRepository::canonical_identity_head`].
-    fn identity_head(&self) -> Result<Oid, IdentityError>;
+    fn identity_head(&self) -> Result<Oid, RepositoryError>;
 
-    /// Load the canonical identity.
-    fn identity(&self) -> Result<Identity<Oid>, IdentityError> {
-        let head = self.identity_head()?;
+    /// Get the identity head of a specific remote.
+    fn identity_head_of(&self, remote: &RemoteId) -> Result<Oid, git::ext::Error>;
 
-        Identity::load_at(head, self)
+    /// Get the root commit of the canonical identity branch.
+    fn identity_root(&self) -> Result<Oid, RepositoryError>;
+
+    /// Get the root commit of the identity branch of a sepcific remote.
+    fn identity_root_of(&self, remote: &RemoteId) -> Result<Oid, RepositoryError>;
+
+    /// Load the identity history.
+    fn identity(&self) -> Result<Identity, RepositoryError>
+    where
+        Self: cob::Store,
+    {
+        Identity::load(self)
     }
 
     /// Compute the canonical `rad/id` of this repository.
     ///
     /// Ignores any existing `rad/id` reference.
-    fn canonical_identity_head(&self) -> Result<Oid, IdentityError>;
+    fn canonical_identity_head(&self) -> Result<Oid, RepositoryError>;
+
+    /// Compute the canonical identity document.
+    fn canonical_identity_doc(&self) -> Result<DocAt, RepositoryError> {
+        let head = self.canonical_identity_head()?;
+        let doc = self.identity_doc_at(head)?;
+
+        Ok(doc)
+    }
 
     /// Get the `reference` for the given `remote`.
     ///
@@ -431,23 +472,22 @@ pub trait ReadRepository: Sized {
     fn remotes(&self) -> Result<Remotes<Verified>, refs::Error>;
 
     /// Get repository delegates.
-    fn delegates(&self) -> Result<NonEmpty<Did>, IdentityError> {
-        let (_, doc) = self.identity_doc()?;
-        let doc = doc.verified()?;
+    fn delegates(&self) -> Result<NonEmpty<Did>, RepositoryError> {
+        let doc: Doc<_> = self.identity_doc()?.into();
 
         Ok(doc.delegates)
     }
 
     /// Get the repository's identity document.
-    fn identity_doc(&self) -> Result<(Oid, identity::Doc<Unverified>), IdentityError> {
+    fn identity_doc(&self) -> Result<DocAt, RepositoryError> {
         let head = self.identity_head()?;
         let doc = self.identity_doc_at(head)?;
 
-        Ok((head, doc))
+        Ok(doc)
     }
 
     /// Get the repository's identity document at a specific commit.
-    fn identity_doc_at(&self, head: Oid) -> Result<identity::Doc<Unverified>, DocError>;
+    fn identity_doc_at(&self, head: Oid) -> Result<DocAt, DocError>;
 
     /// Get the merge base of two commits.
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, git::ext::Error>;
@@ -457,9 +497,16 @@ pub trait ReadRepository: Sized {
 pub trait WriteRepository: ReadRepository + SignRepository {
     /// Set the repository head to the canonical branch.
     /// This computes the head based on the delegate set.
-    fn set_head(&self) -> Result<Oid, IdentityError>;
+    fn set_head(&self) -> Result<Oid, RepositoryError>;
     /// Set the repository 'rad/id' to the canonical commit, agreed by quorum.
-    fn set_identity_head(&self) -> Result<Oid, IdentityError>;
+    fn set_identity_head(&self) -> Result<Oid, RepositoryError> {
+        let head = self.canonical_identity_head()?;
+        self.set_identity_head_to(head)?;
+
+        Ok(head)
+    }
+    /// Set the repository 'rad/id' to the given commit.
+    fn set_identity_head_to(&self, commit: Oid) -> Result<(), RepositoryError>;
     /// Get the underlying git repository.
     fn raw(&self) -> &git2::Repository;
 }
@@ -485,7 +532,7 @@ where
         self.deref().path_of(rid)
     }
 
-    fn contains(&self, rid: &Id) -> Result<bool, IdentityError> {
+    fn contains(&self, rid: &Id) -> Result<bool, RepositoryError> {
         self.deref().contains(rid)
     }
 
@@ -493,12 +540,8 @@ where
         self.deref().inventory()
     }
 
-    fn get(
-        &self,
-        remote: &RemoteId,
-        proj: Id,
-    ) -> Result<Option<identity::Doc<Verified>>, IdentityError> {
-        self.deref().get(remote, proj)
+    fn get(&self, rid: Id) -> Result<Option<Doc<Verified>>, RepositoryError> {
+        self.deref().get(rid)
     }
 
     fn repository(&self, rid: Id) -> Result<Self::Repository, Error> {
