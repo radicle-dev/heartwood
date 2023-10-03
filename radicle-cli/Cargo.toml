@@ -33,7 +33,9 @@ tree-sitter = { version = "0.20.0" }
 tree-sitter-highlight = { version = "0.20" }
 tree-sitter-rust = { version = "0.20" }
 tree-sitter-typescript = { version = "0.20" }
-tree-sitter-html = { version = "0.19" }
+# N.b. This crate has a C++ token scanner that causes problems when building
+# for the musl target. Hence it is optional for now.
+tree-sitter-html = { version = "0.19", optional = true }
 tree-sitter-css = { version = "0.19" }
 tree-sitter-toml = { version = "0.20" }
 tree-sitter-c = { version = "0.20" }
