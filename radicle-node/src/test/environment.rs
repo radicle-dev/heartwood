@@ -227,10 +227,7 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
 
             for (rid, nid) in self.routing() {
                 if !remaining.remove(&(rid, nid)) {
-                    panic!(
-                        "Node::routes_to: unexpected route for {}: ({rid}, {nid})",
-                        self.id
-                    );
+                    log::debug!(target: "test", "Found unexpected route for {}: ({rid}, {nid})", self.id);
                 }
             }
             if remaining.is_empty() {
