@@ -285,6 +285,7 @@ impl Highlighter {
                 )
                 .expect("Highlighter::config: highlight configuration must be valid")
             })),
+            #[cfg(feature = "tree-sitter-ruby")]
             "ruby" => Some(self.configs.entry(language).or_insert_with(|| {
                 ts::HighlightConfiguration::new(
                     tree_sitter_ruby::language(),
