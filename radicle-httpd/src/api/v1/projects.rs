@@ -90,6 +90,7 @@ async fn project_root_handler(
             let Ok(repo) = storage.repository(id) else { return None };
             let Ok((_, head)) = repo.head() else { return None };
             let Ok(DocAt { doc, .. }) = repo.identity_doc() else { return None };
+
             let Ok(payload) = doc.project() else { return None };
             let Ok(issues) = issue::Issues::open(&repo) else { return None };
             let Ok(issues) = issues.counts() else { return None };

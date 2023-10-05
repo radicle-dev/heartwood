@@ -55,6 +55,7 @@ impl Context {
         let repo = storage.repository(id)?;
         let (_, head) = repo.head()?;
         let DocAt { doc, .. } = repo.identity_doc()?;
+
         let payload = doc.project()?;
         let delegates = doc.delegates;
         let issues = issue::Issues::open(&repo)?.counts()?;

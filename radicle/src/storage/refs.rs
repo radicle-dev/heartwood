@@ -62,6 +62,8 @@ impl Error {
     }
 }
 
+// TODO(finto): we should turn `git::RefString` to `git::Qualified`,
+// since all these refs SHOULD be `Qualified`.
 /// The published state of a local repository.
 #[derive(Default, Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Refs(BTreeMap<git::RefString, Oid>);
