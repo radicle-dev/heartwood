@@ -230,7 +230,9 @@ pub fn run(
                             let head = working.find_reference(src.as_str())?;
                             let head = head.peel_to_commit()?.id();
 
-                            if !working.graph_descendant_of(head, **canonical_oid)? {
+                            if head != **canonical_oid
+                                && !working.graph_descendant_of(head, **canonical_oid)?
+                            {
                                 eprintln!(
                                     "hint: you are attempting to push a commit that would \
                                     cause your upstream to diverge from the canonical head"
