@@ -78,6 +78,10 @@ pub enum Error {
     #[error(transparent)]
     RoutingStore(#[from] radicle::node::routing::Error),
 
+    /// Node error.
+    #[error(transparent)]
+    Node(#[from] radicle::node::Error),
+
     /// Invalid update to issue or patch.
     #[error("{0}")]
     BadRequest(String),
