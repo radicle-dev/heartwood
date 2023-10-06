@@ -3,6 +3,7 @@ use std::fmt;
 use std::io;
 use std::path::PathBuf;
 
+use radicle_surf::diff::FileStats;
 use thiserror::Error;
 
 use radicle::git;
@@ -203,8 +204,17 @@ impl Encode for Diff {
 impl Decode for DiffContent {
     fn decode(r: &mut impl io::BufRead) -> Result<Self, Error> {
         let mut hunks = Vec::default();
+        let mut additions = 0;
+        let mut deletions = 0;
 
-        while let Some(h) = Hunk::<_>::try_decode(r)? {
+        while let Some(h) = Hunk::try_decode(r)? {
+            for l in &h.lines {
+                match l {
+                    Modification::Addition(_) => additions += 1,
+                    Modification::Deletion(_) => deletions += 1,
+                    _ => {}
+                }
+            }
             hunks.push(h);
         }
 
@@ -214,6 +224,10 @@ impl Decode for DiffContent {
             // TODO: Handle case for binary.
             Ok(DiffContent::Plain {
                 hunks: Hunks::from(hunks),
+                stats: FileStats {
+                    additions,
+                    deletions,
+                },
                 // TODO: Properly handle EndOfLine field
                 eof: diff::EofNewLine::NoneMissing,
             })

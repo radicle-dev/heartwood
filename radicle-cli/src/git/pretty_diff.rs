@@ -165,26 +165,13 @@ impl ToPretty for DiffContent {
                 Some((f.old.oid, f.new_path.clone())),
             ),
         };
-
         let mut header = header.pretty(hi, &(), repo);
-        let mut additions = 0;
-        let mut deletions = 0;
 
-        match self {
-            DiffContent::Plain { hunks, .. } => {
-                for h in hunks.iter() {
-                    for l in &h.lines {
-                        match l {
-                            Modification::Addition(_) => additions += 1,
-                            Modification::Deletion(_) => deletions += 1,
-                            _ => {}
-                        }
-                    }
-                }
-            }
-            DiffContent::Empty => {}
-            DiffContent::Binary => {}
-        }
+        let (additions, deletions) = if let Some(stats) = self.stats() {
+            (stats.additions, stats.deletions)
+        } else {
+            (0, 0)
+        };
         if deletions > 0 {
             header.push(term::label(format!(" -{deletions}")).fg(theme.color("negative.light")));
         }

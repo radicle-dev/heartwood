@@ -1187,6 +1187,10 @@ mod routes {
                               },
                             },
                           ],
+                          "stats": {
+                            "additions": 1,
+                            "deletions": 0,
+                          },
                           "eof": "noneMissing",
                         },
                         "new": {
@@ -1218,6 +1222,10 @@ mod routes {
                               },
                             }
                           ],
+                          "stats": {
+                            "additions": 1,
+                            "deletions": 0,
+                          },
                           "eof": "noneMissing",
                         },
                         "new": {
@@ -1251,6 +1259,10 @@ mod routes {
                               },
                             },
                           ],
+                          "stats": {
+                            "additions": 0,
+                            "deletions": 1,
+                          },
                           "eof": "noneMissing",
                         },
                         "old": {
@@ -1316,6 +1328,10 @@ mod routes {
                               },
                             },
                           ],
+                          "stats": {
+                            "additions": 1,
+                            "deletions": 0,
+                          },
                           "eof": "noneMissing",
                         },
                         "new": {
@@ -1349,6 +1365,10 @@ mod routes {
                               },
                             },
                           ],
+                          "stats": {
+                            "additions": 0,
+                            "deletions": 1,
+                          },
                           "eof": "noneMissing",
                         },
                         "old": {
@@ -1412,6 +1432,10 @@ mod routes {
                               },
                             }
                           ],
+                          "stats": {
+                            "additions": 1,
+                            "deletions": 0,
+                          },
                           "eof": "noneMissing",
                         },
                         "new": {
@@ -1497,6 +1521,10 @@ mod routes {
                           },
                         },
                       ],
+                      "stats": {
+                        "additions": 1,
+                        "deletions": 0,
+                      },
                       "eof": "noneMissing",
                     },
                     "new": {
@@ -1528,6 +1556,10 @@ mod routes {
                           },
                         }
                       ],
+                      "stats": {
+                        "additions": 1,
+                        "deletions": 0,
+                      },
                       "eof": "noneMissing",
                     },
                     "new": {
@@ -1561,6 +1593,10 @@ mod routes {
                           },
                         },
                       ],
+                      "stats": {
+                        "additions": 0,
+                        "deletions": 1,
+                      },
                       "eof": "noneMissing",
                     },
                     "old": {
@@ -1892,6 +1928,10 @@ mod routes {
                             },
                           },
                         ],
+                        "stats": {
+                          "additions": 1,
+                          "deletions": 0,
+                        },
                         "eof": "noneMissing",
                       },
                       "new": {
