@@ -3,8 +3,7 @@
 #![warn(clippy::unwrap_used)]
 //! # Collaborative Objects
 //!
-//! Collaborative objects are graphs of CRDTs. The current CRDTs that
-//! is intended to be used are specifically [automerge] CRDTs.
+//! Collaborative objects are graphs of CRDTs.
 //!
 //! ## Basic Types
 //!
@@ -48,18 +47,12 @@
 //! [`History::traverse`] which provides a way of inspecting each
 //! [`Entry`] and building up a final value.
 //!
-//! This mechanism would be used in tandem with [automerge] to load an
-//! automerge document and deserialize into an application defined
-//! object.
-//!
 //! This traversal is also the point at which the [`Entry::author`]
 //! and [`Entry::resource`] can be retrieved to apply any kind of
 //! filtering logic. For example, a specific `author`'s change may be
 //! egregious, spouting terrible libel about Radicle. It is at this
 //! point that the `actor`'s change can be filtered out from the
 //! final product of the traversal.
-//!
-//! [automerge]: https://automerge.org
 
 #[cfg(test)]
 extern crate qcheck;
