@@ -92,15 +92,13 @@ pub mod setup {
         fn default() -> Self {
             let root = tempfile::tempdir().unwrap();
 
-            Self::new(root)
+            Self::new(root, MockSigner::default())
         }
     }
 
     impl Node {
-        pub fn new(root: impl AsRef<Path>) -> Self {
+        pub fn new(root: impl AsRef<Path>, signer: MockSigner) -> Self {
             let root = root.as_ref().to_path_buf();
-            let mut rng = fastrand::Rng::new();
-            let signer = MockSigner::new(&mut rng);
             let home = root.join("home");
             let paths = Home::new(home.as_path()).unwrap();
             let storage = Storage::open(paths.storage()).unwrap();
@@ -138,10 +136,12 @@ pub mod setup {
     }
 
     impl NodeRepo {
+        #[track_caller]
         pub fn fetch(&self, from: &Node) -> Vec<RefUpdate> {
             super::fetch(&self.repo, from.signer.public_key(), Namespaces::All).unwrap()
         }
 
+        #[track_caller]
         pub fn checkout(&self) -> &NodeRepoCheckout {
             self.checkout.as_ref().unwrap()
         }
@@ -240,9 +240,9 @@ pub mod setup {
     impl Default for Network {
         fn default() -> Self {
             let tmp = tempfile::tempdir().unwrap();
-            let alice = Node::new(tmp.path().join("alice"));
-            let mut bob = Node::new(tmp.path().join("bob"));
-            let mut eve = Node::new(tmp.path().join("eve"));
+            let alice = Node::new(tmp.path().join("alice"), MockSigner::from_seed([!0; 32]));
+            let mut bob = Node::new(tmp.path().join("bob"), MockSigner::from_seed([!1; 32]));
+            let mut eve = Node::new(tmp.path().join("eve"), MockSigner::from_seed([!2; 32]));
             let repo = alice.project();
             let rid = repo.id;
 

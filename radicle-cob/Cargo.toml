@@ -12,6 +12,11 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 keywords = ["radicle", "cob", "cobs"]
 
+[features]
+default = []
+# Only used for testing. Ensures that commit ids are stable.
+stable-commit-ids = []
+
 [dependencies]
 fastrand = { version = "2.0.0" }
 log = { version = "0.4.17" }
