@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Mutex, Once};
+use std::thread::ThreadId;
 use std::{process, thread};
 
 use once_cell::sync::Lazy;
@@ -12,7 +13,8 @@ use crate::storage::git::transport::ChildStream;
 use crate::storage::RemoteId;
 
 /// Nodes registered with the mock transport.
-static NODES: Lazy<Mutex<HashMap<RemoteId, PathBuf>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static NODES: Lazy<Mutex<HashMap<(ThreadId, RemoteId), PathBuf>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// The mock transport.
 #[derive(Default)]
@@ -25,8 +27,9 @@ impl git2::transport::SmartSubtransport for MockTransport {
         service: git2::transport::Service,
     ) -> Result<Box<dyn git2::transport::SmartSubtransportStream>, git2::Error> {
         let url = Url::from_str(url).map_err(|e| git2::Error::from_str(e.to_string().as_str()))?;
+        let id = thread::current().id();
         let nodes = NODES.lock().expect("lock cannot be poisoned");
-        let storage = if let Some(storage) = nodes.get(&url.node) {
+        let storage = if let Some(storage) = nodes.get(&(id, url.node)) {
             match service {
                 git2::transport::Service::ReceivePack | git2::transport::Service::ReceivePackLs => {
                     return Err(git2::Error::from_str(
@@ -89,9 +92,10 @@ pub fn register(node: &RemoteId, path: &Path) {
         })
         .expect("transport registration is successful");
     });
+    let id = thread::current().id();
 
     NODES
         .lock()
         .expect("the lock isn't poisoned")
-        .insert(*node, path.to_owned());
+        .insert((id, *node), path.to_owned());
 }
