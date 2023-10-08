@@ -184,6 +184,7 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     }
 
     /// Fold over the graph in topological order, pruning branches along the way.
+    /// This is a breadth-first traversal.
     ///
     /// To continue traversing a branch, return [`ControlFlow::Continue`] from the
     /// filter function. To stop traversal of a branch and prune it,
@@ -215,6 +216,7 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     }
 
     /// Fold over the graph in topological order, skipping certain branches.
+    /// This is a breadth-first traversal.
     ///
     /// To continue traversing a branch, return [`ControlFlow::Continue`] from the
     /// filter function. To stop traversal of a branch, return [`ControlFlow::Break`].
@@ -561,15 +563,39 @@ mod tests {
     }
 
     #[test]
+    fn test_fold_diamond() {
+        let mut dag = Dag::new();
+
+        dag.node("R", ());
+        dag.node("A1", ());
+        dag.node("A2", ());
+        dag.node("B", ());
+
+        dag.dependency("A1", "R");
+        dag.dependency("A2", "R");
+        dag.dependency("B", "A1");
+        dag.dependency("B", "A2");
+
+        let acc = dag.fold(&["R"], Vec::new(), |mut acc, key, _| {
+            acc.push(*key);
+            ControlFlow::Continue(acc)
+        });
+        assert_eq!(acc, vec!["R", "A1", "A2", "B"]);
+
+        let sorted = dag.sorted(|a, b| a.cmp(b));
+        assert_eq!(sorted, acc);
+    }
+
+    #[test]
     fn test_fold_reject() {
         let mut dag = Dag::new();
 
-        dag.node("R", true);
-        dag.node("A1", false); // Reject.
-        dag.node("A2", true);
-        dag.node("B1", true);
-        dag.node("C1", true);
-        dag.node("D1", true);
+        dag.node("R", ());
+        dag.node("A1", ());
+        dag.node("A2", ());
+        dag.node("B1", ());
+        dag.node("C1", ());
+        dag.node("D1", ());
 
         dag.dependency("A1", "R");
         dag.dependency("A2", "R");
@@ -581,8 +607,8 @@ mod tests {
         let a1 = dag.get(&"A1").unwrap();
         assert_eq!(dag.descendants_of(a1), vec!["B1", "C1", "D1"]);
 
-        let acc = dag.fold(&["R"], Vec::new(), |mut acc, key, accept| {
-            if !accept.value {
+        let acc = dag.fold(&["R"], Vec::new(), |mut acc, key, _| {
+            if *key == "A1" {
                 ControlFlow::Break(acc)
             } else {
                 acc.push(*key);
@@ -590,6 +616,16 @@ mod tests {
             }
         });
         assert_eq!(acc, vec!["R", "A2"]);
+
+        let acc = dag.fold(&["R"], Vec::new(), |mut acc, key, _| {
+            if *key == "A2" {
+                ControlFlow::Break(acc)
+            } else {
+                acc.push(*key);
+                ControlFlow::Continue(acc)
+            }
+        });
+        assert_eq!(acc, vec!["R", "A1", "B1", "C1"]);
     }
 
     #[test]
