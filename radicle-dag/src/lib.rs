@@ -5,6 +5,7 @@ use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt,
+    fmt::Write,
     ops::{ControlFlow, Deref, Index},
 };
 
@@ -310,6 +311,23 @@ impl<K: Ord + Copy, V> Dag<K, V> {
         }
         // Add the node to the topological order.
         order.push(*key);
+    }
+}
+
+impl<K: Ord + Copy + fmt::Display, V> Dag<K, V> {
+    /// Return the graph in "dot" format.
+    pub fn to_dot(&self) -> String {
+        let mut output = String::new();
+
+        writeln!(output, "digraph G {{").ok();
+        for (k, v) in self.graph.iter() {
+            for d in &v.dependencies {
+                writeln!(output, "\t\"{k}\" -> \"{d}\";").ok();
+            }
+        }
+        writeln!(output, "}}").ok();
+
+        output
     }
 }
 
