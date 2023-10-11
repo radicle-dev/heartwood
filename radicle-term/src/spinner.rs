@@ -137,13 +137,10 @@ pub fn spinner_to(
 
                             write!(
                                 animation,
-                                "{}{}{spinner} {message}",
-                                termion::cursor::Save,
+                                "{}{spinner} {message}\r",
                                 termion::clear::AfterCursor,
                             )
                             .ok();
-
-                            write!(animation, "{}", termion::cursor::Restore).ok();
 
                             *cursor += 1;
                             *cursor %= DEFAULT_STYLE.len();
