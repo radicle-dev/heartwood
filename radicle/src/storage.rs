@@ -342,6 +342,8 @@ pub trait WriteStorage: ReadStorage {
     fn repository_mut(&self, rid: Id) -> Result<Self::RepositoryMut, Error>;
     /// Create a read-write repository.
     fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error>;
+    /// Delete a repository.
+    fn remove(&self, rid: Id) -> Result<(), Error>;
 }
 
 /// Allows read-only access to a repository.
@@ -574,6 +576,10 @@ where
 
     fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
         self.deref().create(rid)
+    }
+
+    fn remove(&self, rid: Id) -> Result<(), Error> {
+        self.deref().remove(rid)
     }
 }
 

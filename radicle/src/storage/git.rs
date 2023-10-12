@@ -127,6 +127,10 @@ impl WriteStorage for Storage {
     fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error> {
         Repository::create(paths::repository(self, &rid), rid)
     }
+
+    fn remove(&self, rid: Id) -> Result<(), Error> {
+        self.repository(rid)?.remove()
+    }
 }
 
 impl Storage {
@@ -297,6 +301,15 @@ impl Repository {
         config.set_str("user.email", "radicle@localhost")?;
 
         Ok(Self { id, backend })
+    }
+
+    /// Remove an existing repository
+    pub fn remove(&self) -> Result<(), Error> {
+        let path = self.backend.path();
+        if path.exists() {
+            fs::remove_dir_all(path)?;
+        }
+        Ok(())
     }
 
     /// Create the repository's identity branch.

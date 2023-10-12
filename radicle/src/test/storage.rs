@@ -99,6 +99,10 @@ impl WriteStorage for MockStorage {
     fn create(&self, _rid: Id) -> Result<Self::RepositoryMut, Error> {
         todo!()
     }
+
+    fn remove(&self, _rid: Id) -> Result<(), Error> {
+        todo!()
+    }
 }
 
 #[derive(Clone, Debug)]
