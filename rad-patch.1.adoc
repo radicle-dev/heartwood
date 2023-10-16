@@ -154,7 +154,7 @@ section on updating a patch for more information.
 === Options
 
 When opening a patch, various options can be specified using git push options.
-This is done via the *-o* or *--push-option* flag. For example, *-o=patch.draft*.
+This is done via the *-o* or *--push-option* flag. For example, *-o patch.draft*.
 The full list of options follows:
 
 *sync*, *no-sync*::
