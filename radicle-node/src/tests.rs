@@ -1334,8 +1334,9 @@ fn test_queued_fetch_same_rid() {
 fn test_refs_synced_event() {
     let temp = tempfile::tempdir().unwrap();
     let storage = Storage::open(temp.path(), fixtures::user()).unwrap();
-    let mut alice = Peer::with_storage("alice", [8, 8, 8, 8], storage);
-    let bob = Peer::new("eve", [9, 9, 9, 9]);
+    let mut alice = Peer::with_storage("alice", [8, 8, 8, 8], storage.clone());
+    let bob = Peer::new("bob", [9, 9, 9, 9]);
+    let eve = Peer::with_storage("eve", [7, 7, 7, 7], storage);
     let acme = alice.project("acme", "");
     let events = alice.events();
     let ann = AnnouncementMessage::from(RefsAnnouncement {
@@ -1347,26 +1348,31 @@ fn test_refs_synced_event() {
     });
     let msg = ann.signed(bob.signer());
 
+    alice.track_repo(&acme, tracking::Scope::All).unwrap();
     alice.connect_to(&bob);
     alice.receive(bob.id, Message::Announcement(msg));
 
     events
         .wait(
             |e| {
-                if let Event::RefsSynced {
-                    remote,
-                    rid,
-                    at: _at,
-                } = e
-                {
-                    assert_eq!(remote, &bob.id);
-                    assert_eq!(rid, &acme);
-
-                    Some(())
-                } else {
-                    None
-                }
+                matches!(
+                    e,
+                    Event::RefsSynced { remote, rid, .. }
+                    if rid == &acme && remote == &bob.id
+                )
+                .then_some(())
             },
+            time::Duration::from_secs(3),
+        )
+        .unwrap();
+
+    // Now a relayed announcement.
+    alice.receive(bob.id, eve.node_announcement());
+    alice.receive(bob.id, eve.refs_announcement(acme));
+
+    events
+        .wait(
+            |e| matches!(e, Event::RefsSynced { remote, .. } if remote == &eve.id).then_some(()),
             time::Duration::from_secs(3),
         )
         .unwrap();

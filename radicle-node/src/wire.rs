@@ -60,6 +60,8 @@ pub enum Error {
     UnknownAddressType(u8),
     #[error("unknown message type `{0}`")]
     UnknownMessageType(u16),
+    #[error("unknown info type `{0}`")]
+    UnknownInfoType(u16),
     #[error("unexpected bytes")]
     UnexpectedBytes,
 }

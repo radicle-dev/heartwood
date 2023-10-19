@@ -6,7 +6,7 @@ use crate::node::Alias;
 use crate::prelude::{BoundedVec, Id, NodeId, Timestamp};
 use crate::service::filter::{Filter, FILTER_SIZE_L, FILTER_SIZE_M, FILTER_SIZE_S};
 use crate::service::message::{
-    Announcement, InventoryAnnouncement, Message, NodeAnnouncement, Ping, RefsAnnouncement,
+    Announcement, Info, InventoryAnnouncement, Message, NodeAnnouncement, Ping, RefsAnnouncement,
     Subscribe, ZeroBytes,
 };
 use crate::wire::MessageType;
@@ -34,6 +34,7 @@ impl Arbitrary for Message {
                 MessageType::InventoryAnnouncement,
                 MessageType::NodeAnnouncement,
                 MessageType::RefsAnnouncement,
+                MessageType::Info,
                 MessageType::Subscribe,
                 MessageType::Ping,
                 MessageType::Pong,
@@ -80,6 +81,13 @@ impl Arbitrary for Message {
                     message,
                 }
                 .into()
+            }
+            MessageType::Info => {
+                let message = Info::RefsAlreadySynced {
+                    rid: Id::arbitrary(g),
+                    at: oid(),
+                };
+                Self::Info(message)
             }
             MessageType::Subscribe => Self::Subscribe(Subscribe {
                 filter: Filter::arbitrary(g),

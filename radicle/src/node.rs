@@ -823,7 +823,6 @@ impl Node {
     ) -> Result<AnnounceResult, Error> {
         let events = self.subscribe(timeout)?;
         let mut seeds = seeds.into_iter().collect::<BTreeSet<_>>();
-
         let refs = self.announce_refs(rid)?;
 
         callback(AnnounceEvent::Announced);
@@ -840,9 +839,8 @@ impl Node {
                 }) if rid == rid_ => {
                     if seeds.remove(&remote) && refs.at == at {
                         synced.push(remote);
+                        callback(AnnounceEvent::RefsSynced { remote });
                     }
-
-                    callback(AnnounceEvent::RefsSynced { remote });
                 }
                 Ok(_) => {}
 

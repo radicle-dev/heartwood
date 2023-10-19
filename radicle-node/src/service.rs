@@ -35,7 +35,7 @@ use crate::node::routing::InsertResult;
 use crate::node::{Address, Alias, Features, FetchResult, HostName, Seed, Seeds, SyncStatus};
 use crate::prelude::*;
 use crate::runtime::Emitter;
-use crate::service::message::{Announcement, AnnouncementMessage, Ping};
+use crate::service::message::{Announcement, AnnouncementMessage, Info, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::tracking::{store::Write, Scope};
 use crate::storage;
@@ -55,7 +55,7 @@ pub use radicle::node::tracking::config as tracking;
 
 use self::io::Outbox;
 use self::limitter::RateLimiter;
-use self::message::InventoryAnnouncement;
+use self::message::{InventoryAnnouncement, RefsStatus};
 use self::tracking::NamespacesError;
 
 /// How often to run the "idle" task.
@@ -612,14 +612,15 @@ where
                 resp.send(untracked).ok();
             }
             Command::AnnounceRefs(id, resp) => match self.announce_refs(id, [self.node_id()]) {
-                Ok(refs) => {
-                    #[allow(clippy::unwrap_used)]
-                    // SAFETY: we announced only our refs
-                    let refs = refs.first().unwrap();
-                    resp.send(*refs).ok();
-                }
+                Ok(refs) => match refs.as_slice() {
+                    &[refs] => {
+                        resp.send(refs).ok();
+                    }
+                    // SAFETY: Since we passed in one NID, we should get exactly one item back.
+                    [..] => panic!("Service::command: unexpected refs returned"),
+                },
                 Err(err) => {
-                    error!("Error announcing refs: {err}");
+                    error!(target: "service", "Error announcing refs: {err}");
                 }
             },
             Command::AnnounceInventory => {
@@ -628,7 +629,7 @@ where
                     .inventory()
                     .and_then(|i| self.announce_inventory(i))
                 {
-                    error!("Error announcing inventory: {}", err);
+                    error!(target: "service", "Error announcing inventory: {err}");
                 }
             }
             Command::SyncInventory(resp) => {
@@ -650,10 +651,10 @@ where
         &mut self,
         rid: Id,
         from: &NodeId,
-        refs: Vec<RefsAt>,
+        refs: NonEmpty<RefsAt>,
         timeout: time::Duration,
     ) {
-        self._fetch(rid, from, refs, timeout, None)
+        self._fetch(rid, from, refs.into(), timeout, None)
     }
 
     /// Initiate an outgoing fetch for some repository.
@@ -1136,42 +1137,69 @@ where
                     }
                 }
 
-                // Check if the announcer is in sync with our own refs, and if so emit an event.
-                // This event is used for showing sync progress to users.
-                match message.is_synced(&self.node_id(), &self.storage) {
-                    Ok(synced) => {
-                        if let Some(at) = synced {
-                            self.emitter.emit(Event::RefsSynced {
-                                rid: message.rid,
-                                remote: *announcer,
-                                at,
-                            });
-                        }
-                    }
-                    Err(e) => {
-                        error!(target: "service", "Error checking refs announcement sync status: {e}");
-                    }
-                }
-
                 // TODO: Buffer/throttle fetches.
                 let repo_entry = self.tracking.repo_policy(&message.rid).expect(
                     "Service::handle_announcement: error accessing repo tracking configuration",
                 );
 
                 if repo_entry.policy == tracking::Policy::Track {
+                    let (fresh, stale) = match self.refs_status_of(message, &repo_entry.scope) {
+                        Ok(RefsStatus { fresh, stale }) => (fresh, stale),
+                        Err(e) => {
+                            error!(target: "service", "Failed to check refs status: {e}");
+                            return Ok(relay);
+                        }
+                    };
+                    // If the ref announcement indicates that the announcer already has
+                    // our *owned* refs, then we emit an event, which can be used to
+                    // show sync status to the user.
+                    if let Some(at) = stale
+                        .iter()
+                        .find(|refs| &refs.remote == self.nid())
+                        .copied()
+                        .map(|RefsAt { at, .. }| at)
+                    {
+                        self.emitter.emit(Event::RefsSynced {
+                            rid: message.rid,
+                            remote: *announcer,
+                            at,
+                        });
+                    }
+
                     // Refs can be relayed by peers who don't have the data in storage,
                     // therefore we only check whether we are connected to the *announcer*,
                     // which is required by the protocol to only announce refs it has.
-                    if self.sessions.is_connected(announcer) {
-                        match self.should_fetch_refs_announcement(message, &repo_entry.scope) {
-                            Ok(Some(refs)) => {
-                                self.fetch_refs_at(message.rid, announcer, refs, FETCH_TIMEOUT)
+                    if let Some(remote) = self.sessions.get(announcer).cloned() {
+                        // If the relayer is also the origin of the message, we inform it
+                        // about any refs that are already in sync (stale).
+                        if relayer == announcer {
+                            // If the stale refs contain refs announced by the peer, let it know
+                            // that we're already in sync.
+                            if let Some(at) = stale
+                                .iter()
+                                .find(|refs| refs.remote == remote.id)
+                                .copied()
+                                .map(|RefsAt { at, .. }| at)
+                            {
+                                debug!(
+                                    target: "service", "Refs of {} already synced for {} at {at}",
+                                    remote.id,
+                                    message.rid,
+                                );
+                                self.outbox.write(
+                                    &remote,
+                                    Info::RefsAlreadySynced {
+                                        rid: message.rid,
+                                        at,
+                                    }
+                                    .into(),
+                                );
                             }
-                            Ok(None) => {}
-                            Err(e) => {
-                                error!(target: "service", "Failed to check refs announcement: {e}");
-                                return Err(session::Error::Misbehavior);
-                            }
+                        }
+                        // Finally, if there's anything to fetch, we fetch it from the
+                        // remote.
+                        if let Some(fresh) = NonEmpty::from_vec(fresh) {
+                            self.fetch_refs_at(message.rid, &remote.id, fresh, FETCH_TIMEOUT);
                         }
                     } else {
                         trace!(
@@ -1240,47 +1268,49 @@ where
         Ok(false)
     }
 
-    /// A convenient method to check if we should fetch from a `RefsAnnouncement`
-    /// with `scope`.
-    fn should_fetch_refs_announcement(
+    pub fn handle_info(&mut self, remote: NodeId, info: &Info) -> Result<(), session::Error> {
+        match info {
+            Info::RefsAlreadySynced { rid, at } => {
+                debug!(target: "service", "Refs already synced for {rid} by {remote}");
+                self.emitter.emit(Event::RefsSynced {
+                    rid: *rid,
+                    remote,
+                    at: *at,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// A convenient method to check if we should fetch from a `RefsAnnouncement` with `scope`.
+    fn refs_status_of(
         &self,
         message: &RefsAnnouncement,
         scope: &tracking::Scope,
-    ) -> Result<Option<Vec<RefsAt>>, Error> {
+    ) -> Result<RefsStatus, Error> {
+        let mut refs = message.refs_status(&self.storage)?;
+
         // First, check the freshness.
-        if !message.is_fresh(&self.storage)? {
+        if refs.fresh.is_empty() {
             debug!(target: "service", "All refs of {} are already in local storage", &message.rid);
-            return Ok(None);
+            return Ok(refs);
         }
 
         // Second, check the scope.
         match scope {
-            tracking::Scope::All => Ok(Some(message.refs.clone().into())),
+            tracking::Scope::All => Ok(refs),
             tracking::Scope::Trusted => {
                 match self.tracking.namespaces_for(&self.storage, &message.rid) {
-                    Ok(Namespaces::All) => Ok(Some(message.refs.clone().into())),
+                    Ok(Namespaces::All) => Ok(refs),
                     Ok(Namespaces::Trusted(mut trusted)) => {
                         // Get the set of trusted nodes except self.
-                        trusted.remove(&self.node_id());
+                        trusted.remove(self.nid());
+                        refs.fresh.retain(|r| trusted.contains(&r.remote));
 
-                        // Check if there is at least one trusted ref.
-                        Ok(Some(
-                            message
-                                .refs
-                                .iter()
-                                .filter(|refs_at| trusted.contains(&refs_at.remote))
-                                .cloned()
-                                .collect(),
-                        ))
+                        Ok(refs)
                     }
-                    Err(NamespacesError::NoTrusted { rid }) => {
-                        debug!(target: "service", "No trusted nodes to fetch {}", &rid);
-                        Ok(None)
-                    }
-                    Err(e) => {
-                        error!(target: "service", "Failed to obtain namespaces: {e}");
-                        Err(e.into())
-                    }
+                    Err(e) => Err(e.into()),
                 }
             }
         }
@@ -1362,6 +1392,10 @@ where
                     }
                 }
                 peer.subscribe = Some(subscribe);
+            }
+            (session::State::Connected { .. }, Message::Info(info)) => {
+                let remote = peer.id;
+                self.handle_info(remote, &info)?;
             }
             (session::State::Connected { .. }, Message::Ping(Ping { ponglen, .. })) => {
                 // Ignore pings which ask for too much data.

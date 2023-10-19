@@ -2,6 +2,7 @@ use std::{io, mem, net};
 
 use byteorder::{NetworkEndian, ReadBytesExt};
 use cyphernet::addr::{Addr, HostName, NetAddr};
+use radicle::git::Oid;
 use radicle::node::Address;
 
 use crate::prelude::*;
@@ -19,6 +20,7 @@ pub enum MessageType {
     Subscribe = 8,
     Ping = 10,
     Pong = 12,
+    Info = 14,
 }
 
 impl From<MessageType> for u16 {
@@ -38,6 +40,7 @@ impl TryFrom<u16> for MessageType {
             8 => Ok(MessageType::Subscribe),
             10 => Ok(MessageType::Ping),
             12 => Ok(MessageType::Pong),
+            14 => Ok(MessageType::Info),
             _ => Err(other),
         }
     }
@@ -56,6 +59,7 @@ impl Message {
                 AnnouncementMessage::Inventory(_) => MessageType::InventoryAnnouncement,
                 AnnouncementMessage::Refs(_) => MessageType::RefsAnnouncement,
             },
+            Self::Info(_) => MessageType::Info,
             Self::Ping { .. } => MessageType::Ping,
             Self::Pong { .. } => MessageType::Pong,
         }
@@ -180,6 +184,76 @@ impl wire::Decode for InventoryAnnouncement {
     }
 }
 
+/// The type tracking the different variants of [`Info`] for encoding and
+/// decoding purposes.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InfoType {
+    RefsAlreadySynced = 1,
+}
+
+impl From<InfoType> for u16 {
+    fn from(other: InfoType) -> Self {
+        other as u16
+    }
+}
+
+impl TryFrom<u16> for InfoType {
+    type Error = u16;
+
+    fn try_from(other: u16) -> Result<Self, Self::Error> {
+        match other {
+            1 => Ok(Self::RefsAlreadySynced),
+            n => Err(n),
+        }
+    }
+}
+
+impl From<Info> for InfoType {
+    fn from(info: Info) -> Self {
+        (&info).into()
+    }
+}
+
+impl From<&Info> for InfoType {
+    fn from(info: &Info) -> Self {
+        match info {
+            Info::RefsAlreadySynced { .. } => Self::RefsAlreadySynced,
+        }
+    }
+}
+
+impl wire::Encode for Info {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        let mut n = 0;
+        n += u16::from(InfoType::from(self)).encode(writer)?;
+        match self {
+            Info::RefsAlreadySynced { rid, at } => {
+                n += rid.encode(writer)?;
+                n += at.encode(writer)?;
+            }
+        }
+
+        Ok(n)
+    }
+}
+
+impl wire::Decode for Info {
+    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, wire::Error> {
+        let info_type = reader.read_u16::<NetworkEndian>()?;
+
+        match InfoType::try_from(info_type) {
+            Ok(InfoType::RefsAlreadySynced) => {
+                let rid = Id::decode(reader)?;
+                let at = Oid::decode(reader)?;
+
+                Ok(Self::RefsAlreadySynced { rid, at })
+            }
+            Err(other) => Err(wire::Error::UnknownInfoType(other)),
+        }
+    }
+}
+
 impl wire::Encode for Message {
     fn encode<W: std::io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, std::io::Error> {
         let mut n = self.type_id().encode(writer)?;
@@ -202,6 +276,9 @@ impl wire::Encode for Message {
                 n += node.encode(writer)?;
                 n += message.encode(writer)?;
                 n += signature.encode(writer)?;
+            }
+            Self::Info(info) => {
+                n += info.encode(writer)?;
             }
             Self::Ping(Ping { ponglen, zeroes }) => {
                 n += ponglen.encode(writer)?;
@@ -273,6 +350,10 @@ impl wire::Decode for Message {
                     signature,
                 }
                 .into())
+            }
+            Ok(MessageType::Info) => {
+                let info = Info::decode(reader)?;
+                Ok(Self::Info(info))
             }
             Ok(MessageType::Ping) => {
                 let ponglen = u16::decode(reader)?;

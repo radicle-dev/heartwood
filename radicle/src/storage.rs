@@ -103,6 +103,8 @@ pub enum Error {
     Refs(#[from] refs::Error),
     #[error("git: {0}")]
     Git(#[from] git2::Error),
+    #[error("git: {0}")]
+    Ext(#[from] git::ext::Error),
     #[error("invalid repository identifier {0:?}")]
     InvalidId(std::ffi::OsString),
     #[error("i/o: {0}")]

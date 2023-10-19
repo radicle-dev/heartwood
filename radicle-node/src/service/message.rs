@@ -1,7 +1,8 @@
 use std::{fmt, io, mem};
 
-use radicle::git::Oid;
+use radicle::git;
 use radicle::storage::refs::RefsAt;
+use radicle::storage::ReadRepository;
 
 use crate::crypto;
 use crate::identity::Id;
@@ -164,47 +165,80 @@ pub struct RefsAnnouncement {
     pub timestamp: Timestamp,
 }
 
-impl RefsAnnouncement {
-    /// Check if this announcement is "fresh", meaning if it contains refs we do not have.
-    pub fn is_fresh<S: ReadStorage>(&self, storage: S) -> Result<bool, storage::Error> {
-        let repo = match storage.repository(self.rid) {
-            // If the repo doesn't exist, we consider this announcement "fresh", since we
-            // obviously don't have the refs.
-            Err(e) if e.is_not_found() => return Ok(true),
-            Err(e) => return Err(e),
-            Ok(r) => r,
-        };
+/// Track the status of `RefsAt` within a given repository.
+#[derive(Default)]
+pub struct RefsStatus {
+    /// The `rad/sigrefs` was missing or it's ahead of the local
+    /// `rad/sigrefs`.
+    pub fresh: Vec<RefsAt>,
+    /// The `rad/sigrefs` has been seen before.
+    pub stale: Vec<RefsAt>,
+}
 
-        for theirs in self.refs.iter() {
-            if let Ok(ours) = RefsAt::new(&repo, theirs.remote) {
-                if ours.at != theirs.at {
-                    return Ok(true);
+impl RefsStatus {
+    fn insert<S: ReadRepository>(
+        &mut self,
+        theirs: RefsAt,
+        repo: &S,
+    ) -> Result<(), storage::Error> {
+        match RefsAt::new(repo, theirs.remote) {
+            Ok(ours) => {
+                if Self::is_fresh(repo, theirs.at, ours.at)? {
+                    self.fresh.push(theirs);
+                } else {
+                    self.stale.push(theirs);
                 }
-            } else {
-                return Ok(true);
+            }
+            Err(e) if git::is_not_found_err(&e) => self.fresh.push(theirs),
+            Err(e) => {
+                log::warn!(
+                    target: "service",
+                    "failed to load 'refs/namespaces/{}/rad/sigrefs': {e}", theirs.remote
+                )
             }
         }
-        Ok(false)
+        Ok(())
     }
 
-    /// Check if an announcement tells us that a node is in sync with a local remote.
-    pub fn is_synced<S: ReadStorage>(
-        &self,
-        remote: &NodeId,
-        storage: S,
-    ) -> Result<Option<Oid>, storage::Error> {
+    /// If `theirs` is not the same as `ours` and we have not seen
+    /// `theirs` before, i.e. it's not a previous `rad/sigrefs`, then
+    /// we can consider `theirs` a fresh update.
+    fn is_fresh<S: ReadRepository>(
+        repo: &S,
+        theirs: git::Oid,
+        ours: git::Oid,
+    ) -> Result<bool, git::ext::Error> {
+        if repo.contains(theirs)? {
+            Ok(theirs != ours && !repo.is_ancestor_of(theirs, ours)?)
+        } else {
+            Ok(true)
+        }
+    }
+}
+
+impl RefsAnnouncement {
+    /// Get the set of `fresh` and `stale` `RefsAt`'s for the given
+    /// announcement.
+    pub fn refs_status<S: ReadStorage>(&self, storage: S) -> Result<RefsStatus, storage::Error> {
         let repo = match storage.repository(self.rid) {
-            // If the repo doesn't exist, we're not in sync.
-            Err(e) if e.is_not_found() => return Ok(None),
+            // If the repo doesn't exist, we consider this
+            // announcement "fresh", since we obviously don't
+            // have the refs.
+            Err(e) if e.is_not_found() => {
+                return Ok(RefsStatus {
+                    fresh: self.refs.clone().into(),
+                    stale: Vec::new(),
+                })
+            }
             Err(e) => return Err(e),
             Ok(r) => r,
         };
 
-        if let Some(theirs) = self.refs.iter().find(|refs_at| refs_at.remote == *remote) {
-            let ours = RefsAt::new(&repo, *remote)?;
-            return Ok((ours.at == theirs.at).then_some(theirs.at));
+        let mut status = RefsStatus::default();
+        for theirs in self.refs.iter() {
+            status.insert(*theirs, &repo)?;
         }
-        Ok(None)
+        Ok(status)
     }
 }
 
@@ -216,6 +250,17 @@ pub struct InventoryAnnouncement {
     pub inventory: BoundedVec<Id, INVENTORY_LIMIT>,
     /// Time of announcement.
     pub timestamp: Timestamp,
+}
+
+/// Node announcing information to a connected peer.
+///
+/// This should not be relayed and should be used to send an
+/// informational message a peer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Info {
+    /// Tell a node that sent a refs announcement that it was already synced at the given `Oid`,
+    /// for this particular `rid`.
+    RefsAlreadySynced { rid: Id, at: git::Oid },
 }
 
 /// Announcement messages are messages that are relayed between peers.
@@ -362,6 +407,11 @@ pub enum Message {
     /// using [`Message::Subscribe`].
     Announcement(Announcement),
 
+    /// Informational message. These messages are sent between peers for information
+    /// and do not need to be acted upon. They can be safely ignored, though handling
+    /// them can be useful for the user.
+    Info(Info),
+
     /// Ask a connected peer for a Pong.
     ///
     /// Used to check if the remote peer is responsive, or a side-effect free way to keep a
@@ -446,6 +496,11 @@ impl Message {
                     )
                 }
             },
+            Self::Info(Info::RefsAlreadySynced { rid,  .. }) => {
+                format!(
+                    "{verb} `refs-already-synced` info {prep} {remote} for {rid}"
+                )
+            },
             Self::Ping { .. } => format!("{verb} ping {prep} {remote}"),
             Self::Pong { .. } => format!("{verb} pong {prep} {remote}"),
             Self::Subscribe(Subscribe { .. }) => {
@@ -492,6 +547,12 @@ impl From<Announcement> for Message {
     }
 }
 
+impl From<Info> for Message {
+    fn from(info: Info) -> Self {
+        Self::Info(info)
+    }
+}
+
 impl fmt::Debug for Message {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -500,6 +561,9 @@ impl fmt::Debug for Message {
             }
             Self::Announcement(Announcement { node, message, .. }) => {
                 write!(f, "Announcement({node}, {message:?})")
+            }
+            Self::Info(info) => {
+                write!(f, "Info({info:?})")
             }
             Self::Ping(Ping { ponglen, zeroes }) => write!(f, "Ping({ponglen}, {zeroes:?})"),
             Self::Pong { zeroes } => write!(f, "Pong({zeroes:?})"),

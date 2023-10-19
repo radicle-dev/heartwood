@@ -155,7 +155,7 @@ where
         Command::AnnounceRefs { rid } => {
             let refs = handle.announce_refs(rid)?;
 
-            json::to_writer(writer, &refs)?;
+            CommandResult::Okay(refs).to_writer(writer)?;
         }
         Command::AnnounceInventory => {
             if let Err(e) = handle.announce_inventory() {
@@ -268,7 +268,7 @@ mod tests {
                 line,
                 json::json!({
                     "remote": handle.nid().unwrap(),
-                    "at":"0000000000000000000000000000000000000000"
+                    "at": "0000000000000000000000000000000000000000"
                 })
                 .to_string()
             );
