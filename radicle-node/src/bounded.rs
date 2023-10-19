@@ -189,6 +189,12 @@ impl<T, const N: usize> TryFrom<Vec<T>> for BoundedVec<T, N> {
     }
 }
 
+impl<T, const N: usize> From<BoundedVec<T, N>> for Vec<T> {
+    fn from(value: BoundedVec<T, N>) -> Self {
+        value.v
+    }
+}
+
 impl<T: std::fmt::Debug, const N: usize> std::fmt::Debug for BoundedVec<T, N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.v.fmt(f)
