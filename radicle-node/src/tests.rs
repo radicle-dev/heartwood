@@ -11,7 +11,7 @@ use netservices::Direction as Link;
 use radicle::identity::Visibility;
 use radicle::node::routing::Store as _;
 use radicle::node::{ConnectOptions, DEFAULT_TIMEOUT};
-use radicle::storage::RemoteRepository as _;
+use radicle::storage::refs::RefsAt;
 
 use crate::collections::{RandomMap, RandomSet};
 use crate::crypto::test::signer::MockSigner;
@@ -37,6 +37,7 @@ use crate::test::peer;
 use crate::test::peer::Peer;
 use crate::test::simulator;
 use crate::test::simulator::{Peer as _, Simulation};
+use crate::test::storage as mock_storage;
 use crate::test::storage::MockStorage;
 use crate::wire::Decode;
 use crate::wire::Encode;
@@ -752,11 +753,32 @@ fn test_refs_announcement_trusted() {
     let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage_alice);
     let mut bob = Peer::with_storage("bob", [8, 8, 8, 8], storage_bob);
 
+    let refs = arbitrary::gen::<Refs>(8);
+    let sigref_at = arbitrary::oid();
+    let signed_refs = refs.signed(bob.signer()).unwrap();
+    let node_id = alice.id;
+    alice.storage_mut().insert_remote(
+        rid,
+        node_id,
+        mock_storage::refs::SignedRefsAt {
+            at: sigref_at,
+            sigrefs: signed_refs,
+        },
+    );
+
     // Generate some refs for Bob under their own node_id.
     let refs = arbitrary::gen::<Refs>(8);
+    let sigref_at = arbitrary::oid();
     let signed_refs = refs.signed(bob.signer()).unwrap();
     let node_id = bob.id;
-    bob.storage_mut().insert_remote(rid, node_id, signed_refs);
+    bob.storage_mut().insert_remote(
+        rid,
+        node_id,
+        mock_storage::refs::SignedRefsAt {
+            at: sigref_at,
+            sigrefs: signed_refs,
+        },
+    );
 
     // Alice uses Scope::Trusted, and did not track Bob yet.
     alice.connect_to(&bob);
@@ -1207,17 +1229,11 @@ fn test_refs_synced_event() {
     let bob = Peer::new("eve", [9, 9, 9, 9]);
     let acme = alice.project("acme", "");
     let events = alice.events();
-    let refs = alice
-        .storage()
-        .repository(acme)
-        .unwrap()
-        .remote(&alice.id)
-        .unwrap()
-        .refs
-        .unverified();
     let ann = AnnouncementMessage::from(RefsAnnouncement {
         rid: acme,
-        refs: vec![refs].try_into().unwrap(),
+        refs: vec![RefsAt::new(&alice.storage().repository(acme).unwrap(), alice.id).unwrap()]
+            .try_into()
+            .unwrap(),
         timestamp: bob.timestamp(),
     });
     let msg = ann.signed(bob.signer());

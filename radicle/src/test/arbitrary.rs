@@ -19,7 +19,7 @@ use crate::identity::{
 use crate::node::address::AddressType;
 use crate::node::{Address, Alias};
 use crate::storage;
-use crate::storage::refs::{Refs, SignedRefs};
+use crate::storage::refs::{Refs, RefsAt, SignedRefs};
 use crate::test::storage::{MockRepository, MockStorage};
 use crate::{cob, git};
 
@@ -203,6 +203,15 @@ impl Arbitrary for Refs {
             }
         }
         Self::from(refs)
+    }
+}
+
+impl Arbitrary for RefsAt {
+    fn arbitrary(g: &mut qcheck::Gen) -> Self {
+        Self {
+            remote: PublicKey::arbitrary(g),
+            at: oid(),
+        }
     }
 }
 

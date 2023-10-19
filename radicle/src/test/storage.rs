@@ -21,7 +21,7 @@ pub struct MockStorage {
 
     /// All refs keyed by RID.
     /// Each value is a map of refs keyed by node Id (public key).
-    pub remotes: HashMap<Id, HashMap<NodeId, refs::SignedRefs<Verified>>>,
+    pub remotes: HashMap<Id, HashMap<NodeId, refs::SignedRefsAt>>,
 }
 
 impl MockStorage {
@@ -39,16 +39,11 @@ impl MockStorage {
     }
 
     /// Add a remote `node` with `signed_refs` for the repo `rid`.
-    pub fn insert_remote(
-        &mut self,
-        rid: Id,
-        node: NodeId,
-        signed_refs: refs::SignedRefs<Verified>,
-    ) {
+    pub fn insert_remote(&mut self, rid: Id, node: NodeId, refs: refs::SignedRefsAt) {
         self.remotes
             .entry(rid)
             .or_insert(HashMap::new())
-            .insert(node, signed_refs);
+            .insert(node, refs);
     }
 }
 
@@ -113,7 +108,7 @@ impl WriteStorage for MockStorage {
 pub struct MockRepository {
     id: Id,
     doc: DocAt,
-    remotes: HashMap<NodeId, refs::SignedRefs<Verified>>,
+    remotes: HashMap<NodeId, refs::SignedRefsAt>,
 }
 
 impl MockRepository {
@@ -136,7 +131,9 @@ impl RemoteRepository for MockRepository {
     fn remote(&self, id: &RemoteId) -> Result<Remote<Verified>, refs::Error> {
         self.remotes
             .get(id)
-            .map(|refs| Remote { refs: refs.clone() })
+            .map(|refs| Remote {
+                refs: refs.sigrefs.clone(),
+            })
             .ok_or(refs::Error::InvalidRef)
     }
 
@@ -144,7 +141,14 @@ impl RemoteRepository for MockRepository {
         Ok(self
             .remotes
             .iter()
-            .map(|(id, refs)| (*id, Remote { refs: refs.clone() }))
+            .map(|(id, refs)| {
+                (
+                    *id,
+                    Remote {
+                        refs: refs.sigrefs.clone(),
+                    },
+                )
+            })
             .collect())
     }
 }
@@ -210,10 +214,23 @@ impl ReadRepository for MockRepository {
 
     fn reference_oid(
         &self,
-        _remote: &RemoteId,
-        _reference: &git::Qualified,
+        remote: &RemoteId,
+        reference: &git::Qualified,
     ) -> Result<git_ext::Oid, git::raw::Error> {
-        Ok(Oid::from_str("ffffffffffffffffffffffffffffffffffffffff").unwrap())
+        let not_found = || {
+            git::raw::Error::new(
+                git::raw::ErrorCode::NotFound,
+                git::raw::ErrorClass::Reference,
+                format!("could not find {reference} for {remote}"),
+            )
+        };
+
+        let refs = self.remotes.get(remote).ok_or_else(not_found)?;
+        if reference == &*refs::SIGREFS_BRANCH {
+            Ok(refs.at)
+        } else {
+            refs.sigrefs.get(reference).ok_or_else(not_found)
+        }
     }
 
     fn references_of(&self, _remote: &RemoteId) -> Result<crate::storage::refs::Refs, Error> {

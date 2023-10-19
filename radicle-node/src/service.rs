@@ -39,8 +39,9 @@ use crate::service::message::{Announcement, AnnouncementMessage, Ping};
 use crate::service::message::{NodeAnnouncement, RefsAnnouncement};
 use crate::service::tracking::{store::Write, Scope};
 use crate::storage;
+use crate::storage::refs::RefsAt;
+use crate::storage::ReadRepository;
 use crate::storage::{Namespaces, ReadStorage};
-use crate::storage::{ReadRepository, RemoteRepository as _};
 use crate::worker::fetch;
 use crate::worker::FetchError;
 use crate::Link;
@@ -112,6 +113,8 @@ impl SyncedRouting {
 /// General service error.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error(transparent)]
+    Git(#[from] radicle::git::raw::Error),
     #[error(transparent)]
     Storage(#[from] storage::Error),
     #[error(transparent)]
@@ -609,8 +612,24 @@ where
         }
     }
 
+    /// Initiate an outgoing fetch for some repository, based on
+    /// another node's announcement.
+    fn fetch_refs_at(
+        &mut self,
+        rid: Id,
+        from: &NodeId,
+        refs: Vec<RefsAt>,
+        timeout: time::Duration,
+    ) {
+        self._fetch(rid, from, refs, timeout)
+    }
+
     /// Initiate an outgoing fetch for some repository.
     fn fetch(&mut self, rid: Id, from: &NodeId, timeout: time::Duration) {
+        self._fetch(rid, from, vec![], timeout)
+    }
+
+    fn _fetch(&mut self, rid: Id, from: &NodeId, refs_at: Vec<RefsAt>, timeout: time::Duration) {
         let Some(session) = self.sessions.get_mut(from) else {
             error!(target: "service", "Session {from} does not exist; cannot initiate fetch");
             return;
@@ -629,10 +648,10 @@ where
             }
             session::FetchResult::Ready => {
                 debug!(target: "service", "Fetch initiated for {rid} with {seed}..");
-
                 match self.tracking.namespaces_for(&self.storage, &rid) {
                     Ok(namespaces) => {
-                        self.outbox.fetch(session, rid, namespaces, timeout);
+                        self.outbox
+                            .fetch(session, rid, namespaces, refs_at, timeout);
                     }
                     Err(err) => {
                         error!(target: "service", "Error getting namespaces for {rid}: {err}");
@@ -901,15 +920,7 @@ where
         if timestamp.saturating_sub(now.as_millis()) > MAX_TIME_DELTA.as_millis() as u64 {
             return Err(session::Error::InvalidTimestamp(timestamp));
         }
-        // Check ref signatures validity.
-        if let AnnouncementMessage::Refs(message) = message {
-            for theirs in message.refs.iter() {
-                if theirs.verify(&theirs.id).is_err() {
-                    warn!(target: "service", "Peer {relayer} relayed refs announcement with invalid signature for {}", theirs.id);
-                    return Err(session::Error::Misbehavior);
-                }
-            }
-        }
+
         // Discard announcement messages we've already seen, otherwise update out last seen time.
         match self.gossip.announced(announcer, announcement) {
             Ok(fresh) => {
@@ -962,7 +973,6 @@ where
                                 }
                                 Ok(false) => {
                                     debug!(target: "service", "Missing tracked inventory {id}; initiating fetch..");
-
                                     self.fetch(*id, announcer, FETCH_TIMEOUT);
                                 }
                                 Err(e) => {
@@ -1019,8 +1029,10 @@ where
                     // which is required by the protocol to only announce refs it has.
                     if self.sessions.is_connected(announcer) {
                         match self.should_fetch_refs_announcement(message, &repo_entry.scope) {
-                            Ok(true) => self.fetch(message.rid, announcer, FETCH_TIMEOUT),
-                            Ok(false) => {}
+                            Ok(Some(refs)) => {
+                                self.fetch_refs_at(message.rid, announcer, refs, FETCH_TIMEOUT)
+                            }
+                            Ok(None) => {}
                             Err(e) => {
                                 error!(target: "service", "Failed to check refs announcement: {e}");
                                 return Err(session::Error::Misbehavior);
@@ -1092,29 +1104,36 @@ where
         &self,
         message: &RefsAnnouncement,
         scope: &tracking::Scope,
-    ) -> Result<bool, Error> {
+    ) -> Result<Option<Vec<RefsAt>>, Error> {
         // First, check the freshness.
         if !message.is_fresh(&self.storage)? {
             debug!(target: "service", "All refs of {} are already in local storage", &message.rid);
-            return Ok(false);
+            return Ok(None);
         }
 
         // Second, check the scope.
         match scope {
-            tracking::Scope::All => Ok(true),
+            tracking::Scope::All => Ok(Some(message.refs.clone().into())),
             tracking::Scope::Trusted => {
                 match self.tracking.namespaces_for(&self.storage, &message.rid) {
-                    Ok(Namespaces::All) => Ok(true),
+                    Ok(Namespaces::All) => Ok(Some(message.refs.clone().into())),
                     Ok(Namespaces::Trusted(mut trusted)) => {
                         // Get the set of trusted nodes except self.
                         trusted.remove(&self.node_id());
 
                         // Check if there is at least one trusted ref.
-                        Ok(message.refs.iter().any(|refs| trusted.contains(&refs.id)))
+                        Ok(Some(
+                            message
+                                .refs
+                                .iter()
+                                .filter(|refs_at| trusted.contains(&refs_at.remote))
+                                .cloned()
+                                .collect(),
+                        ))
                     }
                     Err(NamespacesError::NoTrusted { rid }) => {
                         debug!(target: "service", "No trusted nodes to fetch {}", &rid);
-                        Ok(false)
+                        Ok(None)
                     }
                     Err(e) => {
                         error!(target: "service", "Failed to obtain namespaces: {e}");
@@ -1333,10 +1352,7 @@ where
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
 
         for remote_id in remotes.into_iter() {
-            if refs
-                .push(repo.remote(&remote_id)?.refs.unverified())
-                .is_err()
-            {
+            if refs.push(RefsAt::new(&repo, remote_id)?).is_err() {
                 warn!(
                     target: "service",
                     "refs announcement limit ({}) exceeded, peers will see only some of your repository references",

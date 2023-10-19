@@ -25,6 +25,7 @@ use crate::node::Alias;
 use crate::prelude::*;
 use crate::service::filter;
 use crate::storage::refs::Refs;
+use crate::storage::refs::RefsAt;
 use crate::storage::refs::SignedRefs;
 
 /// The default type we use to represent sizes on the wire.
@@ -466,6 +467,25 @@ impl Decode for SignedRefs<Unverified> {
         let signature = Signature::decode(reader)?;
 
         Ok(Self::new(refs, id, signature))
+    }
+}
+
+impl Encode for RefsAt {
+    fn encode<W: io::Write + ?Sized>(&self, writer: &mut W) -> Result<usize, io::Error> {
+        let mut n = 0;
+
+        n += self.remote.encode(writer)?;
+        n += self.at.encode(writer)?;
+
+        Ok(n)
+    }
+}
+
+impl Decode for RefsAt {
+    fn decode<R: std::io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error> {
+        let remote = NodeId::decode(reader)?;
+        let at = git::Oid::decode(reader)?;
+        Ok(Self { remote, at })
     }
 }
 

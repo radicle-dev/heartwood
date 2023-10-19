@@ -367,6 +367,32 @@ impl<V> Deref for SignedRefs<V> {
     }
 }
 
+/// The content-addressable information required to load a remote's
+/// `rad/sigrefs`.
+///
+/// This can be used to [`RefsAt::load`] a [`SignedRefsAt`].
+///
+/// It can also be used for communicating announcements of updates
+/// references to other nodes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RefsAt {
+    /// The remote namespace of the `rad/sigrefs`.
+    pub remote: RemoteId,
+    /// The commit SHA that `rad/sigrefs` points to.
+    pub at: Oid,
+}
+
+impl RefsAt {
+    pub fn new<S: ReadRepository>(repo: &S, remote: RemoteId) -> Result<Self, git::raw::Error> {
+        let at = repo.reference_oid(&remote, &storage::refs::SIGREFS_BRANCH)?;
+        Ok(RefsAt { remote, at })
+    }
+
+    pub fn load<S: ReadRepository>(&self, repo: &S) -> Result<SignedRefsAt, Error> {
+        SignedRefsAt::load_at(self.at, self.remote, repo)
+    }
+}
+
 /// Verified [`SignedRefs`] that keeps track of their content address
 /// [`Oid`].
 #[derive(Debug, Clone, PartialEq, Eq)]

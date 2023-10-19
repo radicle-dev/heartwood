@@ -220,7 +220,6 @@ impl Worker {
             } => {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {}", rid);
                 let result = self.fetch(rid, remote, channels);
-
                 FetchResult::Initiator { rid, result }
             }
             FetchRequest::Responder { remote } => {

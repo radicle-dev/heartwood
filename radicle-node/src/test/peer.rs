@@ -10,6 +10,7 @@ use radicle::identity::Visibility;
 use radicle::node::address::Store;
 use radicle::node::{address, Alias, ConnectOptions};
 use radicle::rad;
+use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, RemoteRepository};
 use radicle::Storage;
 
@@ -290,10 +291,17 @@ where
         if let Ok(repo) = self.storage().repository(rid) {
             if let Ok(false) = repo.is_empty() {
                 if let Ok(remotes) = repo.remotes() {
-                    for (remote_id, remote) in remotes.into_iter() {
-                        if let Err(e) = refs.push(remote.refs.unverified()) {
-                            debug!(target: "test", "Failed to push {remote_id} to refs: {e}");
-                            break;
+                    for (remote_id, _) in remotes.into_iter() {
+                        match RefsAt::new(&repo, remote_id) {
+                            Ok(refs_at) => {
+                                if let Err(e) = refs.push(refs_at) {
+                                    debug!(target: "test", "Failed to push {remote_id} to refs: {e}");
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                debug!(target: "test", "Failed to get `rad/sigrefs` for {remote_id}: {e}")
+                            }
                         }
                     }
                 }

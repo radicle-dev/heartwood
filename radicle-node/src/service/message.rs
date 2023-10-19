@@ -1,7 +1,8 @@
 use std::{fmt, io, mem};
 
+use radicle::storage::refs::RefsAt;
+
 use crate::crypto;
-use crate::crypto::Unverified;
 use crate::identity::Id;
 use crate::node;
 use crate::node::{Address, Alias};
@@ -9,14 +10,13 @@ use crate::prelude::BoundedVec;
 use crate::service::filter::Filter;
 use crate::service::{Link, NodeId, Timestamp};
 use crate::storage;
-use crate::storage::refs::SignedRefs;
-use crate::storage::{ReadStorage, RemoteRepository as _};
+use crate::storage::ReadStorage;
 use crate::wire;
 
 /// Maximum number of addresses which can be announced to other nodes.
 pub const ADDRESS_LIMIT: usize = 16;
 /// Maximum number of repository remotes that can be included in a [`RefsAnnouncement`] message.
-pub const REF_REMOTE_LIMIT: usize = 512;
+pub const REF_REMOTE_LIMIT: usize = 1024;
 /// Maximum number of inventory which can be announced to other nodes.
 pub const INVENTORY_LIMIT: usize = 2973;
 
@@ -157,8 +157,8 @@ impl wire::Decode for NodeAnnouncement {
 pub struct RefsAnnouncement {
     /// Repository identifier.
     pub rid: Id,
-    /// Updated refs.
-    pub refs: BoundedVec<SignedRefs<Unverified>, REF_REMOTE_LIMIT>,
+    /// Updated `rad/sigrefs`.
+    pub refs: BoundedVec<RefsAt, REF_REMOTE_LIMIT>,
     /// Time of announcement.
     pub timestamp: Timestamp,
 }
@@ -175,8 +175,8 @@ impl RefsAnnouncement {
         };
 
         for theirs in self.refs.iter() {
-            if let Ok(ours) = repo.remote(&theirs.id) {
-                if *ours.refs != theirs.refs {
+            if let Ok(ours) = RefsAt::new(&repo, theirs.remote) {
+                if ours.at != theirs.at {
                     return Ok(true);
                 }
             } else {
@@ -199,9 +199,9 @@ impl RefsAnnouncement {
             Ok(r) => r,
         };
 
-        if let Some(refs) = self.refs.iter().find(|refs| &refs.id == remote) {
-            let local_refs = repo.remote(remote)?.refs.unverified();
-            return Ok(&local_refs == refs);
+        if let Some(theirs) = self.refs.iter().find(|refs_at| refs_at.remote == *remote) {
+            let ours = RefsAt::new(&repo, *remote)?;
+            return Ok(ours.at == theirs.at);
         }
         Ok(false)
     }
@@ -535,18 +535,22 @@ mod tests {
     use crate::test::arbitrary;
     use fastrand;
     use qcheck_macros::quickcheck;
+    use radicle::git::raw;
 
     #[test]
     fn test_ref_remote_limit() {
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
-        let rs = Refs::default();
         let signer = MockSigner::default();
-        let signed_refs = rs.signed(&signer).unwrap().unverified();
+        let at = raw::Oid::zero().into();
 
         assert_eq!(refs.capacity(), REF_REMOTE_LIMIT);
 
         for _ in 0..refs.capacity() {
-            refs.push(signed_refs.clone()).unwrap();
+            refs.push(RefsAt {
+                remote: *signer.public_key(),
+                at,
+            })
+            .unwrap();
         }
 
         let msg: Message = AnnouncementMessage::from(RefsAnnouncement {
@@ -595,11 +599,17 @@ mod tests {
     }
 
     #[quickcheck]
-    fn prop_refs_announcement_signing(rid: Id, refs: Refs) {
+    fn prop_refs_announcement_signing(rid: Id) {
         let signer = MockSigner::new(&mut fastrand::Rng::new());
         let timestamp = 0;
-        let signed_refs = refs.signed(&signer).unwrap();
-        let refs = BoundedVec::collect_from(&mut [signed_refs.unverified()].into_iter());
+        let at = raw::Oid::zero().into();
+        let refs = BoundedVec::collect_from(
+            &mut [RefsAt {
+                remote: *signer.public_key(),
+                at,
+            }]
+            .into_iter(),
+        );
         let message = AnnouncementMessage::Refs(RefsAnnouncement {
             rid,
             refs,
