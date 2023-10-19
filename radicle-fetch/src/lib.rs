@@ -17,6 +17,7 @@ pub use transport::Transport;
 use std::io;
 
 use radicle::crypto::PublicKey;
+use radicle::storage::refs::RefsAt;
 use state::FetchState;
 use thiserror::Error;
 
@@ -49,6 +50,7 @@ pub fn pull<S>(
     handle: &mut Handle<S>,
     limit: FetchLimit,
     remote: PublicKey,
+    refs_at: Option<Vec<RefsAt>>,
 ) -> Result<FetchResult, Error>
 where
     S: transport::ConnectionStream,
@@ -65,7 +67,7 @@ where
     // N.b. ensure that we ignore the local peer's key.
     handle.blocked.extend([local]);
     state
-        .run(handle, &handshake, limit, remote)
+        .run(handle, &handshake, limit, remote, refs_at)
         .map_err(Error::Protocol)
 }
 
@@ -101,6 +103,6 @@ where
         .map_err(|e| Error::from(state::error::Protocol::from(e)))?;
 
     state
-        .run(handle, &handshake, limit, remote)
+        .run(handle, &handshake, limit, remote, None)
         .map_err(Error::Protocol)
 }

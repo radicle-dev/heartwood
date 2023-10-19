@@ -1,8 +1,7 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::time;
 
 use log::*;
-use radicle::git;
 use radicle::storage::refs::RefsAt;
 
 use crate::prelude::*;
@@ -29,8 +28,8 @@ pub enum Io {
         remote: NodeId,
         /// Namespaces being fetched.
         namespaces: Namespaces,
-        /// If a refs announcements was made.
-        refs_at: Option<HashMap<NodeId, git::Oid>>,
+        /// If the node is fetching specific `rad/sigrefs`.
+        refs_at: Option<Vec<RefsAt>>,
         /// Fetch timeout.
         timeout: time::Duration,
     },
@@ -92,13 +91,7 @@ impl Outbox {
         refs_at: Vec<RefsAt>,
         timeout: time::Duration,
     ) {
-        let refs_at = {
-            let refs = refs_at
-                .into_iter()
-                .map(|RefsAt { remote, at }| (remote, at))
-                .collect::<HashMap<_, _>>();
-            (!refs.is_empty()).then_some(refs)
-        };
+        let refs_at = (!refs_at.is_empty()).then_some(refs_at);
         self.io.push_back(Io::Fetch {
             rid,
             namespaces,

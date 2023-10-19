@@ -36,6 +36,7 @@ use nonempty::NonEmpty;
 use radicle::crypto::PublicKey;
 use radicle::git::{refname, Component, Namespaced, Qualified};
 use radicle::storage::git::Repository;
+use radicle::storage::refs::{RefsAt, Special};
 use radicle::storage::ReadRepository;
 
 use crate::git::refs::{Policy, Update, Updates};
@@ -291,6 +292,91 @@ impl ProtocolStage for SpecialRefs {
         refs: &'a [ReceivedRef],
     ) -> Result<Updates<'a>, error::Prepare> {
         special_refs_updates(&self.delegates, &self.blocked, refs)
+    }
+}
+
+/// The [`ProtocolStage`] for fetching announce `rad/sigrefs`.
+///
+/// This step will ask for the `rad/sigrefs` for the remotes of
+/// `refs_at`.
+#[derive(Debug)]
+pub struct SigrefsAt {
+    /// The set of nodes that should be blocked from fetching.
+    pub blocked: BlockList,
+    /// The node that is being fetched from.
+    pub remote: PublicKey,
+    /// The set of remotes and the newly announced `Oid` for their
+    /// `rad/sigrefs`.
+    pub refs_at: Vec<RefsAt>,
+    /// The set of delegates to be fetched, with the local node
+    /// removed in the case of a `pull`.
+    pub delegates: BTreeSet<PublicKey>,
+    /// The data limit for this stage of fetching.
+    pub limit: u64,
+}
+
+impl ProtocolStage for SigrefsAt {
+    fn ls_refs(&self) -> Option<NonEmpty<BString>> {
+        // N.b. the `Oid`s are known but the `rad/sigrefs` are still
+        // asked for to mark them for updating the fetch state.
+        NonEmpty::collect(self.refs_at.iter().map(|refs_at| {
+            BString::from(radicle::git::refs::storage::sigrefs(&refs_at.remote).to_string())
+        }))
+    }
+
+    // We only asked for `rad/sigrefs` so we should only get
+    // `rad/sigrefs`.
+    fn ref_filter(&self, r: Ref) -> Option<ReceivedRef> {
+        let (refname, tip) = refs::unpack_ref(r).ok()?;
+        match refname {
+            ReceivedRefname::Namespaced { remote, .. } if self.blocked.is_blocked(&remote) => None,
+            ReceivedRefname::Namespaced {
+                suffix: Either::Left(Special::SignedRefs),
+                ..
+            } => Some(ReceivedRef::new(tip, refname)),
+            ReceivedRefname::Namespaced { .. } | ReceivedRefname::RadId => None,
+        }
+    }
+
+    fn pre_validate(&self, _refs: &[ReceivedRef]) -> Result<(), error::Layout> {
+        Ok(())
+    }
+
+    fn wants_haves(
+        &self,
+        refdb: &Repository,
+        refs: &[ReceivedRef],
+    ) -> Result<WantsHaves, error::WantsHaves> {
+        let mut wants_haves = WantsHaves::default();
+        let sigrefs = self
+            .refs_at
+            .iter()
+            .map(|RefsAt { remote, at }| (Special::SignedRefs.namespaced(remote), *at));
+        wants_haves.add(refdb, sigrefs)?;
+        wants_haves.add(
+            refdb,
+            refs.iter().map(|recv| (recv.to_qualified(), recv.tip)),
+        )?;
+        Ok(wants_haves)
+    }
+
+    fn prepare_updates<'a>(
+        &self,
+        _s: &FetchState,
+        _repo: &Repository,
+        _refs: &'a [ReceivedRef],
+    ) -> Result<Updates<'a>, error::Prepare> {
+        let mut updates = Updates::default();
+        for RefsAt { remote, at } in self.refs_at.iter() {
+            if let Some(up) =
+                refs::special_update(remote, &Either::Left(Special::SignedRefs), *at, |remote| {
+                    self.delegates.contains(remote)
+                })
+            {
+                updates.add(*remote, up);
+            }
+        }
+        Ok(updates)
     }
 }
 

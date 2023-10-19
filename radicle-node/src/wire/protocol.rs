@@ -828,6 +828,7 @@ where
                     rid,
                     remote,
                     timeout,
+                    refs_at,
                     ..
                 } => {
                     log::trace!(target: "wire", "Processing fetch for {rid} from {remote}..");
@@ -850,6 +851,7 @@ where
                         fetch: FetchRequest::Initiator {
                             rid,
                             remote,
+                            refs_at,
                             timeout,
                         },
                         stream,

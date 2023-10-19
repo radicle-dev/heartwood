@@ -6,6 +6,7 @@ use radicle::crypto::PublicKey;
 use radicle::git::UserInfo;
 use radicle::prelude::Id;
 use radicle::storage::git::Repository;
+use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadStorage as _, RefUpdate, WriteRepository as _};
 use radicle::Storage;
 use radicle_fetch::{BlockList, FetchLimit, Tracked};
@@ -59,6 +60,7 @@ impl Handle {
         storage: &Storage,
         limit: FetchLimit,
         remote: PublicKey,
+        refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Fetch> {
         let result = match self {
             Self::Clone { mut handle, tmp } => {
@@ -69,7 +71,7 @@ impl Handle {
             }
             Self::Pull { mut handle } => {
                 log::debug!(target: "worker", "{} pulling from {remote}", handle.local());
-                radicle_fetch::pull(&mut handle, limit, remote)?
+                radicle_fetch::pull(&mut handle, limit, remote, refs_at)?
             }
         };
 

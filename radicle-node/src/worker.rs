@@ -11,6 +11,7 @@ use crossbeam_channel as chan;
 
 use radicle::identity::Id;
 use radicle::prelude::NodeId;
+use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{crypto, git, Storage};
 use radicle_fetch::FetchLimit;
@@ -95,6 +96,8 @@ pub enum FetchRequest {
         rid: Id,
         /// Remote peer we are interacting with.
         remote: NodeId,
+        /// If this fetch is for a particular set of `rad/sigrefs`.
+        refs_at: Option<Vec<RefsAt>>,
         /// Fetch timeout.
         timeout: time::Duration,
     },
@@ -215,11 +218,12 @@ impl Worker {
             FetchRequest::Initiator {
                 rid,
                 remote,
+                refs_at,
                 // TODO: nowhere to use this currently
                 timeout: _timeout,
             } => {
                 log::debug!(target: "worker", "Worker processing outgoing fetch for {}", rid);
-                let result = self.fetch(rid, remote, channels);
+                let result = self.fetch(rid, remote, refs_at, channels);
                 FetchResult::Initiator { rid, result }
             }
             FetchRequest::Responder { remote } => {
@@ -265,6 +269,7 @@ impl Worker {
         &mut self,
         rid: Id,
         remote: NodeId,
+        refs_at: Option<Vec<RefsAt>>,
         channels: channels::ChannelsFlush,
     ) -> Result<fetch::FetchResult, FetchError> {
         let FetchConfig {
@@ -292,7 +297,7 @@ impl Worker {
             channels,
         )?;
 
-        Ok(handle.fetch(rid, &self.storage, *limit, remote)?)
+        Ok(handle.fetch(rid, &self.storage, *limit, remote, refs_at)?)
     }
 }
 

@@ -7,6 +7,7 @@ use radicle::identity::{Doc, DocError};
 
 use radicle::prelude::Verified;
 use radicle::storage;
+use radicle::storage::refs::RefsAt;
 use radicle::storage::{
     git::Validation, Remote, RemoteId, RemoteRepository, Remotes, ValidateRepository, Validations,
 };
@@ -271,6 +272,85 @@ impl FetchState {
         Ok(fetched)
     }
 
+    /// Fetch the set of special refs, depending on `refs_at`.
+    ///
+    /// If `refs_at` is `Some`, then run the [`SigrefsAt`] stage,
+    /// which specifically fetches `rad/sigrefs` which are listed in
+    /// `refs_at`.
+    ///
+    /// If `refs_at` is `None`, then run the [`SpecialRefs`] stage,
+    /// which fetches `rad/sigrefs` and `rad/id` from all tracked and
+    /// delegate peers (scope dependent).
+    ///
+    /// The resulting [`sigrefs::RemoteRefs`] will be the set of
+    /// `rad/sigrefs` of the fetched remotes.
+    fn run_special_refs<S>(
+        &mut self,
+        handle: &mut Handle<S>,
+        handshake: &handshake::Outcome,
+        delegates: BTreeSet<PublicKey>,
+        limit: &FetchLimit,
+        remote: PublicKey,
+        refs_at: Option<Vec<RefsAt>>,
+    ) -> Result<sigrefs::RemoteRefs, error::Protocol>
+    where
+        S: transport::ConnectionStream,
+    {
+        match refs_at {
+            Some(refs_at) => {
+                let (must, may): (BTreeSet<PublicKey>, BTreeSet<PublicKey>) = refs_at
+                    .iter()
+                    .map(|refs_at| refs_at.remote)
+                    .partition(|id| delegates.contains(id));
+
+                let sigrefs_at = stage::SigrefsAt {
+                    remote,
+                    delegates,
+                    refs_at,
+                    blocked: handle.blocked.clone(),
+                    limit: limit.special,
+                };
+                log::trace!(target: "fetch", "{sigrefs_at:?}");
+                self.run_stage(handle, handshake, &sigrefs_at)?;
+
+                let signed_refs = sigrefs::RemoteRefs::load(
+                    &self.as_cached(handle),
+                    sigrefs::Select {
+                        must: &must,
+                        may: &may,
+                    },
+                )?;
+                Ok(signed_refs)
+            }
+            None => {
+                let tracked = handle.tracked();
+                log::trace!(target: "fetch", "Tracked nodes {:?}", tracked);
+                let special_refs = stage::SpecialRefs {
+                    blocked: handle.blocked.clone(),
+                    remote,
+                    delegates: delegates.clone(),
+                    tracked,
+                    limit: limit.special,
+                };
+                log::trace!(target: "fetch", "{special_refs:?}");
+                let fetched = self.run_stage(handle, handshake, &special_refs)?;
+
+                let signed_refs = sigrefs::RemoteRefs::load(
+                    &self.as_cached(handle),
+                    sigrefs::Select {
+                        must: &delegates,
+                        may: &fetched
+                            .iter()
+                            .filter(|id| !delegates.contains(id))
+                            .copied()
+                            .collect(),
+                    },
+                )?;
+                Ok(signed_refs)
+            }
+        }
+    }
+
     /// The finalization of the protocol exchange is as follows:
     ///
     ///   1. Load the canonical `rad/id` to use as the anchor for
@@ -293,6 +373,7 @@ impl FetchState {
         handshake: &handshake::Outcome,
         limit: FetchLimit,
         remote: PublicKey,
+        refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Protocol>
     where
         S: transport::ConnectionStream,
@@ -317,31 +398,14 @@ impl FetchState {
 
         log::trace!(target: "fetch", "Identity delegates {delegates:?}");
 
-        let tracked = handle.tracked();
-        log::trace!(target: "fetch", "Tracked nodes {:?}", tracked);
-
-        let special_refs = stage::SpecialRefs {
-            blocked: handle.blocked.clone(),
+        let signed_refs = self.run_special_refs(
+            handle,
+            handshake,
+            delegates.clone(),
+            &limit,
             remote,
-            delegates: delegates.clone(),
-            tracked,
-            limit: limit.special,
-        };
-        log::trace!(target: "fetch", "{special_refs:?}");
-        let fetched = self.run_stage(handle, handshake, &special_refs)?;
-
-        let signed_refs = sigrefs::RemoteRefs::load(
-            &self.as_cached(handle),
-            sigrefs::Select {
-                must: &delegates,
-                may: &fetched
-                    .iter()
-                    .filter(|id| !delegates.contains(id))
-                    .copied()
-                    .collect(),
-            },
+            refs_at,
         )?;
-        log::trace!(target: "fetch", "{signed_refs:?}");
 
         let data_refs = stage::DataRefs {
             remote,
@@ -360,6 +424,12 @@ impl FetchState {
         let mut failures = sigrefs::Validations::default();
         let signed_refs = data_refs.remotes;
 
+        // We may prune fetched remotes, so we keep track of
+        // non-pruned, fetched remotes here.
+        let mut remotes = BTreeSet::new();
+
+        // TODO(finto): this might read better if it got its own
+        // private function.
         for remote in signed_refs.keys() {
             if handle.is_blocked(remote) {
                 continue;
@@ -403,6 +473,8 @@ impl FetchState {
                         );
                         self.prune(&remote);
                         warnings.append(warns);
+                    } else {
+                        remotes.insert(remote);
                     }
                 }
                 sigrefs::DelegateStatus::Delegate {
@@ -429,6 +501,8 @@ impl FetchState {
                         log::warn!(target: "fetch", "Pruning delegate {remote} tips, due to validation failures");
                         self.prune(&remote);
                         failures.append(fails)
+                    } else {
+                        remotes.insert(remote);
                     }
                 }
             }
@@ -448,7 +522,7 @@ impl FetchState {
             )?;
             Ok(FetchResult::Success {
                 applied,
-                remotes: fetched,
+                remotes,
                 warnings,
             })
         } else {
