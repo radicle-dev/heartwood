@@ -66,7 +66,7 @@ impl Refdb {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn print(&self) {
+    pub(crate) fn inspect(&self) {
         if self.0.is_empty() {
             println!("Refdb is empty!");
         } else {

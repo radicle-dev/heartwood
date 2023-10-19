@@ -505,6 +505,11 @@ impl<'a, S> Cached<'a, S> {
             Some(tip) => SignedRefsAt::load_at(*tip, *remote, &self.handle.repo).map(Some),
         }
     }
+
+    #[allow(dead_code)]
+    pub(crate) fn inspect(&self) {
+        self.state.refs.inspect()
+    }
 }
 
 impl<'a, S> RemoteRepository for Cached<'a, S> {
