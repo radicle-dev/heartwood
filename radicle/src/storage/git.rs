@@ -517,7 +517,7 @@ impl ReadRepository for Repository {
         &self,
         remote: &RemoteId,
         reference: &git::Qualified,
-    ) -> Result<Oid, git::Error> {
+    ) -> Result<Oid, git::raw::Error> {
         let name = reference.with_namespace(remote.into());
         let oid = self.backend.refname_to_id(&name)?;
 
@@ -638,6 +638,7 @@ impl ReadRepository for Repository {
 
     fn identity_head_of(&self, remote: &RemoteId) -> Result<Oid, git::ext::Error> {
         self.reference_oid(remote, &git::refs::storage::IDENTITY_BRANCH)
+            .map_err(git::ext::Error::from)
     }
 
     fn identity_root(&self) -> Result<Oid, RepositoryError> {

@@ -306,7 +306,7 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
         &self,
         remote: &RemoteId,
         reference: &git::Qualified,
-    ) -> Result<git_ext::Oid, git_ext::Error> {
+    ) -> Result<git_ext::Oid, git::raw::Error> {
         self.repo.reference_oid(remote, reference)
     }
 

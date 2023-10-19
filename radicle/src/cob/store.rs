@@ -94,7 +94,7 @@ pub enum Error {
     RefLookup {
         name: git::RefString,
         #[source]
-        err: git::Error,
+        err: git::raw::Error,
     },
 }
 
@@ -210,8 +210,7 @@ where
                 self.repo.sign_refs(signer).map_err(Error::SignRefs)?;
                 Ok(())
             }
-            Err(git::Error::NotFound(_)) => Ok(()),
-            Err(git::Error::Git(err)) if err.code() == git::raw::ErrorCode::NotFound => Ok(()),
+            Err(err) if err.code() == git::raw::ErrorCode::NotFound => Ok(()),
             Err(err) => Err(Error::RefLookup {
                 name: name.to_ref_string(),
                 err,

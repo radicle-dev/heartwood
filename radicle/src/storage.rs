@@ -441,7 +441,7 @@ pub trait ReadRepository: Sized + ValidateRepository {
         &self,
         remote: &RemoteId,
         reference: &Qualified,
-    ) -> Result<Oid, git_ext::Error>;
+    ) -> Result<Oid, git::raw::Error>;
 
     /// Get all references of the given remote.
     fn references_of(&self, remote: &RemoteId) -> Result<Refs, Error>;

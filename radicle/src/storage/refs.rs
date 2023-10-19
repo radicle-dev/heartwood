@@ -57,6 +57,7 @@ impl Error {
         match self {
             Self::GitExt(git::Error::NotFound(_)) => true,
             Self::GitExt(git::Error::Git(e)) if git::is_not_found_err(e) => true,
+            Self::Git(e) if git::is_not_found_err(e) => true,
             _ => false,
         }
     }
@@ -385,8 +386,7 @@ impl SignedRefsAt {
     {
         let at = match repo.reference_oid(&remote, &SIGREFS_BRANCH) {
             Ok(at) => at,
-            Err(git::ext::Error::NotFound(_)) => return Ok(None),
-            Err(git::ext::Error::Git(e)) if git::is_not_found_err(&e) => return Ok(None),
+            Err(e) if git::is_not_found_err(&e) => return Ok(None),
             Err(e) => return Err(e.into()),
         };
         Self::load_at(at, remote, repo).map(Some)

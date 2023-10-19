@@ -212,7 +212,7 @@ impl ReadRepository for MockRepository {
         &self,
         _remote: &RemoteId,
         _reference: &git::Qualified,
-    ) -> Result<git_ext::Oid, git_ext::Error> {
+    ) -> Result<git_ext::Oid, git::raw::Error> {
         Ok(Oid::from_str("ffffffffffffffffffffffffffffffffffffffff").unwrap())
     }
 
