@@ -24,7 +24,7 @@ use radicle_surf::{diff, Glob, Oid, Repository};
 
 use crate::api::error::Error;
 use crate::api::project::Info;
-use crate::api::{self, CobsQuery, Context, DataUri, PaginationQuery};
+use crate::api::{self, resolve_embed, CobsQuery, Context, PaginationQuery};
 use crate::axum_extra::{Path, Query};
 
 const CACHE_1_HOUR: &str = "public, max-age=3600, must-revalidate";
@@ -647,13 +647,7 @@ async fn issue_create_handler(
     let embeds: Vec<Embed> = issue
         .embeds
         .into_iter()
-        .filter_map(|embed| {
-            let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
-            Some(Embed {
-                name: embed.name,
-                content: content.into(),
-            })
-        })
+        .filter_map(|embed| resolve_embed(&repo, embed))
         .collect();
 
     let mut issues = issue::Issues::open(&repo)?;
@@ -702,13 +696,7 @@ async fn issue_update_handler(
         } => {
             let embeds: Vec<Embed> = embeds
                 .into_iter()
-                .filter_map(|embed| {
-                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
-                    Some(Embed {
-                        name: embed.name,
-                        content: content.into(),
-                    })
-                })
+                .filter_map(|embed| resolve_embed(&repo, embed))
                 .collect();
             if let Some(to) = reply_to {
                 issue.comment(body, to, embeds, &signer)?
@@ -724,13 +712,7 @@ async fn issue_update_handler(
         issue::Action::CommentEdit { id, body, embeds } => {
             let embeds: Vec<Embed> = embeds
                 .into_iter()
-                .filter_map(|embed| {
-                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
-                    Some(Embed {
-                        name: embed.name,
-                        content: content.into(),
-                    })
-                })
+                .filter_map(|embed| resolve_embed(&repo, embed))
                 .collect();
             issue.edit_comment(id, body, embeds, &signer)?
         }
@@ -847,13 +829,7 @@ async fn patch_update_handler(
         } => {
             let embeds: Vec<Embed> = embeds
                 .into_iter()
-                .filter_map(|embed| {
-                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
-                    Some(Embed {
-                        name: embed.name,
-                        content: content.into(),
-                    })
-                })
+                .filter_map(|embed| resolve_embed(&repo, embed))
                 .collect();
             patch.review_comment(review, body, location, reply_to, embeds, &signer)?
         }
@@ -865,13 +841,7 @@ async fn patch_update_handler(
         } => {
             let embeds: Vec<Embed> = embeds
                 .into_iter()
-                .filter_map(|embed| {
-                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
-                    Some(Embed {
-                        name: embed.name,
-                        content: content.into(),
-                    })
-                })
+                .filter_map(|embed| resolve_embed(&repo, embed))
                 .collect();
             patch.edit_review_comment(review, comment, body, embeds, &signer)?
         }
@@ -910,13 +880,7 @@ async fn patch_update_handler(
         } => {
             let embeds: Vec<Embed> = embeds
                 .into_iter()
-                .filter_map(|embed| {
-                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
-                    Some(Embed {
-                        name: embed.name,
-                        content: content.into(),
-                    })
-                })
+                .filter_map(|embed| resolve_embed(&repo, embed))
                 .collect();
             patch.comment(revision, body, reply_to, location, embeds, &signer)?
         }
@@ -928,13 +892,7 @@ async fn patch_update_handler(
         } => {
             let embeds: Vec<Embed> = embeds
                 .into_iter()
-                .filter_map(|embed| {
-                    let content = TryInto::<DataUri>::try_into(&embed.content).ok()?;
-                    Some(Embed {
-                        name: embed.name,
-                        content: content.into(),
-                    })
-                })
+                .filter_map(|embed| resolve_embed(&repo, embed))
                 .collect();
             patch.comment_edit(revision, comment, body, embeds, &signer)?
         }
@@ -2150,7 +2108,12 @@ mod routes {
           "type": "comment.edit",
           "id": ISSUE_DISCUSSION_ID,
           "body": "EDIT: Change 'hello world' to 'hello anyone'",
-          "embeds": []
+          "embeds": [
+            {
+              "name":"image.jpg",
+              "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc"
+            }
+          ]
         }))
         .unwrap();
 
@@ -2205,7 +2168,12 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "body": "EDIT: Change 'hello world' to 'hello anyone'",
-                  "embeds": [],
+                  "embeds": [
+                    {
+                      "name": "image.jpg",
+                      "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                    }
+                  ],
                   "reactions": [
                     [
                     "z6Mkk7oqY4pPxhMmGEotDYsFo97vhCj85BLY1H256HrJmjN8",
@@ -2233,6 +2201,12 @@ mod routes {
         let body = serde_json::to_vec(&json!({
           "type": "comment",
           "body": "This is a reply to the first comment",
+          "embeds": [
+            {
+              "name": "image.jpg",
+              "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
+            }
+          ],
           "replyTo": ISSUE_DISCUSSION_ID,
         }))
         .unwrap();
@@ -2286,7 +2260,12 @@ mod routes {
                     "id": CONTRIBUTOR_DID,
                   },
                   "body": "This is a reply to the first comment",
-                  "embeds": [],
+                  "embeds": [
+                    {
+                      "name": "image.jpg",
+                      "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                    }
+                  ],
                   "reactions": [],
                   "timestamp": TIMESTAMP,
                   "replyTo": ISSUE_DISCUSSION_ID,
@@ -2846,7 +2825,7 @@ mod routes {
           "embeds": [
             {
               "name": "image.jpg",
-              "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
+              "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
             }
           ],
         }))
@@ -2977,7 +2956,12 @@ mod routes {
           "type": "review.comment",
           "review": review_id,
           "body": "This is a comment on a review",
-          "embeds": [],
+          "embeds": [
+            {
+              "name": "image.jpg",
+              "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
+            }
+          ],
           "location": {
             "path": "README.md",
             "new": {
@@ -3003,7 +2987,12 @@ mod routes {
           "type": "review.comment.edit",
           "review": review_id,
           "comment": comment_id,
-          "embeds": [],
+          "embeds": [
+            {
+              "name": "image.jpg",
+              "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+            }
+          ],
           "body": "EDIT: This is a comment on a review",
         }))
         .unwrap();
@@ -3108,6 +3097,12 @@ mod routes {
                           ],
                           "resolved": true,
                           "body": "EDIT: This is a comment on a review",
+                          "embeds": [
+                            {
+                              "name": "image.jpg",
+                              "content": "git:94381b429d7f7fe87e1bade52d893ab348ae29cc",
+                            }
+                          ],
                         },
                       ]],
                       "timestamp": TIMESTAMP,

@@ -15,11 +15,11 @@ use serde_json::json;
 use tokio::sync::RwLock;
 use tower_http::cors::{self, CorsLayer};
 
-use radicle::cob::patch;
 use radicle::cob::{issue, Uri};
+use radicle::cob::{patch, Embed};
 use radicle::identity::{DocAt, Id};
 use radicle::node::routing::Store;
-use radicle::storage::{ReadRepository, ReadStorage};
+use radicle::storage::{Oid, ReadRepository, ReadStorage};
 use radicle::Profile;
 
 mod error;
@@ -227,4 +227,22 @@ impl TryFrom<&Uri> for DataUri {
         }
         Err(value.clone())
     }
+}
+
+/// Resolve an embed with a URI to one with actual data.
+pub fn resolve_embed(repo: &impl ReadRepository, embed: Embed<Uri>) -> Option<Embed<Vec<u8>>> {
+    DataUri::try_from(&embed.content)
+        .ok()
+        .map(|content| Embed {
+            name: embed.name.clone(),
+            content: content.into(),
+        })
+        .or_else(|| {
+            Oid::try_from(&embed.content).ok().and_then(|oid| {
+                repo.blob(oid).ok().map(|blob| Embed {
+                    name: embed.name,
+                    content: blob.content().to_vec(),
+                })
+            })
+        })
 }
