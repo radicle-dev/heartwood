@@ -324,8 +324,7 @@ impl<T: Cob + cob::Evaluate<R>, R> Transaction<T, R> {
     {
         let actions = NonEmpty::from_vec(self.actions)
             .expect("Transaction::commit: transaction must not be empty");
-        let Updated { head, object, .. } =
-            store.update(id, msg, actions.clone(), self.embeds, signer)?;
+        let Updated { head, object, .. } = store.update(id, msg, actions, self.embeds, signer)?;
 
         Ok((object.object, head))
     }

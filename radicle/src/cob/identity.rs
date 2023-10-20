@@ -1417,10 +1417,7 @@ mod test {
         doc.delegate(eve.public_key());
 
         // Update with both Bob and Alice's signature.
-        let revision = identity
-            .update("Add eve", "", &doc, &alice)
-            .unwrap()
-            .clone();
+        let revision = identity.update("Add eve", "", &doc, &alice).unwrap();
         identity.accept(&revision, &bob).unwrap();
 
         // Update description again with signatures by Eve and Bob.

@@ -1458,7 +1458,7 @@ mod test {
                 "Blah blah blah.",
                 &[],
                 &[],
-                [embed1.clone(), embed2.clone()],
+                [embed1, embed2],
                 &node.signer,
             )
             .unwrap();
