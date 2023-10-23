@@ -112,6 +112,11 @@ fn execute() -> anyhow::Result<()> {
     let daemon = options.daemon.unwrap_or_else(|| {
         net::SocketAddr::new(net::Ipv4Addr::LOCALHOST.into(), radicle::git::PROTOCOL_PORT)
     });
+    let listen: Vec<std::net::SocketAddr> = if !options.listen.is_empty() {
+        options.listen.clone()
+    } else {
+        config.listen.clone()
+    };
 
     let (notify, signals) = chan::bounded(1);
     signals::install(notify)?;
@@ -120,7 +125,7 @@ fn execute() -> anyhow::Result<()> {
         log::debug!(target: "node", "Removing existing control socket..");
         fs::remove_file(home.socket()).ok();
     }
-    Runtime::init(home, config, options.listen, proxy, daemon, signals, signer)?.run()?;
+    Runtime::init(home, config, listen, proxy, daemon, signals, signer)?.run()?;
 
     Ok(())
 }

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::net;
 use std::ops::Deref;
 
 use cyphernet::addr::PeerAddr;
@@ -165,6 +166,9 @@ impl Default for PeerConfig {
 pub struct Config {
     /// Node alias.
     pub alias: Alias,
+    /// Address to listen on.
+    #[serde(default)]
+    pub listen: Vec<net::SocketAddr>,
     /// Peer configuration.
     #[serde(default)]
     pub peers: PeerConfig,
@@ -204,6 +208,7 @@ impl Config {
         Self {
             alias,
             peers: PeerConfig::default(),
+            listen: vec![],
             connect: HashSet::default(),
             external_addresses: vec![],
             network: Network::default(),
