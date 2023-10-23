@@ -75,14 +75,14 @@ We can list all revisions:
 
 ``` ~alice
 $ rad id list
-╭─────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title              Author                     Status     Created      │
-├─────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   1483814   Make private       alice    (you)             active     [   ...    ] │
-│ ●   9d90314   Add Eve            bob      z6Mkt67…v4N1tRk   accepted   [   ...    ] │
-│ ●   5666f74   Add Bob            alice    (you)             accepted   [   ...    ] │
-│ ●   2317f74   Initial revision   alice    (you)             accepted   [   ...    ] │
-╰─────────────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title              Author                     Status     Created │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ ●   1483814   Make private       alice    (you)             active     now     │
+│ ●   9d90314   Add Eve            bob      z6Mkt67…v4N1tRk   accepted   now     │
+│ ●   5666f74   Add Bob            alice    (you)             accepted   now     │
+│ ●   2317f74   Initial revision   alice    (you)             accepted   now     │
+╰────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Despite being a delegate, Bob can't edit or redact Alice's revision:

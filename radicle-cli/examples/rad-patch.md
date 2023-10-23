@@ -35,11 +35,11 @@ It will now be listed as one of the project's open patches.
 
 ```
 $ rad patch
-╭──────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title                      Author                  Head     +   -   Updated      │
-├──────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  a892664  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  [   ...    ] │
-╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title                      Author                  Head     +   -   Updated │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●  a892664  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  now     │
+╰─────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 ```
 $ rad patch show a8926643a8f6a65bc386b0131621994000485d4d -p
@@ -56,7 +56,7 @@ $ rad patch show a8926643a8f6a65bc386b0131621994000485d4d -p
 ├────────────────────────────────────────────────────┤
 │ 3e674d1 Define power requirements                  │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) [    ...    ]    │
+│ ● opened by z6MknSL…StBU8Vi (you) now              │
 ╰────────────────────────────────────────────────────╯
 
 commit 3e674d1a1df90807e934f9ae5da2591dd6848a33
@@ -99,10 +99,10 @@ And let's leave a quick comment for our team:
 
 ```
 $ rad patch comment a8926643a8f6a65bc386b0131621994000485d4d --message 'I cannot wait to get back to the 90s!'
-╭────────────────────────────────────────────╮
-│ z6MknSL…StBU8Vi (you) [   ...    ] b97a27f │
-│ I cannot wait to get back to the 90s!      │
-╰────────────────────────────────────────────╯
+╭───────────────────────────────────────╮
+│ z6MknSL…StBU8Vi (you) now b97a27f     │
+│ I cannot wait to get back to the 90s! │
+╰───────────────────────────────────────╯
 $ rad patch comment a8926643a8f6a65bc386b0131621994000485d4d --message 'My favorite decade!' --reply-to b97a27f -q
 a3a462bc8ab52e2a6f3568c28a11ba53cf40bbc8
 ```
@@ -126,24 +126,24 @@ Showing the patch list now will reveal the favorable verdict:
 
 ```
 $ rad patch show a892664
-╭──────────────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                          │
-│ Patch     a8926643a8f6a65bc386b0131621994000485d4d                           │
-│ Author    z6MknSL…StBU8Vi (you)                                              │
-│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                           │
-│ Branches  flux-capacitor-power, patch/a892664                                │
-│ Commits   ahead 2, behind 0                                                  │
-│ Status    open                                                               │
-│                                                                              │
-│ See details.                                                                 │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                                         │
-│ 3e674d1 Define power requirements                                            │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) [   ...    ]                               │
-│ ↑ updated to 8d8aa0887a11f2a37fa8ed0d5723efa96fd727ed (27857ec) [   ...    ] │
-│ ✓ accepted by z6MknSL…StBU8Vi (you) [   ...    ]                             │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────╮
+│ Title     Define power requirements                                 │
+│ Patch     a8926643a8f6a65bc386b0131621994000485d4d                  │
+│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
+│ Branches  flux-capacitor-power, patch/a892664                       │
+│ Commits   ahead 2, behind 0                                         │
+│ Status    open                                                      │
+│                                                                     │
+│ See details.                                                        │
+├─────────────────────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun                                │
+│ 3e674d1 Define power requirements                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ↑ updated to 8d8aa0887a11f2a37fa8ed0d5723efa96fd727ed (27857ec) now │
+│ ✓ accepted by z6MknSL…StBU8Vi (you) now                             │
+╰─────────────────────────────────────────────────────────────────────╯
 ```
 
 If you make a mistake on the patch description, you can always change it!
@@ -151,22 +151,22 @@ If you make a mistake on the patch description, you can always change it!
 ```
 $ rad patch edit a892664 --message "Define power requirements" --message "Add requirements file"
 $ rad patch show a892664
-╭──────────────────────────────────────────────────────────────────────────────╮
-│ Title     Define power requirements                                          │
-│ Patch     a8926643a8f6a65bc386b0131621994000485d4d                           │
-│ Author    z6MknSL…StBU8Vi (you)                                              │
-│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                           │
-│ Branches  flux-capacitor-power, patch/a892664                                │
-│ Commits   ahead 2, behind 0                                                  │
-│ Status    open                                                               │
-│                                                                              │
-│ Add requirements file                                                        │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ 27857ec Add README, just for the fun                                         │
-│ 3e674d1 Define power requirements                                            │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) [   ...    ]                               │
-│ ↑ updated to 8d8aa0887a11f2a37fa8ed0d5723efa96fd727ed (27857ec) [   ...    ] │
-│ ✓ accepted by z6MknSL…StBU8Vi (you) [   ...    ]                             │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────╮
+│ Title     Define power requirements                                 │
+│ Patch     a8926643a8f6a65bc386b0131621994000485d4d                  │
+│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Head      27857ec9eb04c69cacab516e8bf4b5fd36090f66                  │
+│ Branches  flux-capacitor-power, patch/a892664                       │
+│ Commits   ahead 2, behind 0                                         │
+│ Status    open                                                      │
+│                                                                     │
+│ Add requirements file                                               │
+├─────────────────────────────────────────────────────────────────────┤
+│ 27857ec Add README, just for the fun                                │
+│ 3e674d1 Define power requirements                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ↑ updated to 8d8aa0887a11f2a37fa8ed0d5723efa96fd727ed (27857ec) now │
+│ ✓ accepted by z6MknSL…StBU8Vi (you) now                             │
+╰─────────────────────────────────────────────────────────────────────╯
 ```

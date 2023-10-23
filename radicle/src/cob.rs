@@ -10,13 +10,11 @@ pub mod thread;
 #[cfg(test)]
 pub mod test;
 
-pub use cob::{
+pub use common::*;
+pub use op::{ActorId, Op};
+pub use radicle_cob::{
     change, history::EntryId, object, object::collaboration::error, CollaborativeObject, Contents,
     Create, Embed, Entry, Evaluate, History, Manifest, ObjectId, Store, TypeName, Update, Updated,
     Version,
 };
-pub use cob::{create, get, list, remove, update};
-pub use common::*;
-pub use op::{ActorId, Op};
-
-use radicle_cob as cob;
+pub use radicle_cob::{create, get, list, remove, update};

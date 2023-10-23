@@ -31,14 +31,14 @@ $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Fetched repository from 1 seed(s)
 $ rad id list
-╭──────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title               Author                     Status     Created      │
-├──────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   fae22d0   Edit project name   bob      z6Mkt67…v4N1tRk   active     [   ...    ] │
-│ ●   6c07e4e   Edit project name   alice    (you)             active     [   ...    ] │
-│ ●   bd41a1c   Add Bob             alice    (you)             accepted   [   ...    ] │
-│ ●   2317f74   Initial revision    alice    (you)             accepted   [   ...    ] │
-╰──────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title               Author                     Status     Created │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ ●   fae22d0   Edit project name   bob      z6Mkt67…v4N1tRk   active     now     │
+│ ●   6c07e4e   Edit project name   alice    (you)             active     now     │
+│ ●   bd41a1c   Add Bob             alice    (you)             accepted   now     │
+│ ●   2317f74   Initial revision    alice    (you)             accepted   now     │
+╰─────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 This isn't a problem as long as we don't try to accept both. So let's accept
@@ -47,14 +47,14 @@ Bob's:
 ``` ~alice
 $ rad id accept fae22d0 -q
 $ rad id list
-╭──────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   ID        Title               Author                     Status     Created      │
-├──────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   fae22d0   Edit project name   bob      z6Mkt67…v4N1tRk   accepted   [   ...    ] │
-│ ●   6c07e4e   Edit project name   alice    (you)             stale      [   ...    ] │
-│ ●   bd41a1c   Add Bob             alice    (you)             accepted   [   ...    ] │
-│ ●   2317f74   Initial revision    alice    (you)             accepted   [   ...    ] │
-╰──────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────╮
+│ ●   ID        Title               Author                     Status     Created │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ ●   fae22d0   Edit project name   bob      z6Mkt67…v4N1tRk   accepted   now     │
+│ ●   6c07e4e   Edit project name   alice    (you)             stale      now     │
+│ ●   bd41a1c   Add Bob             alice    (you)             accepted   now     │
+│ ●   2317f74   Initial revision    alice    (you)             accepted   now     │
+╰─────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Doing so voided the other conflicting revision, and it can no longer be

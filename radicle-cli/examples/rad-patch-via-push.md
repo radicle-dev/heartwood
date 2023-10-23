@@ -30,7 +30,7 @@ $ rad patch show e49e64637ab4a29e5a16c73000dacd2afa918d9d
 ├────────────────────────────────────────────────────┤
 │ 42d894a Add things                                 │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) [   ...    ]     │
+│ ● opened by z6MknSL…StBU8Vi (you) now              │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -93,12 +93,12 @@ And both patches:
 
 ```
 $ rad patch
-╭────────────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title            Author                  Head     +   -   Updated      │
-├────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  b1fd7b6  Add more things  z6MknSL…StBU8Vi  (you)  8b0ea80  +0  -0  [    ...   ] │
-│ ●  e49e646  Add things #1    z6MknSL…StBU8Vi  (you)  42d894a  +0  -0  [    ...   ] │
-╰────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title            Author                  Head     +   -   Updated │
+├───────────────────────────────────────────────────────────────────────────────┤
+│ ●  b1fd7b6  Add more things  z6MknSL…StBU8Vi  (you)  8b0ea80  +0  -0  now     │
+│ ●  e49e646  Add things #1    z6MknSL…StBU8Vi  (you)  42d894a  +0  -0  now     │
+╰───────────────────────────────────────────────────────────────────────────────╯
 ```
 
 To update our patch, we simply push commits to the upstream branch:
@@ -130,21 +130,21 @@ We can then see that the patch head has moved:
 
 ```
 $ rad patch show b1fd7b6
-╭──────────────────────────────────────────────────────────────────────────────╮
-│ Title     Add more things                                                    │
-│ Patch     b1fd7b6883dca2ef11e0e486a7097e759ea90cdb                           │
-│ Author    z6MknSL…StBU8Vi (you)                                              │
-│ Head      02bef3fac41b2f98bb3c02b868a53ddfecb55b5f                           │
-│ Branches  feature/2                                                          │
-│ Commits   ahead 2, behind 0                                                  │
-│ Status    open                                                               │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ 02bef3f Improve code                                                         │
-│ 8b0ea80 Add more things                                                      │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) [   ...    ]                               │
-│ ↑ updated to c867846b9f294c271e8934820dfac2c5924ecd5a (02bef3f) [   ...    ] │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────╮
+│ Title     Add more things                                           │
+│ Patch     b1fd7b6883dca2ef11e0e486a7097e759ea90cdb                  │
+│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Head      02bef3fac41b2f98bb3c02b868a53ddfecb55b5f                  │
+│ Branches  feature/2                                                 │
+│ Commits   ahead 2, behind 0                                         │
+│ Status    open                                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│ 02bef3f Improve code                                                │
+│ 8b0ea80 Add more things                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ↑ updated to c867846b9f294c271e8934820dfac2c5924ecd5a (02bef3f) now │
+╰─────────────────────────────────────────────────────────────────────╯
 ```
 
 And we can check that all the refs are properly updated in our repository:
@@ -206,22 +206,22 @@ That worked. We can see the new revision if we call `rad patch show`:
 
 ```
 $ rad patch show b1fd7b6
-╭──────────────────────────────────────────────────────────────────────────────╮
-│ Title     Add more things                                                    │
-│ Patch     b1fd7b6883dca2ef11e0e486a7097e759ea90cdb                           │
-│ Author    z6MknSL…StBU8Vi (you)                                              │
-│ Head      9304dbc445925187994a7a93222a3f8bde73b785                           │
-│ Branches  feature/2                                                          │
-│ Commits   ahead 2, behind 0                                                  │
-│ Status    open                                                               │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ 9304dbc Amended commit                                                       │
-│ 8b0ea80 Add more things                                                      │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) [   ...    ]                               │
-│ ↑ updated to c867846b9f294c271e8934820dfac2c5924ecd5a (02bef3f) [   ...    ] │
-│ ↑ updated to cf4d8577a1ec8aaa21a7ccca67ad8627c3304024 (9304dbc) [   ...    ] │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────╮
+│ Title     Add more things                                           │
+│ Patch     b1fd7b6883dca2ef11e0e486a7097e759ea90cdb                  │
+│ Author    z6MknSL…StBU8Vi (you)                                     │
+│ Head      9304dbc445925187994a7a93222a3f8bde73b785                  │
+│ Branches  feature/2                                                 │
+│ Commits   ahead 2, behind 0                                         │
+│ Status    open                                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│ 9304dbc Amended commit                                              │
+│ 8b0ea80 Add more things                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ ● opened by z6MknSL…StBU8Vi (you) now                               │
+│ ↑ updated to c867846b9f294c271e8934820dfac2c5924ecd5a (02bef3f) now │
+│ ↑ updated to cf4d8577a1ec8aaa21a7ccca67ad8627c3304024 (9304dbc) now │
+╰─────────────────────────────────────────────────────────────────────╯
 ```
 
 ## Empty patch

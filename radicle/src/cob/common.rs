@@ -1,15 +1,59 @@
 use std::fmt;
 use std::fmt::Display;
+use std::ops::Deref;
 use std::str::FromStr;
 
 use localtime::LocalTime;
 use serde::{Deserialize, Serialize};
 
 use crate::git_ext::Oid;
-use crate::prelude::*;
+use crate::prelude::{Did, PublicKey};
 
 /// Timestamp used for COB operations.
-pub type Timestamp = LocalTime;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Timestamp(LocalTime);
+
+impl Timestamp {
+    /// Construct a `Timestamp` corresponding to the current time.
+    ///
+    /// # Note
+    ///
+    /// If this is used in debug mode, `RAD_COMMIT_TIME` will be used
+    /// to construct the timestamp.
+    pub fn now() -> Self {
+        if cfg!(debug_assertions) {
+            if let Ok(s) = std::env::var("RAD_COMMIT_TIME") {
+                // SAFETY: Only used in test code.
+                #[allow(clippy::unwrap_used)]
+                let secs = s.trim().parse::<u64>().unwrap();
+                Self::from_secs(secs)
+            } else {
+                Self(LocalTime::now())
+            }
+        } else {
+            Self(LocalTime::now())
+        }
+    }
+
+    pub fn from_secs(secs: u64) -> Self {
+        Self(LocalTime::from_secs(secs))
+    }
+}
+
+impl From<LocalTime> for Timestamp {
+    fn from(time: LocalTime) -> Self {
+        Self(time)
+    }
+}
+
+impl Deref for Timestamp {
+    type Target = LocalTime;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 /// Author.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]

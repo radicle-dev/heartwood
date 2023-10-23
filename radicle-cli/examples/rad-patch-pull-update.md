@@ -88,20 +88,20 @@ Alice pulls the update.
 
 ``` ~alice
 $ rad patch show 6d260fc
-╭──────────────────────────────────────────────────────────────────────────────╮
-│ Title    Bob's patch                                                         │
-│ Patch    6d260fc8388e74d8fefb5dabc5a798e125ec3cf9                            │
-│ Author   bob z6Mkt67…v4N1tRk                                                 │
-│ Head     cad2666a8a2250e4dee175ed5044be2c251ff08b                            │
-│ Commits  ahead 2, behind 0                                                   │
-│ Status   open                                                                │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ cad2666 Bob's commit #2                                                      │
-│ bdcdb30 Bob's commit #1                                                      │
-├──────────────────────────────────────────────────────────────────────────────┤
-│ ● opened by bob z6Mkt67…v4N1tRk [   ...    ]                                 │
-│ ↑ updated to 750081b35a3f831f428653bd2240eb4674ccae71 (cad2666) [   ...    ] │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────╮
+│ Title    Bob's patch                                                │
+│ Patch    6d260fc8388e74d8fefb5dabc5a798e125ec3cf9                   │
+│ Author   bob z6Mkt67…v4N1tRk                                        │
+│ Head     cad2666a8a2250e4dee175ed5044be2c251ff08b                   │
+│ Commits  ahead 2, behind 0                                          │
+│ Status   open                                                       │
+├─────────────────────────────────────────────────────────────────────┤
+│ cad2666 Bob's commit #2                                             │
+│ bdcdb30 Bob's commit #1                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ ● opened by bob z6Mkt67…v4N1tRk now                                 │
+│ ↑ updated to 750081b35a3f831f428653bd2240eb4674ccae71 (cad2666) now │
+╰─────────────────────────────────────────────────────────────────────╯
 $ git ls-remote rad
 f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354	refs/heads/master
 cad2666a8a2250e4dee175ed5044be2c251ff08b	refs/heads/patches/6d260fc8388e74d8fefb5dabc5a798e125ec3cf9

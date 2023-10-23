@@ -45,11 +45,11 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 When listing, we see that it has one addition:
 ```
 $ rad patch list
-╭─────────────────────────────────────────────────────────────────────────────╮
-│ ●  ID       Title     Author                  Head     +   -   Updated      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ ●  71e51df  Add Alan  z6MknSL…StBU8Vi  (you)  5c88a79  +1  -0  [   ...    ] │
-╰─────────────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title     Author                  Head     +   -   Updated │
+├────────────────────────────────────────────────────────────────────────┤
+│ ●  71e51df  Add Alan  z6MknSL…StBU8Vi  (you)  5c88a79  +1  -0  now     │
+╰────────────────────────────────────────────────────────────────────────╯
 ```
 
 When showing the patch, we see that it is `ahead 1, behind 1`, since master has
@@ -68,7 +68,7 @@ $ rad patch show -v -p 71e51df
 ├────────────────────────────────────────────────────┤
 │ 5c88a79 Add Alan                                   │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) [     ...      ] │
+│ ● opened by z6MknSL…StBU8Vi (you) now              │
 ╰────────────────────────────────────────────────────╯
 
 commit 5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7
@@ -115,7 +115,7 @@ $ rad patch show -v 364cc2809f14c1bc74a8868159e87eb3844eb7e2
 │ 7f63fcb Add Mel                                    │
 │ 5c88a79 Add Alan                                   │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) [      ...     ] │
+│ ● opened by z6MknSL…StBU8Vi (you) now              │
 ╰────────────────────────────────────────────────────╯
 ```
 
@@ -149,6 +149,6 @@ $ rad patch show -v 11ab7fbec82c3aed393d7a696d6b3c7714735056
 ├────────────────────────────────────────────────────┤
 │ 7f63fcb Add Mel                                    │
 ├────────────────────────────────────────────────────┤
-│ ● opened by z6MknSL…StBU8Vi (you) [      ...     ] │
+│ ● opened by z6MknSL…StBU8Vi (you) now              │
 ╰────────────────────────────────────────────────────╯
 ```
