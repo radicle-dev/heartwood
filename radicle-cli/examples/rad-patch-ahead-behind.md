@@ -123,7 +123,7 @@ If we want to instead create a "stacked" patch, we can do so with the
 `patch.base` push option:
 
 ``` (stderr)
-$ git push -o patch.message="Add Mel #2" -o patch.base=5c88a79d75f5c2b4cc51ee6f163d2db91ee198d7 rad HEAD:refs/patches
+$ git push -o patch.message="Add Mel #2" -o patch.base=HEAD^ rad HEAD:refs/patches
 ✓ Patch 11ab7fbec82c3aed393d7a696d6b3c7714735056 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches

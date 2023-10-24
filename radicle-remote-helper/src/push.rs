@@ -309,7 +309,7 @@ fn patch_open<G: Signer>(
     let (_, target) = stored.canonical_head()?;
     let head = commit.id().into();
     let base = if let Some(base) = opts.base {
-        base
+        base.resolve(working)?
     } else {
         stored.merge_base(&target, &head)?
     };
@@ -425,7 +425,7 @@ fn patch_update<G: Signer>(
     let (_, target) = stored.canonical_head()?;
     let head: git::Oid = commit.id().into();
     let base = if let Some(base) = opts.base {
-        base
+        base.resolve(working)?
     } else {
         stored.merge_base(&target, &head)?
     };

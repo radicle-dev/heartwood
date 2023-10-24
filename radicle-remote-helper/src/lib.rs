@@ -13,6 +13,7 @@ use std::str::FromStr;
 use std::time;
 use std::{env, io};
 
+use radicle_cli::git::Rev;
 use thiserror::Error;
 
 use radicle::git;
@@ -25,6 +26,9 @@ use radicle_cli::terminal as cli;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    /// Failed to parse `base`.
+    #[error("failed to parse base revision: {0}")]
+    Base(Box<dyn std::error::Error>),
     /// Remote repository not found (or empty).
     #[error("remote repository `{0}` not found")]
     RepositoryNotFound(PathBuf),
@@ -70,7 +74,7 @@ pub struct Options {
     /// Open patch in draft mode.
     draft: bool,
     /// Patch base to use, when opening or updating a patch.
-    base: Option<git::Oid>,
+    base: Option<Rev>,
     /// Patch message.
     message: cli::patch::Message,
 }
@@ -138,7 +142,8 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                                     opts.message.append(val);
                                 }
                                 "patch.base" => {
-                                    let base = val.parse()?;
+                                    let base = cli::args::rev(&val.into())
+                                        .map_err(|e| Error::Base(e.into()))?;
                                     opts.base = Some(base);
                                 }
                                 _ => {
