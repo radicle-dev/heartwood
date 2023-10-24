@@ -3,7 +3,7 @@ use std::time;
 
 use anyhow::anyhow;
 
-use radicle::node::{Address, Node, NodeId, PeerAddr, ROUTING_DB_FILE, TRACKING_DB_FILE};
+use radicle::node::{Address, Node, NodeId, PeerAddr, ROUTING_DB_FILE};
 use radicle::prelude::Id;
 
 use crate::terminal as term;
@@ -185,7 +185,7 @@ impl Args for Options {
                     tracking_mode = TrackingMode::Repos
                 }
                 Long("nodes") if matches!(op, Some(OperationName::Tracking)) => {
-                    tracking_mode = TrackingMode::Nodes
+                    tracking_mode = TrackingMode::Nodes;
                 }
                 Long("foreground") if matches!(op, Some(OperationName::Start)) => {
                     foreground = true;
@@ -267,12 +267,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         Operation::Stop => {
             control::stop(node)?;
         }
-        Operation::Tracking { mode } => {
-            let store = radicle::node::tracking::store::Config::reader(
-                profile.home.node().join(TRACKING_DB_FILE),
-            )?;
-            tracking::run(&store, mode)?
-        }
+        Operation::Tracking { mode } => tracking::run(&profile, mode)?,
     }
 
     Ok(())

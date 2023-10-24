@@ -1,15 +1,19 @@
-use radicle::node::tracking;
+use radicle::crypto::PublicKey;
+use radicle::node::{tracking, AliasStore, TRACKING_DB_FILE};
 use radicle::prelude::Did;
+use radicle::Profile;
 
 use crate::terminal as term;
 use term::Element;
 
 use super::TrackingMode;
 
-pub fn run(store: &tracking::store::ConfigReader, mode: TrackingMode) -> anyhow::Result<()> {
+pub fn run(profile: &Profile, mode: TrackingMode) -> anyhow::Result<()> {
+    let store =
+        radicle::node::tracking::store::Config::reader(profile.home.node().join(TRACKING_DB_FILE))?;
     match mode {
-        TrackingMode::Repos => print_repos(store)?,
-        TrackingMode::Nodes => print_nodes(store)?,
+        TrackingMode::Repos => print_repos(&store)?,
+        TrackingMode::Nodes => print_nodes(&store, &profile.aliases())?,
     }
     Ok(())
 }
@@ -39,7 +43,10 @@ fn print_repos(store: &tracking::store::ConfigReader) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_nodes(store: &tracking::store::ConfigReader) -> anyhow::Result<()> {
+fn print_nodes(
+    store: &tracking::store::ConfigReader,
+    aliases: &impl AliasStore,
+) -> anyhow::Result<()> {
     let mut t = term::Table::new(term::table::TableOptions::bordered());
     t.push([
         term::format::default(String::from("DID")),
@@ -52,7 +59,7 @@ fn print_nodes(store: &tracking::store::ConfigReader) -> anyhow::Result<()> {
         t.push([
             term::format::highlight(Did::from(id).to_string()),
             match alias {
-                None => term::format::secondary(String::from("n/a")),
+                None => term::format::secondary(fallback_alias(&id, aliases)),
                 Some(alias) => term::format::secondary(alias.to_string()),
             },
             term::format::secondary(policy.to_string()),
@@ -61,4 +68,10 @@ fn print_nodes(store: &tracking::store::ConfigReader) -> anyhow::Result<()> {
     t.print();
 
     Ok(())
+}
+
+fn fallback_alias(nid: &PublicKey, aliases: &impl AliasStore) -> String {
+    aliases
+        .alias(nid)
+        .map_or("n/a".to_string(), |alias| alias.to_string())
 }
