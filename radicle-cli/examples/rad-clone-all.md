@@ -1,6 +1,3 @@
-<!-- TODO: Currently, `rad clone`, even with `--scope all` will not fetch all remotes -->
-<!-- We have to issue a separate `rad sync --fetch` -->
-
 ```
 $ rad clone rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --scope all
 ✓ Tracking relationship established for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji with scope 'all'
@@ -25,12 +22,6 @@ repository:
 $ cd heartwood
 $ cat README
 Hello World!
-```
-
-```
-$ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
-✓ Fetched repository from 1 seed(s)
 ```
 
 Let's check that we have all the namespaces in storage:
