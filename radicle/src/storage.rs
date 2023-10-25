@@ -313,6 +313,8 @@ impl<V> Deref for Remote<V> {
 pub trait ReadStorage {
     type Repository: ReadRepository;
 
+    /// Get user info for this storage.
+    fn info(&self) -> &UserInfo;
     /// Get the storage base path.
     fn path(&self) -> &Path;
     /// Get a repository's path.
@@ -537,6 +539,10 @@ where
     S: ReadStorage + 'static,
 {
     type Repository = S::Repository;
+
+    fn info(&self) -> &UserInfo {
+        self.deref().info()
+    }
 
     fn path(&self) -> &Path {
         self.deref().path()
