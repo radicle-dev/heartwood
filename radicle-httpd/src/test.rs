@@ -50,10 +50,14 @@ pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
     let keystore = Keystore::new(&home.keys());
     let keypair = KeyPair::from_seed(Seed::from(seed));
     let alias = node::Alias::new("seed");
-    let storage = Storage::open(home.storage(), radicle::git::UserInfo {
-        alias: alias.clone(),
-        key: keypair.pk.into(),
-    }).unwrap();
+    let storage = Storage::open(
+        home.storage(),
+        radicle::git::UserInfo {
+            alias: alias.clone(),
+            key: keypair.pk.into(),
+        },
+    )
+    .unwrap();
 
     radicle::storage::git::transport::local::register(storage.clone());
     keystore.store(keypair.clone(), "radicle", None).unwrap();

@@ -2128,7 +2128,7 @@ mod routes {
             Some(Body::from(body)),
             Some(SESSION_ID.to_string()),
         )
-            .await;
+        .await;
 
         assert_eq!(response.success().await, true);
 
