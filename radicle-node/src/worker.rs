@@ -3,6 +3,7 @@ mod channels;
 mod upload_pack;
 
 pub mod fetch;
+pub mod garbage;
 
 use std::path::PathBuf;
 use std::{io, time};
@@ -162,6 +163,9 @@ pub struct FetchConfig {
     pub info: git::UserInfo,
     /// Public key of the local peer.
     pub local: crypto::PublicKey,
+    /// Configuration for `git gc` garbage collection. Defaults to `1
+    /// hour ago`.
+    pub expiry: garbage::Expiry,
 }
 
 /// A worker that replicates git objects.
@@ -279,6 +283,7 @@ impl Worker {
             limit,
             info,
             local,
+            expiry,
         } = &self.fetch_config;
         let tracking =
             tracking::Config::new(*policy, *scope, tracking::Store::reader(tracking_db)?);
@@ -296,8 +301,15 @@ impl Worker {
             blocked,
             channels,
         )?;
+        let result = handle.fetch(rid, &self.storage, *limit, remote, refs_at)?;
 
-        Ok(handle.fetch(rid, &self.storage, *limit, remote, refs_at)?)
+        if let Err(e) = garbage::collect(&self.storage, rid, *expiry) {
+            // N.b. ensure that `git gc` works in debug mode.
+            debug_assert!(false, "`git gc` failed: {e}");
+
+            log::warn!(target: "worker", "Failed to run `git gc`: {e}");
+        }
+        Ok(result)
     }
 }
 

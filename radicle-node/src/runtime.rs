@@ -256,6 +256,7 @@ impl Runtime {
             limit: FetchLimit::default(),
             info: git::UserInfo { alias, key: nid },
             local: nid,
+            expiry: worker::garbage::Expiry::default(),
         };
         let pool = worker::Pool::with(
             worker_recv,
