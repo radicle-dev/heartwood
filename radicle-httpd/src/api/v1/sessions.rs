@@ -122,9 +122,9 @@ async fn session_delete_handler(
 
 #[cfg(test)]
 mod routes {
+    use crate::commands::web::{sign, SessionInfo};
     use axum::body::Body;
     use axum::http::StatusCode;
-    use radicle_cli::commands::rad_web::{self, SessionInfo};
 
     use crate::api::auth::{AuthState, Session};
     use crate::test::{self, get, post, put};
@@ -154,7 +154,7 @@ mod routes {
 
         // Create request body
         let signer = ctx.profile.signer().unwrap();
-        let signature = rad_web::sign(signer, &session_info).unwrap();
+        let signature = sign(signer, &session_info).unwrap();
         let body = serde_json::to_vec(&super::AuthChallenge {
             sig: signature,
             pk: session_info.public_key,

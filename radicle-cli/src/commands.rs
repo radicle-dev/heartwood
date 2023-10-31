@@ -52,5 +52,3 @@ pub mod rad_unassign;
 pub mod rad_unlabel;
 #[path = "commands/untrack.rs"]
 pub mod rad_untrack;
-#[path = "commands/web.rs"]
-pub mod rad_web;

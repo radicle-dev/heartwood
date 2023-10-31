@@ -267,11 +267,6 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
-        "web" => term::run_command_args::<rad_web::Options, _>(
-            rad_web::HELP,
-            rad_web::run,
-            args.to_vec(),
-        ),
         "remote" => term::run_command_args::<rad_remote::Options, _>(
             rad_remote::HELP,
             rad_remote::run,

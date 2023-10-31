@@ -37,6 +37,7 @@ tower-http = { version = "0.3.4", default-features = false, features = ["trace",
 tracing = { version = "0.1.37", default-features = false, features = ["std", "log"] }
 tracing-logfmt = { version = "0.2", optional = true }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "ansi", "fmt"] }
+ureq = { version = "2.9", default-features = false, features = ["json"] }
 
 [dependencies.radicle]
 path = "../radicle"
@@ -44,6 +45,9 @@ version = "0.2.0"
 
 [dependencies.radicle-term]
 path = "../radicle-term"
+
+[dependencies.radicle-cli]
+path = "../radicle-cli"
 
 [dev-dependencies]
 hyper = { version = "0.14.17", default-features = false, features = ["client"] }

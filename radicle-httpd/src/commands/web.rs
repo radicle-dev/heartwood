@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use radicle::crypto::{PublicKey, Signature, Signer};
 
-use crate::terminal as term;
-use crate::terminal::args::{Args, Error, Help};
+use radicle_cli::terminal as term;
+use radicle_cli::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "web",

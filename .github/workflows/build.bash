@@ -44,6 +44,7 @@ main () {
 
     cargo build --target="$target" --package=radicle-httpd --release
     cp target/"$target"/release/radicle-httpd "$staging"/
+    cp target/"$target"/release/rad-web "$staging"/
 
     cargo build --target="$target" --package=radicle-node --release
     cp target/"$target"/release/radicle-node "$staging"/
