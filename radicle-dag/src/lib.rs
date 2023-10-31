@@ -167,16 +167,23 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     }
 
     /// Return a topological ordering of the graph's nodes.
+    pub fn sorted(&self) -> VecDeque<K> {
+        self.sorted_by(Ord::cmp)
+    }
+
+    /// Return a topological ordering of the graph's nodes.
     /// Uses a comparison function to sort partially ordered nodes.
-    pub fn sorted<F>(&self, mut compare: F) -> Vec<K>
+    pub fn sorted_by<F>(&self, mut compare: F) -> VecDeque<K>
     where
         F: FnMut(&K, &K) -> Ordering,
     {
-        let mut order = Vec::new(); // Stores the topological order.
+        let mut order = VecDeque::new(); // Stores the topological order.
         let mut visited = BTreeSet::new(); // Nodes that have been visited.
         let mut keys = self.graph.keys().collect::<Vec<_>>();
 
-        keys.sort_by(|a, b| compare(a, b));
+        // The `visit` function builds the list in reverse order, so we counter-act
+        // that here.
+        keys.sort_by(|a, b| compare(a, b).reverse());
 
         for node in keys {
             self.visit(node, &mut visited, &mut order);
@@ -185,7 +192,7 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     }
 
     /// Fold over the graph in topological order, pruning branches along the way.
-    /// This is a breadth-first traversal.
+    /// This is a depth-first traversal.
     ///
     /// To continue traversing a branch, return [`ControlFlow::Continue`] from the
     /// filter function. To stop traversal of a branch and prune it,
@@ -195,17 +202,16 @@ impl<K: Ord + Copy, V> Dag<K, V> {
         F: for<'r> FnMut(&'r K, &'r Node<K, V>) -> ControlFlow<()>,
     {
         let mut visited = BTreeSet::new();
-        let mut queue = VecDeque::<K>::from_iter(roots.iter().cloned());
+        let mut result = VecDeque::new();
 
-        while let Some(next) = queue.pop_front() {
-            if !visited.insert(next) {
-                continue;
-            }
+        for root in roots {
+            self.visit(root, &mut visited, &mut result);
+        }
+
+        for next in result {
             if let Some(node) = self.graph.get(&next) {
                 match filter(&next, node) {
-                    ControlFlow::Continue(()) => {
-                        queue.extend(node.dependents.iter().cloned());
-                    }
+                    ControlFlow::Continue(()) => {}
                     ControlFlow::Break(()) => {
                         // When pruning a node, we remove all transitive dependents on
                         // that node.
@@ -217,7 +223,7 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     }
 
     /// Fold over the graph in topological order, skipping certain branches.
-    /// This is a breadth-first traversal.
+    /// This is a depth-first traversal.
     ///
     /// To continue traversing a branch, return [`ControlFlow::Continue`] from the
     /// filter function. To stop traversal of a branch, return [`ControlFlow::Break`].
@@ -226,22 +232,31 @@ impl<K: Ord + Copy, V> Dag<K, V> {
         F: for<'r> FnMut(A, &'r K, &'r Node<K, V>) -> ControlFlow<A, A>,
     {
         let mut visited = BTreeSet::new();
-        let mut queue = VecDeque::<K>::from_iter(roots.iter().cloned());
+        let mut result = VecDeque::new();
+        let mut skip = BTreeSet::new();
 
-        while let Some(next) = queue.pop_front() {
-            if !visited.insert(next) {
+        assert!(
+            roots.windows(2).all(|w| w[0] < w[1]),
+            "The roots must be sorted in ascending order"
+        );
+
+        for root in roots.iter().rev() {
+            self.visit(root, &mut visited, &mut result);
+        }
+
+        for next in result {
+            if skip.contains(&next) {
                 continue;
             }
             if let Some(node) = self.graph.get(&next) {
                 match filter(acc, &next, node) {
                     ControlFlow::Continue(a) => {
-                        queue.extend(node.dependents.iter().cloned());
                         acc = a;
                     }
                     ControlFlow::Break(a) => {
                         // When filtering out a node, we filter out all transitive dependents on
                         // that node by adding them to the already visited list.
-                        visited.extend(self.descendants_of(node));
+                        skip.extend(self.descendants_of(node));
 
                         acc = a;
                     }
@@ -297,20 +312,17 @@ impl<K: Ord + Copy, V> Dag<K, V> {
     }
 
     /// Add nodes recursively to the topological order, starting from the given node.
-    fn visit(&self, key: &K, visited: &mut BTreeSet<K>, order: &mut Vec<K>) {
-        if visited.contains(key) {
-            return;
-        }
-        visited.insert(*key);
-
-        // Recursively visit all of the node's dependencies.
-        if let Some(node) = self.graph.get(key) {
-            for dependency in &node.dependencies {
-                self.visit(dependency, visited, order);
+    fn visit(&self, key: &K, visited: &mut BTreeSet<K>, order: &mut VecDeque<K>) {
+        if visited.insert(*key) {
+            // Recursively visit all of the node's dependents.
+            if let Some(node) = self.graph.get(key) {
+                for dependent in node.dependents.iter().rev() {
+                    self.visit(dependent, visited, order);
+                }
             }
+            // Add the node to the topological order.
+            order.push_front(*key);
         }
-        // Add the node to the topological order.
-        order.push(*key);
     }
 }
 
@@ -398,10 +410,10 @@ mod tests {
         dag.dependency(0, 1);
         dag.dependency(1, 0);
 
-        let sorted = dag.sorted(|a, b| a.cmp(b));
+        let mut sorted = dag.sorted();
         let expected: &[&[i32]] = &[&[0, 1], &[1, 0]];
 
-        assert!(expected.contains(&sorted.as_slice()));
+        assert!(expected.contains(&&*sorted.make_contiguous()));
     }
 
     #[test]
@@ -487,9 +499,9 @@ mod tests {
 
         // All of the possible sort orders for the above graph.
         let expected: &[&[i32]] = &[&[0, 1, 2, 3], &[0, 2, 1, 3]];
-        let actual = dag.sorted(|a, b| a.cmp(b));
+        let mut actual = dag.sorted();
 
-        assert!(expected.contains(&actual.as_slice()), "{actual:?}");
+        assert!(expected.contains(&&*actual.make_contiguous()), "{actual:?}");
     }
 
     #[test]
@@ -539,7 +551,11 @@ mod tests {
         let mut rng = fastrand::Rng::new();
 
         while sorts.len() < expected.len() {
-            sorts.insert(dag.sorted(|a, b| if rng.bool() { a.cmp(b) } else { b.cmp(a) }));
+            sorts.insert(
+                dag.sorted_by(|a, b| if rng.bool() { a.cmp(b) } else { b.cmp(a) })
+                    .make_contiguous()
+                    .to_vec(),
+            );
         }
         for e in expected {
             assert!(sorts.remove(e.to_vec().as_slice()));
@@ -548,7 +564,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fold_sorting() {
+    fn test_fold_sorting_1() {
         let mut dag = Dag::new();
 
         dag.node("R", ());
@@ -577,7 +593,42 @@ mod tests {
             acc.push(*key);
             ControlFlow::Continue(acc)
         });
-        assert_eq!(acc, vec!["R", "A1", "A2", "A3", "B1", "B2", "B3", "C1"]);
+        assert_eq!(acc, vec!["R", "A1", "B1", "B2", "A2", "A3", "B3", "C1"]);
+    }
+
+    #[test]
+    fn test_fold_sorting_2() {
+        let mut dag = Dag::new();
+
+        dag.node("R", ());
+        dag.node("A1", ());
+        dag.node("A2", ());
+        dag.node("A3", ());
+        dag.node("B1", ());
+        dag.node("C1", ());
+        dag.node("C2", ());
+        dag.node("C3", ());
+
+        dag.dependency("A1", "R");
+        dag.dependency("A2", "A1");
+        dag.dependency("A3", "A2");
+
+        dag.dependency("B1", "R");
+
+        dag.dependency("C1", "B1");
+        dag.dependency("C1", "A3");
+        dag.dependency("C2", "B1");
+        dag.dependency("C2", "A3");
+        dag.dependency("C3", "B1");
+        dag.dependency("C3", "A3");
+
+        let acc = dag.fold(&["R"], Vec::new(), |mut acc, key, _| {
+            acc.push(*key);
+            ControlFlow::Continue(acc)
+        });
+
+        assert_eq!(acc, vec!["R", "A1", "A2", "A3", "B1", "C1", "C2", "C3"]);
+        assert_eq!(dag.sorted(), acc);
     }
 
     #[test]
@@ -600,8 +651,26 @@ mod tests {
         });
         assert_eq!(acc, vec!["R", "A1", "A2", "B"]);
 
-        let sorted = dag.sorted(|a, b| a.cmp(b));
+        let sorted = dag.sorted();
         assert_eq!(sorted, acc);
+    }
+
+    #[test]
+    fn test_fold_multiple_roots() {
+        let mut dag = Dag::new();
+
+        dag.node("R", ());
+        dag.node("A1", ());
+        dag.node("A2", ());
+
+        dag.dependency("A1", "R");
+        dag.dependency("A2", "R");
+
+        let acc = dag.fold(&["A1", "A2"], Vec::new(), |mut acc, key, _| {
+            acc.push(*key);
+            ControlFlow::Continue(acc)
+        });
+        assert_eq!(acc, &["A1", "A2"]);
     }
 
     #[test]
@@ -690,7 +759,7 @@ mod tests {
     }
 
     #[test]
-    fn test_prune() {
+    fn test_prune_1() {
         let mut dag = Dag::new();
 
         dag.node("R", ());
@@ -717,6 +786,41 @@ mod tests {
                 ControlFlow::Continue(())
             }
         });
-        assert_eq!(dag.sorted(|a, b| a.cmp(b)), vec!["R", "A1", "A2"]);
+        assert_eq!(dag.sorted(), vec!["R", "A1", "A2"]);
+    }
+
+    #[test]
+    fn test_prune_2() {
+        let mut dag = Dag::new();
+
+        dag.node("R", ());
+        dag.node("A1", ());
+        dag.node("A2", ());
+        dag.node("A3", ());
+        dag.node("B1", ());
+        dag.node("C1", ());
+        dag.node("C2", ());
+        dag.node("C3", ());
+
+        dag.dependency("A1", "R");
+        dag.dependency("A2", "A1");
+        dag.dependency("A3", "A2");
+
+        dag.dependency("B1", "R");
+
+        dag.dependency("C1", "B1");
+        dag.dependency("C1", "A3");
+        dag.dependency("C2", "B1");
+        dag.dependency("C2", "A3");
+        dag.dependency("C3", "B1");
+        dag.dependency("C3", "A3");
+
+        let mut order = VecDeque::new();
+
+        dag.prune(&["R"], |key, _| {
+            order.push_back(*key);
+            ControlFlow::Continue(())
+        });
+        assert_eq!(order, dag.sorted());
     }
 }

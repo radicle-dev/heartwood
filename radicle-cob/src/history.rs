@@ -63,7 +63,7 @@ impl History {
         F: FnMut(&EntryId, &EntryId) -> Ordering,
     {
         self.graph
-            .sorted(compare)
+            .sorted_by(compare)
             .into_iter()
             .filter_map(|k| self.graph.get(&k))
             .map(|node| &node.value)
@@ -94,6 +94,11 @@ impl History {
     /// Check if the graph is empty.
     pub fn is_empty(&self) -> bool {
         self.graph.is_empty()
+    }
+
+    /// Get the underlying graph
+    pub fn graph(&self) -> &Dag<EntryId, Entry> {
+        &self.graph
     }
 
     /// Get the root entry.
