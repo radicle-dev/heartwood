@@ -26,7 +26,13 @@ async fn node_handler(State(ctx): State<Context>) -> impl IntoResponse {
     } else {
         "stopped"
     };
-    let config = node.config()?;
+    let config = match node.config() {
+        Ok(config) => Some(config),
+        Err(err) => {
+            tracing::error!("Error getting node config: {:#}", err);
+            None
+        }
+    };
     let response = json!({
         "id": node_id.to_string(),
         "config": config,
