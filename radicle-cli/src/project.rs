@@ -2,6 +2,9 @@ use radicle::prelude::*;
 
 use crate::git;
 use radicle::git::RefStr;
+use radicle::node::tracking::Scope;
+use radicle::node::{Handle, NodeId};
+use radicle::Node;
 
 /// Setup a project remote and tracking branch.
 pub struct SetupRemote<'a> {
@@ -46,5 +49,36 @@ impl<'a> SetupRemote<'a> {
             return Ok((remote, Some(tracking_branch)));
         }
         Ok((remote, None))
+    }
+}
+
+/// Track a repository by first trying to track through the node, and if the node isn't running,
+/// by updating the tracking database directly.
+pub fn track(
+    rid: Id,
+    scope: Scope,
+    node: &mut Node,
+    profile: &Profile,
+) -> Result<bool, anyhow::Error> {
+    match node.track_repo(rid, scope) {
+        Ok(updated) => Ok(updated),
+        Err(e) if e.is_connection_err() => {
+            let mut config = profile.tracking_mut()?;
+            config.track_repo(&rid, scope).map_err(|e| e.into())
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Untrack a repository by first trying to untrack through the node, and if the node isn't running,
+/// by updating the tracking database directly.
+pub fn untrack(rid: Id, node: &mut Node, profile: &Profile) -> Result<bool, anyhow::Error> {
+    match node.untrack_repo(rid) {
+        Ok(updated) => Ok(updated),
+        Err(e) if e.is_connection_err() => {
+            let mut config = profile.tracking_mut()?;
+            config.untrack_repo(&rid).map_err(|e| e.into())
+        }
+        Err(e) => Err(e.into()),
     }
 }

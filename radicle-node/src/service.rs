@@ -414,12 +414,7 @@ where
 
         for rid in rids {
             if !self.is_tracking(&rid)? {
-                if self
-                    .track_repo(&rid, tracking::Scope::Trusted)
-                    .expect("Service::initialize: error tracking repository")
-                {
-                    info!(target: "service", "Tracking local repository {rid}");
-                }
+                warn!(target: "service", "Local repository {rid} is not tracked");
             }
         }
         // Ensure that our local node is in our address database.

@@ -17,6 +17,7 @@ use radicle::node::{Handle, NodeId};
 use radicle::prelude::Doc;
 use radicle::{profile, Node};
 
+use crate as cli;
 use crate::git;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -268,12 +269,6 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         Ok((id, doc, _)) => {
             let proj = doc.project()?;
 
-            if options.track && node.is_running() {
-                // It's important to track our own repositories to make sure that our node signals
-                // interest for them. This ensures that messages relating to them are relayed to us.
-                node.track_repo(id, options.scope)?;
-            }
-
             spinner.message(format!(
                 "Project {} created.",
                 term::format::highlight(proj.name())
@@ -282,6 +277,12 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
 
             if options.verbose {
                 term::blob(json::to_string_pretty(&proj)?);
+            }
+
+            // It's important to track our own repositories to make sure that our node signals
+            // interest for them. This ensures that messages relating to them are relayed to us.
+            if options.track {
+                cli::project::track(id, options.scope, &mut node, profile)?;
             }
 
             if options.set_upstream || git::branch_remote(&repo, proj.default_branch()).is_err() {

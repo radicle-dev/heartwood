@@ -156,7 +156,7 @@ where
     ) -> Self {
         let routing = routing::Table::memory().unwrap();
         let tracking = tracking::Store::<tracking::store::Write>::memory().unwrap();
-        let tracking = tracking::Config::new(config.policy, config.scope, tracking);
+        let mut tracking = tracking::Config::new(config.policy, config.scope, tracking);
         let tempdir = tempfile::tempdir().unwrap();
         let id = *config.signer.public_key();
         let ip = ip.into();
@@ -165,6 +165,9 @@ where
         // Make sure the peer address is advertized.
         config.config.external_addresses.push(local_addr.into());
 
+        for rid in storage.inventory().unwrap() {
+            tracking.track_repo(&rid, Scope::Trusted).unwrap();
+        }
         let announcement = service::gossip::node(&config.config, config.local_time.as_secs());
         let emitter: Emitter<Event> = Default::default();
         let service = Service::new(

@@ -18,6 +18,7 @@ use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git;
 use radicle::git::refname;
 use radicle::identity::{Id, Visibility};
+use radicle::node;
 use radicle::node::address::Book;
 use radicle::node::routing;
 use radicle::node::routing::Store;
@@ -405,6 +406,11 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
         )
         .map(|(id, _, _)| id)
         .unwrap();
+
+        assert!(self
+            .tracking
+            .track_repo(&id, node::tracking::Scope::Trusted)
+            .unwrap());
 
         log::debug!(
             target: "test",

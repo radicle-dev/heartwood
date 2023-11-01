@@ -243,6 +243,14 @@ impl Profile {
         Ok(config)
     }
 
+    /// Return a read-write handle to the tracking configuration of the node.
+    pub fn tracking_mut(&self) -> Result<tracking::store::ConfigWriter, tracking::store::Error> {
+        let path = self.home.node().join(node::TRACKING_DB_FILE);
+        let config = tracking::store::Config::open(path)?;
+
+        Ok(config)
+    }
+
     /// Return a read-only handle to the routing database of the node.
     pub fn routing(&self) -> Result<routing::Table, routing::Error> {
         let path = self.home.node().join(node::ROUTING_DB_FILE);

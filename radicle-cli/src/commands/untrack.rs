@@ -5,6 +5,7 @@ use anyhow::anyhow;
 use radicle::node::{Handle, NodeId};
 use radicle::{prelude::*, Node};
 
+use crate::project;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 
@@ -84,16 +85,15 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = radicle::Node::new(profile.socket());
 
     match options.op {
-        Operation::UntrackNode { nid } => untrack_node(nid, &mut node),
-        Operation::UntrackRepo { rid } => untrack_repo(rid, &mut node),
+        Operation::UntrackNode { nid } => untrack_node(nid, &mut node, &profile),
+        Operation::UntrackRepo { rid } => untrack_repo(rid, &mut node, &profile),
     }?;
 
     Ok(())
 }
 
-pub fn untrack_repo(rid: Id, node: &mut Node) -> anyhow::Result<()> {
-    let untracked = node.untrack_repo(rid)?;
-    if untracked {
+pub fn untrack_repo(rid: Id, node: &mut Node, profile: &Profile) -> anyhow::Result<()> {
+    if project::untrack(rid, node, profile)? {
         term::success!(
             "Tracking policy for {} removed",
             term::format::tertiary(rid),
@@ -102,8 +102,15 @@ pub fn untrack_repo(rid: Id, node: &mut Node) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn untrack_node(nid: NodeId, node: &mut Node) -> anyhow::Result<()> {
-    let untracked = node.untrack_node(nid)?;
+pub fn untrack_node(nid: NodeId, node: &mut Node, profile: &Profile) -> anyhow::Result<()> {
+    let untracked = match node.untrack_node(nid) {
+        Ok(updated) => updated,
+        Err(e) if e.is_connection_err() => {
+            let mut config = profile.tracking_mut()?;
+            config.untrack_node(&nid)?
+        }
+        Err(e) => return Err(e.into()),
+    };
     if untracked {
         term::success!(
             "Tracking policy for {} removed",

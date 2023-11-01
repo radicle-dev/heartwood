@@ -3,14 +3,13 @@ use std::time;
 
 use anyhow::anyhow;
 
-use radicle::node;
 use radicle::node::tracking::{Alias, Scope};
 use radicle::node::{Handle, NodeId};
 use radicle::{prelude::*, Node};
 
 use crate::commands::rad_sync as sync;
-use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::{project, terminal as term};
 
 pub const HELP: Help = Help {
     name: "track",
@@ -119,16 +118,12 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.op {
         Operation::TrackNode { nid, alias } => {
-            if let Err(node::Error::Connect(_)) = track_node(nid, alias, &mut node) {
-                anyhow::bail!("to track another node, your node must be running. To start it, run `rad node start`");
-            }
+            track_node(nid, alias, &mut node, &profile)?;
         }
         Operation::TrackRepo { rid, scope } => {
-            if let Err(node::Error::Connect(_)) = track_repo(rid, scope, &mut node) {
-                anyhow::bail!("to track a repository, your node must be running. To start it, run `rad node start`");
-            }
+            track_repo(rid, scope, &mut node, &profile)?;
 
-            if options.fetch {
+            if options.fetch && node.is_running() {
                 sync::fetch(
                     rid,
                     sync::RepoSync::default(),
@@ -141,8 +136,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn track_repo(rid: Id, scope: Scope, node: &mut Node) -> Result<(), node::Error> {
-    let tracked = node.track_repo(rid, scope)?;
+pub fn track_repo(
+    rid: Id,
+    scope: Scope,
+    node: &mut Node,
+    profile: &Profile,
+) -> Result<(), anyhow::Error> {
+    let tracked = project::track(rid, scope, node, profile)?;
     let outcome = if tracked { "updated" } else { "exists" };
 
     term::success!(
@@ -153,8 +153,20 @@ pub fn track_repo(rid: Id, scope: Scope, node: &mut Node) -> Result<(), node::Er
     Ok(())
 }
 
-pub fn track_node(nid: NodeId, alias: Option<Alias>, node: &mut Node) -> Result<(), node::Error> {
-    let tracked = node.track_node(nid, alias.clone())?;
+pub fn track_node(
+    nid: NodeId,
+    alias: Option<Alias>,
+    node: &mut Node,
+    profile: &Profile,
+) -> Result<(), anyhow::Error> {
+    let tracked = match node.track_node(nid, alias.clone()) {
+        Ok(updated) => updated,
+        Err(e) if e.is_connection_err() => {
+            let mut config = profile.tracking_mut()?;
+            config.track_node(&nid, alias.as_deref())?
+        }
+        Err(e) => return Err(e.into()),
+    };
     let outcome = if tracked { "updated" } else { "exists" };
 
     if let Some(alias) = alias {
