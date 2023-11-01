@@ -64,8 +64,3 @@ qcheck = { version = "1", default-features = false }
 path = "../radicle-crypto"
 version = "0"
 features = ["test"]
-
-[dev-dependencies.radicle-cob]
-path = "../radicle-cob"
-version = "0"
-features = ["stable-commit-ids"]

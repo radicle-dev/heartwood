@@ -1118,6 +1118,8 @@ mod test {
     }
 
     #[test]
+    #[ignore]
+    // Run with `RAD_COMMIT_TIME=1514817556`.
     fn test_identity_updates_concurrent() {
         let network = Network::default();
         let alice = &network.alice;
@@ -1174,6 +1176,8 @@ mod test {
     }
 
     #[test]
+    #[ignore]
+    // Run with `RAD_COMMIT_TIME=1514817556`.
     fn test_identity_redact_revision() {
         let network = Network::default();
         let alice = &network.alice;
@@ -1217,6 +1221,8 @@ mod test {
     }
 
     #[test]
+    #[ignore]
+    // Run with `RAD_COMMIT_TIME=1514817556`.
     fn test_identity_remove_delegate_concurrent() {
         let network = Network::default();
         let alice = &network.alice;
@@ -1261,6 +1267,8 @@ mod test {
     }
 
     #[test]
+    #[ignore]
+    // Run with `RAD_COMMIT_TIME=1514817556`.
     fn test_identity_reject_concurrent() {
         let network = Network::default();
         let alice = &network.alice;
@@ -1317,6 +1325,8 @@ mod test {
     }
 
     #[test]
+    #[ignore]
+    // Run with `RAD_COMMIT_TIME=1514817556`.
     fn test_identity_updates_concurrent_outdated() {
         let network = Network::default();
         let alice = &network.alice;
