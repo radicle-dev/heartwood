@@ -40,9 +40,22 @@ pub mod env {
     /// RNG seed. Must be convertible to a `u64`.
     pub const RAD_RNG_SEED: &str = "RAD_RNG_SEED";
 
+    /// Get the configured pager program from the environment.
+    pub fn pager() -> Option<String> {
+        if let Ok(cfg) = git2::Config::open_default() {
+            if let Ok(pager) = cfg.get_string("core.pager") {
+                return Some(pager);
+            }
+        }
+        if let Ok(pager) = var("PAGER") {
+            return Some(pager);
+        }
+        None
+    }
+
     /// Get the radicle passphrase from the environment.
     pub fn passphrase() -> Option<super::Passphrase> {
-        let Ok(passphrase) = std::env::var(RAD_PASSPHRASE) else {
+        let Ok(passphrase) = var(RAD_PASSPHRASE) else {
             return None;
         };
         Some(super::Passphrase::from(passphrase))
@@ -50,7 +63,7 @@ pub mod env {
 
     /// Get a random number generator from the environment.
     pub fn rng() -> fastrand::Rng {
-        if let Ok(seed) = std::env::var(RAD_RNG_SEED) {
+        if let Ok(seed) = var(RAD_RNG_SEED) {
             return fastrand::Rng::with_seed(
                 seed.parse()
                     .expect("env::rng: invalid seed specified in `RAD_RNG_SEED`"),

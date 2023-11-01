@@ -43,19 +43,12 @@ impl Constraint {
         }
     }
 
-    /// A constraint that can only be satisfied by a single size.
-    pub fn tight(size: Size) -> Self {
+    /// A constraint that can only be satisfied by a single column size.
+    /// The rows are unconstrained.
+    pub fn tight(cols: usize) -> Self {
         Self {
-            min: size,
-            max: size,
-        }
-    }
-
-    /// Return a new constraint that forces objects to the maximum size.
-    pub fn maximize(self) -> Self {
-        Self {
-            min: self.max,
-            max: self.max,
+            min: Size::new(cols, 1),
+            max: Size::new(cols, usize::MAX),
         }
     }
 
@@ -96,11 +89,12 @@ pub trait Element: fmt::Debug {
         }
     }
 
-    /// Write to a writer.
-    fn write(&self, constraints: Constraint) {
-        for line in self.render(constraints) {
-            println!("{}", line.to_string().trim_end());
-        }
+    /// Write using the given constraints to `stdout`.
+    fn write(&self, constraints: Constraint) -> io::Result<()>
+    where
+        Self: Sized,
+    {
+        self::write_to(self, &mut io::stdout(), constraints)
     }
 
     #[must_use]
@@ -141,6 +135,18 @@ impl<T: Element> Element for &T {
     fn print(&self) {
         (*self).print()
     }
+}
+
+/// Write using the given constraints, to a writer.
+pub fn write_to(
+    elem: &impl Element,
+    writer: &mut impl io::Write,
+    constraints: Constraint,
+) -> io::Result<()> {
+    for line in elem.render(constraints) {
+        writeln!(writer, "{}", line.to_string().trim_end())?;
+    }
+    Ok(())
 }
 
 /// A line of text that has styling and can be displayed.

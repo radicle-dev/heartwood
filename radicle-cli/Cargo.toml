@@ -26,6 +26,7 @@ radicle-surf = { version = "0.17.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1" }
 serde_yaml = { version = "0.8" }
+shlex = { version = "1.1.0" }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
 timeago = { version = "0.3", default-features = false }

@@ -92,6 +92,10 @@ pub fn columns() -> Option<usize> {
     termion::terminal_size().map(|(cols, _)| cols as usize).ok()
 }
 
+pub fn rows() -> Option<usize> {
+    termion::terminal_size().map(|(_, rows)| rows as usize).ok()
+}
+
 pub fn viewport() -> Option<Size> {
     termion::terminal_size()
         .map(|(cols, rows)| Size::new(cols as usize, rows as usize))

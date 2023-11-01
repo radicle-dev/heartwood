@@ -32,6 +32,13 @@ impl<'a> Row<'a> {
             Self::Dividier => c.min.cols,
         }
     }
+
+    fn height(&self, c: Constraint) -> usize {
+        match self {
+            Self::Element(e) => e.rows(c),
+            Self::Dividier => 1,
+        }
+    }
 }
 
 /// Vertical stack of [`Element`] objects that implements [`Element`].
@@ -109,7 +116,7 @@ impl<'a> VStack<'a> {
     fn outer(&self, c: Constraint) -> Size {
         let padding = self.opts.padding * 2;
         let mut cols = self.rows.iter().map(|r| r.width(c)).max().unwrap_or(0) + padding;
-        let mut rows = self.rows.len();
+        let mut rows = self.rows.iter().map(|r| r.height(c)).sum();
 
         // Account for outer borders.
         if self.opts.border.is_some() {
@@ -129,10 +136,7 @@ impl<'a> Element for VStack<'a> {
         let mut lines = Vec::new();
         let padding = self.opts.padding;
         let inner = self.inner(parent);
-        let child = Constraint::tight(Size {
-            cols: inner.cols - padding * 2,
-            rows: usize::MAX,
-        });
+        let child = Constraint::tight(inner.cols - padding * 2);
 
         if let Some(color) = self.opts.border {
             lines.push(

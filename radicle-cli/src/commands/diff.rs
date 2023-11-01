@@ -8,10 +8,10 @@ use radicle_surf as surf;
 
 use crate::git::pretty_diff::ToPretty as _;
 use crate::git::Rev;
+use crate::pager;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::highlight::Highlighter;
-use crate::terminal::{Constraint, Element as _};
 
 pub const HELP: Help = Help {
     name: "diff",
@@ -145,7 +145,7 @@ pub fn run(options: Options, _ctx: impl term::Context) -> anyhow::Result<()> {
     let mut hi = Highlighter::default();
     let pretty = diff.pretty(&mut hi, &(), &repo);
 
-    pretty.write(Constraint::from_env().unwrap_or_default());
+    pager::run(pretty)?;
 
     Ok(())
 }
