@@ -1,0 +1,388 @@
+use std::{ops::Deref, str::FromStr};
+
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+
+use radicle_cob::history::EntryId;
+use radicle_crypto::ssh::ExtendedSignature;
+
+use crate::{
+    cob::{
+        self,
+        change::store::Entry,
+        store::{self, Cob, CobAction, Store, Transaction},
+        ObjectId, TypeName,
+    },
+    crypto::Signer,
+    git,
+    prelude::ReadRepository,
+    storage::{Oid, WriteRepository},
+};
+
+/// The name of this COB type.
+pub static TYPENAME: Lazy<TypeName> =
+    Lazy::new(|| FromStr::from_str("xyz.radicle.beta.job").expect("type name is valid"));
+
+/// An identifier for the job.
+pub type JobId = ObjectId;
+
+/// All the possible errors from this type of COB.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("initialization failed: {0}")]
+    Init(&'static str),
+    #[error("op decoding failed: {0}")]
+    Op(#[from] cob::op::OpEncodingError),
+    #[error("store: {0}")]
+    Store(#[from] store::Error),
+    #[error("can't trigger a job which is not fresh")]
+    TriggerWhenNotFresh,
+    #[error("can't start a job which is not triggered")]
+    StartWhenNotFresh,
+    #[error("can't finish a job which is not running")]
+    FinishWhenNotRunning,
+}
+
+/// All the possible states of this COB.
+///
+/// This COB is essentially a state machine that tracks the state of
+/// an automated run, such as CI. When the COB is created, in state
+/// `Fresh`, it just records the git commit the run uses. This can't
+/// be changed. The COB may be created before the run actually starts.
+/// Once the run starts, the COB state changes to `Running`. When the
+/// run finished, the state changes to `Finished`, and the state
+/// records why the run finished: `Succeeded` or `Failed`.
+///
+/// No other state changes are allowed for the COB.
+#[derive(Debug, Default, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
+pub enum State {
+    /// COB has been created, job has not yet started running.
+    #[default]
+    Fresh,
+
+    /// Job has started running.
+    Running,
+
+    /// Job has finished.
+    Finished(Reason),
+}
+
+impl std::fmt::Display for State {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fresh => write!(f, "fresh"),
+            Self::Running => write!(f, "running"),
+            Self::Finished(Reason::Succeeded) => write!(f, "succeeded"),
+            Self::Finished(Reason::Failed) => write!(f, "failed"),
+        }
+    }
+}
+
+/// Why did build finish?
+#[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Reason {
+    /// Build was successful.
+    Succeeded,
+    /// Build failed for some reason.
+    Failed,
+}
+
+/// Actions to update this COB.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum Action {
+    /// Initialize the COB for a new job.
+    Trigger { commit: git::Oid },
+
+    /// Start a job.
+    Start {
+        run_id: String,
+        info_url: Option<String>,
+    },
+
+    /// Finish a job.
+    Finish { reason: Reason },
+}
+
+impl CobAction for Action {}
+
+/// Type of COB operation.
+pub type Op = cob::Op<Action>;
+
+/// The COB with actions applied.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Job {
+    commit: git::Oid,
+    state: State,
+    run_id: Option<String>,
+    info_url: Option<String>,
+}
+
+impl Job {
+    fn new(commit: git::Oid) -> Self {
+        Self {
+            commit,
+            state: State::default(),
+            run_id: None,
+            info_url: None,
+        }
+    }
+    pub fn commit(&self) -> git::Oid {
+        self.commit
+    }
+
+    pub fn run_id(&self) -> Option<&str> {
+        self.run_id.as_deref()
+    }
+
+    pub fn info_url(&self) -> Option<&str> {
+        self.info_url.as_deref()
+    }
+
+    pub fn state(&self) -> State {
+        self.state
+    }
+
+    /// Apply a single action to the build.
+    fn action(&mut self, action: Action) -> Result<(), Error> {
+        match action {
+            Action::Trigger { .. } => {
+                if self.state != State::Fresh {
+                    return Err(Error::TriggerWhenNotFresh);
+                }
+            }
+
+            Action::Start { run_id, info_url } => {
+                if self.state != State::Fresh {
+                    return Err(Error::StartWhenNotFresh);
+                }
+                self.state = State::Running;
+                self.run_id = Some(run_id);
+                self.info_url = info_url;
+            }
+
+            Action::Finish { reason } => {
+                if self.state != State::Running {
+                    return Err(Error::FinishWhenNotRunning);
+                }
+                self.state = State::Finished(reason);
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Cob for Job {
+    type Action = Action;
+    type Error = Error;
+
+    fn type_name() -> &'static TypeName {
+        &TYPENAME
+    }
+
+    fn from_root<R: ReadRepository>(op: Op, _repo: &R) -> Result<Self, Self::Error> {
+        let mut actions = op.actions.into_iter();
+        let Some(Action::Trigger { commit }) = actions.next() else {
+            return Err(Error::Init("the first action must be of type `trigger`"));
+        };
+        let mut job = Job::new(commit);
+
+        for action in actions {
+            job.action(action)?;
+        }
+        Ok(job)
+    }
+
+    fn op<'a, R: ReadRepository, I: IntoIterator<Item = &'a cob::Entry>>(
+        &mut self,
+        op: Op,
+        _concurrent: I,
+        _repo: &R,
+    ) -> Result<(), Error> {
+        // Some day this needs to check authorization. However, we
+        // don't yet know what the rules should be.
+        for action in op.actions {
+            self.action(action)?;
+        }
+        Ok(())
+    }
+}
+
+impl<R: ReadRepository> cob::Evaluate<R> for Job {
+    type Error = Error;
+
+    fn init(entry: &cob::Entry, repo: &R) -> Result<Self, Self::Error> {
+        let op = Op::try_from(entry)?;
+        let job = Job::from_root(op, repo)?;
+        Ok(job)
+    }
+
+    fn apply<'a, I>(
+        &mut self,
+        entry: &cob::Entry,
+        concurrent: I,
+        repo: &R,
+    ) -> Result<(), Self::Error>
+    where
+        I: Iterator<Item = (&'a Oid, &'a Entry<Oid, Oid, ExtendedSignature>)>,
+    {
+        let op = Op::try_from(entry)?;
+        self.op(op, concurrent.map(|(_, e)| e), repo)
+    }
+}
+
+impl<R: ReadRepository> Transaction<Job, R> {
+    pub fn fresh(&mut self, commit: git::Oid) -> Result<(), store::Error> {
+        self.push(Action::Trigger { commit })
+    }
+
+    pub fn start(&mut self, run_id: String, info_url: Option<String>) -> Result<(), store::Error> {
+        self.push(Action::Start { run_id, info_url })
+    }
+
+    pub fn finish(&mut self, reason: Reason) -> Result<(), store::Error> {
+        self.push(Action::Finish { reason })
+    }
+}
+
+pub struct JobMut<'a, 'g, R> {
+    id: ObjectId,
+    job: Job,
+    store: &'g mut JobStore<'a, R>,
+}
+
+impl<'a, 'g, R> From<JobMut<'a, 'g, R>> for (JobId, Job) {
+    fn from(value: JobMut<'a, 'g, R>) -> Self {
+        (value.id, value.job)
+    }
+}
+
+impl<'a, 'g, R> std::fmt::Debug for JobMut<'a, 'g, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("JobMut")
+            .field("id", &self.id)
+            .field("job", &self.job)
+            .finish()
+    }
+}
+
+impl<'a, 'g, R> JobMut<'a, 'g, R>
+where
+    R: WriteRepository + cob::Store,
+{
+    /// Reload the COB from storage.
+    pub fn reload(&mut self) -> Result<(), store::Error> {
+        self.job = self
+            .store
+            .get(&self.id)?
+            .ok_or_else(|| store::Error::NotFound(TYPENAME.clone(), self.id))?;
+        Ok(())
+    }
+
+    pub fn id(&self) -> &ObjectId {
+        &self.id
+    }
+
+    pub fn start<G: Signer>(
+        &mut self,
+        run_id: String,
+        info_url: Option<String>,
+        signer: &G,
+    ) -> Result<EntryId, Error> {
+        self.transaction("Start", signer, |tx| {
+            tx.start(run_id, info_url)?;
+            Ok(())
+        })
+    }
+
+    pub fn finish<G: Signer>(&mut self, reason: Reason, signer: &G) -> Result<EntryId, Error> {
+        self.transaction("Finish", signer, |tx| tx.finish(reason))
+    }
+
+    pub fn transaction<G, F>(
+        &mut self,
+        message: &str,
+        signer: &G,
+        operations: F,
+    ) -> Result<EntryId, Error>
+    where
+        G: Signer,
+        F: FnOnce(&mut Transaction<Job, R>) -> Result<(), store::Error>,
+    {
+        let mut tx = Transaction::default();
+        operations(&mut tx)?;
+
+        let (job, id) = tx.commit(message, self.id, &mut self.store.raw, signer)?;
+        self.job = job;
+
+        Ok(id)
+    }
+}
+
+impl<'a, 'g, R> Deref for JobMut<'a, 'g, R> {
+    type Target = Job;
+
+    fn deref(&self) -> &Self::Target {
+        &self.job
+    }
+}
+
+pub struct JobStore<'a, R> {
+    raw: Store<'a, Job, R>,
+}
+
+impl<'a, R> Deref for JobStore<'a, R> {
+    type Target = Store<'a, Job, R>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.raw
+    }
+}
+
+impl<'a, R> JobStore<'a, R>
+where
+    R: WriteRepository + ReadRepository + cob::Store,
+{
+    pub fn open(repository: &'a R) -> Result<Self, store::Error> {
+        let raw = store::Store::open(repository)?;
+        Ok(Self { raw })
+    }
+
+    pub fn get(&self, id: &ObjectId) -> Result<Option<Job>, store::Error> {
+        self.raw.get(id)
+    }
+
+    pub fn get_mut<'g>(&'g mut self, id: &ObjectId) -> Result<JobMut<'a, 'g, R>, store::Error> {
+        let job = self
+            .raw
+            .get(id)?
+            .ok_or_else(|| store::Error::NotFound(TYPENAME.clone(), *id))?;
+        Ok(JobMut {
+            id: *id,
+            job,
+            store: self,
+        })
+    }
+
+    pub fn create<'g, G: Signer>(
+        &'g mut self,
+        commit_id: git::Oid,
+        signer: &G,
+    ) -> Result<JobMut<'a, 'g, R>, Error> {
+        let (id, job) = Transaction::initial("Create job", &mut self.raw, signer, |tx| {
+            tx.fresh(commit_id)?;
+            Ok(())
+        })?;
+
+        Ok(JobMut {
+            id,
+            job,
+            store: self,
+        })
+    }
+
+    pub fn remove<G: Signer>(&self, id: &ObjectId, signer: &G) -> Result<(), store::Error> {
+        self.raw.remove(id, signer)
+    }
+}

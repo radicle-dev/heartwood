@@ -2684,3 +2684,17 @@ fn rad_workflow() {
     )
     .unwrap();
 }
+
+#[test]
+fn rad_job() {
+    let mut environment = Environment::new();
+    let profile = environment.profile(config::profile("alice"));
+    let home = &profile.home;
+    let working = environment.tmp().join("working");
+
+    // Setup a test repository.
+    fixtures::repository(&working);
+
+    test("examples/rad-init.md", &working, Some(home), []).unwrap();
+    test("examples/rad-job.md", &working, Some(home), []).unwrap();
+}
