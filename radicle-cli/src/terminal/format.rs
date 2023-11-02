@@ -30,6 +30,11 @@ pub fn oid(oid: impl Into<radicle::git::Oid>) -> Paint<String> {
     Paint::new(format!("{:.7}", oid.into()))
 }
 
+/// Format a job COB state.
+pub fn job_state(state: radicle::cob::job::State) -> Paint<String> {
+    Paint::new(format!("{}", state))
+}
+
 /// Wrap parenthesis around styled input, eg. `"input"` -> `"(input)"`.
 pub fn parens<D: fmt::Display>(input: Paint<D>) -> Paint<String> {
     Paint::new(format!("({})", input.item)).with_style(input.style)

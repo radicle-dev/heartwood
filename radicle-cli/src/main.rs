@@ -232,6 +232,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "job" => {
+            term::run_command_args::<rad_job::Options, _>(
+                rad_job::HELP,
+                rad_job::run,
+                args.to_vec(),
+            );
+        }
         "ls" => {
             term::run_command_args::<rad_ls::Options, _>(rad_ls::HELP, rad_ls::run, args.to_vec());
         }

@@ -25,6 +25,7 @@ const COMMANDS: &[Help] = &[
     rad_inbox::HELP,
     rad_inspect::HELP,
     rad_issue::HELP,
+    rad_job::HELP,
     rad_ls::HELP,
     rad_node::HELP,
     rad_patch::HELP,
