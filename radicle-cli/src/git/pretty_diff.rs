@@ -393,6 +393,8 @@ mod test {
         let mut hi = Highlighter::default();
         let pretty = diff.pretty(&mut hi, &(), &repo);
 
-        pretty.write(Constraint::from_env().unwrap_or_default());
+        pretty
+            .write(Constraint::from_env().unwrap_or_default())
+            .unwrap();
     }
 }
