@@ -1002,6 +1002,7 @@ impl Patch {
                 revision,
                 body,
                 reply_to,
+                embeds,
                 ..
             } => {
                 if let Some(revision) = lookup::revision_mut(self, &revision)? {
@@ -1013,7 +1014,7 @@ impl Patch {
                         body,
                         reply_to,
                         None,
-                        vec![],
+                        embeds,
                     )?;
                 }
             }
