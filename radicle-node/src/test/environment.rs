@@ -329,9 +329,9 @@ impl Node<MockSigner> {
         let home = Home::new(home).unwrap();
         let signer = MockSigner::default();
         let storage = Storage::open(home.storage()).unwrap();
-        let addresses = Book::memory().unwrap();
-        let tracking = tracking::Config::<tracking::Write>::memory().unwrap();
-        let routing = routing::Table::memory().unwrap();
+        let addresses = home.addresses_mut().unwrap();
+        let tracking = home.tracking_mut().unwrap();
+        let routing = home.routing_mut().unwrap();
 
         Self {
             id: *signer.public_key(),

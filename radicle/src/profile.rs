@@ -259,30 +259,34 @@ impl Profile {
         Ok(addresses)
     }
 
+    /// Get radicle home.
+    pub fn home(&self) -> &Home {
+        &self.home
+    }
+
     /// Return a multi-source store for aliases.
     pub fn aliases(&self) -> Aliases {
-        let tracking = self.tracking().ok();
-        let addresses = self.addresses().ok();
+        let tracking = self.home.tracking().ok();
+        let addresses = self.home.addresses().ok();
 
         Aliases {
             tracking,
             addresses,
         }
     }
+}
 
-    /// Return the path to the keys folder.
-    pub fn keys(&self) -> PathBuf {
-        self.home.keys()
+impl std::ops::Deref for Profile {
+    type Target = Home;
+
+    fn deref(&self) -> &Self::Target {
+        &self.home
     }
+}
 
-    /// Get the profile home directory.
-    pub fn home(&self) -> &Path {
-        self.home.path()
-    }
-
-    /// Get the path to the radicle node socket.
-    pub fn socket(&self) -> PathBuf {
-        self.home.socket()
+impl std::ops::DerefMut for Profile {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.home
     }
 }
 
@@ -386,6 +390,54 @@ impl Home {
         env::var_os(env::RAD_SOCKET)
             .map(PathBuf::from)
             .unwrap_or_else(|| self.node().join(node::DEFAULT_SOCKET_NAME))
+    }
+
+    /// Return a read-only handle to the tracking configuration of the node.
+    pub fn tracking(&self) -> Result<tracking::store::ConfigReader, tracking::store::Error> {
+        let path = self.node().join(node::TRACKING_DB_FILE);
+        let config = tracking::store::Config::reader(path)?;
+
+        Ok(config)
+    }
+
+    /// Return a read-write handle to the tracking configuration of the node.
+    pub fn tracking_mut(&self) -> Result<tracking::store::ConfigWriter, tracking::store::Error> {
+        let path = self.node().join(node::TRACKING_DB_FILE);
+        let config = tracking::store::Config::open(path)?;
+
+        Ok(config)
+    }
+
+    /// Return a read-only handle to the routing database of the node.
+    pub fn routing(&self) -> Result<routing::Table, routing::Error> {
+        let path = self.node().join(node::ROUTING_DB_FILE);
+        let router = routing::Table::reader(path)?;
+
+        Ok(router)
+    }
+
+    /// Return a read-write handle to the routing database of the node.
+    pub fn routing_mut(&self) -> Result<routing::Table, routing::Error> {
+        let path = self.node().join(node::ROUTING_DB_FILE);
+        let router = routing::Table::open(path)?;
+
+        Ok(router)
+    }
+
+    /// Return a handle to a read-only addresses database of the node.
+    pub fn addresses(&self) -> Result<address::Book, address::Error> {
+        let path = self.node().join(node::ADDRESS_DB_FILE);
+        let addresses = address::Book::reader(path)?;
+
+        Ok(addresses)
+    }
+
+    /// Return a handle to the addresses database of the node.
+    pub fn addresses_mut(&self) -> Result<address::Book, address::Error> {
+        let path = self.node().join(node::ADDRESS_DB_FILE);
+        let addresses = address::Book::open(path)?;
+
+        Ok(addresses)
     }
 }
 

@@ -7,7 +7,7 @@ fn main() -> anyhow::Result<()> {
         "fingerprint: {}",
         radicle::crypto::ssh::fmt::fingerprint(profile.id())
     );
-    println!("home: {}", profile.home().display());
+    println!("home: {}", profile.home().path().display());
 
     Ok(())
 }

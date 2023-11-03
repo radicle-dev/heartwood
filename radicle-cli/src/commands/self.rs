@@ -106,7 +106,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             term::print(profile.did());
         }
         Show::Home => {
-            term::print(profile.home().display());
+            term::print(profile.home().path().display());
         }
         Show::Config => {
             term::print(profile.home.config().display());
@@ -171,7 +171,7 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
     let home = profile.home();
     table.push([
         term::format::style("Home").into(),
-        term::format::tertiary(home.display()).into(),
+        term::format::tertiary(home.path().display()).into(),
     ]);
 
     let config_path = profile.home.config();

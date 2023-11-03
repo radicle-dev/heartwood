@@ -60,7 +60,7 @@ pub async fn run(options: Options) -> anyhow::Result<()> {
     let profile = Profile::load()?;
     let request_id = RequestId::new();
 
-    tracing::info!("using radicle home at {}", profile.home().display());
+    tracing::info!("using radicle home at {}", profile.home().path().display());
 
     let app =
         router(options, profile)?
