@@ -279,24 +279,32 @@ pub fn remove_remote(repo: &git2::Repository) -> Result<(), RemoteError> {
 /// want to modify the wrong repository in the case that it found a
 /// Git repository that is not a Radicle repository.
 pub fn cwd() -> Result<(git2::Repository, Id), RemoteError> {
-    let mut flags = git2::RepositoryOpenFlags::empty();
-    // Allow to search upwards.
-    flags.set(git2::RepositoryOpenFlags::NO_SEARCH, false);
-    // Allow to use `GIT_DIR` env.
-    flags.set(git2::RepositoryOpenFlags::FROM_ENV, true);
-    let ceilings: &[&str] = &[];
-    let repo = git2::Repository::open_ext(Path::new("."), flags, ceilings)?;
+    let repo = repo()?;
     let (_, id) = remote(&repo)?;
 
     Ok((repo, id))
 }
 
 /// Get the repository of project in specified directory
-pub fn repo(path: impl AsRef<Path>) -> Result<(git2::Repository, Id), RemoteError> {
+pub fn at(path: impl AsRef<Path>) -> Result<(git2::Repository, Id), RemoteError> {
     let repo = git2::Repository::open(path)?;
     let (_, id) = remote(&repo)?;
 
     Ok((repo, id))
+}
+
+/// Get the current Git repository.
+pub fn repo() -> Result<git2::Repository, git2::Error> {
+    let mut flags = git2::RepositoryOpenFlags::empty();
+    // Allow to search upwards.
+    flags.set(git2::RepositoryOpenFlags::NO_SEARCH, false);
+    // Allow to use `GIT_DIR` env.
+    flags.set(git2::RepositoryOpenFlags::FROM_ENV, true);
+
+    let ceilings: &[&str] = &[];
+    let repo = git2::Repository::open_ext(Path::new("."), flags, ceilings)?;
+
+    Ok(repo)
 }
 
 /// Setup patch upstream branch such that `git push` updates the patch.

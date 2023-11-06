@@ -870,6 +870,15 @@ fn rad_fork() {
 }
 
 #[test]
+fn rad_diff() {
+    let working = tempfile::tempdir().unwrap();
+
+    fixtures::repository(&working);
+
+    test("examples/rad-diff.md", working, None, []).unwrap();
+}
+
+#[test]
 // User tries to clone; no seeds are available, but user has the repo locally.
 fn test_clone_without_seeds() {
     let mut environment = Environment::new();

@@ -107,7 +107,7 @@ impl Args for Options {
                     if let Ok(val) = Id::from_str(&val) {
                         rid = Some(val);
                     } else if let Ok(val) = PathBuf::from_str(&val) {
-                        rid = radicle::rad::repo(val)
+                        rid = radicle::rad::at(val)
                             .map(|(_, id)| Some(id))
                             .context("Supplied argument is not a valid path")?;
                     } else {

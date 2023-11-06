@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use radicle::{
     storage::{WriteRepository, WriteStorage},
     Profile,
@@ -8,7 +6,7 @@ use radicle::{
 fn main() -> anyhow::Result<()> {
     let profile = Profile::load()?;
 
-    let (_, rid) = radicle::rad::repo(Path::new("."))?;
+    let (_, rid) = radicle::rad::cwd()?;
     let repo = profile.storage.repository_mut(rid)?;
 
     let id_oid = repo.set_identity_head()?;

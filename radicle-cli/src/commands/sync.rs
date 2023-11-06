@@ -1,5 +1,4 @@
 use std::ffi::OsString;
-use std::path::Path;
 use std::time;
 
 use anyhow::{anyhow, Context as _};
@@ -208,8 +207,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let rid = match options.rid {
         Some(rid) => rid,
         None => {
-            let (_, rid) = radicle::rad::repo(Path::new("."))
-                .context("Current directory is not a radicle project")?;
+            let (_, rid) =
+                radicle::rad::cwd().context("Current directory is not a radicle project")?;
 
             rid
         }

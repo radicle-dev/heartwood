@@ -82,7 +82,7 @@ impl Args for Options {
 }
 
 pub fn run(options: Options, _ctx: impl term::Context) -> anyhow::Result<()> {
-    let (repo, _) = rad::cwd()?;
+    let repo = rad::repo()?;
     let oids = options
         .commits
         .into_iter()

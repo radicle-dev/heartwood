@@ -104,10 +104,22 @@ impl ToPretty for FileHeader {
     ) -> Self::Output {
         match self {
             FileHeader::Added { path, .. } => term::Line::new(path.display().to_string()),
-            FileHeader::Moved { new_path, .. } => term::Line::new(new_path.display().to_string()),
+            FileHeader::Moved {
+                old_path, new_path, ..
+            } => term::Line::spaced([
+                term::label(old_path.display().to_string()),
+                term::label("->".to_string()),
+                term::label(new_path.display().to_string()),
+            ]),
             FileHeader::Deleted { path, .. } => term::Line::new(path.display().to_string()),
             FileHeader::Modified { path, .. } => term::Line::new(path.display().to_string()),
-            FileHeader::Copied { new_path, .. } => term::Line::new(new_path.display().to_string()),
+            FileHeader::Copied {
+                old_path, new_path, ..
+            } => term::Line::spaced([
+                term::label(old_path.display().to_string()),
+                term::label("->".to_string()),
+                term::label(new_path.display().to_string()),
+            ]),
         }
     }
 }
@@ -149,20 +161,31 @@ impl ToPretty for DiffContent {
         let header = FileHeader::from(context);
         let theme = Theme::default();
 
-        let (old, new) = match context {
-            FileDiff::Added(f) => (None, Some((f.new.oid, f.path.clone()))),
+        let (old, new, badge) = match context {
+            FileDiff::Added(f) => (
+                None,
+                Some((f.new.oid, f.path.clone())),
+                Some(term::format::badge_positive("created")),
+            ),
             FileDiff::Moved(f) => (
                 Some((f.old.oid, f.old_path.clone())),
                 Some((f.new.oid, f.new_path.clone())),
+                Some(term::format::badge_secondary("moved")),
             ),
-            FileDiff::Deleted(f) => (Some((f.old.oid, f.path.clone())), None),
+            FileDiff::Deleted(f) => (
+                Some((f.old.oid, f.path.clone())),
+                None,
+                Some(term::format::badge_negative("deleted")),
+            ),
             FileDiff::Modified(f) => (
                 Some((f.old.oid, f.path.clone())),
                 Some((f.new.oid, f.path.clone())),
+                None,
             ),
             FileDiff::Copied(f) => (
                 Some((f.old.oid, f.old_path.clone())),
                 Some((f.old.oid, f.new_path.clone())),
+                Some(term::format::badge_secondary("copied")),
             ),
         };
         let mut header = header.pretty(hi, &(), repo);
@@ -172,11 +195,18 @@ impl ToPretty for DiffContent {
         } else {
             (0, 0)
         };
+
         if deletions > 0 {
-            header.push(term::label(format!(" -{deletions}")).fg(theme.color("negative.light")));
+            header.push(term::Label::space());
+            header.push(term::label(format!("-{deletions}")).fg(theme.color("negative.light")));
         }
         if additions > 0 {
-            header.push(term::label(format!(" +{additions}")).fg(theme.color("positive.light")));
+            header.push(term::Label::space());
+            header.push(term::label(format!("+{additions}")).fg(theme.color("positive.light")));
+        }
+        if let Some(badge) = badge {
+            header.push(term::Label::space());
+            header.push(badge);
         }
 
         let old = old.and_then(|(oid, path)| repo.blob(oid).ok().or_else(|| repo.file(&path)));
@@ -191,24 +221,30 @@ impl ToPretty for DiffContent {
         }
         let mut vstack = term::VStack::default()
             .border(Some(term::colors::FAINT))
-            .padding(0)
-            .child(term::Line::new(term::Label::space()).extend(header))
-            .divider();
+            .padding(1)
+            .child(term::Line::default().extend(header));
 
-        match self {
-            DiffContent::Plain { hunks, .. } => {
-                for (i, h) in hunks.iter().enumerate() {
-                    vstack.push(h.pretty(hi, &blobs, repo));
-                    if i != hunks.0.len() - 1 {
-                        vstack = vstack.divider();
+        match context {
+            FileDiff::Moved(_) | FileDiff::Copied(_) => {}
+            FileDiff::Added(_) | FileDiff::Deleted(_) | FileDiff::Modified(_) => {
+                vstack = vstack.divider();
+
+                match self {
+                    DiffContent::Plain { hunks, .. } => {
+                        for (i, h) in hunks.iter().enumerate() {
+                            vstack.push(h.pretty(hi, &blobs, repo));
+                            if i != hunks.0.len() - 1 {
+                                vstack = vstack.divider();
+                            }
+                        }
+                    }
+                    DiffContent::Empty => {
+                        vstack.push(term::Line::new(term::format::italic("Empty file")));
+                    }
+                    DiffContent::Binary => {
+                        vstack.push(term::Line::new(term::format::italic("Binary file")));
                     }
                 }
-            }
-            DiffContent::Empty => {
-                vstack.push(term::Line::new(term::format::italic("Empty file")));
-            }
-            DiffContent::Binary => {
-                vstack.push(term::Line::new(term::format::italic("Binary file")));
             }
         }
         vstack
