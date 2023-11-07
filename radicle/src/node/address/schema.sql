@@ -37,3 +37,26 @@ create table if not exists "addresses" (
   unique ("node", "type", "value")
   --
 ) strict;
+
+create table if not exists "announcements" (
+  -- Node ID.
+  "node"               text      not null references "nodes" ("id"),
+  -- Repo ID, if any, for example in ref announcements.
+  "repo"               text      not null,
+  -- Announcement type.
+  --
+  -- Valid values are:
+  --
+  -- "refs"
+  -- "node"
+  -- "inventory"
+  "type"               text      not null,
+  -- Announcement message in wire format (binary).
+  "message"            blob      not null,
+  -- Signature over message.
+  "signature"          blob      not null,
+  -- Announcement timestamp.
+  "timestamp"          integer   not null,
+  --
+  unique ("node", "repo", "type")
+) strict;

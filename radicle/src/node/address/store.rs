@@ -38,13 +38,25 @@ impl fmt::Debug for Book {
     }
 }
 
+impl From<sql::Connection> for Book {
+    fn from(db: sql::Connection) -> Self {
+        Self { db }
+    }
+}
+
 impl Book {
     const SCHEMA: &str = include_str!("schema.sql");
 
     /// Open an address book at the given path. Creates a new address book if it
     /// doesn't exist.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let db = sql::Connection::open(path)?;
+        let db = sql::Connection::open_with_flags(
+            path,
+            sqlite::OpenFlags::new()
+                .set_create()
+                .set_read_write()
+                .set_full_mutex(),
+        )?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })

@@ -99,26 +99,33 @@ where
 pub struct Config<G: Signer + 'static> {
     pub config: service::Config,
     pub addrs: address::Book,
+    pub gossip: gossip::Store,
     pub local_time: LocalTime,
     pub policy: Policy,
     pub scope: Scope,
     pub signer: G,
     pub rng: fastrand::Rng,
+    pub tmp: tempfile::TempDir,
 }
 
 impl Default for Config<MockSigner> {
     fn default() -> Self {
         let mut rng = fastrand::Rng::new();
         let signer = MockSigner::new(&mut rng);
+        let tmp = tempfile::TempDir::new().unwrap();
+        let addrs = address::Book::open(tmp.path().join("addresses.db")).unwrap();
+        let gossip = gossip::Store::open(tmp.path().join("addresses.db")).unwrap();
 
         Config {
             config: service::Config::test(Alias::from_str("mocky").unwrap()),
-            addrs: address::Book::memory().unwrap(),
+            addrs,
+            gossip,
             local_time: LocalTime::now(),
             policy: Policy::default(),
             scope: Scope::default(),
             signer,
             rng,
+            tmp,
         }
     }
 }
@@ -157,7 +164,6 @@ where
         let routing = routing::Table::memory().unwrap();
         let tracking = tracking::Store::<tracking::store::Write>::memory().unwrap();
         let mut tracking = tracking::Config::new(config.policy, config.scope, tracking);
-        let tempdir = tempfile::tempdir().unwrap();
         let id = *config.signer.public_key();
         let ip = ip.into();
         let local_addr = net::SocketAddr::new(ip, config.rng.u16(..));
@@ -176,6 +182,7 @@ where
             routing,
             storage,
             config.addrs,
+            config.gossip,
             tracking,
             config.signer,
             config.rng.clone(),
@@ -191,7 +198,7 @@ where
             local_addr,
             rng: config.rng,
             initialized: false,
-            tempdir,
+            tempdir: config.tmp,
         }
     }
 

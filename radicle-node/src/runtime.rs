@@ -27,7 +27,7 @@ use crate::control;
 use crate::crypto::Signer;
 use crate::node::{routing, NodeId};
 use crate::service::message::NodeAnnouncement;
-use crate::service::{tracking, Event};
+use crate::service::{gossip, tracking, Event};
 use crate::wire::Wire;
 use crate::wire::{self, Decode};
 use crate::worker;
@@ -48,6 +48,9 @@ pub enum Error {
     /// A tracking database error.
     #[error("tracking database error: {0}")]
     Tracking(#[from] tracking::Error),
+    /// A gossip database error.
+    #[error("gossip database error: {0}")]
+    Gossip(#[from] gossip::Error),
     /// An I/O error.
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
@@ -141,7 +144,10 @@ impl Runtime {
         let policy = config.policy;
 
         log::info!(target: "node", "Opening address book {}..", address_db.display());
-        let mut addresses = address::Book::open(address_db)?;
+        let mut addresses = address::Book::open(address_db.clone())?;
+
+        log::info!(target: "node", "Opening gossip store from {}..", address_db.display());
+        let gossip = gossip::Store::open(address_db)?; // Nb. same database as address book.
 
         log::info!(target: "node", "Opening routing table {}..", routing_db.display());
         let routing = routing::Table::open(routing_db)?;
@@ -204,6 +210,7 @@ impl Runtime {
             routing,
             storage.clone(),
             addresses,
+            gossip,
             tracking,
             signer.clone(),
             rng,

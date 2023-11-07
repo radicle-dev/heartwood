@@ -1,14 +1,16 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::collapsible_match)]
 #![allow(clippy::collapsible_if)]
+#![warn(clippy::unwrap_used)]
 pub mod filter;
+pub mod gossip;
 pub mod io;
 pub mod limitter;
 pub mod message;
 pub mod session;
 
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::{fmt, time};
@@ -50,7 +52,6 @@ pub use crate::service::session::Session;
 
 pub use radicle::node::tracking::config as tracking;
 
-use self::gossip::Gossip;
 use self::io::Outbox;
 use self::limitter::RateLimiter;
 use self::message::InventoryAnnouncement;
@@ -203,7 +204,7 @@ pub struct Service<R, A, S, G> {
     /// Tracking policy configuration.
     tracking: tracking::Config<Write>,
     /// State relating to gossip.
-    gossip: Gossip,
+    gossip: gossip::Store,
     /// Peer sessions, currently or recently connected.
     sessions: Sessions,
     /// Clock. Tells the time.
@@ -262,6 +263,7 @@ where
         routing: R,
         storage: S,
         addresses: A,
+        gossip: gossip::Store,
         tracking: tracking::Config<Write>,
         signer: G,
         rng: Rng,
@@ -280,7 +282,7 @@ where
             node,
             clock,
             routing,
-            gossip: Gossip::default(),
+            gossip,
             outbox: Outbox::default(),
             limiter: RateLimiter::default(),
             sessions,
@@ -483,7 +485,7 @@ where
                 .inventory()
                 .and_then(|i| self.announce_inventory(i))
             {
-                error!(target: "service", "Error announcing inventory: {}", err);
+                error!(target: "service", "Error announcing inventory: {err}");
             }
             self.outbox.wakeup(ANNOUNCE_INTERVAL);
             self.last_announce = now;
@@ -492,8 +494,15 @@ where
             trace!(target: "service", "Running 'prune' task...");
 
             if let Err(err) = self.prune_routing_entries(&now) {
-                error!("Error pruning routing entries: {}", err);
+                error!(target: "service", "Error pruning routing entries: {err}");
             }
+            if let Err(err) = self
+                .gossip
+                .prune((now - self.config.limits.gossip_max_age).as_millis())
+            {
+                error!(target: "service", "Error pruning gossip entries: {err}");
+            }
+
             self.outbox.wakeup(PRUNE_INTERVAL);
             self.last_prune = now;
         }
@@ -886,26 +895,36 @@ where
         let now = self.clock;
         let timestamp = message.timestamp();
         let relay = self.config.relay;
-        let peer = self
-            .gossip
-            .nodes
-            .entry(*announcer)
-            .or_insert_with(Node::default);
 
         // Don't allow messages from too far in the future.
         if timestamp.saturating_sub(now.as_millis()) > MAX_TIME_DELTA.as_millis() as u64 {
             return Err(session::Error::InvalidTimestamp(timestamp));
         }
-
-        match message {
-            AnnouncementMessage::Inventory(message) => {
-                // Discard inventory messages we've already seen, otherwise update
-                // out last seen time.
-                if !peer.inventory_announced(announcement.clone()) {
+        // Check ref signatures validity.
+        if let AnnouncementMessage::Refs(message) = message {
+            for theirs in message.refs.iter() {
+                if theirs.verify(&theirs.id).is_err() {
+                    warn!(target: "service", "Peer {relayer} relayed refs announcement with invalid signature for {}", theirs.id);
+                    return Err(session::Error::Misbehavior);
+                }
+            }
+        }
+        // Discard announcement messages we've already seen, otherwise update out last seen time.
+        match self.gossip.announced(announcer, announcement) {
+            Ok(fresh) => {
+                if !fresh {
                     trace!(target: "service", "Ignoring stale inventory announcement from {announcer} (t={})", self.time());
                     return Ok(false);
                 }
+            }
+            Err(e) => {
+                error!(target: "service", "Error updating gossip entry from {announcer}: {e}");
+                return Ok(false);
+            }
+        }
 
+        match message {
+            AnnouncementMessage::Inventory(message) => {
                 match self.sync_routing(&message.inventory, *announcer, message.timestamp) {
                     Ok(synced) => {
                         if synced.is_empty() {
@@ -914,7 +933,7 @@ where
                         }
                     }
                     Err(e) => {
-                        error!(target: "service", "Error processing inventory from {}: {}", announcer, e);
+                        error!(target: "service", "Error processing inventory from {announcer}: {e}");
                         return Ok(false);
                     }
                 }
@@ -957,13 +976,6 @@ where
             }
             // Process a peer inventory update announcement by (maybe) fetching.
             AnnouncementMessage::Refs(message) => {
-                for theirs in message.refs.iter() {
-                    if theirs.verify(&theirs.id).is_err() {
-                        warn!(target: "service", "Peer {relayer} relayed refs announcement with invalid signature for {}", theirs.id);
-                        return Err(session::Error::Misbehavior);
-                    }
-                }
-
                 // We update inventories when receiving ref announcements, as these could come
                 // from a new repository being initialized.
                 if let Ok(result) =
@@ -977,12 +989,6 @@ where
                         });
                         info!(target: "service", "Routing table updated for {} with seed {announcer}", message.rid);
                     }
-                }
-                // Discard announcement messages we've already seen, otherwise update
-                // our last seen time.
-                if !peer.refs_announced(message.rid, announcement.clone()) {
-                    trace!(target: "service", "Ignoring stale refs announcement from {announcer} (time={timestamp})");
-                    return Ok(false);
                 }
 
                 // Check if the announcer is in sync with our own refs, and if so emit an event.
@@ -1042,13 +1048,6 @@ where
                     ..
                 },
             ) => {
-                // Discard node messages we've already seen, otherwise update
-                // our last seen time.
-                if !peer.node_announced(announcement.clone()) {
-                    trace!(target: "service", "Ignoring stale node announcement from {announcer}");
-                    return Ok(false);
-                }
-
                 // If this node isn't a seed, we're not interested in adding it
                 // to our address book, but other nodes may be, so we relay the message anyway.
                 if !features.has(Features::SEED) {
@@ -1174,14 +1173,30 @@ where
                 }
             }
             (session::State::Connected { .. }, Message::Subscribe(subscribe)) => {
-                for ann in self
+                // Filter announcements by interest.
+                match self
                     .gossip
-                    // Filter announcements by interest.
                     .filtered(&subscribe.filter, subscribe.since, subscribe.until)
-                    // Don't send announcements authored by the remote, back to the remote.
-                    .filter(|ann| &ann.node != remote)
                 {
-                    self.outbox.write(peer, ann.into());
+                    Ok(anns) => {
+                        for ann in anns {
+                            let ann = match ann {
+                                Ok(a) => a,
+                                Err(e) => {
+                                    error!(target: "service", "Error reading gossip message from store: {e}");
+                                    continue;
+                                }
+                            };
+                            // Don't send announcements authored by the remote, back to the remote.
+                            if ann.node == *remote {
+                                continue;
+                            }
+                            self.outbox.write(peer, ann.into());
+                        }
+                    }
+                    Err(e) => {
+                        error!(target: "service", "Error querying gossip messages from store: {e}");
+                    }
                 }
                 peer.subscribe = Some(subscribe);
             }
@@ -1720,75 +1735,6 @@ pub enum LookupError {
     Repository(#[from] RepositoryError),
 }
 
-/// Keeps track of the most recent announcements of a node.
-#[derive(Default, Debug)]
-pub struct Node {
-    /// Last ref announcements (per project).
-    pub last_refs: HashMap<Id, Announcement>,
-    /// Last inventory announcement.
-    pub last_inventory: Option<Announcement>,
-    /// Last node announcement.
-    pub last_node: Option<Announcement>,
-}
-
-impl Node {
-    /// Process a refs announcement for the given node.
-    /// Returns `true` if the timestamp was updated.
-    pub fn refs_announced(&mut self, id: Id, ann: Announcement) -> bool {
-        match self.last_refs.entry(id) {
-            Entry::Vacant(e) => {
-                e.insert(ann);
-                return true;
-            }
-            Entry::Occupied(mut e) => {
-                let last = e.get_mut();
-
-                if ann.timestamp() > last.timestamp() {
-                    *last = ann;
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    /// Process an inventory announcement for the given node.
-    /// Returns `true` if the timestamp was updated.
-    pub fn inventory_announced(&mut self, ann: Announcement) -> bool {
-        match &mut self.last_inventory {
-            Some(last) => {
-                if ann.timestamp() > last.timestamp() {
-                    *last = ann;
-                    return true;
-                }
-            }
-            None => {
-                self.last_inventory = Some(ann);
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Process a node announcement for the given node.
-    /// Returns `true` if the timestamp was updated.
-    pub fn node_announced(&mut self, ann: Announcement) -> bool {
-        match &mut self.last_node {
-            Some(last) => {
-                if ann.timestamp() > last.timestamp() {
-                    *last = ann;
-                    return true;
-                }
-            }
-            None => {
-                self.last_node = Some(ann);
-                return true;
-            }
-        }
-        false
-    }
-}
-
 #[derive(Debug, Clone)]
 /// Holds currently (or recently) connected peers.
 pub struct Sessions(AddressBook<NodeId, Session>);
@@ -1840,102 +1786,5 @@ impl Deref for Sessions {
 impl DerefMut for Sessions {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
-    }
-}
-
-pub mod gossip {
-    use super::*;
-    use crate::service::filter::Filter;
-
-    #[derive(Default, Debug)]
-    pub struct Gossip {
-        // FIXME: This should be loaded from the address store.
-        /// Keeps track of node announcements.
-        pub nodes: BTreeMap<NodeId, Node>,
-    }
-
-    impl Gossip {
-        pub fn filtered<'a>(
-            &'a self,
-            filter: &'a Filter,
-            start: Timestamp,
-            end: Timestamp,
-        ) -> impl Iterator<Item = Announcement> + '_ {
-            self.nodes
-                .values()
-                .flat_map(|n| {
-                    [&n.last_node, &n.last_inventory]
-                        .into_iter()
-                        .flatten()
-                        .chain(n.last_refs.values())
-                        .cloned()
-                        .collect::<Vec<_>>()
-                })
-                .filter(move |ann| ann.timestamp() >= start && ann.timestamp() < end)
-                .filter(move |ann| ann.matches(filter))
-        }
-    }
-
-    pub fn handshake<G: Signer, S: ReadStorage>(
-        node: NodeAnnouncement,
-        now: Timestamp,
-        storage: &S,
-        signer: &G,
-        filter: Filter,
-    ) -> Vec<Message> {
-        let inventory = match storage.inventory() {
-            Ok(i) => i,
-            Err(e) => {
-                error!("Error getting local inventory for handshake: {}", e);
-                // Other than crashing the node completely, there's nothing we can do
-                // here besides returning an empty inventory and logging an error.
-                vec![]
-            }
-        };
-
-        vec![
-            Message::node(node, signer),
-            Message::inventory(gossip::inventory(now, inventory), signer),
-            Message::subscribe(
-                filter,
-                now - SUBSCRIBE_BACKLOG_DELTA.as_millis() as u64,
-                Timestamp::MAX,
-            ),
-        ]
-    }
-
-    pub fn node(config: &Config, timestamp: Timestamp) -> NodeAnnouncement {
-        let features = config.features();
-        let alias = config.alias.clone();
-        let addresses: BoundedVec<_, ADDRESS_LIMIT> = config
-            .external_addresses
-            .clone()
-            .try_into()
-            .expect("external addresses are within the limit");
-
-        NodeAnnouncement {
-            features,
-            timestamp,
-            alias,
-            addresses,
-            nonce: 0,
-        }
-    }
-
-    pub fn inventory(timestamp: Timestamp, inventory: Vec<Id>) -> InventoryAnnouncement {
-        type Inventory = BoundedVec<Id, INVENTORY_LIMIT>;
-
-        if inventory.len() > Inventory::max() {
-            error!(
-                target: "service",
-                "inventory announcement limit ({}) exceeded, other nodes will see only some of your projects",
-                inventory.len()
-            );
-        }
-
-        InventoryAnnouncement {
-            inventory: BoundedVec::truncate(inventory),
-            timestamp,
-        }
     }
 }

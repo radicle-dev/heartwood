@@ -442,6 +442,44 @@ impl sqlite::BindableWithIndex for &PublicKey {
     }
 }
 
+#[cfg(feature = "sqlite")]
+impl From<&Signature> for sqlite::Value {
+    fn from(sig: &Signature) -> Self {
+        sqlite::Value::Binary(sig.to_vec())
+    }
+}
+
+#[cfg(feature = "sqlite")]
+impl TryFrom<&sqlite::Value> for Signature {
+    type Error = sqlite::Error;
+
+    fn try_from(value: &sqlite::Value) -> Result<Self, Self::Error> {
+        match value {
+            sqlite::Value::Binary(s) => ed25519::Signature::from_slice(s)
+                .map_err(|e| sqlite::Error {
+                    code: None,
+                    message: Some(e.to_string()),
+                })
+                .map(Self),
+            _ => Err(sqlite::Error {
+                code: None,
+                message: Some("sql: invalid column type for signature".to_owned()),
+            }),
+        }
+    }
+}
+
+#[cfg(feature = "sqlite")]
+impl sqlite::BindableWithIndex for &Signature {
+    fn bind<I: sqlite::ParameterIndex>(
+        self,
+        stmt: &mut sqlite::Statement<'_>,
+        i: I,
+    ) -> sqlite::Result<()> {
+        sqlite::Value::from(self).bind(stmt, i)
+    }
+}
+
 pub mod keypair {
     use super::*;
 

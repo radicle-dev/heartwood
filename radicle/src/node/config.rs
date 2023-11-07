@@ -56,6 +56,9 @@ pub struct Limits {
     /// How long to keep a routing table entry before being pruned.
     #[serde(with = "crate::serde_ext::localtime::duration")]
     pub routing_max_age: LocalDuration,
+    /// How long to keep a gossip message entry before pruning it.
+    #[serde(with = "crate::serde_ext::localtime::duration")]
+    pub gossip_max_age: LocalDuration,
     /// Maximum number of concurrent fetches per per connection.
     pub fetch_concurrency: usize,
     /// Rate limitter settings.
@@ -67,7 +70,8 @@ impl Default for Limits {
     fn default() -> Self {
         Self {
             routing_max_size: 1000,
-            routing_max_age: LocalDuration::from_mins(7 * 24 * 60),
+            routing_max_age: LocalDuration::from_mins(7 * 24 * 60), // One week
+            gossip_max_age: LocalDuration::from_mins(2 * 7 * 24 * 60), // Two weeks
             fetch_concurrency: 1,
             rate: RateLimits::default(),
         }
