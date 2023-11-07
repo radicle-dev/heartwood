@@ -7,6 +7,8 @@ pub struct Contains(#[source] pub raw::Error);
 
 #[derive(Debug, Error)]
 pub enum Ancestry {
+    #[error("missing one of {a} or {b} while checking ancestry")]
+    Missing { a: Oid, b: Oid },
     #[error(transparent)]
     Contains(#[from] Contains),
     #[error("failed to check ancestry for {old} and {new}")]
@@ -14,7 +16,7 @@ pub enum Ancestry {
         old: Oid,
         new: Oid,
         #[source]
-        err: ext::Error,
+        err: raw::Error,
     },
 }
 

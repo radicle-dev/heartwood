@@ -1,14 +1,35 @@
 pub mod error;
 
-use either::{
-    Either,
-    Either::{Left, Right},
-};
+use either::Either;
 use radicle::git::{Namespaced, Oid, Qualified};
 use radicle::storage::git::Repository;
-use radicle::storage::ReadRepository;
 
 use super::refs::{Applied, Policy, RefUpdate, Update};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ancestry {
+    Equal,
+    Ahead,
+    Behind,
+    Diverged,
+}
+
+pub enum Updated<'a> {
+    Accepted(RefUpdate),
+    Rejected(Update<'a>),
+}
+
+impl<'a> From<RefUpdate> for Updated<'a> {
+    fn from(up: RefUpdate) -> Self {
+        Updated::Accepted(up)
+    }
+}
+
+impl<'a> From<Update<'a>> for Updated<'a> {
+    fn from(up: Update<'a>) -> Self {
+        Updated::Rejected(up)
+    }
+}
 
 pub fn contains(repo: &Repository, oid: Oid) -> Result<bool, error::Contains> {
     repo.backend
@@ -17,17 +38,27 @@ pub fn contains(repo: &Repository, oid: Oid) -> Result<bool, error::Contains> {
         .map_err(error::Contains)
 }
 
-pub fn is_in_ancestry_path(repo: &Repository, old: Oid, new: Oid) -> Result<bool, error::Ancestry> {
+pub fn ancestry(repo: &Repository, old: Oid, new: Oid) -> Result<Ancestry, error::Ancestry> {
     if !contains(repo, old)? || !contains(repo, new)? {
-        return Ok(false);
+        return Err(error::Ancestry::Missing { a: old, b: new });
     }
 
     if old == new {
-        return Ok(true);
+        return Ok(Ancestry::Equal);
     }
 
-    repo.is_ancestor_of(old, new)
-        .map_err(|err| error::Ancestry::Check { old, new, err })
+    let (ahead, behind) = repo
+        .backend
+        .graph_ahead_behind(new.into(), old.into())
+        .map_err(|err| error::Ancestry::Check { old, new, err })?;
+
+    if ahead > 0 && behind == 0 {
+        Ok(Ancestry::Ahead)
+    } else if ahead == 0 && behind > 0 {
+        Ok(Ancestry::Behind)
+    } else {
+        Ok(Ancestry::Diverged)
+    }
 }
 
 pub fn refname_to_id<'a, N>(repo: &Repository, refname: N) -> Result<Option<Oid>, error::Resolve>
@@ -59,12 +90,12 @@ where
                 target,
                 no_ff,
             } => match direct(repo, name, target, no_ff)? {
-                Left(r) => applied.rejected.push(r),
-                Right(u) => applied.updated.push(u),
+                Updated::Rejected(r) => applied.rejected.push(r),
+                Updated::Accepted(u) => applied.updated.push(u),
             },
             Update::Prune { name, prev } => match prune(repo, name, prev)? {
-                Left(r) => applied.rejected.push(r),
-                Right(u) => applied.updated.push(u),
+                Updated::Rejected(r) => applied.rejected.push(r),
+                Updated::Accepted(u) => applied.updated.push(u),
             },
         }
     }
@@ -77,49 +108,62 @@ fn direct<'a>(
     name: Namespaced<'a>,
     target: Oid,
     no_ff: Policy,
-) -> Result<Either<Update<'a>, RefUpdate>, error::Update> {
+) -> Result<Updated<'a>, error::Update> {
     let tip = refname_to_id(repo, name.clone())?;
     match tip {
         Some(prev) => {
-            let is_ff = is_in_ancestry_path(repo, prev, target)?;
-            if !is_ff {
-                match no_ff {
-                    Policy::Abort => {
-                        return Err(error::Update::NonFF {
-                            name: name.to_owned(),
-                            new: target,
-                            cur: prev,
-                        })
-                    }
-                    Policy::Reject => Ok(Left(Update::Direct {
-                        name,
-                        target,
-                        no_ff,
-                    })),
-                    Policy::Allow => {
-                        // N.b. the update is a non-fast-forward but
-                        // we allow it, so we pass `force: true`.
-                        repo.backend
-                            .reference(name.as_ref(), target.into(), true, "radicle: update")
-                            .map_err(|err| error::Update::Create {
-                                name: name.to_owned(),
-                                target,
-                                err,
-                            })?;
-                        Ok(Right(RefUpdate::from(name.to_ref_string(), prev, target)))
-                    }
+            let ancestry = ancestry(repo, prev, target)?;
+
+            match ancestry {
+                Ancestry::Equal => Ok(RefUpdate::Skipped {
+                    name: name.to_ref_string(),
+                    oid: target,
                 }
-            } else {
-                // N.b. the update is a fast-forward so we can safely
-                // pass `force: true`.
-                repo.backend
-                    .reference(name.as_ref(), target.into(), true, "radicle: update")
-                    .map_err(|err| error::Update::Create {
+                .into()),
+                Ancestry::Ahead => {
+                    // N.b. the update is a fast-forward so we can safely
+                    // pass `force: true`.
+                    repo.backend
+                        .reference(name.as_ref(), target.into(), true, "radicle: update")
+                        .map_err(|err| error::Update::Create {
+                            name: name.to_owned(),
+                            target,
+                            err,
+                        })?;
+                    Ok(RefUpdate::from(name.to_ref_string(), prev, target).into())
+                }
+                Ancestry::Behind | Ancestry::Diverged if matches!(no_ff, Policy::Allow) => {
+                    // N.b. the update is a non-fast-forward but
+                    // we allow it, so we pass `force: true`.
+                    repo.backend
+                        .reference(name.as_ref(), target.into(), true, "radicle: update")
+                        .map_err(|err| error::Update::Create {
+                            name: name.to_owned(),
+                            target,
+                            err,
+                        })?;
+                    Ok(RefUpdate::from(name.to_ref_string(), prev, target).into())
+                }
+                // N.b. if the target is behind, we simply reject the update
+                Ancestry::Behind => Ok(Update::Direct {
+                    name,
+                    target,
+                    no_ff,
+                }
+                .into()),
+                Ancestry::Diverged if matches!(no_ff, Policy::Reject) => Ok(Update::Direct {
+                    name,
+                    target,
+                    no_ff,
+                }
+                .into()),
+                Ancestry::Diverged => {
+                    return Err(error::Update::NonFF {
                         name: name.to_owned(),
-                        target,
-                        err,
-                    })?;
-                Ok(Right(RefUpdate::from(name.to_ref_string(), prev, target)))
+                        new: target,
+                        cur: prev,
+                    })
+                }
             }
         }
         None => {
@@ -132,10 +176,11 @@ fn direct<'a>(
                     target,
                     err,
                 })?;
-            Ok(Right(RefUpdate::Created {
+            Ok(RefUpdate::Created {
                 name: name.to_ref_string(),
                 oid: target,
-            }))
+            }
+            .into())
         }
     }
 }
@@ -144,7 +189,7 @@ fn prune<'a>(
     repo: &Repository,
     name: Namespaced<'a>,
     prev: Either<Oid, Qualified<'a>>,
-) -> Result<Either<Update<'a>, RefUpdate>, error::Update> {
+) -> Result<Updated<'a>, error::Update> {
     use radicle::git::raw::ObjectType;
 
     match find(repo, &name)? {
@@ -160,12 +205,13 @@ fn prune<'a>(
                 name: name.to_owned(),
                 err,
             })?;
-            Ok(Right(RefUpdate::Deleted {
+            Ok(RefUpdate::Deleted {
                 name: name.to_ref_string(),
                 oid: prev,
-            }))
+            }
+            .into())
         }
-        None => Ok(Left(Update::Prune { name, prev })),
+        None => Ok(Update::Prune { name, prev }.into()),
     }
 }
 
