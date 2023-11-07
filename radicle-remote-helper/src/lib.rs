@@ -38,6 +38,9 @@ pub enum Error {
     /// Invalid arguments received.
     #[error("invalid arguments: {0:?}")]
     InvalidArguments(Vec<String>),
+    /// Unknown push option received.
+    #[error("unknown push option {0:?}")]
+    UnsupportedPushOption(String),
     /// Error with the remote url.
     #[error("invalid remote url: {0}")]
     RemoteUrl(#[from] UrlError),
@@ -68,6 +71,11 @@ pub enum Error {
 }
 
 #[derive(Debug, Default, Clone)]
+pub struct Allow {
+    rollback: bool,
+}
+
+#[derive(Debug, Default, Clone)]
 pub struct Options {
     /// Don't sync after push.
     no_sync: bool,
@@ -77,6 +85,8 @@ pub struct Options {
     base: Option<Rev>,
     /// Patch message.
     message: cli::patch::Message,
+    /// Operations allowed.
+    allow: Allow,
 }
 
 /// Run the radicle remote helper using the given profile.
@@ -129,35 +139,11 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
                 println!("ok");
             }
             ["option", "push-option", args @ ..] => {
-                match *args {
-                    ["sync"] => opts.no_sync = false,
-                    ["no-sync"] => opts.no_sync = true,
-                    ["patch.draft"] => opts.draft = true,
-                    _ => {
-                        let args = args.join(" ");
-
-                        if let Some((key, val)) = args.split_once('=') {
-                            match key {
-                                "patch.message" => {
-                                    opts.message.append(val);
-                                }
-                                "patch.base" => {
-                                    let base = cli::args::rev(&val.into())
-                                        .map_err(|e| Error::Base(e.into()))?;
-                                    opts.base = Some(base);
-                                }
-                                _ => {
-                                    println!("unsupported");
-                                    continue;
-                                }
-                            }
-                        } else {
-                            println!("unsupported");
-                            continue;
-                        }
-                    }
+                if push_option(args, &mut opts).is_ok() {
+                    println!("ok");
+                } else {
+                    println!("unsupported");
                 }
-                println!("ok");
             }
             ["option", "progress", ..] => {
                 println!("unsupported");
@@ -202,6 +188,40 @@ pub fn run(profile: radicle::Profile) -> Result<(), Error> {
             }
         }
     }
+}
+
+/// Parse a single push option. Returns `Ok` if it was successful.
+/// Note that some push options can contain spaces, eg. `patch.message="Hello World!"`,
+/// hence the arguments are passed as a slice.
+fn push_option(args: &[&str], opts: &mut Options) -> Result<(), Error> {
+    match args {
+        ["sync"] => opts.no_sync = false,
+        ["no-sync"] => opts.no_sync = true,
+        ["patch.draft"] => opts.draft = true,
+        ["allow.rollback"] => opts.allow.rollback = true,
+        _ => {
+            let args = args.join(" ");
+
+            if let Some((key, val)) = args.split_once('=') {
+                match key {
+                    "patch.message" => {
+                        opts.message.append(val);
+                    }
+                    "patch.base" => {
+                        let base =
+                            cli::args::rev(&val.into()).map_err(|e| Error::Base(e.into()))?;
+                        opts.base = Some(base);
+                    }
+                    other => {
+                        return Err(Error::UnsupportedPushOption(other.to_owned()));
+                    }
+                }
+            } else {
+                return Err(Error::UnsupportedPushOption(args.to_owned()));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Read one line from stdin, and split it into tokens.

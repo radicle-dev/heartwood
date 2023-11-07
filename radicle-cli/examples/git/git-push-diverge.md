@@ -65,3 +65,20 @@ $ git push rad
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
    f2de534..f6cff86  master -> master
 ```
+
+One thing of note is that we can't push an older commit either, by default:
+
+``` ~alice
+$ git reset --hard HEAD^ -q
+```
+``` ~alice (fail)
+$ git push -f
+```
+
+We have to use the `allow.rollback` option:
+
+``` ~alice (stderr)
+$ git push -f -o allow.rollback
+To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+ + f6cff86...319a7dc master -> master (forced update)
+```

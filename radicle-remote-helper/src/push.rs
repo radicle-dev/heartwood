@@ -226,12 +226,21 @@ pub fn run(
 
                         // If we're trying to update the canonical head, make sure
                         // we don't diverge from the current head.
+                        //
+                        // Note that we *do* allow rolling back to a previous commit on the
+                        // canonical branch.
                         if dst == *canonical_ref && delegates.contains(&Did::from(nid)) {
                             let head = working.find_reference(src.as_str())?;
                             let head = head.peel_to_commit()?.id();
+                            // Rollback is allowed and head is an ancestor of the canonical head.
+                            let rollback = opts.allow.rollback
+                                && working.graph_descendant_of(**canonical_oid, head)?;
 
                             if head != **canonical_oid
+                                // Canonical head is *not* an ancestor of head.
                                 && !working.graph_descendant_of(head, **canonical_oid)?
+                                // Not a rollback.
+                                && !rollback
                             {
                                 eprintln!(
                                     "hint: you are attempting to push a commit that would \
