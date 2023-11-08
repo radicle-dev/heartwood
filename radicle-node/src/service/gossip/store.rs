@@ -57,6 +57,20 @@ impl GossipStore {
         Ok(self.db.change_count())
     }
 
+    /// Get the last announcement in the store, by timestamp.
+    pub fn last(&self) -> Result<Option<Timestamp>, Error> {
+        let stmt = self
+            .db
+            .prepare("SELECT MAX(timestamp) AS latest FROM `announcements`")?;
+
+        if let Some(Ok(row)) = stmt.into_iter().next() {
+            let latest = row.try_read::<Option<i64>, _>(0)?;
+
+            return Ok(latest.map(|l| l as Timestamp));
+        }
+        Ok(None)
+    }
+
     /// Process an announcement for the given node.
     /// Returns `true` if the timestamp was updated or the announcement wasn't there before.
     pub fn announced(&mut self, nid: &NodeId, ann: &Announcement) -> Result<bool, Error> {

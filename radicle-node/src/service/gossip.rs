@@ -1,38 +1,9 @@
 pub mod store;
 
 use super::*;
-use crate::service::filter::Filter;
 
 pub use store::Error;
 pub use store::GossipStore as Store;
-
-pub fn handshake<G: Signer, S: ReadStorage>(
-    node: NodeAnnouncement,
-    now: Timestamp,
-    storage: &S,
-    signer: &G,
-    filter: Filter,
-) -> Vec<Message> {
-    let inventory = match storage.inventory() {
-        Ok(i) => i,
-        Err(e) => {
-            error!("Error getting local inventory for handshake: {}", e);
-            // Other than crashing the node completely, there's nothing we can do
-            // here besides returning an empty inventory and logging an error.
-            vec![]
-        }
-    };
-
-    vec![
-        Message::node(node, signer),
-        Message::inventory(gossip::inventory(now, inventory), signer),
-        Message::subscribe(
-            filter,
-            now - SUBSCRIBE_BACKLOG_DELTA.as_millis() as u64,
-            Timestamp::MAX,
-        ),
-    ]
-}
 
 pub fn node(config: &Config, timestamp: Timestamp) -> NodeAnnouncement {
     let features = config.features();
