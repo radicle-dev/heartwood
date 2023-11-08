@@ -53,9 +53,9 @@ impl Book {
         let db = sql::Connection::open_with_flags(
             path,
             sqlite::OpenFlags::new()
-                .set_create()
-                .set_read_write()
-                .set_full_mutex(),
+                .with_create()
+                .with_read_write()
+                .with_full_mutex(),
         )?;
         db.execute(Self::SCHEMA)?;
 
@@ -65,7 +65,7 @@ impl Book {
     /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
     /// open databases, as no locking is required.
     pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let db = sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().set_read_only())?;
+        let db = sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().with_read_only())?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })

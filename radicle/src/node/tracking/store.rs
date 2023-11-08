@@ -55,7 +55,7 @@ impl Config<Read> {
     /// open databases, as no locking is required.
     pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let mut db =
-            sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().set_read_only())?;
+            sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().with_read_only())?;
         db.set_busy_timeout(DB_READ_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::SCHEMA)?;
 
@@ -67,8 +67,10 @@ impl Config<Read> {
 
     /// Create a new in-memory address book.
     pub fn memory() -> Result<Self, Error> {
-        let db =
-            sql::Connection::open_with_flags(":memory:", sqlite::OpenFlags::new().set_read_only())?;
+        let db = sql::Connection::open_with_flags(
+            ":memory:",
+            sqlite::OpenFlags::new().with_read_only(),
+        )?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self {

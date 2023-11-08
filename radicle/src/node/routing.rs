@@ -66,7 +66,7 @@ impl Table {
     /// open databases, as no locking is required.
     pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let mut db =
-            sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().set_read_only())?;
+            sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().with_read_only())?;
         db.set_busy_timeout(DB_READ_TIMEOUT.as_millis() as usize)?;
         db.execute(Self::SCHEMA)?;
 

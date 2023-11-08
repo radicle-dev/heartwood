@@ -39,7 +39,7 @@ impl GossipStore {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let db = sql::Connection::open_with_flags(
             path,
-            sqlite::OpenFlags::new().set_read_write().set_full_mutex(),
+            sqlite::OpenFlags::new().with_read_write().with_full_mutex(),
         )?;
 
         Ok(Self { db })

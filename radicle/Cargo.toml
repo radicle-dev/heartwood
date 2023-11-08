@@ -26,7 +26,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 siphasher = { version = "0.3.10" }
 radicle-git-ext = { version = "0.6.0", features = ["serde"] }
-sqlite = { version = "0.31.0", features = ["bundled"] }
+sqlite = { version = "0.32.0", features = ["bundled"] }
 tempfile = { version = "3.3.0" }
 thiserror = { version = "1" }
 unicode-normalization = { version = "0.1" }
