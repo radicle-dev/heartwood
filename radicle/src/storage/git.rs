@@ -2,7 +2,7 @@
 pub mod cob;
 pub mod transport;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -757,99 +757,75 @@ pub enum QuorumError {
 /// Computes the quorum or "canonical" head based on the given heads and the
 /// threshold. This can be described as the latest commit that is included in
 /// at least `threshold` histories. In case there are multiple heads passing
-/// the threshold, and they are divergent, their merge base is taken.
+/// the threshold, and they are divergent, an error is returned.
 ///
-/// Returns an error if `heads` is empty or `threshold` cannot be satisified with
+/// Also returns an error if `heads` is empty or `threshold` cannot be satisified with
 /// the number of heads given.
 pub fn quorum(
     heads: &[git::raw::Oid],
     threshold: usize,
     repo: &git::raw::Repository,
 ) -> Result<Oid, QuorumError> {
-    let mut direct: HashMap<git::raw::Oid, HashSet<usize>> = HashMap::new();
-    let mut indirect: HashMap<git::raw::Oid, HashSet<usize>> = HashMap::new();
+    let mut candidates = BTreeMap::<_, usize>::new();
 
-    let Some(init) = heads.first() else {
-        return Err(QuorumError::NoQuorum);
-    };
-    // Nb. The merge base chosen for two merge commits is arbitrary.
-    let base = heads
-        .iter()
-        .try_fold(*init, |base, h| repo.merge_base(base, *h))?;
-
-    // Score every commit in the graph with the number of heads
-    // pointing to it.
-    // To make sure the votes are not counted twice, we use
-    // the index in the `heads` slice as the vote identifier.
-    // Note that it's perfectly legal to have multiple heads
-    // with the same value.
+    // Build a list of candidate commits and count how many "votes" each of them has.
+    // Commits get a point for each direct vote, as well as for being part of the ancestry
+    // of a commit given to this function. Only commits given to the function are considered.
     for (i, head) in heads.iter().enumerate() {
-        direct.entry(*head).or_default().insert(i);
+        let head = Oid::from(*head);
 
-        let mut revwalk = repo.revwalk()?;
-        revwalk.push(*head)?;
+        for other in heads.iter().skip(i) {
+            let base = repo.merge_base(*head, *other)?;
 
-        for rev in revwalk {
-            let rev = rev?;
-            indirect.entry(rev).or_default().insert(i);
-
-            if rev == base {
-                break;
+            // Nb. This also handles `head` == `other`, which happens once for every head,
+            // as well as when there is more than one head with the same OID.
+            if base == *other || base == *head {
+                *candidates.entry(Oid::from(base)).or_default() += 1;
             }
         }
     }
+    // Keep commits which pass the threshold.
+    candidates.retain(|_, votes| *votes >= threshold);
 
-    {
-        let matches = direct
-            .iter()
-            .filter(|(_, tips)| tips.len() >= threshold)
-            .map(|(h, _)| *h)
-            .collect::<Vec<_>>();
+    // Keep track of the longest identity branch.
+    let (mut longest, _) = candidates.pop_first().ok_or(QuorumError::NoQuorum)?;
 
-        match matches.as_slice() {
-            [] => {
-                // Check indirect votes.
-            }
-            [head] => return Ok((*head).into()),
-            [head, ref rest @ ..] => {
-                let oid = rest
-                    .iter()
-                    .try_fold(*head, |base, h| repo.merge_base(base, *h))?;
+    // Now that all scores are calculated, figure out what is the longest branch
+    // that passes the threshold. In case of divergence, return an error.
+    for head in candidates.keys() {
+        let base = repo.merge_base(**head, *longest)?;
 
-                if !direct.contains_key(&oid) {
-                    return Ok(oid.into());
-                }
-            }
+        if base == *longest {
+            // `head` is a successor of `longest`. Update `longest`.
+            //
+            //   o head
+            //   |
+            //   o longest (base)
+            //   |
+            //
+            longest = *head;
+        } else if base == **head || *head == longest {
+            // `head` is an ancestor of `longest`, or equal to it. Do nothing.
+            //
+            //   o longest             o longest, head (base)
+            //   |                     |
+            //   o head (base)   OR    o
+            //   |                     |
+            //
+        } else {
+            // The merge base between `head` and `longest` (`base`)
+            // is neither `head` nor `longest`. Therefore, the branches have
+            // diverged.
+            //
+            //    longest   head
+            //           \ /
+            //            o (base)
+            //            |
+            //
+            return Err(QuorumError::NoQuorum);
         }
     }
-
-    let mut combined: HashMap<git::raw::Oid, HashSet<usize>> = HashMap::new();
-    for (k, v) in direct.into_iter().chain(indirect) {
-        combined.entry(k).or_default().extend(v);
-    }
-
-    let minimum = combined
-        .iter()
-        .filter(|(_, tips)| tips.len() >= threshold)
-        .map(|(_, tips)| tips.len())
-        .min()
-        .ok_or(QuorumError::NoQuorum)?;
-
-    let candidates = combined
-        .iter()
-        .filter(|(_, v)| v.len() == minimum)
-        .map(|(h, _)| *h)
-        .collect::<Vec<_>>();
-
-    let oid = match candidates.as_slice() {
-        [] => return Err(QuorumError::NoQuorum),
-        [head] => *head,
-        [head, ref rest @ ..] => rest
-            .iter()
-            .try_fold(*head, |base, h| repo.merge_base(base, *h))?,
-    };
-
-    Ok(oid.into())
+    Ok((*longest).into())
 }
 
 pub mod trailers {
@@ -946,20 +922,8 @@ mod tests {
             }
             rng.shuffle(&mut heads);
 
-            match quorum(&heads, threshold, &repo) {
-                Ok(canonical) => {
-                    let mut matches = 0;
-                    for h in &heads {
-                        if *canonical == *h || repo.graph_descendant_of(*h, *canonical).unwrap() {
-                            matches += 1;
-                        }
-                    }
-                    assert!(
-                        matches >= threshold,
-                        "test failed: heads={heads:?} threshold={threshold} canonical={canonical}"
-                    );
-                }
-                Err(e) => panic!("{e} for heads={heads:?} threshold={threshold}"),
+            if let Ok(canonical) = quorum(&heads, threshold, &repo) {
+                assert!(heads.contains(&canonical));
             }
         }
     }
@@ -985,6 +949,8 @@ mod tests {
         eprintln!("M2: {m2}");
 
         assert_eq!(quorum(&[*c0], 1, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c1], 1, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*c2], 1, &repo).unwrap(), c2);
         assert_eq!(quorum(&[*c0], 0, &repo).unwrap(), c0);
         assert_matches!(quorum(&[], 0, &repo), Err(QuorumError::NoQuorum));
         assert_matches!(quorum(&[*c0], 2, &repo), Err(QuorumError::NoQuorum));
@@ -1011,36 +977,68 @@ mod tests {
         //   C1
         //   |
         //  C0
-        assert_eq!(quorum(&[*c1, *c2, *b2], 1, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*c2, *b2], 1, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*b2, *c2], 1, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*c2, *b2], 2, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*b2, *c2], 2, &repo).unwrap(), c1);
+        assert_matches!(
+            quorum(&[*c1, *c2, *b2], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(quorum(&[*c2, *b2], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*b2, *c2], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*c2, *b2], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*b2, *c2], 2, &repo), Err(QuorumError::NoQuorum));
         assert_eq!(quorum(&[*c1, *c2, *b2], 2, &repo).unwrap(), c1);
         assert_eq!(quorum(&[*c1, *c2, *b2], 3, &repo).unwrap(), c1);
         assert_eq!(quorum(&[*b2, *b2, *c2], 2, &repo).unwrap(), b2);
         assert_eq!(quorum(&[*b2, *c2, *c2], 2, &repo).unwrap(), c2);
-        assert_eq!(quorum(&[*b2, *b2, *c2, *c2], 1, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*b2, *c2, *c2], 1, &repo).unwrap(), c1);
+        assert_matches!(
+            quorum(&[*b2, *b2, *c2, *c2], 2, &repo),
+            Err(QuorumError::NoQuorum)
+        );
 
         //  B2 C2
         //    \|
         // A1 C1
         //   \|
         //   C0
-        assert_eq!(quorum(&[*c2, *b2, *a1], 1, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*c2, *b2, *a1], 2, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*c2, *b2, *a1], 3, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*c1, *c2, *b2, *a1], 4, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 2, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 3, &repo).unwrap(), c1);
+        assert_matches!(
+            quorum(&[*c2, *b2, *a1], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*c2, *b2, *a1], 2, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*c2, *b2, *a1], 3, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*c1, *c2, *b2, *a1], 4, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 2, &repo).unwrap(), c1,);
+        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 3, &repo).unwrap(), c1,);
         assert_eq!(quorum(&[*c0, *c2, *b2, *a1], 3, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 4, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*a1, *a1, *c2, *c2, *c1], 2, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*a1, *a1, *c2, *c2, *c1], 1, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*a1, *a1, *c2], 1, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*b2, *b2, *c2, *c2], 1, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*b2, *b2, *c2, *c2, *a1], 1, &repo).unwrap(), c0);
+        assert_eq!(quorum(&[*c0, *c1, *c2, *b2, *a1], 4, &repo).unwrap(), c0,);
+        assert_matches!(
+            quorum(&[*a1, *a1, *c2, *c2, *c1], 2, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*a1, *a1, *c2, *c2, *c1], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*a1, *a1, *c2], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*b2, *b2, *c2, *c2], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(
+            quorum(&[*b2, *b2, *c2, *c2, *a1], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
 
         //    M2  M1
         //    /\  /\
@@ -1050,18 +1048,27 @@ mod tests {
         //       \|
         //       C0
         assert_eq!(quorum(&[*m1], 1, &repo).unwrap(), m1);
-        assert_eq!(quorum(&[*m1, *m2], 1, &repo).unwrap(), b2);
-        assert_eq!(quorum(&[*m2, *m1], 1, &repo).unwrap(), b2);
-        assert_eq!(quorum(&[*m1, *m2], 2, &repo).unwrap(), b2);
-        assert_eq!(quorum(&[*m1, *m2, *c2], 1, &repo).unwrap(), c1);
-        assert_eq!(quorum(&[*m1, *a1], 1, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*m1, *a1], 2, &repo).unwrap(), c0);
+        assert_matches!(quorum(&[*m1, *m2], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m2, *m1], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m1, *m2], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(
+            quorum(&[*m1, *m2, *c2], 1, &repo),
+            Err(QuorumError::NoQuorum)
+        );
+        assert_matches!(quorum(&[*m1, *a1], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m1, *a1], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_eq!(quorum(&[*m1, *m2, *b2, *c1], 4, &repo).unwrap(), c1);
         assert_eq!(quorum(&[*m1, *m1, *b2], 2, &repo).unwrap(), m1);
-        assert_eq!(quorum(&[*c2, *m1, *m2], 3, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*m1, *m1, *c2], 2, &repo).unwrap(), m1);
+        assert_eq!(quorum(&[*m2, *m2, *b2], 2, &repo).unwrap(), m2);
+        assert_eq!(quorum(&[*m2, *m2, *a1], 2, &repo).unwrap(), m2);
+        assert_eq!(quorum(&[*m1, *m1, *b2, *b2], 2, &repo).unwrap(), m1);
+        assert_eq!(quorum(&[*m1, *m1, *c2, *c2], 2, &repo).unwrap(), m1);
+        assert_eq!(quorum(&[*m1, *b2, *c1, *c0], 3, &repo).unwrap(), c1);
+        assert_eq!(quorum(&[*m1, *b2, *c1, *c0], 4, &repo).unwrap(), c0);
     }
 
     #[test]
-    #[ignore = "failing"]
     fn test_quorum_merges() {
         let tmp = tempfile::tempdir().unwrap();
         let (repo, c0) = fixtures::repository(tmp.path());
@@ -1080,15 +1087,27 @@ mod tests {
         eprintln!("M1: {m1}");
         eprintln!("M2: {m2}");
 
-        assert_eq!(quorum(&[*m1, *m2], 1, &repo).unwrap(), c2);
-        assert_eq!(quorum(&[*m1, *m2], 2, &repo).unwrap(), c2);
+        //    M2  M1
+        //    /\  /\
+        //   C1 C2 C3
+        //     \| /
+        //      C0
+        assert_matches!(quorum(&[*m1, *m2], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m1, *m2], 2, &repo), Err(QuorumError::NoQuorum));
 
         let m3 = fixtures::commit("M3", &[*c2, *c1], &repo);
 
-        assert_eq!(quorum(&[*m1, *m3], 1, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*m1, *m3], 2, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*m3, *m1], 1, &repo).unwrap(), c0);
-        assert_eq!(quorum(&[*m3, *m1], 2, &repo).unwrap(), c0);
+        //   M3/M2 M1
+        //    /\  /\
+        //   C1 C2 C3
+        //     \| /
+        //      C0
+        assert_matches!(quorum(&[*m1, *m3], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m1, *m3], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m3, *m1], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m3, *m1], 2, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m3, *m2], 1, &repo), Err(QuorumError::NoQuorum));
+        assert_matches!(quorum(&[*m3, *m2], 2, &repo), Err(QuorumError::NoQuorum));
     }
 
     #[test]
