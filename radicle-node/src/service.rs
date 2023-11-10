@@ -868,6 +868,8 @@ where
 
             self.outbox.wakeup(delay);
         } else {
+            debug!(target: "service", "Dropping peer {remote}..");
+
             self.sessions.remove(&remote);
             // Only re-attempt outbound connections, since we don't care if an inbound connection
             // is dropped.
@@ -1153,6 +1155,8 @@ where
             warn!(target: "service", "Session not found for {remote}");
             return Ok(());
         };
+        peer.last_active = self.clock;
+
         let limit = match peer.link {
             Link::Outbound => &self.config.limits.rate.outbound,
             Link::Inbound => &self.config.limits.rate.inbound,
@@ -1164,7 +1168,6 @@ where
             trace!(target: "service", "Rate limiting message from {remote} ({})", peer.addr);
             return Ok(());
         }
-        peer.last_active = self.clock;
         message.log(log::Level::Debug, remote, Link::Inbound);
 
         trace!(target: "service", "Received message {:?} from {}", &message, peer.id);
@@ -1184,7 +1187,7 @@ where
                     let relay_to = self
                         .sessions
                         .connected()
-                        .filter(|(id, _)| *id != remote && *id != &announcer)
+                        .filter(|(id, _)| *id != &relayer && *id != &announcer)
                         .map(|(_, p)| p);
 
                     self.outbox.relay(ann, relay_to);
@@ -1411,6 +1414,8 @@ where
     }
 
     fn connect(&mut self, nid: NodeId, addr: Address) -> bool {
+        debug!(target: "service", "Connecting to {nid} ({addr})..");
+
         if self.sessions.contains_key(&nid) {
             warn!(target: "service", "Attempted connection to peer {nid} which already has a session");
             return false;
@@ -1517,6 +1522,11 @@ where
             .filter(|(_, session)| *now - session.last_active >= STALE_CONNECTION_TIMEOUT);
 
         for (_, session) in stale {
+            debug!(target: "service", "Disconnecting unresponsive peer {}..", session.id);
+
+            // TODO: Should we switch the session state to "disconnected" even before receiving
+            // an official "disconnect"? Otherwise we keep pinging until we get the disconnection.
+
             self.outbox.disconnect(
                 session.id,
                 DisconnectReason::Session(session::Error::Timeout),

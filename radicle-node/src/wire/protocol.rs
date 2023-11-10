@@ -780,7 +780,7 @@ where
                             target: "wire",
                             "Attempt to connect to already connected peer {node_id}"
                         );
-                        break;
+                        continue;
                     }
 
                     match dial::<G>(
@@ -801,7 +801,6 @@ where
                                 transport.as_raw_fd(),
                                 Peer::outbound(addr.to_inner(), node_id),
                             );
-
                             self.actions
                                 .push_back(reactor::Action::RegisterTransport(transport));
                         }
@@ -810,7 +809,6 @@ where
 
                             self.service
                                 .disconnected(node_id, &DisconnectReason::Dial(Arc::new(err)));
-                            break;
                         }
                     }
                 }
