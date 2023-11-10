@@ -189,13 +189,20 @@ description and default branch by running:
 
     $ rad inspect --payload
 
-=== Configuration
+== Files
 
-Radicle keeps a configuration file at *~/.radicle/config.json* by default. To
-display its exact location on your system, you can use the *rad self --config*
-command.
+*~/.radicle*::
 
-=== Environment
+The _Radicle Home_. This is the default location for Radicle configuration
+files, keys, and repository storage. Can be controlled by settting the
+**RAD_HOME** environment variable.
+
+*~/.radicle/config.json*::
+
+The default configuration file for Radicle. To display its exact
+location on your system, you can use the *rad self --config* command.
+
+== Environment
 
 Various environment variables are used by *rad*.
 
