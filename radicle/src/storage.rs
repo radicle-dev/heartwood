@@ -433,6 +433,9 @@ pub trait ReadRepository: Sized + ValidateRepository {
     /// Perform a revision walk of a commit history starting from the given head.
     fn revwalk(&self, head: Oid) -> Result<git2::Revwalk, git2::Error>;
 
+    /// Check if the underlying ODB contains the given `oid`.
+    fn contains(&self, oid: Oid) -> Result<bool, git2::Error>;
+
     /// Check whether the given commit is an ancestor of another commit.
     fn is_ancestor_of(&self, ancestor: Oid, head: Oid) -> Result<bool, git::ext::Error>;
 

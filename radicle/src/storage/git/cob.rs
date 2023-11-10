@@ -278,6 +278,10 @@ impl<'a, R: storage::ReadRepository> ReadRepository for DraftStore<'a, R> {
         self.repo.revwalk(head)
     }
 
+    fn contains(&self, oid: Oid) -> Result<bool, raw::Error> {
+        self.repo.contains(oid)
+    }
+
     fn is_ancestor_of(&self, ancestor: Oid, head: Oid) -> Result<bool, git_ext::Error> {
         self.repo.is_ancestor_of(ancestor, head)
     }

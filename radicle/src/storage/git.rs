@@ -565,6 +565,10 @@ impl ReadRepository for Repository {
         Ok(revwalk)
     }
 
+    fn contains(&self, oid: Oid) -> Result<bool, raw::Error> {
+        self.backend.odb().map(|odb| odb.exists(oid.into()))
+    }
+
     fn is_ancestor_of(&self, ancestor: Oid, head: Oid) -> Result<bool, git::Error> {
         self.backend
             .graph_descendant_of(head.into(), ancestor.into())

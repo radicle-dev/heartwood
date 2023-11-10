@@ -188,6 +188,13 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
+    fn contains(&self, oid: Oid) -> Result<bool, git2::Error> {
+        Ok(self
+            .remotes
+            .values()
+            .any(|sigrefs| sigrefs.at == oid || sigrefs.refs.values().any(|oid_| *oid_ == oid)))
+    }
+
     fn is_ancestor_of(&self, _ancestor: Oid, _head: Oid) -> Result<bool, git_ext::Error> {
         Ok(true)
     }
