@@ -108,45 +108,45 @@ where
         Command::Config => {
             let config = handle.config()?;
 
-            json::to_writer(writer, &config)?;
+            CommandResult::Okay(config).to_writer(writer)?;
         }
         Command::Seeds { rid } => {
             let seeds = handle.seeds(rid)?;
 
-            json::to_writer(writer, &seeds)?;
+            CommandResult::Okay(seeds).to_writer(writer)?;
         }
         Command::Sessions => {
             let sessions = handle.sessions()?;
 
-            json::to_writer(writer, &sessions)?;
+            CommandResult::Okay(sessions).to_writer(writer)?;
         }
         Command::TrackRepo { rid, scope } => match handle.track_repo(rid, scope) {
-            Ok(updated) => {
-                CommandResult::Okay { updated }.to_writer(writer)?;
+            Ok(result) => {
+                CommandResult::updated(result).to_writer(writer)?;
             }
             Err(e) => {
                 return Err(CommandError::Runtime(e));
             }
         },
         Command::UntrackRepo { rid } => match handle.untrack_repo(rid) {
-            Ok(updated) => {
-                CommandResult::Okay { updated }.to_writer(writer)?;
+            Ok(result) => {
+                CommandResult::updated(result).to_writer(writer)?;
             }
             Err(e) => {
                 return Err(CommandError::Runtime(e));
             }
         },
         Command::TrackNode { nid, alias } => match handle.track_node(nid, alias) {
-            Ok(updated) => {
-                CommandResult::Okay { updated }.to_writer(writer)?;
+            Ok(result) => {
+                CommandResult::updated(result).to_writer(writer)?;
             }
             Err(e) => {
                 return Err(CommandError::Runtime(e));
             }
         },
         Command::UntrackNode { nid } => match handle.untrack_node(nid) {
-            Ok(updated) => {
-                CommandResult::Okay { updated }.to_writer(writer)?;
+            Ok(result) => {
+                CommandResult::updated(result).to_writer(writer)?;
             }
             Err(e) => {
                 return Err(CommandError::Runtime(e));
@@ -165,8 +165,8 @@ where
             CommandResult::ok().to_writer(writer).ok();
         }
         Command::SyncInventory => match handle.sync_inventory() {
-            Ok(updated) => {
-                CommandResult::Okay { updated }.to_writer(writer)?;
+            Ok(result) => {
+                CommandResult::updated(result).to_writer(writer)?;
             }
             Err(e) => {
                 return Err(CommandError::Runtime(e));
@@ -176,19 +176,17 @@ where
             Ok(events) => {
                 for e in events {
                     let event = e?;
-                    let event = serde_json::to_string(&event)?;
-
-                    writeln!(&mut writer, "{event}")?;
+                    CommandResult::Okay(event).to_writer(&mut writer)?;
                 }
             }
-            Err(e) => log::error!(target: "control", "Error subscribing to events: {e}"),
+            Err(e) => return Err(CommandError::Runtime(e)),
         },
         Command::Status => {
             CommandResult::ok().to_writer(writer).ok();
         }
         Command::NodeId => match handle.nid() {
             Ok(nid) => {
-                writeln!(writer, "{nid}")?;
+                CommandResult::Okay(nid).to_writer(writer)?;
             }
             Err(e) => return Err(CommandError::Runtime(e)),
         },
@@ -267,7 +265,7 @@ mod tests {
             let stream = BufReader::new(stream);
             let line = stream.lines().next().unwrap().unwrap();
 
-            assert_eq!(line, json::json!({ "status": "ok" }).to_string());
+            assert_eq!(line, json::json!({}).to_string());
         }
 
         for rid in &rids {

@@ -6,9 +6,9 @@ use localtime::LocalTime;
 use nonempty::NonEmpty;
 
 use crate::collections::RandomMap;
-use crate::node;
 use crate::node::{Address, Alias};
 use crate::prelude::Timestamp;
+use crate::{node, profile};
 
 /// A map with the ability to randomly select values.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -59,10 +59,19 @@ impl<K: hash::Hash + Eq, V> AddressBook<K, V> {
     }
 }
 
-impl<K: hash::Hash + Eq + Ord, V> AddressBook<K, V> {
-    /// Return a shuffled iterator over the keys.
+impl<K: hash::Hash + Eq + Ord + Copy, V> AddressBook<K, V> {
+    /// Return a shuffled iterator.
     pub fn shuffled(&self) -> std::vec::IntoIter<(&K, &V)> {
         let mut items = self.inner.iter().collect::<Vec<_>>();
+        items.sort_by_key(|(k, _)| *k);
+        self.rng.borrow_mut().shuffle(&mut items);
+
+        items.into_iter()
+    }
+
+    /// Turn this object into a shuffled iterator.
+    pub fn into_shuffled(self) -> impl Iterator<Item = (K, V)> {
+        let mut items = self.inner.into_iter().collect::<Vec<_>>();
         items.sort_by_key(|(k, _)| *k);
         self.rng.borrow_mut().shuffle(&mut items);
 
@@ -72,6 +81,21 @@ impl<K: hash::Hash + Eq + Ord, V> AddressBook<K, V> {
     /// Cycle through the keys at random. The random cycle repeats ad-infintum.
     pub fn cycle(&self) -> impl Iterator<Item = &K> {
         self.shuffled().map(|(k, _)| k).cycle()
+    }
+}
+
+impl<K: hash::Hash + Eq, V> FromIterator<(K, V)> for AddressBook<K, V> {
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let rng = profile::env::rng();
+        let mut inner = RandomMap::with_hasher(rng.clone().into());
+
+        for (k, v) in iter {
+            inner.insert(k, v);
+        }
+        Self {
+            inner,
+            rng: RefCell::new(rng),
+        }
     }
 }
 
