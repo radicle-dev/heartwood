@@ -5,7 +5,7 @@ use std::{
     sync::{atomic::AtomicBool, Arc},
 };
 
-use gix_features::progress::Progress;
+use gix_features::progress::NestedProgress;
 use gix_pack as pack;
 use gix_protocol::{
     fetch::{self, Delegate, DelegateBlocking},
@@ -45,11 +45,15 @@ pub struct PackWriter {
 impl PackWriter {
     /// Write the packfile read from `pack` to the `objects/pack`
     /// directory.
-    pub fn write_pack(
+    pub fn write_pack<P>(
         &self,
-        pack: impl BufRead,
-        progress: impl Progress,
-    ) -> Result<pack::bundle::write::Outcome, error::PackWriter> {
+        mut pack: impl BufRead,
+        mut progress: P,
+    ) -> Result<pack::bundle::write::Outcome, error::PackWriter>
+    where
+        P: NestedProgress,
+        P::SubProgress: 'static,
+    {
         use gix_odb::FindExt as _;
 
         let options = pack::bundle::write::Options {
@@ -68,16 +72,16 @@ impl PackWriter {
         };
         let thickener = Arc::new(gix_odb::Store::at_opts(
             self.git_dir.join("objects"),
-            [],
+            &mut [].into_iter(),
             odb_opts,
         )?);
         let thickener = thickener.to_handle_arc();
         Ok(pack::Bundle::write_to_directory(
-            pack,
-            Some(self.git_dir.join("objects").join("pack")),
-            progress,
+            &mut pack,
+            Some(&self.git_dir.join("objects").join("pack")),
+            &mut progress,
             &self.interrupt,
-            Some(Box::new(move |oid, buf| thickener.find(oid, buf).ok())),
+            Some(Box::new(move |oid, buf| thickener.find(&oid, buf).ok())),
             options,
         )?)
     }
@@ -104,7 +108,7 @@ impl<'a> Delegate for &'a mut Fetch {
     fn receive_pack(
         &mut self,
         input: impl io::BufRead,
-        progress: impl Progress,
+        progress: impl NestedProgress + 'static,
         _refs: &[handshake::Ref],
         previous_response: &fetch::Response,
     ) -> io::Result<()> {
@@ -184,7 +188,7 @@ pub(crate) fn run<P, R, W>(
     progress: &mut P,
 ) -> Result<FetchOut, Error>
 where
-    P: Progress,
+    P: NestedProgress,
     P::SubProgress: 'static,
     R: io::Read,
     W: io::Write,
@@ -241,11 +245,18 @@ where
         let response = fetch::Response::from_line_reader(*protocol, &mut reader, true)?;
         previous_response = if response.has_pack() {
             progress.step();
-            progress.set_name("receiving pack");
             if !sideband_all {
                 setup_remote_progress(progress, &mut reader);
             }
-            (&mut delegate).receive_pack(reader, progress, &[], &response)?;
+            // TODO: remove delegate in favor of functional style to fix progress-hack,
+            //       needed as it needs `'static`. As the top-level seems to pass `Discard`,
+            //       there should be no repercussions right now.
+            (&mut delegate).receive_pack(
+                reader,
+                progress.add_child("receiving pack"),
+                &[],
+                &response,
+            )?;
             break 'negotiation;
         } else {
             match action {
@@ -295,7 +306,7 @@ fn setup_remote_progress<P>(
     progress: &mut P,
     reader: &mut Box<dyn gix_transport::client::ExtendedBufRead + Unpin + '_>,
 ) where
-    P: Progress,
+    P: NestedProgress,
     P::SubProgress: 'static,
 {
     reader.set_progress_handler(Some(Box::new({
