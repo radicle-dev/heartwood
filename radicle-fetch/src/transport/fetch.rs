@@ -12,7 +12,12 @@ use gix_protocol::{
     handshake::{self, Ref},
     ls_refs, FetchConnection,
 };
-use gix_transport::{bstr::BString, client, Protocol};
+use gix_transport::{
+    bstr::BString,
+    client,
+    client::{ExtendedBufRead, MessageKind},
+    Protocol,
+};
 
 use super::{agent_name, indicate_end_of_interaction, Connection, WantsHaves};
 
@@ -252,11 +257,24 @@ where
             //       needed as it needs `'static`. As the top-level seems to pass `Discard`,
             //       there should be no repercussions right now.
             (&mut delegate).receive_pack(
-                reader,
+                &mut reader,
                 progress.add_child("receiving pack"),
                 &[],
                 &response,
             )?;
+            assert_eq!(
+                reader.stopped_at(),
+                None,
+                "packs are read without 'overshooting', hence it never encountered EOF"
+            );
+            // Consume anything that might still be left on the wire - this is 'EOF' most of the time,
+            // but some tests have 'garbage' here as well.
+            std::io::copy(&mut reader, &mut std::io::sink())?;
+            assert_eq!(
+                reader.stopped_at(),
+                Some(MessageKind::Flush),
+                "the flush packet was now consumed"
+            );
             break 'negotiation;
         } else {
             match action {
@@ -269,33 +287,6 @@ where
         && matches!(conn.mode, FetchConnection::TerminateOnSuccessfulCompletion)
     {
         indicate_end_of_interaction(&mut conn)?;
-    }
-
-    // N.b. the flush packet is never read in the packfile parser. To
-    // remedy this, we read from our connection until we see it ensure
-    // that there is no leftover data.
-    let (mut r, _) = conn.inner.into_inner();
-    let mut buf = [0; 4096];
-
-    loop {
-        match r.read(&mut buf)? {
-            0 => break,
-            n => match std::str::from_utf8(&buf[..n]) {
-                Ok(progress) => {
-                    let lines = progress.split('\n');
-                    if lines.into_iter().any(|line| line == "0000") {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("found leftover packfile bytes: {e}"),
-                    )
-                    .into());
-                }
-            },
-        }
     }
 
     log::trace!(target: "fetch", "fetched refs: {:?}", delegate.out.refs);
