@@ -60,3 +60,17 @@ create table if not exists "announcements" (
   --
   unique ("node", "repo", "type")
 ) strict;
+
+-- Repository sync status.
+create table if not exists "repo-sync-status" (
+  -- Repository ID.
+  "repo"                 text      not null,
+  -- Node ID.
+  "node"                 text      not null references "nodes" ("id"),
+  -- Head of your `rad/sigrefs` branch that was synced.
+  "head"                 text      not null,
+  -- When this entry was last updated.
+  "timestamp"            integer   not null,
+  --
+  unique ("repo", "node")
+) strict;

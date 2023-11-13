@@ -7,7 +7,7 @@ use nonempty::NonEmpty;
 
 use crate::collections::RandomMap;
 use crate::node::{Address, Alias};
-use crate::prelude::Timestamp;
+use crate::prelude::{NodeId, Timestamp};
 use crate::{node, profile};
 
 /// A map with the ability to randomly select values.
@@ -175,4 +175,26 @@ impl std::fmt::Display for Source {
             Self::Imported => write!(f, "Imported"),
         }
     }
+}
+
+/// Holds an oid and timestamp.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncedAt {
+    /// Head of `rad/sigrefs`.
+    pub oid: git_ext::Oid,
+    /// When these refs were synced.
+    pub timestamp: LocalTime,
+}
+
+/// Seed of a specific repository.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Seed {
+    /// The Node ID.
+    pub nid: NodeId,
+    /// Known addresses for this node.
+    pub addresses: Vec<KnownAddress>,
+    /// Sync information for a given repo.
+    pub synced_at: SyncedAt,
 }
