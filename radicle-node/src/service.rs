@@ -32,7 +32,7 @@ use crate::crypto::{Signer, Verified};
 use crate::identity::{Doc, Id};
 use crate::node::routing;
 use crate::node::routing::InsertResult;
-use crate::node::{Address, Alias, Features, FetchResult, HostName, Seed, Seeds};
+use crate::node::{Address, Alias, Features, FetchResult, HostName, Seed, Seeds, SyncStatus};
 use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service::message::{Announcement, AnnouncementMessage, Ping};
@@ -121,6 +121,8 @@ pub enum Error {
     Refs(#[from] storage::refs::Error),
     #[error(transparent)]
     Routing(#[from] routing::Error),
+    #[error(transparent)]
+    Addresses(#[from] address::Error),
     #[error(transparent)]
     Tracking(#[from] tracking::Error),
     #[error(transparent)]
@@ -544,7 +546,7 @@ where
                     resp.send(seeds).ok();
                 }
                 Err(e) => {
-                    error!(target: "service", "Error reading routing table for {rid}: {e}");
+                    error!(target: "service", "Error getting seeds for {rid}: {e}");
                 }
             },
             Command::Fetch(rid, seed, timeout, resp) => {
@@ -1445,31 +1447,46 @@ where
     }
 
     fn seeds(&self, rid: &Id) -> Result<Seeds, Error> {
-        match self.routing.get(rid) {
-            Ok(seeds) => {
-                Ok(seeds
-                    .into_iter()
-                    .fold(Seeds::new(self.rng.clone()), |mut seeds, node| {
-                        if node != self.node_id() {
-                            let addrs: Vec<KnownAddress> = self
-                                .addresses
-                                .get(&node)
-                                .ok()
-                                .flatten()
-                                .map(|n| n.addrs)
-                                .unwrap_or(vec![]);
+        let mut seeds = Seeds::new(self.rng.clone());
 
-                            if let Some(s) = self.sessions.get(&node) {
-                                seeds.insert(Seed::new(node, addrs, Some(s.state.clone())));
-                            } else {
-                                seeds.insert(Seed::new(node, addrs, None));
-                            }
+        // First build a list from peers that have synced our own refs, if any.
+        // This step is skipped if we don't have the repository yet, or don't have
+        // our own refs.
+        if let Ok(repo) = self.storage.repository(*rid) {
+            if let Ok(local) = RefsAt::new(&repo, self.node_id()) {
+                for seed in self.addresses.seeds(rid)? {
+                    let seed = seed?;
+                    let state = self.sessions.get(&seed.nid).map(|s| s.state.clone());
+                    let synced = if local.at == seed.synced_at.oid {
+                        SyncStatus::Synced { at: seed.synced_at }
+                    } else {
+                        SyncStatus::OutOfSync {
+                            local: local.at,
+                            remote: seed.synced_at.oid,
                         }
-                        seeds
-                    }))
+                    };
+                    seeds.insert(Seed::new(seed.nid, seed.addresses, state, Some(synced)));
+                }
             }
-            Err(err) => Err(Error::Routing(err)),
         }
+
+        // Then, add peers we know about but have no information about the sync status.
+        // These peers have announced that they track the repository via an inventory
+        // announcement, but we haven't received any ref announcements from them.
+        for nid in self.routing.get(rid)? {
+            if nid == self.node_id() {
+                continue;
+            }
+            if seeds.contains(&nid) {
+                // We already have a richer entry for this node.
+                continue;
+            }
+            let addrs = self.addresses.addresses(&nid)?;
+            let state = self.sessions.get(&nid).map(|s| s.state.clone());
+
+            seeds.insert(Seed::new(nid, addrs, state, None));
+        }
+        Ok(seeds)
     }
 
     /// Return a new filter object, based on our tracking policy.

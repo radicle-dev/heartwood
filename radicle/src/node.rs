@@ -26,7 +26,7 @@ use crate::identity::Id;
 use crate::profile;
 use crate::storage::RefUpdate;
 
-pub use address::KnownAddress;
+pub use address::{KnownAddress, SyncedAt};
 pub use config::Config;
 pub use cyphernet::addr::{HostName, PeerAddr};
 pub use events::{Event, Events};
@@ -123,6 +123,26 @@ impl fmt::Display for State {
             }
         }
     }
+}
+
+/// Repository sync status for our own refs.
+#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "status")]
+pub enum SyncStatus {
+    /// We're in sync.
+    #[serde(rename_all = "camelCase")]
+    Synced {
+        /// At what ref was the remote synced at.
+        at: SyncedAt,
+    },
+    /// We're out of sync.
+    #[serde(rename_all = "camelCase")]
+    OutOfSync {
+        /// Local head of our `rad/sigrefs`.
+        local: git_ext::Oid,
+        /// Remote head of our `rad/sigrefs`.
+        remote: git_ext::Oid,
+    },
 }
 
 /// Node alias.
@@ -427,6 +447,7 @@ pub struct Seed {
     pub nid: NodeId,
     pub addrs: Vec<KnownAddress>,
     pub state: Option<State>,
+    pub sync: Option<SyncStatus>,
 }
 
 impl Seed {
@@ -435,8 +456,18 @@ impl Seed {
         matches!(self.state, Some(State::Connected { .. }))
     }
 
-    pub fn new(nid: NodeId, addrs: Vec<KnownAddress>, state: Option<State>) -> Self {
-        Self { nid, addrs, state }
+    pub fn new(
+        nid: NodeId,
+        addrs: Vec<KnownAddress>,
+        state: Option<State>,
+        sync: Option<SyncStatus>,
+    ) -> Self {
+        Self {
+            nid,
+            addrs,
+            state,
+            sync,
+        }
     }
 }
 
@@ -455,6 +486,11 @@ impl Seeds {
     /// Insert a seed.
     pub fn insert(&mut self, seed: Seed) {
         self.0.insert(seed.nid, seed);
+    }
+
+    /// Check membership.
+    pub fn contains(&self, nid: &NodeId) -> bool {
+        self.0.contains_key(nid)
     }
 
     /// Partitions the list of seeds into connected and disconnected seeds.
