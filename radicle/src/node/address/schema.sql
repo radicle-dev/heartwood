@@ -17,7 +17,7 @@ create table if not exists "nodes" (
 
 create table if not exists "addresses" (
   -- Node ID.
-  "node"               text      not null references "nodes" ("id"),
+  "node"               text      not null references "nodes" ("id") on delete cascade,
   -- Address type.
   "type"               text      not null,
   -- Address value.
@@ -40,7 +40,7 @@ create table if not exists "addresses" (
 
 create table if not exists "announcements" (
   -- Node ID.
-  "node"               text      not null references "nodes" ("id"),
+  "node"               text      not null references "nodes" ("id") on delete cascade,
   -- Repo ID, if any, for example in ref announcements.
   "repo"               text      not null,
   -- Announcement type.
@@ -66,7 +66,7 @@ create table if not exists "repo-sync-status" (
   -- Repository ID.
   "repo"                 text      not null,
   -- Node ID.
-  "node"                 text      not null references "nodes" ("id"),
+  "node"                 text      not null references "nodes" ("id") on delete cascade,
   -- Head of your `rad/sigrefs` branch that was synced.
   "head"                 text      not null,
   -- When this entry was last updated.

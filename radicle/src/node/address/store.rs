@@ -47,6 +47,7 @@ impl From<sql::Connection> for Book {
 
 impl Book {
     const SCHEMA: &str = include_str!("schema.sql");
+    const PRAGMA: &str = "PRAGMA foreign_keys = ON";
 
     /// Open an address book at the given path. Creates a new address book if it
     /// doesn't exist.
@@ -58,6 +59,7 @@ impl Book {
                 .with_read_write()
                 .with_full_mutex(),
         )?;
+        db.execute(Self::PRAGMA)?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })
@@ -67,6 +69,7 @@ impl Book {
     /// open databases, as no locking is required.
     pub fn reader<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let db = sql::Connection::open_with_flags(path, sqlite::OpenFlags::new().with_read_only())?;
+        db.execute(Self::PRAGMA)?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })
@@ -75,6 +78,7 @@ impl Book {
     /// Create a new in-memory address book.
     pub fn memory() -> Result<Self, Error> {
         let db = sql::Connection::open(":memory:")?;
+        db.execute(Self::PRAGMA)?;
         db.execute(Self::SCHEMA)?;
 
         Ok(Self { db })
@@ -196,20 +200,12 @@ impl Store for Book {
     }
 
     fn remove(&mut self, node: &NodeId) -> Result<bool, Error> {
-        transaction(&self.db, move |db| {
-            db.prepare("DELETE FROM nodes WHERE id = ?")?
-                .into_iter()
-                .bind(&[node][..])?
-                .next();
+        let mut stmt = self.db.prepare("DELETE FROM nodes WHERE id = ?1")?;
 
-            db.prepare("DELETE FROM addresses WHERE node = ?")?
-                .into_iter()
-                .bind(&[node][..])?
-                .next();
+        stmt.bind((1, node))?;
+        stmt.next()?;
 
-            Ok(db.change_count() > 0)
-        })
-        .map_err(Error::from)
+        Ok(self.db.change_count() > 0)
     }
 
     fn synced(
