@@ -95,6 +95,8 @@ pub fn contributor(dir: &Path) -> Context {
 }
 
 fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G) -> Context {
+    const DEFAULT_BRANCH: &'static str = "master";
+
     let tracking_db = dir.join("radicle").join("node").join("tracking.db");
     let routing_db = dir.join("radicle").join("node").join("routing.db");
     let addresses_db = dir.join("radicle").join("node").join("addresses.db");
@@ -112,7 +114,9 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     fs::create_dir_all(&workdir).unwrap();
 
     // add commits to workdir (repo)
-    let repo = git2::Repository::init(&workdir).unwrap();
+    let mut opts = git2::RepositoryInitOptions::new();
+    opts.initial_head(DEFAULT_BRANCH);
+    let repo = git2::Repository::init_opts(&workdir, &opts).unwrap();
     let tree =
         radicle::git::write_tree(Path::new("README"), "Hello World!\n".as_bytes(), &repo).unwrap();
 
@@ -180,7 +184,7 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     let repo = git2::Repository::open(&workdir).unwrap();
     let name = "hello-world".to_string();
     let description = "Rad repository for tests".to_string();
-    let branch = RefString::try_from("master").unwrap();
+    let branch = RefString::try_from(DEFAULT_BRANCH).unwrap();
     let visibility = Visibility::default();
     let (id, _, _) = radicle::rad::init(
         &repo,
