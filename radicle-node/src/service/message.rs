@@ -271,7 +271,7 @@ impl From<RefsAnnouncement> for AnnouncementMessage {
 impl fmt::Debug for AnnouncementMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Node { .. } => write!(f, "Node(..)"),
+            Self::Node(message) => write!(f, "Node({})", message.timestamp),
             Self::Inventory(message) => {
                 write!(
                     f,

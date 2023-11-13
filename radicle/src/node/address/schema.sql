@@ -11,7 +11,9 @@ create table if not exists "nodes" (
   --- Node announcement proof-of-work.
   "pow"                integer   default 0,
   -- Node announcement timestamp.
-  "timestamp"          integer   not null
+  "timestamp"          integer   not null,
+  -- If this node is banned. Used as a boolean.
+  "banned"             integer   default false
   --
 ) strict;
 
@@ -30,6 +32,8 @@ create table if not exists "addresses" (
   "last_attempt"       integer   default null,
   -- Local time at which we successfully connected to this node.
   "last_success"       integer   default null,
+  -- If this address is banned from use. Used as a boolean.
+  "banned"             integer   default false,
   -- Nb. This constraint allows more than one node to share the same address.
   -- This is useful in circumstances when a node wants to rotate its key, but
   -- remain reachable at the same address. The old entry will eventually be

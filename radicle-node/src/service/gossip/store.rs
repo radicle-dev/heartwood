@@ -124,7 +124,7 @@ impl GossipStore {
             "SELECT node, type, message, signature, timestamp
              FROM announcements
              WHERE timestamp >= ?1 and timestamp < ?2
-             ORDER BY timestamp",
+             ORDER BY timestamp, node, type",
         )?;
         assert!(from <= to);
 

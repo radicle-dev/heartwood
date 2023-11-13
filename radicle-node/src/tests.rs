@@ -360,6 +360,9 @@ fn test_inventory_pruning() {
         // Tell Alice about the amazing projects available
         alice.connect_to(&bob);
         for num_projs in test.peer_projects {
+            let peer = Peer::new("other", [9, 9, 9, 9]);
+
+            alice.receive(bob.id(), peer.node_announcement());
             alice.receive(
                 bob.id(),
                 Message::inventory(
@@ -367,7 +370,7 @@ fn test_inventory_pruning() {
                         inventory: test::arbitrary::vec::<Id>(num_projs).try_into().unwrap(),
                         timestamp: bob.local_time().as_millis(),
                     },
-                    &MockSigner::default(),
+                    peer.signer(),
                 ),
             );
         }
@@ -437,13 +440,16 @@ fn test_announcement_rebroadcast() {
     let eve = Peer::new("eve", [9, 9, 9, 9]);
 
     alice.connect_to(&bob);
+    alice.connect_from(&eve);
+    alice.outbox().for_each(drop);
+
+    log::debug!(target: "test", "Receiving gossips..");
 
     let received = test::gossip::messages(6, alice.local_time(), MAX_TIME_DELTA);
     for msg in received.iter().cloned() {
         alice.receive(bob.id(), msg);
     }
 
-    alice.connect_from(&eve);
     alice.receive(
         eve.id(),
         Message::Subscribe(Subscribe {
@@ -454,8 +460,12 @@ fn test_announcement_rebroadcast() {
     );
 
     let relayed = alice.messages(eve.id()).collect::<BTreeSet<_>>();
-    let received = received.into_iter().collect::<BTreeSet<_>>();
+    let received = received
+        .into_iter()
+        .chain(Some(bob.node_announcement()))
+        .collect::<BTreeSet<_>>();
 
+    assert_eq!(relayed.len(), received.len());
     assert_eq!(relayed, received);
 }
 
@@ -468,6 +478,7 @@ fn test_announcement_rebroadcast_duplicates() {
     let rids = arbitrary::set::<Id>(3..=3);
 
     alice.connect_to(&bob);
+    alice.receive(bob.id, carol.node_announcement());
 
     // These are not expected to be relayed.
     let stale = {
@@ -489,6 +500,7 @@ fn test_announcement_rebroadcast_duplicates() {
         carol.elapse(LocalDuration::from_mins(1));
         anns.insert(carol.inventory_announcement());
         anns.insert(carol.node_announcement());
+        anns.insert(bob.node_announcement());
 
         for rid in rids {
             alice.track_repo(&rid, tracking::Scope::All).unwrap();
@@ -519,7 +531,7 @@ fn test_announcement_rebroadcast_duplicates() {
 
     let relayed = alice.messages(eve.id()).collect::<BTreeSet<_>>();
 
-    assert_eq!(relayed.len(), 8);
+    assert_eq!(relayed.len(), 9);
     assert_eq!(relayed, expected);
 }
 
@@ -557,8 +569,11 @@ fn test_announcement_rebroadcast_timestamp_filtered() {
         }),
     );
 
-    let relayed = alice.messages(eve.id()).collect::<BTreeSet<_>>();
-    let second = second.into_iter().collect::<BTreeSet<_>>();
+    let relayed = alice.relayed(eve.id()).collect::<BTreeSet<_>>();
+    let second = second
+        .into_iter()
+        .chain(Some(bob.node_announcement()))
+        .collect::<BTreeSet<_>>();
 
     assert_eq!(relayed.len(), second.len());
     assert_eq!(relayed, second);
@@ -849,7 +864,7 @@ fn test_inventory_relay() {
         ),
     );
     assert_matches!(
-        alice.messages(eve.id()).next(),
+        alice.inventory_announcements(eve.id()).next(),
         Some(Message::Announcement(Announcement {
             node,
             message: AnnouncementMessage::Inventory(InventoryAnnouncement { timestamp, .. }),
@@ -858,7 +873,7 @@ fn test_inventory_relay() {
         if node == bob.node_id() && timestamp == now
     );
     assert_matches!(
-        alice.messages(bob.id()).next(),
+        alice.inventory_announcements(bob.id()).next(),
         None,
         "The inventory is not sent back to Bob"
     );
@@ -874,7 +889,7 @@ fn test_inventory_relay() {
         ),
     );
     assert_matches!(
-        alice.messages(eve.id()).next(),
+        alice.inventory_announcements(eve.id()).next(),
         None,
         "Sending the same inventory again doesn't trigger a relay"
     );
@@ -890,7 +905,7 @@ fn test_inventory_relay() {
         ),
     );
     assert_matches!(
-        alice.messages(eve.id()).next(),
+        alice.inventory_announcements(eve.id()).next(),
         Some(Message::Announcement(Announcement {
             node,
             message: AnnouncementMessage::Inventory(InventoryAnnouncement { timestamp, .. }),
@@ -912,7 +927,7 @@ fn test_inventory_relay() {
         ),
     );
     assert_matches!(
-        alice.messages(bob.id()).next(),
+        alice.inventory_announcements(bob.id()).next(),
         Some(Message::Announcement(Announcement {
             node,
             message: AnnouncementMessage::Inventory(InventoryAnnouncement { timestamp, .. }),
@@ -1051,10 +1066,12 @@ fn test_maintain_connections() {
     // We now import the other addresses.
     alice.import_addresses(&unconnected);
 
-    // A transient error such as this will cause Alice to attempt a reconnection.
+    // A non-transient error such as this will cause Alice to attempt a different peer.
     let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
     for peer in connected.iter() {
-        alice.disconnected(peer.id(), &DisconnectReason::Connection(error.clone()));
+        let reason = DisconnectReason::Dial(error.clone());
+        assert!(!reason.is_transient());
+        alice.disconnected(peer.id(), &reason);
 
         let id = alice
             .outbox()
@@ -1063,7 +1080,7 @@ fn test_maintain_connections() {
                 _ => None,
             })
             .expect("Alice connects to a new peer");
-        assert!(id != peer.id());
+        assert_ne!(id, peer.id());
         unconnected.retain(|p| p.id() != id);
     }
     assert!(
@@ -1073,15 +1090,41 @@ fn test_maintain_connections() {
 }
 
 #[test]
-fn test_maintain_connections_failed_attempt() {
-    let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
+fn test_maintain_connections_transient() {
+    // Peers alice starts out connected to.
+    let connected = vec![
+        Peer::new("connected", [8, 8, 8, 1]),
+        Peer::new("connected", [8, 8, 8, 2]),
+        Peer::new("connected", [8, 8, 8, 3]),
+    ];
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
 
-    alice.connect_to(&bob);
+    for peer in connected.iter() {
+        alice.connect_to(peer);
+    }
+    // A transient error such as this will cause Alice to attempt a reconnection.
+    let error = Arc::new(io::Error::from(io::ErrorKind::ConnectionReset));
+    for peer in connected.iter() {
+        alice.disconnected(peer.id(), &DisconnectReason::Connection(error.clone()));
+        alice
+            .outbox()
+            .find(|o| matches!(o, Io::Connect(id, _) if id == &peer.id()))
+            .unwrap();
+    }
+}
+
+#[test]
+fn test_maintain_connections_failed_attempt() {
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let reason =
+        DisconnectReason::Connection(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset)));
+
+    assert!(reason.is_transient());
+
+    alice.connect_to(&eve);
     // Make sure Alice knows about Eve.
-    alice.receive(bob.id, eve.node_announcement());
-    alice.disconnected(bob.id(), &DisconnectReason::Command);
+    alice.disconnected(eve.id(), &reason);
     alice
         .outbox()
         .find(|o| matches!(o, Io::Connect(id, _) if id == &eve.id))
@@ -1089,8 +1132,11 @@ fn test_maintain_connections_failed_attempt() {
     alice.attempted(eve.id, eve.addr());
 
     // Disconnect Eve and make sure Alice doesn't try to re-connect immediately.
-    alice.disconnected(eve.id(), &DisconnectReason::Command);
-    assert!(!alice.outbox().any(|o| matches!(o, Io::Connect(_, _))));
+    alice.disconnected(eve.id(), &reason);
+    assert_matches!(
+        alice.outbox().find(|o| matches!(o, Io::Connect(_, _))),
+        None
+    );
 
     // Now pass some time and try again.
     alice.elapse(MAX_RECONNECTION_DELTA);
@@ -1100,7 +1146,7 @@ fn test_maintain_connections_failed_attempt() {
         .expect("Alice attempts Eve again");
 
     // Disconnect Eve and make sure Alice doesn't try to re-connect immediately.
-    alice.disconnected(eve.id(), &DisconnectReason::Command);
+    alice.disconnected(eve.id(), &reason);
     assert!(!alice.outbox().any(|o| matches!(o, Io::Connect(_, _))));
     // Or even after some short time..
     alice.elapse(MIN_RECONNECTION_DELTA);

@@ -872,6 +872,12 @@ where
         } else {
             debug!(target: "service", "Dropping peer {remote}..");
 
+            if let Err(e) =
+                self.addresses
+                    .disconnected(&remote, &session.addr, reason.is_transient())
+            {
+                error!(target: "service", "Error updating address store: {e}");
+            }
             self.sessions.remove(&remote);
             // Only re-attempt outbound connections, since we don't care if an inbound connection
             // is dropped.
@@ -923,6 +929,29 @@ where
         // Don't allow messages from too far in the future.
         if timestamp.saturating_sub(now.as_millis()) > MAX_TIME_DELTA.as_millis() as u64 {
             return Err(session::Error::InvalidTimestamp(timestamp));
+        }
+
+        // We don't process announcements from nodes we don't know, since the node announcement is
+        // what provides DoS protection.
+        //
+        // Note that it's possible to *not* receive the node announcement, but receive the
+        // subsequent announcements of a node in the case of historical gossip messages requested
+        // from the `subscribe` message. This can happen if the cut-off time is after the node
+        // announcement timestamp, but before the other announcements. In that case, we simply
+        // ignore all announcements of that node until we get a node announcement.
+        if let AnnouncementMessage::Inventory(_) | AnnouncementMessage::Refs(_) = message {
+            match self.addresses.get(announcer) {
+                Ok(node) => {
+                    if node.is_none() {
+                        debug!(target: "service", "Ignoring announcement from unknown node {announcer}");
+                        return Ok(false);
+                    }
+                }
+                Err(e) => {
+                    error!(target: "service", "Error looking up node in address book: {e}");
+                    return Ok(false);
+                }
+            }
         }
 
         // Discard announcement messages we've already seen, otherwise update out last seen time.
@@ -1286,6 +1315,8 @@ where
             }
         };
 
+        debug!(target: "service", "Subscribing to messages since timestamp {since}..");
+
         vec![
             Message::node(self.node.clone(), &self.signer),
             Message::inventory(gossip::inventory(now.as_millis(), inventory), &self.signer),
@@ -1570,6 +1601,7 @@ where
                 // Nb. we don't want to connect to any peers that already have a session with us,
                 // even if it's in a disconnected state. Those sessions are re-attempted automatically.
                 entries
+                    .filter(|(_, ka)| !ka.banned)
                     .filter(|(nid, _)| !self.sessions.contains_key(nid))
                     .filter(|(nid, _)| nid != &self.node_id())
                     .fold(HashMap::new(), |mut acc, (nid, addr)| {
@@ -1648,6 +1680,8 @@ where
                 kas.into_iter()
                     .find(|ka| match (ka.last_success, ka.last_attempt) {
                         // If we succeeded the last time we tried, this is a good address.
+                        // TODO: This will always be hit after a success, and never re-attempted after
+                        //       the first failed attempt.
                         (Some(success), attempt) => success >= attempt.unwrap_or_default(),
                         // If we haven't succeeded yet, and we waited long enough, we can try this address.
                         (None, Some(attempt)) => now - attempt >= CONNECTION_RETRY_DELTA,

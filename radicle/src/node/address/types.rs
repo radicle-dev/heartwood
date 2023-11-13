@@ -140,6 +140,8 @@ pub struct KnownAddress {
     pub last_success: Option<LocalTime>,
     /// Last time this address was tried.
     pub last_attempt: Option<LocalTime>,
+    /// Whether this address has been banned.
+    pub banned: bool,
 }
 
 impl KnownAddress {
@@ -150,6 +152,7 @@ impl KnownAddress {
             source,
             last_success: None,
             last_attempt: None,
+            banned: false,
         }
     }
 }

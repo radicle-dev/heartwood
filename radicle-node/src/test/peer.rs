@@ -31,6 +31,7 @@ use crate::storage::Inventory;
 use crate::storage::{Namespaces, RemoteId, WriteStorage};
 use crate::test::storage::MockStorage;
 use crate::test::{arbitrary, fixtures, simulator};
+use crate::wire::MessageType;
 use crate::Link;
 use crate::{LocalDuration, LocalTime};
 
@@ -324,6 +325,8 @@ where
         self.initialize();
         self.service
             .connected(remote_id, peer.address(), Link::Inbound);
+        self.service
+            .received_message(remote_id, peer.node_announcement());
 
         let mut msgs = self.messages(remote_id);
         msgs.find(|m| {
@@ -359,6 +362,8 @@ where
         self.service.attempted(remote_id, remote_addr.clone());
         self.service
             .connected(remote_id, remote_addr, Link::Outbound);
+        self.service
+            .received_message(remote_id, peer.node_announcement());
 
         let mut msgs = self.messages(remote_id);
         msgs.find(|m| {
@@ -378,7 +383,7 @@ where
         self.service.wake();
     }
 
-    /// Drain outgoing messages sent from this peer to the remote address.
+    /// Drain outgoing messages sent from this peer to the remote peer.
     pub fn messages(&mut self, remote: NodeId) -> impl Iterator<Item = Message> {
         let mut msgs = Vec::new();
 
@@ -391,6 +396,55 @@ where
         });
 
         msgs.into_iter()
+    }
+
+    /// Drain outgoing *relayed* announcements to the remote peer. This doesn't include messages
+    /// originating from our own node.
+    pub fn relayed(&mut self, remote: NodeId) -> impl Iterator<Item = Message> {
+        let mut filtered: Vec<Message> = Vec::new();
+        let nid = *self.nid();
+
+        for o in self.service.outbox().queue() {
+            match o {
+                Io::Write(a, messages) if *a == remote => {
+                    let (relayed, other): (Vec<Message>, _) =
+                        messages.iter().cloned().partition(|m| {
+                            matches!(
+                                m,
+                                Message::Announcement(Announcement { node, .. })
+                                if *node != nid
+                            )
+                        });
+                    *messages = other;
+                    filtered.extend(relayed);
+                }
+                _ => {}
+            }
+        }
+
+        filtered.into_iter()
+    }
+
+    /// Drain outgoing inventories sent from this peer to the remote peer.
+    pub fn inventory_announcements(&mut self, remote: NodeId) -> impl Iterator<Item = Message> {
+        let mut invs: Vec<Message> = Vec::new();
+
+        for o in self.service.outbox().queue() {
+            match o {
+                Io::Write(a, messages) if *a == remote => {
+                    let (inventories, other): (Vec<Message>, _) =
+                        messages.iter().cloned().partition(|m| {
+                            MessageType::try_from(m.type_id())
+                                == Ok(MessageType::InventoryAnnouncement)
+                        });
+                    *messages = other;
+                    invs.extend(inventories);
+                }
+                _ => {}
+            }
+        }
+
+        invs.into_iter()
     }
 
     /// Get a stream of the peer's emitted events.

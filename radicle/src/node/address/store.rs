@@ -115,7 +115,7 @@ impl Store for Book {
     fn addresses(&self, node: &NodeId) -> Result<Vec<KnownAddress>, Error> {
         let mut addrs = Vec::new();
         let mut stmt = self.db.prepare(
-            "SELECT type, value, source, last_attempt, last_success FROM addresses WHERE node = ?",
+            "SELECT type, value, source, last_attempt, last_success, banned FROM addresses WHERE node = ?",
         )?;
         stmt.bind((1, node))?;
 
@@ -130,12 +130,14 @@ impl Store for Book {
             let last_success = row
                 .read::<Option<i64>, _>("last_success")
                 .map(|t| LocalTime::from_millis(t as u128));
+            let banned = row.read::<i64, _>("banned").is_positive();
 
             addrs.push(KnownAddress {
                 addr,
                 source,
                 last_success,
                 last_attempt,
+                banned,
             });
         }
         Ok(addrs)
@@ -267,7 +269,7 @@ impl Store for Book {
     fn entries(&self) -> Result<Box<dyn Iterator<Item = (NodeId, KnownAddress)>>, Error> {
         let mut stmt = self
             .db
-            .prepare("SELECT node, type, value, source, last_success, last_attempt FROM addresses ORDER BY node")?
+            .prepare("SELECT node, type, value, source, last_success, last_attempt, banned FROM addresses ORDER BY node")?
             .into_iter();
         let mut entries = Vec::new();
 
@@ -280,6 +282,7 @@ impl Store for Book {
             let last_attempt = row.read::<Option<i64>, _>("last_attempt");
             let last_success = last_success.map(|t| LocalTime::from_millis(t as u128));
             let last_attempt = last_attempt.map(|t| LocalTime::from_millis(t as u128));
+            let banned = row.read::<i64, _>("banned").is_positive();
 
             entries.push((
                 node,
@@ -288,6 +291,7 @@ impl Store for Book {
                     source,
                     last_success,
                     last_attempt,
+                    banned,
                 },
             ));
         }
@@ -329,6 +333,23 @@ impl Store for Book {
 
         Ok(())
     }
+
+    fn disconnected(&mut self, nid: &NodeId, addr: &Address, transient: bool) -> Result<(), Error> {
+        // Ban address if not a transient failure.
+        if !transient {
+            let mut stmt = self.db.prepare(
+                "UPDATE `addresses`
+                 SET banned = 1
+                 WHERE node = ?1 AND type = ?2 AND value = ?3",
+            )?;
+
+            stmt.bind((1, nid))?;
+            stmt.bind((2, AddressType::from(addr)))?;
+            stmt.bind((3, addr))?;
+            stmt.next()?;
+        }
+        Ok(())
+    }
 }
 
 impl AliasStore for Book {
@@ -361,7 +382,7 @@ pub trait Store {
         timestamp: Timestamp,
         addrs: impl IntoIterator<Item = KnownAddress>,
     ) -> Result<bool, Error>;
-    /// Remove an address from the store.
+    /// Remove a node from the store.
     fn remove(&mut self, id: &NodeId) -> Result<bool, Error>;
     /// Mark a repo as synced on the given node.
     fn synced(
@@ -388,6 +409,8 @@ pub trait Store {
     fn attempted(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
     /// Mark a node as successfully connected at a certain time.
     fn connected(&self, nid: &NodeId, addr: &Address, time: Timestamp) -> Result<(), Error>;
+    /// Mark a node as disconnected.
+    fn disconnected(&mut self, nid: &NodeId, addr: &Address, transient: bool) -> Result<(), Error>;
 }
 
 impl TryFrom<&sql::Value> for Source {
@@ -519,6 +542,7 @@ mod test {
             source: Source::Peer,
             last_success: None,
             last_attempt: None,
+            banned: false,
         };
         let inserted = cache
             .insert(
@@ -554,6 +578,7 @@ mod test {
             source: Source::Peer,
             last_success: None,
             last_attempt: None,
+            banned: false,
         };
         let inserted = cache
             .insert(&alice, features, alias.clone(), 0, timestamp, [ka.clone()])
@@ -581,6 +606,7 @@ mod test {
             source: Source::Peer,
             last_success: None,
             last_attempt: None,
+            banned: false,
         };
 
         let updated = cache
@@ -641,6 +667,7 @@ mod test {
                 source: Source::Peer,
                 last_success: None,
                 last_attempt: None,
+                banned: false,
             };
             cache
                 .insert(
@@ -686,6 +713,7 @@ mod test {
                 // TODO: Test times as well.
                 last_success: None,
                 last_attempt: None,
+                banned: false,
             };
             expected.push((id, ka.clone()));
             cache

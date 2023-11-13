@@ -1,9 +1,11 @@
 use radicle::crypto::test::signer::MockSigner;
+use radicle::node;
+use radicle::test::fixtures::gen;
 
 use crate::test::arbitrary;
 use crate::{
     prelude::{LocalDuration, LocalTime, Message},
-    service::message::InventoryAnnouncement,
+    service::message::{InventoryAnnouncement, NodeAnnouncement},
 };
 
 pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Message> {
@@ -24,13 +26,25 @@ pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Messa
             }
         };
 
+        msgs.push(Message::node(
+            NodeAnnouncement {
+                features: node::Features::SEED,
+                timestamp: time.as_millis(),
+                alias: node::Alias::new(gen::string(5)),
+                addresses: None.into(),
+                nonce: 0,
+            }
+            .solve(0)
+            .unwrap(),
+            &signer,
+        ));
         msgs.push(Message::inventory(
             InventoryAnnouncement {
                 inventory: arbitrary::vec(3).try_into().unwrap(),
                 timestamp: time.as_millis(),
             },
             &signer,
-        ))
+        ));
     }
     msgs
 }
