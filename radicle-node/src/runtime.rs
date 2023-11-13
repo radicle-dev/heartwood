@@ -186,7 +186,7 @@ impl Runtime {
             );
             ann
         } else {
-            service::gossip::node(&config, clock.as_secs())
+            service::gossip::node(&config, clock.as_millis())
                 .solve(Default::default())
                 .expect("Runtime::init: unable to solve proof-of-work puzzle")
         };
@@ -202,7 +202,7 @@ impl Runtime {
                     radicle::node::Features::SEED,
                     alias,
                     0,
-                    clock.as_secs(),
+                    clock.as_millis(),
                     [node::KnownAddress::new(addr, address::Source::Bootstrap)],
                 )?;
             }
