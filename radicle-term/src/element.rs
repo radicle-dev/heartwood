@@ -362,9 +362,12 @@ mod test {
 
     #[test]
     fn test_width() {
-        let line = Line::new("Radicle Heartwood Protocol & Stack ❤️ 🪵");
+        // Nb. This might not display correctly in some editors or terminals.
+        let line = Line::new("Radicle Heartwood Protocol & Stack ❤️🪵");
         assert_eq!(line.width(), 39, "{line}");
         let line = Line::new("❤\u{fe0f}");
-        assert_eq!(line.width(), 1, "{line}");
+        assert_eq!(line.width(), 2, "{line}");
+        let line = Line::new("❤️");
+        assert_eq!(line.width(), 2, "{line}");
     }
 }

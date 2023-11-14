@@ -128,8 +128,5 @@ pub fn label(s: impl Into<Paint<String>>) -> Label {
 
 /// Cleanup the input string for display as a label.
 fn cleanup(input: &str) -> String {
-    input
-        .chars()
-        .filter(|c| *c != '\u{fe0f}' && *c != '\n' && *c != '\r')
-        .collect()
+    input.chars().filter(|c| *c != '\n' && *c != '\r').collect()
 }

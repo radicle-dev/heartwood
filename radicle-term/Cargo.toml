@@ -18,7 +18,7 @@ inquire = { version = "0.6.2", default-features = false, features = ["termion", 
 libc = { version = "0.2" }
 once_cell = { version = "1.13" }
 termion = { version = "2" }
-unicode-width = { version = "0.1.10", default-features = false }
+unicode-display-width = { version = "0.3.0" }
 unicode-segmentation = { version = "1.7.1" }
 zeroize = { version = "1.1" }
 

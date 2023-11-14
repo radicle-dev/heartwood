@@ -4,7 +4,6 @@ use std::sync::atomic::AtomicBool;
 use std::{fmt, io};
 
 use once_cell::sync::Lazy;
-use unicode_width::UnicodeWidthStr;
 
 use super::color::Color;
 use super::style::{Property, Style};
@@ -229,16 +228,6 @@ impl<T> Paint<T> {
     pub fn hidden(mut self) -> Self {
         self.style.properties.set(Property::HIDDEN);
         self
-    }
-}
-
-impl<T: UnicodeWidthStr> UnicodeWidthStr for Paint<T> {
-    fn width(&self) -> usize {
-        self.item.width()
-    }
-
-    fn width_cjk(&self) -> usize {
-        self.item.width_cjk()
     }
 }
 

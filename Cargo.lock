@@ -2574,8 +2574,8 @@ dependencies = [
  "pretty_assertions",
  "tempfile",
  "termion 2.0.1",
+ "unicode-display-width",
  "unicode-segmentation",
- "unicode-width",
  "zeroize",
 ]
 
@@ -3618,6 +3618,15 @@ name = "unicode-bidi"
 version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92888ba5573ff080736b3648696b70cafad7d250551175acbaa4e0385b3e1460"
+
+[[package]]
+name = "unicode-display-width"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a43273b656140aa2bb8e65351fe87c255f0eca706b2538a9bd4a590a3490bf3"
+dependencies = [
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "unicode-ident"
