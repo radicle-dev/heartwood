@@ -25,7 +25,7 @@ fn main() {
         Ok(_) => process::exit(0),
         Err(err) => {
             if let Some(err) = err {
-                term::error(format!("Error: rad: {err}"));
+                term::error(format!("rad: {err}"));
             }
             process::exit(1);
         }
@@ -277,7 +277,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             rad_remote::run,
             args.to_vec(),
         ),
-        _ => {
+        other => {
             let exe = format!("{NAME}-{exe}");
             let status = process::Command::new(exe.clone()).args(args).status();
 
@@ -289,7 +289,9 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 }
                 Err(err) => {
                     if let ErrorKind::NotFound = err.kind() {
-                        return Err(Some(anyhow!("command `{}` not found", exe)));
+                        return Err(Some(anyhow!(
+                            "`{other}` is not a command. See `rad --help` for a list of commands.",
+                        )));
                     } else {
                         return Err(Some(err.into()));
                     }

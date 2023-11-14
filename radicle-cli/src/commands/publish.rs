@@ -110,9 +110,9 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     if !validations.is_empty() {
         for err in validations {
-            term::error(format!("Error: validation error {err}"));
+            term::error(format!("validation error: {err}"));
         }
-        anyhow::bail!("fatal error: repository storage is corrupt");
+        anyhow::bail!("fatal: repository storage is corrupt");
     }
 
     term::success!(

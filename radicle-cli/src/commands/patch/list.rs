@@ -76,10 +76,7 @@ pub fn run(
 
     if !errors.is_empty() {
         for (title, id, error) in errors {
-            term::error(format!(
-                "{} Patch {title:?} ({id}) failed to load: {error}",
-                term::format::negative("Error:")
-            ));
+            term::error(format!("patch {title:?} ({id}) failed to load: {error}",));
         }
     }
 

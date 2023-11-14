@@ -86,7 +86,7 @@ where
                 }
                 Some(Error::HelpManual) => {
                     let Ok(status) = term::manual(help.name) else {
-                        perror(help.name, "failed to load manual page");
+                        io::error(format!("rad {}: failed to load manual page", help.name));
                         process::exit(1);
                     };
                     process::exit(status.code().unwrap_or(0));
@@ -98,10 +98,10 @@ where
                 Some(Error::WithHint { hint, .. }) => Some(hint),
                 None => None,
             };
-            perror(help.name, &err);
+            io::error(format!("rad {}: {err}", help.name));
 
             if let Some(hint) = hint {
-                eprintln!("{}", Paint::yellow(hint));
+                io::hint(hint);
             }
             process::exit(1);
         }
@@ -128,23 +128,15 @@ pub fn profile() -> Result<Profile, anyhow::Error> {
     }
 }
 
-pub fn perror(name: &str, err: impl std::fmt::Display) {
-    eprintln!(
-        "{ERROR_PREFIX} {} rad {}: {err}",
-        Paint::red("Error:"),
-        name,
-    );
-}
-
 pub fn fail(_name: &str, error: &anyhow::Error) {
     let err = error.to_string();
     let err = err.trim_end();
 
     for line in err.lines() {
-        println!("{ERROR_PREFIX} {} {line}", Paint::red("Error:"));
+        io::error(line);
     }
 
     if let Some(Error::WithHint { hint, .. }) = error.downcast_ref::<Error>() {
-        println!("{ERROR_HINT_PREFIX} {}", Paint::yellow(hint));
+        io::hint(hint);
     }
 }
