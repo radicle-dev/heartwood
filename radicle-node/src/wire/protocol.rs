@@ -378,9 +378,9 @@ where
     }
 
     fn worker_result(&mut self, task: TaskResult) {
-        log::debug!(
+        log::trace!(
             target: "wire",
-            "Received fetch result from worker: stream={} remote={} result={:?}",
+            "Received fetch result from worker for stream {}, remote {}: {:?}",
             task.stream, task.remote, task.result
         );
 
@@ -560,10 +560,10 @@ where
                                 data: FrameData::Control(frame::Control::Open { stream }),
                                 ..
                             })) => {
-                                log::debug!(target: "wire", "Received stream open for id={stream} from {nid}");
+                                log::debug!(target: "wire", "Received `open` command for stream {stream} from {nid}");
 
                                 let Some(channels) = streams.register(stream) else {
-                                    log::warn!(target: "wire", "Peer attempted to open already-open stream id={stream}");
+                                    log::warn!(target: "wire", "Peer attempted to open already-open stream stream {stream}");
                                     continue;
                                 };
 
@@ -581,20 +581,20 @@ where
                                 ..
                             })) => {
                                 if let Some(channels) = streams.get(&stream) {
-                                    log::debug!(target: "wire", "Received end-of-file on id={stream} from {nid}");
+                                    log::debug!(target: "wire", "Received `end-of-file` on stream {stream} from {nid}");
 
                                     if channels.send(ChannelEvent::Eof).is_err() {
                                         log::error!(target: "wire", "Worker is disconnected; cannot send `EOF`");
                                     }
                                 } else {
-                                    log::debug!(target: "wire", "Ignoring frame on closed or unknown stream id={stream}");
+                                    log::debug!(target: "wire", "Ignoring frame on closed or unknown stream {stream}");
                                 }
                             }
                             Ok(Some(Frame {
                                 data: FrameData::Control(frame::Control::Close { stream }),
                                 ..
                             })) => {
-                                log::debug!(target: "wire", "Received stream close command for id={stream} from {nid}");
+                                log::debug!(target: "wire", "Received `close` command for stream {stream} from {nid}");
 
                                 if let Some(chans) = streams.unregister(&stream) {
                                     chans.close().ok();
@@ -616,7 +616,7 @@ where
                                         log::error!(target: "wire", "Worker is disconnected; cannot send data");
                                     }
                                 } else {
-                                    log::debug!(target: "wire", "Ignoring frame on closed or unknown stream id={stream}");
+                                    log::debug!(target: "wire", "Ignoring frame on closed or unknown stream {stream}");
                                 }
                             }
                             Ok(None) => {
@@ -842,7 +842,7 @@ where
                         };
                     let (stream, channels) = streams.open();
 
-                    log::debug!(target: "wire", "Opened new stream with id={stream} for rid={rid} remote={remote}");
+                    log::debug!(target: "wire", "Opened new stream with id {stream} for {rid} and remote {remote}");
 
                     let link = *link;
                     let task = Task {

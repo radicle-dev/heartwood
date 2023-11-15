@@ -226,15 +226,14 @@ impl Worker {
                 // TODO: nowhere to use this currently
                 timeout: _timeout,
             } => {
-                log::debug!(target: "worker", "Worker processing outgoing fetch for {}", rid);
+                log::debug!(target: "worker", "Worker processing outgoing fetch for {rid}");
                 let result = self.fetch(rid, remote, refs_at, channels);
                 FetchResult::Initiator { rid, result }
             }
             FetchRequest::Responder { remote } => {
-                log::debug!(target: "worker", "Worker processing incoming fetch for {remote}..");
+                log::debug!(target: "worker", "Worker processing incoming fetch for {remote} on stream {stream}..");
 
                 let (mut stream_r, stream_w) = channels.split();
-
                 let header = match upload_pack::pktline::git_request(&mut stream_r) {
                     Ok(header) => header,
                     Err(e) => {
@@ -243,6 +242,7 @@ impl Worker {
                         }
                     }
                 };
+                log::debug!(target: "worker", "Spawning upload-pack process for {} on stream {stream}..", header.repo);
 
                 if let Err(e) = self.is_authorized(remote, header.repo) {
                     return FetchResult::Responder { result: Err(e) };

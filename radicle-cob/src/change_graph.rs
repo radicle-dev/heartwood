@@ -37,14 +37,15 @@ impl ChangeGraph {
     where
         S: change::Storage<ObjectId = Oid, Parent = Oid, Signatures = ExtendedSignature>,
     {
-        log::info!("loading object '{}' '{}'", typename, oid);
+        log::debug!(target: "cob", "Loading object of type {typename} at {oid}");
 
         let mut builder = GraphBuilder::default();
         let mut edges_to_process: Vec<(Oid, Oid)> = Vec::new();
 
         // Populate the initial set of edges_to_process from the refs we have
         for reference in tip_refs {
-            log::trace!("loading object from reference '{}'", reference.name);
+            log::trace!(target: "cob", "Loading object from reference '{}'", reference.name);
+
             match storage.load(reference.target.id) {
                 Ok(change) => {
                     let new_edges = builder
@@ -54,10 +55,10 @@ impl ChangeGraph {
                 }
                 Err(e) => {
                     log::warn!(
-                        "unable to load change from reference '{}->{}', error '{}'",
+                        target: "cob",
+                        "Unable to load change from reference {}->{}: {e}",
                         reference.name,
                         reference.target.id,
-                        e
                     );
                 }
             }
@@ -66,7 +67,8 @@ impl ChangeGraph {
         // Process edges until we have no more to process
         while let Some((parent_commit_id, child_commit_id)) = edges_to_process.pop() {
             log::trace!(
-                "loading change parent='{}', child='{}'",
+                target: "cob",
+                "Loading change parent='{}', child='{}'",
                 parent_commit_id,
                 child_commit_id
             );
@@ -78,9 +80,9 @@ impl ChangeGraph {
                 }
                 Err(e) => {
                     log::warn!(
-                        "unable to load changetree from commit '{}', error '{}'",
+                        target: "cob",
+                        "Unable to load change tree from commit {}: {e}",
                         parent_commit_id,
-                        e
                     );
                 }
             }

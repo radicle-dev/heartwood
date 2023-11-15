@@ -82,7 +82,7 @@ where
             match io::copy(&mut stdout, &mut send) {
                 Ok(_) => {}
                 Err(e) => {
-                    log::error!(target: "worker", "Worker channel disconnected; aborting: {e}");
+                    log::error!(target: "worker", "Worker channel disconnected for {}; aborting: {e}", header.repo);
                 }
             }
         });
@@ -94,16 +94,16 @@ where
                     Ok(0) => break,
                     Ok(n) => {
                         if let Err(e) = stdin.write_all(&buffer[..n]) {
-                            log::warn!(target: "worker", "upload-pack stdin write error: {e}");
+                            log::warn!(target: "worker", "Error writing to upload-pack stdin: {e}");
                             break;
                         }
                     }
                     Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                        log::debug!(target: "worker", "exiting upload-pack receive thread");
+                        log::debug!(target: "worker", "Exiting upload-pack reader thread for {}", header.repo);
                         break;
                     }
                     Err(e) => {
-                        log::error!(target: "worker", "upload-pack channel read error: {e}");
+                        log::error!(target: "worker", "Error on upload-pack channel read for {}: {e}", header.repo);
                         break;
                     }
                 }
