@@ -5,6 +5,7 @@ use std::{fmt, io, time};
 
 use crossbeam_channel as chan;
 use radicle::node::{ConnectOptions, ConnectResult, Seeds};
+use radicle::storage::refs::RefsAt;
 use reactor::poller::popol::PopolWaker;
 use thiserror::Error;
 
@@ -224,9 +225,10 @@ impl radicle::node::Handle for Handle {
         receiver.recv().map_err(Error::from)
     }
 
-    fn announce_refs(&mut self, id: Id) -> Result<(), Error> {
-        self.command(service::Command::AnnounceRefs(id))
-            .map_err(Error::from)
+    fn announce_refs(&mut self, id: Id) -> Result<RefsAt, Error> {
+        let (sender, receiver) = chan::bounded(1);
+        self.command(service::Command::AnnounceRefs(id, sender))?;
+        receiver.recv().map_err(Error::from)
     }
 
     fn announce_inventory(&mut self) -> Result<(), Error> {

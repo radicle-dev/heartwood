@@ -369,7 +369,7 @@ impl<V> Deref for SignedRefs<V> {
 ///
 /// It can also be used for communicating announcements of updates
 /// references to other nodes.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RefsAt {
     /// The remote namespace of the `rad/sigrefs`.

@@ -153,10 +153,9 @@ where
             }
         },
         Command::AnnounceRefs { rid } => {
-            if let Err(e) = handle.announce_refs(rid) {
-                return Err(CommandError::Runtime(e));
-            }
-            CommandResult::ok().to_writer(writer).ok();
+            let refs = handle.announce_refs(rid)?;
+
+            json::to_writer(writer, &refs)?;
         }
         Command::AnnounceInventory => {
             if let Err(e) = handle.announce_inventory() {
@@ -265,7 +264,14 @@ mod tests {
             let stream = BufReader::new(stream);
             let line = stream.lines().next().unwrap().unwrap();
 
-            assert_eq!(line, json::json!({}).to_string());
+            assert_eq!(
+                line,
+                json::json!({
+                    "remote": handle.nid().unwrap(),
+                    "at":"0000000000000000000000000000000000000000"
+                })
+                .to_string()
+            );
         }
 
         for rid in &rids {

@@ -1,5 +1,6 @@
 use std::{fmt, io, mem};
 
+use radicle::git::Oid;
 use radicle::storage::refs::RefsAt;
 
 use crate::crypto;
@@ -191,19 +192,19 @@ impl RefsAnnouncement {
         &self,
         remote: &NodeId,
         storage: S,
-    ) -> Result<bool, storage::Error> {
+    ) -> Result<Option<Oid>, storage::Error> {
         let repo = match storage.repository(self.rid) {
             // If the repo doesn't exist, we're not in sync.
-            Err(e) if e.is_not_found() => return Ok(false),
+            Err(e) if e.is_not_found() => return Ok(None),
             Err(e) => return Err(e),
             Ok(r) => r,
         };
 
         if let Some(theirs) = self.refs.iter().find(|refs_at| refs_at.remote == *remote) {
             let ours = RefsAt::new(&repo, *remote)?;
-            return Ok(ours.at == theirs.at);
+            return Ok((ours.at == theirs.at).then_some(theirs.at));
         }
-        Ok(false)
+        Ok(None)
     }
 }
 

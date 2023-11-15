@@ -418,7 +418,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     if announce {
         match node.announce_refs(rid) {
-            Ok(()) => {}
+            Ok(_) => {}
             Err(e) if e.is_connection_err() => {}
             Err(e) => return Err(e.into()),
         }

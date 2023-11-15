@@ -137,7 +137,7 @@ pub type QueryState = dyn Fn(&dyn ServiceState) -> Result<(), CommandError> + Se
 /// Commands sent to the service by the operator.
 pub enum Command {
     /// Announce repository references for given repository to peers.
-    AnnounceRefs(Id),
+    AnnounceRefs(Id, chan::Sender<RefsAt>),
     /// Announce local repositories to peers.
     AnnounceInventory,
     /// Announce local inventory to peers.
@@ -167,7 +167,7 @@ pub enum Command {
 impl fmt::Debug for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::AnnounceRefs(id) => write!(f, "AnnounceRefs({id})"),
+            Self::AnnounceRefs(id, _) => write!(f, "AnnounceRefs({id})"),
             Self::AnnounceInventory => write!(f, "AnnounceInventory"),
             Self::SyncInventory(_) => write!(f, "SyncInventory(..)"),
             Self::Connect(id, addr, opts) => write!(f, "Connect({id}, {addr}, {opts:?})"),
@@ -611,11 +611,17 @@ where
                     .expect("Service::command: error untracking node");
                 resp.send(untracked).ok();
             }
-            Command::AnnounceRefs(id) => {
-                if let Err(err) = self.announce_refs(id, [self.node_id()]) {
-                    error!("Error announcing refs: {}", err);
+            Command::AnnounceRefs(id, resp) => match self.announce_refs(id, [self.node_id()]) {
+                Ok(refs) => {
+                    #[allow(clippy::unwrap_used)]
+                    // SAFETY: we announced only our refs
+                    let refs = refs.first().unwrap();
+                    resp.send(*refs).ok();
                 }
-            }
+                Err(err) => {
+                    error!("Error announcing refs: {err}");
+                }
+            },
             Command::AnnounceInventory => {
                 if let Err(err) = self
                     .storage
@@ -1134,10 +1140,11 @@ where
                 // This event is used for showing sync progress to users.
                 match message.is_synced(&self.node_id(), &self.storage) {
                     Ok(synced) => {
-                        if synced {
+                        if let Some(at) = synced {
                             self.emitter.emit(Event::RefsSynced {
                                 rid: message.rid,
                                 remote: *announcer,
+                                at,
                             });
                         }
                     }
@@ -1482,7 +1489,7 @@ where
         &mut self,
         rid: Id,
         remotes: impl IntoIterator<Item = NodeId>,
-    ) -> Result<(), Error> {
+    ) -> Result<Vec<RefsAt>, Error> {
         let repo = self.storage.repository(rid)?;
         let doc = repo.identity_doc()?;
         let peers = self.sessions.connected().map(|(_, p)| p);
@@ -1502,7 +1509,7 @@ where
 
         let msg = AnnouncementMessage::from(RefsAnnouncement {
             rid,
-            refs,
+            refs: refs.clone(),
             timestamp,
         });
         let ann = msg.signed(&self.signer);
@@ -1515,7 +1522,7 @@ where
             }),
         );
 
-        Ok(())
+        Ok(refs.into())
     }
 
     fn sync_and_announce(&mut self) {

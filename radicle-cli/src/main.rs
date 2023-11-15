@@ -279,7 +279,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
         ),
         other => {
             let exe = format!("{NAME}-{exe}");
-            let status = process::Command::new(exe.clone()).args(args).status();
+            let status = process::Command::new(exe).args(args).status();
 
             match status {
                 Ok(status) => {

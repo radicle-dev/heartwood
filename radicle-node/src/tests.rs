@@ -1353,7 +1353,12 @@ fn test_refs_synced_event() {
     events
         .wait(
             |e| {
-                if let Event::RefsSynced { remote, rid } = e {
+                if let Event::RefsSynced {
+                    remote,
+                    rid,
+                    at: _at,
+                } = e
+                {
                     assert_eq!(remote, &bob.id);
                     assert_eq!(rid, &acme);
 

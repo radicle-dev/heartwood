@@ -3,6 +3,7 @@ use std::time;
 
 use crossbeam_channel as chan;
 
+use crate::git::Oid;
 use crate::node;
 use crate::prelude::*;
 use crate::storage::{refs, RefUpdate};
@@ -19,6 +20,7 @@ pub enum Event {
     RefsSynced {
         remote: NodeId,
         rid: Id,
+        at: Oid,
     },
     SeedDiscovered {
         rid: Id,

@@ -24,6 +24,7 @@ use serde_json as json;
 use crate::crypto::PublicKey;
 use crate::identity::Id;
 use crate::profile;
+use crate::storage::refs::RefsAt;
 use crate::storage::RefUpdate;
 
 pub use address::{KnownAddress, SyncedAt};
@@ -742,7 +743,7 @@ pub trait Handle: Clone + Sync + Send {
     /// Untrack the given node.
     fn untrack_node(&mut self, id: NodeId) -> Result<bool, Self::Error>;
     /// Notify the service that a project has been updated, and announce local refs.
-    fn announce_refs(&mut self, id: Id) -> Result<(), Self::Error>;
+    fn announce_refs(&mut self, id: Id) -> Result<RefsAt, Self::Error>;
     /// Announce local inventory.
     fn announce_inventory(&mut self) -> Result<(), Self::Error>;
     /// Notify the service that our inventory was updated.
@@ -823,7 +824,7 @@ impl Node {
         let events = self.subscribe(timeout)?;
         let mut seeds = seeds.into_iter().collect::<BTreeSet<_>>();
 
-        self.announce_refs(rid)?;
+        let refs = self.announce_refs(rid)?;
 
         callback(AnnounceEvent::Announced);
 
@@ -832,9 +833,14 @@ impl Node {
 
         for e in events {
             match e {
-                Ok(Event::RefsSynced { remote, rid: rid_ }) if rid == rid_ => {
-                    seeds.remove(&remote);
-                    synced.push(remote);
+                Ok(Event::RefsSynced {
+                    remote,
+                    rid: rid_,
+                    at,
+                }) if rid == rid_ => {
+                    if seeds.remove(&remote) && refs.at == at {
+                        synced.push(remote);
+                    }
 
                     callback(AnnounceEvent::RefsSynced { remote });
                 }
@@ -963,11 +969,13 @@ impl Handle for Node {
         Ok(response.updated)
     }
 
-    fn announce_refs(&mut self, rid: Id) -> Result<(), Error> {
-        for line in self.call::<Success>(Command::AnnounceRefs { rid }, DEFAULT_TIMEOUT)? {
-            line?;
-        }
-        Ok(())
+    fn announce_refs(&mut self, rid: Id) -> Result<RefsAt, Error> {
+        let refs: RefsAt = self
+            .call(Command::AnnounceRefs { rid }, DEFAULT_TIMEOUT)?
+            .next()
+            .ok_or(Error::EmptyResponse)??;
+
+        Ok(refs)
     }
 
     fn announce_inventory(&mut self) -> Result<(), Error> {

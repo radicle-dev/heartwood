@@ -3,6 +3,9 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::{io, time};
 
+use radicle::git;
+use radicle::storage::refs::RefsAt;
+
 use crate::identity::Id;
 use crate::node::{Alias, Config, ConnectOptions, ConnectResult, Event, FetchResult, Seeds};
 use crate::runtime::HandleError;
@@ -80,10 +83,13 @@ impl radicle::node::Handle for Handle {
         Ok(self.tracking_nodes.lock().unwrap().remove(&id))
     }
 
-    fn announce_refs(&mut self, id: Id) -> Result<(), Self::Error> {
+    fn announce_refs(&mut self, id: Id) -> Result<RefsAt, Self::Error> {
         self.updates.lock().unwrap().push(id);
 
-        Ok(())
+        Ok(RefsAt {
+            remote: self.nid()?,
+            at: git::raw::Oid::zero().into(),
+        })
     }
 
     fn announce_inventory(&mut self) -> Result<(), Self::Error> {
