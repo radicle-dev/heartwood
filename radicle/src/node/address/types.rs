@@ -137,8 +137,10 @@ pub struct KnownAddress {
     /// Address of the peer who sent us this address.
     pub source: Source,
     /// Last time this address was used to successfully connect to a peer.
+    #[serde(with = "crate::serde_ext::localtime::option::time")]
     pub last_success: Option<LocalTime>,
     /// Last time this address was tried.
+    #[serde(with = "crate::serde_ext::localtime::option::time")]
     pub last_attempt: Option<LocalTime>,
     /// Whether this address has been banned.
     pub banned: bool,
@@ -187,6 +189,7 @@ pub struct SyncedAt {
     /// Head of `rad/sigrefs`.
     pub oid: git_ext::Oid,
     /// When these refs were synced.
+    #[serde(with = "crate::serde_ext::localtime::time")]
     pub timestamp: LocalTime,
 }
 

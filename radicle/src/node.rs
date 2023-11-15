@@ -129,6 +129,7 @@ impl fmt::Display for State {
 /// Repository sync status for our own refs.
 #[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "status")]
+#[serde(rename_all = "camelCase")]
 pub enum SyncStatus {
     /// We're in sync.
     #[serde(rename_all = "camelCase")]
@@ -447,7 +448,9 @@ impl Session {
 pub struct Seed {
     pub nid: NodeId,
     pub addrs: Vec<KnownAddress>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state: Option<State>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sync: Option<SyncStatus>,
 }
 
@@ -1100,9 +1103,26 @@ mod test {
             .unwrap(),
             "{\"error\":\"entity not found\"}"
         );
+
+        json::from_str::<CommandResult<State>>(
+            &serde_json::to_string(&CommandResult::Okay(State::Connected {
+                since: LocalTime::now(),
+                ping: Default::default(),
+                fetching: Default::default(),
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_matches!(
+            json::from_str::<CommandResult<State>>(
+                r#"{"connected":{"since":1699636852107,"fetching":[]}}"#
+            ),
+            Ok(CommandResult::Okay(_))
+        );
         assert_matches!(
             json::from_str::<CommandResult<Seeds>>(
-                r#"[{"nid":"z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z","addrs":[],"state":{"connected":{"since":1699636852107,"fetching":[]}}}]"#
+                r#"[{"nid":"z6MksmpU5b1dS7oaqF2bHXhQi1DWy2hB7Mh9CuN7y1DN6QSz","addrs":[{"addr":"seed.radicle.xyz:8776","source":"peer","lastSuccess":1699983994234,"lastAttempt":1699983994000,"banned":false}],"state":{"connected":{"since":1699983994,"fetching":[]}}}]"#
             ),
             Ok(CommandResult::Okay(_))
         );
