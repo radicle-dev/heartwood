@@ -218,7 +218,7 @@ impl Store for Book {
         timestamp: Timestamp,
     ) -> Result<bool, Error> {
         let mut stmt = self.db.prepare(
-            "INSERT INTO repo-sync-status (repo, node, head, timestamp)
+            "INSERT INTO `repo-sync-status` (repo, node, head, timestamp)
              VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT DO UPDATE
              SET head = ?3, timestamp = ?4
@@ -227,7 +227,7 @@ impl Store for Book {
         stmt.bind((1, rid))?;
         stmt.bind((2, nid))?;
         stmt.bind((3, at.to_string().as_str()))?;
-        stmt.bind((3, timestamp as i64))?;
+        stmt.bind((4, timestamp as i64))?;
         stmt.next()?;
 
         Ok(self.db.change_count() > 0)
