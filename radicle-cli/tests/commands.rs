@@ -45,6 +45,16 @@ fn test<'a>(
     Ok(())
 }
 
+/// Test config.
+fn config(alias: &'static str) -> Config {
+    Config {
+        external_addresses: vec![
+            node::Address::from_str(&format!("{alias}.radicle.xyz:8776")).unwrap(),
+        ],
+        ..Config::test(Alias::new(alias))
+    }
+}
+
 fn formula(root: &Path, test: impl AsRef<Path>) -> Result<TestFormula, Box<dyn std::error::Error>> {
     let mut formula = TestFormula::new(root.to_path_buf());
     let base = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -1018,9 +1028,9 @@ fn test_cob_deletion() {
 fn rad_sync() {
     let mut environment = Environment::new();
     let working = environment.tmp().join("working");
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
-    let eve = environment.node(Config::test(Alias::new("eve")));
+    let alice = environment.node(config("alice"));
+    let bob = environment.node(config("bob"));
+    let eve = environment.node(config("eve"));
     let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
     fixtures::repository(working.join("acme"));

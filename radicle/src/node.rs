@@ -141,9 +141,9 @@ pub enum SyncStatus {
     #[serde(rename_all = "camelCase")]
     OutOfSync {
         /// Local head of our `rad/sigrefs`.
-        local: git_ext::Oid,
+        local: SyncedAt,
         /// Remote head of our `rad/sigrefs`.
-        remote: git_ext::Oid,
+        remote: SyncedAt,
     },
 }
 

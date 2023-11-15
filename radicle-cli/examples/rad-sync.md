@@ -7,6 +7,18 @@ For instance let's create an issue and sync it with the network:
 $ rad issue open --title "Test `rad sync`" --description "Check that the command works" -q --no-announce
 ```
 
+If we check the sync status, we see that our peers are out of sync:
+
+```
+$ rad sync status
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   NID                                                Address                Status        At        Timestamp │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z   eve.radicle.xyz:8776   out-of-sync   f209c9f   [  ...  ] │
+│ ●   z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   bob.radicle.xyz:8776   out-of-sync   f209c9f   [  ...  ] │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
 Now let's run `rad sync`. This will announce the issue refs to the network and
 wait for nodes to announce that they have fetched those refs.
 
@@ -56,4 +68,16 @@ And the `--replicas` flag to sync with a number of nodes:
 $ rad sync --fetch --replicas 1
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetched repository from 1 seed(s)
+```
+
+We can check the sync status again to make sure everything's in sync:
+
+```
+$ rad sync status
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   NID                                                Address                Status   At        Timestamp │
+├────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z   eve.radicle.xyz:8776   synced   9f615f9   [  ...  ] │
+│ ●   z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   bob.radicle.xyz:8776   synced   9f615f9   [  ...  ] │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

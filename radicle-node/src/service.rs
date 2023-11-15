@@ -32,7 +32,9 @@ use crate::crypto::{Signer, Verified};
 use crate::identity::{Doc, Id};
 use crate::node::routing;
 use crate::node::routing::InsertResult;
-use crate::node::{Address, Alias, Features, FetchResult, HostName, Seed, Seeds, SyncStatus};
+use crate::node::{
+    Address, Alias, Features, FetchResult, HostName, Seed, Seeds, SyncStatus, SyncedAt,
+};
 use crate::prelude::*;
 use crate::runtime::Emitter;
 use crate::service::message::{Announcement, AnnouncementMessage, Info, Ping};
@@ -115,6 +117,8 @@ impl SyncedRouting {
 pub enum Error {
     #[error(transparent)]
     Git(#[from] radicle::git::raw::Error),
+    #[error(transparent)]
+    GitExt(#[from] radicle::git::ext::Error),
     #[error(transparent)]
     Storage(#[from] storage::Error),
     #[error(transparent)]
@@ -1137,6 +1141,27 @@ where
                     }
                 }
 
+                // Update sync status for this repo.
+                if let Some(refs) = message.refs.iter().find(|r| &r.remote == self.nid()) {
+                    match self
+                        .addresses
+                        .synced(&message.rid, announcer, refs.at, message.timestamp)
+                    {
+                        Ok(updated) => {
+                            if updated {
+                                debug!(
+                                    target: "service",
+                                    "Updating sync status of {announcer} for {} to {}",
+                                    message.rid, refs.at
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            error!(target: "service", "Error updating sync status for {}: {e}", message.rid);
+                        }
+                    }
+                }
+
                 // TODO: Buffer/throttle fetches.
                 let repo_entry = self.tracking.repo_policy(&message.rid).expect(
                     "Service::handle_announcement: error accessing repo tracking configuration",
@@ -1531,7 +1556,9 @@ where
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
 
         for remote_id in remotes.into_iter() {
-            if refs.push(RefsAt::new(&repo, remote_id)?).is_err() {
+            let refs_at = RefsAt::new(&repo, remote_id)?;
+
+            if refs.push(refs_at).is_err() {
                 warn!(
                     target: "service",
                     "refs announcement limit ({}) exceeded, peers will see only some of your repository references",
@@ -1634,9 +1661,11 @@ where
                     let synced = if local.at == seed.synced_at.oid {
                         SyncStatus::Synced { at: seed.synced_at }
                     } else {
+                        let local = SyncedAt::new(local.at, &repo)?;
+
                         SyncStatus::OutOfSync {
-                            local: local.at,
-                            remote: seed.synced_at.oid,
+                            local,
+                            remote: seed.synced_at,
                         }
                     };
                     seeds.insert(Seed::new(seed.nid, seed.addresses, state, Some(synced)));

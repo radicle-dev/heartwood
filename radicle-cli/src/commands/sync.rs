@@ -4,12 +4,14 @@ use std::time;
 use anyhow::{anyhow, Context as _};
 
 use radicle::node;
-use radicle::node::{FetchResult, FetchResults, Handle as _, Node};
+use radicle::node::{FetchResult, FetchResults, Handle as _, Node, SyncStatus};
 use radicle::prelude::{Id, NodeId, Profile};
 use radicle::storage::{ReadRepository, ReadStorage};
+use radicle_term::Element;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::{Table, TableOptions};
 
 pub const HELP: Help = Help {
     name: "sync",
@@ -20,6 +22,7 @@ Usage
 
     rad sync [--fetch | --announce] [<rid>] [<option>...]
     rad sync --inventory [<option>...]
+    rad sync status [<rid>] [<option>...]
 
     By default, the current repository is synchronized both ways.
     If an <rid> is specified, that repository is synced instead.
@@ -40,6 +43,10 @@ Usage
     If `--inventory` is specified, the node's inventory is announced to
     the network. This mode does not take an `<rid>`.
 
+Commands
+
+    status                    Display the sync status of a repository
+
 Options
 
     --fetch, -f               Turn on fetching (default: true)
@@ -52,6 +59,13 @@ Options
     --help                    Print help
 "#,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum Operation {
+    Synchronize(SyncMode),
+    #[default]
+    Status,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SyncMode {
@@ -99,7 +113,7 @@ pub struct Options {
     pub rid: Option<Id>,
     pub verbose: bool,
     pub timeout: time::Duration,
-    pub sync: SyncMode,
+    pub op: Operation,
 }
 
 impl Args for Options {
@@ -115,6 +129,7 @@ impl Args for Options {
         let mut inventory = false;
         let mut replicas = None;
         let mut seeds = Vec::new();
+        let mut op: Option<Operation> = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -154,9 +169,14 @@ impl Args for Options {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
-                Value(val) if rid.is_none() => {
-                    rid = Some(term::args::rid(&val)?);
-                }
+                Value(val) if rid.is_none() => match val.to_string_lossy().as_ref() {
+                    "s" | "status" => {
+                        op = Some(Operation::Status);
+                    }
+                    _ => {
+                        rid = Some(term::args::rid(&val)?);
+                    }
+                },
                 arg => {
                     return Err(anyhow!(arg.unexpected()));
                 }
@@ -195,7 +215,7 @@ impl Args for Options {
                 rid,
                 verbose,
                 timeout,
-                sync,
+                op: op.unwrap_or(Operation::Synchronize(sync)),
             },
             vec![],
         ))
@@ -220,8 +240,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
         );
     }
 
-    match options.sync {
-        SyncMode::Repo { mode, direction } => {
+    match options.op {
+        Operation::Status => {
+            sync_status(rid, &mut node)?;
+        }
+        Operation::Synchronize(SyncMode::Repo { mode, direction }) => {
             if [SyncDirection::Fetch, SyncDirection::Both].contains(&direction) {
                 if !profile.tracking()?.is_repo_tracked(&rid)? {
                     anyhow::bail!("repository {rid} is not tracked");
@@ -240,10 +263,66 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 announce_refs(rid, mode, options.timeout, node, &profile)?;
             }
         }
-        SyncMode::Inventory => {
+        Operation::Synchronize(SyncMode::Inventory) => {
             announce_inventory(node)?;
         }
     }
+    Ok(())
+}
+
+fn sync_status(rid: Id, node: &mut Node) -> anyhow::Result<()> {
+    let mut table = Table::<6, term::Label>::new(TableOptions::bordered());
+    let seeds: Vec<_> = node.seeds(rid)?.into();
+
+    table.push([
+        term::format::dim(String::from("●")).into(),
+        term::format::bold(String::from("NID")).into(),
+        term::format::bold(String::from("Address")).into(),
+        term::format::bold(String::from("Status")).into(),
+        term::format::bold(String::from("At")).into(),
+        term::format::bold(String::from("Timestamp")).into(),
+    ]);
+    table.divider();
+
+    for seed in seeds {
+        let (icon, status, refs, time) = match seed.sync {
+            Some(SyncStatus::Synced { at }) => (
+                term::format::positive("●"),
+                term::format::positive("synced"),
+                term::label(term::format::oid(at.oid)),
+                term::format::timestamp(at.timestamp).into(),
+            ),
+            Some(SyncStatus::OutOfSync { remote, .. }) => (
+                term::format::negative("●"),
+                term::format::negative("out-of-sync"),
+                term::label(term::format::oid(remote.oid)),
+                term::format::timestamp(remote.timestamp).into(),
+            ),
+            None => (
+                term::format::yellow("●"),
+                term::format::yellow("?"),
+                term::label("?"),
+                term::label("?"),
+            ),
+        };
+        let addr = seed
+            .addrs
+            .first()
+            .map(|a| a.addr.to_string())
+            .unwrap_or_default()
+            .into();
+
+        table.push([
+            icon.into(),
+            seed.nid.to_human().into(),
+            addr,
+            status.into(),
+            refs,
+            time,
+        ]);
+    }
+    table.print();
+
     Ok(())
 }
 

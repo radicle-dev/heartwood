@@ -6,8 +6,10 @@ use localtime::LocalTime;
 use nonempty::NonEmpty;
 
 use crate::collections::RandomMap;
+use crate::git;
 use crate::node::{Address, Alias};
 use crate::prelude::{NodeId, Timestamp};
+use crate::storage::ReadRepository;
 use crate::{node, profile};
 
 /// A map with the ability to randomly select values.
@@ -191,6 +193,16 @@ pub struct SyncedAt {
     /// When these refs were synced.
     #[serde(with = "crate::serde_ext::localtime::time")]
     pub timestamp: LocalTime,
+}
+
+impl SyncedAt {
+    /// Create a new [`SyncedAt`] given an OID, by looking up the timestamp in the repo.
+    pub fn new<S: ReadRepository>(oid: git::ext::Oid, repo: &S) -> Result<Self, git::ext::Error> {
+        let timestamp = repo.commit(oid)?.time();
+        let timestamp = LocalTime::from_secs(timestamp.seconds() as u64);
+
+        Ok(Self { oid, timestamp })
+    }
 }
 
 /// Seed of a specific repository.
