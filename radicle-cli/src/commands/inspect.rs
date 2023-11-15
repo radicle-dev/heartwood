@@ -12,6 +12,7 @@ use radicle::identity::Id;
 use radicle::identity::Identity;
 use radicle::node::tracking::Policy;
 use radicle::node::AliasStore as _;
+use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::terminal as term;
@@ -36,6 +37,7 @@ Options
     --rid        Return the repository identifier (RID)
     --payload    Inspect the repository's identity payload
     --refs       Inspect the repository's refs on the local device
+    --sigrefs    Inspect the values of `rad/sigrefs` for all remotes of this repository
     --identity   Inspect the identity document
     --visibility Inspect the repository's visibility
     --delegates  Inspect the repository's delegates
@@ -52,6 +54,7 @@ pub enum Target {
     Delegates,
     Identity,
     Visibility,
+    Sigrefs,
     Policy,
     History,
     #[default]
@@ -94,6 +97,9 @@ impl Args for Options {
                 }
                 Long("identity") => {
                     target = Target::Identity;
+                }
+                Long("sigrefs") => {
+                    target = Target::Sigrefs;
                 }
                 Long("rid") => {
                     target = Target::RepoId;
@@ -158,6 +164,18 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 "{}",
                 colorizer().colorize_json_str(&serde_json::to_string_pretty(&project.doc)?)?
             );
+        }
+        Target::Sigrefs => {
+            for remote in repo.remote_ids()? {
+                let remote = remote?;
+                let refs = RefsAt::new(&repo, remote)?;
+
+                println!(
+                    "{:<48} {}",
+                    term::format::tertiary(remote.to_human()),
+                    term::format::secondary(refs.at)
+                );
+            }
         }
         Target::Policy => {
             let tracking = profile.tracking()?;

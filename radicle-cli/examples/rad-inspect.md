@@ -29,6 +29,13 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
         └── sigrefs
 ```
 
+And sigrefs:
+
+```
+$ rad inspect --sigrefs
+z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi f209c9f68aa689af24220a20462e13ee9dfb2a95
+```
+
 Or display the repository identity's payload and delegates:
 
 ```
