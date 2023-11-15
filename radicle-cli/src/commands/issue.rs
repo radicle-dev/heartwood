@@ -518,7 +518,7 @@ fn list<R: WriteRepository + cob::Store>(
             } else {
                 term::format::primary(assigned.to_string()).dim().into()
             },
-            term::format::timestamp(&issue.timestamp())
+            term::format::timestamp(issue.timestamp())
                 .dim()
                 .italic()
                 .into(),

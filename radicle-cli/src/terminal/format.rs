@@ -1,4 +1,6 @@
-use std::{fmt, time};
+use std::fmt;
+
+use localtime::LocalTime;
 
 pub use radicle_term::format::*;
 pub use radicle_term::{style, Paint};
@@ -61,12 +63,13 @@ pub fn visibility(v: &Visibility) -> Paint<&str> {
 }
 
 /// Format a timestamp.
-pub fn timestamp(time: &Timestamp) -> Paint<String> {
+pub fn timestamp(time: impl Into<LocalTime>) -> Paint<String> {
+    let time: LocalTime = time.into();
+    let now: LocalTime = Timestamp::now().into();
+    let duration = now - time;
     let fmt = timeago::Formatter::new();
-    let now = Timestamp::now();
-    let duration = time::Duration::from_secs(now.as_secs() - time.as_secs());
 
-    Paint::new(fmt.convert(duration))
+    Paint::new(fmt.convert(duration.into()))
 }
 
 /// Identity formatter that takes a profile and displays it as

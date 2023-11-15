@@ -111,7 +111,7 @@ pub fn row(
         term::format::secondary(term::format::oid(revision.head())).into(),
         term::format::positive(format!("+{}", stats.insertions())).into(),
         term::format::negative(format!("-{}", stats.deletions())).into(),
-        term::format::timestamp(&patch.updated_at())
+        term::format::timestamp(patch.updated_at())
             .dim()
             .italic()
             .into(),
@@ -220,7 +220,7 @@ pub fn timeline(
     let mut lines = Vec::new();
     for (time, mut line) in timeline.into_iter() {
         line.push(term::Label::space());
-        line.push(term::format::dim(term::format::timestamp(&time)));
+        line.push(term::format::dim(term::format::timestamp(time)));
         lines.push(line);
     }
 

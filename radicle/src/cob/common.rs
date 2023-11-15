@@ -47,6 +47,12 @@ impl From<LocalTime> for Timestamp {
     }
 }
 
+impl From<Timestamp> for LocalTime {
+    fn from(time: Timestamp) -> Self {
+        time.0
+    }
+}
+
 impl Deref for Timestamp {
     type Target = LocalTime;
 

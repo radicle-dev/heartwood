@@ -18,7 +18,7 @@ pub fn header(
         .child(term::Line::spaced([
             alias,
             nid,
-            term::format::timestamp(&comment.timestamp()).dim().into(),
+            term::format::timestamp(comment.timestamp()).dim().into(),
         ]))
         .child(term::Line::new(term::Label::space()))
         .child(term::Line::spaced([term::format::oid(*id)

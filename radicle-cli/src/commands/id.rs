@@ -413,7 +413,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                 let title = term::label(r.title.to_string());
                 let (alias, author) =
                     term::format::Author::new(r.author.public_key(), &profile).labels();
-                let timestamp = term::format::timestamp(&r.timestamp).into();
+                let timestamp = term::format::timestamp(r.timestamp).into();
 
                 revisions.push([icon, id, title, alias, author, state, timestamp]);
             }
