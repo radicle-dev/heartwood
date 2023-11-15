@@ -47,6 +47,9 @@ pub const NOISE_XK: HandshakePattern = HandshakePattern {
 /// workers waiting for data from remotes as well.
 pub const DEFAULT_CHANNEL_TIMEOUT: time::Duration = time::Duration::from_secs(9);
 
+/// Default time to wait until a network connection is considered inactive.
+pub const DEFAULT_CONNECTION_TIMEOUT: time::Duration = time::Duration::from_secs(30);
+
 /// Control message used internally between workers, users, and the service.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
@@ -885,9 +888,12 @@ pub fn dial<G: Signer + Ecdh<Pk = NodeId>>(
     force_proxy: bool,
 ) -> io::Result<WireSession<G>> {
     let connection = if force_proxy {
-        net::TcpStream::connect_nonblocking(proxy_addr)?
+        net::TcpStream::connect_nonblocking(proxy_addr, DEFAULT_CONNECTION_TIMEOUT)?
     } else {
-        net::TcpStream::connect_nonblocking(remote_addr.connection_addr(proxy_addr))?
+        net::TcpStream::connect_nonblocking(
+            remote_addr.connection_addr(proxy_addr),
+            DEFAULT_CONNECTION_TIMEOUT,
+        )?
     };
     Ok(session::<G>(
         remote_addr,
