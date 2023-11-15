@@ -284,15 +284,18 @@ impl SignedRefs<Verified> {
     pub fn save<S: WriteRepository>(&self, repo: &S) -> Result<Updated, Error> {
         let sigref = &SIGREFS_BRANCH;
         let remote = &self.id;
-        let parent = match repo.reference(remote, sigref) {
-            Ok(r) => Some(r.peel_to_commit()?),
-            Err(git_ext::Error::Git(e)) if git_ext::is_not_found_err(&e) => None,
-            Err(git_ext::Error::NotFound(_)) => None,
-            Err(e) => return Err(e.into()),
+        let raw = repo.raw();
+
+        // N.b. if the signatures match then there are no updates
+        let parent = match SignedRefsAt::load(*remote, repo)? {
+            Some(SignedRefsAt { sigrefs, at }) if sigrefs.signature == self.signature => {
+                return Ok(Updated::Unchanged { oid: at })
+            }
+            Some(SignedRefsAt { at, .. }) => Some(raw.find_commit(*at)?),
+            None => None,
         };
 
         let tree = {
-            let raw = repo.raw();
             let refs_blob_oid = raw.blob(&self.canonical())?;
             let sig_blob_oid = raw.blob(self.signature.as_ref())?;
 
@@ -305,16 +308,8 @@ impl SignedRefs<Verified> {
             raw.find_tree(oid)
         }?;
 
-        if let Some(ref parent) = parent {
-            if parent.tree()?.id() == tree.id() {
-                return Ok(Updated::Unchanged {
-                    oid: parent.id().into(),
-                });
-            }
-        }
-
         let sigref = sigref.with_namespace(remote.into());
-        let author = repo.raw().signature()?;
+        let author = raw.signature()?;
 
         #[cfg(debug_assertions)]
         let author = if let Ok(s) = std::env::var("RAD_COMMIT_TIME") {
@@ -327,7 +322,7 @@ impl SignedRefs<Verified> {
             author
         };
 
-        let commit = repo.raw().commit(
+        let commit = raw.commit(
             Some(&sigref),
             &author,
             &author,
