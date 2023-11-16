@@ -41,6 +41,7 @@ use crate::test::storage as mock_storage;
 use crate::test::storage::MockStorage;
 use crate::wire::Decode;
 use crate::wire::Encode;
+use crate::worker;
 use crate::worker::fetch;
 use crate::LocalTime;
 use crate::{git, identity, rad, runtime, service, test};
@@ -1175,16 +1176,14 @@ fn test_track_repo_subscribe() {
 }
 
 #[test]
-fn test_fetch_missing_inventory() {
+fn test_fetch_missing_inventory_on_gossip() {
     let rid = arbitrary::gen::<Id>(1);
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);
     let bob = Peer::new("bob", [8, 8, 8, 8]);
-    let eve = Peer::new("eve", [9, 9, 9, 9]);
-    let (send, recv) = chan::bounded::<bool>(1);
     let now = LocalTime::now();
 
+    alice.track_repo(&rid, node::tracking::Scope::All).unwrap();
     alice.connect_to(&bob);
-    alice.connect_to(&eve);
     alice.receive(
         bob.id(),
         Message::inventory(
@@ -1195,33 +1194,48 @@ fn test_fetch_missing_inventory() {
             bob.signer(),
         ),
     );
+    alice
+        .outbox()
+        .find(|m| matches!(m, Io::Fetch { rid: other, .. } if other == &rid))
+        .unwrap();
+}
+
+#[test]
+fn test_fetch_missing_inventory_on_schedule() {
+    let rid = arbitrary::gen::<Id>(1);
+    let mut alice = Peer::new("alice", [7, 7, 7, 7]);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let now = LocalTime::now();
+
+    alice.track_repo(&rid, node::tracking::Scope::All).unwrap();
+    alice.connect_to(&bob);
     alice.receive(
-        eve.id(),
+        bob.id(),
         Message::inventory(
             InventoryAnnouncement {
                 inventory: vec![rid].try_into().unwrap(),
                 timestamp: now.as_millis(),
             },
-            eve.signer(),
+            bob.signer(),
         ),
     );
-    alice.command(Command::TrackRepo(rid, node::tracking::Scope::All, send));
+    alice.fetched(
+        rid,
+        bob.id,
+        Err(worker::FetchError::Io(
+            io::ErrorKind::ConnectionReset.into(),
+        )),
+    );
     alice.outbox().for_each(drop);
-
-    assert!(recv.recv().unwrap());
-
     alice.elapse(service::SYNC_INTERVAL);
     alice
         .outbox()
-        .find(|m| matches!(m, Io::Fetch { .. }))
-        .unwrap();
-    alice
-        .outbox()
-        .find(|m| matches!(m, Io::Fetch { .. }))
+        .find(|m| matches!(m, Io::Fetch { rid: other, .. } if other == &rid))
         .unwrap();
 }
+
 #[test]
-fn test_queued_fetch() {
+fn test_queued_fetch_max_capacity() {
     let storage = arbitrary::nonempty_storage(3);
     let mut repo_keys = storage.inventory.keys();
     let rid1 = *repo_keys.next().unwrap();
@@ -1265,6 +1279,55 @@ fn test_queued_fetch() {
     alice.fetched(rid2, bob.id, Ok(fetch::FetchResult::default()));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(alice.fetches().next(), Some((rid, _, _)) if rid == rid3);
+}
+
+#[test]
+fn test_queued_fetch_same_rid() {
+    let storage = arbitrary::nonempty_storage(3);
+    let mut repo_keys = storage.inventory.keys();
+    let rid1 = *repo_keys.next().unwrap();
+    let mut alice = Peer::with_storage("alice", [7, 7, 7, 7], storage);
+    let bob = Peer::new("bob", [8, 8, 8, 8]);
+    let eve = Peer::new("eve", [9, 9, 9, 9]);
+    let carol = Peer::new("carol", [10, 10, 10, 10]);
+
+    logger::init(log::Level::Debug);
+
+    alice.connect_to(&bob);
+    alice.connect_to(&eve);
+    alice.connect_to(&carol);
+
+    // Send the first fetch.
+    let (send, _recv1) = chan::bounded::<node::FetchResult>(1);
+    alice.command(Command::Fetch(rid1, bob.id, DEFAULT_TIMEOUT, send));
+
+    // Send the 2nd fetch that will be queued.
+    let (send2, _recv2) = chan::bounded::<node::FetchResult>(1);
+    alice.command(Command::Fetch(rid1, eve.id, DEFAULT_TIMEOUT, send2));
+
+    // Send the 3rd fetch that will be queued.
+    let (send3, _recv3) = chan::bounded::<node::FetchResult>(1);
+    alice.command(Command::Fetch(rid1, carol.id, DEFAULT_TIMEOUT, send3));
+
+    // The first fetch is initiated.
+    assert_matches!(alice.fetches().next(), Some((rid, nid, _)) if rid == rid1 && nid == bob.id);
+    // We shouldn't send out the 2nd, 3rd fetch while we're doing the 1st fetch.
+    assert_matches!(alice.outbox().next(), None);
+
+    // Have enough time pass that Alice sends a "ping" to Bob.
+    alice.elapse(KEEP_ALIVE_DELTA);
+
+    // Finish the 1st fetch.
+    alice.fetched(rid1, bob.id, Ok(fetch::FetchResult::default()));
+    // Now the 1st fetch is done, the 2nd fetch is dequeued.
+    assert_matches!(alice.fetches().next(), Some((rid, nid, _)) if rid == rid1 && nid == eve.id);
+    // ... but not the third.
+    assert_matches!(alice.fetches().next(), None);
+
+    // Finish the 2nd fetch.
+    alice.fetched(rid1, eve.id, Ok(fetch::FetchResult::default()));
+    // Now the 2nd fetch is done, the 3rd fetch is dequeued.
+    assert_matches!(alice.fetches().next(), Some((rid, nid, _)) if rid == rid1 && nid == carol.id);
 }
 
 #[test]

@@ -91,6 +91,8 @@ impl Outbox {
         refs_at: Vec<RefsAt>,
         timeout: time::Duration,
     ) {
+        remote.fetching(rid);
+
         let refs_at = (!refs_at.is_empty()).then_some(refs_at);
         self.io.push_back(Io::Fetch {
             rid,

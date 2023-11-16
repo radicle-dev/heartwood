@@ -1,4 +1,4 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
 use std::fmt;
 
 use crate::node::config::Limits;
@@ -8,19 +8,6 @@ use crate::service::{Address, Id, LocalTime, NodeId, Outbox, Rng};
 use crate::Link;
 
 pub use crate::node::{PingState, State};
-
-/// Return value of [`Session::fetch`].
-#[derive(Debug)]
-pub enum FetchResult {
-    /// Maximum concurrent fetches reached.
-    Queued,
-    /// We are already fetching the given repo from this peer.
-    AlreadyFetching,
-    /// Ok, ready to fetch.
-    Ready,
-    /// This peer is not ready to fetch.
-    NotConnected,
-}
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -70,8 +57,6 @@ pub struct Session {
     pub subscribe: Option<message::Subscribe>,
     /// Last time a message was received from the peer.
     pub last_active: LocalTime,
-    /// Fetch queue.
-    pub queue: VecDeque<Id>,
 
     /// Connection attempts. For persistent peers, Tracks
     /// how many times we've attempted to connect. We reset this to zero
@@ -112,7 +97,6 @@ impl Session {
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
-            queue: VecDeque::default(),
             attempts: 1,
             rng,
             limits,
@@ -139,7 +123,6 @@ impl Session {
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
-            queue: VecDeque::default(),
             attempts: 0,
             rng,
             limits,
@@ -162,38 +145,51 @@ impl Session {
         matches!(self.state, State::Initial)
     }
 
+    pub fn is_at_capacity(&self) -> bool {
+        if let State::Connected { fetching, .. } = &self.state {
+            if fetching.len() >= self.limits.fetch_concurrency {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn is_fetching(&self, rid: &Id) -> bool {
+        if let State::Connected { fetching, .. } = &self.state {
+            return fetching.contains(rid);
+        }
+        false
+    }
+
     pub fn attempts(&self) -> usize {
         self.attempts
     }
 
-    pub fn fetch(&mut self, rid: Id) -> FetchResult {
+    /// Mark this session as fetching the given RID.
+    ///
+    /// # Panics
+    ///
+    /// If it is already fetching that RID, or the session is disconnected.
+    pub fn fetching(&mut self, rid: Id) {
         if let State::Connected { fetching, .. } = &mut self.state {
-            if fetching.contains(&rid) || self.queue.contains(&rid) {
-                return FetchResult::AlreadyFetching;
-            }
-            if fetching.len() >= self.limits.fetch_concurrency {
-                self.queue.push_back(rid);
-                return FetchResult::Queued;
-            }
-            fetching.insert(rid);
-
-            FetchResult::Ready
+            assert!(
+                fetching.insert(rid),
+                "Session must not already be fetching {rid}"
+            );
         } else {
-            FetchResult::NotConnected
+            panic!(
+                "Attempting to fetch {rid} from disconnected session {}",
+                self.id
+            );
         }
     }
 
-    pub fn fetched(&mut self, rid: Id) -> Option<Id> {
+    pub fn fetched(&mut self, rid: Id) {
         if let State::Connected { fetching, .. } = &mut self.state {
             if !fetching.remove(&rid) {
-                log::error!(target: "service", "Fetched unknown repository {rid}");
-            }
-            // Dequeue the next fetch, if any.
-            if let Some(rid) = self.queue.pop_front() {
-                return Some(rid);
+                log::warn!(target: "service", "Fetched unknown repository {rid}");
             }
         }
-        None
     }
 
     pub fn to_attempted(&mut self) {
@@ -232,14 +228,6 @@ impl Session {
             "Can only transition to 'initial' state from 'disconnected' state"
         );
         self.state = State::Initial;
-    }
-
-    pub fn fetching(&self) -> HashSet<Id> {
-        if let State::Connected { fetching, .. } = &self.state {
-            fetching.clone()
-        } else {
-            HashSet::default()
-        }
     }
 
     pub fn ping(&mut self, reactor: &mut Outbox) -> Result<(), Error> {
