@@ -8,7 +8,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use crypto::{PublicKey, Signature, Signer, SignerError, Unverified, Verified};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::git;
@@ -369,7 +369,8 @@ impl<V> Deref for SignedRefs<V> {
 ///
 /// It can also be used for communicating announcements of updates
 /// references to other nodes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RefsAt {
     /// The remote namespace of the `rad/sigrefs`.
     pub remote: RemoteId,

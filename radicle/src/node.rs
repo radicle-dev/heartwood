@@ -554,7 +554,7 @@ pub enum AnnounceEvent {
     Announced,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum FetchResult {
     Success {

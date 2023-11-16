@@ -3,8 +3,9 @@ use std::time;
 
 use crossbeam_channel as chan;
 
+use crate::node;
 use crate::prelude::*;
-use crate::storage::RefUpdate;
+use crate::storage::{refs, RefUpdate};
 
 /// A service event.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -33,6 +34,24 @@ pub enum Event {
     PeerDisconnected {
         nid: NodeId,
         reason: String,
+    },
+    InventoryAnnounced {
+        nid: NodeId,
+        inventory: Vec<Id>,
+        timestamp: Timestamp,
+    },
+    RefsAnnounced {
+        nid: NodeId,
+        rid: Id,
+        refs: Vec<refs::RefsAt>,
+        timestamp: Timestamp,
+    },
+    NodeAnnounced {
+        nid: NodeId,
+        alias: Alias,
+        timestamp: Timestamp,
+        features: node::Features,
+        addresses: Vec<node::Address>,
     },
 }
 

@@ -38,7 +38,8 @@ Run `cd ./heartwood` to go to the project directory.
 We wait for Alice to sync our fork.
 
 ``` ~bob
-$ rad node events -n 1 --timeout 1
+$ rad node events -n 2 --timeout 1
+{"type":"refsAnnounced","nid":"z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi","rid":"rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK","refs":[{"remote":"z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk","at":"161b775a3509c8098de67f57f750972bba015b31"}],"timestamp":[..]}
 {"type":"refsSynced","remote":"z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi","rid":"rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK"}
 ```
 

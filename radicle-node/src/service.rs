@@ -919,7 +919,7 @@ where
         } = announcement;
 
         // Ignore our own announcements, in case the relayer sent one by mistake.
-        if *announcer == self.node_id() {
+        if announcer == self.nid() {
             return Ok(false);
         }
         let now = self.clock;
@@ -969,7 +969,13 @@ where
         }
 
         match message {
+            // Process a peer inventory update announcement by (maybe) fetching.
             AnnouncementMessage::Inventory(message) => {
+                self.emitter.emit(Event::InventoryAnnounced {
+                    nid: *announcer,
+                    inventory: message.inventory.to_vec(),
+                    timestamp: message.timestamp,
+                });
                 match self.sync_routing(&message.inventory, *announcer, message.timestamp) {
                     Ok(synced) => {
                         if synced.is_empty() {
@@ -1018,8 +1024,13 @@ where
 
                 return Ok(relay);
             }
-            // Process a peer inventory update announcement by (maybe) fetching.
             AnnouncementMessage::Refs(message) => {
+                self.emitter.emit(Event::RefsAnnounced {
+                    nid: *announcer,
+                    rid: message.rid,
+                    refs: message.refs.to_vec(),
+                    timestamp: message.timestamp,
+                });
                 // We update inventories when receiving ref announcements, as these could come
                 // from a new repository being initialized.
                 if let Ok(result) =
@@ -1094,6 +1105,13 @@ where
                     ..
                 },
             ) => {
+                self.emitter.emit(Event::NodeAnnounced {
+                    nid: *announcer,
+                    alias: ann.alias.clone(),
+                    timestamp: ann.timestamp,
+                    features: *features,
+                    addresses: addresses.to_vec(),
+                });
                 // If this node isn't a seed, we're not interested in adding it
                 // to our address book, but other nodes may be, so we relay the message anyway.
                 if !features.has(Features::SEED) {

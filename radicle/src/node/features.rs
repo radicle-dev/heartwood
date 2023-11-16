@@ -1,8 +1,10 @@
 //! Node features advertized on the network.
+use serde::{Deserialize, Serialize};
 use std::{fmt, ops};
 
 /// Advertized node features. Signals what services the node supports.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Features(u64);
 
 impl Features {
