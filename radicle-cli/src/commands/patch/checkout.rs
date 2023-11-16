@@ -13,6 +13,7 @@ pub fn run(
     revision_id: &RevisionId,
     stored: &Repository,
     working: &git::raw::Repository,
+    force: bool,
 ) -> anyhow::Result<()> {
     let patches = patch::Patches::open(stored)?;
 
@@ -35,18 +36,30 @@ pub fn run(
         // SAFETY: Patch IDs are valid refstrings.
         git::refname!("patch").join(RefString::try_from(term::format::cob(&patch_id)).unwrap());
 
-    match working.find_branch(patch_branch.as_str(), radicle::git::raw::BranchType::Local) {
-        Ok(branch) => {
-            let commit = branch.get().peel_to_commit()?;
-            working.checkout_tree(commit.as_object(), None)?;
-        }
-        Err(e) if radicle::git::is_not_found_err(&e) => {
-            let commit = find_patch_commit(revision, stored, working)?;
-            // Create patch branch and switch to it.
-            working.branch(patch_branch.as_str(), &commit, true)?;
-            working.checkout_tree(commit.as_object(), None)?;
-        }
-        Err(e) => return Err(e.into()),
+    let commit =
+        match working.find_branch(patch_branch.as_str(), radicle::git::raw::BranchType::Local) {
+            Ok(branch) if !force => branch.get().peel_to_commit()?,
+            Ok(branch) => {
+                let commit = find_patch_commit(revision, stored, working)?;
+                let mut r = branch.into_reference();
+                r.set_target(commit.id(), &format!("force update '{patch_branch}'"))?;
+                commit
+            }
+            Err(e) if radicle::git::is_not_found_err(&e) => {
+                let commit = find_patch_commit(revision, stored, working)?;
+                // Create patch branch and switch to it.
+                working.branch(patch_branch.as_str(), &commit, true)?;
+                commit
+            }
+            Err(e) => return Err(e.into()),
+        };
+
+    if force {
+        let mut opts = radicle::git::raw::build::CheckoutBuilder::new();
+        opts.force();
+        working.checkout_tree(commit.as_object(), Some(&mut opts))?;
+    } else {
+        working.checkout_tree(commit.as_object(), None)?;
     }
     working.set_head(&git::refs::workdir::branch(&patch_branch))?;
 

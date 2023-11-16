@@ -85,6 +85,10 @@ Ready options
 
         --undo                 Convert a patch back to a draft
 
+Checkout options
+
+    -f, --force                Checkout the head of the revision, even if the branch already exists
+
 Other options
 
     -q, --quiet                Quiet output
@@ -151,6 +155,7 @@ pub enum Operation {
     },
     Checkout {
         revision_id: Rev,
+        force: bool,
     },
     Comment {
         revision_id: Rev,
@@ -198,6 +203,7 @@ impl Args for Options {
         let mut diff = false;
         let mut undo = false;
         let mut reply_to: Option<Rev> = None;
+        let mut force = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -249,6 +255,11 @@ impl Args for Options {
                     let rev = term::args::oid(&val)?;
 
                     reply_to = Some(rev);
+                }
+
+                // Checkout options
+                Long("force") | Short('f') if op == Some(OperationName::Checkout) => {
+                    force = true;
                 }
 
                 // List options.
@@ -340,6 +351,7 @@ impl Args for Options {
             },
             OperationName::Checkout => Operation::Checkout {
                 revision_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                force,
             },
             OperationName::Comment => Operation::Comment {
                 revision_id: patch_id
@@ -419,9 +431,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
             delete::run(&patch_id, &profile, &repository)?;
         }
-        Operation::Checkout { revision_id } => {
+        Operation::Checkout { revision_id, force } => {
             let revision_id = revision_id.resolve::<radicle::git::Oid>(&repository.backend)?;
-            checkout::run(&patch::RevisionId::from(revision_id), &repository, &workdir)?;
+            checkout::run(
+                &patch::RevisionId::from(revision_id),
+                &repository,
+                &workdir,
+                force,
+            )?;
         }
         Operation::Comment {
             revision_id,
