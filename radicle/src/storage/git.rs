@@ -9,6 +9,7 @@ use std::{fs, io};
 
 use crypto::{Signer, Verified};
 use once_cell::sync::Lazy;
+use tempfile::TempDir;
 
 use crate::crypto::Unverified;
 use crate::git;
@@ -152,6 +153,27 @@ impl Storage {
         Ok(Self { path, info })
     }
 
+    /// Create a [`Repository`] in a temporary directory.
+    ///
+    /// N.b. it is important to keep the [`TempDir`] in scope while
+    /// using the [`Repository`]. If it is dropped, any action on the
+    /// `Repository` will fail.
+    pub fn lock_repository(&self, rid: Id) -> Result<(Repository, TempDir), RepositoryError> {
+        if self.contains(&rid)? {
+            return Err(Error::Io(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("refusing to create '{}.lock'", rid),
+            ))
+            .into());
+        }
+        let tmp = tempfile::Builder::new()
+            .prefix(&rid.canonical())
+            .suffix(".lock")
+            .tempdir_in(self.path())
+            .map_err(Error::from)?;
+        Ok((Repository::create(tmp.path(), rid, &self.info)?, tmp))
+    }
+
     pub fn path(&self) -> &Path {
         self.path.as_path()
     }
@@ -169,6 +191,12 @@ impl Storage {
             // Skip hidden files.
             if path.file_name().to_string_lossy().starts_with('.') {
                 continue;
+            }
+            // Skip lock files.
+            if let Some(ext) = path.path().extension() {
+                if ext == "lock" {
+                    continue;
+                }
             }
             let rid =
                 Id::try_from(path.file_name()).map_err(|_| Error::InvalidId(path.file_name()))?;

@@ -14,7 +14,7 @@ use radicle::identity::Id;
 use radicle::prelude::NodeId;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
-use radicle::{crypto, git, Storage};
+use radicle::{crypto, Storage};
 use radicle_fetch::FetchLimit;
 
 use crate::runtime::{thread, Handle};
@@ -159,8 +159,6 @@ pub struct FetchConfig {
     pub tracking_db: PathBuf,
     /// Data limits when fetching from a remote.
     pub limit: FetchLimit,
-    /// Information of the local peer.
-    pub info: git::UserInfo,
     /// Public key of the local peer.
     pub local: crypto::PublicKey,
     /// Configuration for `git gc` garbage collection. Defaults to `1
@@ -281,7 +279,6 @@ impl Worker {
             scope,
             tracking_db,
             limit,
-            info,
             local,
             expiry,
         } = &self.fetch_config;
@@ -292,15 +289,7 @@ impl Worker {
         let tracked = radicle_fetch::Tracked::from_config(rid, &tracking)?;
         let blocked = radicle_fetch::BlockList::from_config(&tracking)?;
 
-        let handle = fetch::Handle::new(
-            rid,
-            *local,
-            info.clone(),
-            &self.storage,
-            tracked,
-            blocked,
-            channels,
-        )?;
+        let handle = fetch::Handle::new(rid, *local, &self.storage, tracked, blocked, channels)?;
         let result = handle.fetch(rid, &self.storage, *limit, remote, refs_at)?;
 
         if let Err(e) = garbage::collect(&self.storage, rid, *expiry) {

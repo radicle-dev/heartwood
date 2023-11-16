@@ -3,9 +3,7 @@ pub mod error;
 use std::collections::HashSet;
 
 use radicle::crypto::PublicKey;
-use radicle::git::UserInfo;
 use radicle::prelude::Id;
-use radicle::storage::git::Repository;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadStorage as _, RefUpdate, WriteRepository as _};
 use radicle::Storage;
@@ -35,7 +33,6 @@ impl Handle {
     pub fn new(
         rid: Id,
         local: PublicKey,
-        info: UserInfo,
         storage: &Storage,
         tracked: Tracked,
         blocked: BlockList,
@@ -47,8 +44,7 @@ impl Handle {
             let handle = radicle_fetch::Handle::new(local, repo, tracked, blocked, channels)?;
             Ok(Handle::Pull { handle })
         } else {
-            let tmp = tempfile::tempdir()?;
-            let repo = Repository::create(tmp.path(), rid, &info)?;
+            let (repo, tmp) = storage.lock_repository(rid)?;
             let handle = radicle_fetch::Handle::new(local, repo, tracked, blocked, channels)?;
             Ok(Handle::Clone { handle, tmp })
         }
