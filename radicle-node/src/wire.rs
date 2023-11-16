@@ -82,12 +82,17 @@ pub trait Decode: Sized {
     fn decode<R: io::Read + ?Sized>(reader: &mut R) -> Result<Self, Error>;
 }
 
-/// Encode an object into a vector.
+/// Encode an object into a byte vector.
+///
+/// # Panics
+///
+/// If the encoded object exceeds [`Size::MAX`].
 pub fn serialize<T: Encode + ?Sized>(data: &T) -> Vec<u8> {
     let mut buffer = Vec::new();
-    let len = data
-        .encode(&mut buffer)
-        .expect("in-memory writes don't error");
+    // SAFETY: We expect this to panic if the user passes
+    // in data that exceeds the maximum allowed size.
+    #[allow(clippy::unwrap_used)]
+    let len = data.encode(&mut buffer).unwrap();
 
     debug_assert_eq!(len, buffer.len());
 

@@ -371,9 +371,62 @@ impl wire::Decode for ZeroBytes {
 mod tests {
     use super::*;
     use qcheck_macros::quickcheck;
+    use radicle::storage::refs::RefsAt;
+    use radicle_crypto::test::signer::MockSigner;
 
     use crate::deserializer::Deserializer;
+    use crate::test::arbitrary;
     use crate::wire::{self, Encode};
+
+    #[test]
+    fn test_refs_ann_max_size() {
+        let signer = MockSigner::default();
+        let refs: [RefsAt; REF_REMOTE_LIMIT] = arbitrary::gen(1);
+        let ann = AnnouncementMessage::Refs(RefsAnnouncement {
+            rid: arbitrary::gen(1),
+            refs: BoundedVec::collect_from(&mut refs.into_iter()),
+            timestamp: arbitrary::gen(1),
+        });
+        let ann = ann.signed(&signer);
+        let msg = Message::Announcement(ann);
+        let data = wire::serialize(&msg);
+
+        assert!(data.len() < wire::Size::MAX as usize);
+    }
+
+    #[test]
+    fn test_inv_ann_max_size() {
+        let signer = MockSigner::default();
+        let inv: [Id; INVENTORY_LIMIT] = arbitrary::gen(1);
+        let ann = AnnouncementMessage::Inventory(InventoryAnnouncement {
+            inventory: BoundedVec::collect_from(&mut inv.into_iter()),
+            timestamp: arbitrary::gen(1),
+        });
+        let ann = ann.signed(&signer);
+        let msg = Message::Announcement(ann);
+        let data = wire::serialize(&msg);
+
+        assert!(data.len() < wire::Size::MAX as usize);
+    }
+
+    #[test]
+    fn test_node_ann_max_size() {
+        let signer = MockSigner::default();
+        let addrs: [Address; ADDRESS_LIMIT] = arbitrary::gen(1);
+        let alias = ['@'; radicle::node::MAX_ALIAS_LENGTH];
+        let ann = AnnouncementMessage::Node(NodeAnnouncement {
+            features: Default::default(),
+            alias: radicle::node::Alias::new(String::from_iter(alias)),
+            addresses: BoundedVec::collect_from(&mut addrs.into_iter()),
+            timestamp: arbitrary::gen(1),
+            nonce: u64::MAX,
+        });
+        let ann = ann.signed(&signer);
+        let msg = Message::Announcement(ann);
+        let data = wire::serialize(&msg);
+
+        assert!(data.len() < wire::Size::MAX as usize);
+    }
 
     #[test]
     fn test_pingpong_encode_max_size() {
