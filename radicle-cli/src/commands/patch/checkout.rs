@@ -1,19 +1,41 @@
 use anyhow::anyhow;
 
+use git_ref_format::Qualified;
 use radicle::cob::patch;
 use radicle::cob::patch::RevisionId;
 use radicle::git::RefString;
+use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
 use radicle::storage::ReadRepository;
 use radicle::{git, rad};
 
 use crate::terminal as term;
 
+#[derive(Debug, Default)]
+pub struct Options {
+    pub name: Option<RefString>,
+    pub force: bool,
+}
+
+impl Options {
+    fn branch(&self, id: PatchId) -> anyhow::Result<RefString> {
+        match &self.name {
+            Some(refname) => Ok(Qualified::from_refstr(refname)
+                .map_or_else(|| refname.clone(), |q| q.to_ref_string())),
+            // SAFETY: Patch IDs are valid refstrings.
+            None => {
+                Ok(git::refname!("patch")
+                    .join(RefString::try_from(term::format::cob(&id)).unwrap()))
+            }
+        }
+    }
+}
+
 pub fn run(
     revision_id: &RevisionId,
     stored: &Repository,
     working: &git::raw::Repository,
-    force: bool,
+    opts: Options,
 ) -> anyhow::Result<()> {
     let patches = patch::Patches::open(stored)?;
 
@@ -32,13 +54,11 @@ pub fn run(
     };
 
     let mut spinner = term::spinner("Performing checkout...");
-    let patch_branch =
-        // SAFETY: Patch IDs are valid refstrings.
-        git::refname!("patch").join(RefString::try_from(term::format::cob(&patch_id)).unwrap());
+    let patch_branch = opts.branch(patch_id)?;
 
     let commit =
         match working.find_branch(patch_branch.as_str(), radicle::git::raw::BranchType::Local) {
-            Ok(branch) if !force => branch.get().peel_to_commit()?,
+            Ok(branch) if !opts.force => branch.get().peel_to_commit()?,
             Ok(branch) => {
                 let commit = find_patch_commit(revision, stored, working)?;
                 let mut r = branch.into_reference();
@@ -54,10 +74,10 @@ pub fn run(
             Err(e) => return Err(e.into()),
         };
 
-    if force {
-        let mut opts = radicle::git::raw::build::CheckoutBuilder::new();
-        opts.force();
-        working.checkout_tree(commit.as_object(), Some(&mut opts))?;
+    if opts.force {
+        let mut builder = radicle::git::raw::build::CheckoutBuilder::new();
+        builder.force();
+        working.checkout_tree(commit.as_object(), Some(&mut builder))?;
     } else {
         working.checkout_tree(commit.as_object(), None)?;
     }

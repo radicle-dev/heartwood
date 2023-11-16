@@ -87,6 +87,7 @@ Ready options
 
 Checkout options
 
+        --name <string>        Provide a name for the branch to checkout
     -f, --force                Checkout the head of the revision, even if the branch already exists
 
 Other options
@@ -155,7 +156,7 @@ pub enum Operation {
     },
     Checkout {
         revision_id: Rev,
-        force: bool,
+        opts: checkout::Options,
     },
     Comment {
         revision_id: Rev,
@@ -203,7 +204,7 @@ impl Args for Options {
         let mut diff = false;
         let mut undo = false;
         let mut reply_to: Option<Rev> = None;
-        let mut force = false;
+        let mut checkout_opts = checkout::Options::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -259,7 +260,12 @@ impl Args for Options {
 
                 // Checkout options
                 Long("force") | Short('f') if op == Some(OperationName::Checkout) => {
-                    force = true;
+                    checkout_opts.force = true;
+                }
+
+                Long("name") if op == Some(OperationName::Checkout) => {
+                    let val = parser.value()?;
+                    checkout_opts.name = Some(term::args::refstring("name", val)?);
                 }
 
                 // List options.
@@ -351,7 +357,7 @@ impl Args for Options {
             },
             OperationName::Checkout => Operation::Checkout {
                 revision_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                force,
+                opts: checkout_opts,
             },
             OperationName::Comment => Operation::Comment {
                 revision_id: patch_id
@@ -431,13 +437,13 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
             delete::run(&patch_id, &profile, &repository)?;
         }
-        Operation::Checkout { revision_id, force } => {
+        Operation::Checkout { revision_id, opts } => {
             let revision_id = revision_id.resolve::<radicle::git::Oid>(&repository.backend)?;
             checkout::run(
                 &patch::RevisionId::from(revision_id),
                 &repository,
                 &workdir,
-                force,
+                opts,
             )?;
         }
         Operation::Comment {

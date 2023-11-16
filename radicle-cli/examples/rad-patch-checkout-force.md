@@ -26,9 +26,9 @@ $ cd heartwood
 $ rad sync -f
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MknSL…StBU8Vi..
 ✓ Fetched repository from 1 seed(s)
-$ rad patch checkout 6ff4f09
-✓ Switched to branch patch/6ff4f09
-✓ Branch patch/6ff4f09 setup to track rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
+$ rad patch checkout 6ff4f09 --name alice-init
+✓ Switched to branch alice-init
+✓ Branch alice-init setup to track rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
 ```
 
 Meanwhile, we may see some more changes that we need to make, so we
@@ -62,7 +62,7 @@ From rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 
 ``` ~bob
 $ git status
-On branch patch/6ff4f09
+On branch alice-init
 Your branch is behind 'rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae' by 1 commit, and can be fast-forwarded.
   (use "git pull" to update your local branch)
 
@@ -76,11 +76,10 @@ to use the `--force` (`-f`) flag to ensure that they are looking at
 the latest changes:
 
 ``` ~bob
-$ rad patch checkout 6ff4f09 -f
-✓ Switched to branch patch/6ff4f09
-✓ Branch patch/6ff4f09 setup to track rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae
+$ rad patch checkout 6ff4f09 -f --name alice-init
+✓ Switched to branch alice-init
 $ git status
-On branch patch/6ff4f09
+On branch alice-init
 Your branch is up to date with 'rad/patches/6ff4f09c1b5a81347981f59b02ef43a31a07cdae'.
 
 nothing to commit, working tree clean

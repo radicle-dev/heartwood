@@ -325,6 +325,12 @@ pub fn setup_patch_upstream<'a>(
     };
 
     let branch = git::raw::Branch::wrap(r);
+
+    // Only set the upstream if it's missing or `force` is `true`
+    if branch.upstream().is_ok() && !force {
+        return Ok(None);
+    }
+
     let name: Option<git::RefString> = branch.name()?.and_then(|b| b.try_into().ok());
     let remote_branch = git::refs::workdir::patch_upstream(patch);
     let remote_branch = working.reference(
