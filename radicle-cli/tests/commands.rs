@@ -441,6 +441,33 @@ fn rad_patch_checkout() {
 }
 
 #[test]
+fn rad_patch_checkout_revision() {
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let working = tempfile::tempdir().unwrap();
+    let home = &profile.home;
+
+    // Setup a test repository.
+    fixtures::repository(working.path());
+
+    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
+    test(
+        "examples/rad-patch-checkout.md",
+        working.path(),
+        Some(home),
+        [],
+    )
+    .unwrap();
+    test(
+        "examples/rad-patch-checkout-revision.md",
+        working.path(),
+        Some(home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_patch_checkout_force() {
     let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));

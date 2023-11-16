@@ -87,6 +87,7 @@ Ready options
 
 Checkout options
 
+        --revision <id>        Checkout the given revision of the patch
         --name <string>        Provide a name for the branch to checkout
     -f, --force                Checkout the head of the revision, even if the branch already exists
 
@@ -155,7 +156,8 @@ pub enum Operation {
         patch_id: Rev,
     },
     Checkout {
-        revision_id: Rev,
+        patch_id: Rev,
+        revision_id: Option<Rev>,
         opts: checkout::Options,
     },
     Comment {
@@ -259,6 +261,13 @@ impl Args for Options {
                 }
 
                 // Checkout options
+                Long("revision") if op == Some(OperationName::Checkout) => {
+                    let val = parser.value()?;
+                    let rev = term::args::oid(&val)?;
+
+                    revision_id = Some(rev);
+                }
+
                 Long("force") | Short('f') if op == Some(OperationName::Checkout) => {
                     checkout_opts.force = true;
                 }
@@ -356,7 +365,8 @@ impl Args for Options {
                 patch_id: patch_id.ok_or_else(|| anyhow!("a patch id must be provided"))?,
             },
             OperationName::Checkout => Operation::Checkout {
-                revision_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                revision_id,
                 opts: checkout_opts,
             },
             OperationName::Comment => Operation::Comment {
@@ -437,10 +447,19 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             let patch_id = patch_id.resolve::<PatchId>(&repository.backend)?;
             delete::run(&patch_id, &profile, &repository)?;
         }
-        Operation::Checkout { revision_id, opts } => {
-            let revision_id = revision_id.resolve::<radicle::git::Oid>(&repository.backend)?;
+        Operation::Checkout {
+            patch_id,
+            revision_id,
+            opts,
+        } => {
+            let patch_id = patch_id.resolve::<radicle::git::Oid>(&repository.backend)?;
+            let revision_id = revision_id
+                .map(|rev| rev.resolve::<radicle::git::Oid>(&repository.backend))
+                .transpose()?
+                .map(patch::RevisionId::from);
             checkout::run(
-                &patch::RevisionId::from(revision_id),
+                &patch::PatchId::from(patch_id),
+                revision_id,
                 &repository,
                 &workdir,
                 opts,

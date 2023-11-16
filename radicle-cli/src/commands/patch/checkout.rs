@@ -18,39 +18,36 @@ pub struct Options {
 }
 
 impl Options {
-    fn branch(&self, id: PatchId) -> anyhow::Result<RefString> {
+    fn branch(&self, id: &PatchId) -> anyhow::Result<RefString> {
         match &self.name {
             Some(refname) => Ok(Qualified::from_refstr(refname)
                 .map_or_else(|| refname.clone(), |q| q.to_ref_string())),
             // SAFETY: Patch IDs are valid refstrings.
-            None => {
-                Ok(git::refname!("patch")
-                    .join(RefString::try_from(term::format::cob(&id)).unwrap()))
-            }
+            None => Ok(
+                git::refname!("patch").join(RefString::try_from(term::format::cob(id)).unwrap())
+            ),
         }
     }
 }
 
 pub fn run(
-    revision_id: &RevisionId,
+    patch_id: &PatchId,
+    revision_id: Option<RevisionId>,
     stored: &Repository,
     working: &git::raw::Repository,
     opts: Options,
 ) -> anyhow::Result<()> {
     let patches = patch::Patches::open(stored)?;
 
-    let (patch_id, patch, _, revision) = patches
-        .find_by_revision(revision_id)?
-        .ok_or_else(|| anyhow!("Patch revision `{revision_id}` not found"))?;
-    let (root, _) = patch.root();
-    // If we passed in the root revision, it's more likely that the user was specifying the
-    // patch itself. Hence, we checkout the latest update on the patch instead of that specific
-    // revision.
-    let revision = if *revision_id == root {
-        let (_, revision) = patch.latest();
-        revision
-    } else {
-        &revision
+    let patch = patches
+        .get(patch_id)?
+        .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
+
+    let revision = match revision_id {
+        Some(id) => patch
+            .revision(&id)
+            .ok_or_else(|| anyhow!("Patch revision `{id}` not found"))?,
+        None => patch.latest().1,
     };
 
     let mut spinner = term::spinner("Performing checkout...");
@@ -89,7 +86,7 @@ pub fn run(
     ));
     spinner.finish();
 
-    if let Some(branch) = rad::setup_patch_upstream(&patch_id, revision.head(), working, false)? {
+    if let Some(branch) = rad::setup_patch_upstream(patch_id, revision.head(), working, false)? {
         let tracking = branch
             .name()?
             .ok_or_else(|| anyhow!("failed to create tracking branch: invalid name"))?;
