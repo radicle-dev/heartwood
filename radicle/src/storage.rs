@@ -116,7 +116,7 @@ impl Error {
     pub fn is_not_found(&self) -> bool {
         match self {
             Self::Io(e) if e.kind() == io::ErrorKind::NotFound => true,
-            Self::Git(e) if git::is_not_found_err(e) => true,
+            Self::Git(e) if git::ext::is_not_found_err(e) => true,
             Self::Doc(e) if e.is_not_found() => true,
             _ => false,
         }

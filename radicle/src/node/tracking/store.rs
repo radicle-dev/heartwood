@@ -49,7 +49,7 @@ impl<T> fmt::Debug for Config<T> {
 }
 
 impl Config<Read> {
-    const SCHEMA: &str = include_str!("schema.sql");
+    const SCHEMA: &'static str = include_str!("schema.sql");
 
     /// Same as [`Self::open`], but in read-only mode. This is useful to have multiple
     /// open databases, as no locking is required.
@@ -81,7 +81,7 @@ impl Config<Read> {
 }
 
 impl Config<Write> {
-    const SCHEMA: &str = include_str!("schema.sql");
+    const SCHEMA: &'static str = include_str!("schema.sql");
 
     /// Open a policy store at the given path. Creates a new store if it
     /// doesn't exist.

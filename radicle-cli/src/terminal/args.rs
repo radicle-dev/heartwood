@@ -123,7 +123,7 @@ pub fn rid(val: &OsString) -> anyhow::Result<Id> {
 pub fn pubkey(val: &OsString) -> anyhow::Result<NodeId> {
     let Ok(did) = did(val) else {
         let nid = nid(val)?;
-        return Ok(nid)
+        return Ok(nid);
     };
     Ok(did.as_key().to_owned())
 }

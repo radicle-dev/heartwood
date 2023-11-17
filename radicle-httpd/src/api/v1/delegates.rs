@@ -40,19 +40,35 @@ async fn delegates_projects_handler(
         .inventory()?
         .into_iter()
         .filter_map(|id| {
-            let Ok(repo) = storage.repository(id) else { return None };
-            let Ok((_, head)) = repo.head() else { return None };
-            let Ok(DocAt { doc, .. }) = repo.identity_doc() else { return None };
-            let Ok(payload) = doc.project() else { return None };
+            let Ok(repo) = storage.repository(id) else {
+                return None;
+            };
+            let Ok((_, head)) = repo.head() else {
+                return None;
+            };
+            let Ok(DocAt { doc, .. }) = repo.identity_doc() else {
+                return None;
+            };
+            let Ok(payload) = doc.project() else {
+                return None;
+            };
 
             if !doc.delegates.iter().any(|d| *d == delegate) {
                 return None;
             }
 
-            let Ok(issues) = Issues::open(&repo) else { return None };
-            let Ok(issues) = issues.counts() else { return None };
-            let Ok(patches) = Patches::open(&repo) else { return None };
-            let Ok(patches) = patches.counts() else { return None };
+            let Ok(issues) = Issues::open(&repo) else {
+                return None;
+            };
+            let Ok(issues) = issues.counts() else {
+                return None;
+            };
+            let Ok(patches) = Patches::open(&repo) else {
+                return None;
+            };
+            let Ok(patches) = patches.counts() else {
+                return None;
+            };
 
             let delegates = doc.delegates;
             let trackings = routing.count(&id).unwrap_or_default();

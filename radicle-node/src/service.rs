@@ -1777,7 +1777,7 @@ where
                     .filter(|(nid, _)| !self.sessions.contains_key(nid))
                     .filter(|(nid, _)| nid != &self.node_id())
                     .fold(HashMap::new(), |mut acc, (nid, addr)| {
-                        acc.entry(nid).or_insert_with(Vec::new).push(addr);
+                        acc.entry(nid).or_default().push(addr);
                         acc
                     })
             }

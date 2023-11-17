@@ -159,7 +159,7 @@ where
         {
             use gix_pack::index::File;
 
-            let idx = File::at(&pack_path, gix_hash::Kind::Sha1).map_err(io_other)?;
+            let idx = File::at(pack_path, gix_hash::Kind::Sha1).map_err(io_other)?;
             for oid in wants_haves.wants {
                 if idx.lookup(oid::to_object_id(oid)).is_none() {
                     return Err(io::Error::new(

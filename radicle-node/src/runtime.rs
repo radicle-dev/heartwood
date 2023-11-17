@@ -159,7 +159,7 @@ impl Runtime {
         log::info!(target: "node", "Default tracking policy set to '{}'", &policy);
         log::info!(target: "node", "Initializing service ({:?})..", network);
 
-        let announcement = if let Some(ann) = fs::read(&node_dir.join(NODE_ANNOUNCEMENT_FILE))
+        let announcement = if let Some(ann) = fs::read(node_dir.join(NODE_ANNOUNCEMENT_FILE))
             .ok()
             .and_then(|ann| NodeAnnouncement::decode(&mut ann.as_slice()).ok())
             .and_then(|ann| {

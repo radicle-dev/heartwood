@@ -40,10 +40,7 @@ impl MockStorage {
 
     /// Add a remote `node` with `signed_refs` for the repo `rid`.
     pub fn insert_remote(&mut self, rid: Id, node: NodeId, refs: refs::SignedRefsAt) {
-        self.remotes
-            .entry(rid)
-            .or_insert(HashMap::new())
-            .insert(node, refs);
+        self.remotes.entry(rid).or_default().insert(node, refs);
     }
 }
 

@@ -83,8 +83,8 @@ fn unlabel(
         Ok(mut issue) => {
             let labels = issue
                 .labels()
+                .filter(|&l| !options.labels.contains(l))
                 .cloned()
-                .filter(|l| !options.labels.contains(l))
                 .collect::<Vec<_>>();
             issue.label(labels, &signer)?;
 
@@ -99,8 +99,8 @@ fn unlabel(
         Ok(mut patch) => {
             let labels = patch
                 .labels()
+                .filter(|&l| !options.labels.contains(l))
                 .cloned()
-                .filter(|l| !options.labels.contains(l))
                 .collect::<Vec<_>>();
             patch.label(labels, &signer)?;
 

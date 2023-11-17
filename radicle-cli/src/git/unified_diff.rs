@@ -439,10 +439,10 @@ impl Decode for Hunk<Modification> {
             }
 
             let Some(line) = Modification::try_decode(r)? else {
-                    return Err(Error::syntax(format!(
-                        "expected '{}' old lines and '{}' new lines, but found '{}' and '{}'",
-                        header.old_size, header.new_size, old_line, new_line,
-                    )));
+                return Err(Error::syntax(format!(
+                    "expected '{}' old lines and '{}' new lines, but found '{}' and '{}'",
+                    header.old_size, header.new_size, old_line, new_line,
+                )));
             };
 
             let line = match line {

@@ -95,7 +95,7 @@ pub fn contributor(dir: &Path) -> Context {
 }
 
 fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G) -> Context {
-    const DEFAULT_BRANCH: &'static str = "master";
+    const DEFAULT_BRANCH: &str = "master";
 
     let tracking_db = dir.join("radicle").join("node").join("tracking.db");
     let routing_db = dir.join("radicle").join("node").join("routing.db");

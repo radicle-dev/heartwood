@@ -23,7 +23,9 @@ use crate::storage::{
     WriteRepository, WriteStorage,
 };
 
-pub use crate::git::*;
+pub use crate::git::{
+    ext, raw, refname, refspec, Oid, PatternStr, Qualified, RefError, RefString, UserInfo,
+};
 pub use crate::storage::Error;
 
 use super::{RemoteId, RemoteRepository, ValidateRepository};
@@ -605,8 +607,8 @@ impl ReadRepository for Repository {
 
     fn references_glob(
         &self,
-        pattern: &self::PatternStr,
-    ) -> Result<Vec<(Qualified, Oid)>, self::ext::Error> {
+        pattern: &PatternStr,
+    ) -> Result<Vec<(Qualified, Oid)>, git::ext::Error> {
         let mut refs = Vec::new();
 
         for r in self.backend.references_glob(pattern)? {
@@ -715,11 +717,11 @@ impl ReadRepository for Repository {
         Err(DocError::Missing.into())
     }
 
-    fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, ext::Error> {
+    fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, git::ext::Error> {
         self.backend
             .merge_base(**left, **right)
             .map(Oid::from)
-            .map_err(ext::Error::from)
+            .map_err(git::ext::Error::from)
     }
 }
 
@@ -941,7 +943,7 @@ mod tests {
         let m1 = fixtures::commit("M1", &[*c2, *b2], &repo);
         let m2 = fixtures::commit("M2", &[*a1, *b2], &repo);
         let mut rng = fastrand::Rng::new();
-        let choices = vec![*c0, *c1, *c2, *b2, *a1, *a2, *d1, *m1, *m2];
+        let choices = [*c0, *c1, *c2, *b2, *a1, *a2, *d1, *m1, *m2];
 
         for _ in 0..100 {
             let count = rng.usize(1..=choices.len());

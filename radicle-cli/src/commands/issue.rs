@@ -589,13 +589,13 @@ fn edit<'a, 'g, R: WriteRepository + cob::Store, G: radicle::crypto::Signer>(
     }
 
     // Editing via the editor.
-    let Some((title, description)) =
-        term::issue::get_title_description(
-            Some(title.unwrap_or(issue.title().to_owned())),
-            Some(description.unwrap_or(issue.description().to_owned())),
-        )? else {
-            return Ok(issue);
-        };
+    let Some((title, description)) = term::issue::get_title_description(
+        Some(title.unwrap_or(issue.title().to_owned())),
+        Some(description.unwrap_or(issue.description().to_owned())),
+    )?
+    else {
+        return Ok(issue);
+    };
 
     issue.transaction("Edit", signer, |tx| {
         tx.edit(title)?;

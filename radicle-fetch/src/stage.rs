@@ -511,12 +511,13 @@ fn special_refs_updates<'a>(
             }
             refs::ReceivedRefname::RadId => None,
         })
-        .fold(BTreeMap::new(), |mut acc, (remote_id, tip, name)| {
-            acc.entry(*remote_id)
-                .or_insert_with(Vec::new)
-                .push((tip, name));
-            acc
-        });
+        .fold(
+            BTreeMap::<PublicKey, Vec<_>>::new(),
+            |mut acc, (remote_id, tip, name)| {
+                acc.entry(*remote_id).or_default().push((tip, name));
+                acc
+            },
+        );
 
     let mut updates = Updates::default();
 

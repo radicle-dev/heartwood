@@ -293,10 +293,17 @@ impl store::Cob for Identity {
 
     fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
         let mut actions = op.actions.into_iter();
-        let Some(
-            Action::Revision { title, description, blob, signature, parent }
-        ) = actions.next() else {
-            return Err(ApplyError::Init("the first action must be of type `revision`"));
+        let Some(Action::Revision {
+            title,
+            description,
+            blob,
+            signature,
+            parent,
+        }) = actions.next()
+        else {
+            return Err(ApplyError::Init(
+                "the first action must be of type `revision`",
+            ));
         };
         if parent.is_some() {
             return Err(ApplyError::Init(

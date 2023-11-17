@@ -86,7 +86,7 @@ fn label(
             let labels = issue
                 .labels()
                 .cloned()
-                .chain(options.labels.into_iter())
+                .chain(options.labels)
                 .collect::<Vec<_>>();
 
             issue.label(labels, &signer)?;
@@ -103,7 +103,7 @@ fn label(
             let labels = patch
                 .labels()
                 .cloned()
-                .chain(options.labels.into_iter())
+                .chain(options.labels)
                 .collect::<Vec<_>>();
 
             patch.label(labels, &signer)?;

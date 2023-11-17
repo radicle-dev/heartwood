@@ -47,7 +47,7 @@ pub struct Url {
 
 impl Url {
     /// URL scheme.
-    pub const SCHEME: &str = "heartwood";
+    pub const SCHEME: &'static str = "heartwood";
 }
 
 impl fmt::Display for Url {

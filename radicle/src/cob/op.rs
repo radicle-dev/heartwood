@@ -46,7 +46,7 @@ pub struct Op<A> {
 
 impl<A: Eq> PartialOrd for Op<A> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.id.partial_cmp(&other.id)
+        Some(self.cmp(other))
     }
 }
 

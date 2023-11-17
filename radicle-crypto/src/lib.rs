@@ -284,7 +284,7 @@ pub enum PublicKeyError {
 
 impl PartialOrd for PublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0.as_ref().partial_cmp(other.as_ref())
+        Some(self.cmp(other))
     }
 }
 

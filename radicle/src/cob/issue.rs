@@ -131,7 +131,12 @@ impl store::Cob for Issue {
     fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
         let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
         let mut actions = op.actions.into_iter();
-        let Some(Action::Comment { body, reply_to: None, embeds }) = actions.next() else {
+        let Some(Action::Comment {
+            body,
+            reply_to: None,
+            embeds,
+        }) = actions.next()
+        else {
             return Err(Error::Init("the first action must be of type `comment`"));
         };
         let comment = Comment::new(op.author, body, None, None, embeds, op.timestamp);

@@ -137,7 +137,7 @@ pub(crate) fn patch(
                 "description": rev.description(),
                 "base": rev.base(),
                 "oid": rev.head(),
-                "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or(vec![]),
+                "refs": get_refs(repo, patch.author().id(), &rev.head()).unwrap_or_default(),
                 "discussions": rev.discussion().comments()
                   .map(|(id, comment)| Comment::new(id, comment,  aliases))
                   .collect::<Vec<_>>(),

@@ -267,7 +267,7 @@ impl FetchState {
         }
 
         let up = step.prepare_updates(self, &handle.repo, &refs)?;
-        self.update_all(up.tips.into_iter());
+        self.update_all(up.tips);
 
         Ok(fetched)
     }

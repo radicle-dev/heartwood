@@ -1,4 +1,5 @@
 use std::ffi::OsStr;
+use std::fmt::Write;
 use std::{env, fmt, io, process};
 
 use inquire::ui::{ErrorMessageRenderConfig, StyleSheet, Styled};
@@ -127,9 +128,10 @@ pub fn print(msg: impl fmt::Display) {
 }
 
 pub fn prefixed(prefix: &str, text: &str) -> String {
-    text.split('\n')
-        .map(|line| format!("{prefix}{line}\n"))
-        .collect()
+    text.split('\n').fold(String::new(), |mut s, line| {
+        writeln!(&mut s, "{prefix}{line}").ok();
+        s
+    })
 }
 
 pub fn help(name: &str, version: &str, description: &str, usage: &str) {

@@ -45,7 +45,7 @@ pub struct Url {
 
 impl Url {
     /// URL scheme.
-    pub const SCHEME: &str = "rad";
+    pub const SCHEME: &'static str = "rad";
 
     /// Return this URL with the given namespace added.
     pub fn with_namespace(mut self, namespace: Namespace) -> Self {

@@ -50,7 +50,7 @@ impl fmt::Debug for Table {
 }
 
 impl Table {
-    const SCHEMA: &str = include_str!("routing/schema.sql");
+    const SCHEMA: &'static str = include_str!("routing/schema.sql");
 
     /// Open a routing file store at the given path. Creates a new empty store
     /// if an existing store isn't found.

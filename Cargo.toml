@@ -25,6 +25,7 @@ default-members = [
   "radicle-remote-helper",
   "radicle-term",
 ]
+resolver = "2"
 
 [profile.container]
 inherits = "release"

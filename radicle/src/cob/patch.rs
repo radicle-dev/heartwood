@@ -1073,7 +1073,13 @@ impl store::Cob for Patch {
     fn from_root<R: ReadRepository>(op: Op, repo: &R) -> Result<Self, Self::Error> {
         let doc = op.identity_doc(repo)?.ok_or(Error::MissingIdentity)?;
         let mut actions = op.actions.into_iter();
-        let Some(Action::Revision { description, base, oid, resolves }) = actions.next() else {
+        let Some(Action::Revision {
+            description,
+            base,
+            oid,
+            resolves,
+        }) = actions.next()
+        else {
             return Err(Error::Init("the first action must be of type `revision`"));
         };
         let Some(Action::Edit { title, target }) = actions.next() else {

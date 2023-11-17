@@ -393,7 +393,10 @@ where
             return;
         };
 
-        let Peer::Connected { nid, link, streams, .. } = peer else {
+        let Peer::Connected {
+            nid, link, streams, ..
+        } = peer
+        else {
             log::warn!(target: "wire", "Peer {nid} is not connected; ignoring fetch result");
             return;
         };
@@ -834,15 +837,16 @@ where
                 } => {
                     log::trace!(target: "wire", "Processing fetch for {rid} from {remote}..");
 
-                    let Some((fd, Peer::Connected { link, streams,  .. })) =
-                        self.peers.lookup_mut(&remote) else {
-                            // Nb. It's possible that a peer is disconnected while an `Io::Fetch`
-                            // is in the service's i/o buffer. Since the service may not purge the
-                            // buffer on disconnect, we should just ignore i/o actions that don't
-                            // have a connected peer.
-                            log::error!(target: "wire", "Peer {remote} is not connected: dropping fetch");
-                            continue;
-                        };
+                    let Some((fd, Peer::Connected { link, streams, .. })) =
+                        self.peers.lookup_mut(&remote)
+                    else {
+                        // Nb. It's possible that a peer is disconnected while an `Io::Fetch`
+                        // is in the service's i/o buffer. Since the service may not purge the
+                        // buffer on disconnect, we should just ignore i/o actions that don't
+                        // have a connected peer.
+                        log::error!(target: "wire", "Peer {remote} is not connected: dropping fetch");
+                        continue;
+                    };
                     let (stream, channels) = streams.open();
 
                     log::debug!(target: "wire", "Opened new stream with id {stream} for {rid} and remote {remote}");

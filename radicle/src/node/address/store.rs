@@ -46,8 +46,8 @@ impl From<sql::Connection> for Book {
 }
 
 impl Book {
-    const SCHEMA: &str = include_str!("schema.sql");
-    const PRAGMA: &str = "PRAGMA foreign_keys = ON";
+    const SCHEMA: &'static str = include_str!("schema.sql");
+    const PRAGMA: &'static str = "PRAGMA foreign_keys = ON";
 
     /// Open an address book at the given path. Creates a new address book if it
     /// doesn't exist.

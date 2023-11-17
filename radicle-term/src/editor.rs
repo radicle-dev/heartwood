@@ -63,12 +63,10 @@ impl Editor {
         }
 
         let Some(cmd) = self::default_editor() else {
-            return Err(
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "editor not configured: the `EDITOR` environment variable is not set"
-                )
-            );
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "editor not configured: the `EDITOR` environment variable is not set",
+            ));
         };
 
         // We duplicate the stderr file descriptor to pass it to the child process, otherwise, if

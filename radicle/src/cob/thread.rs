@@ -383,7 +383,11 @@ impl cob::store::Cob for Thread {
         let timestamp = op.timestamp;
         let identity = op.identity.ok_or(Error::MissingIdentity)?;
         let mut actions = op.actions.into_iter();
-        let Some(Action::Comment { body, reply_to: None }) = actions.next() else {
+        let Some(Action::Comment {
+            body,
+            reply_to: None,
+        }) = actions.next()
+        else {
             return Err(Error::Init("missing initial comment"));
         };
 

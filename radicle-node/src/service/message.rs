@@ -369,7 +369,7 @@ impl Announcement {
     #[cfg(not(debug_assertions))]
     pub const POW_PARAMS: (u8, u32, u32) = (15, 8, 1);
     /// Salt used for generating PoW.
-    pub const POW_SALT: &[u8] = &[b'r', b'a', b'd'];
+    pub const POW_SALT: &'static [u8] = &[b'r', b'a', b'd'];
 
     /// Verify this announcement's signature.
     pub fn verify(&self) -> bool {
