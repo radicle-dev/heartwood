@@ -460,6 +460,11 @@ impl Seed {
         matches!(self.state, Some(State::Connected { .. }))
     }
 
+    /// Check if this seed is in sync with us.
+    pub fn is_synced(&self) -> bool {
+        matches!(self.sync, Some(SyncStatus::Synced { .. }))
+    }
+
     pub fn new(
         nid: NodeId,
         addrs: Vec<KnownAddress>,
@@ -497,22 +502,30 @@ impl Seeds {
         self.0.contains_key(nid)
     }
 
+    /// Number of seeds.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Check if there are any seeds.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Partitions the list of seeds into connected and disconnected seeds.
     /// Note that the disconnected seeds may be in a "connecting" state.
     pub fn partition(&self) -> (Vec<Seed>, Vec<Seed>) {
-        self.0
-            .shuffled()
-            .map(|(_, v)| v)
-            .cloned()
-            .partition(|s| s.is_connected())
+        self.iter().cloned().partition(|s| s.is_connected())
     }
 
     /// Return connected seeds.
     pub fn connected(&self) -> impl Iterator<Item = &Seed> {
-        self.0
-            .shuffled()
-            .map(|(_, v)| v)
-            .filter(|s| s.is_connected())
+        self.iter().filter(|s| s.is_connected())
+    }
+
+    /// Return all seeds.
+    pub fn iter(&self) -> impl Iterator<Item = &Seed> {
+        self.0.shuffled().map(|(_, v)| v)
     }
 
     /// Check if a seed is connected.

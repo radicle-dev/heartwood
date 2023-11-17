@@ -328,16 +328,46 @@ fn sync_status(rid: Id, node: &mut Node) -> anyhow::Result<()> {
 
 fn announce_refs(
     rid: Id,
-    _mode: RepoSync,
+    mode: RepoSync,
     timeout: time::Duration,
     mut node: Node,
     profile: &Profile,
 ) -> anyhow::Result<()> {
     let repo = profile.storage.repository(rid)?;
     let doc = repo.identity_doc()?;
-    let connected: Vec<_> = if doc.visibility.is_public() {
+    let unsynced: Vec<_> = if doc.visibility.is_public() {
         let seeds = node.seeds(rid)?;
-        seeds.connected().map(|s| s.nid).collect()
+        let synced = seeds.iter().filter(|s| s.is_synced());
+
+        match mode {
+            RepoSync::Seeds(seeds) => {
+                let synced = synced.map(|s| s.nid).collect::<Vec<_>>();
+                if seeds.iter().all(|s| synced.contains(s)) {
+                    term::success!(
+                        "Already in sync with the specified seed(s) (see `rad sync status`)"
+                    );
+                    return Ok(());
+                }
+            }
+            RepoSync::Replicas(replicas) => {
+                let count = synced.count();
+                if count >= seeds.len() {
+                    term::success!(
+                        "Nothing to announce, already in sync with network (see `rad sync status`)"
+                    );
+                    return Ok(());
+                }
+                if count >= replicas {
+                    term::success!("Nothing to announce, already in sync with {count} seed(s) (see `rad sync status`)");
+                    return Ok(());
+                }
+            }
+        }
+        seeds
+            .connected()
+            .filter(|s| !s.is_synced())
+            .map(|s| s.nid)
+            .collect()
     } else {
         node.sessions()?
             .into_iter()
@@ -346,13 +376,13 @@ fn announce_refs(
             .collect()
     };
 
-    if connected.is_empty() {
-        term::info!("Not connected to any seeds.");
+    if unsynced.is_empty() {
+        term::info!("Not connected to any seeds for {rid}.");
         return Ok(());
     }
 
-    let mut spinner = term::spinner(format!("Syncing with {} node(s)..", connected.len()));
-    let result = node.announce(rid, connected, timeout, |event| match event {
+    let mut spinner = term::spinner(format!("Syncing with {} node(s)..", unsynced.len()));
+    let result = node.announce(rid, unsynced, timeout, |event| match event {
         node::AnnounceEvent::Announced => {}
         node::AnnounceEvent::RefsSynced { remote } => {
             spinner.message(format!("Synced with {remote}.."));
