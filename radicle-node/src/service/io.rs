@@ -9,6 +9,7 @@ use crate::service::session::Session;
 use crate::service::Link;
 use crate::storage::Namespaces;
 
+use super::gossip;
 use super::message::{Announcement, AnnouncementMessage};
 
 /// I/O operation to execute at the network/wire level.
@@ -60,6 +61,32 @@ impl Outbox {
         trace!(target: "service", "Write {:?} to {}", &msg, remote);
 
         self.io.push_back(Io::Write(remote.id, vec![msg]));
+    }
+
+    /// Announce something to a peer. This is meant for our own announcement messages.
+    pub fn announce<'a>(
+        &mut self,
+        ann: Announcement,
+        peers: impl Iterator<Item = &'a Session>,
+        gossip: &mut gossip::Store,
+    ) {
+        // Store our announcement so that it can be retrieved from us later, just like
+        // announcements we receive from peers.
+        if let Err(e) = gossip.announced(&ann.node, &ann) {
+            error!(target: "service", "Error updating our gossip store with announced message: {e}");
+        }
+
+        for peer in peers {
+            if let AnnouncementMessage::Refs(refs) = &ann.message {
+                if let Some(subscribe) = &peer.subscribe {
+                    if subscribe.filter.contains(&refs.rid) {
+                        self.write(peer, ann.clone().into());
+                    }
+                }
+            } else {
+                self.write(peer, ann.clone().into());
+            }
+        }
     }
 
     pub fn write_all(&mut self, remote: &Session, msgs: impl IntoIterator<Item = Message>) {
@@ -123,7 +150,7 @@ impl Outbox {
                 if let Some(subscribe) = &p.subscribe {
                     subscribe.filter.contains(&id)
                 } else {
-                    // If the peer did not send us a `subscribe` message, we don'the
+                    // If the peer did not send us a `subscribe` message, we don't
                     // relay any messages to them.
                     false
                 }

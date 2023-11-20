@@ -122,6 +122,8 @@ pub enum Error {
     #[error(transparent)]
     Storage(#[from] storage::Error),
     #[error(transparent)]
+    Gossip(#[from] gossip::Error),
+    #[error(transparent)]
     Refs(#[from] storage::refs::Error),
     #[error(transparent)]
     Routing(#[from] routing::Error),
@@ -440,23 +442,6 @@ where
 
         self.start_time = time;
 
-        // Connect to configured peers.
-        let addrs = self.config.connect.clone();
-        for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
-            self.connect(id, addr);
-        }
-        // Ensure that our inventory is recorded in our routing table, and we are tracking
-        // all of it. It can happen that inventory is not properly tracked if for eg. the
-        // user creates a new repository while the node is stopped.
-        let rids = self.storage.inventory()?;
-        self.routing
-            .insert(&rids, self.node_id(), time.as_millis())?;
-
-        for rid in rids {
-            if !self.is_tracking(&rid)? {
-                warn!(target: "service", "Local repository {rid} is not tracked");
-            }
-        }
         // Ensure that our local node is in our address database.
         self.addresses
             .insert(
@@ -471,6 +456,58 @@ where
                     .map(|a| KnownAddress::new(a.clone(), address::Source::Peer)),
             )
             .expect("Service::initialize: error adding local node to address database");
+
+        // Connect to configured peers.
+        let addrs = self.config.connect.clone();
+        for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
+            self.connect(id, addr);
+        }
+        // Ensure that our inventory is recorded in our routing table, and we are tracking
+        // all of it. It can happen that inventory is not properly tracked if for eg. the
+        // user creates a new repository while the node is stopped.
+        let rids = self.storage.inventory()?;
+        self.routing
+            .insert(&rids, self.node_id(), time.as_millis())?;
+
+        let nid = self.node_id();
+        let announced = self
+            .addresses
+            .seeded_by(&nid)?
+            .collect::<Result<HashMap<_, _>, _>>()?;
+        for rid in rids {
+            let repo = self.storage.repository(rid)?;
+
+            if !self.is_tracking(&rid)? {
+                warn!(target: "service", "Local repository {rid} is not tracked");
+            }
+            // If we have no owned refs for this repo, then there's nothing to announce.
+            let Ok(updated_at) = SyncedAt::load(&repo, nid) else {
+                continue;
+            };
+
+            // Skip this repo if the sync status matches what we have in storage.
+            if let Some(announced) = announced.get(&rid) {
+                if updated_at.oid == announced.oid {
+                    continue;
+                }
+            } else {
+                debug!(target: "service", "Saving local sync status for {rid}..");
+                // If we don't have a sync status for this repo, create one.
+                self.addresses.synced(
+                    &rid,
+                    &nid,
+                    updated_at.oid,
+                    updated_at.timestamp.as_millis(),
+                )?;
+            }
+            // If we got here, it likely means a repo was updated while the node was stopped.
+            // Therefore, we pre-load a refs announcement for this repo, so that it is included in
+            // the historical gossip messages when a node connects and subscribes to this repo.
+            if let Ok((ann, _)) = self.refs_announcement_for(rid, [nid]) {
+                debug!(target: "service", "Adding refs announcement for {rid} to historical gossip messages..");
+                self.gossip.announced(&nid, &ann)?;
+            }
+        }
 
         // Setup subscription filter for tracked repos.
         self.filter = Filter::new(
@@ -1049,7 +1086,7 @@ where
             }
         }
 
-        // Discard announcement messages we've already seen, otherwise update out last seen time.
+        // Discard announcement messages we've already seen, otherwise update our last seen time.
         match self.gossip.announced(announcer, announcement) {
             Ok(fresh) => {
                 if !fresh {
@@ -1543,15 +1580,13 @@ where
         Ok(synced)
     }
 
-    /// Announce local refs for given id.
-    fn announce_refs(
-        &mut self,
+    /// Return a refs announcement including the given remotes.
+    fn refs_announcement_for(
+        &self,
         rid: Id,
         remotes: impl IntoIterator<Item = NodeId>,
-    ) -> Result<Vec<RefsAt>, Error> {
+    ) -> Result<(Announcement, Vec<RefsAt>), Error> {
         let repo = self.storage.repository(rid)?;
-        let doc = repo.identity_doc()?;
-        let peers = self.sessions.connected().map(|(_, p)| p);
         let timestamp = self.time();
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
 
@@ -1573,17 +1608,40 @@ where
             refs: refs.clone(),
             timestamp,
         });
-        let ann = msg.signed(&self.signer);
+        Ok((msg.signed(&self.signer), refs.into()))
+    }
 
-        self.outbox.broadcast(
+    /// Announce local refs for given id.
+    fn announce_refs(
+        &mut self,
+        rid: Id,
+        remotes: impl IntoIterator<Item = NodeId>,
+    ) -> Result<Vec<RefsAt>, Error> {
+        let repo = self.storage.repository(rid)?;
+        let doc = repo.identity_doc()?;
+        let peers = self.sessions.connected().map(|(_, p)| p);
+        let (ann, refs) = self.refs_announcement_for(rid, remotes)?;
+
+        // Update our local sync status. This is useful for determining if refs were updated while
+        // the node was stopped.
+        if let Some(refs) = refs.iter().find(|r| r.remote == ann.node) {
+            if let Err(e) = self
+                .addresses
+                .synced(&rid, &ann.node, refs.at, ann.timestamp())
+            {
+                error!(target: "service", "Error updating sync status for local node: {e}");
+            }
+        }
+        self.outbox.announce(
             ann,
             peers.filter(|p| {
                 // Only announce to peers who are allowed to view this repo.
                 doc.is_visible_to(&p.id)
             }),
+            &mut self.gossip,
         );
 
-        Ok(refs.into())
+        Ok(refs)
     }
 
     fn sync_and_announce(&mut self) {
@@ -1714,10 +1772,13 @@ where
     /// Announce our inventory to all connected peers.
     fn announce_inventory(&mut self, inventory: Vec<Id>) -> Result<(), storage::Error> {
         let time = self.time();
-        let inv = Message::inventory(gossip::inventory(time, inventory), &self.signer);
-        for (_, sess) in self.sessions.connected() {
-            self.outbox.write(sess, inv.clone());
-        }
+        let msg = AnnouncementMessage::from(gossip::inventory(time, inventory));
+
+        self.outbox.announce(
+            msg.signed(&self.signer),
+            self.sessions.connected().map(|(_, p)| p),
+            &mut self.gossip,
+        );
         Ok(())
     }
 

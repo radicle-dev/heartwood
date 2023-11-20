@@ -843,6 +843,99 @@ fn test_refs_announcement_no_subscribe() {
 }
 
 #[test]
+fn test_refs_announcement_offline() {
+    logger::init(log::Level::Debug);
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = {
+        let signer = MockSigner::default();
+        let storage = fixtures::storage(tmp.path().join("alice"), &signer).unwrap();
+
+        Peer::config(
+            "alice",
+            [7, 7, 7, 7],
+            storage,
+            peer::Config {
+                signer,
+                ..peer::Config::default()
+            },
+        )
+    };
+    let inv = alice.inventory();
+    let rid = inv.first().unwrap();
+    let mut bob = Peer::new("bob", [8, 8, 8, 8]);
+    bob.track_repo(rid, tracking::Scope::All).unwrap();
+
+    // Make sure alice's service wasn't initialized before.
+    assert!(alice.initialize());
+
+    alice.connect_to(&bob);
+    alice.receive(bob.id, Message::Subscribe(Subscribe::all()));
+
+    // Alice announces the refs of all projects since she hasn't announced refs for these projects
+    // yet.
+    let mut messages = alice.messages(bob.id());
+    for i in &inv {
+        let msg = messages.next();
+        assert_matches!(
+            msg,
+            Some(Message::Announcement(Announcement {
+                node,
+                message: AnnouncementMessage::Refs(RefsAnnouncement {
+                    rid,
+                    ..
+                }),
+                ..
+            }))
+            if node == alice.id && rid == *i
+        );
+    }
+
+    // Create an issue without telling the node.
+    let repo = alice.storage().repository(*rid).unwrap();
+    let old_refs = RefsAt::new(&repo, alice.id).unwrap();
+    let mut issues = radicle::issue::Issues::open(&repo).unwrap();
+    issues
+        .create("Issue while offline!", "", &[], &[], [], alice.signer())
+        .unwrap();
+    let new_refs = RefsAt::new(&repo, alice.id).unwrap();
+    assert_ne!(old_refs, new_refs);
+
+    // Now we restart Alice's node. It should pick up that something's changed in storage.
+    alice.elapse(LocalDuration::from_secs(60));
+    alice.disconnected(bob.id, &DisconnectReason::Command);
+    alice.outbox().for_each(drop);
+    alice.restart();
+    alice.connect_to(&bob);
+    alice.receive(
+        bob.id,
+        Message::Subscribe(Subscribe {
+            filter: Filter::default(),
+            since: alice.timestamp(),
+            until: Timestamp::MAX,
+        }),
+    );
+
+    let anns = alice
+        .messages(bob.id())
+        .filter_map(|m| {
+            if let Message::Announcement(Announcement {
+                message: AnnouncementMessage::Refs(ann),
+                ..
+            }) = m
+            {
+                Some(ann)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(anns.len(), 1);
+    assert_eq!(anns.first().unwrap().rid, *rid);
+    assert_eq!(anns.first().unwrap().refs.first().unwrap().at, new_refs.at);
+}
+
+#[test]
 fn test_inventory_relay() {
     // Topology is eve <-> alice <-> bob
     let mut alice = Peer::new("alice", [7, 7, 7, 7]);

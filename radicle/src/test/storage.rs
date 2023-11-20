@@ -177,8 +177,10 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn commit(&self, _oid: Oid) -> Result<git2::Commit, git_ext::Error> {
-        todo!()
+    fn commit(&self, oid: Oid) -> Result<git2::Commit, git_ext::Error> {
+        Err(git_ext::Error::NotFound(git_ext::NotFound::NoSuchObject(
+            *oid,
+        )))
     }
 
     fn revwalk(&self, _head: Oid) -> Result<git2::Revwalk, git2::Error> {

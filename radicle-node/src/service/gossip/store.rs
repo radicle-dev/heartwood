@@ -57,7 +57,7 @@ impl GossipStore {
         Ok(self.db.change_count())
     }
 
-    /// Get the last announcement in the store, by timestamp.
+    /// Get the timestamp of the last announcement in the store.
     pub fn last(&self) -> Result<Option<Timestamp>, Error> {
         let stmt = self
             .db
@@ -247,6 +247,7 @@ impl From<wire::Error> for sql::Error {
     }
 }
 
+/// Type of gossip message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GossipType {
     Refs,

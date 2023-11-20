@@ -8,15 +8,18 @@ $ rad issue open --title "Test `rad sync`" --description "Check that the command
 ```
 
 If we check the sync status, we see that our peers are out of sync:
+Our own node is also out of sync, since we used `--no-announce`.
+It isn't aware of the updates to the repo.
 
 ```
 $ rad sync status
-╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   NID                                                Address                Status        At        Timestamp │
-├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z   eve.radicle.xyz:8776   out-of-sync   f209c9f   [  ...  ] │
-│ ●   z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   bob.radicle.xyz:8776   out-of-sync   f209c9f   [  ...  ] │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   NID                                                Address                  Status        At        Timestamp │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   alice.radicle.xyz:8776   out-of-sync   f209c9f   [  ...  ] │
+│ ●   z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   bob.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
+│ ●   z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z   eve.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Now let's run `rad sync`. This will announce the issue refs to the network and
@@ -39,8 +42,8 @@ We can also use the `--fetch` option to only fetch objects:
 
 ```
 $ rad sync --fetch
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetched repository from 2 seed(s)
 ```
 
@@ -48,8 +51,8 @@ Specifying both `--fetch` and `--announce` is equivalent to specifying none:
 
 ```
 $ rad sync --fetch --announce
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
 ✓ Fetched repository from 2 seed(s)
 ✓ Nothing to announce, already in sync with network (see `rad sync status`)
 ```
@@ -66,7 +69,7 @@ And the `--replicas` flag to sync with a number of nodes:
 
 ```
 $ rad sync --fetch --replicas 1
-✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkux1…nVhib7Z..
+✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6Mkt67…v4N1tRk..
 ✓ Fetched repository from 1 seed(s)
 ```
 
@@ -74,10 +77,11 @@ We can check the sync status again to make sure everything's in sync:
 
 ```
 $ rad sync status
-╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   NID                                                Address                Status   At        Timestamp │
-├────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z   eve.radicle.xyz:8776   synced   9f615f9   [  ...  ] │
-│ ●   z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   bob.radicle.xyz:8776   synced   9f615f9   [  ...  ] │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   NID                                                Address                  Status   At        Timestamp │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   alice.radicle.xyz:8776   synced   9f615f9   [  ...  ] │
+│ ●   z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   bob.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
+│ ●   z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z   eve.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

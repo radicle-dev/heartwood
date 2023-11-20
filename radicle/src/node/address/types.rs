@@ -9,7 +9,7 @@ use crate::collections::RandomMap;
 use crate::git;
 use crate::node::{Address, Alias};
 use crate::prelude::{NodeId, Timestamp};
-use crate::storage::ReadRepository;
+use crate::storage::{refs::RefsAt, ReadRepository, RemoteId};
 use crate::{node, profile};
 
 /// A map with the ability to randomly select values.
@@ -196,6 +196,14 @@ pub struct SyncedAt {
 }
 
 impl SyncedAt {
+    /// Load a new [`SyncedAt`] for the given remote.
+    pub fn load<S: ReadRepository>(repo: &S, remote: RemoteId) -> Result<Self, git::ext::Error> {
+        let refs = RefsAt::new(repo, remote)?;
+        let oid = refs.at;
+
+        Self::new(oid, repo)
+    }
+
     /// Create a new [`SyncedAt`] given an OID, by looking up the timestamp in the repo.
     pub fn new<S: ReadRepository>(oid: git::ext::Oid, repo: &S) -> Result<Self, git::ext::Error> {
         let timestamp = repo.commit(oid)?.time();

@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::ffi::OsString;
 use std::time;
 
@@ -272,7 +273,8 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn sync_status(rid: Id, node: &mut Node) -> anyhow::Result<()> {
     let mut table = Table::<6, term::Label>::new(TableOptions::bordered());
-    let seeds: Vec<_> = node.seeds(rid)?.into();
+    let mut seeds: Vec<_> = node.seeds(rid)?.into();
+    let local = node.nid()?;
 
     table.push([
         term::format::dim(String::from("●")).into(),
@@ -283,6 +285,15 @@ fn sync_status(rid: Id, node: &mut Node) -> anyhow::Result<()> {
         term::format::bold(String::from("Timestamp")).into(),
     ]);
     table.divider();
+
+    // Always show our local node first.
+    seeds.sort_by(|a, _| {
+        if a.nid == local {
+            Ordering::Less
+        } else {
+            Ordering::Equal
+        }
+    });
 
     for seed in seeds {
         let (icon, status, refs, time) = match seed.sync {
@@ -350,15 +361,17 @@ fn announce_refs(
                 }
             }
             RepoSync::Replicas(replicas) => {
-                let count = synced.count();
-                if count >= seeds.len() {
+                let synced = synced.collect::<Vec<_>>();
+                if synced.len() >= seeds.len() {
                     term::success!(
                         "Nothing to announce, already in sync with network (see `rad sync status`)"
                     );
                     return Ok(());
                 }
-                if count >= replicas {
-                    term::success!("Nothing to announce, already in sync with {count} seed(s) (see `rad sync status`)");
+                // Replicas not counting our local replica.
+                let remotes = synced.iter().filter(|s| &s.nid != profile.id()).count();
+                if remotes >= replicas {
+                    term::success!("Nothing to announce, already in sync with {remotes} seed(s) (see `rad sync status`)");
                     return Ok(());
                 }
             }
@@ -444,6 +457,7 @@ fn fetch_all(
     let seeds = node.seeds(rid)?;
     let mut results = FetchResults::default();
     let (connected, mut disconnected) = seeds.partition();
+    let local = node.nid()?;
 
     // Fetch from connected seeds.
     for seed in connected.iter().take(count) {
@@ -456,6 +470,10 @@ fn fetch_all(
         let Some(seed) = disconnected.pop() else {
             break;
         };
+        if seed.nid == local {
+            // Skip our own node.
+            continue;
+        }
         // Try all seed addresses until one succeeds.
         for ka in seed.addrs {
             let spinner = term::spinner(format!(

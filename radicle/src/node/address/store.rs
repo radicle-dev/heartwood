@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use std::path::Path;
 use std::str::FromStr;
 use std::{fmt, io};
@@ -14,7 +15,7 @@ use crate::prelude::{Id, Timestamp};
 use crate::sql::transaction;
 
 use super::types;
-use super::AddressType;
+use super::{AddressType, SyncedAt};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -261,8 +262,36 @@ impl Store for Book {
             Ok(types::Seed {
                 nid,
                 addresses,
-                synced_at: types::SyncedAt { oid, timestamp },
+                synced_at: SyncedAt { oid, timestamp },
             })
+        })))
+    }
+
+    fn seeded_by(
+        &self,
+        nid: &NodeId,
+    ) -> Result<Box<dyn Iterator<Item = Result<(Id, SyncedAt), Error>> + '_>, Error> {
+        let mut stmt = self.db.prepare(
+            "SELECT repo, head, timestamp
+             FROM `repo-sync-status`
+             WHERE node = ?",
+        )?;
+        stmt.bind((1, nid))?;
+
+        Ok(Box::new(stmt.into_iter().map(|row| {
+            let row = row?;
+            let rid = row.try_read::<Id, _>("repo")?;
+            let oid = row.try_read::<&str, _>("head")?;
+            let oid = Oid::from_str(oid).map_err(|e| {
+                Error::Internal(sql::Error {
+                    code: None,
+                    message: Some(format!("sql: invalid oid '{oid}': {e}")),
+                })
+            })?;
+            let timestamp = row.try_read::<i64, _>("timestamp")?;
+            let timestamp = LocalTime::from_millis(timestamp as u128);
+
+            Ok((rid, SyncedAt { oid, timestamp }))
         })))
     }
 
@@ -397,6 +426,11 @@ pub trait Store {
         &self,
         rid: &Id,
     ) -> Result<Box<dyn Iterator<Item = Result<types::Seed, Error>> + '_>, Error>;
+    /// Get the repos seeded by the given node.
+    fn seeded_by(
+        &self,
+        nid: &NodeId,
+    ) -> Result<Box<dyn Iterator<Item = Result<(Id, SyncedAt), Error>> + '_>, Error>;
     /// Returns the number of addresses.
     fn len(&self) -> Result<usize, Error>;
     /// Returns true if there are no addresses.

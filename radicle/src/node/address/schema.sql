@@ -46,6 +46,7 @@ create table if not exists "announcements" (
   -- Node ID.
   "node"               text      not null references "nodes" ("id") on delete cascade,
   -- Repo ID, if any, for example in ref announcements.
+  -- For other announcement types, this should be an empty string.
   "repo"               text      not null,
   -- Announcement type.
   --

@@ -57,7 +57,7 @@ where
     G: Signer + 'static,
 {
     fn init(&mut self) {
-        self.initialize()
+        self.initialize();
     }
 
     fn addr(&self) -> Address {
@@ -204,16 +204,29 @@ where
         }
     }
 
-    pub fn initialize(&mut self) {
+    pub fn initialize(&mut self) -> bool {
         if !self.initialized {
             info!(
+                target: "test",
                 "{}: Initializing: id = {}, address = {}",
                 self.name, self.id, self.ip
             );
 
             self.initialized = true;
             self.service.initialize(LocalTime::now()).unwrap();
+            return true;
         }
+        false
+    }
+
+    pub fn restart(&mut self) {
+        assert!(self.initialized);
+        info!(
+            target: "test",
+            "{}: Restarting: id = {}, address = {}",
+            self.name, self.id, self.ip
+        );
+        self.service.initialize(LocalTime::now()).unwrap();
     }
 
     pub fn address(&self) -> Address {
