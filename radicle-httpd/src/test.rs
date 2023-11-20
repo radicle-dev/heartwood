@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -106,6 +107,45 @@ fn seed_with_signer<G: Signer>(dir: &Path, profile: radicle::Profile, signer: &G
     TrackingStore::Config::open(tracking_db).unwrap();
     RoutingStore::Table::open(routing_db).unwrap();
     AddressStore::Book::open(addresses_db).unwrap();
+
+    let workdir = dir.join("hello-world-private");
+    fs::create_dir_all(&workdir).unwrap();
+
+    // add commits to workdir (repo)
+    let mut opts = git2::RepositoryInitOptions::new();
+    opts.initial_head(DEFAULT_BRANCH);
+    let repo = git2::Repository::init_opts(&workdir, &opts).unwrap();
+    let tree = radicle::git::write_tree(
+        Path::new("README"),
+        "Hello Private World!\n".as_bytes(),
+        &repo,
+    )
+    .unwrap();
+
+    let sig_time = git2::Time::new(1673001014, 0);
+    let sig = git2::Signature::new("Alice Liddell", "alice@radicle.xyz", &sig_time).unwrap();
+
+    repo.commit(Some("HEAD"), &sig, &sig, "Initial commit\n", &tree, &[])
+        .unwrap();
+
+    // rad init
+    let repo = git2::Repository::open(&workdir).unwrap();
+    let name = "hello-world-private".to_string();
+    let description = "Private Rad repository for tests".to_string();
+    let branch = RefString::try_from(DEFAULT_BRANCH).unwrap();
+    let visibility = Visibility::Private {
+        allow: BTreeSet::default(),
+    };
+    radicle::rad::init(
+        &repo,
+        &name,
+        &description,
+        branch,
+        visibility,
+        signer,
+        &profile.storage,
+    )
+    .unwrap();
 
     let workdir = dir.join("hello-world");
 

@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
+use std::net::SocketAddr;
 
-use axum::extract::{DefaultBodyLimit, State};
+use axum::extract::{ConnectInfo, DefaultBodyLimit, State};
 use axum::handler::Handler;
 use axum::http::{header, HeaderValue};
 use axum::response::IntoResponse;
@@ -14,7 +15,7 @@ use serde_json::{json, Value};
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use radicle::cob::{issue, patch, Embed, Label, Uri};
-use radicle::identity::{Did, DocAt, Id};
+use radicle::identity::{Did, Id, Visibility};
 use radicle::node::routing::Store;
 use radicle::node::AliasStore;
 use radicle::node::NodeId;
@@ -75,6 +76,7 @@ pub fn router(ctx: Context) -> Router {
 /// List all projects.
 /// `GET /projects`
 async fn project_root_handler(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(ctx): State<Context>,
     Query(qs): Query<PaginationQuery>,
 ) -> impl IntoResponse {
@@ -83,21 +85,26 @@ async fn project_root_handler(
     let per_page = per_page.unwrap_or(10);
     let storage = &ctx.profile.storage;
     let routing = &ctx.profile.routing()?;
-    let projects = storage
-        .inventory()?
+    let mut projects = storage
+        .repositories()?
+        .into_iter()
+        .filter(|id| match &id.doc.visibility {
+            Visibility::Private { .. } => addr.ip().is_loopback(),
+            Visibility::Public => true,
+        })
+        .collect::<Vec<_>>();
+    projects.sort_by_key(|p| p.rid);
+
+    let infos = projects
         .into_iter()
         .filter_map(|id| {
-            let Ok(repo) = storage.repository(id) else {
+            let Ok(repo) = storage.repository(id.rid) else {
                 return None;
             };
             let Ok((_, head)) = repo.head() else {
                 return None;
             };
-            let Ok(DocAt { doc, .. }) = repo.identity_doc() else {
-                return None;
-            };
-
-            let Ok(payload) = doc.project() else {
+            let Ok(payload) = id.doc.project() else {
                 return None;
             };
             let Ok(issues) = issue::Issues::open(&repo) else {
@@ -112,16 +119,17 @@ async fn project_root_handler(
             let Ok(patches) = patches.counts() else {
                 return None;
             };
-            let delegates = doc.delegates;
-            let trackings = routing.count(&id).unwrap_or_default();
+            let delegates = id.doc.delegates;
+            let trackings = routing.count(&id.rid).unwrap_or_default();
 
             Some(Info {
                 payload,
                 delegates,
                 head,
+                visibility: id.doc.visibility,
                 issues,
                 patches,
-                id,
+                id: id.rid,
                 trackings,
             })
         })
@@ -129,7 +137,7 @@ async fn project_root_handler(
         .take(per_page)
         .collect::<Vec<_>>();
 
-    Ok::<_, Error>(Json(projects))
+    Ok::<_, Error>(Json(infos))
 }
 
 /// Get project metadata.
@@ -990,7 +998,10 @@ async fn patch_handler(
 
 #[cfg(test)]
 mod routes {
+    use std::net::SocketAddr;
+
     use axum::body::Body;
+    use axum::extract::connect_info::MockConnectInfo;
     use axum::http::StatusCode;
     use pretty_assertions::assert_eq;
     use serde_json::json;
@@ -1000,7 +1011,68 @@ mod routes {
     #[tokio::test]
     async fn test_projects_root() {
         let tmp = tempfile::tempdir().unwrap();
-        let app = super::router(seed(tmp.path()));
+        let seed = seed(tmp.path());
+        let app = super::router(seed.clone())
+            .layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 8080))));
+        let response = get(&app, "/projects").await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.json().await,
+            json!([
+              {
+                "name": "hello-world-private",
+                "description": "Private Rad repository for tests",
+                "defaultBranch": "master",
+                "delegates": [
+                  "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+                ],
+                "visibility": {
+                  "type": "private",
+                },
+                "head": "d26ed310ed140fbef2a066aa486cf59a0f9f7812",
+                "patches": {
+                  "open": 0,
+                  "draft": 0,
+                  "archived": 0,
+                  "merged": 0,
+                },
+                "issues": {
+                  "open": 0,
+                  "closed": 0,
+                },
+                "id": "rad:zLuTzcmoWMcdK37xqArS8eckp9vK",
+                "trackings": 0,
+              },
+              {
+                "name": "hello-world",
+                "description": "Rad repository for tests",
+                "defaultBranch": "master",
+                "delegates": [DID],
+                "visibility": {
+                  "type": "public"
+                },
+                "head": HEAD,
+                "patches": {
+                  "open": 1,
+                  "draft": 0,
+                  "archived": 0,
+                  "merged": 0,
+                },
+                "issues": {
+                  "open": 1,
+                  "closed": 0,
+                },
+                "id": RID,
+                "trackings": 0,
+              },
+            ])
+        );
+
+        let app = super::router(seed).layer(MockConnectInfo(SocketAddr::from((
+            [192, 168, 13, 37],
+            8080,
+        ))));
         let response = get(&app, "/projects").await;
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -1012,6 +1084,9 @@ mod routes {
                 "description": "Rad repository for tests",
                 "defaultBranch": "master",
                 "delegates": [DID],
+                "visibility": {
+                  "type": "public"
+                },
                 "head": HEAD,
                 "patches": {
                   "open": 1,
@@ -1044,6 +1119,9 @@ mod routes {
                "description": "Rad repository for tests",
                "defaultBranch": "master",
                "delegates": [DID],
+               "visibility": {
+                 "type": "public"
+               },
                "head": HEAD,
                "patches": {
                  "open": 1,

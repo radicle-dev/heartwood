@@ -66,6 +66,7 @@ impl Context {
         Ok(project::Info {
             payload,
             delegates,
+            visibility: doc.visibility,
             head,
             issues,
             patches,
@@ -185,7 +186,7 @@ mod project {
     use radicle::cob;
     use radicle::git::Oid;
     use radicle::identity::project::Project;
-    use radicle::identity::Id;
+    use radicle::identity::{Id, Visibility};
     use radicle::prelude::Did;
 
     /// Project info.
@@ -196,6 +197,7 @@ mod project {
         #[serde(flatten)]
         pub payload: Project,
         pub delegates: NonEmpty<Did>,
+        pub visibility: Visibility,
         pub head: Oid,
         pub patches: cob::patch::PatchCounts,
         pub issues: cob::issue::IssueCounts,
