@@ -438,7 +438,8 @@ impl TestFormula {
                 log::debug!(target: "test", "{path}: Running `{}` with {:?} in `{}`..", cmd.display(), assertion.args, run.path().display());
 
                 if !run.path().exists() {
-                    log::error!(target: "test", "{path}: Directory {} does not exist..", run.path().display());
+                    log::warn!(target: "test", "{path}: Directory {} does not exist. Creating..", run.path().display());
+                    fs::create_dir_all(run.path())?;
                 }
 
                 let bins = self
