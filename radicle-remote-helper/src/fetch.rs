@@ -63,9 +63,13 @@ pub fn run<R: ReadRepository>(
         };
     }
 
+    let mut opts = git::raw::FetchOptions::new();
+    // Setting this to false ensures that the FETCH_HEAD is set correctly. Go figure.
+    opts.update_fetchhead(false);
+
     git::raw::Repository::open(working)?
         .remote_anonymous(&git::url::File::new(stored.path()).to_string())?
-        .fetch(&refspecs, None, None)?;
+        .fetch(&refspecs, Some(&mut opts), None)?;
 
     // Nb. An empty line means we're done.
     println!();

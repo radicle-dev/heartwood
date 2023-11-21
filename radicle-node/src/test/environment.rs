@@ -271,6 +271,11 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
         }
     }
 
+    /// Clone a repo into a directory.
+    pub fn clone<P: AsRef<Path>>(&self, rid: Id, cwd: P) -> io::Result<()> {
+        self.rad("clone", &[rid.to_string().as_str()], cwd)
+    }
+
     /// Run a `rad` CLI command.
     pub fn rad<P: AsRef<Path>>(&self, cmd: &str, args: &[&str], cwd: P) -> io::Result<()> {
         let cwd = cwd.as_ref();
@@ -402,11 +407,12 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
     ) -> Id {
         transport::local::register(self.storage.clone());
 
+        let branch = refname!("master");
         let id = rad::init(
             repo,
             name,
             description,
-            refname!("master"),
+            branch.clone(),
             Visibility::default(),
             &self.signer,
             &self.storage,
@@ -436,6 +442,14 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer + Clone> Node<G> {
             ));
         }
         git::push(repo, "rad", refs.iter().map(|(a, b)| (a, b))).unwrap();
+
+        radicle::git::set_upstream(
+            repo,
+            &*radicle::rad::REMOTE_NAME,
+            branch.clone(),
+            radicle::git::refs::workdir::branch(&branch),
+        )
+        .unwrap();
 
         self.storage
             .repository(id)
