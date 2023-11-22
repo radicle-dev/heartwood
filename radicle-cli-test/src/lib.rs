@@ -77,6 +77,7 @@ pub struct Home {
 #[derive(Debug)]
 pub struct TestRun {
     home: Home,
+    env: HashMap<String, String>,
 }
 
 impl TestRun {
@@ -85,7 +86,7 @@ impl TestRun {
     }
 
     fn envs(&self) -> impl Iterator<Item = (&String, &String)> {
-        self.home.envs.iter()
+        self.home.envs.iter().chain(self.env.iter())
     }
 
     fn path(&self) -> PathBuf {
@@ -110,31 +111,26 @@ impl<'a> TestRunner<'a> {
     }
 
     fn run(&mut self, test: &'a Test) -> TestRun {
-        let mut envs = self.formula.env.clone();
+        let mut env = self.formula.env.clone();
+        env.extend(test.env.clone());
 
         if let Some(ref h) = test.home {
             if let Some(home) = self.homes.get(h) {
-                envs.extend(home.envs.clone());
-                envs.extend(test.env.clone());
-
-                let home = Home {
-                    name: home.name.clone(),
-                    path: home.path.clone(),
-                    envs,
+                return TestRun {
+                    home: home.clone(),
+                    env,
                 };
-                return TestRun { home };
             } else {
                 panic!("TestRunner::test: home `~{h}` does not exist");
             }
         }
-        envs.extend(test.env.clone());
-
         TestRun {
             home: Home {
                 name: None,
                 path: self.cwd.clone().unwrap_or_else(|| self.formula.cwd.clone()),
-                envs,
+                envs: HashMap::new(),
             },
+            env,
         }
     }
 
@@ -504,7 +500,7 @@ mod tests {
     fn test_parse() {
         let input = r#"
 Let's try to track @dave and @sean:
-```
+``` RAD_HINT=true
 $ rad track @dave
 Tracking relationship established for @dave.
 Nothing to do.
@@ -514,7 +510,7 @@ Tracking relationship established for @sean.
 Nothing to do.
 ```
 Super, now let's move on to the next step.
-```
+``` ~alice (stderr)
 $ rad sync
 ```
 "#
@@ -564,11 +560,13 @@ $ rad sync
                     ],
                     fail: false,
                     stderr: false,
-                    env: HashMap::default(),
+                    env: vec![("RAD_HINT".to_owned(), "true".to_owned())]
+                        .into_iter()
+                        .collect(),
                 },
                 Test {
                     context: vec![String::from("Super, now let's move on to the next step.")],
-                    home: None,
+                    home: Some("alice".to_owned()),
                     assertions: vec![Assertion {
                         path: path.clone(),
                         command: String::from("rad"),
@@ -577,7 +575,7 @@ $ rad sync
                         exit: ExitStatus::Success,
                     }],
                     fail: false,
-                    stderr: false,
+                    stderr: true,
                     env: HashMap::default(),
                 },
             ],

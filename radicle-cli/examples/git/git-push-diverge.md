@@ -77,7 +77,7 @@ $ git push -f
 
 We have to use the `allow.rollback` option:
 
-``` ~alice (stderr)
+``` ~alice RAD_SOCKET=/dev/null (stderr)
 $ git push -f -o allow.rollback
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  + f6cff86...319a7dc master -> master (forced update)
