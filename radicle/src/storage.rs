@@ -348,6 +348,9 @@ pub trait WriteStorage: ReadStorage {
     fn create(&self, rid: Id) -> Result<Self::RepositoryMut, Error>;
     /// Delete a repository.
     fn remove(&self, rid: Id) -> Result<(), Error>;
+    /// Delete all remote namespaces apart from the local node's and
+    /// delegates' namespace.
+    fn clean(&self, rid: Id) -> Result<Vec<RemoteId>, RepositoryError>;
 }
 
 /// Allows read-only access to a repository.
@@ -591,6 +594,10 @@ where
 
     fn remove(&self, rid: Id) -> Result<(), Error> {
         self.deref().remove(rid)
+    }
+
+    fn clean(&self, rid: Id) -> Result<Vec<RemoteId>, RepositoryError> {
+        self.deref().clean(rid)
     }
 }
 

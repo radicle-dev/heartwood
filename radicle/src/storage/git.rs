@@ -2,7 +2,7 @@
 pub mod cob;
 pub mod transport;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -141,6 +141,11 @@ impl WriteStorage for Storage {
 
     fn remove(&self, rid: Id) -> Result<(), Error> {
         self.repository(rid)?.remove()
+    }
+
+    fn clean(&self, rid: Id) -> Result<Vec<RemoteId>, RepositoryError> {
+        let repo = self.repository(rid)?;
+        repo.clean(&self.info.key)
     }
 }
 
@@ -355,6 +360,56 @@ impl Repository {
             fs::remove_dir_all(path)?;
         }
         Ok(())
+    }
+
+    /// Remove all the remotes of a repository that are not the
+    /// `local` remote or a delegate of the repository.
+    ///
+    /// N.b. failure to delete remotes or references will not result
+    /// in an early exit. Instead, this method continues to delete the
+    /// next available remote or reference.
+    pub fn clean(&self, local: &RemoteId) -> Result<Vec<RemoteId>, RepositoryError> {
+        let delegates = self
+            .delegates()?
+            .into_iter()
+            .map(RemoteId::from)
+            .collect::<BTreeSet<_>>();
+        let mut deleted = Vec::new();
+        for id in self.remote_ids()? {
+            let id = match id {
+                Ok(id) => id,
+                Err(e) => {
+                    log::error!(target: "storage", "Failed to clean up remote: {e}");
+                    continue;
+                }
+            };
+            // N.b. it is fatal to delete local or delegates
+            if *local == id || delegates.contains(&id) {
+                continue;
+            }
+            let glob = git::refname!("refs/namespaces")
+                .join(git::Component::from(&id))
+                .with_pattern(git::refspec::STAR);
+            let refs = match self.references_glob(&glob) {
+                Ok(refs) => refs,
+                Err(e) => {
+                    log::error!(target: "storage", "Failed to clean up remote '{id}': {e}");
+                    continue;
+                }
+            };
+            for (refname, _) in refs {
+                if let Ok(mut r) = self.backend.find_reference(refname.as_str()) {
+                    if let Err(e) = r.delete() {
+                        log::error!(target: "storage", "Failed to clean up reference '{refname}': {e}");
+                    }
+                } else {
+                    log::error!(target: "storage", "Failed to clean up reference '{refname}'");
+                }
+            }
+            deleted.push(id);
+        }
+
+        Ok(deleted)
     }
 
     /// Create the repository's identity branch.
