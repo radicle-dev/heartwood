@@ -147,6 +147,25 @@ pub enum SyncStatus {
     },
 }
 
+impl Ord for SyncStatus {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Self::Synced { at: left }, Self::Synced { at: right }) => left.cmp(right),
+            (Self::Synced { at }, Self::OutOfSync { remote, .. }) => at.cmp(remote),
+            (Self::OutOfSync { remote, .. }, Self::Synced { at }) => remote.cmp(at),
+            (Self::OutOfSync { remote: left, .. }, Self::OutOfSync { remote: right, .. }) => {
+                left.cmp(right)
+            }
+        }
+    }
+}
+
+impl PartialOrd for SyncStatus {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 /// Node alias.
 #[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Alias(String);

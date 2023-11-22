@@ -13,13 +13,13 @@ It isn't aware of the updates to the repo.
 
 ```
 $ rad sync status
-╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   NID                                                Address                  Status        At        Timestamp │
-├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   alice.radicle.xyz:8776   out-of-sync   f209c9f   [  ...  ] │
-│ ●   z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   bob.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
-│ ●   z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z   eve.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   NID               Alias   Address                  Status        At        Timestamp │
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   z6MknSL…StBU8Vi   alice   alice.radicle.xyz:8776   out-of-sync   f209c9f   [  ...  ] │
+│ ●   z6Mkt67…v4N1tRk   bob     bob.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
+│ ●   z6Mkux1…nVhib7Z   eve     eve.radicle.xyz:8776     out-of-sync   f209c9f   [  ...  ] │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 Now let's run `rad sync`. This will announce the issue refs to the network and
@@ -77,11 +77,11 @@ We can check the sync status again to make sure everything's in sync:
 
 ```
 $ rad sync status
-╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ●   NID                                                Address                  Status   At        Timestamp │
-├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   alice.radicle.xyz:8776   synced   9f615f9   [  ...  ] │
-│ ●   z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   bob.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
-│ ●   z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z   eve.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────────────────────────────────────────────────────────────╮
+│ ●   NID               Alias   Address                  Status   At        Timestamp │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+│ ●   z6MknSL…StBU8Vi   alice   alice.radicle.xyz:8776   synced   9f615f9   [  ...  ] │
+│ ●   z6Mkt67…v4N1tRk   bob     bob.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
+│ ●   z6Mkux1…nVhib7Z   eve     eve.radicle.xyz:8776     synced   9f615f9   [  ...  ] │
+╰─────────────────────────────────────────────────────────────────────────────────────╯
 ```

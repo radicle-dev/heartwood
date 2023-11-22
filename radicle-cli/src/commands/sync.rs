@@ -5,6 +5,7 @@ use std::time;
 use anyhow::{anyhow, Context as _};
 
 use radicle::node;
+use radicle::node::AliasStore as _;
 use radicle::node::{FetchResult, FetchResults, Handle as _, Node, SyncStatus};
 use radicle::prelude::{Id, NodeId, Profile};
 use radicle::storage::{ReadRepository, ReadStorage};
@@ -243,7 +244,7 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.op {
         Operation::Status => {
-            sync_status(rid, &mut node)?;
+            sync_status(rid, &mut node, &profile, &options)?;
         }
         Operation::Synchronize(SyncMode::Repo { mode, direction }) => {
             if [SyncDirection::Fetch, SyncDirection::Both].contains(&direction) {
@@ -271,14 +272,21 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn sync_status(rid: Id, node: &mut Node) -> anyhow::Result<()> {
-    let mut table = Table::<6, term::Label>::new(TableOptions::bordered());
+fn sync_status(
+    rid: Id,
+    node: &mut Node,
+    profile: &Profile,
+    options: &Options,
+) -> anyhow::Result<()> {
+    let mut table = Table::<7, term::Label>::new(TableOptions::bordered());
     let mut seeds: Vec<_> = node.seeds(rid)?.into();
     let local = node.nid()?;
+    let aliases = profile.aliases();
 
     table.push([
         term::format::dim(String::from("●")).into(),
         term::format::bold(String::from("NID")).into(),
+        term::format::bold(String::from("Alias")).into(),
         term::format::bold(String::from("Address")).into(),
         term::format::bold(String::from("Status")).into(),
         term::format::bold(String::from("At")).into(),
@@ -287,34 +295,43 @@ fn sync_status(rid: Id, node: &mut Node) -> anyhow::Result<()> {
     table.divider();
 
     // Always show our local node first.
-    seeds.sort_by(|a, _| {
+    seeds.sort_by(|a, b| {
         if a.nid == local {
             Ordering::Less
+        } else if b.nid == local {
+            Ordering::Greater
         } else {
-            Ordering::Equal
+            match (&a.sync, &b.sync) {
+                (Some(_), None) => Ordering::Less,
+                (None, Some(_)) => Ordering::Greater,
+                (Some(a), Some(b)) => a.cmp(b).reverse(),
+                (None, None) => Ordering::Equal,
+            }
+            .then(a.nid.cmp(&b.nid))
         }
     });
 
     for seed in seeds {
-        let (icon, status, refs, time) = match seed.sync {
+        let (icon, status, head, time) = match seed.sync {
             Some(SyncStatus::Synced { at }) => (
                 term::format::positive("●"),
                 term::format::positive("synced"),
-                term::label(term::format::oid(at.oid)),
-                term::format::timestamp(at.timestamp).into(),
+                term::format::oid(at.oid),
+                term::format::timestamp(at.timestamp),
             ),
             Some(SyncStatus::OutOfSync { remote, .. }) => (
                 term::format::negative("●"),
                 term::format::negative("out-of-sync"),
-                term::label(term::format::oid(remote.oid)),
-                term::format::timestamp(remote.timestamp).into(),
+                term::format::oid(remote.oid),
+                term::format::timestamp(remote.timestamp),
             ),
-            None => (
-                term::format::yellow("●"),
-                term::format::yellow("?"),
-                term::label("?"),
-                term::label("?"),
+            None if options.verbose => (
+                term::format::dim("●"),
+                term::format::dim("unknown"),
+                term::paint(String::new()),
+                term::paint(String::new()),
             ),
+            None => continue,
         };
         let addr = seed
             .addrs
@@ -322,14 +339,19 @@ fn sync_status(rid: Id, node: &mut Node) -> anyhow::Result<()> {
             .map(|a| a.addr.to_string())
             .unwrap_or_default()
             .into();
+        let alias = aliases
+            .alias(&seed.nid)
+            .map(|a| a.to_string())
+            .unwrap_or_default();
 
         table.push([
             icon.into(),
-            seed.nid.to_human().into(),
+            term::format::primary(term::format::node(&seed.nid)).into(),
+            term::format::primary(alias).dim().into(),
             addr,
             status.into(),
-            refs,
-            time,
+            term::format::secondary(head).into(),
+            time.dim().italic().into(),
         ]);
     }
     table.print();
