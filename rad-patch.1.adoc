@@ -96,6 +96,16 @@ that should only be used when using *git push rad* is not possible.
 *--message*, *-m [<string>]*::   Provide a comment message to the revision
 *--no-message*::                 Leave the revision comment message blank
 
+=== checkout
+
+Switch to a given patch, by creating a branch that points to the patch head.
+This is essentially equivalent to *git checkout -b <name>* followed by
+*rad patch set <patch-id>*. By default, the branch name includes the Patch ID.
+
+*--revision <id>*::        Checkout the given revision of the patch
+*--name <string>*::        Provide a name for the new branch
+*--force*, *-f*::          If the checkout already exists, update its head
+
 === comment
 
 Comment on a patch revision, optionally replying to an existing comment.
