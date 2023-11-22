@@ -3,12 +3,16 @@
 Let's checkout a branch, make a commit and push to the magic ref `refs/patches`.
 When we push to this ref, a patch is created from our commits.
 
-``` (stderr)
+``` (stderr) RAD_HINT=1
 $ git checkout -b feature/1
 Switched to a new branch 'feature/1'
 $ git commit -a -m "Add things" -q --allow-empty
 $ git push -o patch.message="Add things #1" -o patch.message="See commits for details." rad HEAD:refs/patches
 ✓ Patch 82faae29b2a2f11bf45bbba4c4787d6b32a12447 opened
+hint: to update, run `git push`,
+      or `git push rad -f HEAD:rad/patches/82faae29b2a2f11bf45bbba4c4787d6b32a12447`
+hint: offline push, your node is not running
+      to sync with the network, run `rad node start`
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
 ```

@@ -203,7 +203,7 @@ pub fn run(
                 let working = git::raw::Repository::open(working)?;
 
                 if dst == &*rad::PATCHES_REFNAME {
-                    patch_open(src, &nid, &working, stored, &signer, opts.clone())
+                    patch_open(src, &nid, &working, stored, &signer, profile, opts.clone())
                 } else {
                     let dst = git::Qualified::from_refstr(dst)
                         .ok_or_else(|| Error::InvalidQualifiedRef(dst.clone()))?;
@@ -288,7 +288,7 @@ pub fn run(
                 sync(stored.id, node).ok();
             } else if hints {
                 eprintln!("hint: offline push, your node is not running");
-                eprintln!("hint: to sync with the network, run `rad node start`");
+                eprintln!("      to sync with the network, run `rad node start`");
             }
         }
     }
@@ -306,6 +306,7 @@ fn patch_open<G: Signer>(
     working: &git::raw::Repository,
     stored: &storage::git::Repository,
     signer: &G,
+    profile: &Profile,
     opts: Options,
 ) -> Result<(), Error> {
     let reference = working.find_reference(src.as_str())?;
@@ -384,7 +385,16 @@ fn patch_open<G: Signer>(
             )?;
 
             // Setup current branch so that pushing updates the patch.
-            rad::setup_patch_upstream(&patch, commit.id().into(), working, false)?;
+            if let Some(branch) =
+                rad::setup_patch_upstream(&patch, commit.id().into(), working, false)?
+            {
+                if let Some(name) = branch.name()? {
+                    if profile.hints() {
+                        eprintln!("hint: to update, run `git push`,");
+                        eprintln!("      or `git push rad -f HEAD:{name}`");
+                    }
+                }
+            }
 
             Ok(())
         }
