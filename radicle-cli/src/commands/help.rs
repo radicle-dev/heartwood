@@ -44,19 +44,12 @@ pub struct Options {}
 
 impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        use lexopt::prelude::*;
-
         let mut parser = lexopt::Parser::from_args(args);
 
         if let Some(arg) = parser.next()? {
-            match arg {
-                Long("help") | Short('h') => {
-                    return Err(Error::Help.into());
-                }
-                _ => return Err(anyhow::anyhow!(arg.unexpected())),
-            }
+            return Err(anyhow::anyhow!(arg.unexpected()));
         }
-        Ok((Options {}, vec![]))
+        Err(Error::HelpManual { name: "rad" }.into())
     }
 }
 

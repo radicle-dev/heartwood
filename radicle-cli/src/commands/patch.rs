@@ -302,7 +302,7 @@ impl Args for Options {
                     quiet = true;
                 }
                 Long("help") => {
-                    return Err(Error::HelpManual.into());
+                    return Err(Error::HelpManual { name: "rad-patch" }.into());
                 }
                 Short('h') => {
                     return Err(Error::Help.into());

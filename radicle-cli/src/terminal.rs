@@ -84,8 +84,8 @@ where
                     term::help(help.name, help.version, help.description, help.usage);
                     process::exit(0);
                 }
-                Some(Error::HelpManual) => {
-                    let Ok(status) = term::manual(help.name) else {
+                Some(Error::HelpManual { name }) => {
+                    let Ok(status) = term::manual(name) else {
                         io::error(format!("rad {}: failed to load manual page", help.name));
                         process::exit(1);
                     };

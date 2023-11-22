@@ -139,9 +139,7 @@ pub fn help(name: &str, version: &str, description: &str, usage: &str) {
 }
 
 pub fn manual(name: &str) -> io::Result<process::ExitStatus> {
-    let mut child = process::Command::new("man")
-        .arg(format!("rad-{name}"))
-        .spawn()?;
+    let mut child = process::Command::new("man").arg(name).spawn()?;
 
     child.wait()
 }

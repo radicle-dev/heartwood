@@ -19,7 +19,7 @@ pub enum Error {
     Help,
     /// If this error is returned from argument parsing, the manual page is displayed.
     #[error("help manual invoked")]
-    HelpManual,
+    HelpManual { name: &'static str },
     /// If this error is returned from argument parsing, usage is displayed.
     #[error("usage invoked")]
     Usage,
