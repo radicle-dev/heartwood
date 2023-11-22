@@ -18,7 +18,6 @@ use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git;
 use radicle::git::refname;
 use radicle::identity::{Id, Visibility};
-use radicle::node;
 use radicle::node::address::Book;
 use radicle::node::routing;
 use radicle::node::routing::Store;
@@ -32,6 +31,7 @@ use radicle::rad;
 use radicle::storage::{ReadStorage as _, RemoteRepository as _, SignRepository as _};
 use radicle::test::fixtures;
 use radicle::Storage;
+use radicle::{cli, node};
 
 use crate::node::NodeId;
 use crate::service::Event;
@@ -111,7 +111,12 @@ impl Environment {
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
         let tracking_db = home.node().join(TRACKING_DB_FILE);
         let alias = Alias::from_str(alias).unwrap();
-        let config = profile::Config::init(alias.clone(), &home.config()).unwrap();
+        let config = profile::Config {
+            node: node::Config::new(alias.clone()),
+            cli: cli::Config { hints: false },
+        };
+        config.write(&home.config()).unwrap();
+
         let storage = Storage::open(
             home.storage(),
             git::UserInfo {

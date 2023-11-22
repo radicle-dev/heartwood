@@ -25,7 +25,7 @@ use crate::prelude::Did;
 use crate::prelude::NodeId;
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
-use crate::{git, node};
+use crate::{cli, git, node};
 
 /// Environment variables used by radicle.
 pub mod env {
@@ -39,6 +39,13 @@ pub mod env {
     pub const RAD_PASSPHRASE: &str = "RAD_PASSPHRASE";
     /// RNG seed. Must be convertible to a `u64`.
     pub const RAD_RNG_SEED: &str = "RAD_RNG_SEED";
+    /// Show radicle hints.
+    pub const RAD_HINT: &str = "RAD_HINT";
+
+    /// Whether or not to show hints.
+    pub fn hints() -> bool {
+        var(RAD_HINT).is_ok()
+    }
 
     /// Get the configured pager program from the environment.
     pub fn pager() -> Option<String> {
@@ -107,7 +114,10 @@ pub enum ConfigError {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
+    /// Node configuration.
     pub node: node::Config,
+    /// CLI configuration.
+    pub cli: cli::Config,
 }
 
 impl Config {
@@ -115,17 +125,9 @@ impl Config {
     pub fn init(alias: Alias, path: &Path) -> io::Result<Self> {
         let cfg = Self {
             node: node::Config::new(alias),
+            cli: cli::Config::default(),
         };
-        let mut file = fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(path)?;
-        let formatter = serde_json::ser::PrettyFormatter::with_indent(b"  ");
-        let mut serializer = serde_json::Serializer::with_formatter(&file, formatter);
-
-        cfg.serialize(&mut serializer)?;
-        file.write_all(b"\n")?;
-        file.sync_all()?;
+        cfg.write(path)?;
 
         Ok(cfg)
     }
@@ -145,9 +147,26 @@ impl Config {
                 };
                 Ok(Config {
                     node: node::Config::new(alias),
+                    cli: cli::Config::default(),
                 })
             }
         }
+    }
+
+    /// Write configuration to disk.
+    pub fn write(&self, path: &Path) -> Result<(), io::Error> {
+        let mut file = fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(path)?;
+        let formatter = serde_json::ser::PrettyFormatter::with_indent(b"  ");
+        let mut serializer = serde_json::Serializer::with_formatter(&file, formatter);
+
+        self.serialize(&mut serializer)?;
+        file.write_all(b"\n")?;
+        file.sync_all()?;
+
+        Ok(())
     }
 
     /// Get the user alias.
@@ -224,6 +243,13 @@ impl Profile {
             alias: self.config.alias().clone(),
             key: *self.id(),
         }
+    }
+
+    pub fn hints(&self) -> bool {
+        if env::hints() {
+            return true;
+        }
+        self.config.cli.hints
     }
 
     pub fn did(&self) -> Did {

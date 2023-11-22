@@ -159,6 +159,7 @@ pub fn run(
     let signer = profile.signer()?;
     let mut line = String::new();
     let mut ok = HashSet::new();
+    let hints = profile.hints();
 
     assert_eq!(signer.public_key(), &nid);
 
@@ -242,14 +243,16 @@ pub fn run(
                                 // Not a rollback.
                                 && !rollback
                             {
-                                eprintln!(
-                                    "hint: you are attempting to push a commit that would \
-                                    cause your upstream to diverge from the canonical head"
+                                if hints {
+                                    eprintln!(
+                                        "hint: you are attempting to push a commit that would \
+                                        cause your upstream to diverge from the canonical head"
+                                    );
+                                    eprintln!(
+                                        "hint: to integrate the remote changes, run `git pull --rebase` \
+                                        and try again"
                                 );
-                                eprintln!(
-                                    "hint: to integrate the remote changes, run `git pull --rebase` \
-                                    and try again"
-                                );
+                                }
                                 return Err(Error::HeadsDiverge(head.into(), *canonical_oid));
                             }
                         }
@@ -283,6 +286,9 @@ pub fn run(
             if node.is_running() {
                 // Nb. allow this to fail. The push to local storage was still successful.
                 sync(stored.id, node).ok();
+            } else if hints {
+                eprintln!("hint: offline push, your node is not running");
+                eprintln!("hint: to sync with the network, run `rad node start`");
             }
         }
     }

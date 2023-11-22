@@ -11,6 +11,7 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use tower::ServiceExt;
 
+use radicle::cli;
 use radicle::cob::issue::Issues;
 use radicle::cob::patch::{MergeTarget, Patches};
 use radicle::crypto::ssh::keystore::MemorySigner;
@@ -70,6 +71,7 @@ pub fn profile(home: &Path, seed: [u8; 32]) -> radicle::Profile {
         public_key: keypair.pk.into(),
         config: profile::Config {
             node: node::Config::new(alias),
+            cli: cli::Config::default(),
         },
     }
 }

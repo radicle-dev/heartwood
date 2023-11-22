@@ -42,7 +42,7 @@ $ git commit -m "Third commit by Alice" --allow-empty -q
 If we try to push now, we get an error with a hint, telling us that we need to
 integrate Bob's changes before pushing ours:
 
-``` ~alice (stderr) (fail)
+``` ~alice (stderr) (fail) RAD_HINT=1
 $ git push rad
 hint: you are attempting to push a commit that would cause your upstream to diverge from the canonical head
 hint: to integrate the remote changes, run `git pull --rebase` and try again
