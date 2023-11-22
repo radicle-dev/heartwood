@@ -623,17 +623,47 @@ fn rad_review_by_hunk() {
 }
 
 #[test]
-fn rad_rm() {
+fn rad_clean() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
-    let working = tempfile::tempdir().unwrap();
-    let home = &profile.home;
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let working = environment.tmp().join("working");
 
-    // Setup a test repository.
-    fixtures::repository(working.path());
+    // Setup a test project.
+    let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+    fixtures::repository(working.join("acme"));
+    test(
+        "examples/rad-init.md",
+        working.join("acme"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
 
-    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
-    test("examples/rad-rm.md", working.path(), Some(home), []).unwrap();
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    alice.handle.track_repo(acme, Scope::All).unwrap();
+
+    bob.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/rad-clone.md",
+        working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+
+    bob.has_inventory_of(&acme, &alice.id);
+    alice.has_inventory_of(&acme, &bob.id);
+
+    test(
+        "examples/rad-clean.md",
+        working.join("acme"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
 }
 
 #[test]

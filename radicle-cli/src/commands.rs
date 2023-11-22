@@ -4,6 +4,8 @@ pub mod rad_assign;
 pub mod rad_auth;
 #[path = "commands/checkout.rs"]
 pub mod rad_checkout;
+#[path = "commands/clean.rs"]
+pub mod rad_clean;
 #[path = "commands/clone.rs"]
 pub mod rad_clone;
 #[path = "commands/cob.rs"]
@@ -38,8 +40,6 @@ pub mod rad_publish;
 pub mod rad_remote;
 #[path = "commands/review.rs"]
 pub mod rad_review;
-#[path = "commands/rm.rs"]
-pub mod rad_rm;
 #[path = "commands/self.rs"]
 pub mod rad_self;
 #[path = "commands/sync.rs"]

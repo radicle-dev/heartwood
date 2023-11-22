@@ -215,8 +215,12 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
-        "rm" => {
-            term::run_command_args::<rad_rm::Options, _>(rad_rm::HELP, rad_rm::run, args.to_vec());
+        "clean" => {
+            term::run_command_args::<rad_clean::Options, _>(
+                rad_clean::HELP,
+                rad_clean::run,
+                args.to_vec(),
+            );
         }
         "self" => {
             term::run_command_args::<rad_self::Options, _>(
