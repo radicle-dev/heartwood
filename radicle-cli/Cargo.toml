@@ -22,7 +22,7 @@ nonempty = { version = "0.8" }
 # N.b. this is required to use macros, even though it's re-exported
 # through radicle
 radicle-git-ext = { version = "0.6.0", features = ["serde"] }
-radicle-surf = { version = "0.17.0" }
+radicle-surf = { version = "0.17.1" }
 serde = { version = "1.0" }
 serde_json = { version = "1" }
 serde_yaml = { version = "0.8" }
