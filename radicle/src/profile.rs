@@ -117,6 +117,7 @@ pub struct Config {
     /// Node configuration.
     pub node: node::Config,
     /// CLI configuration.
+    #[serde(default)]
     pub cli: cli::Config,
 }
 
