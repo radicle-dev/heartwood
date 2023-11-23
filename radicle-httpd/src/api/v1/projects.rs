@@ -17,15 +17,14 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use radicle::cob::{issue, patch, Embed, Label, Uri};
 use radicle::identity::{Did, Id, Visibility};
 use radicle::node::routing::Store;
-use radicle::node::AliasStore;
-use radicle::node::NodeId;
+use radicle::node::{AliasStore, Node, NodeId};
 use radicle::storage::git::paths;
 use radicle::storage::{ReadRepository, ReadStorage, RemoteRepository, WriteRepository};
 use radicle_surf::{diff, Glob, Oid, Repository};
 
 use crate::api::error::Error;
 use crate::api::project::Info;
-use crate::api::{self, resolve_embed, CobsQuery, Context, PaginationQuery};
+use crate::api::{self, announce_refs, resolve_embed, CobsQuery, Context, PaginationQuery};
 use crate::axum_extra::{Path, Query};
 
 const CACHE_1_HOUR: &str = "public, max-age=3600, must-revalidate";
@@ -604,6 +603,7 @@ async fn issue_create_handler(
     Json(issue): Json<IssueCreate>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
+    let node = Node::new(ctx.profile.socket());
     let storage = &ctx.profile.storage;
     let signer = ctx
         .profile
@@ -628,6 +628,8 @@ async fn issue_create_handler(
         )
         .map_err(Error::from)?;
 
+    announce_refs(node, repo.id())?;
+
     Ok::<_, Error>((
         StatusCode::CREATED,
         Json(json!({ "success": true, "id": issue.id().to_string() })),
@@ -643,7 +645,7 @@ async fn issue_update_handler(
     Json(action): Json<issue::Action>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
-
+    let node = Node::new(ctx.profile.socket());
     let storage = &ctx.profile.storage;
     let signer = ctx.profile.signer()?;
     let repo = storage.repository(project)?;
@@ -685,6 +687,8 @@ async fn issue_update_handler(
         issue::Action::CommentRedact { id } => issue.redact_comment(id, &signer)?,
     };
 
+    announce_refs(node, repo.id())?;
+
     Ok::<_, Error>(Json(json!({ "success": true, "id": id })))
 }
 
@@ -722,6 +726,7 @@ async fn patch_create_handler(
     Json(patch): Json<PatchCreate>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
+    let node = Node::new(ctx.profile.socket());
     let storage = &ctx.profile.storage;
     let signer = ctx
         .profile
@@ -743,11 +748,14 @@ async fn patch_create_handler(
         )
         .map_err(Error::from)?;
 
+    announce_refs(node, repo.id())?;
+
     Ok::<_, Error>((
         StatusCode::CREATED,
         Json(json!({ "success": true, "id": patch.id.to_string() })),
     ))
 }
+
 /// Update an patch.
 /// `PATCH /projects/:project/patches/:id`
 async fn patch_update_handler(
@@ -757,6 +765,7 @@ async fn patch_update_handler(
     Json(action): Json<patch::Action>,
 ) -> impl IntoResponse {
     api::auth::validate(&ctx, &token).await?;
+    let node = Node::new(ctx.profile.socket());
     let storage = &ctx.profile.storage;
     let signer = ctx
         .profile
@@ -875,6 +884,8 @@ async fn patch_update_handler(
             todo!();
         }
     };
+
+    announce_refs(node, repo.id())?;
 
     Ok::<_, Error>(Json(json!({ "success": true, "id": id })))
 }

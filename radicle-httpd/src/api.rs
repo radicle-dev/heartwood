@@ -19,13 +19,15 @@ use radicle::cob::{issue, Uri};
 use radicle::cob::{patch, Embed};
 use radicle::identity::{DocAt, Id};
 use radicle::node::routing::Store;
+use radicle::node::Handle;
 use radicle::storage::{Oid, ReadRepository, ReadStorage};
-use radicle::Profile;
+use radicle::{Node, Profile};
 
 mod error;
 mod json;
 mod v1;
 
+use crate::api::error::Error;
 use crate::cache::Cache;
 use crate::Options;
 
@@ -229,6 +231,15 @@ impl TryFrom<&Uri> for DataUri {
             return Ok(DataUri(uri_data));
         }
         Err(value.clone())
+    }
+}
+
+/// Announce refs to the network for the given RID.
+pub fn announce_refs(mut node: Node, rid: Id) -> Result<(), Error> {
+    match node.announce_refs(rid) {
+        Ok(_) => Ok(()),
+        Err(e) if e.is_connection_err() => Ok(()),
+        Err(e) => return Err(e.into()),
     }
 }
 
