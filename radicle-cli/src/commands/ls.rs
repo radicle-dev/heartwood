@@ -16,10 +16,14 @@ Usage
 
     rad ls [<option>...]
 
+    By default, this command shows you all repositories that you have forked or initialized.
+    If you wish to see all tracked repositories, use the `--all` option.
+
 Options
 
     --private       Show only private repositories
     --public        Show only public repositories
+    --all           Show all repositories in storage
     --verbose, -v   Verbose output
     --help          Print help
 "#,
@@ -30,6 +34,7 @@ pub struct Options {
     verbose: bool,
     public: bool,
     private: bool,
+    all: bool,
 }
 
 impl Args for Options {
@@ -40,11 +45,15 @@ impl Args for Options {
         let mut verbose = false;
         let mut private = false;
         let mut public = false;
+        let mut all = false;
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
+                }
+                Long("all") => {
+                    all = true;
                 }
                 Long("private") => {
                     private = true;
@@ -62,6 +71,7 @@ impl Args for Options {
                 verbose,
                 private,
                 public,
+                all,
             },
             vec![],
         ))
@@ -71,32 +81,34 @@ impl Args for Options {
 pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let storage = &profile.storage;
-    let mut table = term::Table::new(term::TableOptions::bordered());
     let repos = storage.repositories()?;
+    let mut table = term::Table::new(term::TableOptions::bordered());
+    let mut rows = Vec::new();
 
     if repos.is_empty() {
         return Ok(());
     }
-    table.push([
-        "Name".into(),
-        "RID".into(),
-        "Visibility".into(),
-        "Head".into(),
-        "Description".into(),
-    ]);
-    table.divider();
 
-    for RepositoryInfo { rid, head, doc } in repos {
+    for RepositoryInfo {
+        rid,
+        head,
+        doc,
+        refs,
+    } in repos
+    {
         if doc.visibility.is_public() && options.private && !options.public {
             continue;
         }
         if !doc.visibility.is_public() && !options.private && options.public {
             continue;
         }
+        if refs.is_none() && !options.all {
+            continue;
+        }
         let proj = doc.project()?;
         let head = term::format::oid(head).into();
 
-        table.push([
+        rows.push([
             term::format::bold(proj.name().to_owned()),
             term::format::tertiary(rid.urn()),
             term::format::visibility(&doc.visibility).into(),
@@ -104,7 +116,22 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             term::format::italic(proj.description().to_owned()),
         ]);
     }
-    table.print();
+    rows.sort();
+
+    if rows.is_empty() {
+        term::print(term::format::italic("Nothing to show."));
+    } else {
+        table.push([
+            "Name".into(),
+            "RID".into(),
+            "Visibility".into(),
+            "Head".into(),
+            "Description".into(),
+        ]);
+        table.divider();
+        table.extend(rows);
+        table.print();
+    }
 
     Ok(())
 }

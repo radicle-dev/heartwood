@@ -178,6 +178,12 @@ impl<const W: usize, T: Cell> Table<W, T> {
         self.rows.push(Row::Data(row));
     }
 
+    pub fn extend(&mut self, rows: impl IntoIterator<Item = [T; W]>) {
+        for row in rows.into_iter() {
+            self.push(row);
+        }
+    }
+
     fn inner(&self, c: Constraint) -> Size {
         let mut outer = self.outer(c);
 

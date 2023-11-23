@@ -51,6 +51,9 @@ pub struct RepositoryInfo<V> {
     pub head: Oid,
     /// Identity document.
     pub doc: Doc<V>,
+    /// Local signed refs, if any.
+    /// Repositories with this set to `None` are ones that are tracked but not forked.
+    pub refs: Option<refs::SignedRefsAt>,
 }
 
 /// A parsed Git reference.
@@ -226,7 +229,15 @@ impl Storage {
                     continue;
                 }
             };
-            repos.push(RepositoryInfo { rid, head, doc });
+            // Nb. This will be `None` if they were not found.
+            let refs = refs::SignedRefsAt::load(self.info.key, &repo)?;
+
+            repos.push(RepositoryInfo {
+                rid,
+                head,
+                doc,
+                refs,
+            });
         }
         Ok(repos)
     }

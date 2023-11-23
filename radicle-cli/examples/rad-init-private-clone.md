@@ -1,5 +1,5 @@
 Given a private repo `rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu` belonging to Alice,
-Bob tries to clone it, and even though he's connected to Alice, it fails.
+Bob tries to fetch it, and even though he's connected to Alice, it fails.
 
 ``` ~bob
 $ rad track rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu
@@ -28,10 +28,17 @@ Bob can now fetch the private repo:
 $ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
 ✓ Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from z6MknSL…StBU8Vi..
 ✓ Fetched repository from 1 seed(s)
-$ rad ls --private
+$ rad ls --private --all
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Name        RID                                 Visibility   Head      Description                        │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ heartwood   rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu   private      f2de534   radicle heartwood protocol & stack │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+Note that since we don't have our own fork of this repo, omitting the `--all` flag shows nothing:
+
+``` ~bob
+$ rad ls --private
+Nothing to show.
 ```
