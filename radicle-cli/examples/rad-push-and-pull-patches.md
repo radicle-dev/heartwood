@@ -5,8 +5,6 @@ $ git push rad
 $ git checkout -b bob/1 -q
 $ git commit --allow-empty -m "Changes #1" -q
 $ git push -o patch.message="Changes" rad HEAD:refs/patches
-$ rad sync -a
-✓ Synced with 1 node(s)
 ```
 
 ``` ~alice
