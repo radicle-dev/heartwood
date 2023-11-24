@@ -6,7 +6,8 @@ use nonempty::NonEmpty;
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
 use radicle::identity::{doc, Identity, Visibility};
 use radicle::prelude::{Did, Doc, Id, Signer};
-use radicle::storage::{ReadStorage as _, WriteRepository};
+use radicle::storage::refs;
+use radicle::storage::{ReadRepository, ReadStorage as _, WriteRepository};
 use radicle::{cob, Profile};
 use radicle_crypto::Verified;
 use radicle_surf::diff::Diff;
@@ -356,6 +357,14 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     "at lease one delegate must be present for the identity to be valid"
                 ))?;
 
+                if let Some(errs) = verify_delegates(&proposal.delegates, &repo)? {
+                    term::error(format!("failed to verify delegates for {rid}"));
+                    for e in errs {
+                        e.print();
+                    }
+                    anyhow::bail!("fatal: refusing to update identity document");
+                }
+
                 for (id, key, val) in payload {
                     if let Some(ref mut payload) = proposal.payload.get_mut(&id) {
                         if let Some(obj) = payload.as_object_mut() {
@@ -642,4 +651,55 @@ fn print_diff(
         term::print(term::format::italic("No changes."));
     }
     Ok(())
+}
+
+enum VerificationError {
+    Missing(Did),
+    MissingDefaultBranch {
+        branch: radicle::git::RefString,
+        did: Did,
+    },
+}
+
+impl VerificationError {
+    fn print(&self) {
+        match self {
+            VerificationError::Missing(did) => term::error(format!(
+                "missing delegate {} in local storage",
+                term::format::did(did)
+            )),
+            VerificationError::MissingDefaultBranch { branch, did } => term::error(format!(
+                "missing {} for {} in local storage",
+                term::format::secondary(branch),
+                term::format::did(did)
+            )),
+        }
+    }
+}
+
+fn verify_delegates<S>(
+    dids: &NonEmpty<Did>,
+    repo: &S,
+) -> anyhow::Result<Option<Vec<VerificationError>>>
+where
+    S: ReadRepository,
+{
+    let (canonical, _) = repo.canonical_head()?;
+    let mut errors = Vec::with_capacity(dids.len());
+    for did in dids {
+        match refs::SignedRefsAt::load((*did).into(), repo)? {
+            None => {
+                errors.push(VerificationError::Missing(*did));
+            }
+            Some(refs::SignedRefsAt { sigrefs, .. }) => {
+                if sigrefs.get(&canonical).is_none() {
+                    errors.push(VerificationError::MissingDefaultBranch {
+                        branch: canonical.to_ref_string(),
+                        did: *did,
+                    })
+                }
+            }
+        }
+    }
+    Ok((!errors.is_empty()).then_some(errors))
 }

@@ -10,24 +10,24 @@ command. For now, since we are the only delegate, and `treshold` is `1`, we
 can update the identity ourselves.
 
 Let's add Bob as a delegate using their DID,
-`did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn`, and update the
+`did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk`, and update the
 threshold to `2`.
 
 ```
-$ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn --threshold 2
-✓ Identity revision 07829cdd1993295cd6be18de6219fead428b4a5e created
-╭───────────────────────────────────────────────────────────────────╮
-│ Title    Add Bob                                                  │
-│ Revision 07829cdd1993295cd6be18de6219fead428b4a5e                 │
-│ Blob     7109c1c201c223dd4e9fdb10f7330dc6f0310258                 │
-│ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi │
-│ State    accepted                                                 │
-│ Quorum   yes                                                      │
-│                                                                   │
-│ Add Bob as a delegate                                             │
-├───────────────────────────────────────────────────────────────────┤
-│ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi  (you) │
-╰───────────────────────────────────────────────────────────────────╯
+$ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --threshold 2
+✓ Identity revision 0ca42d376bd566631083c8913cf86bec722da392 created
+╭────────────────────────────────────────────────────────────────────────╮
+│ Title    Add Bob                                                       │
+│ Revision 0ca42d376bd566631083c8913cf86bec722da392                      │
+│ Blob     053541ba7b90534b35dd8718e0ceaa408979b02b                      │
+│ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
+│ State    accepted                                                      │
+│ Quorum   yes                                                           │
+│                                                                        │
+│ Add Bob as a delegate                                                  │
+├────────────────────────────────────────────────────────────────────────┤
+│ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
+╰────────────────────────────────────────────────────────────────────────╯
 
 @@ -1,13 +1,14 @@
  {
@@ -41,7 +41,7 @@ $ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delega
    "delegates": [
 -    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
 +    "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-+    "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
++    "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"
    ],
 -  "threshold": 1
 +  "threshold": 2
@@ -56,7 +56,7 @@ the delegates and threshold:
       "delegates": [
     -   "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"
     +   "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-    +   "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
+    +   "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"
       ],
     ...
     -  "threshold": 1
@@ -85,7 +85,7 @@ $ rad inspect --identity
   },
   "delegates": [
     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
-    "did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn"
+    "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"
   ],
   "threshold": 2
 }
@@ -94,16 +94,16 @@ $ rad inspect --identity
 We can also look at the document's COB directly:
 ```
 $ rad cob show --object 0656c217f917c3e06234771e9ecae53aba5e173e --type xyz.radicle.id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-commit 07829cdd1993295cd6be18de6219fead428b4a5e
+commit 0ca42d376bd566631083c8913cf86bec722da392
 parent 0656c217f917c3e06234771e9ecae53aba5e173e
 author z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 date   Thu, 15 Dec 2022 17:28:04 +0000
 
     {
-      "blob": "7109c1c201c223dd4e9fdb10f7330dc6f0310258",
+      "blob": "053541ba7b90534b35dd8718e0ceaa408979b02b",
       "description": "Add Bob as a delegate",
       "parent": "0656c217f917c3e06234771e9ecae53aba5e173e",
-      "signature": "z3sne3sdReZ4AtgxQmn7R1pQnz7E9ZEUoRfCJDJ8ytgnBMFW4DJqRHuBz2h1NK4QdGEy3QCpyVoJKfE95tNoivXwz",
+      "signature": "z3AyzixN2eWLtRfQWowtBXwWyRH3iJ8oJ25W6KFYFw5ANLntbzfavge15muNU6AVAUkxSxQvgg9yh2gupbUecavQY",
       "title": "Add Bob",
       "type": "revision"
     }
@@ -126,14 +126,24 @@ Note that once a revision is accepted, it can't be edited, redacted or otherwise
 acted upon:
 
 ``` (fail)
-$ rad id redact 07829cdd1993295cd6be18de6219fead428b4a5e
+$ rad id redact 0ca42d376bd566631083c8913cf86bec722da392
 ✗ Error: [..]
 ```
 ``` (fail)
-$ rad id reject 07829cdd1993295cd6be18de6219fead428b4a5e
+$ rad id reject 0ca42d376bd566631083c8913cf86bec722da392
 ✗ Error: [..]
 ```
 ``` (fail)
-$ rad id accept 07829cdd1993295cd6be18de6219fead428b4a5e
+$ rad id accept 0ca42d376bd566631083c8913cf86bec722da392
 ✗ Error: [..]
+```
+
+If we attempt to add a delegate that we do not have locally, then we
+will be told that they are missing in our repository:
+
+``` (fail)
+$ rad id update --title "Add Eve" --description "Add Eve as a delegate" --delegate did:key:z6MkedTZGJGqgQ2py2b8kGecfxdt2yRdHWF6JpaZC47fovFn
+✗ Error: failed to verify delegates for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+✗ Error: missing delegate z6MkedT…47fovFn in local storage
+✗ Error: fatal: refusing to update identity document
 ```

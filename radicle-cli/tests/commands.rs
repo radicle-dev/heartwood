@@ -256,20 +256,6 @@ fn rad_checkout() {
 #[test]
 fn rad_id() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
-    let working = tempfile::tempdir().unwrap();
-    let home = &profile.home;
-
-    // Setup a test repository.
-    fixtures::repository(working.path());
-
-    test("examples/rad-init.md", working.path(), Some(home), []).unwrap();
-    test("examples/rad-id.md", working.path(), Some(home), []).unwrap();
-}
-
-#[test]
-fn rad_id_multi_delegate() {
-    let mut environment = Environment::new();
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let working = tempfile::tempdir().unwrap();
@@ -288,10 +274,11 @@ fn rad_id_multi_delegate() {
     .unwrap();
 
     let mut alice = alice.spawn();
-    let mut bob = bob.spawn();
+    let bob = bob.spawn();
 
-    bob.handle.track_repo(acme, Scope::All).unwrap();
+    alice.handle.track_repo(acme, Scope::All).unwrap();
     alice.connect(&bob).converge([&bob]);
+    let events = alice.handle.events();
 
     test(
         "examples/rad-clone.md",
@@ -300,6 +287,74 @@ fn rad_id_multi_delegate() {
         [],
     )
     .unwrap();
+    alice.has_inventory_of(&acme, &bob.id);
+
+    // Alice must have Bob to try add them as a delegate
+    events
+        .wait(
+            |e| matches!(e, Event::RefsFetched { .. }).then_some(()),
+            time::Duration::from_secs(6),
+        )
+        .unwrap();
+
+    test(
+        "examples/rad-id.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_id_multi_delegate() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let bob = environment.node(Config::test(Alias::new("bob")));
+    let eve = environment.node(Config::test(Alias::new("eve")));
+    let working = tempfile::tempdir().unwrap();
+    let working = working.path();
+    let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    // Setup a test repository.
+    fixtures::repository(working.join("alice"));
+
+    test(
+        "examples/rad-init.md",
+        working.join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+    let mut eve = eve.spawn();
+
+    alice.handle.track_repo(acme, Scope::All).unwrap();
+    bob.handle.track_node(eve.id, None).unwrap();
+    alice.connect(&bob).converge([&bob]);
+    eve.connect(&alice).converge([&alice]);
+
+    test(
+        "examples/rad-clone.md",
+        working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+    bob.has_inventory_of(&acme, &alice.id);
+    alice.has_inventory_of(&acme, &bob.id);
+
+    test(
+        "examples/rad-clone-all.md",
+        working.join("eve"),
+        Some(&eve.home),
+        [],
+    )
+    .unwrap();
+    eve.has_inventory_of(&acme, &bob.id);
+    alice.has_inventory_of(&acme, &eve.id);
 
     // TODO: Have formula with two connected nodes and a tracked project.
 
@@ -340,9 +395,8 @@ fn rad_id_conflict() {
     .unwrap();
 
     let mut alice = alice.spawn();
-    let mut bob = bob.spawn();
+    let bob = bob.spawn();
 
-    bob.handle.track_repo(acme, Scope::All).unwrap();
     alice.connect(&bob).converge([&bob]);
 
     test(
@@ -352,6 +406,7 @@ fn rad_id_conflict() {
         [],
     )
     .unwrap();
+    alice.has_inventory_of(&acme, &bob.id);
 
     formula(&environment.tmp(), "examples/rad-id-conflict.md")
         .unwrap()
@@ -1553,6 +1608,7 @@ fn git_push_diverge() {
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
+    let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
     fixtures::repository(working.join("alice"));
 
@@ -1576,6 +1632,7 @@ fn git_push_diverge() {
         [],
     )
     .unwrap();
+    alice.has_inventory_of(&acme, &bob.id);
 
     formula(&environment.tmp(), "examples/git/git-push-diverge.md")
         .unwrap()
@@ -1599,6 +1656,7 @@ fn rad_push_and_pull_patches() {
     let alice = environment.node(Config::test(Alias::new("alice")));
     let bob = environment.node(Config::test(Alias::new("bob")));
     let working = environment.tmp().join("working");
+    let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
     fixtures::repository(working.join("alice"));
 
@@ -1624,6 +1682,7 @@ fn rad_push_and_pull_patches() {
         [],
     )
     .unwrap();
+    alice.has_inventory_of(&acme, &bob.id);
 
     formula(&environment.tmp(), "examples/rad-push-and-pull-patches.md")
         .unwrap()
