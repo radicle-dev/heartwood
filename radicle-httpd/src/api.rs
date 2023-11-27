@@ -19,7 +19,8 @@ use radicle::cob::{issue, Uri};
 use radicle::cob::{patch, Embed};
 use radicle::identity::{DocAt, Id};
 use radicle::node::routing::Store;
-use radicle::node::Handle;
+use radicle::node::tracking::Scope;
+use radicle::node::{Handle, NodeId};
 use radicle::storage::{Oid, ReadRepository, ReadStorage};
 use radicle::{Node, Profile};
 
@@ -141,6 +142,14 @@ pub struct CobsQuery<T> {
     pub page: Option<usize>,
     pub per_page: Option<usize>,
     pub state: Option<T>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PoliciesQuery {
+    /// The NID from which to fetch from after tracking a repo.
+    pub from: Option<NodeId>,
+    pub scope: Option<Scope>,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone)]

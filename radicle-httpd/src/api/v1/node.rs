@@ -1,19 +1,27 @@
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::routing::get;
+use axum::routing::{get, put};
 use axum::{Json, Router};
+use axum_auth::AuthBearer;
+use hyper::StatusCode;
 use serde_json::json;
 
-use radicle::node::{tracking, Handle};
+use radicle::identity::Id;
+use radicle::node::{tracking, Handle, DEFAULT_TIMEOUT};
 use radicle::Node;
 
 use crate::api::error::Error;
-use crate::api::Context;
+use crate::api::{self, Context, PoliciesQuery};
+use crate::axum_extra::{Path, Query};
 
 pub fn router(ctx: Context) -> Router {
     Router::new()
         .route("/node", get(node_handler))
-        .route("/node/tracking/repos", get(node_tracking_repos_handler))
+        .route("/node/policies/repos", get(node_policies_repos_handler))
+        .route(
+            "/node/policies/repos/:rid",
+            put(node_policies_track_handler).delete(node_policies_untrack_handler),
+        )
         .with_state(ctx)
 }
 
@@ -44,8 +52,8 @@ async fn node_handler(State(ctx): State<Context>) -> impl IntoResponse {
 }
 
 /// Return local tracking repos information.
-/// `GET /node/tracking/repos`
-async fn node_tracking_repos_handler(State(ctx): State<Context>) -> impl IntoResponse {
+/// `GET /node/policies/repos`
+async fn node_policies_repos_handler(State(ctx): State<Context>) -> impl IntoResponse {
     let tracking = ctx.profile.tracking()?;
     let mut repos = Vec::new();
 
@@ -58,4 +66,40 @@ async fn node_tracking_repos_handler(State(ctx): State<Context>) -> impl IntoRes
     }
 
     Ok::<_, Error>(Json(repos))
+}
+
+/// Track a new repo.
+/// `PUT /node/policies/repos/:rid`
+async fn node_policies_track_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path(project): Path<Id>,
+    Query(qs): Query<PoliciesQuery>,
+) -> impl IntoResponse {
+    api::auth::validate(&ctx, &token).await?;
+    let mut node = Node::new(ctx.profile.socket());
+    node.track_repo(project, qs.scope.unwrap_or_default())?;
+    if let Some(from) = qs.from {
+        let results = node.fetch(project, from, DEFAULT_TIMEOUT)?;
+        return Ok::<_, Error>((
+            StatusCode::OK,
+            Json(json!({ "success": true, "results": results })),
+        ));
+    }
+
+    Ok::<_, Error>((StatusCode::OK, Json(json!({ "success": true }))))
+}
+
+/// Untrack a repo.
+/// `DELETE /node/policies/repos/:rid`
+async fn node_policies_untrack_handler(
+    State(ctx): State<Context>,
+    AuthBearer(token): AuthBearer,
+    Path(project): Path<Id>,
+) -> impl IntoResponse {
+    api::auth::validate(&ctx, &token).await?;
+    let mut node = Node::new(ctx.profile.socket());
+    node.untrack_repo(project)?;
+
+    Ok::<_, Error>((StatusCode::OK, Json(json!({ "success": true }))))
 }
