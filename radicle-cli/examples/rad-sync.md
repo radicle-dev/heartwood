@@ -12,7 +12,7 @@ Our own node is also out of sync, since we used `--no-announce`.
 It isn't aware of the updates to the repo.
 
 ```
-$ rad sync status
+$ rad sync status --sort-by alias
 ╭──────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   NID               Alias   Address                  Status        At        Timestamp │
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
@@ -76,7 +76,7 @@ $ rad sync --fetch --replicas 1
 We can check the sync status again to make sure everything's in sync:
 
 ```
-$ rad sync status
+$ rad sync status --sort-by alias
 ╭─────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   NID               Alias   Address                  Status   At        Timestamp │
 ├─────────────────────────────────────────────────────────────────────────────────────┤

@@ -1,11 +1,13 @@
 use std::cmp::Ordering;
 use std::ffi::OsString;
+use std::str::FromStr;
 use std::time;
 
 use anyhow::{anyhow, Context as _};
 
 use radicle::node;
-use radicle::node::AliasStore as _;
+use radicle::node::AliasStore;
+use radicle::node::Seed;
 use radicle::node::{FetchResult, FetchResults, Handle as _, Node, SyncStatus};
 use radicle::prelude::{Id, NodeId, Profile};
 use radicle::storage::{ReadRepository, ReadStorage};
@@ -51,14 +53,15 @@ Commands
 
 Options
 
-    --fetch, -f               Turn on fetching (default: true)
-    --announce, -a            Turn on ref announcing (default: true)
-    --inventory, -i           Turn on inventory announcing (default: false)
-    --timeout <secs>          How many seconds to wait while syncing
-    --seed <nid>              Sync with the given node (may be specified multiple times)
-    --replicas, -r <count>    Sync with a specific number of seeds
-    --verbose, -v             Verbose output
-    --help                    Print help
+        --sort-by   <field>   Sort the table by column (options: nid, alias, status)
+    -f, --fetch               Turn on fetching (default: true)
+    -a, --announce            Turn on ref announcing (default: true)
+    -i, --inventory           Turn on inventory announcing (default: false)
+        --timeout   <secs>    How many seconds to wait while syncing
+        --seed      <nid>     Sync with the given node (may be specified multiple times)
+    -r, --replicas  <count>   Sync with a specific number of seeds
+    -v, --verbose             Verbose output
+        --help                Print help
 "#,
 };
 
@@ -67,6 +70,27 @@ pub enum Operation {
     Synchronize(SyncMode),
     #[default]
     Status,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SortBy {
+    Nid,
+    Alias,
+    #[default]
+    Status,
+}
+
+impl FromStr for SortBy {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "nid" => Ok(Self::Nid),
+            "alias" => Ok(Self::Alias),
+            "status" => Ok(Self::Status),
+            _ => Err("invalid `--sort-by` field"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,6 +139,7 @@ pub struct Options {
     pub rid: Option<Id>,
     pub verbose: bool,
     pub timeout: time::Duration,
+    pub sort_by: SortBy,
     pub op: Operation,
 }
 
@@ -131,6 +156,7 @@ impl Args for Options {
         let mut inventory = false;
         let mut replicas = None;
         let mut seeds = Vec::new();
+        let mut sort_by = SortBy::default();
         let mut op: Option<Operation> = None;
 
         while let Some(arg) = parser.next()? {
@@ -161,6 +187,10 @@ impl Args for Options {
                 }
                 Long("inventory") | Short('i') => {
                     inventory = true;
+                }
+                Long("sort-by") if matches!(op, Some(Operation::Status)) => {
+                    let value = parser.value()?;
+                    sort_by = value.parse()?;
                 }
                 Long("timeout") | Short('t') => {
                     let value = parser.value()?;
@@ -217,6 +247,7 @@ impl Args for Options {
                 rid,
                 verbose,
                 timeout,
+                sort_by,
                 op: op.unwrap_or(Operation::Synchronize(sync)),
             },
             vec![],
@@ -294,22 +325,7 @@ fn sync_status(
     ]);
     table.divider();
 
-    // Always show our local node first.
-    seeds.sort_by(|a, b| {
-        if a.nid == local {
-            Ordering::Less
-        } else if b.nid == local {
-            Ordering::Greater
-        } else {
-            match (&a.sync, &b.sync) {
-                (Some(_), None) => Ordering::Less,
-                (None, Some(_)) => Ordering::Greater,
-                (Some(a), Some(b)) => a.cmp(b).reverse(),
-                (None, None) => Ordering::Equal,
-            }
-            .then(a.nid.cmp(&b.nid))
-        }
-    });
+    sort_seeds_by(local, &mut seeds, &aliases, &options.sort_by);
 
     for seed in seeds {
         let (icon, status, head, time) = match seed.sync {
@@ -552,4 +568,33 @@ fn fetch_from(
         }
     }
     Ok(result)
+}
+
+fn sort_seeds_by(local: NodeId, seeds: &mut [Seed], aliases: &impl AliasStore, sort_by: &SortBy) {
+    let compare = |a: &Seed, b: &Seed| match sort_by {
+        SortBy::Nid => a.nid.cmp(&b.nid),
+        SortBy::Alias => {
+            let a = aliases.alias(&a.nid);
+            let b = aliases.alias(&b.nid);
+            a.cmp(&b)
+        }
+        SortBy::Status => a.sync.cmp(&b.sync),
+    };
+
+    // Always show our local node first.
+    seeds.sort_by(|a, b| {
+        if a.nid == local {
+            Ordering::Less
+        } else if b.nid == local {
+            Ordering::Greater
+        } else {
+            match (&a.sync, &b.sync) {
+                (Some(_), None) => Ordering::Less,
+                (None, Some(_)) => Ordering::Greater,
+                (Some(a), Some(b)) => a.cmp(b).reverse(),
+                (None, None) => Ordering::Equal,
+            }
+            .then(compare(a, b))
+        }
+    });
 }

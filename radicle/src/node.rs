@@ -167,7 +167,7 @@ impl PartialOrd for SyncStatus {
 }
 
 /// Node alias.
-#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Alias(String);
 
 impl Alias {
