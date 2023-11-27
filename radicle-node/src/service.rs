@@ -490,16 +490,12 @@ where
                 if updated_at.oid == announced.oid {
                     continue;
                 }
-            } else {
-                debug!(target: "service", "Saving local sync status for {rid}..");
-                // If we don't have a sync status for this repo, create one.
-                self.addresses.synced(
-                    &rid,
-                    &nid,
-                    updated_at.oid,
-                    updated_at.timestamp.as_millis(),
-                )?;
             }
+            // Make sure our local node's sync status is up to date with storage.
+            debug!(target: "service", "Saving local sync status for {rid}..");
+            self.addresses
+                .synced(&rid, &nid, updated_at.oid, updated_at.timestamp.as_millis())?;
+
             // If we got here, it likely means a repo was updated while the node was stopped.
             // Therefore, we pre-load a refs announcement for this repo, so that it is included in
             // the historical gossip messages when a node connects and subscribes to this repo.
