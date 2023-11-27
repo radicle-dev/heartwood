@@ -239,7 +239,7 @@ pub fn announce_refs(mut node: Node, rid: Id) -> Result<(), Error> {
     match node.announce_refs(rid) {
         Ok(_) => Ok(()),
         Err(e) if e.is_connection_err() => Ok(()),
-        Err(e) => return Err(e.into()),
+        Err(e) => Err(e.into()),
     }
 }
 

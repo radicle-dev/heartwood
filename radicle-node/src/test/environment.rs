@@ -114,6 +114,7 @@ impl Environment {
         let config = profile::Config {
             node: node::Config::new(alias.clone()),
             cli: cli::Config { hints: false },
+            public_explorer: profile::Explorer::default(),
         };
         config.write(&home.config()).unwrap();
 

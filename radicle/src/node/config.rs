@@ -12,6 +12,34 @@ use crate::node::{Address, Alias, NodeId};
 /// Target number of peers to maintain connections to.
 pub const TARGET_OUTBOUND_PEERS: usize = 8;
 
+/// Configured public seeds.
+pub mod seeds {
+    use std::str::FromStr;
+
+    use super::{ConnectAddress, PeerAddr};
+    use once_cell::sync::Lazy;
+
+    /// The radicle public community seed node.
+    pub static RADICLE_COMMUNITY_NODE: Lazy<ConnectAddress> = Lazy::new(|| {
+        // SAFETY: `ConnectAddress` is known at compile time.
+        #[allow(clippy::unwrap_used)]
+        PeerAddr::from_str(
+            "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776",
+        )
+        .unwrap()
+        .into()
+    });
+
+    /// The radicle team node.
+    pub static RADICLE_TEAM_NODE: Lazy<ConnectAddress> = Lazy::new(|| {
+        // SAFETY: `ConnectAddress` is known at compile time.
+        #[allow(clippy::unwrap_used)]
+        PeerAddr::from_str("z6MksmpU5b1dS7oaqF2bHXhQi1DWy2hB7Mh9CuN7y1DN6QSz@seed.radicle.xyz:8776")
+            .unwrap()
+            .into()
+    });
+}
+
 /// Peer-to-peer network.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,22 +52,13 @@ pub enum Network {
 impl Network {
     /// Bootstrap nodes for this network.
     pub fn bootstrap(&self) -> Vec<(Alias, ConnectAddress)> {
-        use std::str::FromStr;
-
         match self {
             Self::Main => [
-                (
-                    "seed.radicle.garden",
-                    "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776",
-                ),
-                (
-                    "seed.radicle.xyz",
-                    "z6MksmpU5b1dS7oaqF2bHXhQi1DWy2hB7Mh9CuN7y1DN6QSz@seed.radicle.xyz:8776",
-                ),
+                ("seed.radicle.garden", seeds::RADICLE_COMMUNITY_NODE.clone()),
+                ("seed.radicle.xyz", seeds::RADICLE_TEAM_NODE.clone()),
             ]
             .into_iter()
-            // SAFETY: These are valid addresses.
-            .map(|(a, s)| (Alias::new(a), PeerAddr::from_str(s).unwrap().into()))
+            .map(|(a, s)| (Alias::new(a), s))
             .collect(),
 
             Self::Test => vec![],

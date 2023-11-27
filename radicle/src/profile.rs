@@ -22,7 +22,7 @@ use crate::crypto::ssh::{keystore, Keystore, Passphrase};
 use crate::crypto::{PublicKey, Signer};
 use crate::node::{address, routing, tracking, Alias, AliasStore};
 use crate::prelude::Did;
-use crate::prelude::NodeId;
+use crate::prelude::{Id, NodeId};
 use crate::storage::git::transport;
 use crate::storage::git::Storage;
 use crate::{cli, git, node};
@@ -81,6 +81,55 @@ pub mod env {
 }
 
 #[derive(Debug, Error)]
+pub enum ExplorerUrlError {
+    #[error("invalid explorer URL {0:?}: unknown protocol")]
+    UnknownProtocol(String),
+    #[error("invalid explorer URL {0:?}: missing `$host` component")]
+    MissingHost(String),
+    #[error("invalid explorer URL {0:?}: missing `$rid` component")]
+    MissingRid(String),
+}
+
+/// A public explorer, eg. `https://app.radicle.xyz`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(transparent)]
+pub struct Explorer(String);
+
+impl Default for Explorer {
+    fn default() -> Self {
+        Self(String::from("https://app.radicle.xyz/nodes/$host/$rid"))
+    }
+}
+
+impl Explorer {
+    /// Get the explorer URL, filling in the host and RID.
+    pub fn url(&self, host: &str, rid: &Id) -> String {
+        self.0
+            .replace("$host", host)
+            .replace("$rid", rid.urn().as_str())
+    }
+}
+
+impl FromStr for Explorer {
+    type Err = ExplorerUrlError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let url = s.to_owned();
+
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            return Err(ExplorerUrlError::UnknownProtocol(url));
+        }
+        if !url.contains("$host") {
+            return Err(ExplorerUrlError::MissingHost(url));
+        }
+        if !url.contains("$rid") {
+            return Err(ExplorerUrlError::MissingRid(url));
+        }
+        Ok(Explorer(url))
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
     Io(#[from] io::Error),
@@ -119,15 +168,29 @@ pub struct Config {
     /// CLI configuration.
     #[serde(default)]
     pub cli: cli::Config,
+    /// Public explorer. This is used for generating links.
+    #[serde(default)]
+    pub public_explorer: Explorer,
+    /// Preferred seeds. These seeds will be used for explorer links
+    /// and in other situations when a seed needs to be chosen.
+    #[serde(default)]
+    pub preferred_seeds: Vec<node::config::ConnectAddress>,
 }
 
 impl Config {
-    /// Initialize a new configuration. Fails if the path already exists.
-    pub fn init(alias: Alias, path: &Path) -> io::Result<Self> {
-        let cfg = Self {
+    /// Create a new, default configuration.
+    pub fn new(alias: Alias) -> Self {
+        Self {
             node: node::Config::new(alias),
             cli: cli::Config::default(),
-        };
+            public_explorer: Explorer::default(),
+            preferred_seeds: vec![node::config::seeds::RADICLE_COMMUNITY_NODE.clone()],
+        }
+    }
+
+    /// Initialize a new configuration. Fails if the path already exists.
+    pub fn init(alias: Alias, path: &Path) -> io::Result<Self> {
+        let cfg = Config::new(alias);
         cfg.write(path)?;
 
         Ok(cfg)
@@ -146,10 +209,7 @@ impl Config {
                 let Ok(alias) = Alias::from_str(&user) else {
                     return Err(ConfigError::Io(path.to_owned(), e));
                 };
-                Ok(Config {
-                    node: node::Config::new(alias),
-                    cli: cli::Config::default(),
-                })
+                Ok(Config::new(alias))
             }
         }
     }
