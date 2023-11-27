@@ -7,7 +7,7 @@ use radicle::identity::{Doc, DocError};
 
 use radicle::prelude::Verified;
 use radicle::storage;
-use radicle::storage::refs::RefsAt;
+use radicle::storage::refs::{RefsAt, SignedRefs};
 use radicle::storage::{
     git::Validation, Remote, RemoteId, RemoteRepository, Remotes, ValidateRepository, Validations,
 };
@@ -497,10 +497,19 @@ impl FetchState {
                     }
 
                     let cache = self.as_cached(handle);
-                    if let Some(fails) = sigrefs::validate(&cache, sigrefs)?.as_mut() {
+                    // N.b. we only validate the existence of the
+                    // default branch for delegates, since it safe for
+                    // non-delegates to not have this branch.
+                    let branch_validation =
+                        validate_project_default_branch(&anchor, &sigrefs.sigrefs);
+                    let fails = sigrefs::validate(&cache, sigrefs)?.map(|mut fails| {
+                        fails.extend(branch_validation);
+                        fails
+                    });
+                    if let Some(mut fails) = fails {
                         log::warn!(target: "fetch", "Pruning delegate {remote} tips, due to validation failures");
                         self.prune(&remote);
-                        failures.append(fails)
+                        failures.append(&mut fails)
                     } else {
                         remotes.insert(remote);
                     }
@@ -647,4 +656,21 @@ impl<'a, S> ValidateRepository for Cached<'a, S> {
 
         Ok(validations)
     }
+}
+
+/// If the repository has a project payload, in `anchor`, then
+/// validate that the `sigrefs` contains the listed default branch.
+///
+/// N.b. if the repository does not have the project payload or a
+/// deserialization error occurs, then this will return `None`.
+fn validate_project_default_branch(
+    anchor: &Doc<Verified>,
+    sigrefs: &SignedRefs<Verified>,
+) -> Option<Validation> {
+    let proj = anchor.project().ok()?;
+    let branch = radicle::git::refs::branch(proj.default_branch()).to_ref_string();
+    (!sigrefs.contains_key(&branch)).then_some(Validation::MissingRef {
+        remote: sigrefs.id,
+        refname: branch,
+    })
 }

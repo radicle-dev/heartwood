@@ -4,8 +4,8 @@ use radicle::crypto::{test::signer::MockSigner, Signer};
 use radicle::git;
 use radicle::node::{Alias, FetchResult, Handle as _, DEFAULT_TIMEOUT};
 use radicle::storage::{
-    ReadRepository, ReadStorage, RefUpdate, RemoteRepository, ValidateRepository, WriteRepository,
-    WriteStorage,
+    ReadRepository, ReadStorage, RefUpdate, RemoteRepository, SignRepository, ValidateRepository,
+    WriteRepository, WriteStorage,
 };
 use radicle::test::fixtures;
 use radicle::{assert_matches, rad};
@@ -1038,4 +1038,56 @@ fn test_outdated_delegate_sigrefs() {
 
     assert_ne!(alice_refs, old_refs);
     assert_eq!(alice_refs_expected, alice_refs);
+}
+
+#[test]
+fn missing_default_branch() {
+    logger::init(log::Level::Debug);
+
+    let tmp = tempfile::tempdir().unwrap();
+
+    let mut alice = Node::init(tmp.path(), Config::test(Alias::new("alice")));
+    let bob = Node::init(tmp.path(), Config::test(Alias::new("bob")));
+
+    let rid = alice.project("acme", "");
+
+    let mut alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    alice.handle.track_repo(rid, Scope::All).unwrap();
+    bob.handle.track_repo(rid, Scope::All).unwrap();
+    alice.connect(&bob);
+    converge([&alice, &bob]);
+
+    bob.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap();
+    assert!(bob.storage.contains(&rid).unwrap());
+
+    // Fetching from still works despite not having
+    // `refs/heads/master`, but has `rad/sigrefs`.
+    bob.issue(rid, "Hello, Acme", "Popping in to say hello");
+    alice.handle.fetch(rid, bob.id, DEFAULT_TIMEOUT).unwrap();
+
+    {
+        let repo = bob.storage.repository(rid).unwrap();
+        assert!(repo.canonical_head().is_ok());
+        assert!(repo.canonical_identity_doc().is_ok());
+        assert!(repo.head().is_ok());
+    }
+
+    // If for some reason Alice managed to delete her master reference
+    {
+        let repo = alice.storage.repository_mut(rid).unwrap();
+        let mut r = repo
+            .backend
+            .find_reference(&format!("refs/namespaces/{}/refs/heads/master", alice.id))
+            .unwrap();
+        r.delete().unwrap();
+        repo.sign_refs(&alice.signer).unwrap();
+    }
+
+    // Then fetching from her will fail
+    assert_matches!(
+        bob.handle.fetch(rid, alice.id, DEFAULT_TIMEOUT).unwrap(),
+        FetchResult::Failed { .. }
+    );
 }
