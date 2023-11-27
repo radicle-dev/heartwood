@@ -163,11 +163,6 @@ pub enum ConfigError {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
-    /// Node configuration.
-    pub node: node::Config,
-    /// CLI configuration.
-    #[serde(default)]
-    pub cli: cli::Config,
     /// Public explorer. This is used for generating links.
     #[serde(default)]
     pub public_explorer: Explorer,
@@ -175,16 +170,21 @@ pub struct Config {
     /// and in other situations when a seed needs to be chosen.
     #[serde(default)]
     pub preferred_seeds: Vec<node::config::ConnectAddress>,
+    /// CLI configuration.
+    #[serde(default)]
+    pub cli: cli::Config,
+    /// Node configuration.
+    pub node: node::Config,
 }
 
 impl Config {
     /// Create a new, default configuration.
     pub fn new(alias: Alias) -> Self {
         Self {
-            node: node::Config::new(alias),
-            cli: cli::Config::default(),
             public_explorer: Explorer::default(),
             preferred_seeds: vec![node::config::seeds::RADICLE_COMMUNITY_NODE.clone()],
+            cli: cli::Config::default(),
+            node: node::Config::new(alias),
         }
     }
 

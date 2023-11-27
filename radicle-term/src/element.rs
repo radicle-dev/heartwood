@@ -291,6 +291,26 @@ impl Element for Line {
     }
 }
 
+impl Element for Vec<Line> {
+    fn size(&self, parent: Constraint) -> Size {
+        let width = self
+            .iter()
+            .map(|e| e.columns(parent))
+            .max()
+            .unwrap_or_default();
+        let height = self.len();
+
+        Size::new(width, height)
+    }
+
+    fn render(&self, parent: Constraint) -> Vec<Line> {
+        self.iter()
+            .cloned()
+            .flat_map(|l| l.render(parent))
+            .collect()
+    }
+}
+
 impl fmt::Display for Line {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for item in &self.items {

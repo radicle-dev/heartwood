@@ -194,6 +194,21 @@ fn rad_inspect() {
 }
 
 #[test]
+fn rad_config() {
+    let mut environment = Environment::new();
+    let profile = environment.profile("alice");
+    let working = tempfile::tempdir().unwrap();
+
+    test(
+        "examples/rad-config.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
 fn rad_checkout() {
     let mut environment = Environment::new();
     let profile = environment.profile("alice");

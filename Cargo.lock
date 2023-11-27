@@ -1669,17 +1669,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "json-color"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6dc8c55175cad7234a98cc3e31ba3009e276800271692ed3ad2c2f1c574b6e8"
-dependencies = [
- "colored",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "keccak"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2298,7 +2287,6 @@ dependencies = [
  "anyhow",
  "chrono",
  "git-ref-format",
- "json-color",
  "lexopt",
  "localtime",
  "log",
@@ -2326,6 +2314,7 @@ dependencies = [
  "tree-sitter-go",
  "tree-sitter-highlight",
  "tree-sitter-html",
+ "tree-sitter-json",
  "tree-sitter-md",
  "tree-sitter-python",
  "tree-sitter-ruby",
@@ -3541,6 +3530,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-json"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50d82d2e33ee675dc71289e2ace4f8f9cf96d36d81400e9dae5ea61edaf5dea6"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-md"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3592,9 +3591,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-typescript"
-version = "0.20.2"
+version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "079c695c32d39ad089101c66393aeaca30e967fba3486a91f573d2f0e12d290a"
+checksum = "a75049f0aafabb2aac205d7bb24da162b53dcd0cfb326785f25a2f32efa8071a"
 dependencies = [
  "cc",
  "tree-sitter",

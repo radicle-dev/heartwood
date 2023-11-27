@@ -16,6 +16,7 @@ const HIGHLIGHTS: &[&str] = &[
     "float.literal",
     "keyword",
     "label",
+    "number",
     "operator",
     "property",
     "punctuation",
@@ -72,12 +73,14 @@ impl Theme {
             "keyword" => self.color("red"),
             "comment" => self.color("grey"),
             "constant" => self.color("orange"),
+            "number" => self.color("blue"),
             "string" => self.color("teal"),
+            "string.special" => self.color("green"),
             "function" => self.color("purple"),
             "operator" => self.color("blue"),
             // Eg. `true` and `false` in rust.
             "constant.builtin" => self.color("blue"),
-            "type.builtin" => self.color("cyan"),
+            "type.builtin" => self.color("teal"),
             "punctuation.bracket" | "punctuation.delimiter" => term::Color::default(),
             // Eg. the '#' in Markdown titles.
             "punctuation.special" => self.color("dim"),
@@ -124,14 +127,17 @@ impl Builder {
         for event in highlights {
             match event? {
                 ts::HighlightEvent::Source { start, end } => {
-                    let range = &code[start..end];
-
-                    for byte in range {
+                    for (i, byte) in code.iter().enumerate().skip(start).take(end - start) {
                         if *byte == b'\n' {
                             self.advance();
                             // Start on new line.
                             self.lines.push(term::Line::from(self.line.clone()));
                             self.line.clear();
+                        } else if i == code.len() - 1 {
+                            // File has no `\n` at the end.
+                            self.label.push(*byte);
+                            self.advance();
+                            self.lines.push(term::Line::from(self.line.clone()));
                         } else {
                             // Add to existing label.
                             self.label.push(*byte);
@@ -140,10 +146,11 @@ impl Builder {
                 }
                 ts::HighlightEvent::HighlightStart(h) => {
                     let name = HIGHLIGHTS[h.0];
+                    let style =
+                        term::Style::default().fg(theme.highlight(name).unwrap_or_default());
 
                     self.advance();
-                    self.styles
-                        .push(term::Style::default().fg(theme.highlight(name).unwrap_or_default()));
+                    self.styles.push(style);
                 }
                 ts::HighlightEvent::HighlightEnd => {
                     self.advance();
@@ -193,7 +200,8 @@ impl Highlighter {
     fn detect(&mut self, path: &Path, _code: &[u8]) -> Option<&mut ts::HighlightConfiguration> {
         match path.extension().and_then(|e| e.to_str()) {
             Some("rs") => self.config("rust"),
-            Some("ts" | "js" | "json") => self.config("typescript"),
+            Some("ts" | "js") => self.config("typescript"),
+            Some("json") => self.config("json"),
             Some("sh" | "bash") => self.config("shell"),
             Some("md" | "markdown") => self.config("markdown"),
             Some("go") => self.config("go"),
@@ -216,6 +224,15 @@ impl Highlighter {
                     tree_sitter_rust::language(),
                     tree_sitter_rust::HIGHLIGHT_QUERY,
                     tree_sitter_rust::INJECTIONS_QUERY,
+                    "",
+                )
+                .expect("Highlighter::config: highlight configuration must be valid")
+            })),
+            "json" => Some(self.configs.entry(language).or_insert_with(|| {
+                ts::HighlightConfiguration::new(
+                    tree_sitter_json::language(),
+                    tree_sitter_json::HIGHLIGHT_QUERY,
+                    "",
                     "",
                 )
                 .expect("Highlighter::config: highlight configuration must be valid")

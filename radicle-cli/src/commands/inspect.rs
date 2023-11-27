@@ -1,12 +1,11 @@
 #![allow(clippy::or_fun_call)]
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use anyhow::{anyhow, Context as _};
 use chrono::prelude::*;
-use json_color::{Color, Colorizer};
 
 use radicle::identity::Id;
 use radicle::identity::Identity;
@@ -14,9 +13,11 @@ use radicle::node::tracking::Policy;
 use radicle::node::AliasStore as _;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
+use radicle_term::Element;
 
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
+use crate::terminal::json;
 
 pub const HELP: Help = Help {
     name: "inspect",
@@ -154,16 +155,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
             refs(&repo)?;
         }
         Target::Payload => {
-            println!(
-                "{}",
-                colorizer().colorize_json_str(&serde_json::to_string_pretty(&project.payload)?)?
-            );
+            json::to_pretty(&project.payload, Path::new("radicle.json"))?.print();
         }
         Target::Identity => {
-            println!(
-                "{}",
-                colorizer().colorize_json_str(&serde_json::to_string_pretty(&project.doc)?)?
-            );
+            json::to_pretty(&project.doc, Path::new("radicle.json"))?.print();
         }
         Target::Sigrefs => {
             for remote in repo.remote_ids()? {
@@ -265,11 +260,10 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
                     }
                     term::blank();
                 }
-
-                let json = colorizer().colorize_json_str(&serde_json::to_string_pretty(&doc)?)?;
-                for line in json.lines() {
+                for line in json::to_pretty(&doc, Path::new("radicle.json"))? {
                     println!(" {line}");
                 }
+
                 println!();
             }
         }
@@ -279,17 +273,6 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-// Used for JSON Colorizing
-fn colorizer() -> Colorizer {
-    Colorizer::new()
-        .null(Color::Cyan)
-        .boolean(Color::Cyan)
-        .number(Color::Magenta)
-        .string(Color::Green)
-        .key(Color::Blue)
-        .build()
 }
 
 fn refs(repo: &radicle::storage::git::Repository) -> anyhow::Result<()> {

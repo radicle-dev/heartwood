@@ -14,7 +14,6 @@ path = "src/main.rs"
 anyhow = { version = "1" }
 chrono = { version = "0.4.26", default-features = false, features = ["clock", "std"] }
 git-ref-format = { version = "0.3.0", features = ["macro"] }
-json-color = { version = "0.7" }
 lexopt = { version = "0.2" }
 localtime = { version = "1.2.0" }
 log = { version = "0.4", features = ["std"] }
@@ -32,8 +31,9 @@ thiserror = { version = "1" }
 timeago = { version = "0.3", default-features = false }
 tree-sitter = { version = "0.20.0" }
 tree-sitter-highlight = { version = "0.20" }
+tree-sitter-json = { version = "0.20.1" }
 tree-sitter-rust = { version = "0.20" }
-tree-sitter-typescript = { version = "0.20" }
+tree-sitter-typescript = { version = "0.20.3" }
 # N.b. This crate has a C++ token scanner that causes problems when building
 # for the musl target. Hence it is optional for now.
 tree-sitter-html = { version = "0.19", optional = true }

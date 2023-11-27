@@ -115,6 +115,7 @@ impl Environment {
             node: node::Config::new(alias.clone()),
             cli: cli::Config { hints: false },
             public_explorer: profile::Explorer::default(),
+            preferred_seeds: vec![],
         };
         config.write(&home.config()).unwrap();
 

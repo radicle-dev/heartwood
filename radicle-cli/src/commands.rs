@@ -10,6 +10,8 @@ pub mod rad_clean;
 pub mod rad_clone;
 #[path = "commands/cob.rs"]
 pub mod rad_cob;
+#[path = "commands/config.rs"]
+pub mod rad_config;
 #[path = "commands/diff.rs"]
 pub mod rad_diff;
 #[path = "commands/fork.rs"]

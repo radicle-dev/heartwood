@@ -6,6 +6,7 @@ pub use io::signer;
 pub mod comment;
 pub mod highlight;
 pub mod issue;
+pub mod json;
 pub mod patch;
 
 use std::ffi::OsString;
