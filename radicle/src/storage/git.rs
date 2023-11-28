@@ -139,10 +139,6 @@ impl WriteStorage for Storage {
         Repository::create(paths::repository(self, &rid), rid, &self.info)
     }
 
-    fn remove(&self, rid: Id) -> Result<(), Error> {
-        self.repository(rid)?.remove()
-    }
-
     fn clean(&self, rid: Id) -> Result<Vec<RemoteId>, RepositoryError> {
         let repo = self.repository(rid)?;
         repo.clean(&self.info.key)

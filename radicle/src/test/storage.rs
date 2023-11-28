@@ -96,10 +96,6 @@ impl WriteStorage for MockStorage {
         todo!()
     }
 
-    fn remove(&self, _rid: Id) -> Result<(), Error> {
-        todo!()
-    }
-
     fn clean(&self, _rid: Id) -> Result<Vec<RemoteId>, RepositoryError> {
         todo!()
     }
