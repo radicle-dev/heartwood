@@ -1,7 +1,6 @@
 use std::io::BufRead as _;
 use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs, io, iter, net, process, thread, time,
@@ -77,40 +76,40 @@ impl Environment {
 
     /// Create a new node in this environment. This should be used when a running node
     /// is required. Use [`Environment::profile`] otherwise.
-    pub fn node(&mut self, config: Config) -> Node<MemorySigner> {
-        let profile = self.profile(&config.alias);
-        let signer = MemorySigner::load(&profile.keystore, None).unwrap();
+    pub fn node(&mut self, node: Config) -> Node<MemorySigner> {
+        let alias = node.alias.clone();
+        let profile = self.profile(profile::Config {
+            node,
+            ..Environment::config(alias)
+        });
+        Node::new(profile)
+    }
 
-        let policies_db = profile.home.node().join(POLICIES_DB_FILE);
-        let policies = policy::Store::open(policies_db).unwrap();
-        let db = profile.database_mut().unwrap();
-        let db = service::Stores::from(db);
-
-        Node {
-            id: *profile.id(),
-            home: profile.home,
-            config,
-            signer,
-            db,
-            policies,
-            storage: profile.storage,
+    /// Create a new default configuration.
+    pub fn config(alias: Alias) -> profile::Config {
+        profile::Config {
+            node: node::Config::test(alias),
+            cli: cli::Config { hints: false },
+            public_explorer: profile::Explorer::default(),
+            preferred_seeds: vec![],
         }
     }
 
     /// Create a new profile in this environment.
     /// This should be used when a running node is not required.
-    pub fn profile(&mut self, alias: &str) -> Profile {
-        let home = Home::new(self.tmp().join("home").join(alias).join(".radicle")).unwrap();
+    pub fn profile(&mut self, config: profile::Config) -> Profile {
+        let alias = config.alias().clone();
+        let home = Home::new(
+            self.tmp()
+                .join("home")
+                .join(alias.to_string())
+                .join(".radicle"),
+        )
+        .unwrap();
         let keystore = Keystore::new(&home.keys());
         let keypair = KeyPair::from_seed(Seed::from([!(self.users as u8); 32]));
         let policies_db = home.node().join(POLICIES_DB_FILE);
-        let alias = Alias::from_str(alias).unwrap();
-        let config = profile::Config {
-            node: node::Config::new(alias.clone()),
-            cli: cli::Config { hints: false },
-            public_explorer: profile::Explorer::default(),
-            preferred_seeds: vec![],
-        };
+
         config.write(&home.config()).unwrap();
 
         let storage = Storage::open(
@@ -150,6 +149,27 @@ pub struct Node<G> {
     pub config: Config,
     pub db: service::Stores<Database>,
     pub policies: policy::Store<policy::Write>,
+}
+
+impl Node<MemorySigner> {
+    fn new(profile: Profile) -> Self {
+        let signer = MemorySigner::load(&profile.keystore, None).unwrap();
+        let id = *profile.id();
+        let policies_db = profile.home.node().join(POLICIES_DB_FILE);
+        let policies = policy::Store::open(policies_db).unwrap();
+        let db = profile.database_mut().unwrap();
+        let db = service::Stores::from(db);
+
+        Node {
+            id,
+            home: profile.home,
+            config: profile.config.node,
+            signer,
+            db,
+            policies,
+            storage: profile.storage,
+        }
+    }
 }
 
 /// Handle to a running node.

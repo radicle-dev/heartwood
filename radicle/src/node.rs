@@ -856,7 +856,7 @@ impl Node {
                 if e.kind() == io::ErrorKind::WouldBlock {
                     io::Error::new(
                         io::ErrorKind::TimedOut,
-                        "timed out reading from control socket",
+                        "timed out reading from node control socket",
                     )
                 } else {
                     e

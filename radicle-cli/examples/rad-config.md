@@ -18,7 +18,7 @@ $ rad config
     },
     "connect": [],
     "externalAddresses": [],
-    "network": "main",
+    "network": "test",
     "relay": true,
     "limits": {
       "routingMaxSize": 1000,

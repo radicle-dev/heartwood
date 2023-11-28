@@ -23,6 +23,26 @@ use radicle_node::test::logger;
 /// Seed used in tests.
 const RAD_SEED: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 
+mod config {
+    use super::*;
+    use radicle::profile;
+
+    /// Test node config.
+    pub fn node(alias: &'static str) -> Config {
+        Config {
+            external_addresses: vec![
+                node::Address::from_str(&format!("{alias}.radicle.xyz:8776")).unwrap(),
+            ],
+            ..Config::test(Alias::new(alias))
+        }
+    }
+
+    /// Test profile config.
+    pub fn profile(alias: &'static str) -> profile::Config {
+        Environment::config(Alias::new(alias))
+    }
+}
+
 /// Run a CLI test file.
 fn test<'a>(
     test: impl AsRef<Path>,
@@ -43,16 +63,6 @@ fn test<'a>(
         .run()?;
 
     Ok(())
-}
-
-/// Test config.
-fn config(alias: &'static str) -> Config {
-    Config {
-        external_addresses: vec![
-            node::Address::from_str(&format!("{alias}.radicle.xyz:8776")).unwrap(),
-        ],
-        ..Config::test(Alias::new(alias))
-    }
 }
 
 fn formula(root: &Path, test: impl AsRef<Path>) -> Result<TestFormula, Box<dyn std::error::Error>> {
@@ -92,7 +102,7 @@ fn rad_auth() {
 #[test]
 fn rad_issue() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let home = &profile.home;
     let working = environment.tmp().join("working");
 
@@ -106,7 +116,7 @@ fn rad_issue() {
 #[test]
 fn rad_cob() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let home = &profile.home;
     let working = environment.tmp().join("working");
 
@@ -120,7 +130,7 @@ fn rad_cob() {
 #[test]
 fn rad_init() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
 
     // Setup a test repository.
@@ -138,7 +148,7 @@ fn rad_init() {
 #[test]
 fn rad_init_no_git() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
 
     test(
@@ -153,7 +163,7 @@ fn rad_init_no_git() {
 #[test]
 fn rad_inspect() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
 
     // Setup a test repository.
@@ -181,7 +191,7 @@ fn rad_inspect() {
 #[test]
 fn rad_config() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
 
     test(
@@ -196,7 +206,7 @@ fn rad_config() {
 #[test]
 fn rad_checkout() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
     let copy = tempfile::tempdir().unwrap();
 
@@ -241,8 +251,8 @@ fn rad_checkout() {
 #[test]
 fn rad_id() {
     let mut environment = Environment::new();
-    let alice = environment.node(Config::test(Alias::new("alice")));
-    let bob = environment.node(Config::test(Alias::new("bob")));
+    let alice = environment.node(config::node("alice"));
+    let bob = environment.node(config::node("bob"));
     let working = tempfile::tempdir().unwrap();
     let working = working.path();
     let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
@@ -263,8 +273,8 @@ fn rad_id() {
 
     alice.handle.seed(acme, Scope::All).unwrap();
     alice.connect(&bob).converge([&bob]);
-    let events = alice.handle.events();
 
+    let events = alice.handle.events();
     bob.fork(acme, bob.home.path()).unwrap();
     bob.announce(acme, bob.home.path()).unwrap();
     alice.has_inventory_of(&acme, &bob.id);
@@ -441,7 +451,7 @@ fn rad_node() {
 #[test]
 fn rad_patch() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -456,7 +466,7 @@ fn rad_patch() {
 #[test]
 fn rad_patch_checkout() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -476,7 +486,7 @@ fn rad_patch_checkout() {
 #[test]
 fn rad_patch_checkout_revision() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -552,7 +562,7 @@ fn rad_patch_checkout_force() {
 #[test]
 fn rad_patch_update() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -575,7 +585,7 @@ fn rad_patch_ahead_behind() {
     use std::fs;
 
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -597,7 +607,7 @@ fn rad_patch_ahead_behind() {
 #[test]
 fn rad_patch_draft() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -617,7 +627,7 @@ fn rad_patch_draft() {
 #[test]
 fn rad_patch_via_push() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -638,7 +648,7 @@ fn rad_patch_via_push() {
 #[cfg(not(target_os = "macos"))]
 fn rad_review_by_hunk() {
     let mut environment = Environment::new();
-    let profile = environment.profile("alice");
+    let profile = environment.profile(config::profile("alice"));
     let working = tempfile::tempdir().unwrap();
     let home = &profile.home;
 
@@ -1216,9 +1226,9 @@ fn test_cob_deletion() {
 fn rad_sync() {
     let mut environment = Environment::new();
     let working = environment.tmp().join("working");
-    let alice = environment.node(config("alice"));
-    let bob = environment.node(config("bob"));
-    let eve = environment.node(config("eve"));
+    let alice = environment.node(config::node("alice"));
+    let bob = environment.node(config::node("bob"));
+    let eve = environment.node(config::node("eve"));
     let acme = Id::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
 
     fixtures::repository(working.join("acme"));
