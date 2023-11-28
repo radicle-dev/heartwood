@@ -71,6 +71,17 @@ index 0000000..e69de29
 
 ```
 
+We can also list only patches that we've authored.
+
+```
+$ rad patch list --authored
+╭─────────────────────────────────────────────────────────────────────────────────────────╮
+│ ●  ID       Title                      Author                  Head     +   -   Updated │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ ●  6ff4f09  Define power requirements  z6MknSL…StBU8Vi  (you)  3e674d1  +0  -0  now     │
+╰─────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
 We can also see that it set an upstream for our patch branch:
 ```
 $ git branch -vv

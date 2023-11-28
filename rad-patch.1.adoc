@@ -73,6 +73,9 @@ List patches in the current repository. The default is *--open*.
 *--merged*::               List only merged patches
 *--open*::                 List only open patches
 *--draft*::                List only draft patches
+*--authored*::             Show only patches that you have authored
+*--author <did>*::         Show only patched where the given user is an author
+                           (may be specified multiple times)
 
 === ready
 

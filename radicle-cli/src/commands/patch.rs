@@ -21,6 +21,7 @@ mod show;
 #[path = "patch/update.rs"]
 mod update;
 
+use std::collections::BTreeSet;
 use std::ffi::OsString;
 
 use anyhow::anyhow;
@@ -43,7 +44,7 @@ pub const HELP: Help = Help {
 Usage
 
     rad patch [<option>...]
-    rad patch list [--all|--merged|--open|--archived|--draft] [<option>...]
+    rad patch list [--all|--merged|--open|--archived|--draft|--authored] [--author <did>]... [<option>...]
     rad patch show <patch-id> [<option>...]
     rad patch archive <patch-id> [<option>...]
     rad patch update <patch-id> [<option>...]
@@ -80,6 +81,9 @@ List options
         --merged               Show only merged patches
         --open                 Show only open patches (default)
         --draft                Show only draft patches
+        --authored             Show only patches that you have authored
+        --author <did>         Show only patched where the given user is an author
+                               (may be specified multiple times)
 
 Ready options
 
@@ -187,6 +191,8 @@ pub struct Options {
     pub push: bool,
     pub verbose: bool,
     pub quiet: bool,
+    pub authored: bool,
+    pub authors: Vec<Did>,
 }
 
 impl Args for Options {
@@ -197,6 +203,8 @@ impl Args for Options {
         let mut op: Option<OperationName> = None;
         let mut verbose = false;
         let mut quiet = false;
+        let mut authored = false;
+        let mut authors = vec![];
         let mut announce = false;
         let mut patch_id = None;
         let mut revision_id = None;
@@ -292,6 +300,12 @@ impl Args for Options {
                 }
                 Long("open") => {
                     filter = Filter(|s| matches!(s, patch::State::Open { .. }));
+                }
+                Long("authored") => {
+                    authored = true;
+                }
+                Long("author") if op == Some(OperationName::List) => {
+                    authors.push(term::args::did(&parser.value()?)?);
                 }
 
                 // Common.
@@ -398,6 +412,8 @@ impl Args for Options {
                 verbose,
                 quiet,
                 announce,
+                authored,
+                authors,
             },
             vec![],
         ))
@@ -415,7 +431,11 @@ pub fn run(options: Options, ctx: impl term::Context) -> anyhow::Result<()> {
 
     match options.op {
         Operation::List { filter: Filter(f) } => {
-            list::run(f, &repository, &profile)?;
+            let mut authors: BTreeSet<Did> = options.authors.iter().cloned().collect();
+            if options.authored {
+                authors.insert(profile.did());
+            }
+            list::run(f, authors, &repository, &profile)?;
         }
         Operation::Show { patch_id, diff } => {
             let patch_id = patch_id.resolve(&repository.backend)?;

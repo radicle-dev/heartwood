@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use radicle::cob::patch;
 use radicle::cob::patch::{Patch, PatchId, Patches, Verdict};
 use radicle::prelude::*;
@@ -15,6 +17,7 @@ use super::common;
 /// List patches.
 pub fn run(
     filter: fn(&patch::State) -> bool,
+    authors: BTreeSet<Did>,
     repository: &Repository,
     profile: &Profile,
 ) -> anyhow::Result<()> {
@@ -28,6 +31,11 @@ pub fn run(
         };
         if !filter(patch.state()) {
             continue;
+        }
+        if !authors.is_empty() {
+            if !authors.contains(patch.author().id()) {
+                continue;
+            }
         }
         all.push((id, patch));
     }
