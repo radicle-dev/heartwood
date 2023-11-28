@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use std::{fmt, io, thread, time};
@@ -105,7 +105,13 @@ impl Spinner {
 /// Create a new spinner with the given message. Sends animation output to `stderr` and success or
 /// failure messages to `stdout`.
 pub fn spinner(message: impl ToString) -> Spinner {
-    spinner_to(message, io::stdout(), io::stderr())
+    let (stdout, stderr) = (io::stdout(), io::stderr());
+
+    if stderr.is_terminal() {
+        spinner_to(message, stdout, stderr)
+    } else {
+        spinner_to(message, stdout, io::sink())
+    }
 }
 
 /// Create a new spinner with the given message, and send output to the given writers.

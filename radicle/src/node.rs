@@ -275,12 +275,21 @@ impl FromStr for Alias {
 }
 
 /// Options passed to the "connect" node command.
-#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ConnectOptions {
     /// Establish a persistent connection.
     pub persistent: bool,
     /// How long to wait for the connection to be established.
     pub timeout: time::Duration,
+}
+
+impl Default for ConnectOptions {
+    fn default() -> Self {
+        Self {
+            persistent: false,
+            timeout: DEFAULT_TIMEOUT,
+        }
+    }
 }
 
 /// Result of a command, on the node control socket.

@@ -12,9 +12,11 @@ Initializing public radicle 👾 project in .
 Your project's Repository ID (RID) is rad:zhbMU4DUXrzB8xT6qAJh6yZ7bFMK.
 You can show it any time by running `rad .` from this directory.
 
-✓ Project successfully announced.
+✓ Project successfully announced to the network.
 
 Your project has been announced to the network and is now discoverable by peers.
+You can check for any nodes that have replicated your project by running `rad sync status`.
+
 To push changes, run `git push`.
 ```
 

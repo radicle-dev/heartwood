@@ -1,23 +1,25 @@
 #![allow(clippy::or_fun_call)]
 #![allow(clippy::collapsible_else_if)]
+use std::collections::HashSet;
 use std::convert::TryFrom;
-use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::{env, io, time};
 
 use anyhow::{anyhow, bail, Context as _};
 use serde_json as json;
 
 use radicle::crypto::{ssh, Verified};
 use radicle::git::RefString;
-use radicle::identity::Visibility;
+use radicle::identity::{Id, Visibility};
 use radicle::node::policy::Scope;
-use radicle::node::{Handle, NodeId};
+use radicle::node::{Event, Handle, NodeId};
 use radicle::prelude::Doc;
 use radicle::{profile, Node};
 
 use crate as cli;
+use crate::commands;
 use crate::git;
 use crate::terminal as term;
 use crate::terminal::args::{Args, Error, Help};
@@ -274,7 +276,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
         &signer,
         &profile.storage,
     ) {
-        Ok((id, doc, _)) => {
+        Ok((rid, doc, _)) => {
             let proj = doc.project()?;
 
             spinner.message(format!(
@@ -290,7 +292,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             // It's important to seed our own repositories to make sure that our node signals
             // interest for them. This ensures that messages relating to them are relayed to us.
             if options.seed {
-                cli::project::seed(id, options.scope, &mut node, profile)?;
+                cli::project::seed(rid, options.scope, &mut node, profile)?;
             }
 
             if options.set_upstream || git::branch_remote(&repo, proj.default_branch()).is_err() {
@@ -314,7 +316,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             term::info!(
                 "Your project's Repository ID {} is {}.",
                 term::format::dim("(RID)"),
-                term::format::highlight(id.urn())
+                term::format::highlight(rid.urn())
             );
             term::info!(
                 "You can show it any time by running {} from this directory.",
@@ -323,7 +325,7 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
             term::blank();
 
             // Announce inventory to network.
-            if let Err(e) = announce(doc, &mut node) {
+            if let Err(e) = announce(rid, doc, &mut node, &profile.config) {
                 term::blank();
                 term::warning(format!(
                     "There was an error announcing your project to the network: {e}"
@@ -342,28 +344,168 @@ pub fn init(options: Options, profile: &profile::Profile) -> anyhow::Result<()> 
     Ok(())
 }
 
-pub fn announce(doc: Doc<Verified>, node: &mut Node) -> anyhow::Result<()> {
+#[derive(Debug)]
+enum SyncResult<T> {
+    NodeStopped,
+    NoPeersConnected,
+    NotSynced,
+    Synced { result: T },
+}
+
+fn sync(
+    rid: Id,
+    node: &mut Node,
+    config: &profile::Config,
+) -> Result<SyncResult<Option<String>>, radicle::node::Error> {
+    if !node.is_running() {
+        return Ok(SyncResult::NodeStopped);
+    }
+    let mut spinner = term::spinner("Updating inventory..");
+    let events = node.subscribe(time::Duration::from_secs(3))?;
+    let sessions = node.sessions()?;
+
+    node.sync_inventory()?;
+    spinner.message("Announcing..");
+
+    if !sessions.iter().any(|s| s.is_connected()) {
+        return Ok(SyncResult::NoPeersConnected);
+    }
+
+    // Connect to preferred seeds in case we aren't connected.
+    for seed in &config.preferred_seeds {
+        if !sessions.iter().any(|s| s.nid == seed.id) {
+            commands::rad_node::control::connect(
+                node,
+                seed.id,
+                seed.addr.clone(),
+                radicle::node::DEFAULT_TIMEOUT,
+            )
+            .ok();
+        }
+    }
+    // Announce our new inventory to connected nodes.
+    node.announce_inventory()?;
+
+    spinner.message("Syncing..");
+
+    let mut replicas = HashSet::new();
+    for e in events {
+        match e {
+            Ok(Event::RefsSynced {
+                remote, rid: rid_, ..
+            }) if rid == rid_ => {
+                replicas.insert(remote);
+                // If we manage to replicate to one of our preferred seeds, we can stop waiting.
+                if config.preferred_seeds.iter().any(|s| s.id == remote) {
+                    break;
+                }
+            }
+            Ok(_) => {
+                // Some other irrelevant event received.
+            }
+            Err(e) if e.kind() == io::ErrorKind::TimedOut => {
+                break;
+            }
+            Err(e) => {
+                spinner.error(&e);
+                return Err(e.into());
+            }
+        }
+    }
+
+    if !replicas.is_empty() {
+        spinner.message(format!(
+            "Project successfully synced to {} node(s).",
+            replicas.len()
+        ));
+        spinner.finish();
+
+        for seed in &config.preferred_seeds {
+            if replicas.contains(&seed.id) {
+                return Ok(SyncResult::Synced {
+                    result: Some(
+                        config
+                            .public_explorer
+                            .url(seed.addr.host.to_string().as_str(), &rid),
+                    ),
+                });
+            }
+        }
+        Ok(SyncResult::Synced { result: None })
+    } else {
+        spinner.message("Project successfully announced to the network.");
+        spinner.finish();
+
+        Ok(SyncResult::NotSynced)
+    }
+}
+
+pub fn announce(
+    rid: Id,
+    doc: Doc<Verified>,
+    node: &mut Node,
+    config: &profile::Config,
+) -> anyhow::Result<()> {
     if doc.visibility.is_public() {
-        if node.is_running() {
-            let mut spinner = term::spinner("Updating inventory..");
-
-            node.sync_inventory()?;
-            spinner.message("Announcing..");
-            node.announce_inventory()?;
-            spinner.message("Project successfully announced.");
-            spinner.finish();
-
-            term::blank();
-            term::info!(
-                "Your project has been announced to the network and is \
-                now discoverable by peers.",
-            );
-        } else {
-            term::info!("Your project will be announced to the network when you start your node.");
-            term::info!(
-                "You can start your node with {}.",
-                term::format::command("rad node start")
-            );
+        match sync(rid, node, config) {
+            Ok(SyncResult::Synced {
+                result: Some(url), ..
+            }) => {
+                term::blank();
+                term::info!(
+                    "Your project has been synced to the network and is \
+                    now discoverable by peers.",
+                );
+                term::info!("View it in your browser at:");
+                term::blank();
+                term::indented(term::format::tertiary(url));
+                term::blank();
+            }
+            Ok(SyncResult::Synced { result: None, .. }) => {
+                term::blank();
+                term::info!(
+                    "Your project has been synced to the network and is \
+                    now discoverable by peers.",
+                );
+                if !config.preferred_seeds.is_empty() {
+                    term::info!(
+                        "Unfortunately, you were unable to replicate your project to \
+                        your preferred seeds."
+                    );
+                }
+            }
+            Ok(SyncResult::NotSynced) => {
+                term::blank();
+                term::info!(
+                    "Your project has been announced to the network and is \
+                    now discoverable by peers.",
+                );
+                term::info!(
+                    "You can check for any nodes that have replicated your project by running \
+                    `rad sync status`."
+                );
+                term::blank();
+            }
+            Ok(SyncResult::NoPeersConnected) => {
+                term::blank();
+                term::info!(
+                    "You are not connected to any peers. Your project will be announced as soon as \
+                    your node establishes a connection with the network.");
+                term::info!("Check for peer connections with `rad node status`.");
+                term::blank();
+            }
+            Ok(SyncResult::NodeStopped) => {
+                term::info!(
+                    "Your project will be announced to the network when you start your node."
+                );
+                term::info!(
+                    "You can start your node with {}.",
+                    term::format::command("rad node start")
+                );
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
         }
     } else {
         term::info!(

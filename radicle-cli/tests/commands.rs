@@ -9,6 +9,7 @@ use radicle::node::routing::Store as _;
 use radicle::node::Handle as _;
 use radicle::node::{Alias, DEFAULT_TIMEOUT};
 use radicle::prelude::Id;
+use radicle::profile;
 use radicle::profile::Home;
 use radicle::storage::{ReadStorage, RemoteRepository};
 use radicle::test::fixtures;
@@ -16,7 +17,7 @@ use radicle::test::fixtures;
 use radicle_cli_test::TestFormula;
 use radicle_node::service::policy::{Policy, Scope};
 use radicle_node::service::Event;
-use radicle_node::test::environment::{Config, Environment};
+use radicle_node::test::environment::{Config, Environment, Node};
 #[allow(unused_imports)]
 use radicle_node::test::logger;
 
@@ -432,7 +433,7 @@ fn rad_node() {
     fixtures::repository(working.path().join("alice"));
 
     test(
-        "examples/rad-init-sync.md",
+        "examples/rad-init-sync-not-connected.md",
         &working.path().join("alice"),
         Some(&alice.home),
         [],
@@ -958,6 +959,93 @@ fn rad_clone_unknown() {
         "examples/rad-clone-unknown.md",
         working,
         Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_init_sync_not_connected() {
+    let mut environment = Environment::new();
+    let alice = environment.node(Config::test(Alias::new("alice")));
+    let working = tempfile::tempdir().unwrap();
+    let alice = alice.spawn();
+
+    fixtures::repository(working.path().join("alice"));
+
+    test(
+        "examples/rad-init-sync-not-connected.md",
+        &working.path().join("alice"),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_init_sync_preferred() {
+    let mut environment = Environment::new();
+    let mut alice = environment
+        .node(Config {
+            policy: Policy::Allow,
+            ..Config::test(Alias::new("alice"))
+        })
+        .spawn();
+
+    let bob = environment.profile(profile::Config {
+        preferred_seeds: vec![alice.address()],
+        ..config::profile("bob")
+    });
+    let mut bob = Node::new(bob).spawn();
+    let working = environment.tmp().join("working");
+
+    bob.connect(&alice);
+    alice.handle.follow(bob.id, None).unwrap();
+
+    fixtures::repository(working.join("bob"));
+
+    // Necessary for now, if we don't want the new inventry announcement to be considered stale
+    // for Alice.
+    // TODO: Find a way to advance internal clocks instead.
+    thread::sleep(time::Duration::from_millis(3));
+
+    // Bob initializes a repo after her node has started, and after bob has connected to it.
+    test(
+        "examples/rad-init-sync-preferred.md",
+        &working.join("bob"),
+        Some(&bob.home),
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn rad_init_sync_timeout() {
+    let mut environment = Environment::new();
+    let mut alice = environment
+        .node(Config {
+            policy: Policy::Block,
+            ..Config::test(Alias::new("alice"))
+        })
+        .spawn();
+
+    let bob = environment.profile(profile::Config {
+        preferred_seeds: vec![alice.address()],
+        ..config::profile("bob")
+    });
+    let mut bob = Node::new(bob).spawn();
+    let working = environment.tmp().join("working");
+
+    bob.connect(&alice);
+    alice.handle.follow(bob.id, None).unwrap();
+
+    fixtures::repository(working.join("bob"));
+
+    // Bob initializes a repo after her node has started, and after bob has connected to it.
+    test(
+        "examples/rad-init-sync-timeout.md",
+        &working.join("bob"),
+        Some(&bob.home),
         [],
     )
     .unwrap();

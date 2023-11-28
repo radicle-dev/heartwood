@@ -17,6 +17,7 @@ use radicle::crypto::{KeyPair, Seed, Signer};
 use radicle::git;
 use radicle::git::refname;
 use radicle::identity::{Id, Visibility};
+use radicle::node::config::ConnectAddress;
 use radicle::node::policy::store as policy;
 use radicle::node::routing::Store;
 use radicle::node::Database;
@@ -152,7 +153,7 @@ pub struct Node<G> {
 }
 
 impl Node<MemorySigner> {
-    fn new(profile: Profile) -> Self {
+    pub fn new(profile: Profile) -> Self {
         let signer = MemorySigner::load(&profile.keystore, None).unwrap();
         let id = *profile.id();
         let policies_db = profile.home.node().join(POLICIES_DB_FILE);
@@ -225,6 +226,11 @@ impl<G: Signer + cyphernet::Ecdh> NodeHandle<G> {
             .unwrap();
 
         self
+    }
+
+    /// Get the full address of this node.
+    pub fn address(&self) -> ConnectAddress {
+        (self.id, node::Address::from(self.addr)).into()
     }
 
     /// Get routing table entries.

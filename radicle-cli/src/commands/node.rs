@@ -11,13 +11,13 @@ use crate::terminal::args::{Args, Error, Help};
 use crate::terminal::Element as _;
 
 #[path = "node/control.rs"]
-mod control;
+pub mod control;
 #[path = "node/events.rs"]
-mod events;
+pub mod events;
 #[path = "node/policies.rs"]
-mod policies;
+pub mod policies;
 #[path = "node/routing.rs"]
-mod routing;
+pub mod routing;
 
 pub const HELP: Help = Help {
     name: "node",
